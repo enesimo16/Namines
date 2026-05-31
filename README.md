@@ -1,84 +1,89 @@
-# Namines - AI Destekli İnteraktif Veritabanı Mimari Oluşturucu
+# Namines - AI-Powered Interactive Database Architecture Builder
 
-Namines, modern yazılım geliştiricileri, veritabanı mimarları ve veri mühendisleri için tasarlanmış, yapay zeka destekli, interaktif bir veritabanı şema oluşturma ve derleme platformudur. Karmaşık metinleri veya sesli komutları saniyeler içinde DDL scriptlerine, Entity Framework Core modellerine ve kurumsal veri sözlüklerine (PDF) dönüştürür.
+Namines is a state-of-the-art, AI-powered interactive database schema creation and compilation platform designed for modern software developers, database architects, and data engineers. It transforms natural language instructions or voice commands into fully-fledged DDL scripts, Entity Framework Core models, and comprehensive PDF data dictionaries in seconds.
 
-## 🚀 Özellikler
+## Key Features
 
-- **AI Tabanlı Şema Üretimi:** Groq (Bulut) veya Ollama (Lokal) kullanarak doğal dil (metin veya ses) ile veritabanı tasarlayın.
-- **İnteraktif Canvas (React Flow):** Yapay zekanın ürettiği şemayı görsel bir arayüzde inceleyin, düğümleri (tabloları) taşıyın ve bağlantıları (ilişkileri) düzenleyin.
-- **Bölgesel Revizyon (Regional Prompting):** Sadece seçili tabloları hedefe alarak yapay zekaya "Bu tabloya audit log kolonları ekle" gibi özel komutlar verin.
-- **Canlı Kural Motoru (Linter):** Veritabanı kurallarına uymayan ilişkileri veya tip uyumsuzluklarını anında tespit eder (Örn: VARCHAR olan PK'ya INT olan FK bağlanması).
-- **Kurumsal Çıktı Üretimi (Compiler):**
-  - MSSQL, PostgreSQL ve MySQL için optimize edilmiş DDL (SQL) scriptleri.
-  - C# projeleri için hazır Entity Framework Core DbContext ve Model sınıfları (.zip).
-  - QuestPDF destekli detaylı Veritabanı Sözlüğü (.pdf).
-  - Mermaid ER diyagramı ve README.md çıktıları.
-- **Docker Sandbox Entegrasyonu:** Üretilen SQL scriptini izole bir Docker container'ı içerisinde çalıştırarak test eder ve oluşturulan veritabanının yedeğini (.tar/.bak) size sunar.
+- **AI-Driven Schema Generation**: Design your database using natural language (text or voice) powered by Groq (Cloud) or Ollama (Local models).
+- **Interactive React Flow Canvas**: Visualize the generated database schema in a visual, drag-and-drop interface, reposition tables (nodes), and manage relationships (edges) dynamically.
+- **Regional Prompting / Targeted Revisions**: Request specific changes targeting only a subset of tables (e.g., "Add audit log columns to this table") instead of rebuilding the entire schema.
+- **Real-Time Database Rule Engine (Linter)**: Instantly detect issues or type mismatches in relationships (e.g., linking a VARCHAR Primary Key to an INT Foreign Key).
+- **Advanced Export Options (Compiler)**:
+  - Optimized DDL (SQL) scripts for Microsoft SQL Server, PostgreSQL, and MySQL.
+  - Ready-to-use Entity Framework Core DbContext and Model classes packaged in a single ZIP archive.
+  - Comprehensive Database Dictionary documents generated using QuestPDF.
+  - Interactive Mermaid ER Diagrams and project markdown documentation.
+- **Docker Sandbox Integration**: Execute and test the generated SQL scripts inside an isolated Docker container, streaming output in real-time and providing database backup archives (.tar / .bak).
+- **Zustand & IndexedDB Cloud Sync**: Automatically persists schemas, branch history, and chat logs inside local browser IndexedDB to prevent data loss.
 
-## 🏗️ Mimari ve Teknoloji Yığını
+## Tech Stack & Architecture
 
-Namines, "Clean Architecture" prensiplerine sıkı sıkıya bağlı kalınarak geliştirilmiştir:
+Namines adheres strictly to Clean Architecture principles to ensure modularity, testability, and high maintainability:
 
-### Backend (.NET 8)
-- **Namines.API:** Sunum katmanı, RESTful endpointler, SSE (Server-Sent Events) ile canlı Docker log akışı.
-- **Namines.Core:** Domain modelleri (SchemaTable, SchemaColumn), Interface'ler (Portlar) ve AI prompt inşa edicileri.
-- **Namines.Infrastructure:** Dış dünya adaptörleri (Groq API, Ollama API, Docker.DotNet, EF Core/QuestPDF Generator'ları).
+### Backend (.NET 8 Web API)
+- **Namines.API**: Presentation layer containing RESTful controllers and Server-Sent Events (SSE) for streaming Docker container execution logs.
+- **Namines.Core**: Enterprise domain models (SchemaTable, SchemaColumn), service interfaces, and AI prompt builders.
+- **Namines.Infrastructure**: Adapters for external dependencies including Groq API client, Ollama API integration, Docker.DotNet engine communication, DDL generators, and QuestPDF export services.
 
 ### Frontend (Next.js 16 - App Router)
-- **UI & Stil:** Tailwind CSS, Lucide React (İkonlar).
-- **State Management:** Zustand ile merkezi durum (schema, nodes, edges, aiProvider) yönetimi.
-- **Görselleştirme:** `@xyflow/react` ile özelleştirilebilir interaktif diyagramlar ve Mermaid.js önizlemeleri.
-- **Ses Entegrasyonu:** `MediaRecorder` API üzerinden alınan ses, backend aracılığıyla Whisper modeline aktarılır.
+- **Styling & Layout**: Tailwind CSS custom styling, modern glassmorphism design variables, and dynamic particle systems.
+- **State Management**: Zustand-powered centralized store managing schema configurations, custom nodes/edges, branch history, and AI session states.
+- **Visualization**: Custom React Flow rendering engine for high-performance interactive diagrams.
+- **Voice Integration**: Native MediaRecorder API capture, converted and sent to Whisper model for fast transcription.
 
-## ⚙️ Kurulum ve Çalıştırma
+## Getting Started
 
-### Gereksinimler
-- Docker Engine & Docker Compose (Sandbox özellikleri için şarttır).
-- Node.js 18+ (Lokal geliştirme için).
-- .NET 8 SDK (Lokal geliştirme için).
-- Groq API Key (Bulut AI özellikleri için).
-- *Opsiyonel:* Ollama (Lokal AI özellikleri için `localhost:11434` üzerinde çalışır durumda olmalıdır. Önerilen modeller: `qwen2.5-coder`, `deepseek-coder`).
+### Prerequisites
+- Docker Engine & Docker Compose (required for the sandbox and containerized features).
+- Node.js 18+ (for local frontend development).
+- .NET 8 SDK (for local backend development).
+- Groq API Key (for cloud-based AI generation).
+- *Optional*: Ollama running on `localhost:11434` for local AI models (such as `qwen2.5-coder` or `deepseek-coder`).
 
-### 🐳 Docker Compose ile Tek Komut Kurulum (Tester / Demo)
+### Single-Command Setup via Docker Compose
 
-1. Kök dizinde `.env` dosyası oluştur:
-```env
-GROQ_API_KEY=gsk_sizin_api_anahtariniz_buraya
-JWT_KEY=minimum_32_karakter_guvenli_bir_jwt_anahtari
-```
+1. Create a `.env` file in the root directory:
+   ```env
+   GROQ_API_KEY=your_groq_api_key_here
+   JWT_KEY=a_secure_jwt_key_of_at_least_32_characters
+   ```
 
-2. Build et ve başlat:
-```bash
-docker compose up --build
-```
+2. Build and launch the containerized application:
+   ```bash
+   docker compose up --build
+   ```
 
-3. Tarayıcıda aç: [http://localhost:3000](http://localhost:3000)
+3. Open your browser and navigate to: [http://localhost:3000](http://localhost:3000)
 
-> **Not:** İlk build 3-5 dakika sürer. Sonraki açılışlar ~30 saniyedir.
+Note: The initial build might take 3-5 minutes to download and cache images. Subsequent startups will take under 30 seconds.
 
-### Manuel (Lokal) Geliştirme Ortamı
+### Manual Local Development Setup
 
-**Backend İçin:**
-1. `backend/Namines.API/appsettings.json` içerisine `Groq:ApiKey` değerinizi girin.
-2. Konsolu açın ve çalıştırın:
-```bash
-cd backend
-dotnet restore
-dotnet run --project Namines.API
-```
-Backend `http://localhost:5000` portunda çalışacaktır.
+#### Backend Setup:
+1. Populate your API Key configuration in `backend/Namines.API/appsettings.json` under `Groq:ApiKey` or specify it as an environment variable `GROQ_API_KEY`.
+2. Open a terminal, restore dependencies, and launch the Web API:
+   ```bash
+   cd backend
+   dotnet restore
+   dotnet run --project Namines.API
+   ```
+   The backend API service will listen on `http://localhost:5000`.
 
-**Frontend İçin:**
-1. Konsolu açın ve bağımlılıkları yükleyin:
-```bash
-cd frontend
-npm install
-```
-2. Geliştirme sunucusunu başlatın:
-```bash
-npm run dev
-```
-Frontend `http://localhost:3000` portunda çalışacaktır.
+#### Frontend Setup:
+1. Navigate to the frontend directory and install the necessary dependencies:
+   ```bash
+   cd frontend
+   npm install
+   ```
+2. Start the local development server:
+   ```bash
+   npm run dev
+   ```
+   The frontend application will be served at `http://localhost:3000`.
 
-## 🛡️ Kalite Güvencesi ve Test (QA Audit)
-Proje üzerinde kapsamlı bellek ve istisna (exception) yönetimi denetimleri yapılmıştır. `DockerService` içindeki unmanaged kaynaklar (Tar arşiv akışları) ve `CompileController` içindeki MemoryStream/ZipArchive işlemleri `using` blokları ile güvenli hale getirilmiştir. Tüm hatalar Global `ExceptionMiddleware` tarafından yakalanıp formatlanmaktadır. Derleme aşamasında (build) sıfır uyarı (0 warning) prensibine uyulmuştur.
+## Quality Assurance & Audit Notes
+The application codebase has undergone a comprehensive code quality and resources audit:
+- Strong resource management using explicit `using` statements for all unmanaged resources (e.g., zip streams, docker tar streams).
+- High reliability via global `ExceptionMiddleware` in the API layer.
+- Strictly clean compile phase with zero compiler warnings and zero TypeScript errors.
+- Enterprise-grade fallback engines ensuring continuous operation even when API rate limits are reached.
