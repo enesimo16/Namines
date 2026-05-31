@@ -1,0 +1,549 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { DatabaseSchema } from '../../types/schema';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import {
+  Download, X, Loader2, Terminal,
+  RefreshCw, Database, Sparkles, ChevronRight, Rocket
+} from 'lucide-react';
+import SandboxActionCard from './SandboxActionCard';
+import DbPushModal from './DbPushModal';
+
+interface DockerSandboxPanelProps {
+  schema: DatabaseSchema;
+  dbType: string;
+  sql?: string;
+}
+
+type PanelStatus = 'idle' | 'generating' | 'running' | 'error';
+
+export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerSandboxPanelProps) {
+  const { setActiveSandbox, getActiveSandbox } = useProjectHistoryStore();
+
+  const [status, setStatus] = useState<PanelStatus>('idle');
+  const [logs, setLogs] = useState<string[]>([]);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [isPushModalOpen, setIsPushModalOpen] = useState(false);
+
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const jobIdRef = useRef<string | null>(null);
+  const statusRef = useRef<PanelStatus>('idle');
+  const logsEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Keep ref in sync with state
+  useEffect(() => { statusRef.current = status; }, [status]);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  // ── Sayfa yenilendiğinde önceki sandbox oturumunu geri yükle ──────────────
+  useEffect(() => {
+    const saved = getActiveSandbox();
+    if (saved && saved.type === 'DB') {
+      jobIdRef.current = saved.jobId;
+      setDownloadUrl(saved.url || null);
+      setStatus(saved.url ? 'running' : 'generating');
+      setLogs(saved.url 
+        ? [`♻️ Önceki sandbox geri yüklendi. Yedek (.bak) hazır.`]
+        : [`♻️ Önceki sandbox işlemi geri yüklendi. Log yayını bekleniyor...`]
+      );
+
+      if (!saved.url) {
+        // Yeniden SSE yayınına bağlan
+        connectSse(saved.jobId);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+    };
+  }, []);
+
+  const addLog = useCallback((msg: string) => {
+    setLogs(prev => [...prev, msg]);
+  }, []);
+
+  const connectSse = (newJobId: string) => {
+    eventSourceRef.current?.close();
+    const sse = new EventSource(`http://localhost:5000/api/docker/stream/${newJobId}`);
+    eventSourceRef.current = sse;
+
+    sse.onmessage = (e) => {
+      const msg: string = e.data;
+
+      if (msg === 'DONE') {
+        sse.close();
+        setStatus('running');
+        addLog('✅ Docker Sandbox başarıyla oluşturuldu ve veritabanı yedeği (.bak) alındı!');
+        return;
+      }
+
+      if (msg.startsWith('ERROR:')) {
+        setStatus('error');
+        addLog(`❌ ${msg}`);
+        sse.close();
+        return;
+      }
+
+      if (msg.startsWith('DOWNLOAD_URL|')) {
+        const path = msg.split('|')[1];
+        const fullUrl = `http://localhost:5000${path}`;
+        setDownloadUrl(fullUrl);
+        
+        // ── Sandbox durumunu IndexedDB'ye kaydet ──────────────────────────
+        setActiveSandbox({
+          type: 'DB',
+          jobId: newJobId,
+          url: fullUrl,
+          createdAt: new Date().toISOString(),
+        });
+
+        // Set running state (success UI screen) and close SSE stream
+        setStatus('running');
+        addLog('✅ Docker Sandbox başarıyla oluşturuldu ve veritabanı yedeği (.bak) alındı!');
+        sse.close();
+        return;
+      }
+
+      addLog(msg);
+    };
+
+    sse.onerror = () => {
+      sse.close();
+      if (statusRef.current !== 'running' && statusRef.current !== 'idle') {
+        setStatus('error');
+        addLog('❌ Sunucu bağlantısı kesildi. Backend çalışıyor mu?');
+      }
+    };
+  };
+
+  const handleGenerate = async () => {
+    eventSourceRef.current?.close();
+    setStatus('generating');
+    setLogs(['🚀 Docker Sandbox başlatılıyor...']);
+    setDownloadUrl(null);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/docker/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schema, dbType }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API Hatası (${response.status}): ${errText}`);
+      }
+
+      const data = await response.json();
+      const newJobId = data.jobId;
+      jobIdRef.current = newJobId;
+      addLog(`📋 Container Job ID alındı: ${newJobId.substring(0, 8)}...`);
+
+      // İlk durumu IndexedDB'ye kaydet
+      setActiveSandbox({
+        type: 'DB',
+        jobId: newJobId,
+        createdAt: new Date().toISOString(),
+      });
+
+      connectSse(newJobId);
+
+    } catch (err: any) {
+      setStatus('error');
+      addLog(`❌ HATA: ${err.message}`);
+    }
+  };
+
+  const handleClose = () => {
+    eventSourceRef.current?.close();
+    setActiveSandbox(null);
+    setStatus('idle');
+    setDownloadUrl(null);
+    setLogs([]);
+    jobIdRef.current = null;
+  };
+
+  // ─────────────────────────────────────────────
+  // STATE: IDLE — Veritabanı Entegrasyon Merkezi
+  // ─────────────────────────────────────────────
+  if (status === 'idle') {
+    return (
+      <div className="w-full h-full flex flex-col justify-center items-center bg-[#0b0c10] rounded-2xl border border-zinc-800/60 p-6 overflow-y-auto custom-scrollbar relative min-h-[520px]">
+        {/* Local Styles for Ocean Waves inside Sandbox Panel */}
+        <style dangerouslySetInnerHTML={{__html: `
+          .sandbox-ocean-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(to top, rgba(11, 12, 16, 1) 0%, transparent 100%);
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+            border-bottom-left-radius: 1rem;
+            border-bottom-right-radius: 1rem;
+          }
+          .sandbox-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 200%;
+            height: 100%;
+            background-size: 50% 100%;
+            animation: sandbox-wave-anim 20s linear infinite;
+          }
+          .s-wave1 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%2306b6d4" fill-opacity="0.2" d="M0,160L48,144C96,128,192,96,288,106.7C384,117,480,171,576,165.3C672,160,768,96,864,85.3C960,75,1056,117,1152,149.3C1248,181,1344,203,1392,213.3L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-duration: 22s;
+            opacity: 0.6;
+          }
+          .s-wave2 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%230ea5e9" fill-opacity="0.15" d="M0,192L48,197.3C96,203,192,213,288,213.3C384,213,480,203,576,186.7C672,171,768,149,864,154.7C960,160,1056,192,1152,202.7C1248,213,1344,203,1392,197.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-direction: reverse;
+            animation-duration: 28s;
+            opacity: 0.5;
+          }
+          .s-wave3 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%231e3a8a" fill-opacity="0.25" d="M0,224L48,208C96,192,192,160,288,160C384,160,480,192,576,213.3C672,235,768,245,864,229.3C960,213,1056,171,1152,149.3C1248,128,1344,128,1392,128L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-duration: 36s;
+            opacity: 0.7;
+          }
+          @keyframes sandbox-wave-anim {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+          }
+        `}} />
+
+        {/* Ambient Radial Sky Glow */}
+        <div className="absolute inset-0 pointer-events-none bg-radial-gradient-sandbox z-0 rounded-2xl" style={{ background: 'radial-gradient(circle at top right, rgba(26, 31, 46, 0.45) 0%, rgba(11, 12, 16, 0.95) 75%)' }} />
+        
+        {/* Wave and Star Overlays */}
+        <div aria-hidden="true" className="sandbox-ocean-wave">
+          <div className="sandbox-wave s-wave1" />
+          <div className="sandbox-wave s-wave2" />
+          <div className="sandbox-wave s-wave3" />
+        </div>
+
+        {/* Shimmering Star Overlays */}
+        <div className="absolute inset-0 pointer-events-none opacity-40 z-0">
+          <div className="absolute top-[15%] left-[25%] w-1 h-1 bg-white/80 rounded-full blur-[0.5px] animate-pulse" />
+          <div className="absolute top-[30%] left-[75%] w-0.5 h-0.5 bg-white rounded-full" />
+          <div className="absolute top-[75%] left-[10%] w-1.5 h-1.5 bg-white/60 rounded-full blur-[1px] animate-pulse" />
+          <div className="absolute top-[20%] left-[60%] w-0.5 h-0.5 bg-white/95 rounded-full" />
+        </div>
+
+        {/* Header Section */}
+        <div className="max-w-4xl w-full text-center mb-10 relative z-10 select-none">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 mb-4 shadow-[0_0_20px_rgba(99,102,241,0.25)] border border-indigo-500/20 backdrop-blur-md">
+            <Database className="w-6 h-6 animate-pulse" />
+          </div>
+          <h3 className="text-xl font-black text-white tracking-tight drop-shadow-md">Namines Entegrasyon Merkezi</h3>
+          <p className="text-xs text-zinc-400 mt-2 max-w-lg mx-auto leading-relaxed">
+            Veritabanı şemanızı izole bir Docker container ortamında anında çalıştırın, test edin veya canlı veritabanınıza eşitleyin.
+          </p>
+        </div>
+
+        {/* Action Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl relative z-10">
+          
+          {/* Card 1: Docker Sandbox */}
+          <div className="flex flex-col justify-between p-6 bg-[#1a1f2e]/35 backdrop-blur-2xl border border-white/5 rounded-3xl shadow-[inset_0_0_20px_rgba(255,255,255,0.02),0_12px_40px_rgba(0,0,0,0.5)] hover:border-indigo-500/30 transition-all duration-300 group">
+            <div>
+              <div className="flex items-center gap-3 mb-4 select-none">
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
+                  <Database className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-white uppercase tracking-wider">Docker Database Sandbox</h4>
+                  <span className="text-[10px] text-cyan-400 block mt-0.5 font-semibold">Docker · MSSQL / Postgres / MySQL</span>
+                </div>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+                Şemanızı izole bir Docker sandbox'ında otomatik olarak ayağa kaldırın. Tam `.bak` veya `.sql` yedeğini tek tıkla edinin.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-6 select-none">
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">.BAK Yedeği</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">İzole Sandbox</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">Otomatik Kurulum</span>
+              </div>
+            </div>
+            <button
+              onClick={handleGenerate}
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all duration-300 cursor-pointer active:scale-98 border border-indigo-400/20"
+            >
+              Sandbox Başlat
+            </button>
+          </div>
+ 
+          {/* Card 2: Live Database Push */}
+          <div className="flex flex-col justify-between p-6 bg-[#1a1f2e]/35 backdrop-blur-2xl border border-white/5 rounded-3xl shadow-[inset_0_0_20px_rgba(255,255,255,0.02),0_12px_40px_rgba(0,0,0,0.5)] hover:border-indigo-500/30 transition-all duration-300 group">
+            <div>
+              <div className="flex items-center gap-3 mb-4 select-none">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20">
+                  <Rocket className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-white uppercase tracking-wider">Canlı Veritabanı Eşitleme</h4>
+                  <span className="text-[10px] text-purple-400 block mt-0.5 font-semibold">Dış Veritabanı · Host / TCP Bağlantısı</span>
+                </div>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+                SQL şema betiğini doğrudan kendi AWS, Azure veya yerel MSSQL/PostgreSQL/MySQL sunucunuza aktarıp tablolarınızı kurun.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-6 select-none">
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">AWS / Azure Desteği</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">TCP / Host</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">Tablo Kurulumu</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsPushModalOpen(true)}
+              className="w-full py-3 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 font-bold text-xs rounded-xl transition-all duration-300 cursor-pointer active:scale-98 shadow-md"
+            >
+              Canlı Veritabanına Aktar
+            </button>
+          </div>
+ 
+        </div>
+ 
+        <DbPushModal 
+          open={isPushModalOpen} 
+          onOpenChange={setIsPushModalOpen} 
+          sqlScript={sql} 
+        />
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // STATE: GENERATING or ERROR — Log terminal
+  // ─────────────────────────────────────────────
+  if (status === 'generating' || status === 'error') {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#0b0c10] rounded-2xl border border-zinc-800/60 overflow-hidden relative min-h-[520px]">
+        {/* Ambient deep blue/indigo background glow behind terminal */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-indigo-500/5 rounded-full blur-[130px] pointer-events-none" />
+
+        {/* High-Fidelity Black Terminal (Perfect Mockup Replica) */}
+        <div className="relative z-10 w-full max-w-[750px] mx-6 bg-black/85 backdrop-blur-xl border border-white/5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden" style={{ height: '440px' }}>
+
+          {/* macOS-style Header */}
+          <div className="shrink-0 flex items-center px-5 py-4 bg-[#0e0e12]/90 border-b border-white/5 select-none">
+            {/* macOS Red, Yellow, Green window buttons */}
+            <div className="flex gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#ff5f56]/85" />
+              <span className="w-3 h-3 rounded-full bg-[#ffbd2e]/85" />
+              <span className="w-3 h-3 rounded-full bg-[#27c93f]/85" />
+            </div>
+            
+            {/* Terminal Title */}
+            <div className="flex items-center gap-2 ml-4">
+              <span className="text-[10px] text-zinc-500 font-mono tracking-widest font-black uppercase">
+                &gt;_ SİSTEM LOGU – SANDBOX
+              </span>
+            </div>
+
+            {/* Right-aligned dynamic loader or error indicator */}
+            {status === 'generating' && (
+              <Loader2 className="w-4 h-4 text-sky-400 animate-spin ml-auto drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]" />
+            )}
+            {status === 'error' && (
+              <span className="ml-auto text-[10px] text-red-400 font-mono font-bold tracking-wider uppercase border border-red-500/20 px-2 py-0.5 rounded bg-red-950/20">
+                HATA
+              </span>
+            )}
+          </div>
+
+          {/* Log Area */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 font-mono text-[13px] space-y-2 bg-[#050508]/90">
+            {logs.map((log, i) => {
+              // Extract timestamp or generate a generic one for clean visual layout
+              const cleanLog = log.replace(/^(🚀|📋|✅|❌|⏳|⚠️)\s*/, '');
+              const icon = log.match(/^(🚀|📋|✅|❌|⏳|⚠️)/)?.[0] || '';
+              
+              let textColorClass = 'text-zinc-300';
+              if (log.startsWith('🚀')) textColorClass = 'text-amber-400 font-bold';
+              else if (log.startsWith('📋') || log.startsWith('DOWNLOAD_URL|')) textColorClass = 'text-cyan-400';
+              else if (log.startsWith('✅')) textColorClass = 'text-emerald-400 font-semibold';
+              else if (log.startsWith('❌') || log.startsWith('HATA')) textColorClass = 'text-red-400';
+              
+              return (
+                <div key={i} className="flex items-start gap-4 leading-relaxed">
+                  {/* Clean timestamp in muted gray */}
+                  <span className="text-zinc-600 shrink-0 select-none tabular-nums">
+                    {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                  
+                  {/* Log line with icon and correct text coloring */}
+                  <div className={`flex items-center gap-1.5 ${textColorClass}`}>
+                    {icon && <span className="select-none">{icon}</span>}
+                    <span>{cleanLog}</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Glowing active blinking cursor loader */}
+            {status === 'generating' && (
+              <div className="flex items-start gap-4 leading-relaxed">
+                <span className="text-zinc-600 shrink-0 select-none tabular-nums">
+                  {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+                <div className="flex items-center gap-2 text-sky-400 font-medium">
+                  {/* Glowing dynamic blue vertical bar */}
+                  <span className="w-1.5 h-4 bg-sky-400 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
+                  <span className="animate-pulse">Docker işlemler yapılıyor...</span>
+                </div>
+              </div>
+            )}
+            <div ref={logsEndRef} />
+          </div>
+
+          {/* Error Actions panel */}
+          {status === 'error' && (
+            <div className="shrink-0 flex gap-3 p-4 bg-[#0e0e12]/95 border-t border-white/5 backdrop-blur-md">
+              <button
+                onClick={handleClose}
+                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-bold rounded-xl transition-all duration-300 border border-white/10 cursor-pointer shadow-md"
+              >
+                Sıfırla
+              </button>
+              <button
+                onClick={handleGenerate}
+                className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] cursor-pointer border border-indigo-400/20"
+              >
+                <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                Tekrar Dene
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // STATE: RUNNING — Completed snapshot screen (Celestial Planet Theme)
+  // ─────────────────────────────────────────────
+  return (
+    <div className="w-full h-full flex flex-col bg-[#05050a] rounded-xl border border-zinc-800/60 overflow-hidden relative min-h-[520px]">
+      
+      {/* Space Background & Stars */}
+      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.02] mix-blend-overlay" />
+      <div className="absolute inset-0 pointer-events-none opacity-45">
+        {/* Coded stars & cosmic particles */}
+        <div className="absolute top-[10%] left-[20%] w-0.5 h-0.5 bg-white rounded-full" />
+        <div className="absolute top-[40%] left-[80%] w-1 h-1 bg-white/70 rounded-full blur-[0.5px] animate-pulse" />
+        <div className="absolute top-[75%] left-[15%] w-0.5 h-0.5 bg-white/90 rounded-full" />
+        <div className="absolute top-[25%] left-[65%] w-1 h-1 bg-white/80 rounded-full blur-[0.5px]" />
+        <div className="absolute top-[60%] left-[45%] w-0.5 h-0.5 bg-white/60 rounded-full" />
+        <div className="absolute top-[85%] left-[70%] w-1.5 h-1.5 bg-white/40 rounded-full blur-[1px] animate-pulse" />
+        
+        {/* Shooting Stars */}
+        <div className="absolute top-10 left-[40%] w-[100px] h-[1px] bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent rotate-[-25deg] pointer-events-none opacity-40" />
+        <div className="absolute top-36 left-[70%] w-[120px] h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent rotate-[-25deg] pointer-events-none opacity-30" />
+      </div>
+
+      {/* Top status bar */}
+      <div className="shrink-0 flex items-center justify-between px-5 py-3.5 bg-[#09090f]/85 backdrop-blur-md border-b border-zinc-800/80 relative z-10 select-none">
+        <div className="flex items-center gap-3">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+          </span>
+          <span className="text-[13px] text-zinc-300 font-bold tracking-wide">
+            Docker Sandbox Hazır
+          </span>
+        </div>
+      </div>
+
+      {/* Hero launch area */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 relative p-6">
+
+        {/* Ambient glow layers */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-indigo-500/5 rounded-full blur-[130px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[200px] bg-cyan-400/5 rounded-full blur-[80px]" />
+        </div>
+
+        {/* Breathtaking Coded Cosmic Planet */}
+        <div className="relative w-48 h-48 flex items-center justify-center select-none scale-110 mb-2">
+          {/* Radial outer glow */}
+          <div className="absolute w-52 h-52 bg-indigo-500/10 rounded-full blur-[50px] animate-pulse duration-[4000ms] pointer-events-none" />
+          <div className="absolute w-44 h-44 bg-cyan-400/5 rounded-full blur-[40px] pointer-events-none" />
+          
+          {/* Outer ring (Back part) */}
+          <div className="absolute w-[240px] h-[32px] border-[1.5px] border-indigo-400/10 rounded-full rotate-[-18deg] pointer-events-none" style={{ transform: 'rotateX(75deg)' }} />
+          <div className="absolute w-[220px] h-[28px] border-[2px] border-cyan-400/15 rounded-full rotate-[-18deg] pointer-events-none" style={{ transform: 'rotateX(72deg)' }} />
+
+          {/* Planet Sphere */}
+          <div className="absolute w-32 h-32 rounded-full bg-gradient-to-tr from-[#0b0c16] via-[#1b1c3a] to-[#7c3aed] shadow-[inset_-15px_-15px_40px_rgba(0,0,0,0.9),0_0_35px_rgba(124,58,237,0.35)] overflow-hidden border border-indigo-500/20">
+            {/* Specular highlight */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(255,255,255,0.08),transparent_50%)]" />
+            <div className="absolute -top-12 -left-12 w-28 h-28 bg-cyan-400/10 rounded-full blur-2xl animate-pulse duration-[3000ms]" />
+          </div>
+
+          {/* Inner glowing ring (Front part overlay) */}
+          <div className="absolute w-[230px] h-[30px] border-t-[3px] border-l-[3px] border-cyan-400/30 rounded-full rotate-[-18deg] pointer-events-none drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" style={{ transform: 'rotateX(75deg)' }} />
+          <div className="absolute w-[210px] h-[26px] border-t-[2px] border-l-[2px] border-indigo-300/40 rounded-full rotate-[-18deg] pointer-events-none drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]" style={{ transform: 'rotateX(72deg)' }} />
+        </div>
+
+        {/* Heading */}
+        <div className="relative z-10 text-center space-y-3 px-8 select-none max-w-lg">
+          <h3 className="text-2xl font-extrabold text-white tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+            Veritabanı Yedeği Hazır!
+          </h3>
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Docker sandbox üzerinde şema oluşturuldu ve tam `.bak` / `.sql` yedeği paketlendi.
+          </p>
+        </div>
+
+        {/* PRIMARY — Download button with glowing green border */}
+        {downloadUrl && (
+          <a
+            href={downloadUrl}
+            className="
+              relative z-10 group
+              flex items-center justify-center gap-3
+              px-10 py-3.5
+              bg-gradient-to-r from-emerald-600 to-teal-600
+              hover:from-emerald-500 hover:to-teal-500
+              text-white font-bold text-sm rounded-full
+              transition-all duration-300
+              border border-emerald-400/35
+              shadow-[0_0_30px_rgba(16,185,129,0.3),0_4px_20px_rgba(0,0,0,0.4)]
+              hover:shadow-[0_0_45px_rgba(16,185,129,0.45),0_4px_25px_rgba(0,0,0,0.5)]
+              hover:scale-[1.02] active:scale-[0.98]
+            "
+          >
+            <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+            <span>Veritabanı Yedeğini İndir (.bak)</span>
+            <ChevronRight className="w-4 h-4 opacity-80 group-hover:translate-x-0.5 transition-transform" />
+          </a>
+        )}
+
+        <div className="relative z-10 flex items-center gap-3">
+          <button
+            onClick={handleClose}
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium
+                       bg-red-500/10 hover:bg-red-500/20 text-red-400
+                       border border-red-500/20 rounded-xl transition-colors"
+          >
+            <X className="w-4 h-4" />
+            Sandbox'ı Temizle ve Kapat
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}

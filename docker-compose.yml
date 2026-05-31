@@ -1,0 +1,47 @@
+services:
+  # ─── Backend: ASP.NET Core 8 API ─────────────────────────────────────────
+  namines-backend:
+    build:
+      context: ./backend
+      dockerfile: Namines.API/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Groq API key — .env dosyasından gelir (örnek: GROQ_API_KEY=gsk_xxx)
+      - Groq__ApiKey=${GROQ_API_KEY}
+      # JWT — .env dosyasından gelir (örnek: JWT_KEY=super_secret_min_32_chars)
+      - Jwt__Key=${JWT_KEY:-NaminesDevFallbackKey_Change_In_Production_Min32Chars!}
+      - Jwt__Issuer=NaminesServer
+      - Jwt__Audience=NaminesClient
+    volumes:
+      # Docker-in-Docker: sandbox özelliği için host socket (opsiyonel)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # SQLite veritabanını kalıcı tut
+      - namines-db:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ─── Frontend: Next.js 16 ────────────────────────────────────────────────
+  namines-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Build sırasında API URL'i embed et (public env)
+        NEXT_PUBLIC_API_URL: http://localhost:5000/api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      namines-backend:
+        condition: service_started
+
+# Kalıcı veri volume'u (SQLite DB)
+volumes:
+  namines-db:

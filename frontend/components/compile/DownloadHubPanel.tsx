@@ -1,0 +1,408 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { DatabaseSchema } from '../../types/schema';
+import { DbType } from '../../store/useSchemaStore';
+import {
+  Download, Loader2, Terminal, RefreshCw,
+  Sparkles, CheckCircle2, ChevronRight, Crown, Code2, Cpu
+} from 'lucide-react';
+
+interface DownloadHubPanelProps {
+  schema: DatabaseSchema;
+  dbType: DbType;
+}
+
+export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelProps) {
+  const [status, setStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
+  const [logs, setLogs] = useState<string[]>([]);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+
+  const logsEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  const handleGenerate = async () => {
+    setStatus('generating');
+    setLogs(['🚀 Admin paneli paketi oluşturma talebi gönderildi...', '⏳ AI motoru hazırlanıyor...']);
+    setDownloadUrl(null);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/coderai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schema, dbType }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API Hatası (${response.status}): ${errText}`);
+      }
+
+      const data = await response.json();
+      const jobId: string = data.jobId;
+      setLogs(prev => [...prev, `📋 Proje ID atandı: ${jobId.substring(0, 8)}...`]);
+
+      // Connect to SSE for real-time progress logs
+      const sse = new EventSource(`http://localhost:5000/api/coderai/stream/${jobId}`);
+
+      sse.onmessage = (e) => {
+        const msg: string = e.data;
+
+        if (msg === 'DONE') {
+          sse.close();
+          setStatus('success');
+          return;
+        }
+
+        if (msg.startsWith('ERROR:')) {
+          setStatus('error');
+          setLogs(prev => [...prev, `❌ Hata: ${msg}`]);
+          sse.close();
+          return;
+        }
+
+        if (msg.startsWith('DOWNLOAD_URL|')) {
+          const path = msg.split('|')[1];
+          const fullUrl = `http://localhost:5000${path}`;
+          setDownloadUrl(fullUrl);
+          setLogs(prev => [...prev, '📦 Proje paketi (.zip) başarıyla üretildi!']);
+          
+          // Auto trigger download
+          const link = document.createElement('a');
+          link.href = fullUrl;
+          link.download = `${schema.name || 'streamlit_admin'}_admin_panel.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          return;
+        }
+
+        setLogs(prev => [...prev, msg]);
+      };
+
+      sse.onerror = () => {
+        sse.close();
+        setStatus('error');
+        setLogs(prev => [...prev, '❌ Sunucu bağlantısı kesildi. Lütfen tekrar deneyin.']);
+      };
+
+    } catch (err: any) {
+      setStatus('error');
+      setLogs(prev => [...prev, `❌ HATA: ${err.message}`]);
+    }
+  };
+
+  const resetPanel = () => {
+    setStatus('idle');
+    setLogs([]);
+    setDownloadUrl(null);
+  };
+
+  // ─────────────────────────────────────────────
+  // GENERATING state - Show Terminal logs
+  // ─────────────────────────────────────────────
+  if (status === 'generating') {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#0b0c10] rounded-2xl border border-zinc-800/60 overflow-hidden relative min-h-[520px]">
+        {/* Ambient deep blue/indigo background glow behind terminal */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-indigo-500/5 rounded-full blur-[130px] pointer-events-none" />
+
+        {/* High-Fidelity Black Terminal (Namines Sistem Log Terminali Replica) */}
+        <div className="relative z-10 w-full max-w-[750px] mx-6 bg-black/85 backdrop-blur-xl border border-white/5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden" style={{ height: '440px' }}>
+
+          {/* macOS-style Header */}
+          <div className="shrink-0 flex items-center px-5 py-4 bg-[#0e0e12]/90 border-b border-white/5 select-none">
+            {/* macOS window control buttons */}
+            <div className="flex gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#ff5f56]/85" />
+              <span className="w-3 h-3 rounded-full bg-[#ffbd2e]/85" />
+              <span className="w-3 h-3 rounded-full bg-[#27c93f]/85" />
+            </div>
+            
+            {/* Terminal Title */}
+            <div className="flex items-center gap-2 ml-4">
+              <span className="text-[10px] text-zinc-500 font-mono tracking-widest font-black uppercase">
+                &gt;_ SİSTEM LOGU – CODERAI
+              </span>
+            </div>
+
+            {/* Right-aligned dynamic loader */}
+            <Loader2 className="w-4 h-4 text-sky-400 animate-spin ml-auto drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]" />
+          </div>
+
+          {/* Log Area */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 font-mono text-[13px] space-y-2 bg-[#050508]/90">
+            {logs.map((log, i) => {
+              // Extract timestamp or generate a generic one
+              const cleanLog = log.replace(/^(🚀|📋|✅|❌|⏳|⚠️|📦)\s*/, '');
+              const icon = log.match(/^(🚀|📋|✅|❌|⏳|⚠️|📦)/)?.[0] || '';
+              
+              let textColorClass = 'text-zinc-300';
+              if (log.startsWith('🚀')) textColorClass = 'text-amber-400 font-bold';
+              else if (log.startsWith('📋') || log.startsWith('📦')) textColorClass = 'text-cyan-400';
+              else if (log.startsWith('✅')) textColorClass = 'text-emerald-400 font-semibold';
+              else if (log.startsWith('❌') || log.startsWith('HATA')) textColorClass = 'text-red-400';
+              
+              return (
+                <div key={i} className="flex items-start gap-4 leading-relaxed">
+                  {/* Clean timestamp in muted gray */}
+                  <span className="text-zinc-600 shrink-0 select-none tabular-nums">
+                    {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                  
+                  {/* Log line with icon and correct text coloring */}
+                  <div className={`flex items-center gap-1.5 ${textColorClass}`}>
+                    {icon && <span className="select-none">{icon}</span>}
+                    <span>{cleanLog}</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Blinking blue cursor loader at the bottom */}
+            <div className="flex items-start gap-4 leading-relaxed">
+              <span className="text-zinc-600 shrink-0 select-none tabular-nums">
+                {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+              <div className="flex items-center gap-2 text-sky-400 font-medium">
+                {/* Glowing dynamic blue vertical bar */}
+                <span className="w-1.5 h-4 bg-sky-400 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
+                <span className="animate-pulse text-xs">AI projenizi derliyor...</span>
+              </div>
+            </div>
+            <div ref={logsEndRef} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // SUCCESS / ERROR state - Show Results
+  // ─────────────────────────────────────────────
+  if (status === 'success' || status === 'error') {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#070708] rounded-xl border border-zinc-800/80 p-6 relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-zinc-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+        <div className="relative z-10 w-full max-w-[480px] bg-black/40 backdrop-blur-xl border border-white/5 p-8 rounded-3xl shadow-[inset_0_0_20px_rgba(255,255,255,0.02),0_12px_40px_rgba(0,0,0,0.5)] flex flex-col items-center text-center gap-6">
+          {status === 'success' ? (
+            <>
+              {/* Glowing Green Success Check */}
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.25)] select-none">
+                <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+              </div>
+              <div className="space-y-2 select-none">
+                <h3 className="text-xl font-bold text-white tracking-tight">Proje Başarıyla Hazırlandı!</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">İndirme otomatik olarak başladı. Eğer başlamadıysa aşağıdaki butona basarak paketi alabilirsiniz.</p>
+              </div>
+              <div className="flex flex-col w-full gap-3 mt-1">
+                {downloadUrl && (
+                  <a
+                    href={downloadUrl}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 border border-emerald-400/20"
+                  >
+                    <Download className="w-4 h-4" />
+                    Projeyi Tekrar İndir (.zip)
+                  </a>
+                )}
+                <button
+                  onClick={resetPanel}
+                  className="w-full py-3.5 bg-[#1c1c24]/50 hover:bg-[#1c1c24]/85 text-zinc-300 hover:text-white border border-white/5 font-bold text-xs rounded-xl transition-all duration-300 cursor-pointer active:scale-98 shadow-md"
+                >
+                  Download Hub'a Dön
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Glowing Red Error Check */}
+              <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center shadow-[0_0_25px_rgba(239,68,68,0.25)] select-none">
+                <CheckCircle2 className="w-7 h-7 text-red-400 rotate-45" />
+              </div>
+              <div className="space-y-2 select-none">
+                <h3 className="text-xl font-bold text-white tracking-tight">Üretim Başarısız Oldu</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">AI kod üretimi veya paketleme sırasında bir problemle karşılaşıldı.</p>
+              </div>
+              <div className="flex flex-col w-full gap-3 mt-1">
+                <button
+                  onClick={handleGenerate}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 border border-indigo-400/20 cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Yeniden Dene
+                </button>
+                <button
+                  onClick={resetPanel}
+                  className="w-full py-3.5 bg-[#1c1c24]/50 hover:bg-[#1c1c24]/85 text-zinc-300 hover:text-white border border-white/5 font-bold text-xs rounded-xl transition-all duration-300 cursor-pointer active:scale-98 shadow-md"
+                >
+                  Download Hub'a Dön
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // IDLE state - Show beautiful Download Hub Cards
+  // ─────────────────────────────────────────────
+  return (
+    <div className="w-full h-full flex flex-col justify-center items-center p-6 bg-[#050508] rounded-xl border border-zinc-800/80 relative overflow-hidden min-h-[520px]">
+      {/* Background space elements */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.01] mix-blend-overlay" />
+
+      {/* Decorative Wave lines */}
+      <div className="absolute bottom-0 left-0 w-full h-[30%] pointer-events-none opacity-[0.03] z-0">
+        <svg viewBox="0 0 1440 320" preserveAspectRatio="none" className="w-full h-full fill-indigo-500">
+          <path d="M0,96 C288,192 576,64 864,160 C1152,256 1296,128 1440,224 L1440,320 L0,320 Z" />
+        </svg>
+      </div>
+
+      <div className="relative z-10 w-full max-w-4xl flex flex-col gap-8">
+        {/* Title block with wave-sparkle custom logo */}
+        <div className="text-center space-y-4">
+          <div className="relative inline-block select-none">
+            <svg className="w-16 h-16 mx-auto drop-shadow-[0_0_20px_rgba(99,102,241,0.4)]" viewBox="0 0 100 100" fill="none">
+              <circle cx="50" cy="50" r="46" stroke="url(#circle-grad)" strokeWidth="3" fill="#090B11" />
+              <path d="M20,62 C32,48 42,66 52,52 C62,38 72,56 84,42 L84,82 L20,82 Z" fill="url(#wave-grad)" opacity="0.8" />
+              <path d="M16,68 C28,56 38,74 50,62 C62,50 72,68 84,56 L84,84 L16,84 Z" fill="url(#wave-grad-2)" opacity="0.4" />
+              {/* Stars */}
+              <circle cx="35" cy="30" r="1.5" fill="#FFF" />
+              <circle cx="65" cy="25" r="2" fill="#FFF" />
+              <circle cx="50" cy="20" r="1" fill="#FFF" />
+              <circle cx="75" cy="35" r="1.2" fill="#FFF" />
+              <defs>
+                <linearGradient id="circle-grad" x1="0" y1="0" x2="100" y2="100">
+                  <stop offset="0%" stopColor="#06b6d4" />
+                  <stop offset="50%" stopColor="#818cf8" />
+                  <stop offset="100%" stopColor="#a855f7" />
+                </linearGradient>
+                <linearGradient id="wave-grad" x1="50" y1="30" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#1e1b4b" stopOpacity="0.1" />
+                </linearGradient>
+                <linearGradient id="wave-grad-2" x1="50" y1="40" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+
+          <div className="space-y-2 select-none">
+            <h2 className="text-3xl font-extrabold text-white tracking-tight">
+              Namines Download Hub
+            </h2>
+            <p className="text-xs text-zinc-400 max-w-xl mx-auto leading-relaxed">
+              Tasarladığınız veritabanı şemasına uygun otonom çalışan ve Docker ile anında ayağa kalkan projelerinizi zip olarak indirin.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+          {/* CARD 1 - Streamlit Admin Panel (FREE) */}
+          <div className="bg-[#08090d]/80 border border-cyan-500/25 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:border-cyan-400/50 shadow-[0_0_50px_rgba(6,182,212,0.03)] hover:shadow-[0_0_50px_rgba(6,182,212,0.1)] group relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-cyan-500/5 rounded-full blur-[40px] pointer-events-none" />
+            
+            <div className="space-y-5">
+              <div className="flex justify-between items-start select-none">
+                <div className="w-12 h-12 rounded-xl bg-cyan-950/40 border border-cyan-800/30 flex items-center justify-center shadow-lg shadow-cyan-500/10 text-cyan-400">
+                  <Code2 className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] font-black tracking-wider text-cyan-400 bg-cyan-950/50 border border-cyan-800/40 px-2.5 py-1 rounded-md uppercase">
+                  Freemium
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-white tracking-tight">Streamlit Admin Panel</h3>
+                <p className="text-[13px] text-zinc-400 leading-relaxed">
+                  Streamlit Admin Panel ile veritabanınızı otomatik okuyan ve Docker ile admin projelerini.
+                </p>
+              </div>
+
+              <div className="border-t border-zinc-800/60 pt-4 space-y-2.5">
+                {[
+                  'Tam Otomatik CRUD Arayüzü',
+                  'Plotly Express Destekli Dashboard',
+                  'Hazır connection string (.env)',
+                  'docker-compose.yml ile Tek Tıkla Kurulum',
+                ].map((feat, idx) => (
+                  <div key={idx} className="flex items-center gap-2.5 text-xs text-zinc-300 select-none">
+                    <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>{feat}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 pt-2">
+              <button
+                onClick={handleGenerate}
+                className="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_4px_20px_rgba(6,182,212,0.3)] flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] group cursor-pointer border border-cyan-400/20"
+              >
+                <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                <span>Projeyi İndir (.zip)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* CARD 2 - Next.js Enterprise Dashboard (PREMIUM) */}
+          <div className="bg-[#08090d]/60 border border-purple-500/20 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:border-purple-400/40 shadow-[0_0_50px_rgba(168,85,247,0.01)] hover:shadow-[0_0_50px_rgba(168,85,247,0.06)] relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-purple-500/5 rounded-full blur-[40px] pointer-events-none" />
+            
+            <div className="space-y-5 opacity-60">
+              <div className="flex justify-between items-start select-none">
+                <div className="w-12 h-12 rounded-xl bg-purple-950/40 border border-purple-800/30 flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/5">
+                  <Cpu className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] font-black tracking-wider text-purple-400 bg-purple-950/50 border border-purple-800/40 px-2.5 py-1 rounded-md uppercase flex items-center gap-1">
+                  Premium
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-white tracking-tight">Next.js Enterprise Panel</h3>
+                <p className="text-[13px] text-zinc-400 leading-relaxed">
+                  Next.js Enterprise Panel ile önizleme Prisma ORM &amp; veritabanı şemasına otonomize projelerini.
+                </p>
+              </div>
+
+              <div className="border-t border-zinc-800/40 pt-4 space-y-2.5">
+                {[
+                  'Next.js 15 (App Router) + Tailwind CSS 4',
+                  'Prisma ORM & Auto-generated Types',
+                  'Karanlık ve Aydınlık Temalı Premium UI',
+                  'Chart.js / Tremor Dashboard Bileşenleri',
+                ].map((feat, idx) => (
+                  <div key={idx} className="flex items-center gap-2.5 text-xs text-zinc-500 select-none">
+                    <CheckCircle2 className="w-4 h-4 text-purple-500/70 shrink-0" />
+                    <span>{feat}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 pt-2">
+              <button
+                disabled
+                className="w-full py-3 bg-zinc-900 border border-zinc-800 text-zinc-600 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed"
+              >
+                <Crown className="w-4 h-4 text-zinc-600" />
+                Çok Yakında
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

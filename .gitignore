@@ -1,0 +1,132 @@
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+Icon?
+*.swp
+*.swo
+
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# =========================
+# Secrets / local config
+# =========================
+.env
+.env.*
+!.env.example
+!.env.sample
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ASP.NET Core local secrets — NEVER commit these
+appsettings.secrets.json
+**/appsettings.secrets.json
+appsettings.Development.json
+**/appsettings.Development.json
+
+# SQLite auth database (local only — production uses a real DB server)
+**/namines_auth.db
+**/namines_auth.db-shm
+**/namines_auth.db-wal
+
+# =========================
+# Logs / runtime files
+# =========================
+*.log
+*.pid
+*.seed
+*.stackdump
+nohup.out
+
+# =========================
+# Archives / exported artifacts
+# =========================
+*.zip
+*.tar
+*.gz
+*.tgz
+*.rar
+*.7z
+
+# Generated sandbox / package outputs
+**/Outputs/
+**/output/
+**/export/
+**/exports/
+
+# =========================
+# .NET / C#
+# =========================
+bin/
+obj/
+TestResults/
+artifacts/
+*.dll
+*.exe
+*.pdb
+*.mdb
+*.cache
+*.ipch
+*.profdata
+*.coverage
+*.coveragexml
+*.nupkg
+*.snupkg
+project.lock.json
+packages/
+
+# =========================
+# Node / Next.js / TypeScript
+# =========================
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+dist/
+coverage/
+**/coverage/
+.turbo/
+.parcel-cache/
+.eslintcache
+*.tsbuildinfo
+next-env.d.ts
+
+# =========================
+# Python / Streamlit
+# =========================
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.venv/
+venv/
+env/
+ENV/
+.python-version
+.coverage
+htmlcov/
+
+# =========================
+# Docker / compose / temp
+# =========================
+*.tmp
+*.temp
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Keep repository docs, source, and templates tracked by default.

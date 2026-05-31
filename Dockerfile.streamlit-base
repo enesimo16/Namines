@@ -1,0 +1,50 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Namines CoderAI — Pre-baked Streamlit Base Image
+# ─────────────────────────────────────────────────────────────────────────────
+# BU DOSYAYI SADECE BİR KERE BUILD EDİN:
+#   docker build -t namines-streamlit-base:latest -f Dockerfile.streamlit-base .
+#
+# Bu imaj bir kez oluşturulunca her CoderAI çalıştırmasında "pip install"
+# aşaması tamamen atlanır; Streamlit ~2–3 saniye içinde başlar.
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM python:3.11-slim
+
+# Güvenlik & önbellek optimizasyonu
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Sistem bağımlılıkları (pymssql için gerekli)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        freetds-dev \
+        freetds-bin \
+    && rm -rf /var/lib/apt/lists/*
+
+# Tüm Python paketlerini tek seferde kur
+RUN pip install --no-cache-dir \
+    streamlit==1.35.0 \
+    sqlalchemy==2.0.30 \
+    psycopg2-binary==2.9.9 \
+    pymysql==1.1.0 \
+    pymssql==2.3.1 \
+    plotly==5.22.0 \
+    pandas==2.2.2 \
+    cryptography==42.0.7
+
+# Çalışma dizini — app.py buraya mount edilecek
+WORKDIR /app
+
+# Varsayılan port dışarıya aç
+EXPOSE 8501
+
+# Container başladığında Streamlit'i doğrudan çalıştır
+# (DockerService.cs bu CMD'yi override eder; buradaki sadece dokümantasyon amaçlı)
+CMD ["streamlit", "run", "app.py", \
+     "--server.port", "8501", \
+     "--server.address", "0.0.0.0", \
+     "--server.enableCORS=false", \
+     "--server.enableXsrfProtection=false", \
+     "--server.headless=true"]
