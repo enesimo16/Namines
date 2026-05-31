@@ -130,3 +130,9 @@ docker-compose.override.yml
 docker-compose.local.yml
 
 # Keep repository docs, source, and templates tracked by default.
+
+# =========================
+# Markdown Files
+# =========================
+*.md
+!README.md
