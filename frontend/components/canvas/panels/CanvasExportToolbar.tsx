@@ -170,7 +170,7 @@ export default function CanvasExportToolbar() {
       URL.revokeObjectURL(url);
       setIsCloudModalOpen(false);
     } catch (err) {
-      console.error('Full-stack proje export hatası:', err);
+      console.error('Full-stack project export error:', err);
     } finally {
       setIsLocalExporting(false);
     }
@@ -184,8 +184,8 @@ export default function CanvasExportToolbar() {
           className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-xl bg-gradient-to-r from-[#0F172A]/90 to-[#1E293B]/80 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] select-none transition-all duration-300"
           style={{ width: isCollapsed ? '76px' : 'auto' }}
         >
-          {/* Sürükleme Tutamacı */}
-          <div className="drag-handle cursor-move px-1.5 text-indigo-500/50 hover:text-indigo-400 transition-colors shrink-0" title="Sürükle">
+          {/* Drag Handle */}
+          <div className="drag-handle cursor-move px-1.5 text-indigo-500/50 hover:text-indigo-400 transition-colors shrink-0" title="Drag">
             <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
               <circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/>
               <circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/>
@@ -198,29 +198,29 @@ export default function CanvasExportToolbar() {
             <button
               onClick={() => setIsCollapsed(false)}
               className="p-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 transition-all shrink-0"
-              title="Araç Çubuğunu Genişlet"
+              title="Expand Toolbar"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             /* EXPANDED STATE */
             <>
-              {/* Beyaz Tahtadan İçe Aktar Button */}
+              {/* Whiteboard Vision Import Button */}
               <button
                 id="canvas-vision-import-btn"
                 onClick={() => setIsVisionOpen(true)}
                 className="group/btn flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-indigo-300 hover:text-indigo-100 hover:bg-indigo-500/10 transition-all border border-transparent hover:border-indigo-500/20 relative shadow-sm overflow-hidden shrink-0"
-                title="Beyaz Tahta Fotoğrafı Yükle"
-                aria-label="Beyaz Tahtadan İçe Aktar"
+                title="Upload Whiteboard Photo"
+                aria-label="Import from Whiteboard"
               >
                 <span className="absolute inset-0 bg-indigo-500/5 opacity-50 group-hover/btn:opacity-100 transition-opacity duration-300" />
                 <Camera className="w-3.5 h-3.5 text-indigo-400 relative z-10" />
-                <span className="relative z-10">İçe Aktar</span>
+                <span className="relative z-10">Import</span>
               </button>
 
               <div className="w-px h-5 bg-indigo-500/20 mx-0.5 shrink-0" />
 
-              {/* DBA Button (formerly İncele) */}
+              {/* DBA Button */}
               <button
                 id="canvas-dba-inspect-btn"
                 onClick={() => setIsPanelOpen(!isPanelOpen)}
@@ -229,8 +229,8 @@ export default function CanvasExportToolbar() {
                     ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.25)]' 
                     : 'text-emerald-400 hover:text-emerald-200 hover:bg-emerald-500/10 border-transparent hover:border-emerald-500/20'
                 }`}
-                title="Veritabanı DBA Analizini İncele"
-                aria-label="DBA Analizi"
+                title="Inspect Database DBA Analysis"
+                aria-label="DBA Analysis"
               >
                 <Activity className="w-3.5 h-3.5 text-emerald-400 relative z-10" />
                 <span className="relative z-10">DBA</span>
@@ -250,26 +250,26 @@ export default function CanvasExportToolbar() {
                 id="canvas-edit-mode-btn"
                 onClick={toggleEditMode}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 shrink-0 ${isEditMode ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.25)]' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'}`}
-                title={isEditMode ? 'Görüntüleme moduna geç' : 'Düzenleme moduna geç'}
-                aria-label={isEditMode ? 'Düzenleme modunu kapat' : 'Düzenleme modunu aç'}
+                title={isEditMode ? 'Switch to view mode' : 'Switch to edit mode'}
+                aria-label={isEditMode ? 'Disable edit mode' : 'Enable edit mode'}
                 aria-pressed={isEditMode}
               >
                 {isEditMode ? (
                   <>
                     <Eye className="w-3.5 h-3.5" />
-                    <span>Görüntüle</span>
+                    <span>View</span>
                   </>
                 ) : (
                   <>
                     <Pencil className="w-3.5 h-3.5" />
-                    <span>Düzenle</span>
+                    <span>Edit</span>
                   </>
                 )}
               </button>
 
               <div className="w-px h-5 bg-indigo-500/20 mx-0.5 shrink-0" />
 
-              {/* Dışa Aktar Dropdown Button */}
+              {/* Export Dropdown Button */}
               <div className="relative shrink-0">
                 <button
                   id="canvas-export-dropdown-btn"
@@ -280,15 +280,15 @@ export default function CanvasExportToolbar() {
                       ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.25)]'
                       : 'text-zinc-300 hover:text-cyan-300 hover:bg-cyan-500/10 border-transparent hover:border-cyan-500/20'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title="Diyagramı dışa aktar..."
-                  aria-label="Dışa Aktar"
+                  title="Export diagram..."
+                  aria-label="Export"
                 >
                   {isCurrentlyExporting ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
                   ) : (
                     <ImageDown className="w-3.5 h-3.5" />
                   )}
-                  <span>Dışa Aktar</span>
+                  <span>Export</span>
                   <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${isExportDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -296,7 +296,7 @@ export default function CanvasExportToolbar() {
                 {isExportDropdownOpen && (
                   <div className="absolute bottom-full left-0 mb-2 w-52 rounded-xl bg-zinc-950/95 border border-indigo-500/20 shadow-[0_0_25px_rgba(99,102,241,0.3)] flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200">
                     <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-zinc-500 uppercase tracking-wider select-none">
-                      Görsel Çıktı
+                      Image Export
                     </div>
                     
                     <button
@@ -307,7 +307,7 @@ export default function CanvasExportToolbar() {
                       className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-lg transition-colors text-left"
                     >
                       <FileImage className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>PNG Görsel (.png)</span>
+                      <span>PNG Image (.png)</span>
                     </button>
 
                     <button
@@ -318,7 +318,7 @@ export default function CanvasExportToolbar() {
                       className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors text-left"
                     >
                       <FileImage className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>JPEG Görsel (.jpg)</span>
+                      <span>JPEG Image (.jpg)</span>
                     </button>
 
                     <button
@@ -329,13 +329,13 @@ export default function CanvasExportToolbar() {
                       className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors text-left"
                     >
                       <FileCode className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Vektörel Çizim (.svg)</span>
+                      <span>Vector Graphic (.svg)</span>
                     </button>
 
                     <div className="h-px bg-indigo-500/10 my-1" />
 
                     <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-zinc-500 uppercase tracking-wider select-none">
-                      Veri & Doküman
+                      Data & Document
                     </div>
 
                     <button
@@ -346,7 +346,7 @@ export default function CanvasExportToolbar() {
                       className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors text-left"
                     >
                       <Database className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>SQL Şema Kodları (.sql)</span>
+                      <span>SQL Schema Code (.sql)</span>
                     </button>
 
                     <button
@@ -357,7 +357,7 @@ export default function CanvasExportToolbar() {
                       className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors text-left"
                     >
                       <Braces className="w-3.5 h-3.5 text-rose-400" />
-                      <span>Namines Meta Şeması (.json)</span>
+                      <span>Namines Meta Schema (.json)</span>
                     </button>
 
                     <button
@@ -368,7 +368,7 @@ export default function CanvasExportToolbar() {
                       className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-sky-400 hover:bg-sky-500/10 rounded-lg transition-colors text-left"
                     >
                       <FileText className="w-3.5 h-3.5 text-sky-400" />
-                      <span>PDF Teknik Rapor (.pdf)</span>
+                      <span>PDF Technical Report (.pdf)</span>
                     </button>
 
                     <button
@@ -379,7 +379,7 @@ export default function CanvasExportToolbar() {
                       className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors text-left border border-transparent hover:border-indigo-500/20"
                     >
                       <Archive className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Full-Stack Proje (.zip)</span>
+                      <span>Full-Stack Project (.zip)</span>
                     </button>
                   </div>
                 )}
@@ -391,7 +391,7 @@ export default function CanvasExportToolbar() {
               <button
                 onClick={() => setIsCollapsed(true)}
                 className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-all shrink-0"
-                title="Araç Çubuğunu Daralt"
+                title="Collapse Toolbar"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -400,13 +400,13 @@ export default function CanvasExportToolbar() {
         </div>
       </Draggable>
 
-      {/* Vision İçe Aktarım Modalı */}
+      {/* Vision Import Modal */}
       <VisionUploadModal
         isOpen={isVisionOpen}
         onClose={() => setIsVisionOpen(false)}
       />
 
-      {/* Zero-to-Cloud Bulut Altyapı Seçim Modalı */}
+      {/* Zero-to-Cloud Infrastructure Selector Modal */}
       {isCloudModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-[450px] p-6 rounded-2xl bg-gradient-to-b from-zinc-900/95 to-zinc-950/98 border border-indigo-500/30 shadow-[0_0_35px_rgba(99,102,241,0.25)] flex flex-col gap-5 text-sans select-none">
@@ -414,7 +414,7 @@ export default function CanvasExportToolbar() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Archive className="w-5 h-5 text-indigo-400 animate-pulse" />
-                <h3 className="text-md font-extrabold text-white tracking-wide">Zero-to-Cloud Bulut Seçici</h3>
+                <h3 className="text-md font-extrabold text-white tracking-wide">Zero-to-Cloud Selector</h3>
               </div>
               <button
                 onClick={() => setIsCloudModalOpen(false)}
@@ -426,7 +426,7 @@ export default function CanvasExportToolbar() {
 
             {/* Description */}
             <p className="text-xs text-zinc-400 leading-relaxed font-medium">
-              Namines otonom kod üreticisi, temiz mimarideki C# API ve Next.js SDK projenizi bulut sağlayıcınızda tek tıkla ayağa kaldıracak **Terraform (IaC)** kodlarını ve **GitHub Actions** CI/CD pipeline dosyasını zip paketine entegre edebilir. Bir bulut sağlayıcısı seçin:
+              The Namines autonomous code generator can integrate Terraform (IaC) code and GitHub Actions CI/CD pipeline files into your zip package, allowing you to deploy your clean-architecture C# API and Next.js SDK project with a single click. Select a cloud provider:
             </p>
 
             {/* AI-BI Premium Checkbox */}
@@ -446,8 +446,8 @@ export default function CanvasExportToolbar() {
                   className="rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500/30 h-4 w-4"
                 />
                 <div>
-                  <h4 className="text-xs font-bold text-zinc-200">✨ Premium: AI Veri Analitiği (BI) Asistanı</h4>
-                  <p className="text-[10px] text-zinc-500">Projeye hazır Text-to-SQL sohbet robotu ve grafik paneli gömer.</p>
+                  <h4 className="text-xs font-bold text-zinc-200">Premium: AI Data Analytics (BI) Assistant</h4>
+                  <p className="text-[10px] text-zinc-500 font-semibold">Embeds a ready-to-use Text-to-SQL chatbot and analytics dashboard.</p>
                 </div>
               </div>
             </div>
@@ -461,14 +461,14 @@ export default function CanvasExportToolbar() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 group-hover:text-zinc-200 transition-colors font-bold text-xs">
-                    ❌
+                    None
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-zinc-200">Bulut Altyapısı Yok</h4>
-                    <p className="text-[10px] text-zinc-500">Yalnızca ASP.NET Core Web API ve React/Next.js Client SDK</p>
+                    <h4 className="text-xs font-bold text-zinc-200">No Cloud Infrastructure</h4>
+                    <p className="text-[10px] text-zinc-500 font-semibold">ASP.NET Core Web API and React/Next.js Client SDK only</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-zinc-500 group-hover:text-zinc-300">Seç ➔</span>
+                <span className="text-[10px] font-bold text-zinc-500 group-hover:text-zinc-300">Select ➔</span>
               </button>
 
               {/* Option 2: AWS */}
@@ -481,11 +481,11 @@ export default function CanvasExportToolbar() {
                     AWS
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-orange-400">AWS Bulut Altyapısı</h4>
-                    <p className="text-[10px] text-zinc-500">Terraform (VPC, ECS Cluster, RDS PostgreSQL) + Actions CI/CD</p>
+                    <h4 className="text-xs font-bold text-orange-400">AWS Cloud Infrastructure</h4>
+                    <p className="text-[10px] text-zinc-500 font-semibold">Terraform (VPC, ECS Cluster, RDS PostgreSQL) + Actions CI/CD</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-orange-500 group-hover:text-orange-400">Üret ➔</span>
+                <span className="text-[10px] font-bold text-orange-500 group-hover:text-orange-400">Generate ➔</span>
               </button>
 
               {/* Option 3: Azure */}
@@ -498,17 +498,17 @@ export default function CanvasExportToolbar() {
                     AZ
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-sky-400">Azure Bulut Altyapısı</h4>
-                    <p className="text-[10px] text-zinc-500">Terraform (RG, App Service Plan, Web App Container, SQL Server) + CI/CD</p>
+                    <h4 className="text-xs font-bold text-sky-400">Azure Cloud Infrastructure</h4>
+                    <p className="text-[10px] text-zinc-500 font-semibold">Terraform (RG, App Service Plan, Web App Container, SQL Server) + CI/CD</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-sky-500 group-hover:text-sky-400">Üret ➔</span>
+                <span className="text-[10px] font-bold text-sky-500 group-hover:text-sky-400">Generate ➔</span>
               </button>
             </div>
 
             {/* Note */}
             <div className="text-[10px] text-zinc-500 text-center font-semibold mt-1">
-              ✨ Terraform kodları AWS/Azure en iyi güvenlik ve maliyet standartlarına göre kurgulanır.
+              Terraform codes are structured according to AWS/Azure security and cost best practices.
             </div>
           </div>
         </div>

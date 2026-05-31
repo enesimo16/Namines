@@ -28,7 +28,7 @@ public class AIDbaService : IAIDbaService
             return new DbaAnalysisResult
             {
                 TotalScore = 100,
-                OverallAssessment = "Analiz edilecek tablo bulunamadı. Lütfen önce şemanıza tablo ekleyin."
+                OverallAssessment = "No tables found to analyze. Please add tables to your schema first."
             };
         }
 
@@ -55,8 +55,8 @@ public class AIDbaService : IAIDbaService
             {
                 RuleId = "DBA-SYS-001",
                 Severity = DbaIssueSeverity.Info,
-                Message = "AI DBA linter servisi şu anda meşgul. Yerel kurallarla temel linter analizi tamamlandı.",
-                Suggestion = "AI analizi için lütfen kısa süre sonra tekrar deneyin.",
+                Message = "AI DBA linter service is currently busy. Basic linter analysis completed using local rules.",
+                Suggestion = "Please try again shortly for AI analysis.",
                 Source = "System"
             });
         }
@@ -82,8 +82,8 @@ public class AIDbaService : IAIDbaService
                     RuleId = "DBA-003",
                     TableName = table.Name,
                     Severity = DbaIssueSeverity.Error,
-                    Message = $"'{table.Name}' tablosunda Primary Key (Birincil Anahtar) tanımlanmamış.",
-                    Suggestion = "Her tabloda satırları benzersiz şekilde tanımlayan bir Primary Key (örneğin otomatik artan bir 'Id' kolonu) bulunmalıdır.",
+                    Message = $"Primary Key is not defined in the '{table.Name}' table.",
+                    Suggestion = "Each table should have a Primary Key (e.g. an auto-incrementing 'Id' column) to uniquely identify rows.",
                     Source = "Local",
                     Category = "Performance"
                 });
@@ -101,8 +101,8 @@ public class AIDbaService : IAIDbaService
                         TableName = table.Name,
                         ColumnName = col.Name,
                         Severity = DbaIssueSeverity.Warning,
-                        Message = $"'{table.Name}' tablosundaki '{col.Name}' sütunu için sınırsız uzunluk (NVARCHAR(MAX)) kullanılmış.",
-                        Suggestion = "AWS RDS veya Azure SQL üzerinde sınırsız genişlikteki alanlar yüksek IOPS tüketir, disk alanını şişirir ve bulut faturalarını aylık %40'a varan oranda artırabilir. Boyutu NVARCHAR(255) veya NVARCHAR(500) ile sınırlandırmanız önerilir.",
+                        Message = $"Unlimited length (NVARCHAR(MAX)) is used for column '{col.Name}' in table '{table.Name}'.",
+                        Suggestion = "Unlimited width fields consume high IOPS on AWS RDS or Azure SQL, bloat disk space, and can increase monthly cloud bills by up to 40%. It is recommended to restrict the length to NVARCHAR(255) or NVARCHAR(500).",
                         Source = "Local",
                         Category = "FinOps"
                     });
@@ -117,8 +117,8 @@ public class AIDbaService : IAIDbaService
                         TableName = table.Name,
                         ColumnName = col.Name,
                         Severity = DbaIssueSeverity.Warning,
-                        Message = $"'{table.Name}' tablosundaki '{col.Name}' Foreign Key (Yabancı Anahtar) sütunu üzerinde INDEX tanımlanmamış.",
-                        Suggestion = "Yabancı anahtarlar sık sık JOIN işlemlerinde kullanılır. Sorgu performansını artırmak için bu sütun üzerinde bir NON-CLUSTERED INDEX oluşturmalısınız.",
+                        Message = $"No INDEX is defined on the '{col.Name}' Foreign Key column in the '{table.Name}' table.",
+                        Suggestion = "Foreign keys are frequently used in JOIN operations. You should create a NON-CLUSTERED INDEX on this column to improve query performance.",
                         Source = "Local",
                         Category = "Performance"
                     });
@@ -138,8 +138,8 @@ public class AIDbaService : IAIDbaService
                         TableName = table.Name,
                         ColumnName = col.Name,
                         Severity = DbaIssueSeverity.Warning,
-                        Message = $"'{table.Name}' tablosundaki '{col.Name}' sütununda KVKK/GDPR kapsamında kritik kişisel veri (PII) veya hassas bilgi algılandı.",
-                        Suggestion = "Hassas kişisel verilerin doğrudan düz metin olarak saklanması güvenlik ihlali riski barındırır. C# tarafında '[ProtectedPersonalData]' niteliği kullanmalı, şifreler için Salted BCrypt Hashing tercih etmeli veya SQL Server dynamic data masking kurgulamalısınız.",
+                        Message = $"Critical personal data (PII) or sensitive information under KVKK/GDPR was detected in column '{col.Name}' of table '{table.Name}'.",
+                        Suggestion = "Storing sensitive personal data directly as plain text poses a security breach risk. You should use the '[ProtectedPersonalData]' attribute in C#, select Salted BCrypt Hashing for passwords, or configure SQL Server dynamic data masking.",
                         Source = "Local",
                         Category = "Security"
                     });
@@ -167,12 +167,12 @@ public class AIDbaService : IAIDbaService
     private string GenerateAssessmentText(int score)
     {
         if (score >= 90)
-            return "Mükemmel veritabanı tasarımı! Performans riski bulunmuyor. Şema yapısı kurumsal standartlara son derece uygun.";
+            return "Excellent database design! No performance risk. The schema structure complies exceptionally with enterprise standards.";
         if (score >= 70)
-            return "İyi bir tasarım. Küçük performans iyileştirmeleri ve indexlemelerle daha verimli hale gelecektir.";
+            return "Good design. It will become more efficient with minor performance improvements and indexing.";
         if (score >= 50)
-            return "Orta düzey veritabanı tasarımı. FK indexleri eksik veya sınırsız alan kullanımları sorgu hızlarını olumsuz etkileyebilir.";
+            return "Average database design. Missing FK indexes or using unlimited length columns may negatively affect query speeds.";
         
-        return "İyileştirilmesi gereken kritik performans ve yapısal sorunlar var. SQL veri bütünlüğü ve index optimizasyonu için önerileri uygulamanız şiddetle tavsiye edilir.";
+        return "There are critical performance and structural issues that need improvement. It is strongly recommended to apply the suggestions for SQL data integrity and index optimization.";
     }
 }

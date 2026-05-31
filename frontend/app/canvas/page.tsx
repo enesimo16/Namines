@@ -117,7 +117,7 @@ export default function CanvasPage() {
   // Unified Edit Mode Toast Alert
   useEffect(() => {
     if (isEditMode) {
-      showToast('Manuel Düzenleme Modu Aktif (Sağ tık: İşlemler)', 'info');
+      showToast('Manual Editing Mode Active (Right-click: Actions)', 'info');
     }
   }, [isEditMode, showToast]);
 
@@ -165,15 +165,15 @@ export default function CanvasPage() {
 
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
             <Panel position="top-left" className="bg-[#0F172A]/85 backdrop-blur-md border border-indigo-500/20 p-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.15)] mt-4 ml-4 w-64 select-none pointer-events-auto">
-              <h2 className="text-xl font-bold bg-gradient-to-r from-zinc-100 to-indigo-200 bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'İsimsiz Şema'}</h2>
+              <h2 className="text-xl font-bold bg-gradient-to-r from-zinc-100 to-indigo-200 bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
               <div className="text-xs text-indigo-300/80 flex flex-col gap-1 font-medium">
                 <div className="flex gap-4">
-                  <span>{schema.tables.length} Tablo</span>
-                  <span>{schema.relations.length} İlişki</span>
+                  <span>{schema.tables.length} Tables</span>
+                  <span>{schema.relations.length} Relations</span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-1 text-[10px] bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 text-indigo-300 w-fit">
                   <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
-                  Aktif Dal: <strong className="font-semibold text-indigo-100">{currentBranchName}</strong>
+                  Active Branch: <strong className="font-semibold text-indigo-100">{currentBranchName}</strong>
                 </div>
               </div>
               <BranchControlPanel />

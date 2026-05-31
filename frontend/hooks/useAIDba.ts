@@ -25,7 +25,7 @@ export function useAIDba() {
       setDbaResults({
         issues: [],
         score: 100,
-        assessment: 'Analiz edilecek tablo bulunamadı.'
+        assessment: 'No tables found to analyze.'
       });
       setIsAnalyzing(false);
       return;
@@ -46,7 +46,7 @@ export function useAIDba() {
           assessment: result.overallAssessment || ''
         });
       } catch (err) {
-        console.error("AI DBA Analiz hatası:", err);
+        console.error("AI DBA Analysis error:", err);
       } finally {
         setIsAnalyzing(false);
       }

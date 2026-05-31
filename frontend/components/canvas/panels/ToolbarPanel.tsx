@@ -36,25 +36,25 @@ export default function ToolbarPanel() {
     const shareUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + '?roomId=' + roomId;
     navigator.clipboard.writeText(shareUrl)
       .then(() => {
-        showToast('Canlı Paylaşım linki panoya kopyalandı! Diğer tasarımcıları bu odaya çağırabilirsiniz.', 'success');
+        showToast('Live Share link copied to clipboard! You can invite other designers to this room.', 'success');
       })
       .catch(() => {
-        showToast('Paylaşım linki: ' + shareUrl, 'info');
+        showToast('Share link: ' + shareUrl, 'info');
       });
   };
 
   return (
     <>
       <div className="fixed top-[8px] right-6 z-[60] flex items-center gap-3">
-        {/* Canlı Paylaşım (SignalR Room Share) */}
+        {/* Live Share (SignalR Room Share) */}
         {isConnected && (
           <button
             onClick={shareRoomLink}
-            className="group relative flex items-center justify-center gap-2 bg-[#0F172A]/90 hover:bg-[#1E293B] text-pink-400 hover:text-pink-200 px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-pink-500/20 hover:border-pink-500/40 shadow-md h-10"
-            title="Eşzamanlı Çalışma Odası Linkini Kopyala"
+            className="group relative flex items-center justify-center gap-2 bg-[#0F172A]/90 hover:bg-[#1E293B] text-pink-400 hover:text-pink-200 px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-pink-500/20 hover:border-pink-500/40 shadow-md h-10 animate-none"
+            title="Copy Simultaneous Workspace Link"
           >
             <Users className="w-4 h-4 text-pink-400" />
-            <span className="tracking-wide">Canlı Paylaşım</span>
+            <span className="tracking-wide">Live Share</span>
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -62,34 +62,34 @@ export default function ToolbarPanel() {
           </button>
         )}
 
-        {/* SQL Konsolu (SQL Explorer) */}
+        {/* SQL Console (SQL Explorer) */}
         <button
           onClick={toggleSqlExplorer}
-          className={`group relative flex items-center justify-center gap-2 px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border shadow-md h-10 ${
+          className={`group relative flex items-center justify-center gap-2 px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border shadow-md h-10 animate-none ${
             isSqlExplorerOpen
               ? 'bg-indigo-600/30 text-indigo-200 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.25)]'
               : 'bg-[#0F172A]/90 hover:bg-[#1E293B] text-indigo-400 hover:text-indigo-200 border-indigo-500/20'
           }`}
-          title="Canlı SQL Konsolunu Aç"
+          title="Open Live SQL Console"
         >
           <Terminal className="w-4 h-4 text-indigo-400" />
-          <span className="tracking-wide">SQL Konsolu</span>
+          <span className="tracking-wide">SQL Console</span>
         </button>
 
-        {/* Migration Butonu */}
+        {/* Migration Button */}
         <button
           onClick={() => setIsMigrationOpen(true)}
-          className="group relative flex items-center justify-center gap-2 bg-[#0F172A]/90 hover:bg-[#1E293B] text-indigo-300 hover:text-white px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-indigo-500/30 hover:border-indigo-400/50 shadow-md h-10"
-          title="Migration Engine Panelini Aç"
+          className="group relative flex items-center justify-center gap-2 bg-[#0F172A]/90 hover:bg-[#1E293B] text-indigo-300 hover:text-white px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-indigo-500/30 hover:border-indigo-400/50 shadow-md h-10 animate-none"
+          title="Open Migration Engine Panel"
         >
           <History className="w-4 h-4 text-indigo-400" />
           <span className="tracking-wide">Migration</span>
         </button>
 
-        {/* Diyagramı Onayla Butonu */}
+        {/* Approve Diagram Button */}
         <button
           onClick={handleApprove}
-          className="group relative flex items-center justify-center gap-2 bg-gradient-to-r from-[#4f46e5] to-[#6366f1] hover:from-[#5b4ff8] hover:to-[#818cf8] text-white px-5 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-[#818cf8]/40 shadow-[0_0_15px_rgba(79,70,229,0.5)] overflow-hidden h-10"
+          className="group relative flex items-center justify-center gap-2 bg-gradient-to-r from-[#4f46e5] to-[#6366f1] hover:from-[#5b4ff8] hover:to-[#818cf8] text-white px-5 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-[#818cf8]/40 shadow-[0_0_15px_rgba(79,70,229,0.5)] overflow-hidden h-10 animate-none"
         >
           {/* Starry Background */}
           <div 
@@ -101,18 +101,18 @@ export default function ToolbarPanel() {
 
           {/* Sliding Star Animation on Hover */}
           <div className="absolute top-1/2 -translate-y-1/2 -left-8 group-hover:left-[120%] duration-[1200ms] transition-all ease-in-out z-20 pointer-events-none drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]">
-            <Sparkles className="w-5 h-5 text-indigo-100 animate-pulse" />
+            <Sparkles className="w-5 h-5 text-indigo-100 animate-pulse animate-none" />
           </div>
           
           {/* Shine effect overlay */}
           <div className="absolute top-0 -left-[100%] group-hover:left-[100%] duration-[1200ms] transition-all ease-in-out w-12 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[30deg] z-10 pointer-events-none" />
 
-          <CheckCircle className="w-4 h-4 relative z-10" />
-          <span className="relative z-10 tracking-wide">Diyagramı Onayla</span>
+          <CheckCircle className="w-4 h-4 relative z-10 animate-none" />
+          <span className="relative z-10 tracking-wide">Approve Diagram</span>
         </button>
       </div>
 
-      {/* Migration Engine Sihirbazı */}
+      {/* Migration Wizard */}
       <MigrationWizard
         isOpen={isMigrationOpen}
         onClose={() => setIsMigrationOpen(false)}

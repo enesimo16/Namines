@@ -34,10 +34,10 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
 
     try {
       const issuesText = issues
-        .map((iss, i) => `${i + 1}. [${iss.ruleId}] [Kategori: ${iss.category || 'Performance'}] ${iss.tableName}${iss.columnName ? '.' + iss.columnName : ''}: ${iss.message} (Öneri: ${iss.suggestion})`)
+        .map((iss, i) => `${i + 1}. [${iss.ruleId}] [Category: ${iss.category || 'Performance'}] ${iss.tableName}${iss.columnName ? '.' + iss.columnName : ''}: ${iss.message} (Suggestion: ${iss.suggestion})`)
         .join('\n');
 
-      const prompt = `DBA Analizinde tespit edilen şu performans, yapısal, güvenlik ve bulut maliyet problemlerini otomatik olarak gider ve veritabanı şemasını optimize et:\n${issuesText}\n\nLütfen:\n1. Tüm eksik Primary Key alanlarını tanımla,\n2. NVARCHAR(MAX) gibi sınırsız alanları makul uzunluklarla sınırla (FinOps optimizasyonu),\n3. Index gerektiren FK ilişkilerini optimize et,\n4. Hassas kişisel verileri (şifre, kredi kartı, kimlik no vb.) korumak amacıyla C# tarafında veri şifreleme/maskeleme kurgulanacak yapıyı oluştur,\n5. Şemayı kurumsal standartlara uygun kusursuz ve güvenli bir mimariye dönüştür.`;
+      const prompt = `Automatically resolve the following performance, structural, security, and cloud cost issues identified in the DBA Analysis and optimize the database schema:\n${issuesText}\n\nPlease:\n1. Define all missing Primary Key fields,\n2. Limit unbounded fields like NVARCHAR(MAX) with reasonable lengths (FinOps optimization),\n3. Optimize FK relationships that require indexes,\n4. Create a structure where data encryption/masking is configured on the C# side to protect sensitive personal data (passwords, credit cards, national IDs, etc.),\n5. Transform the schema into a flawless and secure architecture complying with enterprise standards.`;
 
       const revisedSchema = await schemaService.reviseSchema(
         schema.tables,
@@ -48,11 +48,11 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
       );
 
       loadFromSchema(revisedSchema);
-      showToast('Yapay Zeka tüm DBA, Güvenlik ve FinOps sorunlarını başarıyla giderdi ve şemanızı optimize etti!', 'success');
+      showToast('AI successfully resolved all DBA, Security, and FinOps issues and optimized your schema!', 'success');
       onClose();
     } catch (err: any) {
       console.error('AI Auto-Fix error:', err);
-      showToast(`Hata: Yapay Zeka şemayı optimize ederken hata aldı: ${err.message}`, 'error');
+      showToast(`Error: AI encountered an error while optimizing the schema: ${err.message}`, 'error');
     } finally {
       setIsFixing(false);
     }
@@ -130,10 +130,10 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           
           <div className="space-y-1.5 max-w-[180px]">
             <span className="text-[9px] text-indigo-400 font-mono font-extrabold uppercase tracking-widest">
-              ŞEMA SKORU
+              SCHEMA SCORE
             </span>
-            <h4 className="text-md font-bold text-zinc-100 tracking-tight leading-tight">Veritabanı Sağlığı</h4>
-            <p className="text-[10px] text-zinc-400 font-semibold leading-normal">Skor 100 üzerinden hesaplanır.</p>
+            <h4 className="text-md font-bold text-zinc-100 tracking-tight leading-tight">Database Health</h4>
+            <p className="text-[10px] text-zinc-400 font-semibold leading-normal">Score is calculated out of 100.</p>
           </div>
 
           {/* Radial score circle with glow and gradient stroke */}
@@ -178,7 +178,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           <div className="flex items-center justify-between">
             <h4 className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
               <Award className="w-4 h-4 text-indigo-400" />
-              Genel Değerlendirme
+              Overall Assessment
             </h4>
             {/* Wavy line graphic */}
             <div className="flex-1 h-px bg-gradient-to-r from-indigo-500/30 via-purple-500/10 to-transparent ml-3 relative overflow-hidden">
@@ -203,12 +203,12 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             {isFixing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Hatalar AI ile Düzeltiliyor...</span>
+                <span>Fixing Issues with AI...</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4 text-white/90 animate-pulse" />
-                <span>Yapay Zeka ile Tüm Hataları Düzelt</span>
+                <span>Fix All Issues with AI</span>
               </>
             )}
           </button>
@@ -219,7 +219,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           <div className="flex items-center justify-between">
             <h4 className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
               <ShieldCheck className="w-4 h-4 text-indigo-400" />
-              Enterprise Danışmanlık
+              Enterprise Advisory
             </h4>
             {/* Wavy line graphic */}
             <div className="flex-1 h-px bg-gradient-to-r from-indigo-500/30 via-purple-500/10 to-transparent ml-3 relative overflow-hidden">
@@ -238,7 +238,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                   : 'bg-transparent border-transparent text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              Tümü ({issues.length})
+              All ({issues.length})
             </button>
             <button
               onClick={() => setCategoryFilter('Performance')}
@@ -258,7 +258,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                   : 'bg-transparent border-transparent text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              Güvenlik ({issues.filter(i => (i.category || '').toLowerCase() === 'security').length})
+              Security ({issues.filter(i => (i.category || '').toLowerCase() === 'security').length})
             </button>
             <button
               onClick={() => setCategoryFilter('FinOps')}
@@ -278,7 +278,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           <div className="flex items-center justify-between">
             <h4 className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
               <ShieldAlert className="w-4 h-4 text-indigo-400" />
-              Öneri Derecesi ({filteredIssues.length})
+              Severity Level ({filteredIssues.length})
             </h4>
             {/* Wavy line graphic */}
             <div className="flex-1 h-px bg-gradient-to-r from-indigo-500/30 via-purple-500/10 to-transparent ml-3 relative overflow-hidden">
@@ -301,7 +301,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                   }
                 `}
               >
-                {tab === 'ALL' ? 'Tümü' : tab === 'ERROR' ? 'Hata' : tab === 'WARNING' ? 'Uyarı' : 'Öneri'}
+                {tab === 'ALL' ? 'All' : tab === 'ERROR' ? 'Error' : tab === 'WARNING' ? 'Warning' : 'Info'}
               </button>
             ))}
           </div>
@@ -312,7 +312,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           {selectedTableFilter && (
             <div className="flex items-center justify-between bg-indigo-950/20 border border-indigo-900/40 px-4 py-3 rounded-xl shadow-md animate-in fade-in duration-300">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Tablo:</span>
+                <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Table:</span>
                 <span className="text-[10px] font-mono font-bold text-zinc-100 bg-indigo-900/50 border border-indigo-700 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(99,102,241,0.2)]">
                   {selectedTableFilter}
                 </span>
@@ -321,14 +321,14 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                 onClick={() => setSelectedTableFilter(null)}
                 className="text-[10px] text-zinc-400 hover:text-white hover:underline underline-offset-2 transition-all cursor-pointer font-bold"
               >
-                Temizle
+                Clear
               </button>
             </div>
           )}
 
           {filteredIssues.length === 0 ? (
             <div className="text-center py-10 border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/10">
-              <span className="text-zinc-500 text-xs font-semibold">Herhangi bir sorun bulunamadı. Tebrikler!</span>
+              <span className="text-zinc-500 text-xs font-semibold">No issues found. Congratulations!</span>
             </div>
           ) : (
             filteredIssues.map((issue, idx) => {
@@ -388,18 +388,18 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                       </span>
                       {categoryLower === 'security' && (
                         <span className="text-[9px] font-extrabold text-amber-400 bg-amber-950/50 border border-amber-500/20 px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
-                          🛡️ KVKK
+                          Privacy
                         </span>
                       )}
                       {categoryLower === 'finops' && (
                         <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-950/50 border border-emerald-500/20 px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
-                          💰 FinOps
+                          FinOps
                         </span>
                       )}
                       {isHighlighted && (
                         <span className="text-[9px] text-indigo-400 font-bold bg-indigo-950/50 border border-indigo-500/20 px-1.5 py-0.5 rounded uppercase tracking-widest flex items-center gap-1">
                           <Sparkles className="w-2.5 h-2.5 text-indigo-400 animate-spin" />
-                          Seçili
+                          Selected
                         </span>
                       )}
                     </div>
@@ -417,12 +417,12 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
 
                   {/* Context headers */}
                   <div className="text-[11px] font-semibold text-zinc-300 bg-zinc-950/80 px-2.5 py-1.5 rounded-xl border border-zinc-850 flex items-center gap-2">
-                    <span className="text-zinc-500 font-bold">Tablo:</span>
+                    <span className="text-zinc-500 font-bold">Table:</span>
                     <span className="text-zinc-200 font-mono font-bold">{issue.tableName}</span>
                     {issue.columnName && (
                       <>
                         <div className="w-1 h-1 rounded-full bg-zinc-700" />
-                        <span className="text-zinc-500 font-bold">Kolon:</span>
+                        <span className="text-zinc-500 font-bold">Column:</span>
                         <span className="text-zinc-200 font-mono font-bold">{issue.columnName}</span>
                       </>
                     )}
@@ -443,7 +443,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                     {issue.suggestion && (
                       <div className="bg-zinc-950/60 border border-zinc-800/80 p-3 rounded-xl flex flex-col gap-1 text-[11px]">
                         <span className="font-extrabold text-zinc-400 uppercase tracking-wider text-[9px] mb-0.5">
-                          Çözüm Tavsiyesi
+                          Resolution Recommendation
                         </span>
                         <p className="text-zinc-300 leading-relaxed font-medium">
                           {issue.suggestion}

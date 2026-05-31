@@ -51,12 +51,12 @@ export default function SqlExplorerPanel() {
       setSyncSuccess(true);
 
       // Set default query in editor if empty or generic
-      const firstTableName = schema.tables[0]?.name || 'Tablo';
+      const firstTableName = schema.tables[0]?.name || 'Table';
       setSqlQuery(`SELECT * FROM ${firstTableName} LIMIT 10;`);
 
       setTimeout(() => setSyncSuccess(false), 3000);
     } catch (err: any) {
-      setSyncError(err.message || 'Canlı veritabanı kurulurken hata oluştu.');
+      setSyncError(err.message || 'Error occurred while setting up live database.');
     } finally {
       setIsSyncing(false);
     }
@@ -82,7 +82,7 @@ export default function SqlExplorerPanel() {
       const res = await sqliteService.executeQuery(sqlQuery);
       setQueryResult(res);
     } catch (err: any) {
-      setQueryError(err.message || 'Sorgu çalıştırılırken bilinmeyen bir SQLite hatası oluştu.');
+      setQueryError(err.message || 'An unknown SQLite error occurred while executing the query.');
     } finally {
       setExecuting(false);
     }
@@ -94,13 +94,13 @@ export default function SqlExplorerPanel() {
       className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-gradient-to-b from-[#09111F]/90 to-[#0D182A]/90 border border-indigo-500/30 shadow-[0_10px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-3xl backdrop-blur-xl"
     >
       {/* Background Orbs & Stars (Uzay Teması) */}
-      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.01] mix-blend-overlay" />
+      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.01] mix-blend-overlay animate-none" />
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-600/10 via-purple-900/5 to-transparent opacity-80" />
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-teal-500/5 via-transparent to-transparent opacity-60" />
       
       {/* Glowing Orbs */}
-      <div className="absolute top-10 right-20 w-44 h-44 bg-indigo-500/10 rounded-full blur-[60px] pointer-events-none" />
-      <div className="absolute bottom-10 left-20 w-40 h-40 bg-purple-500/5 rounded-full blur-[70px] pointer-events-none" />
+      <div className="absolute top-10 right-20 w-44 h-44 bg-indigo-500/10 rounded-full blur-[60px] pointer-events-none animate-none" />
+      <div className="absolute bottom-10 left-20 w-40 h-40 bg-purple-500/5 rounded-full blur-[70px] pointer-events-none animate-none" />
 
       {/* Decorative Wave SVG (Bottom) */}
       <div className="absolute bottom-0 left-0 w-full h-[60%] pointer-events-none opacity-[0.04] z-0">
@@ -115,20 +115,20 @@ export default function SqlExplorerPanel() {
           <div className="p-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400">
             <Terminal className="w-4 h-4" />
           </div>
-          <span className="text-xs font-bold tracking-wider text-indigo-200 uppercase">SQL Konsolu</span>
+          <span className="text-xs font-bold tracking-wider text-indigo-200 uppercase">SQL Console</span>
 
           {/* Active status indicator badge */}
           {sqliteService.isActive() && !isSyncing ? (
-            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/5 border border-emerald-500/15 text-[10px] font-medium text-emerald-400">
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/5 border border-emerald-500/15 text-[10px] font-medium text-emerald-400 animate-none">
               <span className="relative flex h-1.5 w-1.5 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
               </span>
-              <span>Canlı DB Aktif</span>
+              <span>Live DB Active</span>
             </span>
           ) : (
             <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-zinc-900/30 border border-zinc-800 text-[10px] font-medium text-zinc-500">
-              <span>Canlı DB Pasif</span>
+              <span>Live DB Inactive</span>
             </span>
           )}
         </div>
@@ -139,11 +139,11 @@ export default function SqlExplorerPanel() {
           <button
             onClick={syncAndSeedDb}
             disabled={isSyncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-200 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
-            title="Diyagram şemasını ve mock verileri yerel veritabanına yeniden yükle"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-200 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all disabled:opacity-50 cursor-pointer shadow-sm animate-none"
+            title="Reload diagram schema and mock data into local database"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-400' : 'text-indigo-400/70'}`} />
-            <span>{isSyncing ? 'Veritabanı Kuruluyor...' : 'Reset & Seed'}</span>
+            <span>{isSyncing ? 'Setting up DB...' : 'Reset & Seed'}</span>
           </button>
 
           {/* Close Panel button */}
@@ -167,7 +167,7 @@ export default function SqlExplorerPanel() {
             <div className="m-4 bg-rose-950/10 border border-rose-500/20 rounded-xl p-4 flex gap-3 items-start animate-in fade-in shrink-0">
               <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
               <div>
-                <span className="text-red-400 text-xs font-bold block mb-0.5">Kurulum Hatası</span>
+                <span className="text-red-400 text-xs font-bold block mb-0.5 animate-none">Setup Error</span>
                 <p className="text-zinc-500 text-[11px] leading-relaxed font-mono">{syncError}</p>
               </div>
             </div>
@@ -177,8 +177,8 @@ export default function SqlExplorerPanel() {
             <div className="m-4 bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-4 flex gap-3 items-start animate-in fade-in shrink-0">
               <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
               <div>
-                <span className="text-emerald-400 text-xs font-bold block mb-0.5">Eşitleme Başarılı</span>
-                <p className="text-indigo-200/80 text-[11px] leading-relaxed">Tablolar kuruldu ve mock veriler yüklendi. Test etmeye hazır.</p>
+                <span className="text-emerald-400 text-xs font-bold block mb-0.5 animate-none">Sync Successful</span>
+                <p className="text-indigo-200/80 text-[11px] leading-relaxed">Tables are created and mock data is loaded. Ready to test.</p>
               </div>
             </div>
           )}
@@ -187,7 +187,7 @@ export default function SqlExplorerPanel() {
             <div className="m-4 bg-rose-950/20 border border-rose-500/30 rounded-xl p-4 flex gap-3 items-start animate-in fade-in shrink-0">
               <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
               <div>
-                <span className="text-rose-400 text-xs font-bold block mb-0.5">Çalışma Hatası</span>
+                <span className="text-rose-400 text-xs font-bold block mb-0.5 animate-none">Runtime Error</span>
                 <p className="text-rose-200/80 text-xs font-mono mt-1 leading-relaxed bg-[#070D19]/60 p-2.5 rounded-lg border border-rose-500/20">{queryError}</p>
               </div>
             </div>
@@ -200,8 +200,8 @@ export default function SqlExplorerPanel() {
               <div className="h-full flex flex-col items-center justify-center gap-3">
                 <RefreshCw className="w-6 h-6 text-indigo-400 animate-spin" />
                 <div className="text-center">
-                  <span className="text-indigo-250 text-xs font-bold block">Veritabanı Ayarlanıyor...</span>
-                  <span className="text-indigo-400/60 text-[10px] mt-1 block">Modüller yükleniyor ve veriler dolduruluyor.</span>
+                  <span className="text-indigo-250 text-xs font-bold block animate-none">Setting up Database...</span>
+                  <span className="text-indigo-400/60 text-[10px] mt-1 block">Modules are loading and data is seeding.</span>
                 </div>
               </div>
             ) : queryResult ? (
@@ -212,8 +212,8 @@ export default function SqlExplorerPanel() {
                   <div className="h-full flex flex-col items-center justify-center gap-2 select-none">
                     <Table2 className="w-6 h-6 text-indigo-400/60" />
                     <div className="text-center">
-                      <span className="text-indigo-300 text-xs font-bold block">Sonuç Kümesi Boş</span>
-                      <span className="text-indigo-400/50 text-[10px] mt-1 block">Sorgu çalıştı ancak sonuç dönmedi.</span>
+                      <span className="text-indigo-300 text-xs font-bold block animate-none">Result Set is Empty</span>
+                      <span className="text-indigo-400/50 text-[10px] mt-1 block">Query executed successfully but returned no results.</span>
                     </div>
                   </div>
                 ) : (
@@ -252,7 +252,7 @@ export default function SqlExplorerPanel() {
                 <div className="h-full flex flex-col items-center justify-center gap-2 animate-in fade-in select-none">
                   <CheckCircle className="w-6 h-6 text-emerald-400 animate-pulse" />
                   <div className="text-center">
-                    <span className="text-zinc-200 text-xs font-bold block">İşlem Başarılı</span>
+                    <span className="text-zinc-200 text-xs font-bold block animate-none">Operation Successful</span>
                     <span className="text-emerald-400 font-mono text-xs mt-1 block">{queryResult.message}</span>
                   </div>
                 </div>
@@ -260,13 +260,13 @@ export default function SqlExplorerPanel() {
             ) : !queryError && !syncError ? (
               /* Empty Initial State */
               <div className="h-full flex flex-col items-center justify-center gap-3 select-none">
-                <div className="w-10 h-10 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center rounded-xl">
+                <div className="w-10 h-10 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center rounded-xl animate-none">
                   <Database className="w-4 h-4 animate-pulse" />
                 </div>
                 <div className="text-center max-w-sm">
-                  <span className="text-indigo-200 text-xs font-bold block">Sorgu Koşulmadı</span>
+                  <span className="text-indigo-200 text-xs font-bold block animate-none">No Query Run</span>
                   <span className="text-indigo-400/50 text-[10px] mt-1 leading-relaxed block">
-                    Sağ tarafa SQL sorgusu yazıp &apos;Sorguyu Çalıştır&apos; butonu ile canlı veritabanında test edebilirsiniz.
+                    You can write SQL queries on the right and test them in the live database with the &apos;Execute Query&apos; button.
                   </span>
                 </div>
               </div>
@@ -277,7 +277,7 @@ export default function SqlExplorerPanel() {
         {/* Right Side: SQL Input Editor Area */}
         <div className="w-[35%] border-l border-indigo-500/10 flex flex-col p-4 gap-3 shrink-0">
           <div className="flex justify-between items-center select-none">
-            <span className="text-[10px] font-bold text-indigo-300/60 uppercase tracking-wider">SQL Sorgusu</span>
+            <span className="text-[10px] font-bold text-indigo-300/60 uppercase tracking-wider">SQL Query</span>
             <span className="text-[9px] text-indigo-400/50 font-mono">SQLite Wasm</span>
           </div>
 
@@ -292,17 +292,17 @@ export default function SqlExplorerPanel() {
           <button
             onClick={handleRunQuery}
             disabled={executing || isSyncing || !sqlQuery.trim()}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-450 transition-colors shadow-[0_4px_15px_rgba(99,102,241,0.25)] disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-400/30 cursor-pointer"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-450 transition-colors shadow-[0_4px_15px_rgba(99,102,241,0.25)] disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-400/30 cursor-pointer animate-none"
           >
             {executing ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Çalıştırılıyor...</span>
+                <span>Executing...</span>
               </>
             ) : (
               <>
                 <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Sorguyu Çalıştır</span>
+                <span>Execute Query</span>
               </>
             )}
           </button>

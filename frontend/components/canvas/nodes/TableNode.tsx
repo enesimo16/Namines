@@ -74,7 +74,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
       borderColorClass = 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]';
       diffBadge = (
         <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-0.5 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
-          <Plus className="w-2.5 h-2.5" /> Yeni
+          <Plus className="w-2.5 h-2.5" /> New
         </span>
       );
     } else if (diff.status === 'deleted') {
@@ -82,14 +82,14 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
       containerBgClass = 'bg-zinc-950/70';
       diffBadge = (
         <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500/80 border border-rose-500/20 flex items-center gap-0.5">
-          <Minus className="w-2.5 h-2.5" /> Silindi
+          <Minus className="w-2.5 h-2.5" /> Deleted
         </span>
       );
     } else if (diff.status === 'modified') {
       borderColorClass = 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)] animate-pulse';
       diffBadge = (
         <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-0.5 shadow-[0_0_8px_rgba(245,158,11,0.2)]">
-          <RefreshCw className="w-2.5 h-2.5 animate-spin" style={{ animationDuration: '3s' }} /> Fark Var
+          <RefreshCw className="w-2.5 h-2.5 animate-spin" style={{ animationDuration: '3s' }} /> Modified
         </span>
       );
     } else {
@@ -135,7 +135,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
       {showPopover && (
         <div className="absolute inset-0 z-[45] bg-zinc-950/95 backdrop-blur-md flex flex-col items-center justify-center p-5 gap-3 text-center animate-in fade-in zoom-in-95 duration-200">
           <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-            Tablo İşlemleri
+            Table Operations
           </div>
           
           <button
@@ -146,7 +146,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
             }}
             className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-indigo-400/20 cursor-pointer"
           >
-            Manuel Yapıyı Düzenle
+            Edit Manual Structure
           </button>
 
           <button
@@ -158,7 +158,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
             }}
             className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-emerald-400 hover:text-emerald-300 rounded-xl text-xs font-bold transition-all border border-zinc-800 hover:border-zinc-700 cursor-pointer"
           >
-            AI DBA Önerilerine Git
+            Go to AI DBA Suggestions
           </button>
 
           <button
@@ -168,7 +168,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
             }}
             className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 transition-colors mt-1 underline underline-offset-4 cursor-pointer"
           >
-            Kapat
+            Close
           </button>
         </div>
       )}
@@ -186,7 +186,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
                   hasDbaWarning ? 'bg-amber-500 text-zinc-950 shadow-[0_0_12px_rgba(245,158,11,0.65)]' :
                   'bg-sky-500 text-white shadow-[0_0_12px_rgba(14,165,233,0.65)]'}
               `}
-              title={`${dbaIssues.length} DBA uyarısı mevcut`}
+              title={`${dbaIssues.length} DBA warnings present`}
             >
               ⚠️
             </span>
@@ -194,14 +194,14 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-zinc-400 bg-zinc-700/50 px-2 py-1 rounded">
-            {table.columns.length} kol.
+            {table.columns.length} cols
           </span>
           {isEditMode && !diff && (
             <button
               onClick={handleEditClick}
               className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white transition-colors"
-              title="Tabloyu düzenle"
-              aria-label="Tabloyu düzenle"
+              title="Edit table"
+              aria-label="Edit table"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>

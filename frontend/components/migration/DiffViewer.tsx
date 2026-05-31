@@ -16,19 +16,19 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-zinc-400">
         <CheckCircle className="w-12 h-12 text-emerald-500 mb-2 animate-bounce" />
-        <span className="text-[14px]">Şemalar arasında herhangi bir değişiklik bulunamadı.</span>
+        <span className="text-[14px]">No changes were found between schemas.</span>
       </div>
     );
   }
 
   return (
     <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-      {/* Eklenen Tablolar */}
+      {/* Added Tables */}
       {hasAdded && (
         <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-4">
           <h4 className="text-emerald-400 text-sm font-bold flex items-center gap-2 mb-2">
             <PlusCircle className="w-4 h-4" />
-            <span>Eklenen Tablolar ({diff.addedTables.length})</span>
+            <span>Added Tables ({diff.addedTables.length})</span>
           </h4>
           <ul className="grid grid-cols-2 gap-2">
             {diff.addedTables.map((t) => (
@@ -41,12 +41,12 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
         </div>
       )}
 
-      {/* Silinen Tablolar */}
+      {/* Deleted Tables */}
       {hasRemoved && (
         <div className="bg-rose-950/20 border border-rose-500/20 rounded-xl p-4">
           <h4 className="text-rose-400 text-sm font-bold flex items-center gap-2 mb-2">
             <MinusCircle className="w-4 h-4" />
-            <span>Silinen Tablolar ({diff.removedTables.length})</span>
+            <span>Deleted Tables ({diff.removedTables.length})</span>
           </h4>
           <ul className="grid grid-cols-2 gap-2">
             {diff.removedTables.map((t) => (
@@ -59,12 +59,12 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
         </div>
       )}
 
-      {/* Değişen Tablolar */}
+      {/* Modified Tables */}
       {hasModified && (
         <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-4">
           <h4 className="text-amber-400 text-sm font-bold flex items-center gap-2 mb-2">
             <AlertTriangle className="w-4 h-4" />
-            <span>Değişen Tablolar ({diff.modifiedTables.length})</span>
+            <span>Modified Tables ({diff.modifiedTables.length})</span>
           </h4>
           <div className="space-y-3">
             {diff.modifiedTables.map((tbl) => (
@@ -76,21 +76,21 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
                 
                 {tbl.addedColumns.length > 0 && (
                   <div className="text-[11px] text-zinc-400">
-                    <span className="text-emerald-400 font-bold mr-1">Eklendi:</span>
+                    <span className="text-emerald-400 font-bold mr-1">Added:</span>
                     {tbl.addedColumns.join(', ')}
                   </div>
                 )}
                 
                 {tbl.removedColumns.length > 0 && (
                   <div className="text-[11px] text-zinc-400">
-                    <span className="text-rose-400 font-bold mr-1 line-through">Silindi:</span>
+                    <span className="text-rose-400 font-bold mr-1 line-through">Deleted:</span>
                     <span className="line-through decoration-rose-500/30">{tbl.removedColumns.join(', ')}</span>
                   </div>
                 )}
 
                 {tbl.modifiedColumns.length > 0 && (
                   <div className="text-[11px] text-zinc-400">
-                    <span className="text-amber-400 font-bold mr-1">Değişti:</span>
+                    <span className="text-amber-400 font-bold mr-1">Modified:</span>
                     {tbl.modifiedColumns.join(', ')}
                   </div>
                 )}

@@ -87,11 +87,11 @@ export const sqliteService = {
       dbInstance.run(sql);
       return {
         success: true,
-        message: 'SQL scripti başarıyla çalıştırıldı.'
+        message: 'SQL script executed successfully.'
       };
     } catch (err: any) {
       console.error('SQLite script execution error:', err);
-      throw new Error(err.message || 'SQL çalıştırılırken bilinmeyen bir SQLite hatası oluştu.');
+      throw new Error(err.message || 'An unknown SQLite error occurred while executing SQL.');
     }
   },
 
@@ -115,7 +115,7 @@ export const sqliteService = {
             columns: [],
             rows: [],
             isSelect: true,
-            message: 'Sorgu başarılı ancak sonuç dönmedi.'
+            message: 'Query successful but returned no results.'
           };
         }
 
@@ -142,11 +142,11 @@ export const sqliteService = {
           columns: [],
           rows: [],
           isSelect: false,
-          message: `Sorgu başarıyla çalıştırıldı. Etkilenen satır sayısı: ${modifiedRows}`
+          message: `Query executed successfully. Affected rows: ${modifiedRows}`
         };
       }
     } catch (err: any) {
-      throw new Error(err.message || 'Sorgu çalıştırılırken SQLite hatası oluştu.');
+      throw new Error(err.message || 'An SQLite error occurred while executing the query.');
     }
   },
 

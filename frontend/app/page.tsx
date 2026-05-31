@@ -98,7 +98,7 @@ export default function LandingPage() {
       router.push('/canvas');
     } catch (error) {
       console.error('Failed to generate schema:', error);
-      showToast('Şema oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.', 'error');
+      showToast('An error occurred while generating the schema. Please try again.', 'error');
       setIsGenerating(false);
     }
   };
@@ -124,7 +124,7 @@ export default function LandingPage() {
             Namines
           </h1>
           <p className="text-gray-400 text-lg font-medium">
-            Yapay zeka ile saniyeler içinde interaktif veritabanı mimarileri oluşturun.
+            Design interactive database architectures in seconds with artificial intelligence.
           </p>
         </div>
 
@@ -138,7 +138,7 @@ export default function LandingPage() {
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Örn: Trendyol benzeri, kullanıcıların ürünleri sepete ekleyip sipariş verebileceği bir e-ticaret veritabanı tasarla..."
+                placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
                 className="w-full h-40 p-4 rounded-xl glass-input resize-none placeholder-gray-500 text-sm leading-relaxed"
                 disabled={isGenerating}
               ></textarea>
@@ -148,7 +148,7 @@ export default function LandingPage() {
                   type="button"
                   onClick={() => setShowUrlInput(!showUrlInput)}
                   className={`w-8 h-8 rounded-lg glass-button flex items-center justify-center transition-all ${showUrlInput || referenceUrl ? 'text-indigo-400' : 'text-gray-400 hover:text-white'}`}
-                  title="Link Ekle"
+                  title="Add Link"
                 >
                   <i className="fa-solid fa-link text-xs"></i>
                 </button>
@@ -156,7 +156,7 @@ export default function LandingPage() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className={`w-8 h-8 rounded-lg glass-button flex items-center justify-center transition-all ${image ? 'text-indigo-400' : 'text-gray-400 hover:text-white'}`}
-                  title="Görsel Ekle"
+                  title="Add Image"
                 >
                   <i className="fa-regular fa-image text-xs"></i>
                 </button>
@@ -258,12 +258,12 @@ export default function LandingPage() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Oluşturuluyor...</span>
+                    <span>Generating...</span>
                   </>
                 ) : (
                   <>
                     <i className="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>Mimarimi Üret</span>
+                    <span>Generate Schema</span>
                   </>
                 )}
               </button>

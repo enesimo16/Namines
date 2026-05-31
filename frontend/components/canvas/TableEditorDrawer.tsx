@@ -25,13 +25,13 @@ const genId = (): string =>
 export default function TableEditorDrawer() {
   const { schema, selectedTableForEdit, setSelectedTableForEdit, updateTable } = useSchemaStore();
 
-  // Seçili tabloyu bul
+  // Find selected table
   const originalTable = schema?.tables.find((t: SchemaTable) => t.id === selectedTableForEdit) ?? null;
 
-  // Drawer'ın yerel draft state'i
+  // Drawer's local draft state
   const [draft, setDraft] = useState<SchemaTable | null>(null);
 
-  // selectedTableForEdit değiştiğinde draft'ı sıfırla
+  // Reset draft when selectedTableForEdit changes
   useEffect(() => {
     setDraft(originalTable ? JSON.parse(JSON.stringify(originalTable)) : null);
   }, [selectedTableForEdit]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -40,7 +40,7 @@ export default function TableEditorDrawer() {
 
   const handleClose = () => {
     if (draft && originalTable) {
-      // Kapatırken otomatik kaydet
+      // Auto-save when closing
       if (JSON.stringify(draft) !== JSON.stringify(originalTable)) {
         updateTable(draft);
       }
@@ -48,13 +48,13 @@ export default function TableEditorDrawer() {
     setSelectedTableForEdit(null);
   };
 
-  // ── Tablo adı ──────────────────────────────────────────────────────────────
+  // ── Table Name ──────────────────────────────────────────────────────────────
   const handleTableNameChange = (name: string) => {
     if (!draft) return;
     setDraft({ ...draft, name });
   };
 
-  // ── Kolon aksiyonları ─────────────────────────────────────────────────────
+  // ── Column Actions ─────────────────────────────────────────────────────
   const handleColumnChange = <K extends keyof SchemaColumn>(
     colId: string, field: K, value: SchemaColumn[K]
   ) => {
@@ -69,7 +69,7 @@ export default function TableEditorDrawer() {
     if (!draft) return;
     const newCol: SchemaColumn = {
       id: genId(),
-      name: `kolon_${draft.columns.length + 1}`,
+      name: `column_${draft.columns.length + 1}`,
       type: 'VARCHAR',
       length: 255,
       isPK: false,
@@ -105,7 +105,7 @@ export default function TableEditorDrawer() {
           onEscapeKeyDown={handleClose}
         >
           <Dialog.Description id="table-editor-desc" className="sr-only">
-            Tablo yapısını düzenleyin
+            Edit the table structure
           </Dialog.Description>
 
           {/* Background Exaggerated Sea & Stars */}
@@ -135,9 +135,9 @@ export default function TableEditorDrawer() {
               </div>
               <div>
                 <Dialog.Title className="text-xl font-bold tracking-wide bg-gradient-to-r from-zinc-100 to-zinc-300 bg-clip-text text-transparent">
-                  Tablo Düzenle
+                  Edit Table
                 </Dialog.Title>
-                <p className="text-sm text-indigo-200/60 mt-0.5">{draft?.columns.length ?? 0} kolon yapılandırılıyor</p>
+                <p className="text-sm text-indigo-200/60 mt-0.5">{draft?.columns.length ?? 0} column{draft?.columns.length !== 1 ? 's' : ''} being configured</p>
               </div>
             </div>
             <Dialog.Close asChild>
@@ -152,12 +152,12 @@ export default function TableEditorDrawer() {
             <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar relative z-10 flex flex-col gap-6">
               {/* Table Name */}
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold tracking-wider text-indigo-300/80 uppercase">Tablo Adı</label>
+                <label className="text-xs font-bold tracking-wider text-indigo-300/80 uppercase">Table Name</label>
                 <input
                   value={draft.name}
                   onChange={e => handleTableNameChange(e.target.value)}
                   className="w-full bg-[#111928] border border-[#2A3750] rounded-xl px-4 py-3 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-600"
-                  placeholder="örn: kullanicilar"
+                  placeholder="e.g. users"
                   spellCheck={false}
                 />
               </div>
@@ -165,13 +165,13 @@ export default function TableEditorDrawer() {
               {/* Columns */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between border-b border-[#2A3750]/50 pb-2">
-                  <span className="text-xs font-bold tracking-wider text-indigo-300/80 uppercase">Kolonlar</span>
+                  <span className="text-xs font-bold tracking-wider text-indigo-300/80 uppercase">Columns</span>
                   <button 
                     onClick={handleAddColumn} 
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg transition-all"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Kolon Ekle</span>
+                    <span>Add Column</span>
                   </button>
                 </div>
 
@@ -191,7 +191,7 @@ export default function TableEditorDrawer() {
                         value={col.name}
                         onChange={e => handleColumnChange(col.id, 'name', e.target.value)}
                         className="flex-1 min-w-0 bg-[#1A2333] border border-[#2A3750] rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500/50 transition-colors placeholder:text-zinc-600"
-                        placeholder="kolon_adi"
+                        placeholder="column_name"
                         spellCheck={false}
                       />
 
@@ -232,7 +232,7 @@ export default function TableEditorDrawer() {
                             <div className="w-3.5 h-3.5 border border-zinc-600 rounded bg-zinc-800 peer-checked:bg-indigo-500 peer-checked:border-indigo-500 transition-colors" />
                             <svg className="absolute w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>
                           </div>
-                          <span className="text-[10px] font-medium text-zinc-400 group-hover/chk:text-zinc-300">NN</span>
+                          <span className="text-[10px] font-medium text-zinc-400 group-hover/chk:text-zinc-300">Null</span>
                         </label>
                       </div>
 
@@ -241,7 +241,7 @@ export default function TableEditorDrawer() {
                         onClick={() => handleDeleteColumn(col.id)}
                         disabled={col.isPK && draft.columns.filter((c: SchemaColumn) => c.isPK).length <= 1}
                         className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-400/10 rounded-md opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-zinc-600 shrink-0"
-                        title="Kolonu sil"
+                        title="Delete column"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -253,12 +253,12 @@ export default function TableEditorDrawer() {
                       <div className="w-10 h-10 rounded-full bg-[#1A2333] border border-[#2A3750] flex items-center justify-center text-zinc-500 mb-3">
                         <Plus className="w-5 h-5" />
                       </div>
-                      <p className="text-sm text-zinc-400">Henüz kolon eklenmedi.</p>
+                      <p className="text-sm text-zinc-400">No columns added yet.</p>
                       <button 
                         onClick={handleAddColumn}
                         className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                       >
-                        İlk kolonu ekleyin
+                        Add the first column
                       </button>
                     </div>
                   )}
@@ -273,13 +273,13 @@ export default function TableEditorDrawer() {
               onClick={handleClose} 
               className="px-5 py-2.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 rounded-xl transition-colors"
             >
-              İptal
+              Cancel
             </button>
             <button 
               onClick={handleSave} 
               className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.25)] hover:shadow-[0_0_25px_rgba(99,102,241,0.4)] transition-all flex items-center gap-2"
             >
-              <span>Değişiklikleri Kaydet</span>
+              <span>Save Changes</span>
             </button>
           </div>
         </Dialog.Content>

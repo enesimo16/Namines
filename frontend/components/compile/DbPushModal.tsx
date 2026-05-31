@@ -10,16 +10,16 @@ interface DbPushModalProps {
 }
 
 const DB_PLACEHOLDERS: Record<string, string> = {
-  MSSQL:      'Örn: Server=myServer;Database=myDb;User Id=myUser;Password=myPassword;',
-  PostgreSQL: 'Örn: Host=localhost;Port=5432;Database=myDb;Username=myUser;Password=myPassword;',
-  MySQL:      'Örn: Server=localhost;Port=3306;Database=myDb;Uid=myUser;Pwd=myPassword;',
-  SQLite:     'Örn: Data Source=./mydb.sqlite;',
-  Oracle:     'Örn: Data Source=localhost:1521/ORCL;User Id=myUser;Password=myPassword;',
-  MariaDB:    'Örn: Server=localhost;Port=3306;Database=myDb;Uid=myUser;Pwd=myPassword;',
-  Db2:        'Örn: Server=myAddress:50000;Database=myDataBase;UID=myUsername;PWD=myPassword;',
-  Firebird:   'Örn: User=SYSDBA;Password=masterkey;Database=localhost:C:/Db/myDb.fdb;',
-  Spanner:    'Örn: Project=my-project;Instance=my-instance;Database=my-db;',
-  Redshift:   'Örn: Server=my-cluster.redshift.amazonaws.com;Database=myDb;User=myUser;Password=myPassword;Port=5439;',
+  MSSQL:      'e.g., Server=myServer;Database=myDb;User Id=myUser;Password=myPassword;',
+  PostgreSQL: 'e.g., Host=localhost;Port=5432;Database=myDb;Username=myUser;Password=myPassword;',
+  MySQL:      'e.g., Server=localhost;Port=3306;Database=myDb;Uid=myUser;Pwd=myPassword;',
+  SQLite:     'e.g., Data Source=./mydb.sqlite;',
+  Oracle:     'e.g., Data Source=localhost:1521/ORCL;User Id=myUser;Password=myPassword;',
+  MariaDB:    'e.g., Server=localhost;Port=3306;Database=myDb;Uid=myUser;Pwd=myPassword;',
+  Db2:        'e.g., Server=myAddress:50000;Database=myDataBase;UID=myUsername;PWD=myPassword;',
+  Firebird:   'e.g., User=SYSDBA;Password=masterkey;Database=localhost:C:/Db/myDb.fdb;',
+  Spanner:    'e.g., Project=my-project;Instance=my-instance;Database=my-db;',
+  Redshift:   'e.g., Server=my-cluster.redshift.amazonaws.com;Database=myDb;User=myUser;Password=myPassword;Port=5439;',
 };
 
 export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushModalProps) {
@@ -48,14 +48,14 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
       const data = await response.json();
       if (response.ok && data.success) {
         setTestSuccess(true);
-        setDeployMessage({ text: 'Bağlantı başarılı!', isError: false });
+        setDeployMessage({ text: 'Connection successful!', isError: false });
       } else {
         setTestSuccess(false);
-        setDeployMessage({ text: data.message || 'Bağlantı başarısız.', isError: true });
+        setDeployMessage({ text: data.message || 'Connection failed.', isError: true });
       }
     } catch {
       setTestSuccess(false);
-      setDeployMessage({ text: 'Sunucuya ulaşılamadı veya bir hata oluştu.', isError: true });
+      setDeployMessage({ text: 'Could not reach server or an error occurred.', isError: true });
     } finally {
       setIsTesting(false);
     }
@@ -73,12 +73,12 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
       });
       const data = await response.json();
       if (response.ok && data.success) {
-        setDeployMessage({ text: data.message || 'Başarıyla aktarıldı!', isError: false });
+        setDeployMessage({ text: data.message || 'Successfully applied!', isError: false });
       } else {
-        setDeployMessage({ text: data.message || 'Aktarım başarısız.', isError: true });
+        setDeployMessage({ text: data.message || 'Deployment failed.', isError: true });
       }
     } catch {
-      setDeployMessage({ text: 'Aktarım sırasında bir hata oluştu.', isError: true });
+      setDeployMessage({ text: 'An error occurred during deployment.', isError: true });
     } finally {
       setIsDeploying(false);
     }
@@ -93,8 +93,8 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-6 pb-4">
             <Dialog.Title className="text-[18px] font-bold text-white flex items-center gap-2.5">
-              <Database className="w-5 h-5 text-indigo-400" strokeWidth={2} />
-              Canlı Veritabanına Aktar
+              <Database className="w-5 h-5 text-indigo-400 animate-none" strokeWidth={2} />
+              Deploy to Live Database
             </Dialog.Title>
             <Dialog.Close asChild>
               <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors">
@@ -107,8 +107,8 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
             {/* DB Type */}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                <Database className="w-4 h-4 text-zinc-500" />
-                Hedef Veritabanı Türü
+                <Database className="w-4 h-4 text-zinc-500 animate-none" />
+                Target Database Type
               </label>
               <div className="relative">
                 <select
@@ -148,9 +148,9 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                 rows={3}
                 className="w-full bg-[#1a1d24] border border-zinc-700/60 text-zinc-200 text-sm rounded-xl px-4 py-3 resize-none focus:outline-none focus:border-indigo-500/60 transition-colors font-mono placeholder:text-zinc-600 leading-relaxed"
               />
-              <p className="text-xs text-amber-500/90 flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                Bilgileriniz kaydedilmez veya loglanmaz. Oturum bittiğinde silinir.
+              <p className="text-xs text-amber-500/90 flex items-center gap-1.5 font-semibold">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 animate-none" />
+                Your credentials are not saved or logged. They are deleted when the session ends.
               </p>
             </div>
 
@@ -162,9 +162,9 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                   : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
               }`}>
                 {deployMessage.isError
-                  ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  : <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />}
-                <span className="leading-relaxed">{deployMessage.text}</span>
+                  ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 animate-none" />
+                  : <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 animate-none" />}
+                <span className="leading-relaxed font-semibold">{deployMessage.text}</span>
               </div>
             )}
 
@@ -173,22 +173,22 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
               <button
                 onClick={handleTestConnection}
                 disabled={isTesting || !connectionString.trim()}
-                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-200 text-sm font-medium rounded-xl transition-colors border border-zinc-700 flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-200 text-sm font-medium rounded-xl transition-colors border border-zinc-700 flex items-center justify-center gap-2 cursor-pointer animate-none"
               >
                 {isTesting
                   ? <Loader2 className="w-4 h-4 animate-spin" />
                   : testSuccess === true
                     ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     : null}
-                Bağlantıyı Test Et
+                Test Connection
               </button>
               <button
                 onClick={handleDeploy}
                 disabled={!testSuccess || isDeploying || !connectionString.trim() || !sqlScript.trim()}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:bg-zinc-800 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:bg-zinc-800 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer animate-none"
               >
                 {isDeploying ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                Script'i Çalıştır
+                Run Script
               </button>
             </div>
           </div>

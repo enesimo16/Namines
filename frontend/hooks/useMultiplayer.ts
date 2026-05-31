@@ -45,7 +45,7 @@ export function useMultiplayer() {
     // 2. Get or Generate UserName
     let currentUserName = localStorage.getItem('namines_username');
     if (!currentUserName) {
-      currentUserName = 'Tasarımcı-' + Math.floor(Math.random() * 9000 + 1000);
+      currentUserName = 'Designer-' + Math.floor(Math.random() * 9000 + 1000);
       localStorage.setItem('namines_username', currentUserName);
     }
 
@@ -73,7 +73,7 @@ export function useMultiplayer() {
     });
 
     connection.on('ReceiveUserJoined', (connectionId: string, peerName: string) => {
-      showToast(`${peerName} odaya katıldı!`, 'success');
+      showToast(`${peerName} joined the room!`, 'success');
     });
 
     connection.on('ReceiveSchema', (remoteSchema: DatabaseSchema) => {
@@ -90,10 +90,10 @@ export function useMultiplayer() {
       try {
         await connection.start();
         setIsConnected(true);
-        showToast('Eşzamanlı Tasarım Odası Bağlantısı Kuruldu!', 'success');
+        showToast('Real-time Collaborative Room Connection Established!', 'success');
         await connection.invoke('JoinRoom', currentRoomId, currentUserName);
       } catch (err) {
-        // Hatalar hızlı mount/unmount sırasında gürültü yapmaması için susturuldu
+        // Errors silenced to avoid noise during fast mount/unmount
       }
     };
 

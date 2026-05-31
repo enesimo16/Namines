@@ -34,11 +34,11 @@ function formatDate(iso: string): string {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMins < 1)   return 'Az önce';
-  if (diffMins < 60)  return `${diffMins} dk önce`;
-  if (diffHours < 24) return `${diffHours} sa önce`;
-  if (diffDays < 7)   return `${diffDays} gün önce`;
-  return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (diffMins < 1)   return 'Just now';
+  if (diffMins < 60)  return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7)   return `${diffDays}d ago`;
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
@@ -72,7 +72,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
 
   const handleDeleteProject = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm('Bu projeyi silmek istediğinize emin misiniz?')) {
+    if (confirm('Are you sure you want to delete this project?')) {
       deleteProject(id);
     }
   };
@@ -103,7 +103,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
       <aside
         className={`fixed top-0 left-0 h-full w-[340px] bg-gradient-to-b from-[#060D1A] to-[#0B152A] border-r border-indigo-500/20 z-[70] transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${isOpen ? 'translate-x-0 shadow-[50px_0_50px_rgba(59,130,246,0.1)]' : '-translate-x-full shadow-none'}`}
         role="dialog"
-        aria-label="Proje Geçmişi"
+        aria-label="Project History"
         aria-modal="true"
       >
         {/* Background Stars Overlay */}
@@ -149,8 +149,8 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                 <FolderOpen className="w-5 h-5 text-indigo-400" />
               </div>
               <p className="text-sm text-indigo-200/60 leading-relaxed">
-                Henüz kayıtlı proje yok.<br />
-                Şema üretince burada görünecek.
+                No saved projects yet.<br />
+                They will appear here once you generate a schema.
               </p>
             </div>
           ) : (
@@ -197,12 +197,12 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                   <button
                     onClick={(e) => handleDeleteProject(e, project.id)}
                     className="p-1.5 -ml-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-colors opacity-0 group-hover:opacity-100 shrink-0 flex items-center gap-1.5"
-                    title="Projeyi sil"
+                    title="Delete project"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                   <span className="text-xs text-indigo-200/50">
-                    {project.schema.tables.length} tablo · {project.schema.relations.length} ilişki
+                    {project.schema.tables.length} tables · {project.schema.relations.length} relations
                   </span>
                 </div>
               </div>

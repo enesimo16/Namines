@@ -39,7 +39,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  // ── Sayfa yenilendiğinde önceki sandbox oturumunu geri yükle ──────────────
+  // ── Restore previous sandbox session when page is loaded ──────────────
   useEffect(() => {
     const saved = getActiveSandbox();
     if (saved && saved.type === 'DB') {
@@ -47,12 +47,12 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
       setDownloadUrl(saved.url || null);
       setStatus(saved.url ? 'running' : 'generating');
       setLogs(saved.url 
-        ? [`♻️ Önceki sandbox geri yüklendi. Yedek (.bak) hazır.`]
-        : [`♻️ Önceki sandbox işlemi geri yüklendi. Log yayını bekleniyor...`]
+        ? [`Previous sandbox restored. Backup (.bak) is ready.`]
+        : [`Previous sandbox operation restored. Waiting for log stream...`]
       );
 
       if (!saved.url) {
-        // Yeniden SSE yayınına bağlan
+        // Reconnect to SSE stream
         connectSse(saved.jobId);
       }
     }
@@ -81,7 +81,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
       if (msg === 'DONE') {
         sse.close();
         setStatus('running');
-        addLog('✅ Docker Sandbox başarıyla oluşturuldu ve veritabanı yedeği (.bak) alındı!');
+        addLog('✅ Docker Sandbox created successfully and database backup (.bak) acquired!');
         return;
       }
 
@@ -97,7 +97,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
         const fullUrl = `http://localhost:5000${path}`;
         setDownloadUrl(fullUrl);
         
-        // ── Sandbox durumunu IndexedDB'ye kaydet ──────────────────────────
+        // ── Save sandbox status to IndexedDB ──────────────────────────
         setActiveSandbox({
           type: 'DB',
           jobId: newJobId,
@@ -107,7 +107,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
         // Set running state (success UI screen) and close SSE stream
         setStatus('running');
-        addLog('✅ Docker Sandbox başarıyla oluşturuldu ve veritabanı yedeği (.bak) alındı!');
+        addLog('✅ Docker Sandbox created successfully and database backup (.bak) acquired!');
         sse.close();
         return;
       }
@@ -119,7 +119,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
       sse.close();
       if (statusRef.current !== 'running' && statusRef.current !== 'idle') {
         setStatus('error');
-        addLog('❌ Sunucu bağlantısı kesildi. Backend çalışıyor mu?');
+        addLog('❌ Connection to server lost. Is the backend running?');
       }
     };
   };
@@ -127,7 +127,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
   const handleGenerate = async () => {
     eventSourceRef.current?.close();
     setStatus('generating');
-    setLogs(['🚀 Docker Sandbox başlatılıyor...']);
+    setLogs(['🚀 Initializing Docker Sandbox...']);
     setDownloadUrl(null);
 
     try {
@@ -139,15 +139,15 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`API Hatası (${response.status}): ${errText}`);
+        throw new Error(`API Error (${response.status}): ${errText}`);
       }
 
       const data = await response.json();
       const newJobId = data.jobId;
       jobIdRef.current = newJobId;
-      addLog(`📋 Container Job ID alındı: ${newJobId.substring(0, 8)}...`);
+      addLog(`📋 Container Job ID received: ${newJobId.substring(0, 8)}...`);
 
-      // İlk durumu IndexedDB'ye kaydet
+      // Save initial state to IndexedDB
       setActiveSandbox({
         type: 'DB',
         jobId: newJobId,
@@ -158,7 +158,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
     } catch (err: any) {
       setStatus('error');
-      addLog(`❌ HATA: ${err.message}`);
+      addLog(`❌ ERROR: ${err.message}`);
     }
   };
 
@@ -243,12 +243,12 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
         {/* Header Section */}
         <div className="max-w-4xl w-full text-center mb-10 relative z-10 select-none">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 mb-4 shadow-[0_0_20px_rgba(99,102,241,0.25)] border border-indigo-500/20 backdrop-blur-md">
-            <Database className="w-6 h-6 animate-pulse" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 mb-4 shadow-[0_0_20px_rgba(99,102,241,0.25)] border border-indigo-500/20 backdrop-blur-md animate-none">
+            <Database className="w-6 h-6 animate-pulse animate-none" />
           </div>
-          <h3 className="text-xl font-black text-white tracking-tight drop-shadow-md">Namines Entegrasyon Merkezi</h3>
+          <h3 className="text-xl font-black text-white tracking-tight drop-shadow-md">Namines Integration Center</h3>
           <p className="text-xs text-zinc-400 mt-2 max-w-lg mx-auto leading-relaxed">
-            Veritabanı şemanızı izole bir Docker container ortamında anında çalıştırın, test edin veya canlı veritabanınıza eşitleyin.
+            Instantly run, test, or sync your database schema inside an isolated Docker container environment.
           </p>
         </div>
 
@@ -268,19 +268,19 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
                 </div>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed mb-6">
-                Şemanızı izole bir Docker sandbox'ında otomatik olarak ayağa kaldırın. Tam `.bak` veya `.sql` yedeğini tek tıkla edinin.
+                Spin up your schema automatically in an isolated Docker sandbox. Get the complete `.bak` or `.sql` backup in one click.
               </p>
               <div className="flex flex-wrap gap-1.5 mb-6 select-none">
-                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">.BAK Yedeği</span>
-                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">İzole Sandbox</span>
-                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">Otomatik Kurulum</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">.BAK Backup</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">Isolated Sandbox</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm font-semibold">Auto Setup</span>
               </div>
             </div>
             <button
               onClick={handleGenerate}
-              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all duration-300 cursor-pointer active:scale-98 border border-indigo-400/20"
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all duration-300 cursor-pointer active:scale-98 border border-indigo-400/20 animate-none"
             >
-              Sandbox Başlat
+              Start Sandbox
             </button>
           </div>
  
@@ -292,24 +292,24 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
                   <Rocket className="w-4.5 h-4.5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black text-white uppercase tracking-wider">Canlı Veritabanı Eşitleme</h4>
-                  <span className="text-[10px] text-purple-400 block mt-0.5 font-semibold">Dış Veritabanı · Host / TCP Bağlantısı</span>
+                  <h4 className="text-xs font-black text-white uppercase tracking-wider">Live Database Sync</h4>
+                  <span className="text-[10px] text-purple-400 block mt-0.5 font-semibold">External Database · Host / TCP Connection</span>
                 </div>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed mb-6">
-                SQL şema betiğini doğrudan kendi AWS, Azure veya yerel MSSQL/PostgreSQL/MySQL sunucunuza aktarıp tablolarınızı kurun.
+                Deploy the SQL schema script directly to your own AWS, Azure, or local MSSQL/PostgreSQL/MySQL server and set up your tables.
               </p>
               <div className="flex flex-wrap gap-1.5 mb-6 select-none">
-                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">AWS / Azure Desteği</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">AWS / Azure Support</span>
                 <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">TCP / Host</span>
-                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm">Tablo Kurulumu</span>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-lg bg-black/40 text-zinc-400 border border-white/5 shadow-sm font-semibold">Table Setup</span>
               </div>
             </div>
             <button
               onClick={() => setIsPushModalOpen(true)}
-              className="w-full py-3 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 font-bold text-xs rounded-xl transition-all duration-300 cursor-pointer active:scale-98 shadow-md"
+              className="w-full py-3 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 font-bold text-xs rounded-xl transition-all duration-300 cursor-pointer active:scale-98 shadow-md animate-none"
             >
-              Canlı Veritabanına Aktar
+              Deploy to Live Database
             </button>
           </div>
  
@@ -331,10 +331,10 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-[#0b0c10] rounded-2xl border border-zinc-800/60 overflow-hidden relative min-h-[520px]">
         {/* Ambient deep blue/indigo background glow behind terminal */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-indigo-500/5 rounded-full blur-[130px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-indigo-500/5 rounded-full blur-[130px] pointer-events-none animate-none" />
 
         {/* High-Fidelity Black Terminal (Perfect Mockup Replica) */}
-        <div className="relative z-10 w-full max-w-[750px] mx-6 bg-black/85 backdrop-blur-xl border border-white/5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden" style={{ height: '440px' }}>
+        <div className="relative z-10 w-full max-w-[750px] mx-6 bg-black/85 backdrop-blur-xl border border-white/5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden animate-none" style={{ height: '440px' }}>
 
           {/* macOS-style Header */}
           <div className="shrink-0 flex items-center px-5 py-4 bg-[#0e0e12]/90 border-b border-white/5 select-none">
@@ -348,7 +348,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
             {/* Terminal Title */}
             <div className="flex items-center gap-2 ml-4">
               <span className="text-[10px] text-zinc-500 font-mono tracking-widest font-black uppercase">
-                &gt;_ SİSTEM LOGU – SANDBOX
+                &gt;_ SYSTEM LOG – SANDBOX
               </span>
             </div>
 
@@ -357,8 +357,8 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
               <Loader2 className="w-4 h-4 text-sky-400 animate-spin ml-auto drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]" />
             )}
             {status === 'error' && (
-              <span className="ml-auto text-[10px] text-red-400 font-mono font-bold tracking-wider uppercase border border-red-500/20 px-2 py-0.5 rounded bg-red-950/20">
-                HATA
+              <span className="ml-auto text-[10px] text-red-400 font-mono font-bold tracking-wider uppercase border border-red-500/20 px-2 py-0.5 rounded bg-red-950/20 animate-none">
+                ERROR
               </span>
             )}
           </div>
@@ -374,13 +374,13 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
               if (log.startsWith('🚀')) textColorClass = 'text-amber-400 font-bold';
               else if (log.startsWith('📋') || log.startsWith('DOWNLOAD_URL|')) textColorClass = 'text-cyan-400';
               else if (log.startsWith('✅')) textColorClass = 'text-emerald-400 font-semibold';
-              else if (log.startsWith('❌') || log.startsWith('HATA')) textColorClass = 'text-red-400';
+              else if (log.startsWith('❌') || log.startsWith('HATA') || log.startsWith('ERROR')) textColorClass = 'text-red-400';
               
               return (
                 <div key={i} className="flex items-start gap-4 leading-relaxed">
                   {/* Clean timestamp in muted gray */}
                   <span className="text-zinc-600 shrink-0 select-none tabular-nums">
-                    {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    {new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </span>
                   
                   {/* Log line with icon and correct text coloring */}
@@ -396,12 +396,12 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
             {status === 'generating' && (
               <div className="flex items-start gap-4 leading-relaxed">
                 <span className="text-zinc-600 shrink-0 select-none tabular-nums">
-                  {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  {new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
                 <div className="flex items-center gap-2 text-sky-400 font-medium">
                   {/* Glowing dynamic blue vertical bar */}
                   <span className="w-1.5 h-4 bg-sky-400 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
-                  <span className="animate-pulse">Docker işlemler yapılıyor...</span>
+                  <span className="animate-pulse">Docker operations in progress...</span>
                 </div>
               </div>
             )}
@@ -413,16 +413,16 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
             <div className="shrink-0 flex gap-3 p-4 bg-[#0e0e12]/95 border-t border-white/5 backdrop-blur-md">
               <button
                 onClick={handleClose}
-                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-bold rounded-xl transition-all duration-300 border border-white/10 cursor-pointer shadow-md"
+                className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-bold rounded-xl transition-all duration-300 border border-white/10 cursor-pointer shadow-md animate-none"
               >
-                Sıfırla
+                Reset
               </button>
               <button
                 onClick={handleGenerate}
-                className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] cursor-pointer border border-indigo-400/20"
+                className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] cursor-pointer border border-indigo-400/20 animate-none"
               >
-                <RefreshCw className="w-4 h-4 animate-spin-slow" />
-                Tekrar Dene
+                <RefreshCw className="w-4 h-4 animate-spin-slow animate-none" />
+                Try Again
               </button>
             </div>
           )}
@@ -441,27 +441,27 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
       <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.02] mix-blend-overlay" />
       <div className="absolute inset-0 pointer-events-none opacity-45">
         {/* Coded stars & cosmic particles */}
-        <div className="absolute top-[10%] left-[20%] w-0.5 h-0.5 bg-white rounded-full" />
-        <div className="absolute top-[40%] left-[80%] w-1 h-1 bg-white/70 rounded-full blur-[0.5px] animate-pulse" />
-        <div className="absolute top-[75%] left-[15%] w-0.5 h-0.5 bg-white/90 rounded-full" />
-        <div className="absolute top-[25%] left-[65%] w-1 h-1 bg-white/80 rounded-full blur-[0.5px]" />
-        <div className="absolute top-[60%] left-[45%] w-0.5 h-0.5 bg-white/60 rounded-full" />
-        <div className="absolute top-[85%] left-[70%] w-1.5 h-1.5 bg-white/40 rounded-full blur-[1px] animate-pulse" />
+        <div className="absolute top-[10%] left-[20%] w-0.5 h-0.5 bg-white rounded-full animate-none" />
+        <div className="absolute top-[40%] left-[80%] w-1 h-1 bg-white/70 rounded-full blur-[0.5px] animate-pulse animate-none" />
+        <div className="absolute top-[75%] left-[15%] w-0.5 h-0.5 bg-white/90 rounded-full animate-none" />
+        <div className="absolute top-[25%] left-[65%] w-1 h-1 bg-white/80 rounded-full blur-[0.5px] animate-none" />
+        <div className="absolute top-[60%] left-[45%] w-0.5 h-0.5 bg-white/60 rounded-full animate-none" />
+        <div className="absolute top-[85%] left-[70%] w-1.5 h-1.5 bg-white/40 rounded-full blur-[1px] animate-pulse animate-none" />
         
         {/* Shooting Stars */}
-        <div className="absolute top-10 left-[40%] w-[100px] h-[1px] bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent rotate-[-25deg] pointer-events-none opacity-40" />
-        <div className="absolute top-36 left-[70%] w-[120px] h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent rotate-[-25deg] pointer-events-none opacity-30" />
+        <div className="absolute top-10 left-[40%] w-[100px] h-[1px] bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent rotate-[-25deg] pointer-events-none opacity-40 animate-none" />
+        <div className="absolute top-36 left-[70%] w-[120px] h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent rotate-[-25deg] pointer-events-none opacity-30 animate-none" />
       </div>
 
       {/* Top status bar */}
       <div className="shrink-0 flex items-center justify-between px-5 py-3.5 bg-[#09090f]/85 backdrop-blur-md border-b border-zinc-800/80 relative z-10 select-none">
         <div className="flex items-center gap-3">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-none" />
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
           </span>
           <span className="text-[13px] text-zinc-300 font-bold tracking-wide">
-            Docker Sandbox Hazır
+            Docker Sandbox Ready
           </span>
         </div>
       </div>
@@ -471,15 +471,15 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
         {/* Ambient glow layers */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-indigo-500/5 rounded-full blur-[130px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[200px] bg-cyan-400/5 rounded-full blur-[80px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-indigo-500/5 rounded-full blur-[130px] animate-none" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[200px] bg-cyan-400/5 rounded-full blur-[80px] animate-none" />
         </div>
 
         {/* Breathtaking Coded Cosmic Planet */}
         <div className="relative w-48 h-48 flex items-center justify-center select-none scale-110 mb-2">
           {/* Radial outer glow */}
-          <div className="absolute w-52 h-52 bg-indigo-500/10 rounded-full blur-[50px] animate-pulse duration-[4000ms] pointer-events-none" />
-          <div className="absolute w-44 h-44 bg-cyan-400/5 rounded-full blur-[40px] pointer-events-none" />
+          <div className="absolute w-52 h-52 bg-indigo-500/10 rounded-full blur-[50px] animate-pulse duration-[4000ms] pointer-events-none animate-none" />
+          <div className="absolute w-44 h-44 bg-cyan-400/5 rounded-full blur-[40px] pointer-events-none animate-none" />
           
           {/* Outer ring (Back part) */}
           <div className="absolute w-[240px] h-[32px] border-[1.5px] border-indigo-400/10 rounded-full rotate-[-18deg] pointer-events-none" style={{ transform: 'rotateX(75deg)' }} />
@@ -489,7 +489,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
           <div className="absolute w-32 h-32 rounded-full bg-gradient-to-tr from-[#0b0c16] via-[#1b1c3a] to-[#7c3aed] shadow-[inset_-15px_-15px_40px_rgba(0,0,0,0.9),0_0_35px_rgba(124,58,237,0.35)] overflow-hidden border border-indigo-500/20">
             {/* Specular highlight */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(255,255,255,0.08),transparent_50%)]" />
-            <div className="absolute -top-12 -left-12 w-28 h-28 bg-cyan-400/10 rounded-full blur-2xl animate-pulse duration-[3000ms]" />
+            <div className="absolute -top-12 -left-12 w-28 h-28 bg-cyan-400/10 rounded-full blur-2xl animate-pulse duration-[3000ms] animate-none" />
           </div>
 
           {/* Inner glowing ring (Front part overlay) */}
@@ -499,11 +499,11 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
         {/* Heading */}
         <div className="relative z-10 text-center space-y-3 px-8 select-none max-w-lg">
-          <h3 className="text-2xl font-extrabold text-white tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-            Veritabanı Yedeği Hazır!
+          <h3 className="text-2xl font-extrabold text-white tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)] animate-none">
+            Database Backup Ready!
           </h3>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Docker sandbox üzerinde şema oluşturuldu ve tam `.bak` / `.sql` yedeği paketlendi.
+          <p className="text-xs text-zinc-400 leading-relaxed font-semibold">
+            Schema created on Docker sandbox and complete `.bak` / `.sql` backup packaged successfully.
           </p>
         </div>
 
@@ -523,10 +523,11 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
               shadow-[0_0_30px_rgba(16,185,129,0.3),0_4px_20px_rgba(0,0,0,0.4)]
               hover:shadow-[0_0_45px_rgba(16,185,129,0.45),0_4px_25px_rgba(0,0,0,0.5)]
               hover:scale-[1.02] active:scale-[0.98]
+              animate-none
             "
           >
             <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
-            <span>Veritabanı Yedeğini İndir (.bak)</span>
+            <span>Download Database Backup (.bak)</span>
             <ChevronRight className="w-4 h-4 opacity-80 group-hover:translate-x-0.5 transition-transform" />
           </a>
         )}
@@ -536,10 +537,10 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
             onClick={handleClose}
             className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium
                        bg-red-500/10 hover:bg-red-500/20 text-red-400
-                       border border-red-500/20 rounded-xl transition-colors"
+                       border border-red-500/20 rounded-xl transition-colors cursor-pointer animate-none"
           >
             <X className="w-4 h-4" />
-            Sandbox'ı Temizle ve Kapat
+            Clean & Close Sandbox
           </button>
         </div>
 

@@ -29,7 +29,7 @@ export default function EfCorePreview({ schema }: EfCorePreviewProps) {
 
   const generateEfCoreCode = (): string => {
     if (!schema || !schema.tables || schema.tables.length === 0) {
-      return '// Lütfen diyagrama geri dönüp en az bir tablo ekleyin...';
+      return '// Please return to the diagram and add at least one table...';
     }
 
     const firstTable = schema.tables[0];
@@ -42,7 +42,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Namines.Generated
 {
     /// <summary>
-    /// Namines CoderAI tarafından projeniz için üretilen AppDbContext şablonu.
+    /// AppDbContext template generated for your project by Namines CoderAI.
     /// </summary>
     public class AppDbContext : DbContext
     {
@@ -76,7 +76,7 @@ namespace Namines.Generated
     }
 
     /// <summary>
-    /// Şemanızdaki ${firstTableName} tablosuna karşılık gelen Entity modeli örneği.
+    /// Sample Entity model corresponding to the ${firstTableName} table in your schema.
     /// </summary>
     public class ${firstTableName}
     {

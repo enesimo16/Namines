@@ -19,8 +19,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Namines — AI Veritabanı Mimari Oluşturucu",
-  description: "Yapay zeka ile saniyeler içinde interaktif veritabanı mimarileri oluşturun.",
+  title: "Namines — AI Database Architecture Builder",
+  description: "Design interactive database architectures in seconds with artificial intelligence.",
 };
 
 export default function RootLayout({
@@ -30,16 +30,16 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="tr"
+      lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
     >
       <head>
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
       </head>
       <body className="min-h-full flex flex-col font-sans">
-        {/* V2: Global Header — tüm sayfalarda sabit görünür */}
+        {/* V2: Global Header — visible on all pages */}
         <Header />
-        {/* has-header: 52px padding-top ile header'ın altında başlar */}
+        {/* has-header: starts under the header with 52px padding-top */}
         <div className="has-header flex flex-col flex-1">
           {children}
         </div>

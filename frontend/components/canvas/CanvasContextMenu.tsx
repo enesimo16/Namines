@@ -20,9 +20,9 @@ interface CanvasContextMenuProps {
 }
 
 /**
- * Radix ContextMenu ile canvas üzerinde sağ tık menüsü.
- * - Boş alana sağ tık → "Yeni Tablo Ekle"
- * - Node üzerine sağ tık → "Düzenle" + "Tabloyu Sil"
+ * Radix ContextMenu for right-click on the canvas.
+ * - Right-click on empty space → "Add New Table"
+ * - Right-click on node → "Edit" + "Delete Table"
  */
 export default function CanvasContextMenu({ children }: CanvasContextMenuProps) {
   const { screenToFlowPosition } = useReactFlow();
@@ -30,13 +30,13 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (!isEditMode) return; // Edit mode değilse menüyü gösterme
+    if (!isEditMode) return; // Don't show menu if not in edit mode
 
-    // Node üzerine mi tıklandı?
+    // Was a node clicked?
     const nodeEl = (e.target as HTMLElement).closest('[data-id]');
     const nodeId = nodeEl?.getAttribute('data-id') ?? undefined;
 
-    // Ekran koordinatını flow koordinatına çevir
+    // Convert screen coordinate to flow coordinate
     const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
 
     setMenuState({
@@ -89,7 +89,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
                   onSelect={handleAddTable}
                 >
                   <Plus className="w-4 h-4 text-indigo-400" />
-                  <span>Yeni Tablo Ekle</span>
+                  <span>Add New Table</span>
                 </ContextMenu.Item>
               </>
             )}
@@ -98,14 +98,14 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
               <>
                 <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-indigo-300/80 uppercase tracking-wider mb-1">
                   <Table2 className="w-3.5 h-3.5" />
-                  Tablo İşlemleri
+                  Table Operations
                 </div>
                 <ContextMenu.Item
                   className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-indigo-500/20 hover:text-indigo-200 focus:bg-indigo-500/20 focus:text-indigo-200"
                   onSelect={handleEditTable}
                 >
                   <Pencil className="w-4 h-4 text-indigo-400" />
-                  <span>Düzenle</span>
+                  <span>Edit</span>
                 </ContextMenu.Item>
                 <ContextMenu.Separator className="h-px bg-indigo-500/10 my-1 mx-1" />
                 <ContextMenu.Item
@@ -113,7 +113,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
                   onSelect={handleDeleteTable}
                 >
                   <Trash2 className="w-4 h-4 text-red-400/80 group-hover:text-red-400" />
-                  <span>Tabloyu Sil</span>
+                  <span>Delete Table</span>
                 </ContextMenu.Item>
               </>
             )}

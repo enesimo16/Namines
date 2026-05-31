@@ -30,7 +30,7 @@ export default function DbTypeSelector({ selectedDb, onSelect, disabled }: DbTyp
         onChange={(e) => onSelect(e.target.value)}
         disabled={disabled}
         className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label="Veritabanı türü seç"
+        aria-label="Select database type"
       >
         {DB_OPTIONS.map((opt) => (
           <option key={opt.id} value={opt.id}>{opt.label}</option>

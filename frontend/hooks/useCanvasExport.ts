@@ -4,9 +4,9 @@ import { useState, useCallback } from 'react';
 import * as htmlToImage from 'html-to-image';
 
 interface ExportOptions {
-  /** Dosya adı (uzantısız). Varsayılan: 'namines-diagram' */
+  /** File name (without extension). Default: 'namines-diagram' */
   fileName?: string;
-  /** Pixel ratio — yüksek değer = daha keskin görsel. Varsayılan: 2 */
+  /** Pixel ratio — higher value = sharper image. Default: 2 */
   pixelRatio?: number;
 }
 
@@ -16,16 +16,16 @@ interface UseCanvasExportReturn {
   exportAsJpeg: (options?: ExportOptions) => Promise<void>;
 }
 
-/** React Flow canvas'ını PNG / JPEG olarak indirir. */
+/** Downloads the React Flow canvas as PNG / JPEG. */
 export function useCanvasExport(): UseCanvasExportReturn {
   const [isExporting, setIsExporting] = useState(false);
 
-  /** React Flow'un render viewport'unu DOM'dan bulur. */
+  /** Finds the React Flow render viewport in DOM. */
   const getViewport = (): HTMLElement | null => {
     return document.querySelector('.react-flow__viewport') as HTMLElement | null;
   };
 
-  /** Ortak indirme yardımcısı */
+  /** Common download helper */
   const triggerDownload = (dataUrl: string, fileName: string) => {
     const link = document.createElement('a');
     link.href = dataUrl;
@@ -38,7 +38,7 @@ export function useCanvasExport(): UseCanvasExportReturn {
   const exportAsPng = useCallback(async (options?: ExportOptions) => {
     const viewport = getViewport();
     if (!viewport) {
-      console.warn('[useCanvasExport] .react-flow__viewport bulunamadı.');
+      console.warn('[useCanvasExport] .react-flow__viewport not found.');
       return;
     }
     const fileName = `${options?.fileName ?? 'namines-diagram'}.png`;
@@ -48,12 +48,12 @@ export function useCanvasExport(): UseCanvasExportReturn {
         pixelRatio: options?.pixelRatio ?? 2,
         backgroundColor: '#09090b', // zinc-950
         style: { borderRadius: '0' },
-        skipFonts: true, // CORS cssRules hatasını önler
+        skipFonts: true, // Prevents CORS cssRules error
         fontEmbedCSS: '', 
       });
       triggerDownload(dataUrl, fileName);
     } catch (err) {
-      console.error('[useCanvasExport] PNG export hatası:', err);
+      console.error('[useCanvasExport] PNG export error:', err);
     } finally {
       setIsExporting(false);
     }
@@ -62,7 +62,7 @@ export function useCanvasExport(): UseCanvasExportReturn {
   const exportAsJpeg = useCallback(async (options?: ExportOptions) => {
     const viewport = getViewport();
     if (!viewport) {
-      console.warn('[useCanvasExport] .react-flow__viewport bulunamadı.');
+      console.warn('[useCanvasExport] .react-flow__viewport not found.');
       return;
     }
     const fileName = `${options?.fileName ?? 'namines-diagram'}.jpg`;
@@ -77,7 +77,7 @@ export function useCanvasExport(): UseCanvasExportReturn {
       });
       triggerDownload(dataUrl, fileName);
     } catch (err) {
-      console.error('[useCanvasExport] JPEG export hatası:', err);
+      console.error('[useCanvasExport] JPEG export error:', err);
     } finally {
       setIsExporting(false);
     }

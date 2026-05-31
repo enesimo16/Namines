@@ -34,7 +34,7 @@ export default function Header() {
   };
 
   const commitEdit = () => {
-    const trimmed = draft.trim() || 'Yeni Proje';
+    const trimmed = draft.trim() || 'New Project';
     setProjectName(trimmed);
     setIsEditing(false);
   };
@@ -57,8 +57,8 @@ export default function Header() {
           <button
             onClick={handleLogoClick}
             className="group flex items-center gap-1"
-            title="Ana sayfaya dön ve projeyi sıfırla"
-            aria-label="Namines ana sayfa"
+            title="Return to landing page and reset project"
+            aria-label="Namines landing page"
           >
             <span className="font-bold tracking-widest text-lg bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">NAMINES</span>
           </button>
@@ -73,7 +73,7 @@ export default function Header() {
                 ? 'bg-blue-500/10 text-blue-400' 
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
             }`}
-            title="Kayıtlı projelerini görüntüle"
+            title="View your saved projects"
           >
             <FolderOpen className="w-4 h-4" />
             <span>Workspace</span>
@@ -98,7 +98,7 @@ export default function Header() {
                 <button
                   onClick={commitEdit}
                   className="text-emerald-400 hover:text-emerald-300 p-1"
-                  aria-label="Kaydet"
+                  aria-label="Save"
                 >
                   <Check className="w-4 h-4" />
                 </button>
@@ -107,7 +107,7 @@ export default function Header() {
               <button
                 onClick={startEditing}
                 className="group flex items-center gap-2 text-zinc-300 hover:text-white px-2 py-1 rounded transition-colors"
-                title="Proje adını düzenle"
+                title="Edit project name"
               >
                 <span className="text-sm font-medium">{projectName}</span>
                 <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -134,16 +134,16 @@ export default function Header() {
                   {user?.username}
                 </span>
                 <span className="text-[7.5px] text-zinc-500 font-black leading-none uppercase tracking-widest">
-                  {user?.type === 'corporate' ? 'Kurumsal' : 'Bireysel'}
+                  {user?.type === 'corporate' ? 'Corporate' : 'Personal'}
                 </span>
               </div>
               <button
                 onClick={() => {
                   logout();
-                  showToast('Oturum kapatıldı, bulut yedekleme pasif.', 'info');
+                  showToast('Logged out, cloud backup disabled.', 'info');
                 }}
                 className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-full transition-all duration-200 cursor-pointer ml-1 active:scale-95 border border-transparent hover:border-zinc-800"
-                title="Oturumu Kapat"
+                title="Log Out"
               >
                 <LogOut className="w-3.5 h-3.5 text-zinc-400 hover:text-indigo-400 transition-colors drop-shadow-[0_0_2px_rgba(99,102,241,0.2)]" />
               </button>
@@ -154,7 +154,7 @@ export default function Header() {
               className="flex items-center gap-1.5 py-1.5 px-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 hover:text-white text-[10px] font-extrabold uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(99,102,241,0.15)] cursor-pointer"
             >
               <Cloud className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-              <span>Giriş Yap / Kayıt Ol</span>
+              <span>Login / Sign Up</span>
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>

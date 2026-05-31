@@ -36,7 +36,7 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
       setIsRecording(true);
     } catch (error) {
       console.error('Error accessing microphone:', error);
-      showToast('Mikrofon erişimi reddedildi veya hata oluştu.', 'error');
+      showToast('Microphone access was denied or an error occurred.', 'error');
     }
   };
 
@@ -55,7 +55,7 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
       onTranscription(text);
     } catch (error) {
       console.error('Transcription failed:', error);
-      showToast('Ses metne çevrilirken bir hata oluştu.', 'error');
+      showToast('An error occurred while transcribing audio.', 'error');
     } finally {
       setIsTranscribing(false);
     }
@@ -79,7 +79,7 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
           ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/50 animate-pulse' 
           : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 border border-zinc-700'
       } disabled:opacity-50 disabled:cursor-not-allowed`}
-      title={isRecording ? 'Kaydı Durdur' : 'Sesle Yazdır'}
+      title={isRecording ? 'Stop Recording' : 'Voice Input'}
     >
       {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
     </button>

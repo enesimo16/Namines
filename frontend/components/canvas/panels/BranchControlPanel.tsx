@@ -42,7 +42,7 @@ export default function BranchControlPanel() {
     const created = createBranch(activeProject.id, sanitized);
     if (created) {
       loadFromSchema(created.schema, created.nodePositions);
-      triggerToast(`'${sanitized}' dalı oluşturuldu ve geçiş yapıldı!`, 'success');
+      triggerToast(`Branch '${sanitized}' created and switched!`, 'success');
       setNewBranchName('');
       setShowCreateInput(false);
     }
@@ -53,7 +53,7 @@ export default function BranchControlPanel() {
     const switched = switchBranch(activeProject.id, name);
     if (switched) {
       loadFromSchema(switched.schema, switched.nodePositions);
-      triggerToast(`'${name}' dalına geçiş yapıldı!`, 'success');
+      triggerToast(`Switched to branch '${name}'!`, 'success');
       setIsDiffMode(false); 
       setIsOpen(false);
     }
@@ -63,9 +63,9 @@ export default function BranchControlPanel() {
     e.stopPropagation();
     if (name === 'main') return;
     
-    if (confirm(`'${name}' dalını silmek istediğinize emin misiniz?`)) {
+    if (confirm(`Are you sure you want to delete branch '${name}'?`)) {
       deleteBranch(activeProject.id, name);
-      triggerToast(`'${name}' dalı silindi.`, 'success');
+      triggerToast(`Branch '${name}' deleted.`, 'success');
       
       if (currentBranchName === name) {
         const mainBranch = branches.find(b => b.name === 'main');
@@ -79,31 +79,31 @@ export default function BranchControlPanel() {
   const handleToggleDiffMode = () => {
     if (isDiffMode) {
       setIsDiffMode(false);
-      triggerToast("Fark görünümü kapatıldı.", "info");
+      triggerToast("Diff view disabled.", "info");
     } else {
       if (!compareBranchName) {
         const otherBranch = branches.find(b => b.name !== currentBranchName);
         if (otherBranch) {
           setCompareBranchName(otherBranch.name);
         } else {
-          triggerToast("Kıyaslamak için başka bir dal bulunmuyor. Yeni bir dal oluşturun!", "warning");
+          triggerToast("No other branch to compare with. Create a new branch!", "warning");
           return;
         }
       }
       setIsDiffMode(true);
-      triggerToast("Fark görünümü aktif!", "info");
+      triggerToast("Diff view active!", "info");
     }
   };
 
   const handleStartMerge = () => {
     if (!schema) {
-      triggerToast("Aktif şema yüklenemedi.", "error");
+      triggerToast("Failed to load active schema.", "error");
       return;
     }
 
     const targetBranchName = compareBranchName || branches.find(b => b.name !== currentBranchName)?.name;
     if (!targetBranchName) {
-      triggerToast("Birleştirmek için kıyaslama dalı seçmelisiniz.", "warning");
+      triggerToast("You must select a branch to merge with.", "warning");
       return;
     }
 
@@ -113,7 +113,7 @@ export default function BranchControlPanel() {
     const diffResult = calculateSchemaDiff(schema, targetBranch.schema);
 
     if (!diffResult.hasChanges) {
-      triggerToast("Dallar zaten tamamen eşit! Birleştirmeye gerek yok.", "info");
+      triggerToast("Branches are already identical! No merge needed.", "info");
       return;
     }
 
@@ -125,7 +125,7 @@ export default function BranchControlPanel() {
         conflictsList.push({
           id: tableId,
           type: 'table_added',
-          tableName: activeTable?.name || 'Yeni Tablo',
+          tableName: activeTable?.name || 'New Table',
           sourceValue: activeTable,
           targetValue: null,
           selectedChoice: 'source'
@@ -135,7 +135,7 @@ export default function BranchControlPanel() {
         conflictsList.push({
           id: tableId,
           type: 'table_deleted',
-          tableName: deletedTable?.name || 'Silinen Tablo',
+          tableName: deletedTable?.name || 'Deleted Table',
           sourceValue: null,
           targetValue: deletedTable,
           selectedChoice: 'source'
@@ -145,7 +145,7 @@ export default function BranchControlPanel() {
           conflictsList.push({
             id: `${tableId}-name`,
             type: 'table_name',
-            tableName: tableDiff.newName || 'Tablo',
+            tableName: tableDiff.newName || 'Table',
             sourceValue: tableDiff.newName,
             targetValue: tableDiff.oldName,
             selectedChoice: 'source'
@@ -161,7 +161,7 @@ export default function BranchControlPanel() {
             conflictsList.push({
               id: `${tableId}-${colId}-added`,
               type: 'column_added',
-              tableName: activeTable?.name || 'Tablo',
+              tableName: activeTable?.name || 'Table',
               columnName: col?.name,
               sourceValue: col,
               targetValue: null,
@@ -172,7 +172,7 @@ export default function BranchControlPanel() {
             conflictsList.push({
               id: `${tableId}-${colId}-deleted`,
               type: 'column_deleted',
-              tableName: activeTable?.name || compareTable?.name || 'Tablo',
+              tableName: activeTable?.name || compareTable?.name || 'Table',
               columnName: col?.name,
               sourceValue: null,
               targetValue: col,
@@ -184,7 +184,7 @@ export default function BranchControlPanel() {
             conflictsList.push({
               id: `${tableId}-${colId}-modified`,
               type: 'column_modified',
-              tableName: activeTable?.name || 'Tablo',
+              tableName: activeTable?.name || 'Table',
               columnName: activeCol?.name,
               sourceValue: activeCol,
               targetValue: compareCol,
@@ -222,7 +222,7 @@ export default function BranchControlPanel() {
               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
               : 'bg-zinc-800/40 border-zinc-700/50 text-zinc-400 hover:text-white hover:bg-zinc-800/80'
           }`}
-          title={isDiffMode ? "Fark Görünümünü Kapat" : "Farkları Kıyasla"}
+          title={isDiffMode ? "Close Diff View" : "Compare Differences"}
         >
           {isDiffMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
@@ -232,7 +232,7 @@ export default function BranchControlPanel() {
           <button
             onClick={handleStartMerge}
             className="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded-xl border border-indigo-400/30 flex items-center justify-center transition-all shrink-0 shadow-[0_0_12px_rgba(99,102,241,0.4)]"
-            title="Dalı mevcut dala birleştir"
+            title="Merge branch into current branch"
           >
             <GitMerge className="w-4 h-4" />
           </button>
@@ -242,7 +242,7 @@ export default function BranchControlPanel() {
       {/* Expandable Dropdown Menu */}
       {isOpen && (
         <div className="absolute top-full left-0 w-full mt-1.5 bg-[#0F172A]/95 backdrop-blur-lg border border-indigo-500/25 rounded-2xl shadow-2xl p-3 animate-in fade-in duration-200 z-50">
-          <div className="text-[10px] font-extrabold text-indigo-400/70 tracking-widest uppercase mb-2 px-1">Dallar</div>
+          <div className="text-[10px] font-extrabold text-indigo-400/70 tracking-widest uppercase mb-2 px-1">Branches</div>
           
           <div className="flex flex-col gap-1 max-h-36 overflow-y-auto mb-2 pr-1">
             {branches.map(b => (
@@ -264,7 +264,7 @@ export default function BranchControlPanel() {
                   <button
                     onClick={(e) => handleDeleteBranch(e, b.name)}
                     className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-rose-500/20 rounded text-zinc-500 hover:text-rose-400 transition-all"
-                    title="Dalı Sil"
+                    title="Delete Branch"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -280,7 +280,7 @@ export default function BranchControlPanel() {
             <form onSubmit={handleCreateBranch} className="flex gap-1">
               <input
                 type="text"
-                placeholder="Dal adı..."
+                placeholder="Branch name..."
                 value={newBranchName}
                 onChange={(e) => setNewBranchName(e.target.value)}
                 autoFocus
@@ -290,7 +290,7 @@ export default function BranchControlPanel() {
                 type="submit"
                 className="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded-lg text-[11px] font-bold"
               >
-                Ekle
+                Add
               </button>
             </form>
           ) : (
@@ -299,14 +299,14 @@ export default function BranchControlPanel() {
               className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-zinc-700 hover:border-indigo-500/40 text-zinc-400 hover:text-indigo-300 text-[11px] font-semibold transition-all bg-zinc-900/25"
             >
               <Plus className="w-3 h-3" />
-              <span>Dal Oluştur</span>
+              <span>Create Branch</span>
             </button>
           )}
 
           {/* Diff comparison selector when diffing */}
           {isDiffMode && (
             <div className="mt-2 pt-2 border-t border-zinc-800/80">
-              <label className="text-[9px] font-extrabold text-zinc-500 block mb-1 uppercase tracking-wide">Kıyas Dalı</label>
+              <label className="text-[9px] font-extrabold text-zinc-500 block mb-1 uppercase tracking-wide">Compare Branch</label>
               <select
                 value={compareBranchName || ''}
                 onChange={(e) => setCompareBranchName(e.target.value || null)}

@@ -45,13 +45,13 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
         <div className="bg-rose-950/20 border border-rose-500/30 rounded-xl p-4 space-y-2">
           <div className="flex items-center gap-2 text-rose-400 text-sm font-bold">
             <AlertCircle className="w-5 h-5 animate-pulse" />
-            <span>Kritik Veri Kaybı / Yıkıcı Değişiklik Uyarısı!</span>
+            <span>Critical Data Loss / Destructive Change Warning!</span>
           </div>
           <ul className="list-disc pl-5 space-y-1 text-xs text-rose-200/90 font-medium">
             {migration?.warnings && migration.warnings.length > 0 ? (
               migration.warnings.map((w, idx) => <li key={idx}>{w}</li>)
             ) : (
-              <li>Şema karşılaştırmasında yıkıcı değişiklikler (tablo veya sütun silme, daraltma vb.) tespit edildi! Geçişi uygulamadan önce veritabanınızı yedeklediğinizden emin olun.</li>
+              <li>Destructive changes (table or column deletion, narrowing, etc.) were detected in the schema comparison! Make sure to backup your database before applying the migration.</li>
             )}
           </ul>
         </div>
@@ -62,7 +62,7 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
         <div className="bg-[#1E293B]/40 border border-indigo-500/10 rounded-xl p-3 flex gap-2.5 items-start">
           <Award className="w-4 h-4 text-indigo-400 mt-0.5" />
           <div>
-            <span className="text-indigo-300 text-xs font-bold block mb-0.5">Değişiklik Özeti</span>
+            <span className="text-indigo-300 text-xs font-bold block mb-0.5">Change Summary</span>
             <p className="text-zinc-300 text-xs leading-relaxed">{migration.summary}</p>
           </div>
         </div>
@@ -75,13 +75,13 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
             onClick={() => setActiveTab('up')}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'up' ? 'bg-[#4f46e5] text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'}`}
           >
-            Up() Metodu (Geçiş)
+            Up() Method (Apply)
           </button>
           <button
             onClick={() => setActiveTab('down')}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'down' ? 'bg-[#4f46e5] text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'}`}
           >
-            Down() Metodu (Geri Dönüş)
+            Down() Method (Rollback)
           </button>
         </div>
 
@@ -89,10 +89,10 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
           <button
             onClick={handleDownload}
             className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-emerald-400 bg-zinc-900/60 hover:bg-emerald-500/10 border border-zinc-800 hover:border-emerald-500/20 px-3.5 py-1.5 rounded-xl transition-all"
-            title="C# sınıf dosyasını indir"
+            title="Download C# class file"
           >
             <Download className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Dosyayı İndir</span>
+            <span>Download File</span>
           </button>
 
           <button
@@ -102,12 +102,12 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
             {copied ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400 font-medium">Kopyalandı!</span>
+                <span className="text-emerald-400 font-medium">Copied!</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span>Kodu Kopyala</span>
+                <span>Copy Code</span>
               </>
             )}
           </button>
@@ -125,7 +125,7 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
           </div>
         </div>
         <pre className="p-4 text-xs font-mono max-h-[300px] overflow-auto custom-scrollbar bg-zinc-950">
-          <code className="language-csharp">{codeToShow || '// Herhangi bir kod üretilmedi.'}</code>
+          <code className="language-csharp">{codeToShow || '// No code generated.'}</code>
         </pre>
       </div>
     </div>

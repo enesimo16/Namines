@@ -44,7 +44,7 @@ export default function RegionalPromptPanel() {
       setPrompt('');
     } catch (error) {
       console.error("Revision failed", error);
-      showToast("Revizyon sırasında hata oluştu.", "error");
+      showToast("An error occurred during revision.", "error");
     } finally {
       setIsRevising(false);
     }
@@ -67,7 +67,7 @@ export default function RegionalPromptPanel() {
           <div className="absolute top-2 right-2.5 text-[#7d91be] text-[10px] pointer-events-none">✦</div>
           <div className="absolute bottom-2 left-2.5 text-[#7d91be] text-[10px] pointer-events-none">✦</div>
           <div className="absolute bottom-2 right-2.5 text-[#7d91be] text-[10px] pointer-events-none">✦</div>
-
+ 
           {/* Inner Panel Background */}
           <div className="relative bg-gradient-to-b from-[#1c2445] to-[#141b31] border border-[#364472] rounded-[15px] h-full overflow-hidden flex flex-col">
             
@@ -79,18 +79,18 @@ export default function RegionalPromptPanel() {
               <path fill="none" stroke="rgba(255, 255, 255, 0.1)" strokeWidth="1" d="M0,180 C150,210 450,10 500,160 C550,310 850,110 1000,180" />
               <path fill="none" stroke="rgba(165, 180, 252, 0.15)" strokeWidth="1.5" d="M0,120 C180,180 320,-20 500,110 C680,240 820,40 1000,120" />
             </svg>
-
+ 
             {/* Header */}
             <div className="drag-handle bg-gradient-to-b from-[#1b2647] to-[#17203b] border-b border-[#364472] px-4 py-3.5 rounded-t-[15px] flex justify-center items-center cursor-move relative z-10 shadow-[0_4px_15px_rgba(0,0,0,0.2)]">
               <div className="flex items-center gap-2">
                 <span className="text-[#a5b4fc] text-[12px]">✦</span>
-                <span className="text-[#f1f5f9] text-[15px] font-bold tracking-wide drop-shadow-md">
-                  Bölgesel Revizyon ({selectedNodes.length} Seçili)
+                <span className="text-[#f1f5f9] text-[15px] font-bold tracking-wide drop-shadow-md animate-none">
+                  Regional Revision ({selectedNodes.length} Selected)
                 </span>
                 <span className="text-[#a5b4fc] text-[12px]">✦</span>
               </div>
             </div>
-
+ 
             {/* Content Area */}
             <div className="p-5 space-y-5 flex flex-col relative z-10">
               
@@ -99,7 +99,7 @@ export default function RegionalPromptPanel() {
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Seçili tabloları nasıl değiştirmek istersiniz?"
+                  placeholder="How would you like to modify the selected tables?"
                   className="w-full h-[90px] bg-[#0c1222] rounded-[8px] p-3 text-[14px] text-[#f8fafc] placeholder:text-[#64748b] focus:outline-none resize-none"
                   disabled={isRevising}
                   style={{
@@ -107,12 +107,12 @@ export default function RegionalPromptPanel() {
                   }}
                 />
               </div>
-
+ 
               {/* Button */}
               <button
                 onClick={handleRevise}
                 disabled={isRevising || !prompt.trim()}
-                className="group relative w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#4f46e5] to-[#6366f1] hover:from-[#5b4ff8] hover:to-[#818cf8] text-white px-4 py-3 rounded-[10px] text-[15px] font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[#818cf8]/40 shadow-[0_0_25px_rgba(79,70,229,0.6)] overflow-hidden"
+                className="group relative w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#4f46e5] to-[#6366f1] hover:from-[#5b4ff8] hover:to-[#818cf8] text-white px-4 py-3 rounded-[10px] text-[15px] font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[#818cf8]/40 shadow-[0_0_25px_rgba(79,70,229,0.6)] overflow-hidden animate-none"
               >
                 {/* Button Starry Background */}
                 <div 
@@ -125,12 +125,12 @@ export default function RegionalPromptPanel() {
                 {isRevising ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin relative z-10" />
-                    <span className="relative z-10 tracking-wider">Revize Ediliyor...</span>
+                    <span className="relative z-10 tracking-wider">Revising...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4 relative z-10" />
-                    <span className="relative z-10 tracking-wider">AI ile Revize Et</span>
+                    <Sparkles className="w-4 h-4 relative z-10 text-white animate-none" />
+                    <span className="relative z-10 tracking-wider">Revise with AI</span>
                   </>
                 )}
               </button>

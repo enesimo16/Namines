@@ -82,19 +82,19 @@ export default function DbaScoreBar({ score, issues, isAnalyzing, onTogglePanel 
         {/* Errors */}
         <div className="flex items-center gap-1.5 text-zinc-400 group-hover:text-zinc-200 transition-colors">
           <AlertCircle className={`w-4 h-4 ${errors > 0 ? 'text-red-500 animate-pulse' : 'text-zinc-600'}`} />
-          <span className={errors > 0 ? 'text-red-400 font-bold' : ''}>{errors} Hata</span>
+          <span className={errors > 0 ? 'text-red-400 font-bold' : ''}>{errors} Error{errors !== 1 ? 's' : ''}</span>
         </div>
 
         {/* Warnings */}
         <div className="flex items-center gap-1.5 text-zinc-400 group-hover:text-zinc-200 transition-colors">
           <AlertTriangle className={`w-4 h-4 ${warnings > 0 ? 'text-amber-500' : 'text-zinc-600'}`} />
-          <span className={warnings > 0 ? 'text-amber-400 font-bold' : ''}>{warnings} Uyarı</span>
+          <span className={warnings > 0 ? 'text-amber-400 font-bold' : ''}>{warnings} Warning{warnings !== 1 ? 's' : ''}</span>
         </div>
 
         {/* Infos */}
         <div className="flex items-center gap-1.5 text-zinc-400 group-hover:text-zinc-200 transition-colors">
           <HelpCircle className="w-4 h-4 text-sky-500" />
-          <span>{infos} Öneri</span>
+          <span>{infos} Suggestion{infos !== 1 ? 's' : ''}</span>
         </div>
       </div>
     </div>

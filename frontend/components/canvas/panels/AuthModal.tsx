@@ -43,10 +43,10 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       }));
 
       await authService.syncProjects(projectsToSync);
-      showToast(`${projects.length} yerel proje bulut hesabınızla başarıyla senkronize edildi!`, 'success');
+      showToast(`${projects.length} local projects successfully synchronized with your cloud account!`, 'success');
     } catch (err: any) {
-      console.error('Senkronizasyon hatası:', err);
-      showToast('Projeler buluta aktarılırken bir hata oluştu.', 'warning');
+      console.error('Sync error:', err);
+      showToast('An error occurred while uploading projects to the cloud.', 'warning');
     }
   };
 
@@ -65,7 +65,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           type: data.user.type,
           companyName: data.user.companyName
         });
-        showToast('Başarıyla giriş yapıldı. Bulut yedekleme aktif!', 'success');
+        showToast('Logged in successfully. Cloud backup is active!', 'success');
         
         // Trigger local-to-cloud synchronization
         await handleSyncLocalProjects();
@@ -87,14 +87,14 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           companyName: data.user.companyName
         });
         
-        showToast(`Hesabınız oluşturuldu. Hoş geldiniz!`, 'success');
+        showToast('Account created. Welcome!', 'success');
         
         // Trigger local-to-cloud synchronization
         await handleSyncLocalProjects();
         onClose();
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Bir hata oluştu. Lütfen bilgilerinizi kontrol edin.';
+      const msg = err.response?.data?.message || 'An error occurred. Please check your credentials.';
       setErrorMsg(msg);
       showToast(msg, 'error');
     } finally {
@@ -116,7 +116,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-indigo-400" />
             <h3 className="text-sm font-extrabold uppercase tracking-wider text-indigo-100">
-              {isLogin ? 'BULUT OTURUMU AÇ' : 'YENİ BULUT HESABI'}
+              {isLogin ? 'CLOUD SIGN IN' : 'NEW CLOUD ACCOUNT'}
             </h3>
           </div>
           <button 
@@ -131,7 +131,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         <div className="my-4 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex gap-2.5 items-start">
           <CheckCircle2 className="w-4.5 h-4.5 text-indigo-400 shrink-0 mt-0.5" />
           <p className="text-[10px] text-indigo-200/90 leading-relaxed font-semibold">
-            Kayıt olduktan sonra tasarladığınız tüm şemalar ve dal geçmişiniz sunucu üzerinde güvenle saklanır, asla kaybolmaz.
+            After registering, all your designed schemas and branch history are safely stored on the server and will never be lost.
           </p>
         </div>
 
@@ -144,14 +144,14 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               onClick={() => { setIsLogin(true); setErrorMsg(null); }}
               className="flex-1 py-1.5 text-center text-xs font-bold rounded-lg tracking-wide transition-all duration-200 bg-[#4F46E5] text-white shadow-[0_2px_10px_rgba(79,70,229,0.4)]"
             >
-              Giriş Yap
+              Login
             </button>
             <button
               type="button"
               onClick={() => { setIsLogin(false); setErrorMsg(null); }}
               className="flex-1 py-1.5 text-center text-xs font-bold rounded-lg tracking-wide transition-all duration-200 bg-transparent text-zinc-400 hover:text-zinc-200"
             >
-              Kayıt Ol
+              Sign Up
             </button>
           </div>
         ) : (
@@ -162,14 +162,14 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               onClick={() => { setIsLogin(true); setErrorMsg(null); }}
               className="flex-1 py-2 text-center text-xs font-bold tracking-wide transition-all duration-200 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent"
             >
-              Giriş Yap
+              Login
             </button>
             <button
               type="button"
               onClick={() => { setIsLogin(false); setErrorMsg(null); }}
               className="flex-1 py-2 text-center text-xs font-bold tracking-wide transition-all duration-200 text-white border-b-2 border-indigo-500 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]"
             >
-              Kayıt Ol
+              Sign Up
             </button>
           </div>
         )}
@@ -187,7 +187,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {/* Account Tier Toggle (Only on Register) - Cyan outline border matching stitch_screen_2.png */}
           {!isLogin && (
             <div className="flex flex-col gap-1.5 mb-1">
-              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Hesap Türü</label>
+              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Account Type</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -198,8 +198,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       : 'bg-zinc-950/20 border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
                   }`}
                 >
-                  <span className="text-[11px] font-extrabold tracking-wide">Bireysel</span>
-                  <span className="text-[8px] opacity-75 leading-none">Geliştiriciler için</span>
+                  <span className="text-[11px] font-extrabold tracking-wide">Personal</span>
+                  <span className="text-[8px] opacity-75 leading-none">For individual developers</span>
                 </button>
                 <button
                   type="button"
@@ -210,8 +210,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       : 'bg-zinc-950/20 border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
                   }`}
                 >
-                  <span className="text-[11px] font-extrabold tracking-wide">Kurumsal</span>
-                  <span className="text-[8px] opacity-75 leading-none">Ekipler ve Firmalar için</span>
+                  <span className="text-[11px] font-extrabold tracking-wide">Corporate</span>
+                  <span className="text-[8px] opacity-75 leading-none">For teams and organizations</span>
                 </button>
               </div>
             </div>
@@ -219,13 +219,13 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {/* Email Field - Left icon for Login, Right icon for Register matching Stitch! */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">E-posta Adresi</label>
+            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Email Address</label>
             <div className="relative flex items-center">
               {isLogin && <Mail className="absolute left-3 w-4 h-4 text-zinc-500 pointer-events-none" />}
               <input
                 type="email"
                 required
-                placeholder="ornek@eposta.com"
+                placeholder="example@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={`w-full bg-[#09111F]/70 border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium ${
@@ -239,12 +239,12 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {/* Username Field (Only on Register) - Right icon matching stitch_screen_2.png */}
           {!isLogin && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Kullanıcı Adı</label>
+              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Username</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
                   required
-                  placeholder="kullaniciadiniz"
+                  placeholder="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-[#09111F]/70 border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 pl-4 pr-9 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
@@ -257,12 +257,12 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {/* Company Name Field (Only on Register & Corporate Tier) */}
           {!isLogin && userType === 'corporate' && (
             <div className="flex flex-col gap-1.5 animate-in slide-in-from-top-2 duration-200">
-              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Şirket Adı</label>
+              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Company Name</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
                   required={userType === 'corporate'}
-                  placeholder="Şirket A.Ş."
+                  placeholder="Company Inc."
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   className="w-full bg-[#09111F]/70 border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 pl-4 pr-9 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
@@ -274,7 +274,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {/* Password Field - Left icon for Login, Right icon for Register matching Stitch! */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Şifre</label>
+            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Password</label>
             <div className="relative flex items-center">
               {isLogin && <Lock className="absolute left-3 w-4 h-4 text-zinc-500 pointer-events-none" />}
               <input
@@ -302,13 +302,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             ) : (
               isLogin ? (
                 <>
-                  <span>BULUT OTURUMUNU BAŞLAT</span>
-                  <span>🌟</span>
+                  <span>LAUNCH CLOUD SESSION</span>
                 </>
               ) : (
                 <>
-                  <span>KAYIT OL VE EŞİTLE</span>
-                  <span>💅</span>
+                  <span>REGISTER AND SYNC</span>
                 </>
               )
             )}

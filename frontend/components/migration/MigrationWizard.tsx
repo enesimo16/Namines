@@ -86,7 +86,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
   const handleParse = async () => {
     if (!dbContextCode.trim()) {
-      setError('Lütfen bir DbContext kodu yapıştırın veya dosya yükleyin.');
+      setError('Please paste a DbContext code or upload a file.');
       return;
     }
 
@@ -97,7 +97,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       const parsedSchema = await migrationService.parseDbContext(dbContextCode, selectedDbType);
       
       if (!parsedSchema || !parsedSchema.tables || parsedSchema.tables.length === 0) {
-        throw new Error('AI kodu parse edemedi veya tablolar boş. Lütfen geçerli bir DbContext kurgusu yükleyin.');
+        throw new Error('AI could not parse the code or the tables are empty. Please upload a valid DbContext configuration.');
       }
 
       // Load it into canvas workspace
@@ -108,7 +108,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       
       setStep(2);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err.message || 'DbContext parse edilirken AI sunucusunda bir sorun oluştu.');
+      setError(err?.response?.data?.error || err.message || 'A problem occurred on the AI server while parsing DbContext.');
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
     try {
       const currentSchema = flowToSchema(schema || { schemaId: '', name: projectName, tables: [], relations: [] }, getNodes(), getEdges());
       if (!currentSchema || !currentSchema.tables || currentSchema.tables.length === 0) {
-        setError('Canvas üzerinde kayıtlı herhangi bir tablo bulunamadı. Lütfen önce diyagram tasarlayın veya şema yükleyin.');
+        setError('No tables found on the canvas. Please design a diagram or load a schema first.');
         return;
       }
       
@@ -131,7 +131,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       setStep(2);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Mevcut şema baseline olarak kaydedilirken hata oluştu.');
+      setError(err.message || 'An error occurred while saving the current schema as a baseline.');
     }
   };
 
@@ -139,7 +139,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
   const handleGenerate = async () => {
     const savedSchemaString = localStorage.getItem('namines-old-migration-schema');
     if (!savedSchemaString) {
-      setError('Eski şema bulunamadı. Lütfen ilk adıma geri dönüp DbContext yükleyin.');
+      setError('Old schema not found. Please go back to the first step and load a DbContext.');
       setStep(1);
       return;
     }
@@ -153,7 +153,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       const currentSchema = flowToSchema(schema || { schemaId: '', name: 'Current', tables: [], relations: [] }, getNodes(), getEdges());
       
       if (!currentSchema) {
-        throw new Error('Mevcut şema canvas yapısından çıkartılamadı.');
+        throw new Error('Could not extract current schema from canvas structure.');
       }
 
       // Call Calculate Diff
@@ -166,14 +166,14 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
       setStep(3);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err.message || 'Migration oluşturulurken hata meydana geldi.');
+      setError(err?.response?.data?.error || err.message || 'An error occurred while creating the migration.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleReset = () => {
-    if (confirm('Migration geçmişi sıfırlanacak. Emin misiniz?')) {
+    if (confirm('Migration history will be reset. Are you sure?')) {
       localStorage.removeItem('namines-old-migration-schema');
       setDbContextCode('');
       setDiffResult(null);
@@ -194,7 +194,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               <span>Migration Engine</span>
             </h2>
             <p className="text-zinc-400 text-xs mt-1">
-              Mevcut DbContext kodunuzu yükleyin, şemanızı Canvas üzerinde güncelleyin ve EF Core Migration kodlarını anında üretin.
+              Load your current DbContext code, update your schema on the Canvas, and generate EF Core Migration codes instantly.
             </p>
           </div>
           <button 
@@ -211,21 +211,21 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 1 ? 'bg-indigo-600 text-white shadow-md' : 'bg-zinc-900 text-zinc-500 border border-zinc-800'}`}>
               {step > 1 ? <Check className="w-4 h-4" /> : '1'}
             </div>
-            <span className={`text-xs font-semibold ${step >= 1 ? 'text-indigo-300' : 'text-zinc-500'}`}>DbContext Yükle</span>
+            <span className={`text-xs font-semibold ${step >= 1 ? 'text-indigo-300' : 'text-zinc-500'}`}>Load DbContext</span>
           </div>
           <ChevronRight className="w-4 h-4 text-zinc-700" />
           <div className="flex items-center gap-2 flex-1 justify-center">
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 2 ? 'bg-indigo-600 text-white shadow-md' : 'bg-zinc-900 text-zinc-500 border border-zinc-800'}`}>
               {step > 2 ? <Check className="w-4 h-4" /> : '2'}
             </div>
-            <span className={`text-xs font-semibold ${step >= 2 ? 'text-indigo-300' : 'text-zinc-500'}`}>Canvas'ta Düzenle</span>
+            <span className={`text-xs font-semibold ${step >= 2 ? 'text-indigo-300' : 'text-zinc-500'}`}>Edit on Canvas</span>
           </div>
           <ChevronRight className="w-4 h-4 text-zinc-700" />
           <div className="flex items-center gap-2 flex-1 justify-center">
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 3 ? 'bg-indigo-600 text-white shadow-md' : 'bg-zinc-900 text-zinc-500 border border-zinc-800'}`}>
               3
             </div>
-            <span className={`text-xs font-semibold ${step >= 3 ? 'text-indigo-300' : 'text-zinc-500'}`}>Migration Üret</span>
+            <span className={`text-xs font-semibold ${step >= 3 ? 'text-indigo-300' : 'text-zinc-500'}`}>Generate Migration</span>
           </div>
         </div>
 
@@ -234,7 +234,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
           <div className="bg-rose-950/20 border border-rose-500/20 rounded-2xl p-4 flex gap-3 items-start mb-6 animate-in fade-in slide-in-from-top-2">
             <AlertCircle className="w-5 h-5 text-rose-400 mt-0.5 shrink-0" />
             <div>
-              <span className="text-rose-400 text-xs font-bold block mb-0.5">İşlem Başarısız Oldu</span>
+              <span className="text-rose-400 text-xs font-bold block mb-0.5">Operation Failed</span>
               <p className="text-zinc-300 text-xs leading-relaxed">{error}</p>
             </div>
           </div>
@@ -252,8 +252,8 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 <div className="flex items-center gap-2.5">
                   <Database className="w-5 h-5 text-indigo-400" />
                   <div>
-                    <span className="text-zinc-200 text-xs font-bold block">Veritabanı Tipi</span>
-                    <span className="text-zinc-400 text-[11px]">Şema geçişi bu veritabanı kurgusuna göre yapılacaktır.</span>
+                    <span className="text-zinc-200 text-xs font-bold block">Database Type</span>
+                    <span className="text-zinc-400 text-[11px]">The schema migration will be performed based on this database configuration.</span>
                   </div>
                 </div>
                 <select 
@@ -281,9 +281,9 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                     <CheckCircle className="w-5.5 h-5.5" />
                   </div>
                   <div>
-                    <span className="text-zinc-200 text-xs font-bold block">Mevcut Canvas Diyagramını Temel Al</span>
+                    <span className="text-zinc-200 text-xs font-bold block">Base on Current Canvas Diagram</span>
                     <span className="text-zinc-400 text-[11px] leading-relaxed block mt-0.5">
-                      Elinizde hazır bir C# DbContext veya veritabanı kodu yoksa, canvas üzerindeki güncel çiziminizi "başlangıç noktası" olarak kaydedip, yapacağınız yeni değişikliklerin geçiş (migration) kodunu üretebilirsiniz.
+                      If you do not have a C# DbContext or database code ready, you can save your current drawing on the canvas as a "baseline" and generate migration code for the new changes you make.
                     </span>
                   </div>
                 </div>
@@ -293,7 +293,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                   className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-md shrink-0 flex items-center gap-1.5"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Başlangıç Noktası Yap</span>
+                  <span>Set as Baseline</span>
                 </button>
               </div>
 
@@ -316,14 +316,14 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                   <Upload className="w-6 h-6 animate-pulse" />
                 </div>
                 <div className="text-center">
-                  <span className="text-zinc-200 text-sm font-bold block">DbContext.cs Dosyanızı Sürükleyin</span>
-                  <span className="text-zinc-400 text-xs mt-1 block">veya tıklayarak bilgisayarınızdan seçin (C# .cs dosyası)</span>
+                  <span className="text-zinc-200 text-sm font-bold block">Drag and drop your DbContext.cs file</span>
+                  <span className="text-zinc-400 text-xs mt-1 block">or click to select from your computer (C# .cs file)</span>
                 </div>
               </div>
 
               {/* Text Area for raw pasting */}
               <div className="space-y-2">
-                <span className="text-zinc-400 text-xs font-semibold block">Veya DbContext kodunu doğrudan buraya yapıştırın:</span>
+                <span className="text-zinc-400 text-xs font-semibold block">Or paste DbContext code directly here:</span>
                 <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950/50">
                   <textarea
                     value={dbContextCode}
@@ -348,12 +348,12 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               </div>
               <div className="text-center max-w-md">
                 <h3 className="text-lg font-bold text-zinc-100 mb-2">
-                  {dbContextCode.trim() ? 'DbContext Başarıyla Algılandı!' : 'Başlangıç Şeması Başarıyla Kaydedildi!'}
+                  {dbContextCode.trim() ? 'DbContext Successfully Detected!' : 'Baseline Schema Successfully Saved!'}
                 </h3>
                 <p className="text-zinc-400 text-xs leading-relaxed">
                   {dbContextCode.trim() 
-                    ? 'C# DbContext kodunuz Groq AI tarafından çözümlendi ve veritabanı şemanız arka plandaki Canvas üzerine aktarıldı.' 
-                    : 'Mevcut canvas diyagramınız referans baseline şeması olarak güvenle belleğe alındı.'}
+                    ? 'Your C# DbContext code has been parsed by Groq AI and your database schema has been imported to the Canvas in the background.' 
+                    : 'Your current canvas diagram has been safely stored as the reference baseline schema.'}
                 </p>
               </div>
 
@@ -361,13 +361,13 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               <div className="bg-[#1E293B]/40 border border-indigo-500/15 rounded-3xl p-5 w-full space-y-3.5">
                 <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold">
                   <AlertTriangle className="w-4 h-4" />
-                  <span>Şimdi Ne Yapmalıyım?</span>
+                  <span>What Should I Do Now?</span>
                 </div>
                 <ol className="list-decimal pl-5 space-y-2.5 text-xs text-zinc-300 leading-relaxed font-medium">
-                  <li>Bu modalı kapatıp arkadaki Canvas alanına geçiş yapın.</li>
-                  <li>Canvas üzerinde istediğiniz yapısal değişiklikleri gerçekleştirin (örneğin tablo silin, kolon ekleyin, kolon tiplerini düzenleyin).</li>
-                  <li>Tüm güncellemeleri tamamladıktan sonra üstteki **Migration** butonuna tekrar tıklayın.</li>
-                  <li>Buradaki **"Şema Değişikliklerini Karşılaştır"** butonuna basarak farkları (diff) görün ve C# migration kodunuzu anında alın!</li>
+                  <li>Close this modal and switch to the Canvas area behind it.</li>
+                  <li>Perform any structural changes you want on the Canvas (e.g. delete tables, add columns, edit column types).</li>
+                  <li>Once all updates are complete, click the **Migration** button at the top again.</li>
+                  <li>Click the **"Compare Changes"** button here to see the difference (diff) and get your C# migration code instantly!</li>
                 </ol>
               </div>
             </div>
@@ -378,14 +378,14 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             <div className="space-y-6">
               {diffResult && (
                 <div className="space-y-2.5">
-                  <span className="text-zinc-400 text-xs font-bold block">1. Tespit Edilen Şema Farkları (Diff)</span>
+                  <span className="text-zinc-400 text-xs font-bold block">1. Detected Schema Differences (Diff)</span>
                   <DiffViewer diff={diffResult} />
                 </div>
               )}
               
               {migrationResult && (
                 <div className="space-y-2.5 pt-4 border-t border-zinc-900">
-                  <span className="text-zinc-400 text-xs font-bold block">2. Üretilen EF Core Migration Kodu</span>
+                  <span className="text-zinc-400 text-xs font-bold block">2. Generated EF Core Migration Code</span>
                   <MigrationCodeView 
                     migration={migrationResult} 
                     hasBreakingChanges={diffResult?.hasBreakingChanges || false} 
@@ -405,7 +405,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 className="text-xs text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-xl transition-all"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Geçmişi Sıfırla</span>
+                <span>Reset History</span>
               </button>
             )}
             {step === 3 && (
@@ -414,7 +414,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 className="text-xs text-zinc-400 hover:text-zinc-200 font-bold flex items-center gap-1.5 bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 px-3.5 py-2.5 rounded-xl transition-all"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Geri Dön</span>
+                <span>Go Back</span>
               </button>
             )}
           </div>
@@ -429,11 +429,11 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 {loading ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Şema Çözümleniyor...</span>
+                    <span>Parsing Schema...</span>
                   </>
                 ) : (
                   <>
-                    <span>Şemayı Yükle ve Başla</span>
+                    <span>Load Schema and Start</span>
                     <ChevronRight className="w-4 h-4" />
                   </>
                 )}
@@ -446,7 +446,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                   onClick={onClose}
                   className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-bold px-5 py-2.5 rounded-xl transition-all"
                 >
-                  Diyagramı Düzenle (Kapat)
+                  Edit Diagram (Close)
                 </button>
                 <button 
                   onClick={handleGenerate}
@@ -456,11 +456,11 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                   {loading ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Farklar Karşılaştırılıyor...</span>
+                      <span>Comparing Differences...</span>
                     </>
                   ) : (
                     <>
-                      <span>Farkları Karşılaştır ve Migration Üret</span>
+                      <span>Compare Differences and Generate Migration</span>
                       <ChevronRight className="w-4 h-4" />
                     </>
                   )}
@@ -473,7 +473,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 onClick={onClose}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-6 py-2.5 border border-indigo-500/40 rounded-xl transition-all shadow-md"
               >
-                Tamamla ve Kapat
+                Complete and Close
               </button>
             )}
           </div>

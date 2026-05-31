@@ -27,7 +27,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
 
   const handleGenerate = async () => {
     setStatus('generating');
-    setLogs(['🚀 Admin paneli paketi oluşturma talebi gönderildi...', '⏳ AI motoru hazırlanıyor...']);
+    setLogs(['🚀 Admin panel package generation request sent...', '⏳ AI engine is preparing...']);
     setDownloadUrl(null);
 
     try {
@@ -39,12 +39,12 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`API Hatası (${response.status}): ${errText}`);
+        throw new Error(`API Error (${response.status}): ${errText}`);
       }
 
       const data = await response.json();
       const jobId: string = data.jobId;
-      setLogs(prev => [...prev, `📋 Proje ID atandı: ${jobId.substring(0, 8)}...`]);
+      setLogs(prev => [...prev, `📋 Project ID assigned: ${jobId.substring(0, 8)}...`]);
 
       // Connect to SSE for real-time progress logs
       const sse = new EventSource(`http://localhost:5000/api/coderai/stream/${jobId}`);
@@ -60,7 +60,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
 
         if (msg.startsWith('ERROR:')) {
           setStatus('error');
-          setLogs(prev => [...prev, `❌ Hata: ${msg}`]);
+          setLogs(prev => [...prev, `❌ Error: ${msg}`]);
           sse.close();
           return;
         }
@@ -69,7 +69,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
           const path = msg.split('|')[1];
           const fullUrl = `http://localhost:5000${path}`;
           setDownloadUrl(fullUrl);
-          setLogs(prev => [...prev, '📦 Proje paketi (.zip) başarıyla üretildi!']);
+          setLogs(prev => [...prev, '📦 Project package (.zip) successfully generated!']);
           
           // Auto trigger download
           const link = document.createElement('a');
@@ -87,12 +87,12 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
       sse.onerror = () => {
         sse.close();
         setStatus('error');
-        setLogs(prev => [...prev, '❌ Sunucu bağlantısı kesildi. Lütfen tekrar deneyin.']);
+        setLogs(prev => [...prev, '❌ Connection to server lost. Please try again.']);
       };
 
     } catch (err: any) {
       setStatus('error');
-      setLogs(prev => [...prev, `❌ HATA: ${err.message}`]);
+      setLogs(prev => [...prev, `❌ ERROR: ${err.message}`]);
     }
   };
 
@@ -126,7 +126,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
             {/* Terminal Title */}
             <div className="flex items-center gap-2 ml-4">
               <span className="text-[10px] text-zinc-500 font-mono tracking-widest font-black uppercase">
-                &gt;_ SİSTEM LOGU – CODERAI
+                &gt;_ SYSTEM LOG – CODERAI
               </span>
             </div>
 
@@ -151,7 +151,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                 <div key={i} className="flex items-start gap-4 leading-relaxed">
                   {/* Clean timestamp in muted gray */}
                   <span className="text-zinc-600 shrink-0 select-none tabular-nums">
-                    {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </span>
                   
                   {/* Log line with icon and correct text coloring */}
@@ -166,12 +166,12 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
             {/* Blinking blue cursor loader at the bottom */}
             <div className="flex items-start gap-4 leading-relaxed">
               <span className="text-zinc-600 shrink-0 select-none tabular-nums">
-                {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
               <div className="flex items-center gap-2 text-sky-400 font-medium">
                 {/* Glowing dynamic blue vertical bar */}
                 <span className="w-1.5 h-4 bg-sky-400 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
-                <span className="animate-pulse text-xs">AI projenizi derliyor...</span>
+                <span className="animate-pulse text-xs">AI is compiling your project...</span>
               </div>
             </div>
             <div ref={logsEndRef} />
@@ -197,8 +197,8 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
               </div>
               <div className="space-y-2 select-none">
-                <h3 className="text-xl font-bold text-white tracking-tight">Proje Başarıyla Hazırlandı!</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">İndirme otomatik olarak başladı. Eğer başlamadıysa aşağıdaki butona basarak paketi alabilirsiniz.</p>
+                <h3 className="text-xl font-bold text-white tracking-tight">Project Successfully Prepared!</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">Download started automatically. If it did not start, click the button below to get the package.</p>
               </div>
               <div className="flex flex-col w-full gap-3 mt-1">
                 {downloadUrl && (
@@ -207,14 +207,14 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                     className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 border border-emerald-400/20"
                   >
                     <Download className="w-4 h-4" />
-                    Projeyi Tekrar İndir (.zip)
+                    Download Project Again (.zip)
                   </a>
                 )}
                 <button
                   onClick={resetPanel}
                   className="w-full py-3.5 bg-[#1c1c24]/50 hover:bg-[#1c1c24]/85 text-zinc-300 hover:text-white border border-white/5 font-bold text-xs rounded-xl transition-all duration-300 cursor-pointer active:scale-98 shadow-md"
                 >
-                  Download Hub'a Dön
+                  Back to Download Hub
                 </button>
               </div>
             </>
@@ -225,8 +225,8 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                 <CheckCircle2 className="w-7 h-7 text-red-400 rotate-45" />
               </div>
               <div className="space-y-2 select-none">
-                <h3 className="text-xl font-bold text-white tracking-tight">Üretim Başarısız Oldu</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">AI kod üretimi veya paketleme sırasında bir problemle karşılaşıldı.</p>
+                <h3 className="text-xl font-bold text-white tracking-tight">Generation Failed</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">An issue occurred during AI code generation or packaging.</p>
               </div>
               <div className="flex flex-col w-full gap-3 mt-1">
                 <button
@@ -234,13 +234,13 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                   className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 border border-indigo-400/20 cursor-pointer"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  Yeniden Dene
+                  Try Again
                 </button>
                 <button
                   onClick={resetPanel}
                   className="w-full py-3.5 bg-[#1c1c24]/50 hover:bg-[#1c1c24]/85 text-zinc-300 hover:text-white border border-white/5 font-bold text-xs rounded-xl transition-all duration-300 cursor-pointer active:scale-98 shadow-md"
                 >
-                  Download Hub'a Dön
+                  Back to Download Hub
                 </button>
               </div>
             </>
@@ -302,7 +302,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
               Namines Download Hub
             </h2>
             <p className="text-xs text-zinc-400 max-w-xl mx-auto leading-relaxed">
-              Tasarladığınız veritabanı şemasına uygun otonom çalışan ve Docker ile anında ayağa kalkan projelerinizi zip olarak indirin.
+              Download your projects as a zip file that runs autonomously according to your database schema and spins up instantly with Docker.
             </p>
           </div>
         </div>
@@ -325,16 +325,16 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-white tracking-tight">Streamlit Admin Panel</h3>
                 <p className="text-[13px] text-zinc-400 leading-relaxed">
-                  Streamlit Admin Panel ile veritabanınızı otomatik okuyan ve Docker ile admin projelerini.
+                  Automatically reads your database and provides ready-to-run admin projects using Docker.
                 </p>
               </div>
 
               <div className="border-t border-zinc-800/60 pt-4 space-y-2.5">
                 {[
-                  'Tam Otomatik CRUD Arayüzü',
-                  'Plotly Express Destekli Dashboard',
-                  'Hazır connection string (.env)',
-                  'docker-compose.yml ile Tek Tıkla Kurulum',
+                  'Fully Automated CRUD Interface',
+                  'Plotly Express Powered Dashboard',
+                  'Ready-to-use Connection String (.env)',
+                  'One-Click Setup with docker-compose.yml',
                 ].map((feat, idx) => (
                   <div key={idx} className="flex items-center gap-2.5 text-xs text-zinc-300 select-none">
                     <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
@@ -350,7 +350,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                 className="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_4px_20px_rgba(6,182,212,0.3)] flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] group cursor-pointer border border-cyan-400/20"
               >
                 <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
-                <span>Projeyi İndir (.zip)</span>
+                <span>Download Project (.zip)</span>
               </button>
             </div>
           </div>
@@ -372,7 +372,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-white tracking-tight">Next.js Enterprise Panel</h3>
                 <p className="text-[13px] text-zinc-400 leading-relaxed">
-                  Next.js Enterprise Panel ile önizleme Prisma ORM &amp; veritabanı şemasına otonomize projelerini.
+                  Next.js Enterprise Panel with Prisma ORM support, offering enterprise-grade production-ready layouts.
                 </p>
               </div>
 
@@ -380,8 +380,8 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                 {[
                   'Next.js 15 (App Router) + Tailwind CSS 4',
                   'Prisma ORM & Auto-generated Types',
-                  'Karanlık ve Aydınlık Temalı Premium UI',
-                  'Chart.js / Tremor Dashboard Bileşenleri',
+                  'Premium Dark & Light Mode UI',
+                  'Chart.js / Tremor Dashboard Components',
                 ].map((feat, idx) => (
                   <div key={idx} className="flex items-center gap-2.5 text-xs text-zinc-500 select-none">
                     <CheckCircle2 className="w-4 h-4 text-purple-500/70 shrink-0" />
@@ -397,7 +397,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                 className="w-full py-3 bg-zinc-900 border border-zinc-800 text-zinc-600 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed"
               >
                 <Crown className="w-4 h-4 text-zinc-600" />
-                Çok Yakında
+                Coming Soon
               </button>
             </div>
           </div>
@@ -406,3 +406,4 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
     </div>
   );
 }
+

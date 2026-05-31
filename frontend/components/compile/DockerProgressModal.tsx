@@ -26,24 +26,24 @@ export default function DockerProgressModal({ isOpen, onClose, status, logs, dow
       <div className="bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col h-[600px]">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-6 py-4 bg-zinc-900 border-b border-zinc-800 select-none">
           <div className="flex items-center gap-3">
             <Terminal className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-lg font-bold text-zinc-100">Docker Sandbox</h2>
+            <h2 className="text-lg font-bold text-zinc-100 animate-none">Docker Sandbox</h2>
             
             {status === 'running' && (
-              <span className="flex items-center gap-2 text-xs font-medium px-2.5 py-1 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20">
-                <Loader2 className="w-3 h-3 animate-spin" /> Çalışıyor
+              <span className="flex items-center gap-2 text-xs font-medium px-2.5 py-1 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20 animate-none">
+                <Loader2 className="w-3 h-3 animate-spin" /> Running
               </span>
             )}
             {status === 'done' && (
-              <span className="flex items-center gap-2 text-xs font-medium px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">
-                <CheckCircle className="w-3 h-3" /> Tamamlandı
+              <span className="flex items-center gap-2 text-xs font-medium px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 animate-none">
+                <CheckCircle className="w-3 h-3" /> Completed
               </span>
             )}
             {status === 'error' && (
-              <span className="flex items-center gap-2 text-xs font-medium px-2.5 py-1 bg-red-500/10 text-red-400 rounded-full border border-red-500/20">
-                <XCircle className="w-3 h-3" /> Hata
+              <span className="flex items-center gap-2 text-xs font-medium px-2.5 py-1 bg-red-500/10 text-red-400 rounded-full border border-red-500/20 animate-none">
+                <XCircle className="w-3 h-3" /> Error
               </span>
             )}
           </div>
@@ -75,12 +75,12 @@ export default function DockerProgressModal({ isOpen, onClose, status, logs, dow
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-zinc-900 border-t border-zinc-800 flex justify-end gap-3">
+        <div className="px-6 py-4 bg-zinc-900 border-t border-zinc-800 flex justify-end gap-3 select-none">
           <button 
             onClick={onClose}
-            className="px-5 py-2.5 text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors border border-transparent"
+            className="px-5 py-2.5 text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors border border-transparent cursor-pointer animate-none"
           >
-            Kapat
+            Close
           </button>
           
           <button 
@@ -88,10 +88,10 @@ export default function DockerProgressModal({ isOpen, onClose, status, logs, dow
             onClick={() => {
               if (downloadUrl) window.open(downloadUrl, '_blank');
             }}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20"
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20 cursor-pointer animate-none"
           >
             <Download className="w-4 h-4" />
-            Veritabanı Yedeğini İndir (.bak / .tar)
+            Download Database Backup (.bak / .tar)
           </button>
         </div>
 

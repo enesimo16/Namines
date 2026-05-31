@@ -178,7 +178,7 @@ export default function CompilePage() {
   const handleExportSvg = async () => {
     const svgEl = document.querySelector<SVGElement>('.mermaid-preview-container svg');
     if (!svgEl) {
-      showToast('SVG henüz render edilmedi, lütfen bekleyin.', 'warning');
+      showToast('SVG has not been rendered yet, please wait.', 'warning');
       return;
     }
     setIsExportingSvg(true);
@@ -195,7 +195,7 @@ export default function CompilePage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('SVG export hatası:', err);
+      console.error('SVG export error:', err);
     } finally {
       setIsExportingSvg(false);
     }
@@ -384,22 +384,22 @@ export default function CompilePage() {
 
         {/* Left Column: Preview */}
         <div className="flex-1 flex flex-col gap-4 min-w-0 h-full">
-          {/* Diyagrama Dön Butonu - En Üstte ve En Sola Dayanmış */}
+          {/* Back to Diagram Button - Top Left */}
           <div className="flex items-center justify-between shrink-0">
             <button
               onClick={() => router.push('/canvas')}
               className="flex items-center gap-2 pl-3 pr-3.5 py-1.5 rounded-lg border border-indigo-500/25 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-300 hover:text-white transition-all duration-300 shadow-[0_0_12px_rgba(99,102,241,0.08)] cursor-pointer active:scale-95 group font-bold text-xs select-none"
-              title="Diyagram Canvas Alanına Geri Dön"
+              title="Go Back to Diagram Canvas"
             >
               <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform duration-300 text-indigo-400" />
-              <span>Diyagrama Dön</span>
+              <span>Back to Diagram</span>
             </button>
           </div>
 
-          {/* Şema Bilgisi ve Sekmeler - Alt Satırda Daha Ferah */}
+          {/* Schema Info and Tabs */}
           <div className="flex items-center justify-between shrink-0 border-b border-zinc-900 pb-2">
             <div className="flex flex-col gap-2">
-              <h2 className="text-base font-extrabold text-white tracking-wide">{schema.name || 'İsimsiz Şema'}</h2>
+              <h2 className="text-base font-extrabold text-white tracking-wide">{schema.name || 'Untitled Schema'}</h2>
               <div className="flex gap-4">
                 {(['SQL', 'EF', 'ER', 'MOCK', 'SANDBOX', 'ADMIN'] as const).map(tab => (
                   <button
@@ -411,7 +411,7 @@ export default function CompilePage() {
                         : 'border-transparent text-zinc-500 hover:text-zinc-300'
                     }`}
                   >
-                    {tab === 'SQL' ? 'DDL Script' : tab === 'EF' ? 'EF Core' : tab === 'ER' ? 'Mermaid ER' : tab === 'MOCK' ? 'Test Verileri' : tab === 'SANDBOX' ? 'Docker Sandbox' : 'Geliştirici Paketi'}
+                    {tab === 'SQL' ? 'DDL Script' : tab === 'EF' ? 'EF Core' : tab === 'ER' ? 'Mermaid ER' : tab === 'MOCK' ? 'Test Data' : tab === 'SANDBOX' ? 'Docker Sandbox' : 'Developer Package'}
                   </button>
                 ))}
               </div>
@@ -425,19 +425,19 @@ export default function CompilePage() {
                     onChange={(e) => updateDiagram(e.target.value as any)}
                     className="bg-zinc-950 border-0 text-zinc-300 text-xs rounded-md px-2 py-1 focus:outline-none cursor-pointer max-w-[170px]"
                   >
-                    <option value="ER">ER Diyagramı</option>
-                    <option value="CLASS">Sınıf Diyagramı</option>
-                    <option value="FLOW">Akış (Flowchart)</option>
-                    <option value="MINDMAP">Zihin Haritası</option>
-                    <option value="STATE">Durum Diyagramı</option>
-                    <option value="SEQUENCE">Sequence Diyagramı (Sıralı)</option>
-                    <option value="GANTT">Gantt Şeması (Zaman Planı)</option>
-                    <option value="PIE">Pasta Dilimi (Yoğunluk)</option>
-                    <option value="GIT">Git Dallanma (Versiyon)</option>
-                    <option value="JOURNEY">Kullanıcı Yolculuğu</option>
-                    <option value="TIMELINE">Sürüm Zaman Tüneli</option>
-                    <option value="QUADRANT">Tablo Dağılım Matrisi</option>
-                    <option value="REQUIREMENT">Gereksinim Analizi</option>
+                    <option value="ER">ER Diagram</option>
+                    <option value="CLASS">Class Diagram</option>
+                    <option value="FLOW">Flowchart</option>
+                    <option value="MINDMAP">Mind Map</option>
+                    <option value="STATE">State Diagram</option>
+                    <option value="SEQUENCE">Sequence Diagram</option>
+                    <option value="GANTT">Gantt Chart</option>
+                    <option value="PIE">Pie Chart</option>
+                    <option value="GIT">Git Branch Diagram</option>
+                    <option value="JOURNEY">User Journey</option>
+                    <option value="TIMELINE">Timeline</option>
+                    <option value="QUADRANT">Quadrant Chart</option>
+                    <option value="REQUIREMENT">Requirement Diagram</option>
                   </select>
                   <div className="w-px h-4 bg-zinc-700" />
                   <button
@@ -445,8 +445,8 @@ export default function CompilePage() {
                     onClick={handleExportSvg}
                     disabled={isExportingSvg || !mermaidCode}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50"
-                    title="SVG İndir"
-                    aria-label="SVG İndir"
+                    title="Download SVG"
+                    aria-label="Download SVG"
                   >
                     {isExportingSvg ? (
                       <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -495,7 +495,7 @@ export default function CompilePage() {
         {activeTab !== 'ADMIN' && activeTab !== 'SANDBOX' && (
           <div className="w-full lg:w-80 shrink-0 flex flex-col gap-6">
             <div className="bg-zinc-950/50 backdrop-blur-md border border-zinc-800/85 rounded-xl p-5 shadow-2xl relative overflow-hidden">
-              <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Çıktı Seçenekleri</h3>
+              <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Output Options</h3>
               <OutputActions
                 sql={sql}
                 dbType={dbType}

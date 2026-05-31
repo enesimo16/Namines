@@ -15,7 +15,7 @@ export default function OutputActions({ sql, dbType }: OutputActionsProps) {
 
   const handleCopy = () => {
     navigator.clipboard.writeText(sql);
-    showToast("SQL kodu başarıyla panoya kopyalandı!", "success");
+    showToast("SQL code successfully copied to clipboard!", "success");
   };
 
   const handleDownloadSql = () => {
@@ -44,7 +44,7 @@ export default function OutputActions({ sql, dbType }: OutputActionsProps) {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Failed to download EF Core zip", error);
-      showToast("EF Core dosyaları indirilirken hata oluştu.", "error");
+      showToast("An error occurred while downloading EF Core files.", "error");
     }
   };
 
@@ -62,7 +62,7 @@ export default function OutputActions({ sql, dbType }: OutputActionsProps) {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Failed to download PDF", error);
-      showToast("PDF oluşturulurken hata oluştu.", "error");
+      showToast("An error occurred while generating PDF.", "error");
     }
   };
 
@@ -81,7 +81,7 @@ export default function OutputActions({ sql, dbType }: OutputActionsProps) {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Failed to download Readme", error);
-      showToast("README oluşturulurken hata oluştu.", "error");
+      showToast("An error occurred while generating README.", "error");
     }
   };
 
@@ -89,10 +89,10 @@ export default function OutputActions({ sql, dbType }: OutputActionsProps) {
     <div className="flex flex-col gap-3 w-full">
       <button 
         onClick={handleCopy}
-        className="flex items-center justify-center gap-2 w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition-colors border border-zinc-700 cursor-pointer"
+        className="flex items-center justify-center gap-2 w-full py-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 rounded-lg transition-colors border border-zinc-700 cursor-pointer"
       >
         <Copy className="w-4 h-4" />
-        SQL'i Kopyala
+        Copy SQL
       </button>
 
       <button 
@@ -100,7 +100,7 @@ export default function OutputActions({ sql, dbType }: OutputActionsProps) {
         className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg transition-colors border border-blue-500/30 cursor-pointer"
       >
         <Download className="w-4 h-4" />
-        SQL İndir (.sql)
+        Download SQL (.sql)
       </button>
 
       <button 
@@ -108,7 +108,7 @@ export default function OutputActions({ sql, dbType }: OutputActionsProps) {
         className="flex items-center justify-center gap-2 w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-lg shadow-indigo-500/20 cursor-pointer"
       >
         <Package className="w-4 h-4" />
-        EF Core İndir (.zip)
+        Download EF Core (.zip)
       </button>
 
       <button 
@@ -116,15 +116,15 @@ export default function OutputActions({ sql, dbType }: OutputActionsProps) {
         className="flex items-center justify-center gap-2 w-full py-3 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-lg transition-colors border border-rose-500/30 cursor-pointer"
       >
         <Download className="w-4 h-4" />
-        Veri Sözlüğü İndir (.pdf)
+        Download Data Dictionary (.pdf)
       </button>
 
       <button 
         onClick={handleDownloadReadme}
-        className="flex items-center justify-center gap-2 w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors border border-zinc-700 cursor-pointer"
+        className="flex items-center justify-center gap-2 w-full py-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-300 rounded-lg transition-colors border border-zinc-700 cursor-pointer"
       >
         <Download className="w-4 h-4" />
-        README.md İndir
+        Download README.md
       </button>
     </div>
   );

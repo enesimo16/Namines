@@ -45,7 +45,7 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
       const data = await smartSeedService.generate(schema, dbType, domainHint || undefined, rowCount);
       setResult(data);
     } catch (err) {
-      console.error("Test verisi üretim hatası:", err);
+      console.error("Test data generation error:", err);
     } finally {
       setIsGenerating(false);
     }
@@ -58,7 +58,7 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error("Kopyalama hatası:", err);
+      console.error("Copy error:", err);
     }
   };
 
@@ -97,7 +97,7 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 select-none">
               <Database className="w-3.5 h-3.5 text-indigo-400" />
-              Sektör / Domain
+              Sector / Domain
             </label>
             <select
               value={domainHint}
@@ -127,7 +127,7 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 select-none">
               <DatabaseBackup className="w-3.5 h-3.5 text-indigo-400" />
-              Tablo Başına Satır Sayısı
+              Rows per Table
             </label>
             <select
               value={rowCount}
@@ -166,7 +166,7 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
         {isGenerating && (
           <div className="absolute inset-0 z-20 bg-zinc-950/60 backdrop-blur-sm flex items-center justify-center rounded-xl border border-zinc-850 flex-col gap-3">
             <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-            <span className="text-sm font-semibold text-zinc-400 font-mono">AI veritabanı şemasına uygun test verilerini hazırlıyor...</span>
+            <span className="text-sm font-semibold text-zinc-400 font-mono">AI is preparing test data suitable for the database schema...</span>
           </div>
         )}
 
@@ -177,18 +177,18 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
             <div className="shrink-0 bg-zinc-900/40 border border-zinc-800/80 px-4 py-3 rounded-xl flex flex-wrap items-center justify-between gap-4 text-xs font-mono">
               <div className="flex flex-wrap items-center gap-4">
                 <span className="text-zinc-500 flex items-center gap-1">
-                  Sektör:
+                  Sector:
                   <strong className="text-indigo-400 font-bold bg-indigo-950/40 border border-indigo-900/30 px-2 py-0.5 rounded uppercase text-[10px]">
                     {result.detectedDomain}
                   </strong>
                 </span>
                 <span className="text-zinc-700">|</span>
                 <span className="text-zinc-500">
-                  Toplam Satır: <strong className="text-zinc-300">{totalGeneratedRows} satır</strong>
+                  Total Rows: <strong className="text-zinc-300">{totalGeneratedRows} rows</strong>
                 </span>
                 <span className="text-zinc-700">|</span>
                 <span className="text-zinc-500">
-                  Dosya Boyutu: <strong className="text-zinc-300">{formatSize(result.estimatedSizeBytes)}</strong>
+                  File Size: <strong className="text-zinc-300">{formatSize(result.estimatedSizeBytes)}</strong>
                 </span>
               </div>
 
@@ -201,12 +201,12 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
                   {copied ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      Kopyalandı
+                      Copied
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      Kopyala
+                      Copy
                     </>
                   )}
                 </button>
@@ -215,7 +215,7 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
                   className="px-3.5 py-1.5 bg-indigo-950/40 hover:bg-indigo-900/40 text-indigo-400 hover:text-indigo-300 rounded-lg border border-indigo-900/30 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  SQL Olarak İndir
+                  Download as SQL
                 </button>
               </div>
             </div>

@@ -8,25 +8,25 @@ interface BadgeItem {
 }
 
 interface SandboxActionCardProps {
-  /** Kart başlığı — örn: "AI Admin Paneli" */
+  /** Card title — e.g. "AI Admin Panel" */
   title: string;
-  /** Alt başlık / açıklama */
+  /** Subtitle / description */
   description: string;
-  /** İkincil küçük açıklama (renksiz, soluk) */
+  /** Secondary small description (grayscale, muted) */
   meta?: string;
-  /** Üstteki ikon bileşeni */
+  /** Top icon component */
   Icon: LucideIcon;
-  /** İkon arka plan rengi (Tailwind sınıfı) */
+  /** Icon background color (Tailwind class) */
   iconBg?: string;
-  /** İkon rengi (Tailwind sınıfı) */
+  /** Icon color (Tailwind class) */
   iconColor?: string;
-  /** Özellik badge'leri */
+  /** Feature badges */
   badges?: BadgeItem[];
-  /** CTA buton metni */
+  /** CTA button text */
   buttonLabel: string;
-  /** Buton tıklandığında */
+  /** Callback when button is clicked */
   onAction: () => void;
-  /** Buton devre dışı mı */
+  /** Whether the button is disabled */
   disabled?: boolean;
 }
 
@@ -40,9 +40,9 @@ const BADGE_STYLES: Record<NonNullable<BadgeItem['color']>, string> = {
 /**
  * SandboxActionCard
  * ─────────────────────────────────────────────────────────────────────────────
- * Ortak glassmorphism wrapper bileşeni.
- * Docker Sandbox (.bak) ve AI Admin Panel (Streamlit) idle kartları
- * bu bileşeni kullanarak birebir aynı görünüme ve hizalamaya sahip olur.
+ * Common glassmorphism wrapper component.
+ * Docker Sandbox (.bak) and AI Admin Panel (Streamlit) idle cards
+ * use this component to have identical styling and alignment.
  */
 export default function SandboxActionCard({
   title,
