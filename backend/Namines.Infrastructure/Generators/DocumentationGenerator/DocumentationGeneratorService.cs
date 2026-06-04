@@ -16,9 +16,9 @@ public class DocumentationGeneratorService : IDocumentationGenerator
         _readmeGenerator = new ReadmeGenerator();
     }
 
-    public byte[] GeneratePdf(DatabaseSchema schema, string projectSummary)
+    public byte[] GeneratePdf(DatabaseSchema schema, string projectSummary, string language = "tr")
     {
-        return _pdfGenerator.Generate(schema, projectSummary);
+        return _pdfGenerator.Generate(schema, projectSummary, language);
     }
 
     public string GenerateMermaidEr(DatabaseSchema schema)

@@ -9,7 +9,8 @@ import { schemaService } from '../../services/api';
 
 import DbTypeSelector from '../../components/compile/DbTypeSelector';
 import SqlPreview from '../../components/compile/SqlPreview';
-import OutputActions from '../../components/compile/OutputActions';
+import DataDictionaryPreview from '../../components/compile/DataDictionaryPreview';
+import ReadmePreview from '../../components/compile/ReadmePreview';
 import DockerProgressModal from '../../components/compile/DockerProgressModal';
 import MermaidPreview from '../../components/compile/MermaidPreview';
 import DownloadHubPanel from '../../components/compile/DownloadHubPanel';
@@ -35,7 +36,7 @@ import {
 
 export default function CompilePage() {
   const router = useRouter();
-  const { schema, dbType, setDbType } = useSchemaStore();
+  const { schema, dbType, setDbType, projectName } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
   const { getActiveSandbox } = useProjectHistoryStore();
 
@@ -46,7 +47,7 @@ export default function CompilePage() {
   const [diagramType, setDiagramType] = useState<
     'ER' | 'CLASS' | 'FLOW' | 'MINDMAP' | 'STATE' | 'SEQUENCE' | 'GANTT' | 'PIE' | 'GIT' | 'JOURNEY' | 'TIMELINE' | 'QUADRANT' | 'REQUIREMENT'
   >('ER');
-  const [activeTab, setActiveTab] = useState<'SQL' | 'EF' | 'ER' | 'MOCK' | 'SANDBOX' | 'ADMIN'>('SQL');
+  const [activeTab, setActiveTab] = useState<'SQL' | 'EF' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN'>('SQL');
   const [isLoading, setIsLoading] = useState(false);
   const [isDockerModalOpen, setIsDockerModalOpen] = useState(false);
   const [isExportingSvg, setIsExportingSvg] = useState(false);
@@ -130,7 +131,7 @@ export default function CompilePage() {
     }
   };
 
-  const handleTabChange = (tab: 'SQL' | 'EF' | 'ER' | 'MOCK' | 'SANDBOX' | 'ADMIN') => {
+  const handleTabChange = (tab: 'SQL' | 'EF' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN') => {
     setActiveTab(tab);
     if (tab === 'MOCK' && !mockData) {
       loadMockData();
@@ -380,7 +381,7 @@ export default function CompilePage() {
       {/* V2: Global Header zaten layout.tsx'te render ediliyor.
           Bu sayfada sadece içerik üstten başlıyor (has-header layout wrapper'dan geliyor). */}
 
-      <main className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-6 gap-8 relative z-10" style={{ height: 'calc(100vh - 52px)', overflow: 'hidden' }}>
+      <main className="flex-1 flex flex-col max-w-[1650px] w-full mx-auto p-6 gap-6 relative z-10" style={{ height: 'calc(100vh - 52px)', overflow: 'hidden' }}>
 
         {/* Left Column: Preview */}
         <div className="flex-1 flex flex-col gap-4 min-w-0 h-full">
@@ -401,7 +402,7 @@ export default function CompilePage() {
             <div className="flex flex-col gap-2">
               <h2 className="text-base font-extrabold text-white tracking-wide">{schema.name || 'Untitled Schema'}</h2>
               <div className="flex gap-4">
-                {(['SQL', 'EF', 'ER', 'MOCK', 'SANDBOX', 'ADMIN'] as const).map(tab => (
+                {(['SQL', 'EF', 'ER', 'MOCK', 'DICTIONARY', 'README', 'SANDBOX', 'ADMIN'] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => handleTabChange(tab)}
@@ -411,7 +412,7 @@ export default function CompilePage() {
                         : 'border-transparent text-zinc-500 hover:text-zinc-300'
                     }`}
                   >
-                    {tab === 'SQL' ? 'DDL Script' : tab === 'EF' ? 'EF Core' : tab === 'ER' ? 'Mermaid ER' : tab === 'MOCK' ? 'Test Data' : tab === 'SANDBOX' ? 'Docker Sandbox' : 'Developer Package'}
+                    {tab === 'SQL' ? 'DDL Script' : tab === 'EF' ? 'EF Core' : tab === 'ER' ? 'Mermaid ER' : tab === 'MOCK' ? 'Test Data' : tab === 'DICTIONARY' ? 'Data Dictionary' : tab === 'README' ? 'README.md' : tab === 'SANDBOX' ? 'Docker Sandbox' : 'Developer Package'}
                   </button>
                 ))}
               </div>
@@ -469,7 +470,9 @@ export default function CompilePage() {
           <div className="flex-1 min-h-0" style={{ display: 'flex', flexDirection: 'column' }}>
             {activeTab === 'ADMIN' && <DownloadHubPanel schema={schema} dbType={dbType} />}
             {activeTab === 'SANDBOX' && <DockerSandboxPanel schema={schema} dbType={dbType} sql={sql} />}
-            {activeTab !== 'ADMIN' && activeTab !== 'SANDBOX' && (
+            {activeTab === 'DICTIONARY' && <DataDictionaryPreview schema={schema} projectName={projectName} />}
+            {activeTab === 'README' && <ReadmePreview schema={schema} />}
+            {activeTab !== 'ADMIN' && activeTab !== 'SANDBOX' && activeTab !== 'DICTIONARY' && activeTab !== 'README' && (
               <div className="flex-1 min-h-0 relative">
                 {isLoading && (
                   <div className="absolute inset-0 z-20 bg-zinc-950/50 backdrop-blur-sm flex items-center justify-center rounded-xl border border-zinc-800">
@@ -490,20 +493,6 @@ export default function CompilePage() {
             )}
           </div>
         </div>
-
-        {/* Right Column: Actions — hidden when ADMIN or SANDBOX tabs are active to maximize space */}
-        {activeTab !== 'ADMIN' && activeTab !== 'SANDBOX' && (
-          <div className="w-full lg:w-80 shrink-0 flex flex-col gap-6">
-            <div className="bg-zinc-950/50 backdrop-blur-md border border-zinc-800/85 rounded-xl p-5 shadow-2xl relative overflow-hidden">
-              <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Output Options</h3>
-              <OutputActions
-                sql={sql}
-                dbType={dbType}
-              />
-            </div>
-
-          </div>
-        )}
 
       </main>
 

@@ -70,8 +70,8 @@ export const schemaService = {
     return response.data.sql;
   },
 
-  generatePdf: async (schema: DatabaseSchema, projectName: string): Promise<Blob> => {
-    const response = await api.post('/documentation/pdf', { schema, projectName }, { responseType: 'blob' });
+  generatePdf: async (schema: DatabaseSchema, projectName: string, language: string = 'tr'): Promise<Blob> => {
+    const response = await api.post('/documentation/pdf', { schema, projectName, language }, { responseType: 'blob' });
     return response.data;
   },
 

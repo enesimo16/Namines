@@ -47,7 +47,8 @@ public class DocumentationController : ControllerBase
         }
 
         // 2) PDF üret
-        var pdfBytes = _docGenerator.GeneratePdf(request.Schema, projectSummary);
+        var language = string.IsNullOrWhiteSpace(request.Language) ? "tr" : request.Language;
+        var pdfBytes = _docGenerator.GeneratePdf(request.Schema, projectSummary, language);
 
         var fileName = $"{projectName.Replace(" ", "_")}_DataDictionary.pdf";
         return File(pdfBytes, "application/pdf", fileName);
@@ -75,4 +76,5 @@ public class PdfRequest
 {
     public DatabaseSchema Schema { get; set; } = new();
     public string ProjectName { get; set; } = string.Empty;
+    public string Language { get; set; } = "tr";
 }
