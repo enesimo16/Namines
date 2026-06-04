@@ -178,7 +178,77 @@ public class MigrationService : IMigrationService
             }
         }
 
+        // 3. Identify Added and Removed Relations
+        var oldRelations = oldSchema.Relations ?? new List<SchemaRelation>();
+        var newRelations = newSchema.Relations ?? new List<SchemaRelation>();
+
+        foreach (var newRel in newRelations)
+        {
+            if (!oldRelations.Any(o => AreRelationsMatching(o, oldSchema, newRel, newSchema)))
+            {
+                result.AddedRelations.Add(newRel);
+            }
+        }
+
+        foreach (var oldRel in oldRelations)
+        {
+            if (!newRelations.Any(n => AreRelationsMatching(oldRel, oldSchema, n, newSchema)))
+            {
+                result.RemovedRelations.Add(oldRel);
+                result.HasBreakingChanges = true; // Removing foreign keys is a breaking change
+            }
+        }
+
         return Task.FromResult(result);
+    }
+
+    private static string? GetTableName(DatabaseSchema schema, string tableId)
+    {
+        if (schema.Tables == null) return null;
+        var table = schema.Tables.FirstOrDefault(t => string.Equals(t.Id, tableId, StringComparison.OrdinalIgnoreCase));
+        if (table != null) return table.Name;
+        if (schema.Tables.Any(t => string.Equals(t.Name, tableId, StringComparison.OrdinalIgnoreCase)))
+            return tableId;
+        return null;
+    }
+
+    private static string? GetColumnName(DatabaseSchema schema, string tableId, string columnId)
+    {
+        if (schema.Tables == null) return null;
+        var table = schema.Tables.FirstOrDefault(t => string.Equals(t.Id, tableId, StringComparison.OrdinalIgnoreCase) 
+                                                   || string.Equals(t.Name, tableId, StringComparison.OrdinalIgnoreCase));
+        if (table == null) return null;
+        
+        var col = table.Columns?.FirstOrDefault(c => string.Equals(c.Id, columnId, StringComparison.OrdinalIgnoreCase));
+        if (col != null) return col.Name;
+        
+        if (table.Columns != null && table.Columns.Any(c => string.Equals(c.Name, columnId, StringComparison.OrdinalIgnoreCase)))
+            return columnId;
+        return null;
+    }
+
+    private static bool AreRelationsMatching(SchemaRelation r1, DatabaseSchema s1, SchemaRelation r2, DatabaseSchema s2)
+    {
+        if (r1 == null || r2 == null) return false;
+
+        var sourceTable1 = GetTableName(s1, r1.SourceTableId);
+        var sourceColumn1 = GetColumnName(s1, r1.SourceTableId, r1.SourceColumnId);
+        var targetTable1 = GetTableName(s1, r1.TargetTableId);
+        var targetColumn1 = GetColumnName(s1, r1.TargetTableId, r1.TargetColumnId);
+
+        var sourceTable2 = GetTableName(s2, r2.SourceTableId);
+        var sourceColumn2 = GetColumnName(s2, r2.SourceTableId, r2.SourceColumnId);
+        var targetTable2 = GetTableName(s2, r2.TargetTableId);
+        var targetColumn2 = GetColumnName(s2, r2.TargetTableId, r2.TargetColumnId);
+
+        if (sourceTable1 == null || sourceColumn1 == null || targetTable1 == null || targetColumn1 == null) return false;
+        if (sourceTable2 == null || sourceColumn2 == null || targetTable2 == null || targetColumn2 == null) return false;
+
+        return string.Equals(sourceTable1, sourceTable2, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(sourceColumn1, sourceColumn2, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(targetTable1, targetTable2, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(targetColumn1, targetColumn2, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(r1.Type, r2.Type, StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<MigrationResult> GenerateMigrationAsync(DatabaseSchema oldSchema, DatabaseSchema newSchema, DatabaseType dbType)

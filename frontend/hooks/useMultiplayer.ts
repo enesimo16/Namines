@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as signalR from '@microsoft/signalr';
 import { useSchemaStore } from '../store/useSchemaStore';
 import { useMultiplayerStore } from '../store/useMultiplayerStore';
@@ -11,8 +11,10 @@ export function useMultiplayer() {
     roomId, 
     userName, 
     isConnected, 
+    isOffline,
     setRoomInfo, 
     setIsConnected, 
+    setIsOffline,
     updateCursor, 
     removeCursor,
     clearCursors 
@@ -25,6 +27,40 @@ export function useMultiplayer() {
   const lastSentCursorRef = useRef({ x: 0, y: 0 });
   const schemaRef = useRef<DatabaseSchema | null>(null);
   
+  // Initialize from URL directly if present to prevent double-mount race conditions
+  const [roomIdFromUrl, setRoomIdFromUrl] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('roomId');
+    }
+    return null;
+  });
+
+  // Monitor the URL for room ID changes (polling is safe, simple, and avoids Next.js Suspense warnings)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkRoomId = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const rId = urlParams.get('roomId');
+      setRoomIdFromUrl(prev => {
+        if (prev !== rId) {
+          return rId;
+        }
+        return prev;
+      });
+    };
+
+    checkRoomId();
+    const interval = setInterval(checkRoomId, 500);
+    window.addEventListener('popstate', checkRoomId);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('popstate', checkRoomId);
+    };
+  }, []);
+
   // Keep schema ref fresh for the SignalR callbacks
   useEffect(() => {
     schemaRef.current = schema;
@@ -34,12 +70,17 @@ export function useMultiplayer() {
     if (typeof window === 'undefined') return;
 
     // 1. Get or Generate Room ID
-    const urlParams = new URLSearchParams(window.location.search);
-    let currentRoomId = urlParams.get('roomId');
+    let currentRoomId = roomIdFromUrl;
     if (!currentRoomId) {
-      currentRoomId = 'room-' + Math.random().toString(36).substring(2, 11);
-      const newUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + '?roomId=' + currentRoomId;
-      window.history.pushState({ path: newUrl }, '', newUrl);
+      const urlParams = new URLSearchParams(window.location.search);
+      currentRoomId = urlParams.get('roomId');
+      if (!currentRoomId) {
+        currentRoomId = 'room-' + Math.random().toString(36).substring(2, 11);
+        const newUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + '?roomId=' + currentRoomId;
+        window.history.pushState({ path: newUrl }, '', newUrl);
+        setRoomIdFromUrl(currentRoomId);
+        return; // Exit early, the state update will trigger the effect again with the correct roomIdFromUrl
+      }
     }
 
     // 2. Get or Generate UserName
@@ -74,6 +115,10 @@ export function useMultiplayer() {
 
     connection.on('ReceiveUserJoined', (connectionId: string, peerName: string) => {
       showToast(`${peerName} joined the room!`, 'success');
+      if (schemaRef.current) {
+        connection.invoke('SendSchemaToPeer', connectionId, schemaRef.current)
+          .catch(() => {});
+      }
     });
 
     connection.on('ReceiveSchema', (remoteSchema: DatabaseSchema) => {
@@ -85,13 +130,39 @@ export function useMultiplayer() {
       }, 300);
     });
 
+    // Reconnection & connection status callbacks
+    connection.onreconnecting((error) => {
+      if (connectionRef.current === connection) {
+        setIsOffline(true);
+        showToast('⚠️ Reconnecting to multiplayer room...', 'warning');
+      }
+    });
+
+    connection.onreconnected((connectionId) => {
+      if (connectionRef.current === connection) {
+        setIsOffline(false);
+        showToast('✅ Reconnected to multiplayer room.', 'success');
+      }
+    });
+
+    connection.onclose((error) => {
+      if (connectionRef.current === connection) {
+        setIsConnected(false);
+        setIsOffline(true);
+        showToast('❌ Disconnected from multiplayer room.', 'error');
+      }
+    });
+
     // Start Connection
     const start = async () => {
       try {
         await connection.start();
-        setIsConnected(true);
-        showToast('Real-time Collaborative Room Connection Established!', 'success');
-        await connection.invoke('JoinRoom', currentRoomId, currentUserName);
+        if (connectionRef.current === connection) {
+          setIsConnected(true);
+          setIsOffline(false);
+          showToast('Real-time Collaborative Room Connection Established!', 'success');
+          await connection.invoke('JoinRoom', currentRoomId, currentUserName);
+        }
       } catch (err) {
         // Errors silenced to avoid noise during fast mount/unmount
       }
@@ -99,8 +170,30 @@ export function useMultiplayer() {
 
     start();
 
+    // Browser network state listeners
+    const handleOffline = () => {
+      if (connectionRef.current === connection) {
+        setIsOffline(true);
+        showToast('⚠️ Connection lost. Canvas is now read-only.', 'warning');
+      }
+    };
+
+    const handleOnline = () => {
+      if (connectionRef.current === connection) {
+        setIsOffline(false);
+        showToast('✅ Connection restored. Syncing...', 'success');
+        if (connection.state === signalR.HubConnectionState.Disconnected) {
+          start();
+        }
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
     // Clean up
     const handleWindowMouseMove = (e: MouseEvent) => {
+      if (useMultiplayerStore.getState().isOffline) return; // Don't track/send cursor position if offline
       if (!connection.state || connection.state !== signalR.HubConnectionState.Connected) return;
 
       const x = e.clientX;
@@ -120,32 +213,38 @@ export function useMultiplayer() {
     return () => {
       clearCursors();
       window.removeEventListener('mousemove', handleWindowMouseMove);
-      if (connectionRef.current) {
-        const conn = connectionRef.current;
-        connectionRef.current = null;
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
 
-        if (conn.state === signalR.HubConnectionState.Connected) {
-          conn.stop().catch(() => {});
-        } else if (conn.state === signalR.HubConnectionState.Connecting) {
-          // Wait for connection to finish handshaking before calling stop to avoid abort errors
-          const stopInterval = setInterval(() => {
-            if (conn.state === signalR.HubConnectionState.Connected) {
-              conn.stop().catch(() => {});
-              clearInterval(stopInterval);
-            } else if (conn.state === signalR.HubConnectionState.Disconnected) {
-              clearInterval(stopInterval);
-            }
-          }, 100);
-          setTimeout(() => clearInterval(stopInterval), 5000);
-        }
+      if (connectionRef.current === connection) {
+        connectionRef.current = null;
+      }
+
+      if (connection.state === signalR.HubConnectionState.Connected) {
+        connection.stop().catch(() => {});
+      } else if (connection.state === signalR.HubConnectionState.Connecting) {
+        // Wait for connection to finish handshaking before calling stop to avoid abort errors
+        const stopInterval = setInterval(() => {
+          if (connection.state === signalR.HubConnectionState.Connected) {
+            connection.stop().catch(() => {});
+            clearInterval(stopInterval);
+          } else if (connection.state === signalR.HubConnectionState.Disconnected) {
+            clearInterval(stopInterval);
+          }
+        }, 100);
+        setTimeout(() => clearInterval(stopInterval), 5000);
+      }
+
+      if (connectionRef.current === null) {
         setIsConnected(false);
+        setIsOffline(false);
       }
     };
-  }, [loadFromSchema, setRoomInfo, setIsConnected, updateCursor, clearCursors]);
+  }, [loadFromSchema, setRoomInfo, setIsConnected, setIsOffline, updateCursor, clearCursors, roomIdFromUrl]);
 
   // 5. Sync Local Schema Changes
   useEffect(() => {
-    if (!isConnected || !connectionRef.current || !roomId || !schema) return;
+    if (!isConnected || isOffline || !connectionRef.current || !roomId || !schema) return;
     if (isRemoteUpdateRef.current) return;
 
     // Send update to peers only if connection is active
@@ -153,5 +252,5 @@ export function useMultiplayer() {
       connectionRef.current.invoke('UpdateSchema', roomId, schema)
         .catch(() => {});
     }
-  }, [schema, isConnected, roomId]);
+  }, [schema, isConnected, isOffline, roomId]);
 }

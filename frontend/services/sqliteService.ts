@@ -1,4 +1,5 @@
 import initSqlJs from 'sql.js';
+import localforage from 'localforage';
 
 let SQL: any = null;
 let dbInstance: any = null;
@@ -155,5 +156,53 @@ export const sqliteService = {
    */
   isActive(): boolean {
     return dbInstance !== null;
+  },
+
+  /**
+   * Exports and saves the SQLite database binary to IndexedDB.
+   */
+  async saveToIndexedDb(): Promise<void> {
+    if (dbInstance) {
+      try {
+        const binary = dbInstance.export();
+        await localforage.setItem('namines-sqlite-db-binary', binary);
+        console.log('✔ SQLite Wasm database saved to IndexedDB successfully.');
+      } catch (err) {
+        console.error('Failed to save SQLite Wasm database to IndexedDB:', err);
+      }
+    }
+  },
+
+  /**
+   * Restores the SQLite database from IndexedDB binary.
+   */
+  async loadFromIndexedDb(): Promise<boolean> {
+    try {
+      const binary = await localforage.getItem<Uint8Array>('namines-sqlite-db-binary');
+      if (binary) {
+        const Sql = await getSqlInstance();
+        if (dbInstance) {
+          dbInstance.close();
+        }
+        dbInstance = new Sql.Database(binary);
+        console.log('✔ SQLite Wasm database successfully restored from IndexedDB.');
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to load SQLite Wasm database from IndexedDB:', err);
+    }
+    return false;
+  },
+
+  /**
+   * Clears the saved database binary from IndexedDB.
+   */
+  async clearSavedDb(): Promise<void> {
+    try {
+      await localforage.removeItem('namines-sqlite-db-binary');
+      console.log('✔ SQLite Wasm database cleared from IndexedDB.');
+    } catch (err) {
+      console.error('Failed to clear SQLite Wasm database from IndexedDB:', err);
+    }
   }
 };

@@ -8,6 +8,8 @@ public class SchemaDiffResult
     public List<string> RemovedTables { get; set; } = new();
     public List<TableRenameDetail> RenamedTables { get; set; } = new();
     public List<TableDiffDetail> ModifiedTables { get; set; } = new();
+    public List<SchemaRelation> AddedRelations { get; set; } = new();
+    public List<SchemaRelation> RemovedRelations { get; set; } = new();
     public bool HasBreakingChanges { get; set; }
 }
 

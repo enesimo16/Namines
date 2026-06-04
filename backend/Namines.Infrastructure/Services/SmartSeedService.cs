@@ -22,12 +22,16 @@ public class SmartSeedService : ISmartSeedService
 
     public async Task<SmartSeedResult> GenerateSmartSeedAsync(DatabaseSchema schema, DatabaseType dbType, string? domainHint, int rowCount = 50)
     {
+        // Defense-in-depth: enforce 500-row hard limit even if controller bypassed
+        rowCount = Math.Min(rowCount, 500);
+        rowCount = Math.Max(rowCount, 1);
+
         if (schema?.Tables == null || schema.Tables.Count == 0)
         {
             return new SmartSeedResult
             {
-                SqlScript = "-- Hata: Veri üretilecek tablo bulunamadı.",
-                DetectedDomain = "Bilinmiyor"
+                SqlScript = "-- Error: No tables found to generate data for.",
+                DetectedDomain = "Unknown"
             };
         }
 

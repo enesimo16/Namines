@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import {
-  X, AlertCircle, AlertTriangle, HelpCircle,
-  Award, ShieldAlert, Cpu, Sparkles, Loader2,
-  ShieldCheck, Cloud
+  X, AlertTriangle, Award, ShieldAlert, Cpu, Sparkles, Loader2,
+  ShieldCheck, Cloud, Database, AlertOctagon, Info
 } from 'lucide-react';
 import { DbaIssue } from '../../hooks/useAIDba';
 import { useDbaStore } from '../../store/useDbaStore';
@@ -49,7 +48,6 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
 
       loadFromSchema(revisedSchema);
       showToast('AI successfully resolved all DBA, Security, and FinOps issues and optimized your schema!', 'success');
-      onClose();
     } catch (err: any) {
       console.error('AI Auto-Fix error:', err);
       showToast(`Error: AI encountered an error while optimizing the schema: ${err.message}`, 'error');
@@ -108,7 +106,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
       {/* Header - Styled to match the Celestial Dashboard perfectly */}
       <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-indigo-500/20 bg-[#0B1120]/90">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+          <Database className="w-4.5 h-4.5 text-indigo-400 animate-pulse" />
           <h3 className="text-sm font-extrabold text-indigo-100 uppercase tracking-wider">
             DBA
           </h3>
@@ -332,10 +330,6 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             </div>
           ) : (
             filteredIssues.map((issue, idx) => {
-              const Icon =
-                issue.severity === 2 ? AlertCircle :
-                issue.severity === 1 ? AlertTriangle : HelpCircle;
-
               let severityNum = 0;
               const rawSeverity = issue.severity as any;
               if (typeof rawSeverity === 'number') {
@@ -346,6 +340,10 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                 else if (lower === 'warning' || lower === '1') severityNum = 1;
                 else if (lower === 'info' || lower === '0') severityNum = 0;
               }
+
+              const Icon =
+                severityNum === 2 ? AlertOctagon :
+                severityNum === 1 ? AlertTriangle : Info;
 
               const badgeColorClass =
                 severityNum === 2 ? 'text-red-400 bg-red-950/20 border-red-900/30' :

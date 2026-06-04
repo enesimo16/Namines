@@ -146,6 +146,10 @@ export const scaffolderService = {
   exportProject: async (schema: DatabaseSchema): Promise<Blob> => {
     const response = await api.post('/scaffolder/export', schema, { responseType: 'blob' });
     return response.data;
+  },
+  exportPythonProject: async (schema: DatabaseSchema): Promise<Blob> => {
+    const response = await api.post('/scaffolder/export/python', schema, { responseType: 'blob' });
+    return response.data;
   }
 };
 

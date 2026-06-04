@@ -136,11 +136,18 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
               className="bg-zinc-950 border border-zinc-800 rounded-xl py-[10px] px-[15px] text-sm text-zinc-300 focus:outline-none focus:border-indigo-500/50 cursor-pointer"
             >
               <option value="10">10 Rows (Quick)</option>
-              <option value="15">15 Rows (Fast)</option>
               <option value="25">25 Rows (Medium)</option>
               <option value="50">50 Rows (Standard)</option>
               <option value="100">100 Rows (Extended)</option>
+              <option value="200">200 Rows (Large)</option>
+              <option value="500">500 Rows (Max Limit)</option>
             </select>
+            {rowCount === 500 && (
+              <span className="text-[9px] text-amber-500 font-semibold flex items-center gap-1 mt-0.5 animate-pulse leading-snug">
+                <Info className="w-3 h-3 shrink-0" />
+                Warning: 500 rows may exceed sql.js WASM browser memory limits.
+              </span>
+            )}
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, Image, RefreshCw, AlertCircle, Sparkles, CheckCircle } from 'lucide-react';
+import { X, Upload, Image, RefreshCw, AlertCircle, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { reverseEngineerService } from '../../../services/api';
 
@@ -9,7 +9,7 @@ interface VisionUploadModalProps {
 }
 
 export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModalProps) {
-  const { importFromVision } = useSchemaStore();
+  const { schema, importFromVision } = useSchemaStore();
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -17,6 +17,10 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Overwrite warning states
+  const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
+  const [pendingSchema, setPendingSchema] = useState<any | null>(null);
 
   // Verification Step States
   const [parsedSchema, setParsedSchema] = useState<any | null>(null);
@@ -110,6 +114,26 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
     }
   };
 
+  const executeImport = (finalSchema: any) => {
+    // Apply the imported schema to the canvas Zustand store
+    importFromVision(finalSchema);
+    
+    setSuccess(true);
+    
+    // Auto close modal shortly after success
+    setTimeout(() => {
+      handleClose();
+    }, 1500);
+  };
+
+  const confirmOverwrite = () => {
+    if (pendingSchema) {
+      executeImport(pendingSchema);
+      setShowOverwriteWarning(false);
+      setPendingSchema(null);
+    }
+  };
+
   const handleConfirmImport = () => {
     if (!parsedSchema) return;
 
@@ -124,15 +148,12 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
       relations: filteredRelations
     };
 
-    // Apply the imported schema to the canvas Zustand store
-    importFromVision(finalSchema);
-    
-    setSuccess(true);
-    
-    // Auto close modal shortly after success
-    setTimeout(() => {
-      handleClose();
-    }, 1500);
+    if (schema && schema.tables && schema.tables.length > 0) {
+      setPendingSchema(finalSchema);
+      setShowOverwriteWarning(true);
+    } else {
+      executeImport(finalSchema);
+    }
   };
 
   const handleClose = () => {
@@ -144,6 +165,8 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
     setError(null);
     setSuccess(false);
     setLoading(false);
+    setShowOverwriteWarning(false);
+    setPendingSchema(null);
     onClose();
   };
 
@@ -359,6 +382,40 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
             </button>
           )}
         </div>
+
+        {/* Overwrite warning dialog */}
+        {showOverwriteWarning && (
+          <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
+            <div className="w-full max-w-md bg-gradient-to-b from-[#1F1635]/95 via-[#0F172A]/98 to-[#0F172A]/98 border border-amber-500/40 rounded-3xl p-8 shadow-[0_0_50px_rgba(245,158,11,0.25)] text-center space-y-5 animate-in zoom-in-95 duration-200">
+              <div className="w-14 h-14 bg-gradient-to-tr from-amber-500/20 to-yellow-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center rounded-2xl mx-auto shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                <AlertTriangle className="w-7 h-7" />
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-zinc-100 text-base font-extrabold tracking-wide uppercase">Yıkıcı Import Uyarısı</h4>
+                <p className="text-zinc-300 text-xs leading-relaxed">
+                  Mevcut tuvaldeki verilerin üzerine yazılacak, onaylıyor musunuz?
+                </p>
+              </div>
+              <div className="flex gap-3 justify-center pt-2 select-none">
+                <button
+                  onClick={() => {
+                    setShowOverwriteWarning(false);
+                    setPendingSchema(null);
+                  }}
+                  className="text-xs text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-5 py-2.5 rounded-xl transition-all"
+                >
+                  İptal Et
+                </button>
+                <button
+                  onClick={confirmOverwrite}
+                  className="text-xs text-black font-bold bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-amber-400/40 px-6 py-2.5 rounded-xl transition-all"
+                >
+                  Onayla ve Üzerine Yaz
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

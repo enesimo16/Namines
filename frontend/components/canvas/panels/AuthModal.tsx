@@ -5,7 +5,9 @@ import { X, Lock, Mail, User, Building2, CheckCircle2, AlertTriangle, ShieldChec
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
+import { useSchemaStore } from '../../../store/useSchemaStore';
 import { authService } from '../../../services/api';
+import GuestSchemaMigrationModal from './GuestSchemaMigrationModal';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -27,8 +29,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  if (!isOpen) return null;
+  const [showMigration, setShowMigration] = useState(false);
 
   const handleSyncLocalProjects = async () => {
     if (projects.length === 0) return;
@@ -50,6 +51,20 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
   };
 
+  const handleSync = async () => {
+    await handleSyncLocalProjects();
+    onClose();
+    setShowMigration(false);
+  };
+
+  const handleDiscard = () => {
+    useProjectHistoryStore.setState({ projects: [], activeProjectId: null });
+    useSchemaStore.getState().resetProject();
+    showToast('Guest projects discarded. Starting fresh!', 'info');
+    onClose();
+    setShowMigration(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -67,9 +82,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         });
         showToast('Logged in successfully. Cloud backup is active!', 'success');
         
-        // Trigger local-to-cloud synchronization
-        await handleSyncLocalProjects();
-        onClose();
+        if (projects.length > 0) {
+          setShowMigration(true);
+        } else {
+          onClose();
+        }
       } else {
         // Register Flow
         const data = await authService.register(
@@ -89,9 +106,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         
         showToast('Account created. Welcome!', 'success');
         
-        // Trigger local-to-cloud synchronization
-        await handleSyncLocalProjects();
-        onClose();
+        if (projects.length > 0) {
+          setShowMigration(true);
+        } else {
+          onClose();
+        }
       }
     } catch (err: any) {
       const msg = err.response?.data?.message || 'An error occurred. Please check your credentials.';
@@ -101,6 +120,19 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setIsLoading(false);
     }
   };
+
+  if (!isOpen) return null;
+
+  if (showMigration) {
+    return (
+      <GuestSchemaMigrationModal
+        isOpen={true}
+        projects={projects}
+        onSync={handleSync}
+        onDiscard={handleDiscard}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">

@@ -26,6 +26,33 @@ public class EfCoreGeneratorService : IEfCoreGenerator
         return files;
     }
 
+    private static string Pluralize(string word)
+    {
+        if (string.IsNullOrEmpty(word)) return word;
+
+        if (word.EndsWith("y", StringComparison.OrdinalIgnoreCase))
+        {
+            bool isUpper = char.IsUpper(word[word.Length - 1]);
+            string suffix = isUpper ? "IES" : "ies";
+            return word.Substring(0, word.Length - 1) + suffix;
+        }
+        
+        if (word.EndsWith("s", StringComparison.OrdinalIgnoreCase) ||
+            word.EndsWith("sh", StringComparison.OrdinalIgnoreCase) ||
+            word.EndsWith("ch", StringComparison.OrdinalIgnoreCase) ||
+            word.EndsWith("x", StringComparison.OrdinalIgnoreCase) ||
+            word.EndsWith("z", StringComparison.OrdinalIgnoreCase))
+        {
+            bool isUpper = char.IsUpper(word[word.Length - 1]);
+            string suffix = isUpper ? "ES" : "es";
+            return word + suffix;
+        }
+
+        bool isLastUpper = char.IsUpper(word[word.Length - 1]);
+        string standardSuffix = isLastUpper ? "S" : "s";
+        return word + standardSuffix;
+    }
+
     private string GenerateModelClass(SchemaTable table, DatabaseSchema schema)
     {
         var sb = new StringBuilder();
@@ -62,7 +89,7 @@ public class EfCoreGeneratorService : IEfCoreGenerator
                 if (sourceTable != null)
                 {
                     sb.AppendLine();
-                    sb.AppendLine($"    public virtual ICollection<{sourceTable.Name}> {sourceTable.Name}s {{ get; set; }} = new List<{sourceTable.Name}>();");
+                    sb.AppendLine($"    public virtual ICollection<{sourceTable.Name}> {Pluralize(sourceTable.Name)} {{ get; set; }} = new List<{sourceTable.Name}>();");
                 }
             }
 
@@ -98,7 +125,7 @@ public class EfCoreGeneratorService : IEfCoreGenerator
 
         foreach (var table in schema.Tables)
         {
-            sb.AppendLine($"    public DbSet<{table.Name}> {table.Name}s {{ get; set; }}");
+            sb.AppendLine($"    public DbSet<{table.Name}> {Pluralize(table.Name)} {{ get; set; }}");
         }
 
         sb.AppendLine("}");

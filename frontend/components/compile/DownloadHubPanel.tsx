@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { DatabaseSchema } from '../../types/schema';
 import { DbType } from '../../store/useSchemaStore';
 import {
-  Download, Loader2, Terminal, RefreshCw,
-  Sparkles, CheckCircle2, ChevronRight, Crown, Code2, Cpu
+  Download, Loader2, RefreshCw, CheckCircle2,
+  Sparkles, Crown, Code2, Cpu
 } from 'lucide-react';
+import { scaffolderService } from '../../services/api';
 
 interface DownloadHubPanelProps {
   schema: DatabaseSchema;
@@ -17,6 +18,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   const [status, setStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
   const [logs, setLogs] = useState<string[]>([]);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [isExportingPython, setIsExportingPython] = useState(false);
 
   const logsEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -24,6 +26,25 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
+
+  const handleExportPython = async () => {
+    setIsExportingPython(true);
+    try {
+      const blob = await scaffolderService.exportPythonProject(schema);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${schema.name || 'streamlit_admin'}_python_crud.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Python export error:", err);
+    } finally {
+      setIsExportingPython(false);
+    }
+  };
 
   const handleGenerate = async () => {
     setStatus('generating');
@@ -108,8 +129,69 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   if (status === 'generating') {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-[#0b0c10] rounded-2xl border border-zinc-800/60 overflow-hidden relative min-h-[520px]">
+        {/* Local Styles for Ocean Waves inside Panel */}
+        <style dangerouslySetInnerHTML={{__html: `
+          .sandbox-ocean-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(to top, rgba(11, 12, 16, 1) 0%, transparent 100%);
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+            border-bottom-left-radius: 1rem;
+            border-bottom-right-radius: 1rem;
+          }
+          .sandbox-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 200%;
+            height: 100%;
+            background-size: 50% 100%;
+            animation: sandbox-wave-anim 20s linear infinite;
+          }
+          .s-wave1 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%2306b6d4" fill-opacity="0.2" d="M0,160L48,144C96,128,192,96,288,106.7C384,117,480,171,576,165.3C672,160,768,96,864,85.3C960,75,1056,117,1152,149.3C1248,181,1344,203,1392,213.3L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-duration: 22s;
+            opacity: 0.6;
+          }
+          .s-wave2 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%230ea5e9" fill-opacity="0.15" d="M0,192L48,197.3C96,203,192,213,288,213.3C384,213,480,203,576,186.7C672,171,768,149,864,154.7C960,160,1056,192,1152,202.7C1248,213,1344,203,1392,197.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-direction: reverse;
+            animation-duration: 28s;
+            opacity: 0.5;
+          }
+          .s-wave3 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%231e3a8a" fill-opacity="0.25" d="M0,224L48,208C96,192,192,160,288,160C384,160,480,192,576,213.3C672,235,768,245,864,229.3C960,213,1056,171,1152,149.3C1248,128,1344,128,1392,128L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-duration: 36s;
+            opacity: 0.7;
+          }
+          @keyframes sandbox-wave-anim {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+          }
+        `}} />
+
         {/* Ambient deep blue/indigo background glow behind terminal */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-indigo-500/5 rounded-full blur-[130px] pointer-events-none" />
+
+        {/* Wave Overlays */}
+        <div aria-hidden="true" className="sandbox-ocean-wave">
+          <div className="sandbox-wave s-wave1" />
+          <div className="sandbox-wave s-wave2" />
+          <div className="sandbox-wave s-wave3" />
+        </div>
+
+        {/* Shimmering Star Overlays */}
+        <div className="absolute inset-0 pointer-events-none opacity-40 z-0">
+          <div className="absolute top-[15%] left-[25%] w-1 h-1 bg-white/80 rounded-full blur-[0.5px] animate-pulse" />
+          <div className="absolute top-[30%] left-[75%] w-0.5 h-0.5 bg-white rounded-full" />
+          <div className="absolute top-[75%] left-[10%] w-1.5 h-1.5 bg-white/60 rounded-full blur-[1px] animate-pulse" />
+          <div className="absolute top-[20%] left-[60%] w-0.5 h-0.5 bg-white/95 rounded-full" />
+        </div>
 
         {/* High-Fidelity Black Terminal (Namines Sistem Log Terminali Replica) */}
         <div className="relative z-10 w-full max-w-[750px] mx-6 bg-black/85 backdrop-blur-xl border border-white/5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden" style={{ height: '440px' }}>
@@ -186,8 +268,69 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   // ─────────────────────────────────────────────
   if (status === 'success' || status === 'error') {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-[#070708] rounded-xl border border-zinc-800/80 p-6 relative">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#070708] rounded-xl border border-zinc-800/80 p-6 relative min-h-[520px]">
+        {/* Local Styles for Ocean Waves inside Panel */}
+        <style dangerouslySetInnerHTML={{__html: `
+          .sandbox-ocean-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(to top, rgba(7, 7, 8, 1) 0%, transparent 100%);
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+            border-bottom-left-radius: 1rem;
+            border-bottom-right-radius: 1rem;
+          }
+          .sandbox-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 200%;
+            height: 100%;
+            background-size: 50% 100%;
+            animation: sandbox-wave-anim 20s linear infinite;
+          }
+          .s-wave1 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%2306b6d4" fill-opacity="0.2" d="M0,160L48,144C96,128,192,96,288,106.7C384,117,480,171,576,165.3C672,160,768,96,864,85.3C960,75,1056,117,1152,149.3C1248,181,1344,203,1392,213.3L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-duration: 22s;
+            opacity: 0.6;
+          }
+          .s-wave2 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%230ea5e9" fill-opacity="0.15" d="M0,192L48,197.3C96,203,192,213,288,213.3C384,213,480,203,576,186.7C672,171,768,149,864,154.7C960,160,1056,192,1152,202.7C1248,213,1344,203,1392,197.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-direction: reverse;
+            animation-duration: 28s;
+            opacity: 0.5;
+          }
+          .s-wave3 {
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%231e3a8a" fill-opacity="0.25" d="M0,224L48,208C96,192,192,160,288,160C384,160,480,192,576,213.3C672,235,768,245,864,229.3C960,213,1056,171,1152,149.3C1248,128,1344,128,1392,128L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+            animation-duration: 36s;
+            opacity: 0.7;
+          }
+          @keyframes sandbox-wave-anim {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+          }
+        `}} />
+
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-zinc-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+        {/* Wave Overlays */}
+        <div aria-hidden="true" className="sandbox-ocean-wave">
+          <div className="sandbox-wave s-wave1" />
+          <div className="sandbox-wave s-wave2" />
+          <div className="sandbox-wave s-wave3" />
+        </div>
+
+        {/* Shimmering Star Overlays */}
+        <div className="absolute inset-0 pointer-events-none opacity-40 z-0">
+          <div className="absolute top-[15%] left-[25%] w-1 h-1 bg-white/80 rounded-full blur-[0.5px] animate-pulse" />
+          <div className="absolute top-[30%] left-[75%] w-0.5 h-0.5 bg-white rounded-full" />
+          <div className="absolute top-[75%] left-[10%] w-1.5 h-1.5 bg-white/60 rounded-full blur-[1px] animate-pulse" />
+          <div className="absolute top-[20%] left-[60%] w-0.5 h-0.5 bg-white/95 rounded-full" />
+        </div>
 
         <div className="relative z-10 w-full max-w-[480px] bg-black/40 backdrop-blur-xl border border-white/5 p-8 rounded-3xl shadow-[inset_0_0_20px_rgba(255,255,255,0.02),0_12px_40px_rgba(0,0,0,0.5)] flex flex-col items-center text-center gap-6">
           {status === 'success' ? (
@@ -206,7 +349,6 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                     href={downloadUrl}
                     className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 border border-emerald-400/20"
                   >
-                    <Download className="w-4 h-4" />
                     Download Project Again (.zip)
                   </a>
                 )}
@@ -233,7 +375,6 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                   onClick={handleGenerate}
                   className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 border border-indigo-400/20 cursor-pointer"
                 >
-                  <RefreshCw className="w-4 h-4" />
                   Try Again
                 </button>
                 <button
@@ -255,16 +396,71 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   // ─────────────────────────────────────────────
   return (
     <div className="w-full h-full flex flex-col justify-center items-center p-6 bg-[#050508] rounded-xl border border-zinc-800/80 relative overflow-hidden min-h-[520px]">
-      {/* Background space elements */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.01] mix-blend-overlay" />
+      {/* Local Styles for Ocean Waves inside Panel */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .sandbox-ocean-wave {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          width: 100%;
+          height: 180px;
+          background: linear-gradient(to top, rgba(5, 5, 8, 1) 0%, transparent 100%);
+          z-index: 0;
+          pointer-events: none;
+          overflow: hidden;
+          border-bottom-left-radius: 1rem;
+          border-bottom-right-radius: 1rem;
+        }
+        .sandbox-wave {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          width: 200%;
+          height: 100%;
+          background-size: 50% 100%;
+          animation: sandbox-wave-anim 20s linear infinite;
+        }
+        .s-wave1 {
+          background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%2306b6d4" fill-opacity="0.2" d="M0,160L48,144C96,128,192,96,288,106.7C384,117,480,171,576,165.3C672,160,768,96,864,85.3C960,75,1056,117,1152,149.3C1248,181,1344,203,1392,213.3L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+          animation-duration: 22s;
+          opacity: 0.6;
+        }
+        .s-wave2 {
+          background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%230ea5e9" fill-opacity="0.15" d="M0,192L48,197.3C96,203,192,213,288,213.3C384,213,480,203,576,186.7C672,171,768,149,864,154.7C960,160,1056,192,1152,202.7C1248,213,1344,203,1392,197.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+          animation-direction: reverse;
+          animation-duration: 28s;
+          opacity: 0.5;
+        }
+        .s-wave3 {
+          background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%231e3a8a" fill-opacity="0.25" d="M0,224L48,208C96,192,192,160,288,160C384,160,480,192,576,213.3C672,235,768,245,864,229.3C960,213,1056,171,1152,149.3C1248,128,1344,128,1392,128L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') repeat-x;
+          animation-duration: 36s;
+          opacity: 0.7;
+        }
+        @keyframes sandbox-wave-anim {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}} />
 
-      {/* Decorative Wave lines */}
-      <div className="absolute bottom-0 left-0 w-full h-[30%] pointer-events-none opacity-[0.03] z-0">
-        <svg viewBox="0 0 1440 320" preserveAspectRatio="none" className="w-full h-full fill-indigo-500">
-          <path d="M0,96 C288,192 576,64 864,160 C1152,256 1296,128 1440,224 L1440,320 L0,320 Z" />
-        </svg>
+      {/* Ambient Radial Sky Glow */}
+      <div className="absolute inset-0 pointer-events-none z-0 rounded-2xl" style={{ background: 'radial-gradient(circle at top right, rgba(26, 31, 46, 0.45) 0%, rgba(5, 5, 8, 0.95) 75%)' }} />
+      
+      {/* Wave Overlays */}
+      <div aria-hidden="true" className="sandbox-ocean-wave">
+        <div className="sandbox-wave s-wave1" />
+        <div className="sandbox-wave s-wave2" />
+        <div className="sandbox-wave s-wave3" />
       </div>
+
+      {/* Shimmering Star Overlays */}
+      <div className="absolute inset-0 pointer-events-none opacity-40 z-0">
+        <div className="absolute top-[15%] left-[25%] w-1 h-1 bg-white/80 rounded-full blur-[0.5px] animate-pulse" />
+        <div className="absolute top-[30%] left-[75%] w-0.5 h-0.5 bg-white rounded-full" />
+        <div className="absolute top-[75%] left-[10%] w-1.5 h-1.5 bg-white/60 rounded-full blur-[1px] animate-pulse" />
+        <div className="absolute top-[20%] left-[60%] w-0.5 h-0.5 bg-white/95 rounded-full" />
+      </div>
+
+      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.01] mix-blend-overlay" />
 
       <div className="relative z-10 w-full max-w-4xl flex flex-col gap-8">
         {/* Title block with wave-sparkle custom logo */}
@@ -309,14 +505,11 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           {/* CARD 1 - Streamlit Admin Panel (FREE) */}
-          <div className="bg-[#08090d]/80 border border-cyan-500/25 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:border-cyan-400/50 shadow-[0_0_50px_rgba(6,182,212,0.03)] hover:shadow-[0_0_50px_rgba(6,182,212,0.1)] group relative overflow-hidden">
+          <div className="bg-[#08090d]/35 backdrop-blur-2xl border border-cyan-500/20 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:border-cyan-400/40 shadow-[inset_0_0_20px_rgba(255,255,255,0.01),0_12px_40px_rgba(0,0,0,0.5)] group relative overflow-hidden">
             <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-cyan-500/5 rounded-full blur-[40px] pointer-events-none" />
             
             <div className="space-y-5">
-              <div className="flex justify-between items-start select-none">
-                <div className="w-12 h-12 rounded-xl bg-cyan-950/40 border border-cyan-800/30 flex items-center justify-center shadow-lg shadow-cyan-500/10 text-cyan-400">
-                  <Code2 className="w-6 h-6" />
-                </div>
+              <div className="flex justify-between items-center select-none">
                 <span className="text-[10px] font-black tracking-wider text-cyan-400 bg-cyan-950/50 border border-cyan-800/40 px-2.5 py-1 rounded-md uppercase">
                   Freemium
                 </span>
@@ -337,34 +530,41 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                   'One-Click Setup with docker-compose.yml',
                 ].map((feat, idx) => (
                   <div key={idx} className="flex items-center gap-2.5 text-xs text-zinc-300 select-none">
-                    <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span className="text-cyan-400 shrink-0 select-none">•</span>
                     <span>{feat}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="mt-6 pt-2">
+            <div className="mt-6 pt-2 flex flex-col gap-3">
+              <button
+                onClick={handleExportPython}
+                disabled={isExportingPython}
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] group cursor-pointer border border-emerald-400/20"
+              >
+                {isExportingPython && (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                )}
+                <span>Download Python Freemium (.zip)</span>
+              </button>
+
               <button
                 onClick={handleGenerate}
-                className="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-[0_4px_20px_rgba(6,182,212,0.3)] flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] group cursor-pointer border border-cyan-400/20"
+                className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800/80 text-zinc-300 hover:text-white border border-zinc-850/80 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Download className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
-                <span>Download Project (.zip)</span>
+                <span>AI Enhanced Compiler</span>
               </button>
             </div>
           </div>
 
           {/* CARD 2 - Next.js Enterprise Dashboard (PREMIUM) */}
-          <div className="bg-[#08090d]/60 border border-purple-500/20 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:border-purple-400/40 shadow-[0_0_50px_rgba(168,85,247,0.01)] hover:shadow-[0_0_50px_rgba(168,85,247,0.06)] relative overflow-hidden group">
+          <div className="bg-[#08090d]/35 backdrop-blur-2xl border border-purple-500/15 rounded-2xl p-6 flex flex-col justify-between transition-all duration-300 hover:border-purple-400/30 shadow-[inset_0_0_20px_rgba(255,255,255,0.01),0_12px_40px_rgba(0,0,0,0.5)] relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-purple-500/5 rounded-full blur-[40px] pointer-events-none" />
             
             <div className="space-y-5 opacity-60">
-              <div className="flex justify-between items-start select-none">
-                <div className="w-12 h-12 rounded-xl bg-purple-950/40 border border-purple-800/30 flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/5">
-                  <Cpu className="w-6 h-6" />
-                </div>
-                <span className="text-[10px] font-black tracking-wider text-purple-400 bg-purple-950/50 border border-purple-800/40 px-2.5 py-1 rounded-md uppercase flex items-center gap-1">
+              <div className="flex justify-between items-center select-none">
+                <span className="text-[10px] font-black tracking-wider text-purple-400 bg-purple-950/50 border border-purple-800/40 px-2.5 py-1 rounded-md uppercase">
                   Premium
                 </span>
               </div>
@@ -384,7 +584,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                   'Chart.js / Tremor Dashboard Components',
                 ].map((feat, idx) => (
                   <div key={idx} className="flex items-center gap-2.5 text-xs text-zinc-500 select-none">
-                    <CheckCircle2 className="w-4 h-4 text-purple-500/70 shrink-0" />
+                    <span className="text-purple-500/70 shrink-0 select-none">•</span>
                     <span>{feat}</span>
                   </div>
                 ))}
@@ -396,7 +596,6 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
                 disabled
                 className="w-full py-3 bg-zinc-900 border border-zinc-800 text-zinc-600 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed"
               >
-                <Crown className="w-4 h-4 text-zinc-600" />
                 Coming Soon
               </button>
             </div>
@@ -406,4 +605,3 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
     </div>
   );
 }
-

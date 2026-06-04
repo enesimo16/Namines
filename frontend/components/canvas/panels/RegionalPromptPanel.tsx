@@ -16,6 +16,24 @@ export default function RegionalPromptPanel() {
   const [isRevising, setIsRevising] = useState(false);
   const nodeRef = useRef<HTMLDivElement>(null);
 
+  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('namines-regional-prompt-pos');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    return { x: 0, y: 0 };
+  });
+
+  const handleStop = (e: any, data: { x: number; y: number }) => {
+    const newPos = { x: data.x, y: data.y };
+    setPosition(newPos);
+    localStorage.setItem('namines-regional-prompt-pos', JSON.stringify(newPos));
+  };
+
   // Get selected nodes
   const selectedNodes = getNodes().filter(n => n.selected && n.type === 'tableNode');
   
@@ -51,13 +69,19 @@ export default function RegionalPromptPanel() {
   };
 
   return (
-    <Draggable nodeRef={nodeRef} bounds="parent" handle=".drag-handle">
+    <Draggable 
+      nodeRef={nodeRef} 
+      bounds="parent" 
+      handle=".drag-handle"
+      position={position}
+      onStop={handleStop}
+    >
       {/* 
         Positioning logic: To center a Draggable, we use percentages for top/left and 
         subtract half the width using calc() instead of transform: translate 
         to avoid conflicts with Draggable's own transform styles.
       */}
-      <div ref={nodeRef} className="absolute top-[15%] right-8 z-[100] w-[340px] font-sans">
+      <div ref={nodeRef} className="absolute top-[15%] left-8 z-[100] w-[340px] font-sans">
         
         {/* Outer Frame Wrapper */}
         <div className="relative bg-[#171D31] rounded-[20px] p-[5px] border border-[#2b375b] shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden">

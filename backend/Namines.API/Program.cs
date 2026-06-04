@@ -126,6 +126,7 @@ if (app.Environment.IsDevelopment())
 
 // app.UseHttpsRedirection();
 
+app.UseWebSockets();
 app.UseCors("AllowNextJs");
 
 app.UseAuthentication();

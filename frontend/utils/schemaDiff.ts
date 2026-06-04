@@ -196,6 +196,49 @@ export function calculateSchemaDiff(
     }
   });
 
+  // 3. Find relationship changes
+  const activeRelations = activeSchema.relations || [];
+  const compareRelations = compareSchema.relations || [];
+
+  const areRelationsEqual = (r1: any, r2: any) => {
+    if (r1.type !== r2.type) return false;
+    
+    const getTableColName = (sch: any, tableId: string, colId: string) => {
+      let table = sch.tables?.find((t: any) => t.id === tableId);
+      if (!table) {
+        table = sch.tables?.find((t: any) => t.name?.toLowerCase() === tableId.toLowerCase());
+      }
+      const tableName = table ? table.name : tableId;
+
+      let col = table?.columns?.find((c: any) => c.id === colId);
+      if (!col && table) {
+        col = table.columns?.find((c: any) => c.name?.toLowerCase() === colId.toLowerCase());
+      }
+      const colName = col ? col.name : colId;
+
+      return `${tableName || ''}.${colName || ''}`;
+    };
+
+    const sourceName1 = getTableColName(activeSchema, r1.sourceTableId, r1.sourceColumnId);
+    const targetName1 = getTableColName(activeSchema, r1.targetTableId, r1.targetColumnId);
+    const sourceName2 = getTableColName(compareSchema, r2.sourceTableId, r2.sourceColumnId);
+    const targetName2 = getTableColName(compareSchema, r2.targetTableId, r2.targetColumnId);
+
+    return sourceName1 === sourceName2 && targetName1 === targetName2;
+  };
+
+  const addedRels = activeRelations.filter(ar => 
+    !compareRelations.some(cr => areRelationsEqual(ar, cr))
+  );
+
+  const removedRels = compareRelations.filter(cr => 
+    !activeRelations.some(ar => areRelationsEqual(ar, cr))
+  );
+
+  if (addedRels.length > 0 || removedRels.length > 0) {
+    hasChanges = true;
+  }
+
   return {
     tables: result,
     hasChanges,

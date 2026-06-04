@@ -22,6 +22,9 @@ import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { useBranchStore } from '../../store/useBranchStore';
 import { calculateSchemaDiff } from '../../utils/schemaDiff';
 import { useToastStore } from '../../store/useToastStore';
+import { useMultiplayerStore } from '../../store/useMultiplayerStore';
+import { useMultiplayer } from '../../hooks/useMultiplayer';
+import { Loader2 } from 'lucide-react';
 
 import TableNode from '../../components/canvas/nodes/TableNode';
 import RelationEdge from '../../components/canvas/edges/RelationEdge';
@@ -37,11 +40,34 @@ import DbaIssuePanel from '../../components/canvas/DbaIssuePanel';
 
 export default function CanvasPage() {
   const router = useRouter();
+
+  // Keep real-time multiplayer connection active globally
+  useMultiplayer();
+
+  // Get roomId from URL dynamically
+  const [urlRoomId, setUrlRoomId] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkRoomId = () => {
+      const params = new URLSearchParams(window.location.search);
+      const rId = params.get('roomId');
+      if (rId !== urlRoomId) {
+        setUrlRoomId(rId);
+      }
+    };
+
+    checkRoomId();
+    const interval = setInterval(checkRoomId, 500);
+    return () => clearInterval(interval);
+  }, [urlRoomId]);
+
   const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode } = useSchemaStore();
   const { score, issues, assessment, isAnalyzing, isPanelOpen, setIsPanelOpen } = useDbaStore();
 
   const { projects, activeProjectId } = useProjectHistoryStore();
   const { isDiffMode, compareBranchName } = useBranchStore();
+  const { isOffline, setIsOffline } = useMultiplayerStore();
 
   const showToast = useToastStore(state => state.showToast);
 
@@ -110,7 +136,12 @@ export default function CanvasPage() {
   }, [schema, nodes, isDiffMode, compareBranchName, branches]);
 
   useEffect(() => {
-    if (!schema) router.push('/');
+    if (!schema && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.get('roomId')) {
+        router.push('/');
+      }
+    }
     setIsGenerating(false);
   }, [schema, router, setIsGenerating]);
 
@@ -121,10 +152,38 @@ export default function CanvasPage() {
     }
   }, [isEditMode, showToast]);
 
-  if (!schema) return null;
+  if (!schema) {
+    if (urlRoomId) {
+      return <MultiplayerLoadingScreen roomId={urlRoomId} onCancel={() => router.push('/')} />;
+    }
+    return null;
+  }
 
   return (
     <div className="w-full bg-zinc-950 overflow-hidden relative font-sans" style={{ height: 'calc(100vh - 56px)' }}>
+
+      {/* Connection Lost Overlay for Read-Only Mode */}
+      {isOffline && (
+        <div className="absolute inset-0 z-[8000] bg-black/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-auto">
+          <div className="bg-[#09111F]/90 border border-amber-500/30 px-6 py-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col items-center text-center gap-3 animate-in zoom-in-95 duration-200">
+            <span className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
+              ⚠️ Connection Lost
+            </span>
+            <div className="flex flex-col gap-1">
+              <h4 className="text-zinc-200 font-extrabold text-sm">Read-Only Mode Active</h4>
+              <p className="text-zinc-400 text-[11px] leading-relaxed max-w-[280px]">
+                Collaborative session is disconnected. You cannot modify the schema until the connection is restored.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsOffline(false)}
+              className="mt-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl border border-zinc-700 transition-all cursor-pointer shadow-sm hover:shadow-md"
+            >
+              Work Offline (Local Mode)
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Right Drawer showing Linter Issues & Optimization Suggestions */}
       <DbaIssuePanel
@@ -146,8 +205,8 @@ export default function CanvasPage() {
             edgeTypes={edgeTypes}
             fitView
             colorMode="dark"
-            nodesDraggable={!isDiffMode}
-            nodesConnectable={!isEditMode && !isDiffMode}
+            nodesDraggable={!isDiffMode && !isOffline}
+            nodesConnectable={!isEditMode && !isDiffMode && !isOffline}
             proOptions={{ hideAttribution: true }}
           >
             <Background
@@ -171,10 +230,6 @@ export default function CanvasPage() {
                   <span>{schema.tables.length} Tables</span>
                   <span>{schema.relations.length} Relations</span>
                 </div>
-                <div className="flex items-center gap-1.5 mt-1 text-[10px] bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 text-indigo-300 w-fit">
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
-                  Active Branch: <strong className="font-semibold text-indigo-100">{currentBranchName}</strong>
-                </div>
               </div>
               <BranchControlPanel />
             </Panel>
@@ -191,6 +246,83 @@ export default function CanvasPage() {
 
       <TableEditorDrawer />
       <SqlExplorerPanel />
+    </div>
+  );
+}
+
+function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCancel: () => void }) {
+  const { loadFromSchema } = useSchemaStore();
+  const [status, setStatus] = useState<'connecting' | 'timeout'>('connecting');
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setStatus('timeout');
+    }, 6000); // 6 seconds wait time for peer discovery
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleStartBlank = () => {
+    const emptySchema = {
+      schemaId: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+      name: 'Shared Room Project',
+      tables: [],
+      relations: []
+    };
+    loadFromSchema(emptySchema);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center font-sans">
+      {/* Background glow effects */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-1/4 left-1/3 w-[300px] h-[300px] bg-cyan-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+      <div className="relative bg-[#09111F]/80 border border-indigo-500/20 p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl flex flex-col items-center text-center max-w-md w-full mx-4 gap-6 animate-in zoom-in-95 duration-300">
+        
+        {/* Pulse Logo / Circle */}
+        <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 animate-pulse">
+          <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h3 className="text-lg font-black text-white bg-gradient-to-r from-zinc-100 to-indigo-200 bg-clip-text text-transparent">
+            {status === 'connecting' ? 'Connecting to Room' : 'Room is Empty'}
+          </h3>
+          <p className="text-indigo-300/80 font-mono text-[11px] bg-indigo-500/5 border border-indigo-500/10 px-2.5 py-1 rounded-lg">
+            Room ID: {roomId}
+          </p>
+          <p className="text-zinc-400 text-xs leading-relaxed max-w-sm mt-1">
+            {status === 'connecting' 
+              ? 'Establishing real-time connection and retrieving the shared schema from active peers...'
+              : 'We connected to the room, but there are no active peers online to share the schema.'}
+          </p>
+        </div>
+
+        {status === 'connecting' ? (
+          <button
+            onClick={onCancel}
+            className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white font-bold text-xs rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer"
+          >
+            Cancel and Return
+          </button>
+        ) : (
+          <div className="flex flex-col gap-2.5 w-full">
+            <button
+              onClick={handleStartBlank}
+              className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-extrabold text-xs rounded-xl shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer border border-indigo-400/20"
+            >
+              Start Clean Schema (Host Room)
+            </button>
+            <button
+              onClick={onCancel}
+              className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 font-bold text-xs rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer"
+            >
+              Return to Main Menu
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

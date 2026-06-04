@@ -92,6 +92,7 @@ interface ProjectHistoryState {
   /** Hydration durumunu sorgulamak için */
   hasHydrated: boolean;
   setHasHydrated: (val: boolean) => void;
+  setMigrationBaseline: (baseline: DatabaseSchema | null) => void;
 }
 
 // ── Store ──────────────────────────────────────────────────────────────────────
@@ -222,6 +223,36 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
       },
 
       setActiveProjectId: (id) => set({ activeProjectId: id }),
+
+      setMigrationBaseline: (baseline) => {
+        const { projects, activeProjectId, hasHydrated } = get();
+        if (!hasHydrated || !activeProjectId) return;
+
+        const updated = projects.map(p => {
+          if (p.id !== activeProjectId) return p;
+
+          const currentBranchName = p.currentBranch || 'main';
+          const branches = p.branches ? [...p.branches] : [];
+
+          const activeBranchIdx = branches.findIndex(b => b.name === currentBranchName);
+          if (activeBranchIdx !== -1) {
+            branches[activeBranchIdx] = {
+              ...branches[activeBranchIdx],
+              migrationBaseline: baseline,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+
+          return {
+            ...p,
+            branches,
+            migrationBaseline: baseline,
+            updatedAt: new Date().toISOString(),
+          };
+        });
+
+        set({ projects: updated });
+      },
 
       setActiveSandbox: (sandbox) => {
         const { projects, activeProjectId } = get();

@@ -190,10 +190,10 @@ export const generateRequirementDiagram = (schema: DatabaseSchema) => {
   let code = 'requirementDiagram\n';
   schema.tables.forEach((t, idx) => {
     code += `  requirement req_${sanitize(t.name)} {\n`;
-    code += `    id: "${100 + idx}"\n`;
+    code += `    id: ${100 + idx}\n`;
     code += `    text: "${t.name} tablosunun veri bütünlüğü ve ilişkisel bütünlüğü korunmalıdır."\n`;
-    code += `    severity: ${t.columns.some(c => c.isPK) ? 'critical' : 'medium'}\n`;
-    code += `    verifymethod: automatic\n`;
+    code += `    risk: ${t.columns.some(c => c.isPK) ? 'medium' : 'low'}\n`;
+    code += `    verifymethod: Test\n`;
     code += `  }\n`;
   });
   return code;

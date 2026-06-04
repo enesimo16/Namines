@@ -130,11 +130,13 @@ namespace Namines.API.Controllers
             int savedCount = 0;
             foreach (var projDto in projects)
             {
+                // Check if this project ID belongs to the current user
                 var existing = await _context.CloudProjects
                     .FirstOrDefaultAsync(p => p.Id == projDto.Id && p.UserId == userId);
 
                 if (existing != null)
                 {
+                    // Update existing record owned by this user
                     existing.Name = projDto.Name;
                     existing.DbType = projDto.DbType;
                     existing.SchemaJson = projDto.SchemaJson;
@@ -144,9 +146,13 @@ namespace Namines.API.Controllers
                 }
                 else
                 {
+                    // Check if this ID is already taken by another user — assign new UUID if so
+                    var idTakenByOther = await _context.CloudProjects
+                        .AnyAsync(p => p.Id == projDto.Id);
+
                     var newCloudProj = new CloudProject
                     {
-                        Id = projDto.Id,
+                        Id = idTakenByOther ? Guid.NewGuid().ToString() : projDto.Id,
                         Name = projDto.Name,
                         DbType = projDto.DbType,
                         SchemaJson = projDto.SchemaJson,
@@ -161,7 +167,7 @@ namespace Namines.API.Controllers
             }
 
             await _context.SaveChangesAsync();
-            return Ok(new { Message = "Senkronizasyon başarılı.", SavedCount = savedCount });
+            return Ok(new { Message = "Sync successful.", SavedCount = savedCount });
         }
 
         [Authorize]

@@ -25,27 +25,31 @@ public class SmartSeedController : ControllerBase
     {
         if (request?.Schema == null)
         {
-            _logger.LogWarning("SmartSeed: Geçersiz istek - Schema null");
-            return BadRequest(new { error = "Schema boş olamaz" });
+            _logger.LogWarning("SmartSeed: Invalid request - Schema is null");
+            return BadRequest(new { error = "Schema cannot be empty" });
         }
 
-        _logger.LogInformation("SmartSeed: Test verisi üretim talebi alındı. Şema: {Name}, DbType: {DbType}, Satır Sayısı: {RowCount}", 
+        // SECURITY: Hard limit — never allow more than 500 rows regardless of client input
+        const int HARD_LIMIT = 500;
+        request.RowCount = Math.Clamp(request.RowCount, 1, HARD_LIMIT);
+
+        _logger.LogInformation("SmartSeed: Test data generation request received. Schema: {Name}, DbType: {DbType}, RowCount: {RowCount}",
             request.Schema.Name, request.DbType, request.RowCount);
 
         try
         {
             var result = await _smartSeedService.GenerateSmartSeedAsync(
-                request.Schema, 
-                request.DbType, 
-                request.DomainHint, 
+                request.Schema,
+                request.DbType,
+                request.DomainHint,
                 request.RowCount
             );
             return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SmartSeed: Test verisi üretimi sırasında hata oluştu");
-            return StatusCode(500, new { error = $"Veri üretim hatası: {ex.Message}" });
+            _logger.LogError(ex, "SmartSeed: Error occurred during test data generation");
+            return StatusCode(500, new { error = $"Data generation error: {ex.Message}" });
         }
     }
 }

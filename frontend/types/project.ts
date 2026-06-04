@@ -19,6 +19,7 @@ export interface Branch {
   nodePositions: Record<string, { x: number; y: number }>;
   createdAt: string;
   updatedAt: string;
+  migrationBaseline?: DatabaseSchema | null;
 }
 
 /** Tek bir projenin tüm durumunu temsil eder. IndexedDB'de saklanır. */
@@ -53,5 +54,6 @@ export interface ProjectSnapshot {
    * Aktif olarak seçili olan dalın adı (varsayılan: 'main').
    */
   currentBranch?: string;
+  migrationBaseline?: DatabaseSchema | null;
 }
 

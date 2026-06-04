@@ -21,4 +21,9 @@ public class CanvasHub : Hub
     {
         await Clients.OthersInGroup(roomId).SendAsync("ReceiveSchema", schema);
     }
+
+    public async Task SendSchemaToPeer(string peerConnectionId, DatabaseSchema schema)
+    {
+        await Clients.Client(peerConnectionId).SendAsync("ReceiveSchema", schema);
+    }
 }

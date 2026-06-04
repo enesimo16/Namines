@@ -22,7 +22,6 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useCanvasExport } from '../../../hooks/useCanvasExport';
 import { useDbaStore } from '../../../store/useDbaStore';
 import { schemaService, scaffolderService } from '../../../services/api';
-import { useMultiplayer } from '../../../hooks/useMultiplayer';
 
 import { DatabaseSchema } from '../../../types/schema';
 import { useRef, useState } from 'react';
@@ -32,9 +31,6 @@ import VisionUploadModal from './VisionUploadModal';
 
 /** Floating toolbar — sol alt köşe. Export + Edit Mode toggle + DBA drawer toggle. */
 export default function CanvasExportToolbar() {
-  // Keep real-time multiplayer connection active globally
-  useMultiplayer();
-  
   const { projectName, schema, dbType, isEditMode, toggleEditMode } = useSchemaStore();
   const { isExporting, exportAsPng, exportAsJpeg } = useCanvasExport();
   
@@ -48,7 +44,7 @@ export default function CanvasExportToolbar() {
   const [isLocalExporting, setIsLocalExporting] = useState(false);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [includeBiModule, setIncludeBiModule] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   
   const nodeRef = useRef<HTMLDivElement>(null);
 
@@ -232,7 +228,7 @@ export default function CanvasExportToolbar() {
                 title="Inspect Database DBA Analysis"
                 aria-label="DBA Analysis"
               >
-                <Activity className="w-3.5 h-3.5 text-emerald-400 relative z-10" />
+                <Database className="w-3.5 h-3.5 text-emerald-400 relative z-10" />
                 <span className="relative z-10">DBA</span>
                 
                 {issues.length > 0 && (

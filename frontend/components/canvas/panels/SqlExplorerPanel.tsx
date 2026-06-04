@@ -48,6 +48,9 @@ export default function SqlExplorerPanel() {
         await sqliteService.executeScript(seedRes.sqlScript);
       }
 
+      // Save database state binary to IndexedDB
+      await sqliteService.saveToIndexedDb();
+
       setSyncSuccess(true);
 
       // Set default query in editor if empty or generic
@@ -62,12 +65,58 @@ export default function SqlExplorerPanel() {
     }
   };
 
-  // Auto-sync database when panel is opened for the first time
+  // Auto-sync or restore database when panel is opened
   useEffect(() => {
-    if (isOpen && schema && schema.tables.length > 0 && !sqliteService.isActive()) {
-      syncAndSeedDb();
-    }
+    const initOrRestoreDb = async () => {
+      if (isOpen && schema && schema.tables.length > 0 && !sqliteService.isActive()) {
+        setIsSyncing(true);
+        try {
+          const restored = await sqliteService.loadFromIndexedDb();
+          if (restored) {
+            // Set default query if empty
+            if (!sqlQuery.trim()) {
+              const firstTableName = schema.tables[0]?.name || 'Table';
+              setSqlQuery(`SELECT * FROM ${firstTableName} LIMIT 10;`);
+            }
+          } else {
+            await syncAndSeedDb();
+          }
+        } catch (err) {
+          console.error("Failed to restore DB, fallback to seed:", err);
+          await syncAndSeedDb();
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+    };
+    initOrRestoreDb();
   }, [isOpen, schema]);
+
+  // Periodic saving and page unload save listeners
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Periodic save every 10 seconds
+    const interval = setInterval(() => {
+      if (sqliteService.isActive()) {
+        sqliteService.saveToIndexedDb();
+      }
+    }, 10000);
+
+    // Save on beforeunload
+    const handleBeforeUnload = () => {
+      if (sqliteService.isActive()) {
+        sqliteService.saveToIndexedDb();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -81,6 +130,9 @@ export default function SqlExplorerPanel() {
     try {
       const res = await sqliteService.executeQuery(sqlQuery);
       setQueryResult(res);
+      
+      // Save changes to IndexedDB after executing a query
+      await sqliteService.saveToIndexedDb();
     } catch (err: any) {
       setQueryError(err.message || 'An unknown SQLite error occurred while executing the query.');
     } finally {

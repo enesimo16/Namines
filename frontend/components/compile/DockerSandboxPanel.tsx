@@ -243,8 +243,32 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
         {/* Header Section */}
         <div className="max-w-4xl w-full text-center mb-10 relative z-10 select-none">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 mb-4 shadow-[0_0_20px_rgba(99,102,241,0.25)] border border-indigo-500/20 backdrop-blur-md animate-none">
-            <Database className="w-6 h-6 animate-pulse animate-none" />
+          <div className="relative inline-block select-none mb-4">
+            <svg className="w-16 h-16 mx-auto drop-shadow-[0_0_20px_rgba(99,102,241,0.4)]" viewBox="0 0 100 100" fill="none">
+              <circle cx="50" cy="50" r="46" stroke="url(#circle-grad-sandbox)" strokeWidth="3" fill="#090B11" />
+              <path d="M20,62 C32,48 42,66 52,52 C62,38 72,56 84,42 L84,82 L20,82 Z" fill="url(#wave-grad-sandbox)" opacity="0.8" />
+              <path d="M16,68 C28,56 38,74 50,62 C62,50 72,68 84,56 L84,84 L16,84 Z" fill="url(#wave-grad-2-sandbox)" opacity="0.4" />
+              {/* Stars */}
+              <circle cx="35" cy="30" r="1.5" fill="#FFF" />
+              <circle cx="65" cy="25" r="2" fill="#FFF" />
+              <circle cx="50" cy="20" r="1" fill="#FFF" />
+              <circle cx="75" cy="35" r="1.2" fill="#FFF" />
+              <defs>
+                <linearGradient id="circle-grad-sandbox" x1="0" y1="0" x2="100" y2="100">
+                  <stop offset="0%" stopColor="#06b6d4" />
+                  <stop offset="50%" stopColor="#818cf8" />
+                  <stop offset="100%" stopColor="#a855f7" />
+                </linearGradient>
+                <linearGradient id="wave-grad-sandbox" x1="50" y1="30" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#1e1b4b" stopOpacity="0.1" />
+                </linearGradient>
+                <linearGradient id="wave-grad-2-sandbox" x1="50" y1="40" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
           </div>
           <h3 className="text-xl font-black text-white tracking-tight drop-shadow-md">Namines Integration Center</h3>
           <p className="text-xs text-zinc-400 mt-2 max-w-lg mx-auto leading-relaxed">
@@ -259,9 +283,6 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
           <div className="flex flex-col justify-between p-6 bg-[#1a1f2e]/35 backdrop-blur-2xl border border-white/5 rounded-3xl shadow-[inset_0_0_20px_rgba(255,255,255,0.02),0_12px_40px_rgba(0,0,0,0.5)] hover:border-indigo-500/30 transition-all duration-300 group">
             <div>
               <div className="flex items-center gap-3 mb-4 select-none">
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
-                  <Database className="w-4.5 h-4.5" />
-                </div>
                 <div>
                   <h4 className="text-xs font-black text-white uppercase tracking-wider">Docker Database Sandbox</h4>
                   <span className="text-[10px] text-cyan-400 block mt-0.5 font-semibold">Docker · MSSQL / Postgres / MySQL</span>
@@ -288,9 +309,6 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
           <div className="flex flex-col justify-between p-6 bg-[#1a1f2e]/35 backdrop-blur-2xl border border-white/5 rounded-3xl shadow-[inset_0_0_20px_rgba(255,255,255,0.02),0_12px_40px_rgba(0,0,0,0.5)] hover:border-indigo-500/30 transition-all duration-300 group">
             <div>
               <div className="flex items-center gap-3 mb-4 select-none">
-                <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20">
-                  <Rocket className="w-4.5 h-4.5" />
-                </div>
                 <div>
                   <h4 className="text-xs font-black text-white uppercase tracking-wider">Live Database Sync</h4>
                   <span className="text-[10px] text-purple-400 block mt-0.5 font-semibold">External Database · Host / TCP Connection</span>

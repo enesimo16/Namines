@@ -1,3 +1,5 @@
+import { SchemaRelation } from './schema';
+
 export interface TableDiffDetail {
   tableName: string;
   addedColumns: string[];
@@ -9,6 +11,8 @@ export interface SchemaDiffResult {
   addedTables: string[];
   removedTables: string[];
   modifiedTables: TableDiffDetail[];
+  addedRelations: SchemaRelation[];
+  removedRelations: SchemaRelation[];
   hasBreakingChanges: boolean;
 }
 

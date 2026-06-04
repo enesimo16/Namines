@@ -123,7 +123,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
 
   return (
     <div
-      className={`${containerBgClass} border-2 rounded-lg shadow-xl w-80 flex flex-col font-sans overflow-hidden transition-all relative ${borderColorClass}`}
+      className={`${containerBgClass} border rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.4)] w-80 flex flex-col font-sans overflow-hidden transition-all relative ${borderColorClass}`}
       onDoubleClick={(e) => {
         e.stopPropagation();
         if (!diff) {
@@ -173,7 +173,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
         </div>
       )}
       {/* Header */}
-      <div className="bg-zinc-800 text-zinc-100 font-bold px-4 py-3 border-b border-zinc-700 flex justify-between items-center relative">
+      <div className="bg-gradient-to-r from-zinc-800 to-zinc-900/90 text-zinc-100 font-extrabold px-4.5 py-3.5 border-b border-zinc-800/80 flex justify-between items-center relative">
         <div className="flex items-center gap-2">
           <span>{table.name}</span>
           {diffBadge}
@@ -181,14 +181,14 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
             <span
               onClick={handleDbaBadgeClick}
               className={`
-                flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-extrabold animate-pulse select-none cursor-pointer
+                flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black animate-pulse select-none cursor-pointer
                 ${hasDbaError ? 'bg-red-500 text-white shadow-[0_0_12px_rgba(239,68,68,0.65)]' :
                   hasDbaWarning ? 'bg-amber-500 text-zinc-950 shadow-[0_0_12px_rgba(245,158,11,0.65)]' :
                   'bg-sky-500 text-white shadow-[0_0_12px_rgba(14,165,233,0.65)]'}
               `}
               title={`${dbaIssues.length} DBA warnings present`}
             >
-              ⚠️
+              {dbaIssues.length}
             </span>
           )}
         </div>
@@ -210,10 +210,10 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
       </div>
 
       {/* Columns */}
-      <div className="flex flex-col py-1">
+      <div className="flex flex-col py-1.5 divide-y divide-zinc-800/10">
         {columnsToRender.map(({ column: col, diffStatus, details }) => {
           // Setup custom styling based on column level diff
-          let rowClass = "relative flex items-center justify-between px-4 py-2 hover:bg-zinc-800/50 group transition-all";
+          let rowClass = "relative flex items-center justify-between px-4.5 py-2.5 hover:bg-indigo-500/5 hover:text-indigo-200 group transition-all";
           let textStyle = col.isPK ? 'font-semibold text-zinc-200' : 'text-zinc-300';
           let statusIndicator = null;
           let typeLabel = `${col.type}${col.length ? `(${col.length})` : ''}`;
@@ -262,7 +262,7 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
                 <span className={diffStatus === 'modified' && details?.typeChanged ? 'text-amber-300 font-bold bg-amber-500/10 px-1 py-0.5 rounded' : 'text-zinc-500'}>
                   {typeLabel}
                 </span>
-                {col.isNullable && <span className="text-zinc-600 text-[10px] bg-zinc-800/40 px-1 rounded">NULL</span>}
+                {col.isNullable && <span className="text-zinc-500 text-[9px] font-bold bg-zinc-900/60 border border-zinc-800/60 px-1.5 py-0.5 rounded uppercase select-none">NULL</span>}
               </div>
 
               {/* Source Handle (Right) */}

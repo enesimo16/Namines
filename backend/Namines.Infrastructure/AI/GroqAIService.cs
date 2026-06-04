@@ -87,7 +87,7 @@ public class GroqAIService : IAIService
                 new { role = "system", content = systemPrompt },
                 new { role = "user", content = userPrompt }
             },
-            temperature = 0.2,
+            temperature = 0.0,
             max_tokens = 4096
         };
 

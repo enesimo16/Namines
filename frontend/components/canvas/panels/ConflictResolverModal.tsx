@@ -97,6 +97,30 @@ export default function ConflictResolverModal() {
       }
     });
 
+    // Merge relations from both branches and ensure referential integrity
+    const allRelations = [
+      ...(schema.relations || []),
+      ...(sourceBranch.schema.relations || [])
+    ];
+
+    const uniqueRelationsMap = new Map<string, any>();
+    allRelations.forEach(rel => {
+      const key = `${rel.sourceTableId}-${rel.sourceColumnId}-${rel.targetTableId}-${rel.targetColumnId}`;
+      uniqueRelationsMap.set(key, rel);
+    });
+
+    const mergedRelations = Array.from(uniqueRelationsMap.values()).filter(rel => {
+      const sourceTable = mergedSchema.tables.find(t => t.id === rel.sourceTableId);
+      const targetTable = mergedSchema.tables.find(t => t.id === rel.targetTableId);
+      if (!sourceTable || !targetTable) return false;
+
+      const sourceCol = sourceTable.columns.find(c => c.id === rel.sourceColumnId);
+      const targetCol = targetTable.columns.find(c => c.id === rel.targetColumnId);
+      return !!(sourceCol && targetCol);
+    });
+
+    mergedSchema.relations = mergedRelations;
+
     // Save final merged structure in the target branch (which is our active branch!)
     if (mergeTargetBranch) {
       mergeBranch(

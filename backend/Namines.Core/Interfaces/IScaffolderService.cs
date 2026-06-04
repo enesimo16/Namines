@@ -6,4 +6,5 @@ namespace Namines.Core.Interfaces;
 public interface IScaffolderService
 {
     Task<byte[]> GenerateFullStackProjectAsync(DatabaseSchema schema);
+    Task<byte[]> GeneratePythonFreemiumProjectAsync(DatabaseSchema schema);
 }

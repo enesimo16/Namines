@@ -56,10 +56,35 @@ export default function Header() {
         <div className="flex items-center gap-6">
           <button
             onClick={handleLogoClick}
-            className="group flex items-center gap-1"
+            className="group flex items-center gap-2"
             title="Return to landing page and reset project"
             aria-label="Namines landing page"
           >
+            <svg className="w-7 h-7 drop-shadow-[0_0_8px_rgba(99,102,241,0.4)]" viewBox="0 0 100 100" fill="none">
+              <circle cx="50" cy="50" r="46" stroke="url(#circle-grad-header)" strokeWidth="3" fill="#090B11" />
+              <path d="M20,62 C32,48 42,66 52,52 C62,38 72,56 84,42 L84,82 L20,82 Z" fill="url(#wave-grad-header)" opacity="0.8" />
+              <path d="M16,68 C28,56 38,74 50,62 C62,50 72,68 84,56 L84,84 L16,84 Z" fill="url(#wave-grad-2-header)" opacity="0.4" />
+              {/* Stars */}
+              <circle cx="35" cy="30" r="1.5" fill="#FFF" />
+              <circle cx="65" cy="25" r="2" fill="#FFF" />
+              <circle cx="50" cy="20" r="1" fill="#FFF" />
+              <circle cx="75" cy="35" r="1.2" fill="#FFF" />
+              <defs>
+                <linearGradient id="circle-grad-header" x1="0" y1="0" x2="100" y2="100">
+                  <stop offset="0%" stopColor="#06b6d4" />
+                  <stop offset="50%" stopColor="#818cf8" />
+                  <stop offset="100%" stopColor="#a855f7" />
+                </linearGradient>
+                <linearGradient id="wave-grad-header" x1="50" y1="30" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#1e1b4b" stopOpacity="0.1" />
+                </linearGradient>
+                <linearGradient id="wave-grad-2-header" x1="50" y1="40" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
             <span className="font-bold tracking-widest text-lg bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">NAMINES</span>
           </button>
 

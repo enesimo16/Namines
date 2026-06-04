@@ -18,8 +18,31 @@ export default function LandingPage() {
   
   const router = useRouter();
   // V2: dbType artık global store'dan geliyor
-  const { setIsGenerating, loadFromSchema, isGenerating, aiProvider, modelName, dbType, setDbType } = useSchemaStore();
+  const { 
+    setIsGenerating, 
+    loadFromSchema, 
+    isGenerating, 
+    aiProvider, 
+    modelName, 
+    dbType, 
+    setDbType,
+    setProviderAndModel 
+  } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
+
+  const groqModels = [
+    { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 (70B)' },
+    { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 (8B)' },
+    { id: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' }
+  ];
+
+  const ollamaModels = [
+    { id: 'qwen2.5-coder', label: 'Qwen 2.5 Coder' },
+    { id: 'deepseek-coder', label: 'DeepSeek Coder' },
+    { id: 'sqlcoder', label: 'SQLCoder' }
+  ];
+
+  const models = aiProvider === 'Groq' ? groqModels : ollamaModels;
 
   useEffect(() => {
     const container = document.getElementById('stars-container');
@@ -117,8 +140,32 @@ export default function LandingPage() {
       <main className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center justify-center py-4">
         {/* Hero Section */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 text-cyan-400 mb-6 shadow-[0_0_30px_rgba(6,182,212,0.3)] glass-panel border border-cyan-500/30">
-            <i className="fa-solid fa-diagram-project text-4xl"></i>
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 text-cyan-400 mb-6 shadow-[0_0_30px_rgba(6,182,212,0.3)] glass-panel border border-cyan-500/30">
+            <svg className="w-14 h-14 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)] animate-none" viewBox="0 0 100 100" fill="none">
+              <circle cx="50" cy="50" r="46" stroke="url(#circle-grad-landing)" strokeWidth="3" fill="#090B11" />
+              <path d="M20,62 C32,48 42,66 52,52 C62,38 72,56 84,42 L84,82 L20,82 Z" fill="url(#wave-grad-landing)" opacity="0.8" />
+              <path d="M16,68 C28,56 38,74 50,62 C62,50 72,68 84,56 L84,84 L16,84 Z" fill="url(#wave-grad-2-landing)" opacity="0.4" />
+              {/* Stars */}
+              <circle cx="35" cy="30" r="1.5" fill="#FFF" />
+              <circle cx="65" cy="25" r="2" fill="#FFF" />
+              <circle cx="50" cy="20" r="1" fill="#FFF" />
+              <circle cx="75" cy="35" r="1.2" fill="#FFF" />
+              <defs>
+                <linearGradient id="circle-grad-landing" x1="0" y1="0" x2="100" y2="100">
+                  <stop offset="0%" stopColor="#06b6d4" />
+                  <stop offset="50%" stopColor="#818cf8" />
+                  <stop offset="100%" stopColor="#a855f7" />
+                </linearGradient>
+                <linearGradient id="wave-grad-landing" x1="50" y1="30" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#1e1b4b" stopOpacity="0.1" />
+                </linearGradient>
+                <linearGradient id="wave-grad-2-landing" x1="50" y1="40" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
           </div>
           <h1 className="text-5xl font-extrabold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 drop-shadow-md">
             Namines
@@ -219,14 +266,34 @@ export default function LandingPage() {
 
             {/* Options & Submit Section */}
             <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 mt-6">
-              <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                {/* DB Select — V2: store'dan yönetiliyor */}
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                {/* AIProviderSelector */}
+                <AIProviderSelector />
+
+                {/* Model Select */}
+                <div className="relative">
+                  <select
+                    value={modelName}
+                    onChange={(e) => setProviderAndModel(aiProvider, e.target.value)}
+                    disabled={isGenerating}
+                    className="appearance-none glass-input rounded-lg pl-3 pr-8 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-[145px] font-medium"
+                  >
+                    {models.map(m => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                    <i className="fa-solid fa-chevron-down text-xs"></i>
+                  </div>
+                </div>
+
+                {/* Database Select */}
                 <div className="relative">
                   <select 
                     value={dbType}
-                    onChange={(e) => setDbType(e.target.value as Parameters<typeof setDbType>[0])}
+                    onChange={(e) => setDbType(e.target.value as any)}
                     disabled={isGenerating}
-                    className="appearance-none glass-input rounded-lg pl-3 pr-8 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-[140px]"
+                    className="appearance-none glass-input rounded-lg pl-3 pr-8 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-[125px] font-medium"
                   >
                     <option value="MSSQL">SQL Server</option>
                     <option value="PostgreSQL">PostgreSQL</option>
@@ -243,10 +310,6 @@ export default function LandingPage() {
                     <i className="fa-solid fa-chevron-down text-xs"></i>
                   </div>
                 </div>
-
-                {/* AIProviderSelector */}
-                <AIProviderSelector />
-
               </div>
 
               {/* Generate Button */}

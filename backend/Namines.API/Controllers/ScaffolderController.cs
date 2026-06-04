@@ -25,11 +25,11 @@ public class ScaffolderController : ControllerBase
     {
         if (schema == null)
         {
-            _logger.LogWarning("Scaffolder: Geçersiz şema isteği - Schema null");
-            return BadRequest(new { error = "Şema bilgisi boş olamaz" });
+            _logger.LogWarning("Scaffolder: Invalid schema request - Schema is null");
+            return BadRequest(new { error = "Schema details cannot be empty" });
         }
 
-        _logger.LogInformation("Scaffolder: Full-stack proje üretim talebi alındı. Şema: {Name}", schema.Name);
+        _logger.LogInformation("Scaffolder: Full-stack project generation request received. Schema: {Name}", schema.Name);
 
         try
         {
@@ -38,8 +38,31 @@ public class ScaffolderController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Scaffolder: Proje üretimi ve paketlenmesi sırasında hata oluştu.");
-            return StatusCode(500, new { error = $"Proje üretimi hatası: {ex.Message}" });
+            _logger.LogError(ex, "Scaffolder: Error occurred during project generation and packaging.");
+            return StatusCode(500, new { error = $"Project generation error: {ex.Message}" });
+        }
+    }
+
+    [HttpPost("export/python")]
+    public async Task<IActionResult> ExportPythonProject([FromBody] DatabaseSchema schema)
+    {
+        if (schema == null)
+        {
+            _logger.LogWarning("Scaffolder: Invalid schema request - Schema is null");
+            return BadRequest(new { error = "Schema details cannot be empty" });
+        }
+
+        _logger.LogInformation("Scaffolder: Python Freemium project generation request received. Schema: {Name}", schema.Name);
+
+        try
+        {
+            byte[] zipBytes = await _scaffolderService.GeneratePythonFreemiumProjectAsync(schema);
+            return File(zipBytes, "application/zip", "namines-python-crud.zip");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Scaffolder: Error occurred during Python project generation and packaging.");
+            return StatusCode(500, new { error = $"Project generation error: {ex.Message}" });
         }
     }
 }

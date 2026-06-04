@@ -126,7 +126,17 @@ export const useSchemaStore = create<SchemaState>()(
         const restoredNodes = nodePositions
           ? nodes.map(n => nodePositions[n.id] ? { ...n, position: nodePositions[n.id] } : n)
           : nodes;
-        set({ schema, nodes: restoredNodes, edges, projectName: schema.name || 'Yeni Proje' });
+        
+        const currentProjectName = get().projectName;
+        const newProjectName = (currentProjectName && currentProjectName !== 'Yeni Proje' && currentProjectName.trim() !== '')
+          ? currentProjectName
+          : (schema.name || 'Yeni Proje');
+
+        if (schema) {
+          schema.name = newProjectName;
+        }
+
+        set({ schema, nodes: restoredNodes, edges, projectName: newProjectName });
       },
 
       applyRevision: (partialSchema) => {
