@@ -14,6 +14,7 @@ interface ReadmePreviewProps {
 }
 
 type ViewMode = 'preview' | 'raw';
+type Lang = 'tr' | 'en';
 
 export default function ReadmePreview({ schema }: ReadmePreviewProps) {
   const showToast = useToastStore(state => state.showToast);
@@ -21,6 +22,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
+  const [lang, setLang] = useState<Lang>('tr');
   const [copied, setCopied] = useState<boolean>(false);
 
   const rawCodeRef = useRef<HTMLElement>(null);
@@ -29,7 +31,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
     if (!schema) return;
     setIsLoading(true);
     try {
-      const text = await schemaService.generateReadme(schema);
+      const text = await schemaService.generateReadme(schema, lang);
       setReadmeText(text);
     } catch (error) {
       console.error("Failed to generate README", error);
@@ -42,7 +44,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
 
   useEffect(() => {
     fetchReadme();
-  }, [schema]);
+  }, [schema, lang]);
 
   useEffect(() => {
     if (viewMode === 'raw' && rawCodeRef.current && readmeText) {
@@ -54,7 +56,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
     if (!schema) return;
     setIsDownloading(true);
     try {
-      const content = readmeText || (await schemaService.generateReadme(schema));
+      const content = readmeText || (await schemaService.generateReadme(schema, lang));
       const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -64,7 +66,11 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast("README.md successfully downloaded!", "success");
+      
+      const successMsg = lang === 'tr' 
+        ? "README.md başarıyla indirildi!" 
+        : "README.md successfully downloaded!";
+      showToast(successMsg, "success");
     } catch (error) {
       console.error("Failed to download Readme", error);
       showToast("An error occurred while downloading README.", "error");
@@ -122,8 +128,8 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
                           <code className="text-indigo-400 bg-indigo-500/5 border border-indigo-500/10 px-1 py-0.5 rounded font-mono text-[10px]">
                             {cell.replace(/`/g, '')}
                           </code>
-                        ) : cell.includes('🔑') || cell.includes('🔗') ? (
-                          <span className="font-semibold text-amber-500">{cell.trim()}</span>
+                        ) : cell.includes('🔑') || cell.includes('🔗') || cell.includes('✅') || cell.includes('❌') ? (
+                          <span className="font-semibold">{cell.trim()}</span>
                         ) : (
                           cell.trim()
                         )}
@@ -305,6 +311,30 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
               }`}
             >
               MD Format
+            </button>
+          </div>
+
+          {/* Segmented language selector */}
+          <div className="flex bg-zinc-900 border border-zinc-800 p-0.5 rounded-lg items-center">
+            <button
+              onClick={() => setLang('tr')}
+              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md transition-all cursor-pointer ${
+                lang === 'tr'
+                  ? 'bg-zinc-800 text-indigo-400 shadow-md'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              TR
+            </button>
+            <button
+              onClick={() => setLang('en')}
+              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md transition-all cursor-pointer ${
+                lang === 'en'
+                  ? 'bg-zinc-800 text-indigo-400 shadow-md'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              EN
             </button>
           </div>
 

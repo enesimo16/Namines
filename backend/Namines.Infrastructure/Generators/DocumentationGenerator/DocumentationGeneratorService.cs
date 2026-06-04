@@ -26,8 +26,8 @@ public class DocumentationGeneratorService : IDocumentationGenerator
         return _mermaidGenerator.Generate(schema);
     }
 
-    public string GenerateReadme(DatabaseSchema schema)
+    public string GenerateReadme(DatabaseSchema schema, string language = "tr")
     {
-        return _readmeGenerator.Generate(schema);
+        return _readmeGenerator.Generate(schema, language);
     }
 }

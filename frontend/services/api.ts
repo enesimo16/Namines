@@ -75,8 +75,8 @@ export const schemaService = {
     return response.data;
   },
 
-  generateReadme: async (schema: DatabaseSchema): Promise<string> => {
-    const response = await api.post('/documentation/readme', schema);
+  generateReadme: async (schema: DatabaseSchema, language: string = 'tr'): Promise<string> => {
+    const response = await api.post(`/documentation/readme?language=${language}`, schema);
     return response.data.readme;
   },
 

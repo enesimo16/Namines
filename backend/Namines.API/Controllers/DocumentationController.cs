@@ -62,9 +62,9 @@ public class DocumentationController : ControllerBase
     }
 
     [HttpPost("readme")]
-    public IActionResult GenerateReadme([FromBody] DatabaseSchema schema)
+    public IActionResult GenerateReadme([FromBody] DatabaseSchema schema, [FromQuery] string language = "tr")
     {
-        var readme = _docGenerator.GenerateReadme(schema);
+        var readme = _docGenerator.GenerateReadme(schema, language);
         return Ok(new { readme });
     }
 }
