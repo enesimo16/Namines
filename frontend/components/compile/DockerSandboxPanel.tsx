@@ -270,10 +270,14 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
               </defs>
             </svg>
           </div>
-          <h3 className="text-xl font-black text-white tracking-tight drop-shadow-md">Namines Integration Center</h3>
-          <p className="text-xs text-zinc-400 mt-2 max-w-lg mx-auto leading-relaxed">
-            Instantly run, test, or sync your database schema inside an isolated Docker container environment.
-          </p>
+          <div className="space-y-2 select-none">
+            <h2 className="text-3xl font-extrabold text-white tracking-tight">
+              Namines Integration Center
+            </h2>
+            <p className="text-xs text-zinc-400 max-w-xl mx-auto leading-relaxed">
+              Instantly run, test, or sync your database schema inside an isolated Docker container environment.
+            </p>
+          </div>
         </div>
 
         {/* Action Cards */}

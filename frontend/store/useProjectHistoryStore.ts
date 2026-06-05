@@ -5,6 +5,8 @@ import { ProjectSnapshot, ActiveSandbox, Branch } from '../types/project';
 import { DatabaseSchema } from '../types/schema';
 import { DbType } from './useSchemaStore';
 import { Node } from '@xyflow/react';
+import { useAuthStore } from './useAuthStore';
+import { authService } from '../services/api';
 
 // ── localforage instance (IndexedDB) ──────────────────────────────────────────
 const naminesStore = localforage.createInstance({
@@ -93,6 +95,7 @@ interface ProjectHistoryState {
   hasHydrated: boolean;
   setHasHydrated: (val: boolean) => void;
   setMigrationBaseline: (baseline: DatabaseSchema | null) => void;
+  syncWithCloud: () => Promise<void>;
 }
 
 // ── Store ──────────────────────────────────────────────────────────────────────
@@ -120,8 +123,11 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           ? projects.findIndex(p => p.id === activeProjectId)
           : -1;
 
+        let targetId = '';
+
         if (existingIdx !== -1) {
           const oldProj = projects[existingIdx];
+          targetId = oldProj.id;
           
           // Geriye dönük uyumluluk: branches yoksa main olarak oluştur
           let currentBranches = oldProj.branches ? [...oldProj.branches] : [];
@@ -176,6 +182,7 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
         } else {
           // Yeni proje oluştur
           const newProjectId = generateId();
+          targetId = newProjectId;
           const defaultBranch: Branch = {
             name: 'main',
             schema,
@@ -199,6 +206,21 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           set({
             projects: [newProject, ...projects],
             activeProjectId: newProjectId,
+          });
+        }
+
+        // Background Cloud Sync if user is authenticated
+        const isAuth = useAuthStore.getState().isAuthenticated;
+        if (isAuth && targetId) {
+          const syncData = [{
+            id: targetId,
+            name: projectName,
+            dbType,
+            schemaJson: JSON.stringify(schema),
+            nodePositionsJson: JSON.stringify(nodePositions)
+          }];
+          authService.syncProjects(syncData).catch(err => {
+            console.error('Background project cloud sync failed:', err);
           });
         }
       },
@@ -445,12 +467,116 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
       },
 
       setHasHydrated: (val) => set({ hasHydrated: val }),
+
+      syncWithCloud: async () => {
+        const { projects, hasHydrated } = get();
+        if (!hasHydrated) return;
+
+        try {
+          const cloudRaw = await authService.getCloudProjects();
+          if (!cloudRaw || !Array.isArray(cloudRaw)) return;
+
+          const now = new Date().toISOString();
+          const localProjectsMap = new Map(projects.map(p => [p.id, p]));
+
+          cloudRaw.forEach(cp => {
+            let schemaObj = null;
+            let nodePosObj = {};
+
+            try {
+              schemaObj = typeof cp.schemaJson === 'string' ? JSON.parse(cp.schemaJson) : cp.schemaJson;
+            } catch (e) {
+              console.error('Failed to parse schemaJson from cloud project', cp.id, e);
+            }
+
+            try {
+              nodePosObj = typeof cp.nodePositionsJson === 'string' ? JSON.parse(cp.nodePositionsJson) : cp.nodePositionsJson;
+            } catch (e) {
+              console.error('Failed to parse nodePositionsJson from cloud project', cp.id, e);
+            }
+
+            if (!schemaObj) return;
+
+            const existing = localProjectsMap.get(cp.id);
+            if (existing) {
+              const cloudUpdated = new Date(cp.updatedAt).getTime();
+              const localUpdated = new Date(existing.updatedAt).getTime();
+
+              if (cloudUpdated > localUpdated) {
+                localProjectsMap.set(cp.id, {
+                  ...existing,
+                  name: cp.name,
+                  dbType: cp.dbType as DbType,
+                  schema: schemaObj,
+                  nodePositions: nodePosObj,
+                  updatedAt: cp.updatedAt || now,
+                  branches: existing.branches && existing.branches.length > 0 
+                    ? existing.branches.map(b => b.name === 'main' ? { ...b, schema: schemaObj, nodePositions: nodePosObj, updatedAt: cp.updatedAt || now } : b) 
+                    : [
+                        {
+                          name: 'main',
+                          schema: schemaObj,
+                          nodePositions: nodePosObj,
+                          createdAt: cp.createdAt || now,
+                          updatedAt: cp.updatedAt || now
+                        }
+                      ]
+                });
+              }
+            } else {
+              const newProj: ProjectSnapshot = {
+                id: cp.id,
+                name: cp.name,
+                createdAt: cp.createdAt || now,
+                updatedAt: cp.updatedAt || now,
+                dbType: cp.dbType as DbType,
+                schema: schemaObj,
+                nodePositions: nodePosObj,
+                activeSandbox: null,
+                currentBranch: 'main',
+                branches: [
+                  {
+                    name: 'main',
+                    schema: schemaObj,
+                    nodePositions: nodePosObj,
+                    createdAt: cp.createdAt || now,
+                    updatedAt: cp.updatedAt || now
+                  }
+                ]
+              };
+              localProjectsMap.set(cp.id, newProj);
+            }
+          });
+
+          set({ projects: Array.from(localProjectsMap.values()) });
+        } catch (e) {
+          console.error('Failed to sync projects with cloud', e);
+        }
+      },
     }),
     {
       name: 'namines-projects', // IndexedDB key
       storage: localforageStorage,
       onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+        if (state) {
+          // Auto-recovery: If any project was named 'Shared Room Project' or 'Shared Room' due to a bug, rename it to its DB Type + dynamic description
+          let changed = false;
+          const updatedProjects = state.projects.map(p => {
+            if (p.name === 'Shared Room Project' || p.name === 'Shared Room') {
+              changed = true;
+              const firstTable = p.schema?.tables?.[0]?.name;
+              const newName = firstTable 
+                ? `${firstTable} (${p.dbType} Schema)` 
+                : `${p.dbType} Schema Workspace`;
+              return { ...p, name: newName };
+            }
+            return p;
+          });
+          if (changed) {
+            state.projects = updatedProjects;
+          }
+          state.setHasHydrated(true);
+        }
       },
     }
   )

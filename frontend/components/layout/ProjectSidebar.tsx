@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Trash2, FolderOpen, Clock, Database, Plus, Sparkles } from 'lucide-react';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
@@ -48,6 +48,8 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
   const { projects, loadProject, deleteProject, setActiveProjectId } = useProjectHistoryStore();
   const { loadFromSchema, setDbType, resetProject } = useSchemaStore();
 
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+
   // ESC ile kapatma
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -72,9 +74,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
 
   const handleDeleteProject = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this project?')) {
-      deleteProject(id);
-    }
+    setProjectToDelete(id);
   };
 
   const handleNewProject = () => {
@@ -210,6 +210,71 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
           )}
         </div>
       </aside>
+
+      {/* Workspace Delete Confirmation Modal */}
+      {projectToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          {/* Glow Backdrop Orbs */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-gradient-to-tr from-rose-500/10 to-indigo-500/10 rounded-full blur-[80px] pointer-events-none -z-10" />
+
+          {/* Main Glassmorphic Container */}
+          <div className="relative w-full max-w-md bg-[#09111F]/95 backdrop-blur-2xl border border-red-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col p-6 pb-8 animate-in zoom-in-95 duration-200 animate-none">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+              <div className="flex items-center gap-2 text-red-400">
+                <Trash2 className="w-5 h-5 shrink-0" />
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-red-100">
+                  Delete Project
+                </h3>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setProjectToDelete(null);
+                }}
+                className="p-1 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="my-5 flex flex-col gap-2">
+              <span className="text-sm font-bold text-zinc-100 leading-snug">
+                Are you sure you want to delete this project?
+              </span>
+              <p className="text-[11px] text-zinc-400 leading-relaxed font-semibold">
+                This action is permanent and cannot be undone. All database tables and branch history for this project will be deleted from your storage.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setProjectToDelete(null);
+                }}
+                className="flex-1 py-3 px-4 rounded-xl border border-zinc-700/60 bg-[#121824] hover:bg-zinc-800 text-zinc-300 hover:text-white font-bold text-xs tracking-wider uppercase transition-all duration-200 flex items-center justify-center cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (projectToDelete) {
+                    deleteProject(projectToDelete);
+                    setProjectToDelete(null);
+                  }
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs tracking-wider uppercase transition-all duration-300 shadow-[0_4px_15px_rgba(239,68,68,0.3)] hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

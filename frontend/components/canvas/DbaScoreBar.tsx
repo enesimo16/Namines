@@ -1,4 +1,4 @@
-import { Database, AlertTriangle, AlertCircle, HelpCircle, Loader2 } from 'lucide-react';
+import { AlertTriangle, AlertCircle, HelpCircle, Loader2 } from 'lucide-react';
 import { DbaIssue } from '../../hooks/useAIDba';
 
 interface DbaScoreBarProps {
@@ -67,7 +67,11 @@ export default function DbaScoreBar({ score, issues, isAnalyzing, onTogglePanel 
         {isAnalyzing ? (
           <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
         ) : (
-          <Database className="w-4 h-4" />
+          <svg className="w-4 h-4 text-indigo-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2L20 6.5V17.5L12 22L4 17.5V6.5L12 2Z" className="opacity-80" />
+            <circle cx="12" cy="12" r="3" className="fill-current text-cyan-400" />
+            <path d="M12 2v7M12 15v7M4 6.5l8 5.5M20 6.5l-8 5.5M4 17.5l8-5.5M20 17.5l-8-5.5" className="opacity-60 text-indigo-300" />
+          </svg>
         )}
         <span className="text-sm font-bold tracking-tight">
           {isAnalyzing ? '...' : `${score}/100`}

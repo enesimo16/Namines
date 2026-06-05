@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   X, AlertTriangle, Award, ShieldAlert, Cpu, Sparkles, Loader2,
-  ShieldCheck, Cloud, Database, AlertOctagon, Info
+  ShieldCheck, Cloud, AlertOctagon, Info
 } from 'lucide-react';
 import { DbaIssue } from '../../hooks/useAIDba';
 import { useDbaStore } from '../../store/useDbaStore';
@@ -106,7 +106,11 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
       {/* Header - Styled to match the Celestial Dashboard perfectly */}
       <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-indigo-500/20 bg-[#0B1120]/90">
         <div className="flex items-center gap-2">
-          <Database className="w-4.5 h-4.5 text-indigo-400 animate-pulse" />
+          <svg className="w-4.5 h-4.5 text-indigo-400 animate-pulse shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2L20 6.5V17.5L12 22L4 17.5V6.5L12 2Z" className="opacity-80" />
+            <circle cx="12" cy="12" r="3" className="fill-current text-cyan-400" />
+            <path d="M12 2v7M12 15v7M4 6.5l8 5.5M20 6.5l-8 5.5M4 17.5l8-5.5M20 17.5l-8-5.5" className="opacity-60 text-indigo-300" />
+          </svg>
           <h3 className="text-sm font-extrabold text-indigo-100 uppercase tracking-wider">
             DBA
           </h3>
@@ -204,10 +208,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                 <span>Fixing Issues with AI...</span>
               </>
             ) : (
-              <>
-                <Sparkles className="w-4 h-4 text-white/90 animate-pulse" />
-                <span>Fix All Issues with AI</span>
-              </>
+              <span>Fix All Issues with AI</span>
             )}
           </button>
         )}

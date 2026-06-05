@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, Image, RefreshCw, AlertCircle, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Upload, Image, RefreshCw, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { reverseEngineerService } from '../../../services/api';
 
@@ -178,7 +178,6 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
         <div className="flex justify-between items-start mb-6 shrink-0 select-none">
           <div>
             <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-200 via-indigo-400 to-indigo-100 bg-clip-text text-transparent flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse animate-none" />
               <span>{showVerification ? 'Schema Verification' : 'Import from Whiteboard'}</span>
             </h2>
             <p className="text-zinc-400 text-xs mt-1">
@@ -377,7 +376,6 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
               onClick={handleAnalyze}
               className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-bold px-6 py-2.5 border border-indigo-500/40 rounded-xl transition-all shadow-[0_0_15px_rgba(99,102,241,0.4)]"
             >
-              <Sparkles className="w-3.5 h-3.5 animate-none" />
               <span>Convert to Schema with AI</span>
             </button>
           )}
@@ -391,9 +389,9 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                 <AlertTriangle className="w-7 h-7" />
               </div>
               <div className="space-y-2">
-                <h4 className="text-zinc-100 text-base font-extrabold tracking-wide uppercase">Yıkıcı Import Uyarısı</h4>
-                <p className="text-zinc-300 text-xs leading-relaxed">
-                  Mevcut tuvaldeki verilerin üzerine yazılacak, onaylıyor musunuz?
+                <h4 className="text-zinc-100 text-base font-extrabold tracking-wide uppercase">Destructive Import Warning</h4>
+                <p className="text-zinc-300 text-xs leading-relaxed font-semibold">
+                  Importing this schema will overwrite your existing tables and layout. Are you sure you want to proceed?
                 </p>
               </div>
               <div className="flex gap-3 justify-center pt-2 select-none">
@@ -402,15 +400,15 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                     setShowOverwriteWarning(false);
                     setPendingSchema(null);
                   }}
-                  className="text-xs text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-5 py-2.5 rounded-xl transition-all"
+                  className="text-xs text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-5 py-2.5 rounded-xl transition-all cursor-pointer"
                 >
-                  İptal Et
+                  Cancel
                 </button>
                 <button
                   onClick={confirmOverwrite}
-                  className="text-xs text-black font-bold bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-amber-400/40 px-6 py-2.5 rounded-xl transition-all"
+                  className="text-xs text-black font-bold bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-amber-400/40 px-6 py-2.5 rounded-xl transition-all cursor-pointer"
                 >
-                  Onayla ve Üzerine Yaz
+                  Confirm & Overwrite
                 </button>
               </div>
             </div>

@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
 import AuthModal from '../canvas/panels/AuthModal';
 import ProjectSidebar from './ProjectSidebar';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 
 export default function Header() {
   const router = useRouter();
@@ -21,6 +22,14 @@ export default function Header() {
 
   const { isAuthenticated, user, logout } = useAuthStore();
   const showToast = useToastStore(state => state.showToast);
+  const syncWithCloud = useProjectHistoryStore(s => s.syncWithCloud);
+
+  // Sync projects with cloud when authenticated
+  useEffect(() => {
+    if (isAuthenticated && syncWithCloud) {
+      syncWithCloud();
+    }
+  }, [isAuthenticated, syncWithCloud]);
 
   // draft'ı store ile senkronda tut
   useEffect(() => {
@@ -176,14 +185,9 @@ export default function Header() {
           ) : (
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-1.5 py-1.5 px-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 hover:text-white text-[10px] font-extrabold uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(99,102,241,0.15)] cursor-pointer"
+              className="flex items-center justify-center py-1.5 px-4 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 hover:text-white text-[10px] font-extrabold uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(99,102,241,0.15)] cursor-pointer"
             >
-              <Cloud className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
               <span>Login / Sign Up</span>
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
-              </span>
             </button>
           )}
         </div>

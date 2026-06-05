@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { schemaService } from '../../../services/api';
-import { Sparkles, Loader2, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { flowToSchema } from '../../../lib/flowToSchema';
 import { SchemaRelation } from '../../../types/schema';
 import Draggable from 'react-draggable';
@@ -152,10 +152,7 @@ export default function RegionalPromptPanel() {
                     <span className="relative z-10 tracking-wider">Revising...</span>
                   </>
                 ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 relative z-10 text-white animate-none" />
-                    <span className="relative z-10 tracking-wider">Revise with AI</span>
-                  </>
+                  <span className="relative z-10 tracking-wider">Revise with AI</span>
                 )}
               </button>
             </div>

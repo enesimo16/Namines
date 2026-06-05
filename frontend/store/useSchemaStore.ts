@@ -127,10 +127,10 @@ export const useSchemaStore = create<SchemaState>()(
           ? nodes.map(n => nodePositions[n.id] ? { ...n, position: nodePositions[n.id] } : n)
           : nodes;
         
-        const currentProjectName = get().projectName;
-        const newProjectName = (currentProjectName && currentProjectName !== 'Yeni Proje' && currentProjectName.trim() !== '')
-          ? currentProjectName
-          : (schema.name || 'Yeni Proje');
+        // Prioritize schema.name if it's a valid specific name (not 'Yeni Proje', not 'Shared Room Project')
+        const newProjectName = (schema.name && schema.name !== 'Yeni Proje' && schema.name !== 'Shared Room Project' && schema.name.trim() !== '')
+          ? schema.name
+          : (get().projectName || 'Yeni Proje');
 
         if (schema) {
           schema.name = newProjectName;

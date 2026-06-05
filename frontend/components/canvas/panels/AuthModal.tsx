@@ -53,6 +53,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   const handleSync = async () => {
     await handleSyncLocalProjects();
+    await useProjectHistoryStore.getState().syncWithCloud();
     onClose();
     setShowMigration(false);
   };
@@ -85,6 +86,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         if (projects.length > 0) {
           setShowMigration(true);
         } else {
+          await useProjectHistoryStore.getState().syncWithCloud();
           onClose();
         }
       } else {
@@ -109,6 +111,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         if (projects.length > 0) {
           setShowMigration(true);
         } else {
+          await useProjectHistoryStore.getState().syncWithCloud();
           onClose();
         }
       }
@@ -219,7 +222,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {/* Account Tier Toggle (Only on Register) - Cyan outline border matching stitch_screen_2.png */}
           {!isLogin && (
             <div className="flex flex-col gap-1.5 mb-1">
-              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Account Type</label>
+              <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Account Type</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -249,29 +252,25 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             </div>
           )}
 
-          {/* Email Field - Left icon for Login, Right icon for Register matching Stitch! */}
+          {/* Email Field */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Email Address</label>
+            <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Email Address</label>
             <div className="relative flex items-center">
-              {isLogin && <Mail className="absolute left-3 w-4 h-4 text-zinc-500 pointer-events-none" />}
               <input
                 type="email"
                 required
                 placeholder="example@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`w-full bg-[#09111F]/70 border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium ${
-                  isLogin ? 'pl-9 pr-4' : 'pl-4 pr-9'
-                }`}
+                className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 px-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
               />
-              {!isLogin && <Mail className="absolute right-3 w-4 h-4 text-zinc-500 pointer-events-none" />}
             </div>
           </div>
 
-          {/* Username Field (Only on Register) - Right icon matching stitch_screen_2.png */}
+          {/* Username Field (Only on Register) */}
           {!isLogin && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Username</label>
+              <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Username</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -279,9 +278,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   placeholder="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-[#09111F]/70 border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 pl-4 pr-9 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
+                  className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 px-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
                 />
-                <User className="absolute right-3 w-4 h-4 text-zinc-500 pointer-events-none" />
               </div>
             </div>
           )}
@@ -289,7 +287,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {/* Company Name Field (Only on Register & Corporate Tier) */}
           {!isLogin && userType === 'corporate' && (
             <div className="flex flex-col gap-1.5 animate-in slide-in-from-top-2 duration-200">
-              <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Company Name</label>
+              <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Company Name</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -297,29 +295,24 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   placeholder="Company Inc."
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full bg-[#09111F]/70 border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 pl-4 pr-9 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
+                  className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 px-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
                 />
-                <Building2 className="absolute right-3 w-4 h-4 text-zinc-500 pointer-events-none" />
               </div>
             </div>
           )}
 
-          {/* Password Field - Left icon for Login, Right icon for Register matching Stitch! */}
+          {/* Password Field */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest px-1">Password</label>
+            <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Password</label>
             <div className="relative flex items-center">
-              {isLogin && <Lock className="absolute left-3 w-4 h-4 text-zinc-500 pointer-events-none" />}
               <input
                 type="password"
                 required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`w-full bg-[#09111F]/70 border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium ${
-                  isLogin ? 'pl-9 pr-4' : 'pl-4 pr-9'
-                }`}
+                className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 px-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
               />
-              {!isLogin && <Lock className="absolute right-3 w-4 h-4 text-zinc-500 pointer-events-none" />}
             </div>
           </div>
 
