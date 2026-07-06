@@ -3,11 +3,14 @@ import {
   X, AlertTriangle, Award, ShieldAlert, Cpu, Sparkles, Loader2,
   ShieldCheck, Cloud, AlertOctagon, Info
 } from 'lucide-react';
-import { DbaIssue } from '../../hooks/useAIDba';
+import { DbaIssue, useAIDba } from '../../hooks/useAIDba';
+import { useAIGateway } from '../../hooks/useAIGateway';
 import { useDbaStore } from '../../store/useDbaStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { schemaService } from '../../services/api';
+import ContextualHelpTooltip from '../help/ContextualHelpTooltip';
+import { helpContent } from '../../lib/helpContent';
 
 interface DbaIssuePanelProps {
   isOpen: boolean;
@@ -25,9 +28,32 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
   
   const { schema, loadFromSchema, aiProvider, modelName } = useSchemaStore();
   const [isFixing, setIsFixing] = useState(false);
+  const [isAnalyzingLocal, setIsAnalyzingLocal] = useState(false);
   const showToast = useToastStore(state => state.showToast);
 
+  const { analyzeNow } = useAIDba();
+  const { checkAccess } = useAIGateway();
+  const isAnalyzing = useDbaStore(state => state.isAnalyzing);
+
+  const handleManualAnalyze = async () => {
+    if (!checkAccess("AI DBA Analysis")) return;
+    setIsAnalyzingLocal(true);
+    try {
+      await analyzeNow();
+      showToast('AI DBA Analysis completed successfully!', 'success');
+    } catch (err: any) {
+      if (err?.response?.status === 429) {
+        showToast('Daily AI limit reached! Please upgrade your plan for unlimited access.', 'warning');
+      } else {
+        showToast(`Analysis failed: ${err.message || 'Unknown error'}`, 'error');
+      }
+    } finally {
+      setIsAnalyzingLocal(false);
+    }
+  };
+
   const handleAutoFix = async () => {
+    if (!checkAccess("AI Auto-Fix")) return;
     if (!schema || issues.length === 0) return;
     setIsFixing(true);
 
@@ -46,15 +72,20 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         modelName
       );
 
-      loadFromSchema(revisedSchema);
+      loadFromSchema(revisedSchema, undefined, true);
       showToast('AI successfully resolved all DBA, Security, and FinOps issues and optimized your schema!', 'success');
     } catch (err: any) {
-      console.error('AI Auto-Fix error:', err);
-      showToast(`Error: AI encountered an error while optimizing the schema: ${err.message}`, 'error');
+      if (err?.response?.status === 429) {
+        showToast('Daily AI limit reached! Please upgrade your plan for unlimited access.', 'warning');
+      } else {
+        console.error('AI Auto-Fix error:', err);
+        showToast(`Error: AI encountered an error while optimizing the schema: ${err.message}`, 'error');
+      }
     } finally {
       setIsFixing(false);
     }
   };
+
 
   // Auto-scroll to the first issue of the selected table when drawer opens or filter changes
   React.useEffect(() => {
@@ -111,8 +142,9 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             <circle cx="12" cy="12" r="3" className="fill-current text-cyan-400" />
             <path d="M12 2v7M12 15v7M4 6.5l8 5.5M20 6.5l-8 5.5M4 17.5l8-5.5M20 17.5l-8-5.5" className="opacity-60 text-indigo-300" />
           </svg>
-          <h3 className="text-sm font-extrabold text-indigo-100 uppercase tracking-wider">
+          <h3 className="text-sm font-extrabold text-indigo-100 uppercase tracking-wider flex items-center">
             DBA
+            <ContextualHelpTooltip content={helpContent.dbaAnalysis} />
           </h3>
         </div>
         <button
@@ -194,6 +226,22 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             {assessment}
           </div>
         </div>
+
+        {/* Run AI DBA Analysis Button */}
+        <button
+          onClick={handleManualAnalyze}
+          disabled={isAnalyzing || isAnalyzingLocal}
+          className="w-full relative group flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-purple-900 via-indigo-950 to-purple-900 hover:from-purple-850 hover:to-indigo-900 disabled:from-zinc-800 disabled:to-zinc-900 text-zinc-200 hover:text-white font-extrabold text-xs tracking-wider uppercase rounded-2xl border border-purple-500/20 shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 cursor-pointer"
+        >
+          {isAnalyzing || isAnalyzingLocal ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+              <span>Analyzing Schema...</span>
+            </>
+          ) : (
+            <span>Run AI DBA Analysis</span>
+          )}
+        </button>
 
         {/* AI Auto-Fix Button - Matching purple background & sparkles exactly */}
         {issues.length > 0 && (

@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { GitMerge, X, ArrowRight, Check, CheckCircle2, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useBranchStore } from '../../../store/useBranchStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { DatabaseSchema, SchemaTable, SchemaColumn } from '../../../types/schema';
+import { useFocusTrap } from '../../../hooks/useFocusTrap';
 
 export default function ConflictResolverModal() {
+  const modalRef = useRef<HTMLDivElement>(null);
   const { 
     isConflictModalOpen, 
     mergeSourceBranch, 
@@ -21,6 +23,9 @@ export default function ConflictResolverModal() {
   const { schema, loadFromSchema } = useSchemaStore();
 
   const showToast = useToastStore(state => state.showToast);
+
+  // trapping focus when conflict resolver is open
+  useFocusTrap(isConflictModalOpen, modalRef);
 
   if (!isConflictModalOpen || !schema || !activeProjectId) return null;
 
@@ -155,7 +160,7 @@ export default function ConflictResolverModal() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-[#0F172A] border border-indigo-500/30 rounded-3xl w-[90vw] max-w-5xl h-[85vh] flex flex-col shadow-[0_0_50px_rgba(99,102,241,0.25)] overflow-hidden">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-[#0F172A] border border-indigo-500/30 rounded-3xl w-[90vw] max-w-5xl h-[85vh] flex flex-col shadow-[0_0_50px_rgba(99,102,241,0.25)] overflow-hidden">
         
         {/* Header */}
         <div className="bg-slate-900/90 border-b border-indigo-500/20 px-6 py-4 flex items-center justify-between">
@@ -164,7 +169,7 @@ export default function ConflictResolverModal() {
               <GitMerge className="w-5 h-5 text-indigo-400 animate-pulse" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-zinc-100 flex items-center gap-2 animate-none">
+              <h2 id="merge-modal-title" className="text-lg font-bold text-zinc-100 flex items-center gap-2 animate-none">
                 Merge Branches (Git Merge)
               </h2>
               <p className="text-xs text-indigo-300/80">

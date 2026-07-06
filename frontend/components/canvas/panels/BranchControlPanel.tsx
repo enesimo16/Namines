@@ -5,6 +5,8 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useBranchStore } from '../../../store/useBranchStore';
 import { calculateSchemaDiff } from '../../../utils/schemaDiff';
 import { useToastStore } from '../../../store/useToastStore';
+import ContextualHelpTooltip from '../../help/ContextualHelpTooltip';
+import { helpContent } from '../../../lib/helpContent';
 
 export default function BranchControlPanel() {
   const { projects, activeProjectId, createBranch, switchBranch, deleteBranch } = useProjectHistoryStore();
@@ -200,6 +202,10 @@ export default function BranchControlPanel() {
 
   return (
     <div className="mt-3 border-t border-indigo-500/10 pt-3 flex flex-col gap-2 w-full relative">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] font-extrabold text-indigo-400/70 tracking-widest uppercase">Version Control</span>
+        <ContextualHelpTooltip content={helpContent.branching} />
+      </div>
 
       {/* Main Branch Selector Button */}
       <div className="flex gap-2 w-full">

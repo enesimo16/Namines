@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Mic, Square, Loader2 } from 'lucide-react';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
+import { useAIGateway } from '../../hooks/useAIGateway';
 
 interface VoiceRecorderProps {
   onTranscription: (text: string) => void;
@@ -14,8 +15,10 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const showToast = useToastStore(state => state.showToast);
+  const { checkAccess } = useAIGateway();
 
   const startRecording = async () => {
+    if (!checkAccess("Voice Transcription")) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);

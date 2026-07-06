@@ -45,15 +45,36 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
     if (saved && saved.type === 'DB') {
       jobIdRef.current = saved.jobId;
       setDownloadUrl(saved.url || null);
-      setStatus(saved.url ? 'running' : 'generating');
-      setLogs(saved.url 
-        ? [`Previous sandbox restored. Backup (.bak) is ready.`]
-        : [`Previous sandbox operation restored. Waiting for log stream...`]
-      );
-
-      if (!saved.url) {
-        // Reconnect to SSE stream
-        connectSse(saved.jobId);
+      
+      if (saved.url) {
+        setStatus('running');
+        setLogs([`Previous sandbox restored. Backup (.bak) is ready.`]);
+      } else {
+        setStatus('generating');
+        setLogs([`Previous sandbox operation restored. Waiting for log stream...`]);
+        
+        // Perform a quick HTTP fetch check to the stream URL on mount before initiating EventSource
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        fetch(`http://localhost:5000/api/docker/stream/${saved.jobId}`, { signal: controller.signal })
+          .then(res => {
+            clearTimeout(timeoutId);
+            if (res.status === 404) {
+              setActiveSandbox(null);
+              setStatus('idle');
+              setDownloadUrl(null);
+              setLogs([]);
+              jobIdRef.current = null;
+            } else {
+              connectSse(saved.jobId);
+            }
+          })
+          .catch(() => {
+            clearTimeout(timeoutId);
+            // Fallback to connecting anyway on timeout or network error
+            connectSse(saved.jobId);
+          });
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -460,7 +481,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
     <div className="w-full h-full flex flex-col bg-[#05050a] rounded-xl border border-zinc-800/60 overflow-hidden relative min-h-[520px]">
       
       {/* Space Background & Stars */}
-      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.02] mix-blend-overlay" />
+      <div className="absolute inset-0 pointer-events-none bg-[url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20200%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter%20id=%22noiseFilter%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.65%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.02] mix-blend-overlay" />
       <div className="absolute inset-0 pointer-events-none opacity-45">
         {/* Coded stars & cosmic particles */}
         <div className="absolute top-[10%] left-[20%] w-0.5 h-0.5 bg-white rounded-full animate-none" />

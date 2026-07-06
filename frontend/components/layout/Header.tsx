@@ -1,35 +1,56 @@
 'use client';
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { useRouter } from 'next/navigation';
-import { Database, Pencil, Check, ExternalLink, Sparkles, FolderOpen, Cloud, LogOut, Info, CheckCircle2, XCircle, AlertTriangle, X } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Database, Pencil, Check, ExternalLink, Sparkles, FolderOpen, Cloud, LogOut, Info, CheckCircle2, XCircle, AlertTriangle, X, Settings } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
+import { useAIPolicyStore } from '../../store/useAIPolicyStore';
+import { useQuotaStore } from '../../store/useQuotaStore';
 import AuthModal from '../canvas/panels/AuthModal';
+import AIPreferencesModal from '../canvas/panels/AIPreferencesModal';
+import QuotaExhaustedModal from '../canvas/panels/QuotaExhaustedModal';
 import ProjectSidebar from './ProjectSidebar';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const { projectName, setProjectName, resetProject } = useSchemaStore();
+  
+  const isCanvas = pathname === '/canvas';
+  const isCompile = pathname === '/compile';
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(projectName);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAIPreferencesOpen, setIsAIPreferencesOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { isAuthenticated, user, logout } = useAuthStore();
   const showToast = useToastStore(state => state.showToast);
   const syncWithCloud = useProjectHistoryStore(s => s.syncWithCloud);
+  const fetchPolicy = useAIPolicyStore(s => s.fetchPolicy);
+  const { dailyLimit, remaining } = useQuotaStore();
+  const remainingPercent = dailyLimit > 0 ? Math.min(100, Math.max(0, Math.round((remaining / dailyLimit) * 100))) : 100;
 
-  // Sync projects with cloud when authenticated
+  // Sync projects, fetch AI Policy, and fetch quota when authenticated
   useEffect(() => {
-    if (isAuthenticated && syncWithCloud) {
-      syncWithCloud();
+    if (isAuthenticated) {
+      if (syncWithCloud) syncWithCloud();
+      fetchPolicy();
+      useQuotaStore.getState().fetchQuota();
     }
-  }, [isAuthenticated, syncWithCloud]);
+  }, [isAuthenticated, syncWithCloud, fetchPolicy]);
+
+  // Event listener to open AI settings modal from other components/hooks
+  useEffect(() => {
+    const handleOpenSettings = () => setIsAIPreferencesOpen(true);
+    window.addEventListener('namines:open-ai-settings', handleOpenSettings);
+    return () => window.removeEventListener('namines:open-ai-settings', handleOpenSettings);
+  }, []);
 
   // draft'ı store ile senkronda tut
   useEffect(() => {
@@ -150,40 +171,52 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Right — Cloud Sync Status Indicator / Login Trigger */}
+        {/* Right — Actions depending on path */}
         <div className="flex items-center gap-3">
-          {isAuthenticated ? (
-            <div className="flex items-center gap-3 pl-2 pr-3 py-1 bg-zinc-950/80 border border-zinc-800/80 rounded-full select-none shadow-[0_4px_25px_rgba(0,0,0,0.5),0_0_15px_rgba(99,102,241,0.03)] backdrop-blur-md hover:border-zinc-700 transition-all duration-300">
-              {/* 3D Coded Glowing Planet Avatar */}
+          {isCanvas || isCompile ? (
+            <button
+                onClick={() => setIsAIPreferencesOpen(true)}
+                title="Settings"
+                aria-label="Open Settings"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 hover:bg-cyan-500/5 border border-white/10 hover:border-cyan-500/35 text-zinc-300 hover:text-cyan-400 transition-all duration-200 cursor-pointer active:scale-95"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+          ) : isAuthenticated ? (
+            <div 
+              onClick={() => setIsAIPreferencesOpen(true)}
+              className="flex items-center gap-3 pl-2 pr-3 py-1 bg-cyan-950/20 border border-cyan-500/20 hover:border-cyan-500/40 rounded-full select-none shadow-[0_2px_12px_rgba(6,182,212,0.08)] hover:bg-cyan-500/5 transition-all duration-200 cursor-pointer"
+            >
+              {/* Clean Avatar Orb */}
               <div 
-                className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 shadow-[inset_-3px_-3px_8px_rgba(0,0,0,0.85),0_0_12px_rgba(99,102,241,0.5)] border border-indigo-400/20 flex items-center justify-center text-white text-[10.5px] font-black uppercase tracking-wider select-none overflow-hidden"
+                className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-teal-500 border border-cyan-400/20 flex items-center justify-center text-[#06101a] text-[11px] font-bold uppercase tracking-wider select-none overflow-hidden shrink-0"
                 title={user?.username}
               >
-                {/* Specular Highlight Layer */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(255,255,255,0.22),transparent_45%)] pointer-events-none" />
                 {user?.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
               </div>
               <div className="flex flex-col gap-0.5 justify-center">
-                <span className="text-xs font-black text-white leading-none max-w-[85px] truncate tracking-wide" title={user?.username}>
+                <span className="text-xs font-bold text-zinc-250 leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
                   {user?.username}
                 </span>
-                <span className="text-[7.5px] text-zinc-500 font-black leading-none uppercase tracking-widest">
-                  {user?.type === 'corporate' ? 'Corporate' : 'Personal'}
+                <span className="text-[8px] text-cyan-400/80 font-bold leading-none uppercase tracking-widest mt-0.5">
+                  {user?.type === 'corporate' ? 'PRO MEMBER' : 'FREE MEMBER'}
                 </span>
               </div>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   logout();
-                  showToast('Logged out, cloud backup disabled.', 'info');
+                  showToast('Logged out successfully.', 'info');
                 }}
-                className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-full transition-all duration-200 cursor-pointer ml-1 active:scale-95 border border-transparent hover:border-zinc-800"
+                className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-cyan-500/10 rounded-full transition-all duration-200 cursor-pointer ml-1.5 active:scale-95 shrink-0"
                 title="Log Out"
               >
-                <LogOut className="w-3.5 h-3.5 text-zinc-400 hover:text-indigo-400 transition-colors drop-shadow-[0_0_2px_rgba(99,102,241,0.2)]" />
+                <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
             <button
+              id="auth-modal-trigger"
               onClick={() => setIsAuthModalOpen(true)}
               className="flex items-center justify-center py-1.5 px-4 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 hover:text-white text-[10px] font-extrabold uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(99,102,241,0.15)] cursor-pointer"
             >
@@ -205,47 +238,93 @@ export default function Header() {
         onClose={() => setIsAuthModalOpen(false)}
       />
 
-      {/* Global Unified Toast Notification Panel (Bottom-Left) */}
-      <ToastContainer />
+      {/* AI Preferences Modal */}
+      <AIPreferencesModal
+        isOpen={isAIPreferencesOpen}
+        onClose={() => setIsAIPreferencesOpen(false)}
+      />
+
+      {/* Global Quota Exhausted Modal */}
+      <QuotaExhaustedModal />
+
+      {/* Daily Quota Warning Alert in Bottom-Left */}
+      {(isCanvas || isCompile) && (
+        <QuotaBottomLeftAlert 
+          remainingPercent={remainingPercent} 
+          isFreeUser={isAuthenticated && user?.type !== 'corporate'} 
+        />
+      )}
     </>
   );
 }
 
-function ToastContainer() {
-  const { message, type, hideToast } = useToastStore();
 
-  if (!message) return null;
+interface QuotaAlertProps {
+  remainingPercent: number;
+  isFreeUser: boolean;
+}
 
-  let bgClass = 'from-[#09111F]/98 to-[#0D182A]/98 text-white border-indigo-500/40 shadow-[0_0_30px_rgba(99,102,241,0.3)]';
-  let Icon = Info;
-  let iconColor = 'text-indigo-400';
+function getQuotaRange(percent: number): number {
+  if (percent === 0) return 0;
+  if (percent <= 10) return 10;
+  if (percent <= 25) return 25;
+  if (percent <= 50) return 50;
+  return 100;
+}
 
-  if (type === 'success') {
-    bgClass = 'from-[#09111F]/98 to-emerald-950/98 text-white border-emerald-500/40 shadow-[0_0_30px_rgba(16,185,129,0.3)]';
-    Icon = CheckCircle2;
-    iconColor = 'text-emerald-400';
-  } else if (type === 'error') {
-    bgClass = 'from-[#09111F]/98 to-rose-950/98 text-white border-rose-500/40 shadow-[0_0_30px_rgba(239,68,68,0.3)]';
-    Icon = XCircle;
-    iconColor = 'text-rose-400';
-  } else if (type === 'warning') {
-    bgClass = 'from-[#09111F]/98 to-amber-950/98 text-white border-amber-500/40 shadow-[0_0_30px_rgba(245,158,11,0.3)]';
-    Icon = AlertTriangle;
-    iconColor = 'text-amber-400';
+function QuotaBottomLeftAlert({ remainingPercent, isFreeUser }: QuotaAlertProps) {
+  const [isDismissed, setIsDismissed] = useState(false);
+  const currentRange = getQuotaRange(remainingPercent);
+  const prevRange = useRef(currentRange);
+
+  // Auto-reset dismissal if remainingPercent moves to a different range bracket (e.g. from 50 range to 25 range)
+  useEffect(() => {
+    if (prevRange.current !== currentRange) {
+      setIsDismissed(false);
+      prevRange.current = currentRange;
+    }
+  }, [currentRange]);
+
+  if (!isFreeUser || isDismissed || currentRange === 100) return null;
+
+  let message = "";
+  let dotColor = "bg-amber-400";
+  let borderClass = "border-amber-500/20";
+  let shadowClass = "shadow-amber-500/5";
+
+  if (remainingPercent === 0) {
+    message = "Finished. All AI features have switched to local.";
+    dotColor = "bg-rose-500";
+    borderClass = "border-rose-500/30";
+    shadowClass = "shadow-rose-500/15";
+  } else if (remainingPercent <= 10) {
+    message = `AI Credits: ${remainingPercent}% remaining. Switching to local soon.`;
+    dotColor = "bg-red-500 animate-pulse";
+    borderClass = "border-red-500/30";
+    shadowClass = "shadow-red-500/15";
+  } else if (remainingPercent <= 25) {
+    message = `AI Credits: ${remainingPercent}% remaining.`;
+    dotColor = "bg-orange-500";
+    borderClass = "border-orange-500/20";
+    shadowClass = "shadow-orange-500/5";
+  } else {
+    message = `AI Credits: ${remainingPercent}% remaining.`;
+    dotColor = "bg-amber-400";
+    borderClass = "border-amber-500/20";
+    shadowClass = "shadow-amber-500/5";
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] animate-in slide-in-from-bottom-5 duration-300">
-      <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border bg-gradient-to-r ${bgClass} backdrop-blur-xl max-w-sm shadow-2xl`}>
-        <Icon className={`w-5 h-5 shrink-0 ${iconColor} animate-pulse drop-shadow-[0_0_4px_currentColor]`} />
-        <span className="text-[13px] font-extrabold leading-relaxed tracking-wide text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{message}</span>
-        <button 
-          onClick={hideToast} 
-          className="ml-3 text-zinc-400 hover:text-white transition-colors shrink-0 cursor-pointer active:scale-90"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+    <div className={`fixed bottom-6 left-6 z-[9999] flex items-center gap-2.5 px-4.5 py-2.5 rounded-full bg-slate-950/90 border ${borderClass} shadow-xl ${shadowClass} backdrop-blur-md animate-in slide-in-from-bottom-3 duration-250 text-zinc-300 font-sans text-xs select-none`}>
+      <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0`} />
+      <span className="font-semibold">{message}</span>
+      <button 
+        onClick={() => setIsDismissed(true)} 
+        className="ml-1.5 p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 cursor-pointer active:scale-90"
+        aria-label="Dismiss alert"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }

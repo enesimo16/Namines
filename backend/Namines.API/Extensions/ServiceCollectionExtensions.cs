@@ -63,6 +63,9 @@ public static class ServiceCollectionExtensions
 
         // Otonom Full-Stack Scaffolder & SDK Generator registration
         services.AddScoped<IScaffolderService, ScaffolderService>();
+
+        // Semantic Cache Service registration
+        services.AddScoped<SemanticCacheService>();
         
         return services;
     }

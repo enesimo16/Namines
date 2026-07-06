@@ -6,7 +6,7 @@ namespace Namines.Infrastructure.Generators.DocumentationGenerator;
 
 public class MermaidErGenerator
 {
-    private string Sanitize(string input)
+    private string Sanitize(string? input)
     {
         if (string.IsNullOrWhiteSpace(input)) return "unknown";
         return System.Text.RegularExpressions.Regex.Replace(input, @"[\s\""\'\(\)]", "_");

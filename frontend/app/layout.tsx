@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "../components/layout/Header";
+import ToastContainer from "../components/toast/ToastContainer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,12 +38,28 @@ export default function RootLayout({
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
       </head>
       <body className="min-h-full flex flex-col font-sans">
-        {/* V2: Global Header — visible on all pages */}
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
+        {/* Erişilebilirlik: Screen reader'lar için gizli aria-live bölgesi.
+            useToastStore.showToast() her çağrıldığında bu bölgeyi günceller. */}
+        <div
+          id="aria-live-region"
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        />
+
+        {/* V2: Global Header — tüm sayfalarda görünür */}
         <Header />
-        {/* has-header: starts under the header with 52px padding-top */}
-        <div className="has-header flex flex-col flex-1">
+
+        {/* has-header: header yüksekliği kadar (52px) padding-top ile başlar */}
+        <div className="has-header flex flex-col flex-1" id="main-content">
           {children}
         </div>
+
+        {/* Global bildirim sistemi — tüm sayfalarda sağ alt köşede çalışır */}
+        <ToastContainer />
       </body>
     </html>
   );

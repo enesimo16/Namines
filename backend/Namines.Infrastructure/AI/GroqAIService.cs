@@ -8,8 +8,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.EntityFrameworkCore;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Core.Models.Auth;
 using Namines.Core.Enums;
 using Namines.Core.Prompts;
 using System.Linq;
@@ -42,28 +47,186 @@ public class GroqAIService : IAIService
 {
     private readonly HttpClient _httpClient;
     private readonly string _modelName;
+    private readonly string _groqApiKey;   // Per-request inject edilir — DefaultRequestHeaders'a yazılmaz
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IMemoryCache _cache;
 
-    public GroqAIService(HttpClient httpClient, IConfiguration configuration)
+    public GroqAIService(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        IHttpContextAccessor httpContextAccessor,
+        IMemoryCache cache)
     {
         _httpClient = httpClient;
-        
+        _httpContextAccessor = httpContextAccessor;
+        _cache = cache;
+
         var apiKey = configuration["Groq:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             apiKey = "MISSING_API_KEY";
         }
-        
+
+        // API key sadece private field'da tutulur.
+        // DefaultRequestHeaders.Authorization KULLANILMAZ: thread pool'daki parallel Gemini/OpenAI
+        // isteklerinde header mutation race condition riski ve debug/log sızıntısı yaratirdı.
+        _groqApiKey = apiKey;
         _modelName = configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
-        
+
         _httpClient.BaseAddress = new Uri("https://api.groq.com/openai/v1/");
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        // DefaultRequestHeaders.Authorization kasitlı olarak KALDIRILDI.
 
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         };
         _jsonOptions.Converters.Add(new TolerantStringConverter());
+    }
+
+    /// <summary>
+    /// Kullanıcı politikasını asenkron olarak sorgular ve 60 saniyelik cache'e alır.
+    /// Önceki implementasyon synchronous FirstOrDefault kullanıyordu; yüksek traffic'te
+    /// thread pool blocking'e yol açıyordu. FirstOrDefaultAsync + IMemoryCache ile giderildi.
+    /// </summary>
+    private async Task<string> ResolveModelNameAsync(string? requestedModel = null, string? featureName = null)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedModel))
+        {
+            if (string.Equals(requestedModel, "mixtral-8x7b-32768", StringComparison.OrdinalIgnoreCase))
+                return "llama-3.3-70b-versatile";
+            if (string.Equals(requestedModel, "llama-3.2-3b-preview", StringComparison.OrdinalIgnoreCase))
+                return "llama-3.1-8b-instant";
+            if (string.Equals(requestedModel, "gemini-1.5-flash", StringComparison.OrdinalIgnoreCase))
+                return "gemini-2.5-flash";
+            if (string.Equals(requestedModel, "gemini-1.5-pro", StringComparison.OrdinalIgnoreCase))
+                return "gemini-2.5-pro";
+            return requestedModel;
+        }
+
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext == null)
+            return "llama-3.1-8b-instant"; // Safe background thread fallback
+
+        var byokProvider = httpContext.Items["ByokProvider"] as string;
+        bool isByok = httpContext.Items.ContainsKey("IsByok") == true;
+
+        if (isByok)
+        {
+            if (string.Equals(byokProvider, "openai", StringComparison.OrdinalIgnoreCase))
+                return "gpt-4o";
+            if (string.Equals(byokProvider, "gemini", StringComparison.OrdinalIgnoreCase))
+                return "gemini-2.5-pro";
+            return "llama-3.3-70b-versatile";
+        }
+
+        var userId = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            // Cache key: kullanıcı başına + özellik adı başına. 60 sn sliding expiration.
+            var cacheKey = $"ai-policy:{userId}:{featureName ?? "default"}";
+            if (_cache.TryGetValue(cacheKey, out string? cachedModel) && cachedModel != null)
+                return cachedModel;
+
+            try
+            {
+                var db = httpContext.RequestServices.GetRequiredService<Namines.Infrastructure.Data.AuthDbContext>();
+                if (db != null)
+                {
+                    // FirstOrDefaultAsync: thread pool'u bloklamaz
+                    var policy = await db.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
+                    if (policy != null)
+                    {
+                        AIMode mode = AIMode.Medium;
+                        if (featureName == "SmartSeed") mode = policy.SmartSeed;
+                        else if (featureName == "Documentation") mode = policy.Documentation;
+                        else if (featureName == "Scaffolding") mode = policy.Scaffolding;
+                        else if (featureName == "SchemaGeneration") mode = policy.SchemaGeneration;
+                        else if (featureName == "SchemaRevision") mode = policy.SchemaRevision;
+                        else if (featureName == "DbaAnalysis") mode = policy.DbaAnalysis;
+                        else if (featureName == "Migration") mode = policy.Migration;
+                        else if (featureName == "Voice") mode = policy.Voice;
+
+                        string resolvedModel = mode switch
+                        {
+                            AIMode.Low            => "llama-3.1-8b-instant",
+                            AIMode.Medium         => "llama-3.1-8b-instant",
+                            AIMode.DefaultNamines => "llama-3.1-8b-instant",
+                            AIMode.High           => "llama-3.3-70b-versatile",
+                            AIMode.HighMixtral    => "llama-3.3-70b-versatile",
+                            AIMode.GeminiFlash    => "gemini-2.5-flash",
+                            AIMode.Ultra          => "openai/gpt-oss-120b",
+                            AIMode.GeminiPro      => "gemini-2.5-pro",
+                            _                     => "llama-3.1-8b-instant"
+                        };
+
+                        _cache.Set(cacheKey, resolvedModel, new MemoryCacheEntryOptions
+                        {
+                            SlidingExpiration = TimeSpan.FromSeconds(60)
+                        });
+                        return resolvedModel;
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback to user type
+            }
+        }
+
+        var userType = httpContext.User?.FindFirst("type")?.Value;
+        if (userType == "corporate") return "llama-3.3-70b-versatile";
+
+        return "llama-3.1-8b-instant";
+    }
+
+    private async Task<HttpResponseMessage> PostAsync(string relativeUri, object payload)
+    {
+        var json = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, relativeUri) { Content = content };
+
+        var byokKey = _httpContextAccessor.HttpContext?.Items["ByokApiKey"] as string;
+        var byokProvider = _httpContextAccessor.HttpContext?.Items["ByokProvider"] as string;
+
+        // Resolve the model name from the payload to detect Gemini routing
+        string modelInPayload = "";
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("model", out var modelEl))
+                modelInPayload = modelEl.GetString() ?? "";
+        }
+        catch { }
+
+        bool isGeminiModel = modelInPayload.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(byokKey))
+        {
+            // BYOK: kullanıcının kendi API key'i
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", byokKey);
+            if (string.Equals(byokProvider, "openai", StringComparison.OrdinalIgnoreCase))
+                request.RequestUri = new Uri("https://api.openai.com/v1/" + relativeUri);
+            else if (string.Equals(byokProvider, "gemini", StringComparison.OrdinalIgnoreCase))
+                request.RequestUri = new Uri("https://generativelanguage.googleapis.com/v1beta/openai/" + relativeUri);
+        }
+        else if (isGeminiModel)
+        {
+            // Sunucu-taraflı Gemini API key'i — configuration'dan al
+            var httpContext = _httpContextAccessor.HttpContext;
+            var config = httpContext?.RequestServices.GetService(typeof(IConfiguration)) as IConfiguration;
+            var geminiApiKey = config?["Gemini:ApiKey"] ?? "";
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", geminiApiKey);
+            request.RequestUri = new Uri("https://generativelanguage.googleapis.com/v1beta/openai/" + relativeUri);
+        }
+        else
+        {
+            // Standart Groq isteği: key per-request inject edilir (DefaultRequestHeaders KULLANILMAZ)
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groqApiKey);
+        }
+
+        return await _httpClient.SendAsync(request);
     }
 
     private int CalculateMaxTokens(int tableCount)
@@ -76,12 +239,19 @@ public class GroqAIService : IAIService
 
     public async Task<List<DbaIssue>> AnalyzeSchemaDbaAsync(DatabaseSchema schema, DatabaseType dbType)
     {
+        var httpContext = _httpContextAccessor.HttpContext;
+        bool forceLocal = httpContext?.Items.ContainsKey("FallbackToLocal") == true && httpContext.Items["FallbackToLocal"] is true;
+        if (forceLocal)
+        {
+            throw new Exception("Local Fallback mode is active.");
+        }
+
         var systemPrompt = DbaPromptBuilder.BuildSystemPrompt();
         var userPrompt = DbaPromptBuilder.BuildUserPrompt(schema, dbType);
         
         var payload = new
         {
-            model = _modelName,
+            model = await ResolveModelNameAsync(null, "DbaAnalysis"),
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -91,8 +261,7 @@ public class GroqAIService : IAIService
             max_tokens = 4096
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -137,7 +306,7 @@ public class GroqAIService : IAIService
 
         var payload = new
         {
-            model = _modelName,
+            model = await ResolveModelNameAsync(null, "Migration"),
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -147,8 +316,7 @@ public class GroqAIService : IAIService
             max_tokens = 4096
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -186,7 +354,7 @@ public class GroqAIService : IAIService
 
         var payload = new
         {
-            model = _modelName,
+            model = await ResolveModelNameAsync(null, "Migration"),
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -196,8 +364,7 @@ public class GroqAIService : IAIService
             max_tokens = 4096
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -236,7 +403,7 @@ public class GroqAIService : IAIService
 
         var payload = new
         {
-            model = _modelName,
+            model = await ResolveModelNameAsync(null, "SmartSeed"),
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -246,8 +413,7 @@ public class GroqAIService : IAIService
             max_tokens = CalculateMaxTokens(schema.Tables?.Count ?? 0)
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -277,13 +443,21 @@ public class GroqAIService : IAIService
         {
             try
             {
-                var modelToUse = string.IsNullOrWhiteSpace(request.ModelName) ? _modelName : request.ModelName;
+                var modelToUse = await ResolveModelNameAsync(request.ModelName, "SchemaGeneration");
                 
                 object userContentObject = userPrompt;
 
                 if (request.Image != null)
                 {
-                    modelToUse = "meta-llama/llama-4-scout-17b-16e-instruct"; // Use vision model
+                    var byokProvider = _httpContextAccessor.HttpContext?.Items["ByokProvider"] as string;
+                    if (string.Equals(byokProvider, "openai", StringComparison.OrdinalIgnoreCase))
+                    {
+                        modelToUse = "gpt-4o";
+                    }
+                    else
+                    {
+                        modelToUse = "meta-llama/llama-4-scout-17b-16e-instruct"; // Use vision model
+                    }
                     
                     using var ms = new MemoryStream();
                     await request.Image.CopyToAsync(ms);
@@ -313,13 +487,12 @@ public class GroqAIService : IAIService
                     max_tokens = 4096
                 };
 
-                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                var response = await _httpClient.PostAsync("chat/completions", content);
+                var response = await PostAsync("chat/completions", payload);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    if (errorContent.Contains("invalid_api_key") || _httpClient.DefaultRequestHeaders.Authorization?.Parameter == "MISSING_API_KEY")
+                    if (errorContent.Contains("invalid_api_key"))
                     {
                         throw new Exception("Groq API Anahtarı eksik veya hatalı. Lütfen User Secrets veya appsettings.json dosyasını kontrol edin.");
                     }
@@ -380,7 +553,7 @@ public class GroqAIService : IAIService
         {
             try
             {
-                var modelToUse = string.IsNullOrWhiteSpace(request.ModelName) ? _modelName : request.ModelName;
+                var modelToUse = await ResolveModelNameAsync(request.ModelName, "SchemaRevision");
                 var tableCount = request.SelectedTables?.Count ?? 0;
 
                 var payload = new
@@ -395,8 +568,7 @@ public class GroqAIService : IAIService
                     max_tokens = CalculateMaxTokens(tableCount)
                 };
 
-                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                var response = await _httpClient.PostAsync("chat/completions", content);
+                var response = await PostAsync("chat/completions", payload);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -454,7 +626,7 @@ public class GroqAIService : IAIService
 
         var payload = new
         {
-            model = _modelName,
+            model = await ResolveModelNameAsync(null, "SmartSeed"),
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -464,8 +636,7 @@ public class GroqAIService : IAIService
             max_tokens = CalculateMaxTokens(tableCount)
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -526,7 +697,7 @@ public class GroqAIService : IAIService
 
         var payload = new
         {
-            model = _modelName,
+            model = await ResolveModelNameAsync(null, "Documentation"),
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -536,8 +707,7 @@ public class GroqAIService : IAIService
             max_tokens = CalculateMaxTokens(tableCount)
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
@@ -569,7 +739,7 @@ public class GroqAIService : IAIService
 
         var payload = new
         {
-            model = _modelName,
+            model = await ResolveModelNameAsync(null, "Scaffolding"),
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -579,8 +749,7 @@ public class GroqAIService : IAIService
             max_tokens = CalculateMaxTokens(tableCount)
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -643,7 +812,7 @@ Code:
 
         var payload = new
         {
-            model = _modelName,
+            model = await ResolveModelNameAsync(null, "Scaffolding"),
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -653,8 +822,7 @@ Code:
             max_tokens = CalculateMaxTokens(tableCount)
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -672,15 +840,6 @@ Code:
 
         if (string.IsNullOrWhiteSpace(pythonResponse))
             throw new Exception("Received empty response from Groq AI for Streamlit fix.");
-
-        pythonResponse = pythonResponse.Trim();
-        if (pythonResponse.StartsWith("```python", StringComparison.OrdinalIgnoreCase))
-            pythonResponse = pythonResponse.Substring(9);
-        else if (pythonResponse.StartsWith("```", StringComparison.OrdinalIgnoreCase))
-            pythonResponse = pythonResponse.Substring(3);
-
-        if (pythonResponse.EndsWith("```", StringComparison.OrdinalIgnoreCase))
-            pythonResponse = pythonResponse.Substring(0, pythonResponse.Length - 3);
 
         return StripMarkdownCodeFence(pythonResponse);
     }
@@ -740,9 +899,14 @@ Code:
         var systemPrompt = VisionPromptBuilder.BuildSystemPrompt();
         var userPrompt = VisionPromptBuilder.BuildUserPrompt();
 
+        var byokProvider = _httpContextAccessor.HttpContext?.Items["ByokProvider"] as string;
+        var modelToUse = string.Equals(byokProvider, "openai", StringComparison.OrdinalIgnoreCase) 
+            ? "gpt-4o" 
+            : "meta-llama/llama-4-scout-17b-16e-instruct";
+
         var payload = new
         {
-            model = "meta-llama/llama-4-scout-17b-16e-instruct", // Use high performance vision model
+            model = modelToUse,
             messages = new object[]
             {
                 new { role = "system", content = systemPrompt },
@@ -764,8 +928,7 @@ Code:
             max_tokens = 4096
         };
 
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat/completions", content);
+        var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {

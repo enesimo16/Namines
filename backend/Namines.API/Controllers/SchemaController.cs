@@ -66,6 +66,26 @@ public class SchemaController : ControllerBase
             return BadRequest("Selected tables cannot be empty for revision.");
         }
 
+        bool forceLocal = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
+        bool isOllama = string.Equals(request.AIProvider, "Ollama", StringComparison.OrdinalIgnoreCase);
+
+        if (forceLocal && !isOllama)
+        {
+            bool isRegionalRevision = !request.RevisionPrompt.Contains("DBA Analysis") && !request.RevisionPrompt.Contains("Automatically resolve the following");
+            if (isRegionalRevision)
+            {
+                return BadRequest(new { message = "Local engine (Default/Namines) does not support prompt-based schema revisions. Please switch your Schema Revision policy to a cloud AI model or local Ollama in preferences." });
+            }
+
+            System.Console.WriteLine("[SchemaController] Local Fallback active: executing programmatic schema optimizer.");
+            var optimizedSchema = Namines.Infrastructure.Services.ProgrammaticSchemaOptimizer.Optimize(
+                request.SelectedTables, 
+                request.ExistingRelations, 
+                request.RevisionPrompt
+            );
+            return Ok(optimizedSchema);
+        }
+
         try
         {
             var aiService = _aiFactory.GetService(request.AIProvider);
@@ -76,6 +96,12 @@ public class SchemaController : ControllerBase
         {
             System.Console.WriteLine($"[SchemaController] AI Revision failed: {ex.Message}. Falling back to programmatic schema optimizer.");
             
+            bool isRegionalRevision = !request.RevisionPrompt.Contains("DBA Analysis") && !request.RevisionPrompt.Contains("Automatically resolve the following");
+            if (isRegionalRevision)
+            {
+                return StatusCode(500, new { message = $"AI Revision failed: {ex.Message}" });
+            }
+
             // Invoke the high-performance local optimization engine to fix all DBA findings
             var optimizedSchema = Namines.Infrastructure.Services.ProgrammaticSchemaOptimizer.Optimize(
                 request.SelectedTables, 
@@ -93,6 +119,14 @@ public class SchemaController : ControllerBase
         if (schema == null || schema.Tables.Count == 0)
         {
             return BadRequest("Schema is empty.");
+        }
+
+        bool forceLocal = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
+        if (forceLocal)
+        {
+            System.Console.WriteLine("[SchemaController] Local Fallback active: generating mock data programmatically.");
+            var seedRes = await _smartSeedService.GenerateSmartSeedAsync(schema, Core.Enums.DatabaseType.SQLite, null, 10);
+            return Ok(new { sql = seedRes.SqlScript });
         }
 
         try

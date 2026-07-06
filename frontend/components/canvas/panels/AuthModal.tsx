@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, Lock, Mail, User, Building2, CheckCircle2, AlertTriangle, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useToastStore } from '../../../store/useToastStore';
@@ -8,6 +8,7 @@ import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { authService } from '../../../services/api';
 import GuestSchemaMigrationModal from './GuestSchemaMigrationModal';
+import { useFocusTrap } from '../../../hooks/useFocusTrap';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { setAuth } = useAuthStore();
   const { showToast } = useToastStore();
   const { projects } = useProjectHistoryStore();
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const [isLogin, setIsLogin] = useState(true);
   const [userType, setUserType] = useState<'individual' | 'corporate'>('individual');
@@ -30,6 +32,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showMigration, setShowMigration] = useState(false);
+
+  // trapping focus when open
+  useFocusTrap(isOpen && !showMigration, modalRef);
 
   const handleSyncLocalProjects = async () => {
     if (projects.length === 0) return;
@@ -80,7 +85,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           email: data.user.email,
           type: data.user.type,
           companyName: data.user.companyName
-        });
+        }, data.quota);
         showToast('Logged in successfully. Cloud backup is active!', 'success');
         
         if (projects.length > 0) {
@@ -104,7 +109,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           email: data.user.email,
           type: data.user.type,
           companyName: data.user.companyName
-        });
+        }, data.quota);
         
         showToast('Account created. Welcome!', 'success');
         
@@ -144,13 +149,13 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-indigo-500/10 to-violet-500/10 rounded-full blur-[90px] pointer-events-none -z-10" />
 
       {/* Main Glassmorphic Container */}
-      <div className="relative w-full max-w-md bg-[#09111F]/90 backdrop-blur-2xl border border-indigo-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col p-6 pb-12 animate-in zoom-in-95 duration-200">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" className="relative w-full max-w-md bg-[#09111F]/90 backdrop-blur-2xl border border-indigo-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col p-6 pb-12 animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-indigo-500/10">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-indigo-400" />
-            <h3 className="text-sm font-extrabold uppercase tracking-wider text-indigo-100">
+            <h3 id="auth-modal-title" className="text-sm font-extrabold uppercase tracking-wider text-indigo-100">
               {isLogin ? 'CLOUD SIGN IN' : 'NEW CLOUD ACCOUNT'}
             </h3>
           </div>

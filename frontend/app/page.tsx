@@ -7,7 +7,6 @@ import { schemaService } from '../services/api';
 import { useSchemaStore } from '../store/useSchemaStore';
 import { useToastStore } from '../store/useToastStore';
 import VoiceRecorder from '../components/landing/VoiceRecorder';
-import AIProviderSelector from '../components/landing/AIProviderSelector';
 
 export default function LandingPage() {
   const [prompt, setPrompt] = useState('');
@@ -16,6 +15,11 @@ export default function LandingPage() {
   const [showUrlInput, setShowUrlInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+  const dbDropdownRef = useRef<HTMLDivElement>(null);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [dbDropdownOpen, setDbDropdownOpen] = useState(false);
+
   const router = useRouter();
   // V2: dbType artık global store'dan geliyor
   const { 
@@ -30,19 +34,50 @@ export default function LandingPage() {
   } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
 
-  const groqModels = [
-    { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 (70B)' },
-    { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 (8B)' },
-    { id: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' }
-  ];
+  // Handle Stripe redirect callbacks (?upgrade=success / ?upgrade=canceled)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const upgradeParam = params.get('upgrade');
+    if (upgradeParam === 'success') {
+      showToast('Subscription activated! You are now a Pro Member.', 'success');
+      // Clean URL
+      window.history.replaceState({}, '', '/');
+    } else if (upgradeParam === 'canceled') {
+      showToast('Upgrade canceled. You can try again anytime.', 'info');
+      window.history.replaceState({}, '', '/');
+    }
+  }, [showToast]);
 
-  const ollamaModels = [
-    { id: 'qwen2.5-coder', label: 'Qwen 2.5 Coder' },
-    { id: 'deepseek-coder', label: 'DeepSeek Coder' },
-    { id: 'sqlcoder', label: 'SQLCoder' }
-  ];
+  // Click outside dropdowns listener
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
+        setModelDropdownOpen(false);
+      }
+      if (dbDropdownRef.current && !dbDropdownRef.current.contains(event.target as Node)) {
+        setDbDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
-  const models = aiProvider === 'Groq' ? groqModels : ollamaModels;
+  // Unified model list: Groq Cloud + Gemini + Ollama Local
+  const allModels = [
+    // ── Groq Cloud ────────────────────────────────────────
+    { id: 'llama-3.1-8b-instant',      label: 'Llama 3.1 (8B)',         provider: 'Groq',   group: 'Groq Cloud' },
+    { id: 'llama-3.3-70b-versatile',   label: 'Llama 3.3 (70B)',        provider: 'Groq',   group: 'Groq Cloud' },
+    { id: 'mixtral-8x7b-32768',        label: 'Mixtral 8x7B',           provider: 'Groq',   group: 'Groq Cloud' },
+    { id: 'openai/gpt-oss-120b',       label: 'GPT-OSS 120B (Ultra)',   provider: 'Groq',   group: 'Groq Cloud' },
+    // ── Google Gemini ─────────────────────────────────────
+    { id: 'gemini-1.5-flash',          label: 'Gemini 2.5 Flash',       provider: 'Gemini', group: 'Google Gemini' },
+    { id: 'gemini-1.5-pro',            label: 'Gemini 2.5 Pro',         provider: 'Gemini', group: 'Google Gemini' },
+    // ── Local (Ollama / qwen fixed) ─────────────────────
+    { id: 'qwen2.5-coder:7b',          label: 'Qwen 2.5 Coder 7B',     provider: 'Ollama', group: 'Local Engine' },
+  ];
 
   useEffect(() => {
     const container = document.getElementById('stars-container');
@@ -176,7 +211,7 @@ export default function LandingPage() {
         </div>
 
         {/* Form Card */}
-        <div className="w-full max-w-3xl glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden group">
+        <div className="w-full max-w-3xl glass-panel rounded-3xl p-6 sm:p-8 relative overflow-visible group">
           <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
           
           <form onSubmit={handleGenerate} className="relative">
@@ -267,48 +302,111 @@ export default function LandingPage() {
             {/* Options & Submit Section */}
             <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 mt-6">
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                {/* AIProviderSelector */}
-                <AIProviderSelector />
 
-                {/* Model Select */}
-                <div className="relative">
-                  <select
-                    value={modelName}
-                    onChange={(e) => setProviderAndModel(aiProvider, e.target.value)}
+                {/* Unified AI Model Select */}
+                <div className="relative w-[205px]" ref={modelDropdownRef}>
+                  <button
+                    type="button"
                     disabled={isGenerating}
-                    className="appearance-none glass-input rounded-lg pl-3 pr-8 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-[145px] font-medium"
+                    onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                    className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-900/60"
                   >
-                    {models.map(m => (
-                      <option key={m.id} value={m.id}>{m.label}</option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
-                    <i className="fa-solid fa-chevron-down text-xs"></i>
-                  </div>
+                    <span className="truncate">
+                      {allModels.find(m => m.id === modelName)?.label || modelName}
+                    </span>
+                    <i className={`fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {modelDropdownOpen && (
+                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-cyan-500/20 bg-[#08131c]/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(6,182,212,0.15)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
+                      {allModels.map(m => {
+                        const isSelected = m.id === modelName;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              setProviderAndModel(m.provider as 'Groq' | 'Ollama' | 'Gemini', m.id);
+                              setModelDropdownOpen(false);
+                            }}
+                            className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all text-left ${
+                              isSelected
+                                ? 'bg-cyan-500/20 text-cyan-200 border-l-2 border-cyan-500 pl-2'
+                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <span>{m.label}</span>
+                            {isSelected && (
+                                <i className="fa-solid fa-check text-[10px] text-cyan-400" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Database Select */}
-                <div className="relative">
-                  <select 
-                    value={dbType}
-                    onChange={(e) => setDbType(e.target.value as any)}
+                <div className="relative w-[215px]" ref={dbDropdownRef}>
+                  <button
+                    type="button"
                     disabled={isGenerating}
-                    className="appearance-none glass-input rounded-lg pl-3 pr-8 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-[125px] font-medium"
+                    onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
+                    className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-900/60"
                   >
-                    <option value="MSSQL">SQL Server</option>
-                    <option value="PostgreSQL">PostgreSQL</option>
-                    <option value="MySQL">MySQL</option>
-                    <option value="SQLite">SQLite</option>
-                    <option value="Oracle">Oracle</option>
-                    <option value="MariaDB">MariaDB</option>
-                    <option value="Db2">IBM Db2</option>
-                    <option value="Firebird">Firebird</option>
-                    <option value="Spanner">Google Spanner</option>
-                    <option value="Redshift">Amazon Redshift</option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
-                    <i className="fa-solid fa-chevron-down text-xs"></i>
-                  </div>
+                    <span className="truncate">
+                      {dbType === 'MSSQL' ? 'SQL Server' :
+                       dbType === 'PostgreSQL' ? 'PostgreSQL' :
+                       dbType === 'MySQL' ? 'MySQL' :
+                       dbType === 'SQLite' ? 'SQLite' :
+                       dbType === 'Oracle' ? 'Oracle' :
+                       dbType === 'MariaDB' ? 'MariaDB' :
+                       dbType === 'Db2' ? 'IBM Db2' :
+                       dbType === 'Firebird' ? 'Firebird' :
+                       dbType === 'Spanner' ? 'Google Spanner' :
+                       dbType === 'Redshift' ? 'Amazon Redshift' : dbType}
+                    </span>
+                    <i className={`fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {dbDropdownOpen && (
+                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-cyan-500/20 bg-[#08131c]/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(6,182,212,0.15)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
+                      {[
+                        { value: 'MSSQL', label: 'SQL Server' },
+                        { value: 'PostgreSQL', label: 'PostgreSQL' },
+                        { value: 'MySQL', label: 'MySQL' },
+                        { value: 'SQLite', label: 'SQLite' },
+                        { value: 'Oracle', label: 'Oracle' },
+                        { value: 'MariaDB', label: 'MariaDB' },
+                        { value: 'Db2', label: 'IBM Db2' },
+                        { value: 'Firebird', label: 'Firebird' },
+                        { value: 'Spanner', label: 'Google Spanner' },
+                        { value: 'Redshift', label: 'Amazon Redshift' }
+                      ].map(db => {
+                        const isSelected = dbType === db.value;
+                        return (
+                          <button
+                            key={db.value}
+                            type="button"
+                            onClick={() => {
+                              setDbType(db.value as any);
+                              setDbDropdownOpen(false);
+                            }}
+                            className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all text-left ${
+                              isSelected
+                                ? 'bg-cyan-500/20 text-cyan-200 border-l-2 border-cyan-500 pl-2'
+                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <span>{db.label}</span>
+                            {isSelected && (
+                                <i className="fa-solid fa-check text-[10px] text-cyan-400" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

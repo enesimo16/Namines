@@ -24,6 +24,7 @@ export function useMultiplayer() {
 
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const isRemoteUpdateRef = useRef(false);
+  const remoteUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSentCursorRef = useRef({ x: 0, y: 0 });
   const schemaRef = useRef<DatabaseSchema | null>(null);
   
@@ -124,9 +125,14 @@ export function useMultiplayer() {
     connection.on('ReceiveSchema', (remoteSchema: DatabaseSchema) => {
       isRemoteUpdateRef.current = true;
       loadFromSchema(remoteSchema);
-      // Reset ref shortly after loading to avoid echo loops
-      setTimeout(() => {
+      
+      if (remoteUpdateTimeoutRef.current) {
+        clearTimeout(remoteUpdateTimeoutRef.current);
+      }
+      
+      remoteUpdateTimeoutRef.current = setTimeout(() => {
         isRemoteUpdateRef.current = false;
+        remoteUpdateTimeoutRef.current = null;
       }, 300);
     });
 

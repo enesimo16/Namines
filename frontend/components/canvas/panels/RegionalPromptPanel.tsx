@@ -1,20 +1,37 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
+import { useAIGateway } from '../../../hooks/useAIGateway';
 import { schemaService } from '../../../services/api';
 import { Loader2, X } from 'lucide-react';
 import { flowToSchema } from '../../../lib/flowToSchema';
 import { SchemaRelation } from '../../../types/schema';
 import Draggable from 'react-draggable';
+import ContextualHelpTooltip from '../../help/ContextualHelpTooltip';
+import { helpContent } from '../../../lib/helpContent';
 
 export default function RegionalPromptPanel() {
   const { getNodes, getEdges } = useReactFlow();
-  const { schema, applyRevision, aiProvider, modelName } = useSchemaStore();
+  const { schema, applyRevision, aiProvider, modelName, dbType, loadFromSchema } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
+  const { checkAccess } = useAIGateway();
   const [prompt, setPrompt] = useState('');
   const [isRevising, setIsRevising] = useState(false);
   const nodeRef = useRef<HTMLDivElement>(null);
+  const [isForceOpen, setIsForceOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpen = () => {
+      setIsForceOpen(true);
+      setTimeout(() => {
+        const textarea = document.getElementById('regional-prompt-textarea');
+        if (textarea) textarea.focus();
+      }, 50);
+    };
+    window.addEventListener('namines:open-regional-prompt', handleOpen);
+    return () => window.removeEventListener('namines:open-regional-prompt', handleOpen);
+  }, []);
 
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
     if (typeof window !== 'undefined') {
@@ -36,11 +53,14 @@ export default function RegionalPromptPanel() {
 
   // Get selected nodes
   const selectedNodes = getNodes().filter(n => n.selected && n.type === 'tableNode');
+  const isInitialGeneration = schema?.tables.length === 0;
   
-  if (selectedNodes.length === 0) return null;
+  const showPanel = selectedNodes.length > 0 || (isInitialGeneration && isForceOpen);
+  if (!showPanel) return null;
 
   const handleRevise = async () => {
     if (!prompt.trim() || !schema) return;
+    if (!checkAccess("Regional Revision")) return;
 
     try {
       setIsRevising(true);
@@ -60,13 +80,48 @@ export default function RegionalPromptPanel() {
       
       applyRevision(partialSchema);
       setPrompt('');
-    } catch (error) {
-      console.error("Revision failed", error);
-      showToast("An error occurred during revision.", "error");
+    } catch (error: any) {
+      if (error?.response?.status === 429) {
+        showToast("Daily AI limit reached! Please upgrade your plan for unlimited access.", "warning");
+      } else {
+        console.error("Revision failed", error);
+        const errorMsg = error?.response?.data?.message || "An error occurred during revision.";
+        showToast(errorMsg, "error");
+      }
     } finally {
       setIsRevising(false);
     }
   };
+
+  const handleAction = async () => {
+    if (isInitialGeneration) {
+      if (!prompt.trim()) return;
+      if (!checkAccess("AI Schema Generation")) return;
+
+      try {
+        setIsRevising(true);
+        const generated = await schemaService.generateSchema(prompt, dbType, aiProvider, modelName);
+        loadFromSchema(generated);
+        setPrompt('');
+        setIsForceOpen(false);
+        showToast("Database schema successfully generated!", "success");
+      } catch (error: any) {
+        if (error?.response?.status === 429) {
+          showToast("Daily AI limit reached! Please upgrade your plan for unlimited access.", "warning");
+        } else {
+          console.error("Generation failed", error);
+          const errorMsg = error?.response?.data?.message || "An error occurred during generation.";
+          showToast(errorMsg, "error");
+        }
+      } finally {
+        setIsRevising(false);
+      }
+    } else {
+      await handleRevise();
+    }
+  };
+
+  const titleText = isInitialGeneration ? "AI Schema Generation" : `Regional Revision (${selectedNodes.length} Selected)`;
 
   return (
     <Draggable 
@@ -81,7 +136,7 @@ export default function RegionalPromptPanel() {
         subtract half the width using calc() instead of transform: translate 
         to avoid conflicts with Draggable's own transform styles.
       */}
-      <div ref={nodeRef} className="absolute top-[15%] left-8 z-[100] w-[340px] font-sans">
+      <div id="regional-prompt-panel" ref={nodeRef} className="absolute top-[15%] left-8 z-[100] w-[340px] font-sans">
         
         {/* Outer Frame Wrapper */}
         <div className="relative bg-[#171D31] rounded-[20px] p-[5px] border border-[#2b375b] shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden">
@@ -105,14 +160,23 @@ export default function RegionalPromptPanel() {
             </svg>
  
             {/* Header */}
-            <div className="drag-handle bg-gradient-to-b from-[#1b2647] to-[#17203b] border-b border-[#364472] px-4 py-3.5 rounded-t-[15px] flex justify-center items-center cursor-move relative z-10 shadow-[0_4px_15px_rgba(0,0,0,0.2)]">
-              <div className="flex items-center gap-2">
+            <div className="drag-handle bg-gradient-to-b from-[#1b2647] to-[#17203b] border-b border-[#364472] px-4 py-3.5 rounded-t-[15px] flex justify-between items-center cursor-move relative z-10 shadow-[0_4px_15px_rgba(0,0,0,0.2)]">
+              <div className="flex items-center gap-2 mx-auto pl-6">
                 <span className="text-[#a5b4fc] text-[12px]">✦</span>
                 <span className="text-[#f1f5f9] text-[15px] font-bold tracking-wide drop-shadow-md animate-none">
-                  Regional Revision ({selectedNodes.length} Selected)
+                  {titleText}
                 </span>
+                <ContextualHelpTooltip content={helpContent.regionalPrompt} />
                 <span className="text-[#a5b4fc] text-[12px]">✦</span>
               </div>
+              {isInitialGeneration && (
+                <button
+                  onClick={() => setIsForceOpen(false)}
+                  className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-all cursor-pointer mr-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
  
             {/* Content Area */}
@@ -121,9 +185,10 @@ export default function RegionalPromptPanel() {
               {/* Textarea Wrapper (Glowing Frame) */}
               <div className="relative rounded-[10px] bg-gradient-to-r from-[#4f46e5]/60 via-[#818cf8]/60 to-[#4f46e5]/60 p-[1.5px] shadow-[0_0_20px_rgba(99,102,241,0.25)]">
                 <textarea
+                  id="regional-prompt-textarea"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="How would you like to modify the selected tables?"
+                  placeholder={isInitialGeneration ? "Describe the database schema you want to generate..." : "How would you like to modify the selected tables?"}
                   className="w-full h-[90px] bg-[#0c1222] rounded-[8px] p-3 text-[14px] text-[#f8fafc] placeholder:text-[#64748b] focus:outline-none resize-none"
                   disabled={isRevising}
                   style={{
@@ -134,7 +199,7 @@ export default function RegionalPromptPanel() {
  
               {/* Button */}
               <button
-                onClick={handleRevise}
+                onClick={handleAction}
                 disabled={isRevising || !prompt.trim()}
                 className="group relative w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#4f46e5] to-[#6366f1] hover:from-[#5b4ff8] hover:to-[#818cf8] text-white px-4 py-3 rounded-[10px] text-[15px] font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[#818cf8]/40 shadow-[0_0_25px_rgba(79,70,229,0.6)] overflow-hidden animate-none"
               >
@@ -149,10 +214,14 @@ export default function RegionalPromptPanel() {
                 {isRevising ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin relative z-10" />
-                    <span className="relative z-10 tracking-wider">Revising...</span>
+                    <span className="relative z-10 tracking-wider">
+                      {isInitialGeneration ? "Generating..." : "Revising..."}
+                    </span>
                   </>
                 ) : (
-                  <span className="relative z-10 tracking-wider">Revise with AI</span>
+                  <span className="relative z-10 tracking-wider">
+                    {isInitialGeneration ? "Generate Schema" : "Revise with AI"}
+                  </span>
                 )}
               </button>
             </div>

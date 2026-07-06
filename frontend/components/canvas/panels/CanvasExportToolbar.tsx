@@ -24,7 +24,7 @@ import { useDbaStore } from '../../../store/useDbaStore';
 import { schemaService, scaffolderService } from '../../../services/api';
 
 import { DatabaseSchema } from '../../../types/schema';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import * as htmlToImage from 'html-to-image';
 import Draggable from 'react-draggable';
 import VisionUploadModal from './VisionUploadModal';
@@ -47,6 +47,15 @@ export default function CanvasExportToolbar() {
   const [isCollapsed, setIsCollapsed] = useState(true);
   
   const nodeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOpenVision = () => {
+      setIsVisionOpen(true);
+      setIsCollapsed(false);
+    };
+    window.addEventListener('namines:open-vision-modal', handleOpenVision);
+    return () => window.removeEventListener('namines:open-vision-modal', handleOpenVision);
+  }, []);
 
   const slug = projectName.trim().replace(/\s+/g, '-').toLowerCase() || 'namines-diagram';
   const isCurrentlyExporting = isExporting || isLocalExporting;
@@ -176,6 +185,7 @@ export default function CanvasExportToolbar() {
     <>
       <Draggable nodeRef={nodeRef} bounds="parent" handle=".drag-handle">
         <div 
+          id="canvas-toolbar"
           ref={nodeRef} 
           className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-xl bg-gradient-to-r from-[#0F172A]/90 to-[#1E293B]/80 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] select-none transition-all duration-300"
           style={{ width: isCollapsed ? '76px' : 'auto' }}

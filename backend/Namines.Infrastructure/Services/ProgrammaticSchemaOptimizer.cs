@@ -90,7 +90,7 @@ namespace Namines.Infrastructure.Services
             {
                 foreach (var col in table.Columns)
                 {
-                    var typeLower = col.Type.ToLower();
+                    var typeLower = (col.Type ?? string.Empty).ToLower();
                     
                     // Check if it's a string type
                     bool isStringType = typeLower.Contains("varchar") || typeLower.Contains("char") || 
@@ -99,7 +99,7 @@ namespace Namines.Infrastructure.Services
                     if (isStringType)
                     {
                         // If it has "max" in type name, clean it up and set safe length
-                        if (typeLower.Contains("max"))
+                        if (typeLower.Contains("max") && col.Type != null)
                         {
                             col.Type = col.Type.Replace("(max)", "").Replace("MAX", "").Trim();
                             col.Length = 255;
@@ -125,6 +125,8 @@ namespace Namines.Infrastructure.Services
             {
                 foreach (var col in table.Columns)
                 {
+                    if (string.IsNullOrEmpty(col.Name)) continue;
+
                     // If column looks like a foreign key (ends with Id/Id_ and not the primary key of this table)
                     if (!col.IsPK && (col.Name.EndsWith("Id", StringComparison.OrdinalIgnoreCase) || col.Name.EndsWith("_id", StringComparison.OrdinalIgnoreCase)))
                     {
@@ -141,7 +143,15 @@ namespace Namines.Infrastructure.Services
                         }
 
                         // Try to find the target table
-                        string targetPrefix = col.Name.Substring(0, col.Name.Length - (col.Name.EndsWith("Id") ? 2 : 3));
+                        string targetPrefix;
+                        if (col.Name.EndsWith("Id", StringComparison.OrdinalIgnoreCase))
+                        {
+                            targetPrefix = col.Name.Substring(0, col.Name.Length - 2);
+                        }
+                        else
+                        {
+                            targetPrefix = col.Name.Substring(0, col.Name.Length - 3);
+                        }
                         
                         // Look for a table that matches the prefix, or is pluralized/singularized match
                         var targetTable = result.Tables.FirstOrDefault(t => 
@@ -188,11 +198,12 @@ namespace Namines.Infrastructure.Services
             {
                 foreach (var col in table.Columns)
                 {
+                    if (string.IsNullOrEmpty(col.Name)) continue;
                     string colNameLower = col.Name.ToLower();
                     if (sensitiveKeywords.Any(k => colNameLower.Contains(k)))
                     {
                         // Ensure password/sensitive hashes are stored in nvarchar with sufficient length
-                        var typeLower = col.Type.ToLower();
+                        var typeLower = (col.Type ?? string.Empty).ToLower();
                         if (typeLower.Contains("varchar") || typeLower.Contains("string") || typeLower.Contains("char"))
                         {
                             if (col.Length == null || col.Length < 128)

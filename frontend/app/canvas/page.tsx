@@ -37,6 +37,10 @@ import SqlExplorerPanel from '../../components/canvas/panels/SqlExplorerPanel';
 import BranchControlPanel from '../../components/canvas/panels/BranchControlPanel';
 import ConflictResolverModal from '../../components/canvas/panels/ConflictResolverModal';
 import DbaIssuePanel from '../../components/canvas/DbaIssuePanel';
+import AIGatewayModal from '../../components/canvas/panels/AIGatewayModal';
+import SchemaTextualSummary from '../../components/canvas/SchemaTextualSummary';
+import EmptyCanvasState from '../../components/canvas/EmptyCanvasState';
+import TourOverlay from '../../components/tour/TourOverlay';
 
 export default function CanvasPage() {
   const router = useRouter();
@@ -161,6 +165,7 @@ export default function CanvasPage() {
 
   return (
     <div className="w-full bg-zinc-950 overflow-hidden relative font-sans" style={{ height: 'calc(100vh - 56px)' }}>
+      <SchemaTextualSummary />
 
       {/* Connection Lost Overlay for Read-Only Mode */}
       {isOffline && (
@@ -194,9 +199,13 @@ export default function CanvasPage() {
         assessment={assessment}
       />
 
+      <EmptyCanvasState />
+      <TourOverlay />
+
       <ReactFlowProvider>
         <CanvasContextMenu>
           <ReactFlow
+            id="react-flow-canvas"
             nodes={processedNodes}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -223,7 +232,7 @@ export default function CanvasPage() {
             />
 
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
-            <Panel position="top-left" className="bg-[#0F172A]/85 backdrop-blur-md border border-indigo-500/20 p-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.15)] mt-4 ml-4 w-64 select-none pointer-events-auto">
+            <Panel id="schema-info-panel" position="top-left" className="bg-[#0F172A]/85 backdrop-blur-md border border-indigo-500/20 p-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.15)] mt-4 ml-4 w-64 select-none pointer-events-auto">
               <h2 className="text-xl font-bold bg-gradient-to-r from-zinc-100 to-indigo-200 bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
               <div className="text-xs text-indigo-300/80 flex flex-col gap-1 font-medium">
                 <div className="flex gap-4">
@@ -246,6 +255,7 @@ export default function CanvasPage() {
 
       <TableEditorDrawer />
       <SqlExplorerPanel />
+      <AIGatewayModal />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { X, Upload, Image, RefreshCw, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { reverseEngineerService } from '../../../services/api';
+import { useAIGateway } from '../../../hooks/useAIGateway';
 
 interface VisionUploadModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface VisionUploadModalProps {
 
 export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModalProps) {
   const { schema, importFromVision } = useSchemaStore();
+  const { checkAccess } = useAIGateway();
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
   const handleAnalyze = async () => {
     if (!selectedFile) return;
+    if (!checkAccess("Vision Reverse Engineering")) return;
 
     setLoading(true);
     setError(null);

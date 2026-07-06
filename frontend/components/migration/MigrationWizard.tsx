@@ -12,6 +12,7 @@ import { migrationService } from '../../services/api';
 import { SchemaDiffResult, MigrationResult } from '../../types/migration';
 import DiffViewer from './DiffViewer';
 import MigrationCodeView from './MigrationCodeView';
+import { useAIGateway } from '../../hooks/useAIGateway';
 
 interface MigrationWizardProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface MigrationWizardProps {
 export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProps) {
   const { schema, loadFromSchema, dbType, setDbType, projectName } = useSchemaStore();
   const { getNodes, getEdges } = useReactFlow();
+  const { checkAccess } = useAIGateway();
 
   const { projects, activeProjectId, setMigrationBaseline } = useProjectHistoryStore();
   const activeProject = projects.find(p => p.id === activeProjectId);
@@ -109,6 +111,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       setError('Please paste a DbContext code or upload a file.');
       return;
     }
+    if (!checkAccess("DbContext Parser")) return;
 
     setLoading(true);
     setError(null);
@@ -166,6 +169,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       setStep(1);
       return;
     }
+    if (!checkAccess("Migration Generator")) return;
 
     setLoading(true);
     setError(null);

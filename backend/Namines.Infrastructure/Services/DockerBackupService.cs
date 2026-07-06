@@ -34,7 +34,7 @@ public class DockerBackupService : IDockerService
 
         try
         {
-            onProgress($"Docker engine'e bağlanıldı. İmaj kontrol ediliyor: {profile.Image}:{profile.Tag}");
+            onProgress($"Connected to Docker engine. Checking image: {profile.Image}:{profile.Tag}");
 
             // 1. Check if image exists locally to optimize pull
             var localImages = await _client.Images.ListImagesAsync(new ImagesListParameters { All = true });
@@ -44,21 +44,21 @@ public class DockerBackupService : IDockerService
 
             if (!imageExists)
             {
-                onProgress($"İmaj lokalde bulunamadı. Docker Hub'dan çekiliyor: {profile.Image}:{profile.Tag}...");
+                onProgress($"Image not found locally. Pulling from Docker Hub: {profile.Image}:{profile.Tag}...");
                 await _client.Images.CreateImageAsync(
                     new ImagesCreateParameters { FromImage = profile.Image, Tag = profile.Tag },
                     new AuthConfig(),
                     new Progress<JSONMessage>(msg => {
                         if (!string.IsNullOrEmpty(msg.Status))
-                            onProgress($"İmaj çekiliyor... {msg.Status}");
+                            onProgress($"Pulling image... {msg.Status}");
                     }));
             }
             else
             {
-                onProgress($"İmaj lokalde hazır: {profile.Image}:{profile.Tag}");
+                onProgress($"Image ready locally: {profile.Image}:{profile.Tag}");
             }
 
-            onProgress("Container oluşturuluyor...");
+            onProgress("Creating container...");
 
             // 2. Create Container using DB-specific official images
             var createParams = new CreateContainerParameters
@@ -68,7 +68,7 @@ public class DockerBackupService : IDockerService
                 Env = profile.EnvVars.Select(kvp => $"{kvp.Key}={kvp.Value}").ToList(),
                 HostConfig = new HostConfig
                 {
-                    Memory = 1024 * 1024 * 1024, // 1GB Memory limit
+                    Memory = dbType == DatabaseType.MSSQL ? 2500L * 1024 * 1024 : 2048L * 1024 * 1024,
                     NanoCPUs = 1000000000 // 1 CPU limit
                 }
             };
@@ -76,11 +76,11 @@ public class DockerBackupService : IDockerService
             var createResponse = await _client.Containers.CreateContainerAsync(createParams);
             containerId = createResponse.ID;
 
-            onProgress($"Container oluşturuldu (ID: {containerId.Substring(0, 8)}). Başlatılıyor...");
+            onProgress($"Container created (ID: {containerId.Substring(0, 8)}). Starting...");
 
             // 3. Start Container
             await _client.Containers.StartContainerAsync(containerId, new ContainerStartParameters());
-            onProgress("Container başlatıldı. Sağlık kontrolü (Health check) bekleniyor...");
+            onProgress("Container started. Waiting for health check...");
 
             // 4. Wait for DB to be ready (Smart Healthcheck loop)
             bool isReady = false;
@@ -102,7 +102,7 @@ public class DockerBackupService : IDockerService
                         isReady = true;
                         break;
                     }
-                    onProgress($"Veritabanı henüz hazır değil, tekrar deneniyor ({i + 1}/40)...");
+                    onProgress($"Database not ready yet, retrying ({i + 1}/40)...");
                 }
                 catch
                 {
@@ -113,12 +113,12 @@ public class DockerBackupService : IDockerService
 
             if (!isReady)
             {
-                throw new Exception("Veritabanı başlatılamadı veya sağlık kontrolü zaman aşımına uğradı.");
+                throw new Exception("Database failed to start or health check timed out.");
             }
-            onProgress("Veritabanı başarıyla hazır hale geldi.");
+            onProgress("Database successfully ready.");
 
             // 5. Copy SQL file into container natively using TAR
-            onProgress("DDL (SQL) scripti aktarılıyor...");
+            onProgress("Transferring DDL (SQL) script...");
             using (var tarStream = CreateTarStream("schema.sql", sqlContent))
             {
                 await _client.Containers.ExtractArchiveToContainerAsync(containerId, new ContainerPathStatParameters
@@ -126,7 +126,7 @@ public class DockerBackupService : IDockerService
                     Path = "/tmp"
                 }, tarStream);
             }
-            onProgress("Script başarıyla aktarıldı. Tablolar uygulanıyor...");
+            onProgress("Script transferred successfully. Applying tables...");
 
             // 6. Execute SQL and apply schema
             if (dbType == DatabaseType.MSSQL)
@@ -140,7 +140,7 @@ public class DockerBackupService : IDockerService
                 var (dbExit, dbOut) = await ExecuteCommandAsync(containerId, createDbCmd);
                 if (dbExit != 0)
                 {
-                    throw new Exception($"MSSQL veritabanı oluşturulamadı (ExitCode: {dbExit}): {dbOut}");
+                    throw new Exception($"Failed to create MSSQL database (ExitCode: {dbExit}): {dbOut}");
                 }
 
                 // Execute the schema script inside naminesdb
@@ -152,7 +152,7 @@ public class DockerBackupService : IDockerService
                 var (schemaExit, schemaOut) = await ExecuteCommandAsync(containerId, execSchemaCmd);
                 if (schemaExit != 0)
                 {
-                    throw new Exception($"MSSQL şema uygulanamadı (ExitCode: {schemaExit}): {schemaOut}");
+                    throw new Exception($"Failed to apply MSSQL schema (ExitCode: {schemaExit}): {schemaOut}");
                 }
             }
             else if (dbType == DatabaseType.PostgreSQL)
@@ -164,7 +164,7 @@ public class DockerBackupService : IDockerService
                 var (schemaExit, schemaOut) = await ExecuteCommandAsync(containerId, execSchemaCmd);
                 if (schemaExit != 0)
                 {
-                    throw new Exception($"PostgreSQL şema uygulanamadı (ExitCode: {schemaExit}): {schemaOut}");
+                    throw new Exception($"Failed to apply PostgreSQL schema (ExitCode: {schemaExit}): {schemaOut}");
                 }
             }
             else if (dbType == DatabaseType.MySQL)
@@ -176,14 +176,14 @@ public class DockerBackupService : IDockerService
                 var (schemaExit, schemaOut) = await ExecuteCommandAsync(containerId, execSchemaCmd);
                 if (schemaExit != 0)
                 {
-                    throw new Exception($"MySQL şema uygulanamadı (ExitCode: {schemaExit}): {schemaOut}");
+                    throw new Exception($"Failed to apply MySQL schema (ExitCode: {schemaExit}): {schemaOut}");
                 }
             }
 
-            onProgress("SQL Script başarıyla çalıştırıldı ve şema kuruldu.");
+            onProgress("SQL Script executed successfully and schema created.");
 
             // 7. Backup (Dump)
-            onProgress("Veritabanı yedeği (.bak/.sql) alınıyor...");
+            onProgress("Taking database backup (.bak/.sql)...");
             string containerBackupPath = "";
             string[] backupCmd;
 
@@ -220,12 +220,12 @@ public class DockerBackupService : IDockerService
             var (backupExit, backupOut) = await ExecuteCommandAsync(containerId, backupCmd);
             if (backupExit != 0)
             {
-                throw new Exception($"Yedekleme işlemi başarısız oldu (ExitCode: {backupExit}): {backupOut}");
+                throw new Exception($"Backup operation failed (ExitCode: {backupExit}): {backupOut}");
             }
-            onProgress("Veritabanı yedeği başarıyla alındı.");
+            onProgress("Database backup successfully taken.");
 
             // 8. Extract backup from container & Extract TAR on Host
-            onProgress("Yedek host makineye kopyalanıyor...");
+            onProgress("Copying backup to host machine...");
             
             var archiveResponse = await _client.Containers.GetArchiveFromContainerAsync(containerId, new GetArchiveFromContainerParameters 
             { 
@@ -256,7 +256,7 @@ public class DockerBackupService : IDockerService
                     var extractedFile = Directory.GetFiles(tempExtractDir, "*", SearchOption.AllDirectories).FirstOrDefault();
                     if (extractedFile == null)
                     {
-                        throw new FileNotFoundException("Tar arşivi içinden yedek dosyası çıkarılamadı.");
+                        throw new FileNotFoundException("Could not extract backup file from tar archive.");
                     }
 
                     var ext = dbType == DatabaseType.MSSQL ? ".bak" : ".sql";
@@ -265,7 +265,7 @@ public class DockerBackupService : IDockerService
                     if (File.Exists(finalPath)) File.Delete(finalPath);
                     File.Move(extractedFile, finalPath);
                     
-                    onProgress($"Yedek dosyası başarıyla kaydedildi: backup_{jobId}{ext}");
+                    onProgress($"Backup file saved successfully: backup_{jobId}{ext}");
                 }
                 finally
                 {
@@ -274,11 +274,11 @@ public class DockerBackupService : IDockerService
                 }
             }
 
-            onProgress("İşlem tamamlandı. Container temizleniyor...");
+            onProgress("Operation completed. Cleaning up container...");
         }
         catch (Exception ex)
         {
-            onProgress($"HATA: {ex.Message}");
+            onProgress($"ERROR: {ex.Message}");
             throw;
         }
         finally
@@ -286,9 +286,9 @@ public class DockerBackupService : IDockerService
             // 9. Cleanup
             if (containerId != null)
             {
-                onProgress("Container durduruluyor...");
+                onProgress("Stopping container...");
                 await _client.Containers.StopContainerAsync(containerId, new ContainerStopParameters { WaitBeforeKillSeconds = 2 });
-                onProgress("Container siliniyor...");
+                onProgress("Removing container...");
                 await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true });
             }
         }

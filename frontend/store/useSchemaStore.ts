@@ -56,7 +56,7 @@ interface SchemaState {
 
   // ── Hafif UI state (persist edilir) ──
   isGenerating: boolean;
-  aiProvider: 'Groq' | 'Ollama';
+  aiProvider: 'Groq' | 'Ollama' | 'Gemini';
   modelName: string;
   projectName: string;
   dbType: DbType;
@@ -67,10 +67,10 @@ interface SchemaState {
 
   // ── Actions ──
   setIsGenerating: (isGenerating: boolean) => void;
-  setProviderAndModel: (provider: 'Groq' | 'Ollama', model: string) => void;
+  setProviderAndModel: (provider: 'Groq' | 'Ollama' | 'Gemini', model: string) => void;
   setProjectName: (name: string) => void;
   setDbType: (dbType: DbType) => void;
-  loadFromSchema: (schema: DatabaseSchema, nodePositions?: Record<string, { x: number; y: number }>) => void;
+  loadFromSchema: (schema: DatabaseSchema, nodePositions?: Record<string, { x: number; y: number }>, preserveProjectName?: boolean) => void;
   applyRevision: (partialSchema: DatabaseSchema) => void;
   resetProject: () => void;
   onNodesChange: OnNodesChange;
@@ -121,16 +121,23 @@ export const useSchemaStore = create<SchemaState>()(
         selectedTableForEdit: null,
       }),
 
-      loadFromSchema: (schema, nodePositions) => {
+      loadFromSchema: (schema, nodePositions, preserveProjectName) => {
         const { nodes, edges } = schemaToFlow(schema);
         const restoredNodes = nodePositions
           ? nodes.map(n => nodePositions[n.id] ? { ...n, position: nodePositions[n.id] } : n)
           : nodes;
         
-        // Prioritize schema.name if it's a valid specific name (not 'Yeni Proje', not 'Shared Room Project')
-        const newProjectName = (schema.name && schema.name !== 'Yeni Proje' && schema.name !== 'Shared Room Project' && schema.name.trim() !== '')
-          ? schema.name
-          : (get().projectName || 'Yeni Proje');
+        const currentName = get().projectName || 'Yeni Proje';
+        const isCustomName = currentName !== 'Yeni Proje' && currentName !== 'Shared Room Project' && currentName.trim() !== '';
+
+        // We preserve the current name if preserveProjectName is true, OR if it's not explicitly false AND we already have a custom name set.
+        const shouldPreserve = preserveProjectName === true || (preserveProjectName !== false && isCustomName);
+
+        const newProjectName = shouldPreserve
+          ? currentName
+          : ((schema.name && schema.name !== 'Yeni Proje' && schema.name !== 'Shared Room Project' && schema.name.trim() !== '')
+            ? schema.name
+            : currentName);
 
         if (schema) {
           schema.name = newProjectName;
@@ -378,13 +385,14 @@ export const useSchemaStore = create<SchemaState>()(
       name: 'namines-ui-state',
       storage: createJSONStorage(() => localforageStorage),
       partialize: (state) => ({
+        // YALNIZCA UI tercihleri persist edilir.
+        // schema / nodes / edges çifte yazımı önlemek için ÇIKARILDI.
+        // Bu verinin tek otoriser kaynağı: useProjectHistoryStore (namines-projects key'i).
+        // Sayfa yenilendiğinde schema, activeProjectId üzerinden loadProject() ile restore edilir.
         projectName: state.projectName,
         dbType: state.dbType,
         aiProvider: state.aiProvider,
         modelName: state.modelName,
-        schema: state.schema,
-        nodes: state.nodes,
-        edges: state.edges,
       }),
     }
   )

@@ -42,25 +42,10 @@ namespace Namines.API.Controllers
             if (existingUser != null)
                 return BadRequest(new { Message = "Bu e-posta adresiyle kayıtlı bir kullanıcı zaten mevcut." });
 
+            // All new users start as Free (Individual) tier.
+            // Pro (Corporate) status is ONLY granted by the Stripe payment webhook
+            // after a successful subscription — it can never be self-assigned at registration.
             var userType = UserType.Individual;
-            if (model.Type?.ToLower() == "corporate")
-            {
-                userType = UserType.Corporate;
-                
-                // Simple corporate validation: make sure they provided a company name
-                if (string.IsNullOrWhiteSpace(model.CompanyName))
-                {
-                    return BadRequest(new { Message = "Kurumsal üyelik için şirket adı girmek zorunludur." });
-                }
-
-                // Check for business email domains - reject standard public mail hosts for corporate tier (optional guidance)
-                var emailDomain = model.Email.Split('@')[1].ToLower();
-                var freeDomains = new List<string> { "gmail.com", "hotmail.com", "yahoo.com", "outlook.com", "icloud.com" };
-                if (freeDomains.Contains(emailDomain))
-                {
-                    return BadRequest(new { Message = "Kurumsal hesaplar için lütfen kurumsal e-posta adresinizi kullanın." });
-                }
-            }
 
             var user = new ApplicationUser
             {
@@ -78,6 +63,41 @@ namespace Namines.API.Controllers
                 return BadRequest(new { Message = $"Kayıt başarısız: {errors}" });
             }
 
+            // Automatically provision a default UserAIPolicy for this user
+            var defaultPolicy = new UserAIPolicy
+            {
+                UserId = user.Id,
+                SmartSeed = AIMode.HighMixtral,
+                Documentation = AIMode.HighMixtral,
+                Scaffolding = AIMode.HighMixtral,
+                SchemaGeneration = AIMode.HighMixtral,
+                SchemaRevision = AIMode.HighMixtral,
+                DbaAnalysis = AIMode.HighMixtral,
+                Migration = AIMode.HighMixtral,
+                Voice = AIMode.HighMixtral,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _context.UserAIPolicies.AddAsync(defaultPolicy);
+
+            // Automatically provision a default UserAIQuota for this user
+            var defaultQuota = new UserAIQuota
+            {
+                UserId = user.Id,
+                DailyLimit = 100, // 100% percentage-based credits
+                DailyUsageCount = 0,
+                LastResetDate = DateTime.UtcNow
+            };
+            await _context.UserAIQuotas.AddAsync(defaultQuota);
+            await _context.SaveChangesAsync();
+
+            var quotaInfo = new
+            {
+                dailyLimit = defaultQuota.DailyLimit,
+                used = defaultQuota.DailyUsageCount,
+                remaining = Math.Max(0, defaultQuota.DailyLimit - defaultQuota.DailyUsageCount),
+                resetAt = defaultQuota.LastResetDate.AddHours(3).Date.AddDays(1).AddHours(-3).ToString("o")
+            };
+
             var token = GenerateJwtToken(user);
             return Ok(new
             {
@@ -88,7 +108,8 @@ namespace Namines.API.Controllers
                     Email = user.Email,
                     Type = user.Type.ToString().ToLower(),
                     CompanyName = user.CompanyName
-                }
+                },
+                Quota = quotaInfo
             });
         }
 
@@ -101,6 +122,43 @@ namespace Namines.API.Controllers
                 return Unauthorized(new { Message = "E-posta veya şifre hatalı." });
             }
 
+            var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == user.Id);
+            if (quota == null)
+            {
+                quota = new UserAIQuota
+                {
+                    UserId = user.Id,
+                    DailyLimit = 100,
+                    DailyUsageCount = 0,
+                    LastResetDate = DateTime.UtcNow
+                };
+                await _context.UserAIQuotas.AddAsync(quota);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                if (quota.DailyLimit < 100)
+                {
+                    quota.DailyLimit = 100;
+                }
+
+                if (quota.LastResetDate.AddHours(3).Date < DateTime.UtcNow.AddHours(3).Date)
+                {
+                    quota.DailyUsageCount = 0;
+                    quota.LastResetDate = DateTime.UtcNow;
+                }
+                _context.UserAIQuotas.Update(quota);
+                await _context.SaveChangesAsync();
+            }
+
+            var quotaInfo = new
+            {
+                dailyLimit = quota.DailyLimit,
+                used = quota.DailyUsageCount,
+                remaining = Math.Max(0, quota.DailyLimit - quota.DailyUsageCount),
+                resetAt = quota.LastResetDate.Date.AddDays(1).ToString("o")
+            };
+
             var token = GenerateJwtToken(user);
             return Ok(new
             {
@@ -111,7 +169,8 @@ namespace Namines.API.Controllers
                     Email = user.Email,
                     Type = user.Type.ToString().ToLower(),
                     CompanyName = user.CompanyName
-                }
+                },
+                Quota = quotaInfo
             });
         }
 
@@ -195,6 +254,73 @@ namespace Namines.API.Controllers
             return Ok(projects);
         }
 
+        [Authorize]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId!);
+            if (user == null) return Unauthorized();
+
+            // Parse extra profile data stored as JSON in ProfileJson field (if it exists)
+            ProfileData profile = new();
+            if (!string.IsNullOrEmpty(user.ProfileJson))
+            {
+                try { profile = System.Text.Json.JsonSerializer.Deserialize<ProfileData>(user.ProfileJson) ?? new(); }
+                catch { }
+            }
+
+            return Ok(new
+            {
+                username    = user.UserName,
+                email       = user.Email,
+                type        = user.Type.ToString().ToLower(),
+                companyName = user.CompanyName,
+                subscriptionStatus = user.SubscriptionStatus ?? "none",
+                currentPeriodEnd   = user.CurrentPeriodEnd,
+                // Extended profile
+                profile.FullName,
+                profile.GithubUrl,
+                profile.LinkedinUrl,
+                profile.WebsiteUrl,
+                profile.TwitterUrl,
+                profile.Bio,
+                profile.Location
+            });
+        }
+
+        [Authorize]
+        [HttpPut("profile")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId!);
+            if (user == null) return Unauthorized();
+
+            // Update basic fields
+            if (!string.IsNullOrWhiteSpace(dto.CompanyName))
+                user.CompanyName = dto.CompanyName;
+
+            // Serialize extended profile data into ProfileJson
+            var profile = new ProfileData
+            {
+                FullName    = dto.FullName ?? "",
+                GithubUrl   = dto.GithubUrl ?? "",
+                LinkedinUrl = dto.LinkedinUrl ?? "",
+                WebsiteUrl  = dto.WebsiteUrl ?? "",
+                TwitterUrl  = dto.TwitterUrl ?? "",
+                Bio         = dto.Bio ?? "",
+                Location    = dto.Location ?? ""
+            };
+            user.ProfileJson = System.Text.Json.JsonSerializer.Serialize(profile);
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return BadRequest(new { message = "Profile update failed.", errors = result.Errors.Select(e => e.Description) });
+
+            return Ok(new { message = "Profile updated successfully." });
+        }
+
         private string GenerateJwtToken(ApplicationUser user)
         {
             var claims = new List<Claim>
@@ -251,5 +377,28 @@ namespace Namines.API.Controllers
         public string DbType { get; set; } = null!;
         public string SchemaJson { get; set; } = null!;
         public string NodePositionsJson { get; set; } = null!;
+    }
+
+    public class UpdateProfileDto
+    {
+        public string? FullName    { get; set; }
+        public string? GithubUrl   { get; set; }
+        public string? LinkedinUrl { get; set; }
+        public string? WebsiteUrl  { get; set; }
+        public string? TwitterUrl  { get; set; }
+        public string? Bio         { get; set; }
+        public string? Location    { get; set; }
+        public string? CompanyName { get; set; }
+    }
+
+    public class ProfileData
+    {
+        public string FullName    { get; set; } = "";
+        public string GithubUrl   { get; set; } = "";
+        public string LinkedinUrl { get; set; } = "";
+        public string WebsiteUrl  { get; set; } = "";
+        public string TwitterUrl  { get; set; } = "";
+        public string Bio         { get; set; } = "";
+        public string Location    { get; set; } = "";
     }
 }

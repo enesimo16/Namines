@@ -7,6 +7,8 @@ namespace Namines.Infrastructure.Data
     public class AuthDbContext : IdentityDbContext<ApplicationUser>
     {
         public DbSet<CloudProject> CloudProjects { get; set; } = null!;
+        public DbSet<UserAIPolicy> UserAIPolicies { get; set; } = null!;
+        public DbSet<UserAIQuota> UserAIQuotas { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -20,6 +22,18 @@ namespace Namines.Infrastructure.Data
                 .HasOne(p => p.User)
                 .WithMany()
                 .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<UserAIPolicy>()
+                .HasOne(p => p.User)
+                .WithOne()
+                .HasForeignKey<UserAIPolicy>(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<UserAIQuota>()
+                .HasOne(p => p.User)
+                .WithOne()
+                .HasForeignKey<UserAIQuota>(p => p.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

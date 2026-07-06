@@ -1,6 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Core.Models.Auth;
+using Namines.Infrastructure.Data;
+using System;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Namines.API.Controllers;
 
@@ -13,11 +19,16 @@ public class DocumentationController : ControllerBase
 {
     private readonly IDocumentationGenerator _docGenerator;
     private readonly IAIService _aiService;
+    private readonly AuthDbContext _context;
 
-    public DocumentationController(IDocumentationGenerator docGenerator, IAIService aiService)
+    public DocumentationController(
+        IDocumentationGenerator docGenerator, 
+        IAIService aiService,
+        AuthDbContext context)
     {
         _docGenerator = docGenerator;
         _aiService = aiService;
+        _context = context;
     }
 
     /// <summary>
@@ -34,16 +45,47 @@ public class DocumentationController : ControllerBase
             ? (request.Schema.Name ?? "Namines Projesi")
             : request.ProjectName;
 
-        // 1) AI'dan yönetici özeti üret (hata varsa boş string ile devam et)
-        string projectSummary;
-        try
+        bool forceDeterministic = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
+        if (!forceDeterministic)
         {
-            projectSummary = await _aiService.GenerateProjectSummaryAsync(request.Schema, projectName);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                var policy = await _context.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
+                if (policy != null && policy.Documentation == AIMode.DefaultNamines)
+                {
+                    forceDeterministic = true;
+                }
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(Request.Headers["X-BYOK-Key"]))
+                {
+                    forceDeterministic = true;
+                }
+            }
         }
-        catch (Exception ex)
+
+        // 1) AI'dan yönetici özeti üret (politika deterministik ise veya hata varsa yerel özet kullan)
+        string projectSummary;
+        if (forceDeterministic)
         {
-            // AI erişilemez olsa bile PDF üretimi durmamalı
-            projectSummary = $"Yönetici özeti üretilemedi: {ex.Message}";
+            var isEn = "en".Equals(request.Language, StringComparison.OrdinalIgnoreCase);
+            projectSummary = isEn
+                ? $"This database project named '{projectName}' contains {request.Schema.Tables.Count} tables and {request.Schema.Relations.Count} relationships. It was structured using local deterministic documentation rules."
+                : $"'{projectName}' isimli bu veritabanı projesi, {request.Schema.Tables.Count} tablo ve {request.Schema.Relations.Count} ilişki barındırmaktadır. Yerel deterministik dökümantasyon kurallarına göre yapılandırılmıştır.";
+        }
+        else
+        {
+            try
+            {
+                projectSummary = await _aiService.GenerateProjectSummaryAsync(request.Schema, projectName);
+            }
+            catch (Exception ex)
+            {
+                // AI erişilemez olsa bile PDF üretimi durmamalı
+                projectSummary = $"Yönetici özeti üretilemedi: {ex.Message}";
+            }
         }
 
         // 2) PDF üret

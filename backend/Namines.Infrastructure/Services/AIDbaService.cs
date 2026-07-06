@@ -125,8 +125,9 @@ public class AIDbaService : IAIDbaService
                 }
 
                 // KURAL 4: DBA-SEC-001 - KVKK/PII Hassas Veri Algılama (Security)
-                var colLower = col.Name.ToLowerInvariant();
-                if ((colLower.Contains("sifre") || colLower.Contains("password") || colLower.Contains("tckn") || 
+                var colLower = (col.Name ?? string.Empty).ToLowerInvariant();
+                if (!string.IsNullOrEmpty(col.Name) && 
+                    (colLower.Contains("sifre") || colLower.Contains("password") || colLower.Contains("tckn") || 
                      colLower.Contains("identityno") || colLower.Contains("kredikarti") || colLower.Contains("creditcard") || 
                      colLower.Contains("phone") || colLower.Contains("telefon") || colLower.Contains("email") || 
                      colLower.Contains("address") || colLower.Contains("adres")) && 

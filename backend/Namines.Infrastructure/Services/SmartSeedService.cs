@@ -20,7 +20,7 @@ public class SmartSeedService : ISmartSeedService
         _groqService = groqService;
     }
 
-    public async Task<SmartSeedResult> GenerateSmartSeedAsync(DatabaseSchema schema, DatabaseType dbType, string? domainHint, int rowCount = 50)
+    public async Task<SmartSeedResult> GenerateSmartSeedAsync(DatabaseSchema schema, DatabaseType dbType, string? domainHint, int rowCount = 50, bool forceDeterministic = false)
     {
         // Defense-in-depth: enforce 500-row hard limit even if controller bypassed
         rowCount = Math.Min(rowCount, 500);
@@ -45,15 +45,22 @@ public class SmartSeedService : ISmartSeedService
 
         // 3. AI veya Programmatik SQL Seed Script Üretimi
         string sqlScript;
-        try
+        if (forceDeterministic)
         {
-            sqlScript = await _groqService.GenerateSmartSeedSqlAsync(schema, dbType, domain, rowCount);
-        }
-        catch (Exception ex)
-        {
-            // AI Limiti veya hata durumlarında programatik veri üretim motoruna güvenli geri dönüş yap
-            Console.WriteLine($"[SmartSeed Warning] AI seed generation failed ({ex.Message}). Falling back to robust C# programmatic engine.");
             sqlScript = GenerateMockDataProgrammatically(schema, dbType, rowCount);
+        }
+        else
+        {
+            try
+            {
+                sqlScript = await _groqService.GenerateSmartSeedSqlAsync(schema, dbType, domain, rowCount);
+            }
+            catch (Exception ex)
+            {
+                // AI Limiti veya hata durumlarında programatik veri üretim motoruna güvenli geri dönüş yap
+                Console.WriteLine($"[SmartSeed Warning] AI seed generation failed ({ex.Message}). Falling back to robust C# programmatic engine.");
+                sqlScript = GenerateMockDataProgrammatically(schema, dbType, rowCount);
+            }
         }
 
         // 4. İstatistiklerin Hesaplanması
@@ -90,7 +97,7 @@ public class SmartSeedService : ISmartSeedService
             sb.AppendLine($"-- Table: {table.Name}");
 
             // Generate realistic mock records
-            int rowsToGenerate = Math.Min(rowCount, 10); // 10 is ideal for quick SQLite playground checks
+            int rowsToGenerate = rowCount; // Use the actual requested row count
             for (int i = 1; i <= rowsToGenerate; i++)
             {
                 var columns = new List<string>();

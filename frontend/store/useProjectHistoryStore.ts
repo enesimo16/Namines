@@ -96,6 +96,19 @@ interface ProjectHistoryState {
   setHasHydrated: (val: boolean) => void;
   setMigrationBaseline: (baseline: DatabaseSchema | null) => void;
   syncWithCloud: () => Promise<void>;
+
+  // ── Cloud Sync Throttle state ─────────────────────────────────────────
+  /** true ise cloud'a atılmamış değişiklik var — bir sonraki triggerCloudSyncIfDue zamanında gönderilecek */
+  pendingCloudSync: boolean;
+  /** Son başarılı cloud sync zamanı (ms) */
+  lastCloudSyncAt: number;
+  /** Throttle süresi: 30 saniye */
+  CLOUD_SYNC_THROTTLE_MS: number;
+  /**
+   * Eğer pendingCloudSync true ise ve son sync'ten 30s geçmişse cloud'a gönder.
+   * useProjectAutoSave veya beforeunload event'inden çağrılır.
+   */
+  triggerCloudSyncIfDue: () => Promise<void>;
 }
 
 // ── Store ──────────────────────────────────────────────────────────────────────
@@ -209,20 +222,14 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           });
         }
 
-        // Background Cloud Sync if user is authenticated
+        // ── Cloud Sync: fire-and-forget kaldırıldı ──────────────────────────────
+        // Artık her kaydetme anında cloud'a gitmiyoruz.
+        // Yerine pending flag seti: triggerCloudSyncIfDue() 30s throttle ile gönderir.
         const isAuth = useAuthStore.getState().isAuthenticated;
-        if (isAuth && targetId) {
-          const syncData = [{
-            id: targetId,
-            name: projectName,
-            dbType,
-            schemaJson: JSON.stringify(schema),
-            nodePositionsJson: JSON.stringify(nodePositions)
-          }];
-          authService.syncProjects(syncData).catch(err => {
-            console.error('Background project cloud sync failed:', err);
-          });
+        if (isAuth) {
+          set({ pendingCloudSync: true });
         }
+        // ────────────────────────────────────────────────────────────────────
       },
 
       loadProject: (id) => {
@@ -467,6 +474,41 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
       },
 
       setHasHydrated: (val) => set({ hasHydrated: val }),
+
+      // ── Cloud Sync Throttle implementation ──────────────────────────────────
+      pendingCloudSync: false,
+      lastCloudSyncAt: 0,
+      CLOUD_SYNC_THROTTLE_MS: 30_000, // 30 saniye
+
+      triggerCloudSyncIfDue: async () => {
+        const state = get();
+        const isAuth = useAuthStore.getState().isAuthenticated;
+        if (!state.pendingCloudSync || !isAuth || !state.hasHydrated) return;
+
+        const now = Date.now();
+        if (now - state.lastCloudSyncAt < state.CLOUD_SYNC_THROTTLE_MS) return; // Throttle
+
+        const { projects, activeProjectId } = state;
+        const activeProject = activeProjectId ? projects.find(p => p.id === activeProjectId) : null;
+        if (!activeProject || !activeProject.schema) return;
+
+        const syncData = [{
+          id: activeProject.id,
+          name: activeProject.name,
+          dbType: activeProject.dbType,
+          schemaJson: JSON.stringify(activeProject.schema),
+          nodePositionsJson: JSON.stringify(activeProject.nodePositions ?? {}),
+        }];
+
+        try {
+          await authService.syncProjects(syncData);
+          set({ pendingCloudSync: false, lastCloudSyncAt: Date.now() });
+        } catch (err) {
+          // Sessizce başarısız ol — bir sonraki triggerCloudSyncIfDue'de tekrar denenir
+          console.error('[CloudSync] Failed, will retry on next trigger:', err);
+        }
+      },
+      // ───────────────────────────────────────────────────────────────────────
 
       syncWithCloud: async () => {
         const { projects, hasHydrated } = get();

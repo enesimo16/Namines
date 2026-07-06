@@ -3,6 +3,7 @@
 :root {
   --background: #0b0c10;
   --foreground: #ffffff;
+  --color-accent-gold: #FFD700;
   color-scheme: dark;
 }
 
@@ -11,6 +12,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), var(--font-geist-sans), 'Inter', sans-serif;
   --font-mono: var(--font-geist-mono);
+  --color-accent-gold: var(--color-accent-gold);
   
   --color-ocean-dark: #0b0c10;
   --color-ocean-mid: #1a1f2e;
@@ -106,6 +108,23 @@ select option {
   color: #f8fafc;
   padding: 10px;
   font-size: 0.875rem;
+}
+
+
+/* Custom Dropdown Animation */
+.animate-dropdown-in {
+  animation: dropdown-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Ocean Wave Animation - Fluid & Smooth */
@@ -1250,3 +1269,61 @@ select option {
   border-color: rgba(251,191,36,0.6);
   box-shadow: 0 0 20px rgba(251,191,36,0.2);
 }
+
+/* ─────────────────────────────────────────
+   Erişilebilirlik — Screen Reader yardımcıları
+───────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* #aria-live-region görsel olarak gizli ama screen reader'a okunur */
+#aria-live-region {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Skip Navigation Link */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 16px;
+  z-index: 10000;
+  padding: 8px 16px;
+  background: #1a1a2e;
+  color: #FFD700;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: bold;
+  text-decoration: none;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 8px; /* Tab tuşuyla odaklanıldığında görünür olur */
+  outline: 2px solid #FFD700;
+  outline-offset: 2px;
+}
+
+/* Klavyeyle gezinirken beliren global odak halkası */
+*:focus-visible {
+  outline: 2px solid var(--color-accent-gold) !important;
+  outline-offset: 2px !important;
+}
+

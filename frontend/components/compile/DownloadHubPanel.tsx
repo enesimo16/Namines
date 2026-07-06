@@ -7,7 +7,8 @@ import {
   Download, Loader2, RefreshCw, CheckCircle2,
   Sparkles, Crown, Code2, Cpu
 } from 'lucide-react';
-import { scaffolderService } from '../../services/api';
+import { scaffolderService, coderAIService } from '../../services/api';
+import { useAIGateway } from '../../hooks/useAIGateway';
 
 interface DownloadHubPanelProps {
   schema: DatabaseSchema;
@@ -19,6 +20,8 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   const [logs, setLogs] = useState<string[]>([]);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [isExportingPython, setIsExportingPython] = useState(false);
+
+  const { checkAccess } = useAIGateway();
 
   const logsEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -47,28 +50,18 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   };
 
   const handleGenerate = async () => {
+    if (!checkAccess("AI Coder Sandbox Generation")) return;
     setStatus('generating');
     setLogs(['🚀 Admin panel package generation request sent...', '⏳ AI engine is preparing...']);
     setDownloadUrl(null);
 
     try {
-      const response = await fetch('http://localhost:5000/api/coderai/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schema, dbType }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API Error (${response.status}): ${errText}`);
-      }
-
-      const data = await response.json();
-      const jobId: string = data.jobId;
+      const jobId = await coderAIService.generate(schema, dbType, true);
       setLogs(prev => [...prev, `📋 Project ID assigned: ${jobId.substring(0, 8)}...`]);
 
       // Connect to SSE for real-time progress logs
-      const sse = new EventSource(`http://localhost:5000/api/coderai/stream/${jobId}`);
+      const streamUrl = coderAIService.getStreamUrl(jobId);
+      const sse = new EventSource(streamUrl);
 
       sse.onmessage = (e) => {
         const msg: string = e.data;
@@ -113,7 +106,11 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
 
     } catch (err: any) {
       setStatus('error');
-      setLogs(prev => [...prev, `❌ ERROR: ${err.message}`]);
+      if (err?.response?.status === 429) {
+        setLogs(prev => [...prev, '❌ ERROR: Daily AI Limit Reached. Please upgrade to Pro for unlimited generation.']);
+      } else {
+        setLogs(prev => [...prev, `❌ ERROR: ${err.message}`]);
+      }
     }
   };
 
@@ -460,7 +457,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
         <div className="absolute top-[20%] left-[60%] w-0.5 h-0.5 bg-white/95 rounded-full" />
       </div>
 
-      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.01] mix-blend-overlay" />
+      <div className="absolute inset-0 pointer-events-none bg-[url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20200%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter%20id=%22noiseFilter%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.65%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.01] mix-blend-overlay" />
 
       <div className="relative z-10 w-full max-w-4xl flex flex-col gap-8">
         {/* Title block with wave-sparkle custom logo */}

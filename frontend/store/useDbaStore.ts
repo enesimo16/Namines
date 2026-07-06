@@ -17,7 +17,7 @@ interface DbaState {
 export const useDbaStore = create<DbaState>((set) => ({
   issues: [],
   score: 100,
-  assessment: 'Şema sağlık kontrolü bekleniyor...',
+  assessment: 'Pending schema health check...',
   isAnalyzing: false,
   isPanelOpen: false,
   selectedTableFilter: null,

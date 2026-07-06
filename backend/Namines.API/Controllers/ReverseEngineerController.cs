@@ -56,6 +56,54 @@ public class ReverseEngineerController : ControllerBase
         _logger.LogInformation("ReverseEngineer: Görsel analiz talebi alındı. Dosya Adı: {FileName}, Boyut: {Size} bytes", 
             image.FileName, image.Length);
 
+        bool forceLocal = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
+        if (forceLocal)
+        {
+            _logger.LogInformation("ReverseEngineer: Local Fallback active: returning basic template schema.");
+            var fallbackSchema = new DatabaseSchema
+            {
+                Name = "ReverseEngineered_LocalFallback",
+                Tables = new System.Collections.Generic.List<SchemaTable>
+                {
+                    new SchemaTable
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = "users",
+                        Columns = new System.Collections.Generic.List<SchemaColumn>
+                        {
+                            new SchemaColumn { Id = Guid.NewGuid().ToString(), Name = "id", Type = "int", IsPK = true, IsNullable = false },
+                            new SchemaColumn { Id = Guid.NewGuid().ToString(), Name = "username", Type = "varchar", Length = 100, IsNullable = false },
+                            new SchemaColumn { Id = Guid.NewGuid().ToString(), Name = "email", Type = "varchar", Length = 150, IsNullable = true }
+                        }
+                    },
+                    new SchemaTable
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = "orders",
+                        Columns = new System.Collections.Generic.List<SchemaColumn>
+                        {
+                            new SchemaColumn { Id = Guid.NewGuid().ToString(), Name = "id", Type = "int", IsPK = true, IsNullable = false },
+                            new SchemaColumn { Id = Guid.NewGuid().ToString(), Name = "user_id", Type = "int", IsFK = true, IsNullable = false },
+                            new SchemaColumn { Id = Guid.NewGuid().ToString(), Name = "amount", Type = "decimal", IsNullable = false }
+                        }
+                    }
+                },
+                Relations = new System.Collections.Generic.List<SchemaRelation>
+                {
+                    new SchemaRelation
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Type = "OneToMany",
+                        SourceTableId = "", // resolved on frontend if needed or left empty
+                        SourceColumnId = "",
+                        TargetTableId = "",
+                        TargetColumnId = ""
+                    }
+                }
+            };
+            return Ok(fallbackSchema);
+        }
+
         try
         {
             using var ms = new MemoryStream();

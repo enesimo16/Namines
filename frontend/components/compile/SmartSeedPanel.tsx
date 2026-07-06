@@ -12,6 +12,13 @@ import Prism from 'prismjs';
 import 'prismjs/components/prism-sql';
 import 'prismjs/themes/prism-tomorrow.css';
 
+import { useAIGateway } from '../../hooks/useAIGateway';
+import { useQuotaStore } from '../../store/useQuotaStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useToastStore } from '../../store/useToastStore';
+import ContextualHelpTooltip from '../help/ContextualHelpTooltip';
+import { helpContent } from '../../lib/helpContent';
+
 interface SmartSeedPanelProps {
   schema: DatabaseSchema;
   dbType: DbType;
@@ -22,6 +29,11 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
   const [rowCount, setRowCount] = useState<number>(50);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+
+  const { checkAccess } = useAIGateway();
+  const { remaining } = useQuotaStore();
+  const { isAuthenticated } = useAuthStore();
+  const showToast = useToastStore(state => state.showToast);
 
   const [result, setResult] = useState<{
     sqlScript: string;
@@ -42,10 +54,15 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
     setIsGenerating(true);
     setResult(null);
     try {
-      const data = await smartSeedService.generate(schema, dbType, domainHint || undefined, rowCount);
+      const data = await smartSeedService.generate(schema, dbType, domainHint || undefined, rowCount, false);
       setResult(data);
-    } catch (err) {
-      console.error("Test data generation error:", err);
+    } catch (err: any) {
+      if (err?.response?.status === 429) {
+        showToast('Daily AI limit reached! Please upgrade your plan for unlimited test data.', 'warning');
+      } else {
+        console.error("Test data generation error:", err);
+        showToast(`Test data generation failed: ${err.message || 'Unknown error'}`, 'error');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -152,20 +169,22 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
         </div>
 
         {/* Generate Button */}
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating || !schema.tables || schema.tables.length === 0}
-          className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.25)] hover:shadow-[0_0_20px_rgba(99,102,241,0.45)] transition-all duration-300 flex items-center justify-center gap-2 border border-indigo-400/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin text-white" />
-              Generating...
-            </>
-          ) : (
-            <span>Generate Test Data</span>
-          )}
-        </button>
+        <div className="flex items-center justify-end w-full md:w-auto">
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating || !schema.tables || schema.tables.length === 0}
+            className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-xs rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.25)] hover:shadow-[0_0_20px_rgba(99,102,241,0.45)] transition-all duration-300 flex items-center justify-center gap-2 border border-indigo-400/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed h-[44px]"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                Generating...
+              </>
+            ) : (
+              <span>Generate Test Data</span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Result statistics & preview */}
@@ -245,7 +264,10 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
           <div className="flex-1 min-h-0 bg-zinc-900/10 border border-zinc-800 border-dashed rounded-xl flex flex-col items-center justify-center text-center p-8 gap-3">
             <Info className="w-10 h-10 text-zinc-700" />
             <div>
-              <h4 className="text-zinc-400 font-semibold text-sm">Intelligent Data Seeding</h4>
+              <h4 className="text-zinc-400 font-semibold text-sm flex items-center justify-center gap-1">
+                Intelligent Data Seeding
+                <ContextualHelpTooltip content={helpContent.smartSeed} />
+              </h4>
               <p className="text-zinc-600 text-xs mt-1 max-w-md leading-relaxed">
                 Analyzes your database schema&apos;s relational structure and domain model to generate consistent, realistic test datasets. Select a sector above or let the engine auto-detect it, then click the button to generate.
               </p>

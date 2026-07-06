@@ -9,4 +9,5 @@ public class SmartSeedRequest
     public DatabaseType DbType { get; set; }
     public string? DomainHint { get; set; }
     public int RowCount { get; set; } = 50;
+    public bool EnhanceWithAI { get; set; } = false;
 }

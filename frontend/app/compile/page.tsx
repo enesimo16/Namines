@@ -208,7 +208,7 @@ export default function CompilePage() {
     <div className="min-h-screen bg-[#030208] text-zinc-200 flex flex-col font-sans relative overflow-hidden">
       {/* Dynamic Starry Sky Gradient */}
       <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#05040d] via-[#080718] to-[#020205] z-0" />
-      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.012] mix-blend-overlay z-0" />
+      <div className="absolute inset-0 pointer-events-none bg-[url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20200%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter%20id=%22noiseFilter%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.65%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.012] mix-blend-overlay z-0" />
 
       {/* Inline styles for Premium Wave & Twinkle Animations */}
       <style dangerouslySetInnerHTML={{__html: `

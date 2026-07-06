@@ -67,7 +67,10 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
   const handleLoadProject = (project: ProjectSnapshot) => {
     setActiveProjectId(project.id);
     setDbType(project.dbType);
-    loadFromSchema(project.schema, project.nodePositions);
+    if (project.schema) {
+      project.schema.name = project.name;
+    }
+    loadFromSchema(project.schema, project.nodePositions, false);
     onClose();
     router.push('/canvas');
   };
@@ -133,7 +136,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
             onClick={handleNewProject}
             className="w-full relative group overflow-hidden rounded-xl border border-indigo-400/40 bg-gradient-to-r from-indigo-950/80 to-purple-900/40 p-4 transition-all hover:border-indigo-400/70 hover:shadow-[0_0_20px_rgba(99,102,241,0.3)] flex items-center justify-between backdrop-blur-sm"
           >
-            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10 mix-blend-overlay pointer-events-none" />
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20200%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter%20id=%22noiseFilter%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.65%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-10 mix-blend-overlay pointer-events-none" />
             <span className="text-indigo-100 font-medium tracking-wide relative z-10">New Project</span>
             <div className="w-6 h-6 rounded-full border border-indigo-300/30 bg-white/5 flex items-center justify-center text-indigo-200 group-hover:bg-indigo-400/20 transition-colors relative z-10">
               <Plus className="w-3.5 h-3.5" />

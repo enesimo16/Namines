@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, Sparkles, History, Users, Terminal, Activity } from 'lucide-react';
+import { CheckCircle, Sparkles, History, Users, Terminal, Activity, Settings } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useReactFlow } from '@xyflow/react';
 import { flowToSchema } from '../../../lib/flowToSchema';
@@ -8,6 +8,7 @@ import MigrationWizard from '../../migration/MigrationWizard';
 import { useMultiplayerStore } from '../../../store/useMultiplayerStore';
 import { useSqlExplorerStore } from '../../../store/useSqlExplorerStore';
 import { useToastStore } from '../../../store/useToastStore';
+import { useByokStore } from '../../../store/useByokStore';
 
 export default function ToolbarPanel() {
   const router = useRouter();
@@ -20,7 +21,12 @@ export default function ToolbarPanel() {
   const isSqlExplorerOpen = useSqlExplorerStore(state => state.isOpen);
   const toggleSqlExplorer = useSqlExplorerStore(state => state.toggleOpen);
 
+  const { apiKey } = useByokStore();
   const showToast = useToastStore(state => state.showToast);
+
+  const openAiSettings = () => {
+    window.dispatchEvent(new CustomEvent('namines:open-ai-settings'));
+  };
 
   const handleApprove = () => {
     // Sync current UI state back to schema before leaving
@@ -46,6 +52,21 @@ export default function ToolbarPanel() {
   return (
     <>
       <div className="fixed top-[8px] right-6 z-[60] flex items-center gap-3">
+        {/* AI Settings button */}
+        <button
+          onClick={openAiSettings}
+          className="relative flex items-center justify-center bg-[#0F172A]/90 hover:bg-[#1E293B] text-zinc-400 hover:text-zinc-200 w-10 h-10 rounded-[10px] transition-all border border-indigo-500/20 hover:border-indigo-500/40 shadow-md cursor-pointer"
+          title="AI & BYOK Settings"
+        >
+          <Settings className="w-4 h-4" />
+          {apiKey && (
+            <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+          )}
+        </button>
+
         {/* Live Share (SignalR Room Share) */}
         {isConnected && (
           <button
@@ -88,6 +109,7 @@ export default function ToolbarPanel() {
 
         {/* Approve Diagram Button */}
         <button
+          id="approve-diagram-btn"
           onClick={handleApprove}
           className="group relative flex items-center justify-center gap-2 bg-gradient-to-r from-[#4f46e5] to-[#6366f1] hover:from-[#5b4ff8] hover:to-[#818cf8] text-white px-5 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-[#818cf8]/40 shadow-[0_0_15px_rgba(79,70,229,0.5)] overflow-hidden h-10 animate-none"
         >

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -9,6 +10,10 @@ using Microsoft.Extensions.Logging;
 using Namines.API.Services;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Infrastructure.Services;
+using Namines.Infrastructure.Data;
+using Namines.Core.Models.Auth;
+using Microsoft.EntityFrameworkCore;
 using System.Linq;
 
 namespace Namines.API.Controllers;
@@ -36,14 +41,18 @@ public class CoderAIController : ControllerBase
     {
         if (request?.Schema == null)
         {
-            _logger.LogWarning("CoderAI: Geçersiz istek - Schema null");
-            return BadRequest(new { error = "Schema boş olamaz" });
+            _logger.LogWarning("CoderAI: Invalid request - Schema is null");
+            return BadRequest(new { error = "Schema cannot be empty" });
         }
 
-        _logger.LogInformation("CoderAI: Generate isteği alındı. Şema: {Name}, DbType: {DbType}", request.Schema.Name, request.DbType);
+        _logger.LogInformation("CoderAI: Generate request received. Schema: {Name}, DbType: {DbType}", request.Schema.Name, request.DbType);
 
         var jobId = Guid.NewGuid().ToString();
         _jobManager.CreateJob(jobId);
+
+        // Capture HttpContext items and claims before spawning background thread
+        bool fallbackToLocal = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
         // Run background packaging task (no docker container startup)
         Task.Run(async () =>
@@ -57,27 +66,78 @@ public class CoderAIController : ControllerBase
 
             try
             {
-                _jobManager.AddLog(jobId, "CoderAI: DDL Script oluşturuluyor...");
+                var cacheService = sp.GetRequiredService<SemanticCacheService>();
+
+                _jobManager.AddLog(jobId, "CoderAI: Generating DDL Script...");
                 var generator = ddlFactory.GetGenerator(request.DbType);
                 var sqlContent = generator.Generate(request.Schema);
-                _logger.LogInformation("CoderAI [{JobId}]: DDL oluşturuldu ({Len} karakter)", jobId, sqlContent.Length);
+                _logger.LogInformation("CoderAI [{JobId}]: DDL generated ({Len} chars)", jobId, sqlContent.Length);
 
-                string appPyContent;
-                try
+                string appPyContent = "";
+                bool cacheHit = false;
+
+                bool forceLocal = fallbackToLocal;
+                if (!forceLocal && !string.IsNullOrEmpty(userId))
                 {
-                    _jobManager.AddLog(jobId, "CoderAI: Groq AI ile Streamlit uygulaması kodlanıyor...");
-                    var aiService = aiFactory.GetService("Groq");
-                    appPyContent = await aiService.GenerateStreamlitAppAsync(request.Schema, request.DbType);
+                    var db = sp.GetRequiredService<AuthDbContext>();
+                    var policy = await db.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
+                    if (policy != null && policy.Scaffolding == AIMode.DefaultNamines)
+                    {
+                        forceLocal = true;
+                    }
                 }
-                catch (Exception aiEx)
+
+                if (request.EnhanceWithAI && !forceLocal)
                 {
-                    _logger.LogWarning(aiEx, "CoderAI [{JobId}]: AI Streamlit kod üretimi başarısız oldu. Programatik şablon motoruna geçiliyor...", jobId);
-                    _jobManager.AddLog(jobId, "⚠️ AI kotası aşıldı! Geliştirici paketiniz için C# şablon motoruyla Streamlit uygulaması oluşturuluyor...");
+                    try
+                    {
+                        var cached = await cacheService.TryGetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString() });
+                        if (cached != null)
+                        {
+                            _jobManager.AddLog(jobId, "CoderAI: Cache HIT. Reusing cached Streamlit app code.");
+                            appPyContent = cached;
+                            cacheHit = true;
+                        }
+                    }
+                    catch (Exception cacheEx)
+                    {
+                        _logger.LogWarning(cacheEx, "CoderAI [{JobId}]: Cache lookup failed", jobId);
+                    }
+
+                    if (!cacheHit)
+                    {
+                        try
+                        {
+                            _jobManager.AddLog(jobId, "CoderAI: Coding Streamlit application with Groq AI...");
+                            var aiService = aiFactory.GetService("Groq");
+                            appPyContent = await aiService.GenerateStreamlitAppAsync(request.Schema, request.DbType);
+                            
+                            try
+                            {
+                                await cacheService.SetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString() }, appPyContent, TimeSpan.FromHours(2));
+                            }
+                            catch (Exception cacheEx)
+                            {
+                                _logger.LogWarning(cacheEx, "CoderAI [{JobId}]: Failed to save cache", jobId);
+                            }
+                        }
+                        catch (Exception aiEx)
+                        {
+                            _logger.LogWarning(aiEx, "CoderAI [{JobId}]: AI Streamlit code generation failed. Falling back to programmatic template engine...", jobId);
+                            _jobManager.AddLog(jobId, "WARNING: AI quota exceeded. Generating Streamlit app with C# template engine for your developer package...");
+                            appPyContent = GenerateStreamlitAppProgrammatically(request.Schema, request.DbType.ToString());
+                        }
+                    }
+                }
+                else
+                {
+                    _jobManager.AddLog(jobId, "CoderAI: Generating Streamlit application with programmatic template engine...");
                     appPyContent = GenerateStreamlitAppProgrammatically(request.Schema, request.DbType.ToString());
                 }
-                _logger.LogInformation("CoderAI [{JobId}]: app.py üretildi ({Len} karakter)", jobId, appPyContent.Length);
 
-                _jobManager.AddLog(jobId, "CoderAI: Proje paketi (.zip) oluşturuluyor...");
+                _logger.LogInformation("CoderAI [{JobId}]: app.py generated ({Len} chars)", jobId, appPyContent.Length);
+
+                _jobManager.AddLog(jobId, "CoderAI: Packaging project (.zip)...");
                 var tempZipPath = await packager.PackageAsZipAsync(appPyContent, sqlContent, request.DbType, request.Schema.Name);
 
                 // Copy generated ZIP to outputs directory under target controller's jobId
@@ -89,11 +149,11 @@ public class CoderAIController : ControllerBase
                 System.IO.File.Move(tempZipPath, targetPath);
 
                 _jobManager.CompleteJob(jobId, $"/api/coderai/download/{jobId}");
-                _logger.LogInformation("CoderAI [{JobId}]: Tamamlandı.", jobId);
+                _logger.LogInformation("CoderAI [{JobId}]: Completed.", jobId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "CoderAI [{JobId}]: HATA oluştu", jobId);
+                _logger.LogError(ex, "CoderAI [{JobId}]: ERROR occurred", jobId);
                 _jobManager.CompleteJob(jobId, "", ex.Message);
             }
         });
@@ -180,7 +240,7 @@ public class CoderAIController : ControllerBase
     {
         var filePath = Path.Combine(Directory.GetCurrentDirectory(), "Outputs", $"coderai_{jobId}.zip");
         if (!System.IO.File.Exists(filePath))
-            return NotFound("Zip dosyası bulunamadı.");
+            return NotFound("Zip file not found.");
 
         var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
         return File(stream, "application/zip", $"admin_panel_{jobId}.zip");
@@ -205,9 +265,9 @@ public class CoderAIController : ControllerBase
             sb.AppendLine($"    '{t.Name}',");
         }
         sb.AppendLine("]");
-        sb.AppendLine("selected_table = st.sidebar.selectbox('Tablo Seçin', tables)");
+        sb.AppendLine("selected_table = st.sidebar.selectbox('Select Table', tables)");
         sb.AppendLine();
-        sb.AppendLine("st.subheader(f'📋 {selected_table} Verileri')");
+        sb.AppendLine("st.subheader(f'Table: {selected_table}')");
         sb.AppendLine();
         foreach (var t in schema.Tables)
         {
@@ -244,16 +304,16 @@ public class CoderAIController : ControllerBase
             sb.AppendLine("    df = pd.DataFrame(data)");
             sb.AppendLine("    st.dataframe(df, use_container_width=True)");
             sb.AppendLine();
-            sb.AppendLine("    st.markdown('### ➕ Yeni Kayıt Ekle')");
+            sb.AppendLine("    st.markdown('### Add New Record')");
             sb.AppendLine("    with st.form(key=f'add_form_{selected_table}'):");
             foreach (var col in t.Columns)
             {
                 if (col.IsPK) continue;
                 sb.AppendLine($"        val_{col.Name} = st.text_input('{col.Name}')");
             }
-            sb.AppendLine("        submitted = st.form_submit_button('Kayıt Ekle')");
+            sb.AppendLine("        submitted = st.form_submit_button('Add Record')");
             sb.AppendLine("        if submitted:");
-            sb.AppendLine("            st.success('Kayıt başarıyla eklendi!')");
+            sb.AppendLine("            st.success('Record added successfully!')");
             sb.AppendLine();
         }
         return sb.ToString();

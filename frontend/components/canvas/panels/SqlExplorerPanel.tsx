@@ -4,12 +4,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, Play, X, RefreshCw, Database, AlertCircle, CheckCircle, Table2 } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useSqlExplorerStore } from '../../../store/useSqlExplorerStore';
+import { useAIGateway } from '../../../hooks/useAIGateway';
 import { sqliteService, SqlQueryResult } from '../../../services/sqliteService';
 import { schemaService, smartSeedService } from '../../../services/api';
 
 export default function SqlExplorerPanel() {
   const { schema } = useSchemaStore();
   const { isOpen, setIsOpen } = useSqlExplorerStore();
+  const { checkAccess } = useAIGateway();
 
   const [sqlQuery, setSqlQuery] = useState<string>('');
   const [queryResult, setQueryResult] = useState<SqlQueryResult | null>(null);
@@ -26,6 +28,7 @@ export default function SqlExplorerPanel() {
   // Synchronize and seed the WebAssembly DB with DDL + Mock Data
   const syncAndSeedDb = async () => {
     if (!schema || schema.tables.length === 0) return;
+    if (!checkAccess("Live Database Seeding")) return;
     setIsSyncing(true);
     setSyncError(null);
     setSyncSuccess(false);
@@ -59,7 +62,11 @@ export default function SqlExplorerPanel() {
 
       setTimeout(() => setSyncSuccess(false), 3000);
     } catch (err: any) {
-      setSyncError(err.message || 'Error occurred while setting up live database.');
+      if (err?.response?.status === 429) {
+        setSyncError('Daily AI Limit Reached: Please upgrade your plan for unlimited seeding.');
+      } else {
+        setSyncError(err.message || 'Error occurred while setting up live database.');
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -92,7 +99,7 @@ export default function SqlExplorerPanel() {
     initOrRestoreDb();
   }, [isOpen, schema]);
 
-  // Periodic saving and page unload save listeners
+  // Periodic saving and page unload/visibility save listeners
   useEffect(() => {
     if (!isOpen) return;
 
@@ -103,18 +110,22 @@ export default function SqlExplorerPanel() {
       }
     }, 10000);
 
-    // Save on beforeunload
-    const handleBeforeUnload = () => {
+    // Save on unload or tab switch/backgrounding
+    const handleSave = () => {
       if (sqliteService.isActive()) {
         sqliteService.saveToIndexedDb();
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('beforeunload', handleSave);
+    window.addEventListener('pagehide', handleSave);
+    document.addEventListener('visibilitychange', handleSave);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('beforeunload', handleSave);
+      window.removeEventListener('pagehide', handleSave);
+      document.removeEventListener('visibilitychange', handleSave);
     };
   }, [isOpen]);
 
@@ -146,7 +157,7 @@ export default function SqlExplorerPanel() {
       className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-gradient-to-b from-[#09111F]/90 to-[#0D182A]/90 border border-indigo-500/30 shadow-[0_10px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-3xl backdrop-blur-xl"
     >
       {/* Background Orbs & Stars (Uzay Teması) */}
-      <div className="absolute inset-0 pointer-events-none bg-[url('/noise.png')] opacity-[0.01] mix-blend-overlay animate-none" />
+      <div className="absolute inset-0 pointer-events-none bg-[url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20200%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter%20id=%22noiseFilter%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.65%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.01] mix-blend-overlay animate-none" />
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-600/10 via-purple-900/5 to-transparent opacity-80" />
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-teal-500/5 via-transparent to-transparent opacity-60" />
       

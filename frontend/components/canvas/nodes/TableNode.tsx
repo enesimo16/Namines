@@ -15,7 +15,10 @@ export type TableNodeType = Node<{
 export default function TableNode({ data, selected }: NodeProps<TableNodeType>) {
   const { table, diff } = data;
   const { result } = useLinterStore();
-  const { isEditMode, setSelectedTableForEdit } = useSchemaStore();
+  const { isEditMode, setSelectedTableForEdit, deleteTable, onNodesChange } = useSchemaStore();
+  
+  // Get node position from schema store for keyboard movement
+  const nodePosition = useSchemaStore(state => state.nodes.find(n => n.id === table.id)?.position);
   
   // Read AI DBA issues for this table safely
   const issues = useDbaStore(state => state.issues);
@@ -23,6 +26,47 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
   const setSelectedTableFilter = useDbaStore(state => state.setSelectedTableFilter);
   
   const [showPopover, setShowPopover] = React.useState(false);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Prevent key triggers if popover is open or another element is focused inside the node
+    if (e.target !== e.currentTarget) return;
+
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      if (!nodePosition) return;
+      
+      let { x, y } = nodePosition;
+      const step = 10;
+      
+      switch (e.key) {
+        case 'ArrowUp':
+          y -= step;
+          break;
+        case 'ArrowDown':
+          y += step;
+          break;
+        case 'ArrowLeft':
+          x -= step;
+          break;
+        case 'ArrowRight':
+          x += step;
+          break;
+      }
+      
+      onNodesChange([
+        {
+          id: table.id,
+          type: 'position',
+          position: { x, y },
+        }
+      ]);
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      if (isEditMode && !diff) {
+        deleteTable(table.id);
+      }
+    }
+  };
   
   const dbaIssues = React.useMemo(() => issues.filter(i => i.tableName === table.name), [issues, table.name]);
   const hasDbaError = dbaIssues.some(i => i.severity === 2);
@@ -123,6 +167,10 @@ export default function TableNode({ data, selected }: NodeProps<TableNodeType>) 
 
   return (
     <div
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      role="group"
+      aria-label={`Table ${table.name} with ${table.columns.length} columns`}
       className={`${containerBgClass} border rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.4)] w-80 flex flex-col font-sans overflow-hidden transition-all relative ${borderColorClass}`}
       onDoubleClick={(e) => {
         e.stopPropagation();

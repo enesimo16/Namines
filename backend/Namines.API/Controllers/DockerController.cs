@@ -143,6 +143,6 @@ public class DockerController : ControllerBase
             return File(stream, "application/x-tar", $"backup_{jobId}.tar");
         }
 
-        return NotFound("Yedek dosyası bulunamadı.");
+        return NotFound("Backup file not found.");
     }
 }
