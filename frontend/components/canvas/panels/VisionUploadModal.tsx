@@ -119,10 +119,16 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
   const executeImport = (finalSchema: any) => {
     // Apply the imported schema to the canvas Zustand store
-    importFromVision(finalSchema);
-    
+    try {
+      importFromVision(finalSchema);
+    } catch (err: any) {
+      // Ortak, kullanıcıya açıklayıcı hata (sessizce çökmesin).
+      setError(err?.message || 'İçe aktarma başarısız oldu. Şema verisi eksik veya bozuk olabilir; lütfen tekrar deneyin.');
+      return;
+    }
+
     setSuccess(true);
-    
+
     // Auto close modal shortly after success
     setTimeout(() => {
       handleClose();

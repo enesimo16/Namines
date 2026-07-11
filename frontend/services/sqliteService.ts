@@ -2,49 +2,49 @@ import initSqlJs from 'sql.js';
 import localforage from 'localforage';
 
 let SQL: any = null;
+let sqlPromise: Promise<any> | null = null;
 let dbInstance: any = null;
 
 /**
- * Initializes and fetches the sql.js Wasm library from CDN.
+ * sql.js WASM kütüphanesini yükler.
+ * - In-flight promise CACHE'lenir → eşzamanlı çağrılar tek init'i paylaşır (yarış/"Setup Error" önlenir).
+ * - Önce YEREL bundled /sql-wasm.wasm denenir (güvenilir, offline çalışır); sonra CDN fallback.
  */
 async function getSqlInstance() {
   if (SQL) return SQL;
-  
+  if (sqlPromise) return sqlPromise;
+
   const version = '1.14.1';
+  sqlPromise = (async () => {
+    // Try 1: local public folder (bundled — en güvenilir)
+    try {
+      SQL = await initSqlJs({ locateFile: (file: string) => `/${file}` });
+      console.log('✔ sql.js loaded from local /public');
+      return SQL;
+    } catch (errLocal) {
+      console.warn('Local sql.js load failed, trying CDN...', errLocal);
+    }
+    // Try 2: jsdelivr CDN
+    try {
+      SQL = await initSqlJs({ locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/sql.js@${version}/dist/${file}` });
+      console.log('✔ sql.js loaded from jsdelivr CDN');
+      return SQL;
+    } catch (err1) {
+      console.warn('jsdelivr failed, trying unpkg...', err1);
+    }
+    // Try 3: unpkg CDN
+    try {
+      SQL = await initSqlJs({ locateFile: (file: string) => `https://unpkg.com/sql.js@${version}/dist/${file}` });
+      console.log('✔ sql.js loaded from unpkg CDN');
+      return SQL;
+    } catch (err2) {
+      sqlPromise = null; // başarısız → sonraki çağrıda yeniden denenebilsin
+      console.error('All sql-wasm.wasm loads failed:', err2);
+      throw err2;
+    }
+  })();
 
-  // Try 1: jsdelivr CDN
-  try {
-    SQL = await initSqlJs({
-      locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/sql.js@${version}/dist/${file}`
-    });
-    console.log('✔ sql.js successfully loaded from jsdelivr CDN');
-    return SQL;
-  } catch (err1) {
-    console.warn("Failed to load sql.js from jsdelivr, trying unpkg...", err1);
-  }
-
-  // Try 2: unpkg CDN
-  try {
-    SQL = await initSqlJs({
-      locateFile: (file: string) => `https://unpkg.com/sql.js@${version}/dist/${file}`
-    });
-    console.log('✔ sql.js successfully loaded from unpkg CDN');
-    return SQL;
-  } catch (err2) {
-    console.warn("Failed to load sql.js from unpkg, trying local fallback...", err2);
-  }
-
-  // Try 3: local public folder fallback
-  try {
-    SQL = await initSqlJs({
-      locateFile: (file: string) => `/${file}`
-    });
-    console.log('✔ sql.js loaded from local fallback');
-    return SQL;
-  } catch (err3) {
-    console.error("All sql-wasm.wasm loads failed:", err3);
-    throw err3;
-  }
+  return sqlPromise;
 }
 
 export interface SqlQueryResult {

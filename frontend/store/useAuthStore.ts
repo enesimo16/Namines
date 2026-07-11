@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { useQuotaStore } from './useQuotaStore';
+import { useMultiplayerStore } from './useMultiplayerStore';
+import { useProjectHistoryStore } from './useProjectHistoryStore';
+import { useSchemaStore } from './useSchemaStore';
 
 export interface UserProfile {
   username: string;
@@ -46,6 +49,26 @@ export const useAuthStore = create<AuthState>()(
         fetch(`${base}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
         set({ token: null, user: null, isAuthenticated: false });
         useQuotaStore.getState().reset();
+
+        // Gizlilik (özellikle paylaşılan makine): oturum kapanınca oda/live-share
+        // durumunu, yerel projeleri ve tuvali temizle; URL'deki roomId'yi kaldır.
+        try {
+          useMultiplayerStore.setState({
+            roomId: null, userName: null, isConnected: false, isOffline: false, cursors: {},
+          });
+          useProjectHistoryStore.setState({ projects: [], activeProjectId: null });
+          useSchemaStore.getState().resetProject();
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('namines_username');
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('roomId')) {
+              url.searchParams.delete('roomId');
+              window.history.replaceState({}, '', url.toString());
+            }
+          }
+        } catch (e) {
+          console.error('Logout cleanup error', e);
+        }
       },
     }),
     {

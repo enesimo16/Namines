@@ -248,11 +248,11 @@ export default function Header() {
       {/* Global Quota Exhausted Modal */}
       <QuotaExhaustedModal />
 
-      {/* Daily Quota Warning Alert in Bottom-Left */}
+      {/* Daily Quota Warning Alert in Bottom-Right */}
       {(isCanvas || isCompile) && (
-        <QuotaBottomLeftAlert 
-          remainingPercent={remainingPercent} 
-          isFreeUser={isAuthenticated && user?.type !== 'corporate'} 
+        <QuotaBottomRightAlert
+          remainingPercent={remainingPercent}
+          show={isAuthenticated}
         />
       )}
     </>
@@ -262,7 +262,7 @@ export default function Header() {
 
 interface QuotaAlertProps {
   remainingPercent: number;
-  isFreeUser: boolean;
+  show: boolean;
 }
 
 function getQuotaRange(percent: number): number {
@@ -273,7 +273,7 @@ function getQuotaRange(percent: number): number {
   return 100;
 }
 
-function QuotaBottomLeftAlert({ remainingPercent, isFreeUser }: QuotaAlertProps) {
+function QuotaBottomRightAlert({ remainingPercent, show }: QuotaAlertProps) {
   const [isDismissed, setIsDismissed] = useState(false);
   const currentRange = getQuotaRange(remainingPercent);
   const prevRange = useRef(currentRange);
@@ -286,7 +286,7 @@ function QuotaBottomLeftAlert({ remainingPercent, isFreeUser }: QuotaAlertProps)
     }
   }, [currentRange]);
 
-  if (!isFreeUser || isDismissed || currentRange === 100) return null;
+  if (!show || isDismissed || currentRange === 100) return null;
 
   let message = "";
   let dotColor = "bg-amber-400";
@@ -294,33 +294,34 @@ function QuotaBottomLeftAlert({ remainingPercent, isFreeUser }: QuotaAlertProps)
   let shadowClass = "shadow-amber-500/5";
 
   if (remainingPercent === 0) {
-    message = "Finished. All AI features have switched to local.";
+    message = "Token bitti — minimum AI aktif. Tüm ücretsiz özellikler açık.";
     dotColor = "bg-rose-500";
     borderClass = "border-rose-500/30";
     shadowClass = "shadow-rose-500/15";
   } else if (remainingPercent <= 10) {
-    message = `AI Credits: ${remainingPercent}% remaining. Switching to local soon.`;
+    message = `AI token: %${remainingPercent} kaldı — birazdan minimum AI'ya geçilecek.`;
     dotColor = "bg-red-500 animate-pulse";
     borderClass = "border-red-500/30";
     shadowClass = "shadow-red-500/15";
   } else if (remainingPercent <= 25) {
-    message = `AI Credits: ${remainingPercent}% remaining.`;
+    message = `AI token: %${remainingPercent} kaldı.`;
     dotColor = "bg-orange-500";
     borderClass = "border-orange-500/20";
     shadowClass = "shadow-orange-500/5";
   } else {
-    message = `AI Credits: ${remainingPercent}% remaining.`;
+    message = `AI token: %${remainingPercent} kaldı.`;
     dotColor = "bg-amber-400";
     borderClass = "border-amber-500/20";
     shadowClass = "shadow-amber-500/5";
   }
 
+  // Sağ altta; toast yığınının üstünde durması için bottom-24.
   return (
-    <div className={`fixed bottom-6 left-6 z-[9999] flex items-center gap-2.5 px-4.5 py-2.5 rounded-full bg-slate-950/90 border ${borderClass} shadow-xl ${shadowClass} backdrop-blur-md animate-in slide-in-from-bottom-3 duration-250 text-zinc-300 font-sans text-xs select-none`}>
+    <div className={`fixed bottom-24 right-6 z-[9998] flex items-center gap-2.5 px-4.5 py-2.5 rounded-full bg-slate-950/90 border ${borderClass} shadow-xl ${shadowClass} backdrop-blur-md animate-in slide-in-from-bottom-3 duration-250 text-zinc-300 font-sans text-xs select-none`}>
       <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0`} />
       <span className="font-semibold">{message}</span>
-      <button 
-        onClick={() => setIsDismissed(true)} 
+      <button
+        onClick={() => setIsDismissed(true)}
         className="ml-1.5 p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 cursor-pointer active:scale-90"
         aria-label="Dismiss alert"
       >

@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 import { useSchemaStore } from '../store/useSchemaStore';
 import { useByokStore } from '../store/useByokStore';
+import { useToastStore } from '../store/useToastStore';
 
 const api = axios.create({
   baseURL: (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL)
@@ -277,6 +278,14 @@ api.interceptors.response.use(
 
       if (isAIEndpoint) {
         useQuotaStore.getState().fetchQuota().catch(() => {});
+      }
+
+      // Token bitti → backend minimum AI'ya düştü. Kullanıcıya sağ altta bildir (dedupe'lu).
+      if (response.headers?.['x-ai-fallback'] === 'quota-exhausted') {
+        useToastStore.getState().showToast(
+          'Token bitti — minimum AI ile devam ediliyor. Tüm ücretsiz özellikler açık.',
+          'warning'
+        );
       }
     }
     return response;

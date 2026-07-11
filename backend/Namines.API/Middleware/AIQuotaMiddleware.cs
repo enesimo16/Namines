@@ -230,10 +230,12 @@ namespace Namines.API.Middleware
 
             if (quota.DailyUsageCount >= quota.DailyLimit)
             {
-                context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                context.Response.ContentType = "application/json";
-                var errObj = new { code = "QUOTA_EXCEEDED", message = "Daily AI credit limit reached. Please upgrade your plan or switch to Default (Free) engine in preferences." };
-                await context.Response.WriteAsync(JsonSerializer.Serialize(errObj));
+                // Token bitti → İSTEĞİ BLOKLAMA. Minimum/ücretsiz motora düş ve devam et.
+                // Böylece kullanıcı tüm ücretsiz özellikleri kullanmaya devam eder.
+                // Frontend bu header'ı görüp sağ altta "token bitti" bildirimi gösterir.
+                context.Items["FallbackToLocal"] = true;
+                context.Response.Headers["X-AI-Fallback"] = "quota-exhausted";
+                await _next(context);
                 return;
             }
 

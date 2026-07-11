@@ -84,6 +84,11 @@ export default function CanvasPage() {
   useAIDba();
   useProjectAutoSave();
 
+  // Proje değişince eski projenin DBA sonuçları (skor/issue) kalmasın — sıfırla.
+  useEffect(() => {
+    useDbaStore.getState().setDbaResults({ issues: [], score: 100, assessment: 'Pending schema health check...' });
+  }, [activeProjectId]);
+
   const nodeTypes = useMemo(() => ({ tableNode: TableNode }), []);
   const edgeTypes = useMemo(() => ({ relationEdge: RelationEdge }), []);
 

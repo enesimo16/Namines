@@ -76,7 +76,11 @@ export function useMultiplayer() {
       const urlParams = new URLSearchParams(window.location.search);
       currentRoomId = urlParams.get('roomId');
       if (!currentRoomId) {
-        currentRoomId = 'room-' + Math.random().toString(36).substring(2, 11);
+        // Tahmin edilemez roomId (capability modeli) — Math.random yerine crypto.
+        const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 11);
+        currentRoomId = 'room-' + rand;
         const newUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + '?roomId=' + currentRoomId;
         window.history.pushState({ path: newUrl }, '', newUrl);
         setRoomIdFromUrl(currentRoomId);
@@ -147,6 +151,9 @@ export function useMultiplayer() {
     connection.onreconnected((connectionId) => {
       if (connectionRef.current === connection) {
         setIsOffline(false);
+        // Reconnect'te yeni ConnectionId atanır → gruba yeniden katılmazsak peer,
+        // artık ReceiveSchema/ReceiveCursor almaz (tek yönlü desync). Yeniden JoinRoom.
+        connection.invoke('JoinRoom', currentRoomId, currentUserName).catch(() => {});
         showToast('✅ Reconnected to multiplayer room.', 'success');
       }
     });

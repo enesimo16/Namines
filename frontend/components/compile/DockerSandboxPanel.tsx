@@ -101,6 +101,16 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
     setLogs(prev => [...prev, msg]);
   }, []);
 
+  // Docker daemon'a bağlanılamadığında (Docker Desktop kapalı) net, açıklayıcı mesaj.
+  const dockerHint = (raw: string): string => {
+    const t = (raw || '').toLowerCase();
+    if (t.includes('pipe') || t.includes('docker_engine') || t.includes('timed out') ||
+        t.includes('timeout') || t.includes('actively refused') || t.includes('cannot find the file')) {
+      return '❌ Docker Desktop çalışmıyor gibi görünüyor. Lütfen Docker Desktop\'ı başlatıp tekrar deneyin.';
+    }
+    return `❌ ${raw}`;
+  };
+
   const connectSse = (newJobId: string) => {
     eventSourceRef.current?.close();
     const sse = new EventSource(`http://localhost:5000/api/docker/stream/${newJobId}`);
@@ -118,7 +128,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
       if (msg.startsWith('ERROR:')) {
         setStatus('error');
-        addLog(`❌ ${msg}`);
+        addLog(dockerHint(msg));
         sse.close();
         return;
       }
@@ -195,7 +205,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
     } catch (err: any) {
       setStatus('error');
-      addLog(`❌ ERROR: ${err.message}`);
+      addLog(dockerHint(err?.message || 'Bilinmeyen hata'));
     }
   };
 

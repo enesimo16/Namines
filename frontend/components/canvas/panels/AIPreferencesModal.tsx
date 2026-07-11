@@ -61,7 +61,7 @@ function CustomSelect<T extends string | number>({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between bg-white border border-sky-200 hover:border-sky-350 text-sky-955 text-xs font-semibold py-2 px-3.5 rounded-xl cursor-pointer transition-all duration-200 select-none shadow-[0_1px_2px_rgba(0,0,0,0.05)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20"
+        className="w-full flex items-center justify-between bg-[#e8f0fa] border border-sky-200 hover:border-sky-350 text-sky-955 text-xs font-semibold py-2 px-3.5 rounded-xl cursor-pointer transition-all duration-200 select-none shadow-[0_1px_2px_rgba(0,0,0,0.05)] focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20"
       >
         <span className="truncate">{selectedOption ? selectedOption.label : value}</span>
         <ChevronDown className={`w-3.5 h-3.5 text-sky-500 transition-transform duration-200 shrink-0 ml-1.5 ${isOpen ? 'rotate-180' : ''}`} />
@@ -69,7 +69,7 @@ function CustomSelect<T extends string | number>({
 
       {isOpen && (
         <div 
-          className={`absolute left-0 w-full min-w-[200px] max-h-[240px] overflow-y-auto rounded-xl border border-sky-200 bg-white/95 backdrop-blur-xl p-1.5 shadow-2xl z-[999] flex flex-col gap-0.5 select-none ${
+          className={`absolute left-0 w-full min-w-[200px] max-h-[240px] overflow-y-auto rounded-xl border border-sky-200 bg-[#e8f0fa]/95 backdrop-blur-xl p-1.5 shadow-2xl z-[999] flex flex-col gap-0.5 select-none ${
             openUpward ? 'bottom-full mb-2' : 'top-full mt-2'
           }`}
         >
@@ -635,7 +635,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="ai-pref-title" className="relative w-full max-w-4xl h-[90vh] md:h-[650px] bg-gradient-to-br from-[#f0f9ff] via-[#e0f2fe] to-[#bae6fd] border border-sky-300/40 shadow-[0_20px_50px_rgba(14,165,233,0.15)] rounded-2xl flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 text-sky-950">
         
         {/* Left Sidebar */}
-        <div className="w-full md:w-64 bg-white/80 border-b md:border-b-0 md:border-r border-sky-200/50 p-6 flex flex-col justify-between shrink-0">
+        <div className="w-full md:w-64 bg-[#e8f0fa]/80 border-b md:border-b-0 md:border-r border-sky-200/50 p-6 flex flex-col justify-between shrink-0">
           <div className="space-y-6">
             {/* Logo Header - Unified Namines Brand Icon */}
             <div className="flex items-center gap-2">
@@ -759,7 +759,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                 showToast('Logged out successfully.', 'info');
                 onClose();
               }}
-              className="hidden md:flex items-center justify-center gap-2 w-full py-2.5 bg-white hover:bg-red-50 border border-sky-200 hover:border-red-200 text-sky-600 hover:text-red-500 text-xs font-bold tracking-wider uppercase rounded-xl transition-all cursor-pointer active:scale-95"
+              className="hidden md:flex items-center justify-center gap-2 w-full py-2.5 bg-[#e8f0fa] hover:bg-red-50 border border-sky-200 hover:border-red-200 text-sky-600 hover:text-red-500 text-xs font-bold tracking-wider uppercase rounded-xl transition-all cursor-pointer active:scale-95"
             >
               <LogOut className="w-4 h-4" />
               <span>Log Out</span>
@@ -771,7 +771,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
           
           {/* Header */}
-          <div className="flex justify-between items-center px-8 py-5 border-b border-sky-100 bg-white/90 shrink-0">
+          <div className="flex justify-between items-center px-8 py-5 border-b border-sky-100 bg-[#e8f0fa]/90 shrink-0">
             <div>
               <h4 id="ai-pref-title" className="text-sm font-extrabold text-sky-955 uppercase tracking-wider">
                 {activeTab === 'profile' && 'User Profile Settings'}
@@ -806,7 +806,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
               <div className="space-y-6 text-sky-900">
                 {!isAuthenticated ? (
                   <div className="flex flex-col items-center justify-center text-center py-12 space-y-4">
-                    <div className="p-4 bg-white/95 border border-sky-200 rounded-full shadow-[0_4px_12px_rgba(14,165,233,0.08)]">
+                    <div className="p-4 bg-[#e8f0fa]/95 border border-sky-200 rounded-full shadow-[0_4px_12px_rgba(14,165,233,0.08)]">
                       <User className="w-12 h-12 text-sky-500" />
                     </div>
                     <div className="space-y-1">
@@ -815,7 +815,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </div>
                   </div>
                 ) : (
-                  <form onSubmit={handleSaveDeveloperSettings} className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 space-y-5 shadow-[0_4px_20px_rgba(14,165,233,0.03)]">
+                  <form onSubmit={handleSaveDeveloperSettings} className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-6 space-y-5 shadow-[0_4px_20px_rgba(14,165,233,0.03)]">
                     <div className="flex items-center gap-2 border-b border-sky-100 pb-3">
                       <User className="w-4 h-4 text-sky-600" />
                       <h4 className="text-xs font-extrabold text-sky-950 uppercase tracking-wider font-sans">Developer Profile Information</h4>
@@ -830,7 +830,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
                           placeholder="John Doe"
-                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
+                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
                         />
                       </div>
 
@@ -842,7 +842,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           value={companyName}
                           onChange={(e) => setCompanyName(e.target.value)}
                           placeholder="Acme Corp"
-                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
+                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
                         />
                       </div>
 
@@ -854,7 +854,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           value={location}
                           onChange={(e) => setLocation(e.target.value)}
                           placeholder="Istanbul, Turkey"
-                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
+                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
                         />
                       </div>
 
@@ -866,7 +866,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           value={githubUrl}
                           onChange={(e) => setGithubUrl(e.target.value)}
                           placeholder="https://github.com/username"
-                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
+                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
                         />
                       </div>
 
@@ -878,7 +878,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           value={linkedinUrl}
                           onChange={(e) => setLinkedinUrl(e.target.value)}
                           placeholder="https://linkedin.com/in/username"
-                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
+                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
                         />
                       </div>
 
@@ -890,7 +890,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           value={twitterUrl}
                           onChange={(e) => setTwitterUrl(e.target.value)}
                           placeholder="https://x.com/username"
-                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
+                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
                         />
                       </div>
 
@@ -902,7 +902,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           value={websiteUrl}
                           onChange={(e) => setWebsiteUrl(e.target.value)}
                           placeholder="https://myportfolio.com"
-                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
+                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
                         />
                       </div>
 
@@ -914,7 +914,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           onChange={(e) => setBio(e.target.value)}
                           placeholder="Full-stack developer passionate about databases and scalable architecture..."
                           rows={3}
-                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200 resize-none"
+                          className="w-full px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200 resize-none"
                         />
                       </div>
                     </div>
@@ -942,7 +942,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
               <div className="space-y-6 text-sky-900">
                 {!isAuthenticated ? (
                   <div className="flex flex-col items-center justify-center text-center py-12 space-y-4">
-                    <div className="p-4 bg-white/95 border border-sky-200 rounded-full shadow-[0_4px_12px_rgba(14,165,233,0.08)]">
+                    <div className="p-4 bg-[#e8f0fa]/95 border border-sky-200 rounded-full shadow-[0_4px_12px_rgba(14,165,233,0.08)]">
                       <Lock className="w-12 h-12 text-sky-500" />
                     </div>
                     <div className="space-y-1">
@@ -960,7 +960,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       return (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {/* Account Badge Card */}
-                          <div className={`${isFreeUser ? 'md:col-span-1' : 'md:col-span-3'} bg-white/90 border border-sky-200/80 rounded-2xl p-4.5 flex flex-col justify-between shadow-[0_4px_16px_rgba(14,165,233,0.03)]`}>
+                          <div className={`${isFreeUser ? 'md:col-span-1' : 'md:col-span-3'} bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-4.5 flex flex-col justify-between shadow-[0_4px_16px_rgba(14,165,233,0.03)]`}>
                             <div className="space-y-1">
                               <span className="text-[9px] font-bold text-sky-600 uppercase tracking-wider">Account Level</span>
                               <p className="text-sm font-bold text-sky-950 truncate">{user?.username}</p>
@@ -978,7 +978,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
                           {/* Quota Progress Card - Always Rendered for Free Users */}
                           {isFreeUser && (
-                            <div className="md:col-span-2 bg-white/90 border border-sky-200/80 rounded-2xl p-4.5 space-y-3 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
+                            <div className="md:col-span-2 bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-4.5 space-y-3 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
                               <div className="flex justify-between items-center text-[10px] font-bold text-sky-700 uppercase tracking-wider">
                                 <span>Daily Cloud Credits</span>
                                 <div className="flex items-center gap-2">
@@ -1011,7 +1011,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     })()}
 
                     {/* License Authorization Levels */}
-                    <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-5 space-y-4 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
+                    <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-5 space-y-4 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
                       <div className="flex items-center gap-2 border-b border-sky-100 pb-3">
                         <Lock className="w-4 h-4 text-sky-650" />
                         <h4 className="text-xs font-extrabold text-sky-950 uppercase tracking-wider">License Authorization Levels</h4>
@@ -1050,7 +1050,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </div>
 
                     {/* Personal Access Tokens */}
-                    <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-5 space-y-4 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
+                    <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-5 space-y-4 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
                       <div className="flex items-center gap-2 border-b border-sky-100 pb-3">
                         <Key className="w-4 h-4 text-sky-650" />
                         <h4 className="text-xs font-extrabold text-sky-950 uppercase tracking-wider">Personal Access Tokens</h4>
@@ -1067,7 +1067,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                             value={newTokenName}
                             onChange={(e) => setNewTokenName(e.target.value)}
                             placeholder="e.g., CI/CD deploy runner"
-                            className="flex-1 px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
+                            className="flex-1 px-3.5 py-2 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-950 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all duration-200"
                           />
                           <button
                             type="submit"
@@ -1086,7 +1086,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                             <button
                               type="button"
                               onClick={() => copyToClipboard(generatedToken)}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-sky-50 border border-sky-250 rounded-lg text-[10px] font-bold text-sky-700 transition-colors cursor-pointer"
+                              className="flex items-center gap-1 px-2.5 py-1 bg-[#e8f0fa] hover:bg-sky-50 border border-sky-250 rounded-lg text-[10px] font-bold text-sky-700 transition-colors cursor-pointer"
                             >
                               <Copy className="w-3.5 h-3.5 text-sky-500" />
                               <span>Copy Token</span>
@@ -1144,7 +1144,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         showToast('Logged out successfully.', 'info');
                         onClose();
                       }}
-                      className="flex md:hidden items-center justify-center gap-2 w-full py-2.5 bg-white hover:bg-red-50 border border-sky-200 hover:border-red-200 text-sky-600 hover:text-red-500 text-xs font-bold tracking-wider uppercase rounded-xl transition-all cursor-pointer"
+                      className="flex md:hidden items-center justify-center gap-2 w-full py-2.5 bg-[#e8f0fa] hover:bg-red-50 border border-sky-200 hover:border-red-200 text-sky-600 hover:text-red-500 text-xs font-bold tracking-wider uppercase rounded-xl transition-all cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Log Out</span>
@@ -1162,7 +1162,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   <div className="space-y-6">
                     <form onSubmit={handleSavePolicy} className="space-y-6">
                       {/* AI Services Routing Card */}
-                      <div className="bg-white/90 border border-sky-200/80 rounded-2xl px-6 py-2 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
+                      <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl px-6 py-2 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
                         <div className="py-4 flex items-center justify-between border-b border-sky-100 mb-4 gap-4">
                           <div className="flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0" />
@@ -1182,39 +1182,39 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         <div className="py-3 px-4 bg-sky-50/50 border border-sky-100 rounded-xl mb-6 text-[10px] space-y-2">
                           <p className="font-bold text-sky-850 uppercase tracking-wider">AI Cost Multiplier Legend</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">Default</span>
                               <span className="text-sky-600 font-bold">0% (Local)</span>
                             </div>
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">Low</span>
                               <span className="text-sky-600 font-bold">1x · Llama 3.2</span>
                             </div>
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">Medium</span>
                               <span className="text-sky-600 font-bold">2x · Llama 3.1</span>
                             </div>
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">High</span>
                               <span className="text-sky-600 font-bold">4x · Llama 3.3</span>
                             </div>
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">High+</span>
                               <span className="text-sky-600 font-bold">5x · Mixtral</span>
                             </div>
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">High+ G</span>
                               <span className="text-teal-600 font-bold">5x · Flash</span>
                             </div>
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">Ultra</span>
                               <span className="text-sky-600 font-bold">6x · GPT-OSS</span>
                             </div>
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">Ultra G</span>
                               <span className="text-teal-600 font-bold">6x · Gem Pro</span>
                             </div>
-                            <div className="p-1.5 bg-white rounded border border-sky-200/70 text-center">
+                            <div className="p-1.5 bg-[#e8f0fa] rounded border border-sky-200/70 text-center">
                               <span className="block font-black text-sky-900">Custom</span>
                               <span className="text-sky-600 font-bold">0% (Custom)</span>
                             </div>
@@ -1259,7 +1259,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </form>
 
                     {/* BYOK Section */}
-                    <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-5 space-y-4 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
+                    <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-5 space-y-4 shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
                       <div className="space-y-1">
                         <h3 className="text-xs font-extrabold text-sky-955 tracking-tight">BYOK Credentials</h3>
                         <p className="text-[10px] text-sky-600 leading-normal">Supply custom API tokens to completely bypass default platform request quotas.</p>
@@ -1294,7 +1294,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                               onChange={(e) => setInputKey(e.target.value)}
                               disabled={isSavedKey}
                               placeholder={isSavedKey ? "••••••••••••••••••••" : `Enter ${selectedProvider.toUpperCase()} Key`}
-                              className="w-full px-3.5 py-2.5 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-955 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all font-mono"
+                              className="w-full px-3.5 py-2.5 bg-sky-50/40 border border-sky-200 rounded-xl text-xs text-sky-955 placeholder-sky-350 focus:outline-none focus:border-sky-500 focus:bg-[#e8f0fa] focus:ring-1 focus:ring-sky-500/20 transition-all font-mono"
                             />
                             <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sky-500">
                               <Key className="w-3.5 h-3.5" />
@@ -1335,7 +1335,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <button
                         type="button"
                         onClick={() => setShowAdvancedScreen(false)}
-                        className="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-sky-700 hover:text-sky-900 bg-white hover:bg-sky-50 border border-sky-200 rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-all cursor-pointer select-none active:scale-95"
+                        className="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-sky-700 hover:text-sky-900 bg-[#e8f0fa] hover:bg-sky-50 border border-sky-200 rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-all cursor-pointer select-none active:scale-95"
                       >
                         <ArrowLeft className="w-4 h-4 text-sky-500" />
                         <span>Back to AI Routing</span>
@@ -1373,7 +1373,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       }} 
                       className="space-y-6"
                     >
-                      <div className="bg-white/95 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_20px_rgba(14,165,233,0.04)]">
+                      <div className="bg-[#e8f0fa]/95 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_20px_rgba(14,165,233,0.04)]">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                           
                           {/* Smart Seeding Domain */}
@@ -1551,7 +1551,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                 {/* Stats Summary Widgets */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Card 1: Schemas Compiled */}
-                  <div className="bg-white/90 border border-sky-200/60 rounded-2xl p-5 shadow-[0_4px_16px_rgba(14,165,233,0.03)] flex items-center justify-between hover:scale-[1.02] transition-all duration-200">
+                  <div className="bg-[#e8f0fa]/90 border border-sky-200/60 rounded-2xl p-5 shadow-[0_4px_16px_rgba(14,165,233,0.03)] flex items-center justify-between hover:scale-[1.02] transition-all duration-200">
                     <div className="space-y-1">
                       <span className="text-[9px] font-bold text-sky-600 uppercase tracking-wider">Schemas Compiled</span>
                       <p className="text-2xl font-black text-sky-955">{statsSchemas}</p>
@@ -1560,7 +1560,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   </div>
 
                   {/* Card 2: AI Credits Used */}
-                  <div className="bg-white/90 border border-sky-200/60 rounded-2xl p-5 shadow-[0_4px_16px_rgba(14,165,233,0.03)] flex items-center justify-between hover:scale-[1.02] transition-all duration-200">
+                  <div className="bg-[#e8f0fa]/90 border border-sky-200/60 rounded-2xl p-5 shadow-[0_4px_16px_rgba(14,165,233,0.03)] flex items-center justify-between hover:scale-[1.02] transition-all duration-200">
                     <div className="space-y-1">
                       <span className="text-[9px] font-bold text-sky-600 uppercase tracking-wider">AI Credits Used</span>
                       <p className="text-2xl font-black text-sky-600">{Math.round((used / dailyLimit) * 100)}%</p>
@@ -1569,7 +1569,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   </div>
 
                   {/* Card 3: DBA Audits Run */}
-                  <div className="bg-white/90 border border-sky-200/60 rounded-2xl p-5 shadow-[0_4px_16px_rgba(14,165,233,0.03)] flex items-center justify-between hover:scale-[1.02] transition-all duration-200">
+                  <div className="bg-[#e8f0fa]/90 border border-sky-200/60 rounded-2xl p-5 shadow-[0_4px_16px_rgba(14,165,233,0.03)] flex items-center justify-between hover:scale-[1.02] transition-all duration-200">
                     <div className="space-y-1">
                       <span className="text-[9px] font-bold text-sky-600 uppercase tracking-wider">DBA Audits Run</span>
                       <p className="text-2xl font-black text-amber-600">{statsDbaAudits}</p>
@@ -1578,7 +1578,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   </div>
 
                   {/* Card 4: Mock Rows Seeded */}
-                  <div className="bg-white/90 border border-sky-200/60 rounded-2xl p-5 shadow-[0_4px_16px_rgba(14,165,233,0.03)] flex items-center justify-between hover:scale-[1.02] transition-all duration-200">
+                  <div className="bg-[#e8f0fa]/90 border border-sky-200/60 rounded-2xl p-5 shadow-[0_4px_16px_rgba(14,165,233,0.03)] flex items-center justify-between hover:scale-[1.02] transition-all duration-200">
                     <div className="space-y-1">
                       <span className="text-[9px] font-bold text-sky-600 uppercase tracking-wider">Mock Rows Seeded</span>
                       <p className="text-2xl font-black text-teal-600">{statsMockRecords}</p>
@@ -1590,7 +1590,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                 {/* Dashboard Visualization Column Layout (alt alta hepsini büyük) */}
                 <div className="space-y-6 flex flex-col w-full">
                   {/* AI Engine Routing Allocation */}
-                  <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_16px_rgba(14,165,233,0.03)] space-y-4 w-full">
+                  <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_16px_rgba(14,165,233,0.03)] space-y-4 w-full">
                     <div className="flex justify-between items-center text-[10px] font-bold text-sky-750 uppercase tracking-wider">
                       <span>AI Engine Allocation Share</span>
                       <span className="text-sky-600 text-[9px] font-extrabold">COMPILATION BREAKDOWN</span>
@@ -1626,7 +1626,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   </div>
 
                   {/* Database Dialect Target Distribution */}
-                  <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_16px_rgba(14,165,233,0.03)] space-y-4 w-full">
+                  <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_16px_rgba(14,165,233,0.03)] space-y-4 w-full">
                     <span className="text-[10px] font-bold text-sky-750 uppercase tracking-wider block">Target Database Compilations</span>
                     
                     {/* Horizontal progress rows layout with larger spacing and width */}
@@ -1678,7 +1678,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   </div>
 
                   {/* Weekly Performance Metrics */}
-                  <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_16px_rgba(14,165,233,0.03)] space-y-4 w-full">
+                  <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_16px_rgba(14,165,233,0.03)] space-y-4 w-full">
                     <span className="text-[10px] font-bold text-sky-750 uppercase tracking-wider block">Weekly Performance Metrics</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div className="p-4 bg-sky-50/40 rounded-xl border border-sky-200/60 space-y-2.5">
@@ -1703,7 +1703,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   </div>
 
                   {/* Operations History Log */}
-                  <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_16px_rgba(14,165,233,0.03)] space-y-4 w-full">
+                  <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-6 shadow-[0_4px_16px_rgba(14,165,233,0.03)] space-y-4 w-full">
                     <div className="border-b border-sky-100 pb-3">
                       <h4 className="text-xs font-extrabold text-sky-955 uppercase tracking-wider font-sans">Recent Operations Audit Log</h4>
                     </div>
@@ -1734,7 +1734,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
             {activeTab === 'pricing' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1 text-sky-900">
                 {/* Free Plan Card */}
-                <div className="bg-white/90 border border-sky-200/80 rounded-2xl p-5 flex flex-col justify-between hover:border-sky-350 transition-all shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
+                <div className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-2xl p-5 flex flex-col justify-between hover:border-sky-350 transition-all shadow-[0_4px_16px_rgba(14,165,233,0.03)]">
                   <div className="space-y-4">
                     <div className="space-y-1">
                       <span className="text-[10px] uppercase font-bold text-sky-600 tracking-wider">Plan</span>
@@ -1838,7 +1838,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
             {activeTab === 'help' && (
               <div className="space-y-3 pt-1 text-sky-900">
                 {faqs.map((faq, idx) => (
-                  <div key={idx} className="bg-white/90 border border-sky-200/80 rounded-xl overflow-hidden transition-all shadow-[0_4px_12px_rgba(14,165,233,0.02)]">
+                  <div key={idx} className="bg-[#e8f0fa]/90 border border-sky-200/80 rounded-xl overflow-hidden transition-all shadow-[0_4px_12px_rgba(14,165,233,0.02)]">
                     <button
                       type="button"
                       onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
@@ -1860,7 +1860,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
           </div>
 
           {/* Footer */}
-          <div className="px-8 py-3.5 bg-white/80 border-t border-sky-200/80 flex justify-center items-center text-[10px] text-sky-500/60 font-mono tracking-widest shrink-0">
+          <div className="px-8 py-3.5 bg-[#e8f0fa]/80 border-t border-sky-200/80 flex justify-center items-center text-[10px] text-sky-500/60 font-mono tracking-widest shrink-0">
             <span>Darvell Labs</span>
           </div>
 

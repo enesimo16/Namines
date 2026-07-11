@@ -58,6 +58,16 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
     }
   };
 
+  // Migration her workspace'e (projeye) özgü olmalı: proje değişince component-local
+  // durumu (dbContext kodu, diff, sonuç, adım) sıfırla ki başka projeye sızmasın.
+  useEffect(() => {
+    setDbContextCode('');
+    setDiffResult(null);
+    setMigrationResult(null);
+    setStep(1);
+    setError(null);
+  }, [activeProjectId]);
+
   // Check if we already have a loaded old migration schema in store
   useEffect(() => {
     if (isOpen) {

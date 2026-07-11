@@ -68,8 +68,11 @@ public class SqliteDdlGenerator : IDdlGenerator
                     if (sourceTable?.Name != table.Name || targetTable == null) continue;
 
                     var sourceCol = sourceTable.Columns.FirstOrDefault(c => c.Id == relation.SourceColumnId);
-                    var targetCol = targetTable.Columns.FirstOrDefault(c => c.Id == relation.TargetColumnId);
-                    if (sourceCol == null || targetCol == null) continue;
+                    // SQLite: FK'nın işaret ettiği parent kolon PK (veya UNIQUE) OLMALIDIR; aksi halde
+                    // "foreign key mismatch" hatası verir. Hedefi her zaman parent tablonun PK'sine bağla.
+                    var targetCol = targetTable.Columns.FirstOrDefault(c => c.Id == relation.TargetColumnId && c.IsPK)
+                                    ?? targetTable.Columns.FirstOrDefault(c => c.IsPK);
+                    if (sourceCol == null || targetCol == null) continue; // PK yoksa geçerli FK üretilemez → atla
 
                     lines.Add($"    FOREIGN KEY (\"{sourceCol.Name}\") REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\") ON DELETE CASCADE");
                 }

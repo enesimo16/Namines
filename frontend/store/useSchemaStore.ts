@@ -282,8 +282,14 @@ export const useSchemaStore = create<SchemaState>()(
         const state = get();
         const currentSchema = state.schema || { schemaId: genId(), name: 'Yeni Proje', tables: [], relations: [] };
 
-        const visionTables = visionSchema.tables || (visionSchema as any).Tables || [];
-        const visionRelations = visionSchema.relations || (visionSchema as any).Relations || [];
+        // Güvenli: AI/vision çıktısı dizi olmayabilir (obje/null) → forEach patlamasın.
+        const rawTables = visionSchema.tables || (visionSchema as any).Tables;
+        const rawRelations = visionSchema.relations || (visionSchema as any).Relations;
+        const visionTables = Array.isArray(rawTables) ? rawTables : [];
+        const visionRelations = Array.isArray(rawRelations) ? rawRelations : [];
+        if (visionTables.length === 0) {
+          throw new Error('İçe aktarılacak geçerli tablo bulunamadı. Görsel/şema net değilse tekrar deneyin.');
+        }
 
         // Calculate Y-offset so new nodes are placed below existing nodes
         let maxY = 0;
