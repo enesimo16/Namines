@@ -1,7 +1,9 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Namines.API.Services;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
@@ -25,6 +27,11 @@ public class DockerController : ControllerBase
         _ddlFactory = ddlFactory;
     }
 
+    // Hibrit güvenlik: container spawn pahalı/DoS riski → login + rate-limit.
+    // NOT: stream/download uçları açık bırakıldı — EventSource bearer header gönderemez;
+    // jobId sunucu üretimi GUID olduğundan capability olarak korur.
+    [Authorize]
+    [EnableRateLimiting("sensitive")]
     [HttpPost("run")]
     public IActionResult RunDockerSandbox([FromBody] CompileRequest request)
     {

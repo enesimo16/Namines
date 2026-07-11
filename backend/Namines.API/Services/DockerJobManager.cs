@@ -22,7 +22,7 @@ public class DockerJobManager
     {
         if (_jobs.TryGetValue(jobId, out var job))
         {
-            job.ProgressLog.Add(message);
+            job.ProgressLog.Enqueue(message);
             OnProgressUpdated?.Invoke(jobId, message);
         }
     }
@@ -36,7 +36,7 @@ public class DockerJobManager
             
             if (error != null)
             {
-                job.ProgressLog.Add($"ERROR: {error}");
+                job.ProgressLog.Enqueue($"ERROR: {error}");
                 OnProgressUpdated?.Invoke(jobId, $"ERROR: {error}");
             }
             

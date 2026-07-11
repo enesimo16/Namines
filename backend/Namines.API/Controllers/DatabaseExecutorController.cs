@@ -1,10 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.Tasks;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 
 namespace Namines.API.Controllers;
 
+// Hibrit güvenlik: keyfi SQL çalıştırma tehlikeli → login + rate-limit zorunlu.
+[Authorize]
+[EnableRateLimiting("sensitive")]
 [ApiController]
 [Route("api/executor")]
 public class DatabaseExecutorController : ControllerBase

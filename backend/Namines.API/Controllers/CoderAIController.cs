@@ -262,7 +262,7 @@ public class CoderAIController : ControllerBase
         sb.AppendLine("tables = [");
         foreach (var t in schema.Tables)
         {
-            sb.AppendLine($"    '{t.Name}',");
+            sb.AppendLine($"    '{PyStr(t.Name)}',");
         }
         sb.AppendLine("]");
         sb.AppendLine("selected_table = st.sidebar.selectbox('Select Table', tables)");
@@ -271,11 +271,11 @@ public class CoderAIController : ControllerBase
         sb.AppendLine();
         foreach (var t in schema.Tables)
         {
-            sb.AppendLine($"if selected_table == '{t.Name}':");
+            sb.AppendLine($"if selected_table == '{PyStr(t.Name)}':");
             sb.AppendLine("    cols = [");
             foreach (var col in t.Columns)
             {
-                sb.AppendLine($"        '{col.Name}',");
+                sb.AppendLine($"        '{PyStr(col.Name)}',");
             }
             sb.AppendLine("    ]");
             sb.AppendLine("    data = []");
@@ -285,19 +285,19 @@ public class CoderAIController : ControllerBase
             {
                 if (col.IsPK)
                 {
-                    sb.AppendLine($"        row['{col.Name}'] = i");
+                    sb.AppendLine($"        row['{PyStr(col.Name)}'] = i");
                 }
                 else if (col.Type.Contains("INT") || col.Type.Contains("DECIMAL") || col.Type.Contains("FLOAT"))
                 {
-                    sb.AppendLine($"        row['{col.Name}'] = i * 10");
+                    sb.AppendLine($"        row['{PyStr(col.Name)}'] = i * 10");
                 }
                 else if (col.Type.Contains("DATE") || col.Type.Contains("TIME"))
                 {
-                    sb.AppendLine($"        row['{col.Name}'] = '2026-05-31'");
+                    sb.AppendLine($"        row['{PyStr(col.Name)}'] = '2026-05-31'");
                 }
                 else
                 {
-                    sb.AppendLine($"        row['{col.Name}'] = f'{t.Name}_{col.Name}_{{i}}'");
+                    sb.AppendLine($"        row['{PyStr(col.Name)}'] = f'{PyStr(t.Name)}_{PyStr(col.Name)}_{{i}}'");
                 }
             }
             sb.AppendLine("        data.append(row)");
@@ -309,7 +309,7 @@ public class CoderAIController : ControllerBase
             foreach (var col in t.Columns)
             {
                 if (col.IsPK) continue;
-                sb.AppendLine($"        val_{col.Name} = st.text_input('{col.Name}')");
+                sb.AppendLine($"        val_{PyIdent(col.Name)} = st.text_input('{PyStr(col.Name)}')");
             }
             sb.AppendLine("        submitted = st.form_submit_button('Add Record')");
             sb.AppendLine("        if submitted:");
@@ -317,5 +317,17 @@ public class CoderAIController : ControllerBase
             sb.AppendLine();
         }
         return sb.ToString();
+    }
+
+    // Kod enjeksiyonu koruması: şema isimleri üretilen Python'a gömülmeden önce kaçışlanır.
+    private static string PyStr(string? s) =>
+        (s ?? string.Empty).Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "").Replace("\n", "\\n");
+
+    private static string PyIdent(string? s)
+    {
+        var cleaned = System.Text.RegularExpressions.Regex.Replace(s ?? string.Empty, "[^A-Za-z0-9_]", "_");
+        if (string.IsNullOrEmpty(cleaned) || (!char.IsLetter(cleaned[0]) && cleaned[0] != '_'))
+            cleaned = "_" + cleaned;
+        return cleaned;
     }
 }

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Database, Pencil, Check, ExternalLink, Sparkles, FolderOpen, Cloud, LogOut, Info, CheckCircle2, XCircle, AlertTriangle, X, Settings } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useAIPolicyStore } from '../../store/useAIPolicyStore';
 import { useQuotaStore } from '../../store/useQuotaStore';
@@ -25,7 +26,7 @@ export default function Header() {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(projectName);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const { isOpen: isAuthModalOpen, open: openAuthModal, close: closeAuthModal } = useAuthModalStore();
   const [isAIPreferencesOpen, setIsAIPreferencesOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -217,7 +218,7 @@ export default function Header() {
           ) : (
             <button
               id="auth-modal-trigger"
-              onClick={() => setIsAuthModalOpen(true)}
+              onClick={openAuthModal}
               className="flex items-center justify-center py-1.5 px-4 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 hover:text-white text-[10px] font-extrabold uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(99,102,241,0.15)] cursor-pointer"
             >
               <span>Login / Sign Up</span>
@@ -235,7 +236,7 @@ export default function Header() {
       {/* Global Auth Modal Overlay */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={closeAuthModal}
       />
 
       {/* AI Preferences Modal */}

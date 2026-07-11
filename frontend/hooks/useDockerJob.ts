@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { schemaService } from '../services/api';
 import { DatabaseSchema } from '../types/schema';
 
@@ -12,17 +12,25 @@ export function useDockerJob() {
   const [logs, setLogs] = useState<DockerLog[]>([]);
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const esRef = useRef<EventSource | null>(null);
+
+  // Unmount'ta açık kalan SSE bağlantısını kapat (bağlantı sızıntısı + unmount sonrası setState).
+  useEffect(() => () => { esRef.current?.close(); esRef.current = null; }, []);
 
   const startJob = useCallback(async (schema: DatabaseSchema, dbType: string) => {
     try {
       setStatus('running');
       setLogs([{ message: 'Initializing Docker sandbox...', timestamp: Date.now() }]);
       setDownloadUrl(null);
-      
+
+      // Önceki stream hâlâ açıksa kapat.
+      esRef.current?.close();
+
       const responseJobId = await schemaService.runDockerSandbox(schema, dbType);
       setJobId(responseJobId);
 
       const eventSource = new EventSource(`http://localhost:5000/api/docker/stream/${responseJobId}`);
+      esRef.current = eventSource;
 
       eventSource.onmessage = (event) => {
         const data = event.data;
@@ -57,6 +65,8 @@ export function useDockerJob() {
   }, []);
 
   const reset = useCallback(() => {
+    esRef.current?.close();
+    esRef.current = null;
     setJobId(null);
     setLogs([]);
     setStatus('idle');

@@ -12,6 +12,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // httpOnly auth cookie'sinin isteklerle gönderilmesi için (cookie tabanlı JWT).
+  withCredentials: true,
 });
 
 export const schemaService = {

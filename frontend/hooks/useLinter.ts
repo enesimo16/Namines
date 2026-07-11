@@ -11,18 +11,19 @@ export function useLinter() {
   useEffect(() => {
     if (!schema) return;
 
+    let cancelled = false;
     const timer = setTimeout(async () => {
       setIsLinting(true);
       try {
         const result = await schemaService.lintSchema(schema);
-        setResult(result);
+        if (!cancelled) setResult(result); // stale-result yarışını engelle
       } catch (error) {
-        console.error("Linter failed", error);
+        if (!cancelled) console.error("Linter failed", error);
       } finally {
-        setIsLinting(false);
+        if (!cancelled) setIsLinting(false);
       }
     }, 500); // 500ms debounce
 
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [schema, setResult, setIsLinting]);
 }

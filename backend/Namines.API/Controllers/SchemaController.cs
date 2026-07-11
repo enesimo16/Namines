@@ -1,9 +1,11 @@
+using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 using Microsoft.AspNetCore.Mvc;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Core.Security;
 
 namespace Namines.API.Controllers;
 
@@ -30,21 +32,30 @@ public class SchemaController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(request.ReferenceUrl))
         {
+            // SSRF koruması: yalnızca dışa dönük http(s) hedeflerine izin ver; iç ağ/loopback/metadata reddedilir.
+            if (!SsrfGuard.IsUrlSafe(request.ReferenceUrl))
+            {
+                return BadRequest("Reference URL is not allowed.");
+            }
+
             try
             {
-                using var httpClient = new HttpClient();
+                // Otomatik yönlendirmeyi kapat (redirect ile SSRF filtresini atlamayı engelle).
+                using var handler = new HttpClientHandler { AllowAutoRedirect = false };
+                using var httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
                 var html = await httpClient.GetStringAsync(request.ReferenceUrl);
                 var htmlDoc = new HtmlDocument();
                 htmlDoc.LoadHtml(html);
                 var text = htmlDoc.DocumentNode.InnerText;
                 // Basic cleanup
                 text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
-                
+
                 request.Prompt += $"\n\nReferans alınan web sitesi içeriği: {text}";
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                return BadRequest($"Failed to scrape Reference URL: {ex.Message}");
+                // İç detayı sızdırma.
+                return BadRequest("Failed to scrape Reference URL.");
             }
         }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { DatabaseSchema } from '../../types/schema';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import {
   Download, X, Loader2, Terminal,
   RefreshCw, Database, Sparkles, ChevronRight, Rocket
@@ -20,6 +21,7 @@ type PanelStatus = 'idle' | 'generating' | 'running' | 'error';
 
 export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerSandboxPanelProps) {
   const { setActiveSandbox, getActiveSandbox } = useProjectHistoryStore();
+  const { token, isAuthenticated } = useAuthStore();
 
   const [status, setStatus] = useState<PanelStatus>('idle');
   const [logs, setLogs] = useState<string[]>([]);
@@ -41,25 +43,30 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
   // ── Restore previous sandbox session when page is loaded ──────────────
   useEffect(() => {
+    let cancelled = false;
+    let controller: AbortController | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     const saved = getActiveSandbox();
     if (saved && saved.type === 'DB') {
       jobIdRef.current = saved.jobId;
       setDownloadUrl(saved.url || null);
-      
+
       if (saved.url) {
         setStatus('running');
         setLogs([`Previous sandbox restored. Backup (.bak) is ready.`]);
       } else {
         setStatus('generating');
         setLogs([`Previous sandbox operation restored. Waiting for log stream...`]);
-        
+
         // Perform a quick HTTP fetch check to the stream URL on mount before initiating EventSource
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-        
+        controller = new AbortController();
+        timeoutId = setTimeout(() => controller?.abort(), 2000);
+
         fetch(`http://localhost:5000/api/docker/stream/${saved.jobId}`, { signal: controller.signal })
           .then(res => {
             clearTimeout(timeoutId);
+            if (cancelled) return; // unmount sonrası setState/connectSse'yi engelle
             if (res.status === 404) {
               setActiveSandbox(null);
               setStatus('idle');
@@ -72,11 +79,14 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
           })
           .catch(() => {
             clearTimeout(timeoutId);
+            if (cancelled) return;
             // Fallback to connecting anyway on timeout or network error
             connectSse(saved.jobId);
           });
       }
     }
+
+    return () => { cancelled = true; controller?.abort(); clearTimeout(timeoutId); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -146,6 +156,11 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
   };
 
   const handleGenerate = async () => {
+    if (!isAuthenticated) {
+      setStatus('error');
+      setLogs(['🔒 Docker sandbox için giriş yapmanız gerekiyor.']);
+      return;
+    }
     eventSourceRef.current?.close();
     setStatus('generating');
     setLogs(['🚀 Initializing Docker Sandbox...']);
@@ -154,7 +169,8 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
     try {
       const response = await fetch('http://localhost:5000/api/docker/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ schema, dbType }),
       });
 

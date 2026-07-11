@@ -35,16 +35,24 @@ export const useAuthStore = create<AuthState>()(
             isLoaded: true
           });
         } else {
-          useQuotaStore.getState().fetchQuota();
+          useQuotaStore.getState().fetchQuota().catch(() => {});
         }
       },
       logout: () => {
+        // Sunucudaki httpOnly cookie'yi de temizle.
+        const base = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL)
+          ? `${process.env.NEXT_PUBLIC_API_URL}/api`
+          : 'http://localhost:5000/api';
+        fetch(`${base}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
         set({ token: null, user: null, isAuthenticated: false });
         useQuotaStore.getState().reset();
       },
     }),
     {
       name: 'namines-auth', // localStorage key
+      // Güvenlik: JWT'yi localStorage'a YAZMA (XSS ile çalınmasın). Auth cookie üzerinden taşınır.
+      // Yalnızca UI durumu (kullanıcı profili + oturum bayrağı) kalıcı yapılır.
+      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     }
   )
 );

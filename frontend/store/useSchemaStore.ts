@@ -314,7 +314,7 @@ export const useSchemaStore = create<SchemaState>()(
             id: newId,
             name: t.name || `Tablo_${genId().substring(0, 4)}`,
             stableUuid: t.stableUuid || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : genId()),
-            columns: t.columns.map(c => ({
+            columns: (t.columns || []).map(c => ({
               id: genId(),
               name: c.name || 'Column',
               type: c.type || 'INT',

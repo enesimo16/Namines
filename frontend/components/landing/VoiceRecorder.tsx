@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Loader2 } from 'lucide-react';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
@@ -16,6 +16,13 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
   const chunksRef = useRef<Blob[]>([]);
   const showToast = useToastStore(state => state.showToast);
   const { checkAccess } = useAIGateway();
+
+  // Unmount'ta kayıt sürüyorsa mikrofon track'lerini serbest bırak (kaynak sızıntısı).
+  useEffect(() => () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    recorder?.stream?.getTracks().forEach(track => track.stop());
+  }, []);
 
   const startRecording = async () => {
     if (!checkAccess("Voice Transcription")) return;

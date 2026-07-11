@@ -133,14 +133,9 @@ namespace Namines.Infrastructure.Services
                         // Ensure IsFK is marked
                         col.IsFK = true;
 
-                        if (string.IsNullOrEmpty(col.DefaultValue))
-                        {
-                            col.DefaultValue = "/* Indexed */";
-                        }
-                        else if (!col.DefaultValue.Contains("Indexed"))
-                        {
-                            col.DefaultValue += " & Indexed";
-                        }
+                        // NOT: DefaultValue'ya "/* Indexed */" gibi işaret yazılmıyordu artık —
+                        // bu değer DDL generator'larda `DEFAULT {DefaultValue}` olarak aynen basılıp
+                        // geçersiz SQL üretiyordu. DefaultValue yalnızca gerçek SQL default'u içindir.
 
                         // Try to find the target table
                         string targetPrefix;
@@ -211,12 +206,7 @@ namespace Namines.Infrastructure.Services
                                 col.Length = 255; // Secure hash length
                             }
                         }
-
-                        // Add annotation or default value to indicate encryption mapping
-                        if (string.IsNullOrEmpty(col.DefaultValue))
-                        {
-                            col.DefaultValue = "/* Secured/Encrypted */";
-                        }
+                        // NOT: DefaultValue'ya "/* Secured/Encrypted */" yazılmıyor — geçersiz DDL üretiyordu.
                     }
                 }
             }

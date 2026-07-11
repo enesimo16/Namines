@@ -99,6 +99,7 @@ namespace Namines.API.Controllers
             };
 
             var token = GenerateJwtToken(user);
+            SetAuthCookie(token);
             return Ok(new
             {
                 Token = token,
@@ -160,6 +161,7 @@ namespace Namines.API.Controllers
             };
 
             var token = GenerateJwtToken(user);
+            SetAuthCookie(token);
             return Ok(new
             {
                 Token = token,
@@ -319,6 +321,34 @@ namespace Namines.API.Controllers
                 return BadRequest(new { message = "Profile update failed.", errors = result.Errors.Select(e => e.Description) });
 
             return Ok(new { message = "Profile updated successfully." });
+        }
+
+        // JWT'yi httpOnly cookie olarak yazar → token JS'e (localStorage) sızmaz, XSS ile çalınamaz.
+        private const string AuthCookieName = "namines_token";
+
+        private void SetAuthCookie(string token)
+        {
+            Response.Cookies.Append(AuthCookieName, token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = Request.IsHttps, // dev http'de düşmemesi, prod https'te güvenli olması için
+                SameSite = SameSiteMode.Lax,
+                Expires = DateTimeOffset.UtcNow.AddDays(7),
+                Path = "/"
+            });
+        }
+
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete(AuthCookieName, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                Path = "/"
+            });
+            return Ok(new { Message = "Logged out." });
         }
 
         private string GenerateJwtToken(ApplicationUser user)

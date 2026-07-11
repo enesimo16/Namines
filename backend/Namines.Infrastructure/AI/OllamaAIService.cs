@@ -62,7 +62,7 @@ public class OllamaAIService : IAIService
         };
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat", content);
+        using var response = await _httpClient.PostAsync("chat", content);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -112,7 +112,7 @@ public class OllamaAIService : IAIService
         };
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat", content);
+        using var response = await _httpClient.PostAsync("chat", content);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -160,7 +160,7 @@ public class OllamaAIService : IAIService
         };
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat", content);
+        using var response = await _httpClient.PostAsync("chat", content);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -228,7 +228,7 @@ public class OllamaAIService : IAIService
         };
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat", content);
+        using var response = await _httpClient.PostAsync("chat", content);
         
         if (!response.IsSuccessStatusCode)
         {
@@ -264,7 +264,7 @@ public class OllamaAIService : IAIService
         };
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat", content);
+        using var response = await _httpClient.PostAsync("chat", content);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -355,7 +355,7 @@ Code:
         };
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync("chat", content);
+        using var response = await _httpClient.PostAsync("chat", content);
 
         if (!response.IsSuccessStatusCode)
         {

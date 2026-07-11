@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -88,7 +89,7 @@ try
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     {
         options.Password.RequireDigit = false;
-        options.Password.RequiredLength = 4;
+        options.Password.RequiredLength = 8;
         options.Password.RequireNonAlphanumeric = false;
         options.Password.RequireUppercase = false;
         options.Password.RequireLowercase = false;
@@ -100,7 +101,10 @@ try
     var secretKey = builder.Configuration["Jwt:Key"];
     if (string.IsNullOrWhiteSpace(secretKey))
     {
-        // Development fallback — will be overridden by appsettings.secrets.json or env var JWT__KEY
+        // Production'da fail-closed: sabit fallback key ile JWT sahteciliğini engelle.
+        if (builder.Environment.IsProduction())
+            throw new InvalidOperationException("Jwt:Key production ortamında zorunludur (env var JWT__KEY veya appsettings.secrets.json).");
+
         secretKey = "NaminesDevFallbackKey_Change_In_Production_Min32Chars!";
         Log.Warning("Jwt:Key tanımlanmamış — geliştirme fallback key'i kullanılıyor. Production'da mutlaka ortam değişkeni ile override edin.");
     }
@@ -122,6 +126,21 @@ try
             ValidAudience = builder.Configuration["Jwt:Audience"] ?? "NaminesClient",
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
         };
+
+        // Authorization header yoksa token'ı httpOnly cookie'den al (XSS'e karşı localStorage'sız akış).
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                if (string.IsNullOrEmpty(ctx.Token))
+                {
+                    var cookieToken = ctx.Request.Cookies["namines_token"];
+                    if (!string.IsNullOrEmpty(cookieToken))
+                        ctx.Token = cookieToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
     // Add services to the container.
@@ -134,6 +153,18 @@ try
         });
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
+
+    // Rate limiting: pahalı/tehlikeli uçlar (Docker sandbox, DB execute) için istismarı sınırla.
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddFixedWindowLimiter("sensitive", opt =>
+        {
+            opt.Window = TimeSpan.FromMinutes(1);
+            opt.PermitLimit = 5;
+            opt.QueueLimit = 0;
+        });
+    });
 
     // Register SignalR real-time collaboration services
     builder.Services.AddSignalR();
@@ -213,6 +244,7 @@ try
 
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseRateLimiter();
 
     app.UseMiddleware<BYOKMiddleware>();
     app.UseMiddleware<AIQuotaMiddleware>();

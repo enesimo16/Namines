@@ -14,18 +14,21 @@ using Namines.Core.Models;
 
 namespace Namines.Infrastructure.Services;
 
-public class DockerBackupService : IDockerService
+public class DockerBackupService : IDockerService, IDisposable
 {
     private readonly DockerClient _client;
 
     public DockerBackupService()
     {
-        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT 
-            ? "npipe://./pipe/docker_engine" 
+        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
+            ? "npipe://./pipe/docker_engine"
             : "unix:///var/run/docker.sock";
-            
+
         _client = new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
     }
+
+    // Scoped servis: her request'te DockerClient (handler/socket) sızmasın diye dispose edilir.
+    public void Dispose() => _client?.Dispose();
 
     public async Task RunSandboxAndBackupAsync(string jobId, string sqlContent, DatabaseType dbType, Action<string> onProgress)
     {
@@ -283,13 +286,20 @@ public class DockerBackupService : IDockerService
         }
         finally
         {
-            // 9. Cleanup
+            // 9. Cleanup — temizlik hatası asıl (root-cause) exception'ı maskelemesin.
             if (containerId != null)
             {
-                onProgress("Stopping container...");
-                await _client.Containers.StopContainerAsync(containerId, new ContainerStopParameters { WaitBeforeKillSeconds = 2 });
-                onProgress("Removing container...");
-                await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true });
+                try
+                {
+                    onProgress("Stopping container...");
+                    await _client.Containers.StopContainerAsync(containerId, new ContainerStopParameters { WaitBeforeKillSeconds = 2 });
+                    onProgress("Removing container...");
+                    await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true });
+                }
+                catch (Exception cleanupEx)
+                {
+                    onProgress($"WARNING: Container cleanup failed: {cleanupEx.Message}");
+                }
             }
         }
     }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Database, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import { useAuthStore } from '../../store/useAuthStore';
 
 interface DbPushModalProps {
   open: boolean;
@@ -24,6 +25,7 @@ const DB_PLACEHOLDERS: Record<string, string> = {
 
 export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushModalProps) {
   const { dbType, setDbType } = useSchemaStore();
+  const { token, isAuthenticated } = useAuthStore();
   const [connectionString, setConnectionString] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [testSuccess, setTestSuccess] = useState<boolean | null>(null);
@@ -37,12 +39,19 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
 
   const handleTestConnection = async () => {
     if (!connectionString.trim()) return;
+    if (!isAuthenticated) {
+      resetState();
+      setTestSuccess(false);
+      setDeployMessage({ text: 'Bu özellik için giriş yapmanız gerekiyor.', isError: true });
+      return;
+    }
     setIsTesting(true);
     resetState();
     try {
       const response = await fetch('http://localhost:5000/api/executor/test-connection', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ connectionString, dbType }),
       });
       const data = await response.json();
@@ -63,12 +72,17 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
 
   const handleDeploy = async () => {
     if (!connectionString.trim() || !sqlScript.trim()) return;
+    if (!isAuthenticated) {
+      setDeployMessage({ text: 'Bu özellik için giriş yapmanız gerekiyor.', isError: true });
+      return;
+    }
     setIsDeploying(true);
     setDeployMessage(null);
     try {
       const response = await fetch('http://localhost:5000/api/executor/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ connectionString, dbType, script: sqlScript }),
       });
       const data = await response.json();

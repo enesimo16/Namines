@@ -261,7 +261,7 @@ public class GroqAIService : IAIService
             max_tokens = 4096
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -316,7 +316,7 @@ public class GroqAIService : IAIService
             max_tokens = 4096
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -364,7 +364,7 @@ public class GroqAIService : IAIService
             max_tokens = 4096
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -413,7 +413,7 @@ public class GroqAIService : IAIService
             max_tokens = CalculateMaxTokens(schema.Tables?.Count ?? 0)
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -487,7 +487,7 @@ public class GroqAIService : IAIService
                     max_tokens = 4096
                 };
 
-                var response = await PostAsync("chat/completions", payload);
+                using var response = await PostAsync("chat/completions", payload);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -568,7 +568,7 @@ public class GroqAIService : IAIService
                     max_tokens = CalculateMaxTokens(tableCount)
                 };
 
-                var response = await PostAsync("chat/completions", payload);
+                using var response = await PostAsync("chat/completions", payload);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -636,7 +636,7 @@ public class GroqAIService : IAIService
             max_tokens = CalculateMaxTokens(tableCount)
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -707,7 +707,7 @@ public class GroqAIService : IAIService
             max_tokens = CalculateMaxTokens(tableCount)
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
@@ -749,7 +749,7 @@ public class GroqAIService : IAIService
             max_tokens = CalculateMaxTokens(tableCount)
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -822,7 +822,7 @@ Code:
             max_tokens = CalculateMaxTokens(tableCount)
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -928,7 +928,7 @@ Code:
             max_tokens = 4096
         };
 
-        var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload);
 
         if (!response.IsSuccessStatusCode)
         {

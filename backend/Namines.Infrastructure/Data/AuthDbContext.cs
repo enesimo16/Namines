@@ -35,6 +35,10 @@ namespace Namines.Infrastructure.Data
                 .WithOne()
                 .HasForeignKey<UserAIQuota>(p => p.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Stripe webhook her çağrıda StripeCustomerId ile kullanıcı arıyor → index ile full table scan önlenir.
+            builder.Entity<ApplicationUser>()
+                .HasIndex(u => u.StripeCustomerId);
         }
     }
 }

@@ -57,6 +57,19 @@ namespace Namines.API.Middleware
                 return;
             }
 
+            // JWT auth check — deterministic branch'ten ÖNCE olmalı. Aksi halde
+            // enhanceWithAI:false gönderen anonim istekler auth'u tamamen atlayıp
+            // sunucu-taraflı üretim/paketleme tetikleyebiliyordu (unauth compute/disk DoS).
+            var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json";
+                var authErr = new { code = "AUTH_REQUIRED", message = "AI features require authentication." };
+                await context.Response.WriteAsync(JsonSerializer.Serialize(authErr));
+                return;
+            }
+
             // Check if it is a deterministic path requesting mock/seed/coder sandbox
             bool isDeterministicRequest = false;
             if (path.StartsWith("/api/smartseed") || path.StartsWith("/api/coderai"))
@@ -93,17 +106,6 @@ namespace Namines.API.Middleware
             if (isDeterministicRequest)
             {
                 await _next(context);
-                return;
-            }
-
-            // JWT authentication check
-            var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.ContentType = "application/json";
-                var errObj = new { code = "AUTH_REQUIRED", message = "AI features require authentication." };
-                await context.Response.WriteAsync(JsonSerializer.Serialize(errObj));
                 return;
             }
 
@@ -152,13 +154,10 @@ namespace Namines.API.Middleware
                 await db.SaveChangesAsync();
             }
 
-            // Ollama provider bypass
-            if (context.Request.Headers.TryGetValue("X-AI-Provider", out var providerHeader) && 
-                string.Equals(providerHeader, "Ollama", StringComparison.OrdinalIgnoreCase))
-            {
-                await _next(context);
-                return;
-            }
+            // NOT: Eskiden client'ın gönderdiği "X-AI-Provider: Ollama" header'ı tüm
+            // quota'yı bypass ediyordu (spoof edilebilir → ücretli kullanıcı bedava Groq).
+            // Kaldırıldı. Ücretsiz/yerel kullanım zaten sunucu-taraflı AIMode.DefaultNamines
+            // (multiplier 0) ile ele alınıyor; sağlayıcı client header'ından türetilmez.
 
             // Map requested path to feature base costs & policy modes
             AIMode selectedMode = AIMode.Medium; // default fallback if no policy
@@ -240,12 +239,16 @@ namespace Namines.API.Middleware
 
             await _next(context);
 
-            // Increment quota only on successful AI generation response
+            // Increment quota only on successful AI generation response.
+            // Atomik UPDATE: eşzamanlı isteklerde read-modify-write kaynaklı kayıp artışı önler.
             if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
             {
-                quota.DailyUsageCount = Math.Min(quota.DailyLimit, quota.DailyUsageCount + totalCost);
-                db.UserAIQuotas.Update(quota);
-                await db.SaveChangesAsync();
+                int cap = quota.DailyLimit;
+                await db.UserAIQuotas
+                    .Where(q => q.UserId == userId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(
+                        q => q.DailyUsageCount,
+                        q => q.DailyUsageCount + totalCost > cap ? cap : q.DailyUsageCount + totalCost));
             }
         }
     }

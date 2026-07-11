@@ -42,7 +42,6 @@ export default function CompilePage() {
 
   // dbType artık global store'dan geliyor (V2)
   const [sql, setSql] = useState('');
-  const [mockData, setMockData] = useState('');
   const [mermaidCode, setMermaidCode] = useState('');
   const [diagramType, setDiagramType] = useState<
     'ER' | 'CLASS' | 'FLOW' | 'MINDMAP' | 'STATE' | 'SEQUENCE' | 'GANTT' | 'PIE' | 'GIT' | 'JOURNEY' | 'TIMELINE' | 'QUADRANT' | 'REQUIREMENT'
@@ -60,24 +59,29 @@ export default function CompilePage() {
       return;
     }
 
+    let ignore = false;
     const fetchSql = async () => {
       setIsLoading(true);
       try {
         const generatedSql = await schemaService.compileSql(schema, dbType);
+        if (ignore) return;
         setSql(generatedSql);
 
         // Fetch mermaid code
         const mCode = await schemaService.generateMermaid(schema);
+        if (ignore) return;
         setMermaidCode(mCode);
       } catch (error) {
+        if (ignore) return;
         console.error("Failed to compile SQL", error);
         setSql('-- Error generating SQL');
       } finally {
-        setIsLoading(false);
+        if (!ignore) setIsLoading(false);
       }
     };
 
     fetchSql();
+    return () => { ignore = true; };
   }, [schema, dbType, router]);
 
   useEffect(() => {
@@ -117,25 +121,8 @@ export default function CompilePage() {
     };
   }, []);
 
-  const loadMockData = async () => {
-    if (!schema || mockData) return;
-    setIsLoading(true);
-    try {
-      const data = await schemaService.generateMockData(schema);
-      setMockData(data);
-    } catch (error) {
-      console.error("Failed to generate mock data", error);
-      setMockData('-- Error generating mock data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleTabChange = (tab: 'SQL' | 'EF' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN') => {
     setActiveTab(tab);
-    if (tab === 'MOCK' && !mockData) {
-      loadMockData();
-    }
   };
 
   const updateDiagram = async (

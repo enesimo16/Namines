@@ -24,11 +24,11 @@ public static class ServiceCollectionExtensions
         {
             client.Timeout = TimeSpan.FromMinutes(5);
         });
-        
-        // Scoped: a new instance per HTTP request scope
-        services.AddScoped<GroqAIService>();
-        services.AddScoped<OllamaAIService>();
-        
+
+        // NOT: AddHttpClient<T> zaten T'yi typed-client olarak kaydeder (IHttpClientFactory
+        // üzerinden HttpClient enjekte edilir). Ayrıca AddScoped<T> yazmak bu kaydı ezer ve
+        // constructor'daki HttpClient DI'dan çözülemez → çalışmaz. Bu yüzden eklenmez.
+
         // IAIFactory as Scoped (resolved per request)
         services.AddScoped<IAIFactory>(sp => new AIFactory(new IAIService[]
         {

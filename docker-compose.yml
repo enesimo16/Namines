@@ -32,8 +32,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Build sırasında API URL'i embed et (public env)
-        NEXT_PUBLIC_API_URL: http://localhost:5000/api
+        # Build sırasında API URL'i embed et (public env).
+        # NOT: api.ts sonuna "/api" ekliyor; buraya /api YAZMA yoksa ".../api/api" olur.
+        NEXT_PUBLIC_API_URL: http://localhost:5000
     ports:
       - "3000:3000"
     environment:

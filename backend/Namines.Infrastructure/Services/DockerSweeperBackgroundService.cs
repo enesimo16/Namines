@@ -25,6 +25,12 @@ public class DockerSweeperBackgroundService : BackgroundService
         _client = new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
     }
 
+    public override void Dispose()
+    {
+        _client?.Dispose();
+        base.Dispose();
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Docker Sweeper Background Service is starting.");

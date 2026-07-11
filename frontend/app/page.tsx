@@ -6,6 +6,7 @@ import { Loader2, X } from 'lucide-react';
 import { schemaService } from '../services/api';
 import { useSchemaStore } from '../store/useSchemaStore';
 import { useToastStore } from '../store/useToastStore';
+import { useAuthModalStore } from '../store/useAuthModalStore';
 import VoiceRecorder from '../components/landing/VoiceRecorder';
 
 export default function LandingPage() {
@@ -154,9 +155,15 @@ export default function LandingPage() {
       const schema = await schemaService.generateSchema(prompt, dbType, aiProvider, modelName, image, referenceUrl);
       loadFromSchema(schema);
       router.push('/canvas');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to generate schema:', error);
-      showToast('An error occurred while generating the schema. Please try again.', 'error');
+      if (error?.response?.status === 401) {
+        // Guest: AI şema üretimi giriş gerektiriyor → net mesaj + login modalı.
+        showToast('Şema üretmek için lütfen giriş yapın.', 'warning');
+        useAuthModalStore.getState().open();
+      } else {
+        showToast('An error occurred while generating the schema. Please try again.', 'error');
+      }
       setIsGenerating(false);
     }
   };

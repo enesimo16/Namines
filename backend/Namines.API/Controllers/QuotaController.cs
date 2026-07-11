@@ -28,41 +28,21 @@ namespace Namines.API.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == userId);
-            if (quota == null)
-            {
-                quota = new UserAIQuota
-                {
-                    UserId = userId,
-                    DailyLimit = 100,
-                    DailyUsageCount = 0,
-                    LastResetDate = DateTime.UtcNow
-                };
-                await _context.UserAIQuotas.AddAsync(quota);
-                await _context.SaveChangesAsync();
-            }
-            else
-            {
-                if (quota.DailyLimit < 100)
-                {
-                    quota.DailyLimit = 100;
-                }
+            // GET idempotent olmalı → yazma yapmadan oku. Provizyon register'da, reset AI çağrısı
+            // sırasında middleware'de kalıcılaşır; burada yalnızca reset-farkındalıklı değerler hesaplanır.
+            var quota = await _context.UserAIQuotas.AsNoTracking().FirstOrDefaultAsync(q => q.UserId == userId);
 
-                if (quota.LastResetDate.AddHours(3).Date < DateTime.UtcNow.AddHours(3).Date)
-                {
-                    quota.DailyUsageCount = 0;
-                    quota.LastResetDate = DateTime.UtcNow;
-                }
-                _context.UserAIQuotas.Update(quota);
-                await _context.SaveChangesAsync();
-            }
+            int dailyLimit = quota == null ? 100 : Math.Max(100, quota.DailyLimit);
+            var lastReset = quota?.LastResetDate ?? DateTime.UtcNow;
+            bool resetDue = lastReset.AddHours(3).Date < DateTime.UtcNow.AddHours(3).Date;
+            int used = (quota == null || resetDue) ? 0 : quota.DailyUsageCount;
 
             return Ok(new
             {
-                DailyLimit = quota.DailyLimit,
-                Used = quota.DailyUsageCount,
-                Remaining = Math.Max(0, quota.DailyLimit - quota.DailyUsageCount),
-                ResetAt = quota.LastResetDate.AddHours(3).Date.AddDays(1).AddHours(-3).ToString("o")
+                DailyLimit = dailyLimit,
+                Used = used,
+                Remaining = Math.Max(0, dailyLimit - used),
+                ResetAt = lastReset.AddHours(3).Date.AddDays(1).AddHours(-3).ToString("o")
             });
         }
     }
