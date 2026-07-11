@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 
 namespace Namines.Infrastructure.Data
@@ -9,6 +10,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<CloudProject> CloudProjects { get; set; } = null!;
         public DbSet<UserAIPolicy> UserAIPolicies { get; set; } = null!;
         public DbSet<UserAIQuota> UserAIQuotas { get; set; } = null!;
+        public DbSet<Feedback> Feedbacks { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {

@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "../components/layout/Header";
 import ToastContainer from "../components/toast/ToastContainer";
 import ConfirmDialog from "../components/common/ConfirmDialog";
+import FeedbackWidget from "../components/feedback/FeedbackWidget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -64,6 +65,9 @@ export default function RootLayout({
 
         {/* Global onay dialogu — native confirm() yerine estetik modal */}
         <ConfirmDialog />
+
+        {/* Geri bildirim widget'ı (sol altta yüzen buton) */}
+        <FeedbackWidget />
       </body>
     </html>
   );
