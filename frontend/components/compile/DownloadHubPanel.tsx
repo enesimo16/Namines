@@ -265,7 +265,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   // ─────────────────────────────────────────────
   if (status === 'success' || status === 'error') {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-[#070708] rounded-xl border border-zinc-800/80 p-6 relative min-h-[520px]">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#0b0c10] rounded-2xl border border-zinc-800/60 p-6 relative min-h-[520px]">
         {/* Local Styles for Ocean Waves inside Panel */}
         <style dangerouslySetInnerHTML={{__html: `
           .sandbox-ocean-wave {
@@ -392,7 +392,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
   // IDLE state - Show beautiful Download Hub Cards
   // ─────────────────────────────────────────────
   return (
-    <div className="w-full h-full flex flex-col justify-center items-center p-6 bg-[#050508] rounded-xl border border-zinc-800/80 relative overflow-hidden min-h-[520px]">
+    <div className="w-full h-full flex flex-col justify-center items-center bg-[#0b0c10] rounded-2xl border border-zinc-800/60 p-6 overflow-y-auto custom-scrollbar relative min-h-[520px]">
       {/* Local Styles for Ocean Waves inside Panel */}
       <style dangerouslySetInnerHTML={{__html: `
         .sandbox-ocean-wave {

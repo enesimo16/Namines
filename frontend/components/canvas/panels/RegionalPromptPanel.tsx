@@ -141,12 +141,6 @@ export default function RegionalPromptPanel() {
         {/* Outer Frame Wrapper */}
         <div className="relative bg-[#171D31] rounded-[20px] p-[5px] border border-[#2b375b] shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden">
           
-          {/* Decorative Corner Stars */}
-          <div className="absolute top-2 left-2.5 text-[#7d91be] text-[10px] pointer-events-none">✦</div>
-          <div className="absolute top-2 right-2.5 text-[#7d91be] text-[10px] pointer-events-none">✦</div>
-          <div className="absolute bottom-2 left-2.5 text-[#7d91be] text-[10px] pointer-events-none">✦</div>
-          <div className="absolute bottom-2 right-2.5 text-[#7d91be] text-[10px] pointer-events-none">✦</div>
- 
           {/* Inner Panel Background */}
           <div className="relative bg-gradient-to-b from-[#1c2445] to-[#141b31] border border-[#364472] rounded-[15px] h-full overflow-hidden flex flex-col">
             

@@ -149,75 +149,62 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-indigo-500/10 to-violet-500/10 rounded-full blur-[90px] pointer-events-none -z-10" />
 
       {/* Main Glassmorphic Container */}
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" className="relative w-full max-w-md bg-[#09111F]/90 backdrop-blur-2xl border border-indigo-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col p-6 pb-12 animate-in zoom-in-95 duration-200">
-        
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" className="relative w-full max-w-lg bg-[#09111F]/90 backdrop-blur-2xl border border-indigo-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col p-8 pb-14 animate-in zoom-in-95 duration-200">
+
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-indigo-500/10">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-indigo-400" />
-            <h3 id="auth-modal-title" className="text-sm font-extrabold uppercase tracking-wider text-indigo-100">
-              {isLogin ? 'CLOUD SIGN IN' : 'NEW CLOUD ACCOUNT'}
+        <div className="flex items-center justify-between pb-5 border-b border-indigo-500/10">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="w-6 h-6 text-indigo-400" />
+            <h3 id="auth-modal-title" className="text-lg font-extrabold uppercase tracking-wider text-indigo-100">
+              {isLogin ? 'Sign In' : 'Create Account'}
             </h3>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="p-1 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all cursor-pointer"
+            className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Info Banner */}
-        <div className="my-4 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex gap-2.5 items-start">
-          <CheckCircle2 className="w-4.5 h-4.5 text-indigo-400 shrink-0 mt-0.5" />
-          <p className="text-[10px] text-indigo-200/90 leading-relaxed font-semibold">
-            After registering, all your designed schemas and branch history are safely stored on the server and will never be lost.
+        <div className="my-5 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex gap-3 items-start">
+          <CheckCircle2 className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-indigo-200/90 leading-relaxed font-medium">
+            Your schemas and branch history are safely stored in the cloud and never lost.
           </p>
         </div>
 
-        {/* Dynamic Tab Selector styles based on login state to match the Stitch designs perfectly! */}
-        {isLogin ? (
-          /* LOGIN TABS: Capsule shape tab selector matching stitch_screen_1.png */
-          <div className="flex bg-zinc-950/60 p-1 rounded-xl border border-zinc-800/80 mb-5">
-            <button
-              type="button"
-              onClick={() => { setIsLogin(true); setErrorMsg(null); }}
-              className="flex-1 py-1.5 text-center text-xs font-bold rounded-lg tracking-wide transition-all duration-200 bg-[#4F46E5] text-white shadow-[0_2px_10px_rgba(79,70,229,0.4)]"
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => { setIsLogin(false); setErrorMsg(null); }}
-              className="flex-1 py-1.5 text-center text-xs font-bold rounded-lg tracking-wide transition-all duration-200 bg-transparent text-zinc-400 hover:text-zinc-200"
-            >
-              Sign Up
-            </button>
-          </div>
-        ) : (
-          /* SIGNUP TABS: Flat Underlined border tab style matching stitch_screen_2.png */
-          <div className="flex border-b border-zinc-800/80 mb-5 pb-px">
-            <button
-              type="button"
-              onClick={() => { setIsLogin(true); setErrorMsg(null); }}
-              className="flex-1 py-2 text-center text-xs font-bold tracking-wide transition-all duration-200 text-zinc-400 hover:text-zinc-200 border-b-2 border-transparent"
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => { setIsLogin(false); setErrorMsg(null); }}
-              className="flex-1 py-2 text-center text-xs font-bold tracking-wide transition-all duration-200 text-white border-b-2 border-indigo-500 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]"
-            >
-              Sign Up
-            </button>
-          </div>
-        )}
+        {/* Unified capsule tab selector (login & sign up) */}
+        <div className="flex bg-zinc-950/60 p-1.5 rounded-2xl border border-zinc-800/80 mb-6">
+          <button
+            type="button"
+            onClick={() => { setIsLogin(true); setErrorMsg(null); }}
+            className={`flex-1 py-2.5 text-center text-sm font-bold rounded-xl tracking-wide transition-all duration-200 ${
+              isLogin
+                ? 'bg-[#4F46E5] text-white shadow-[0_2px_10px_rgba(79,70,229,0.4)]'
+                : 'bg-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIsLogin(false); setErrorMsg(null); }}
+            className={`flex-1 py-2.5 text-center text-sm font-bold rounded-xl tracking-wide transition-all duration-200 ${
+              !isLogin
+                ? 'bg-[#4F46E5] text-white shadow-[0_2px_10px_rgba(79,70,229,0.4)]'
+                : 'bg-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Sign Up
+          </button>
+        </div>
 
         {/* Error Message Display */}
         {errorMsg && (
-          <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[10px] font-semibold flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 animate-pulse text-rose-400" />
+          <div className="mb-4 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm font-medium flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 shrink-0 animate-pulse text-rose-400" />
             <span>{errorMsg}</span>
           </div>
         )}
@@ -227,7 +214,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {/* Account Tier Toggle (Only on Register) - Cyan outline border matching stitch_screen_2.png */}
           {!isLogin && (
             <div className="flex flex-col gap-1.5 mb-1">
-              <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Account Type</label>
+              <label className="text-sm font-semibold text-indigo-300 uppercase tracking-wider px-1">Account Type</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -238,8 +225,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       : 'bg-zinc-950/20 border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
                   }`}
                 >
-                  <span className="text-[11px] font-extrabold tracking-wide">Personal</span>
-                  <span className="text-[8px] opacity-75 leading-none">For individual developers</span>
+                  <span className="text-sm font-extrabold tracking-wide">Personal</span>
+                  <span className="text-[11px] opacity-75 leading-none mt-0.5">For individual developers</span>
                 </button>
                 <button
                   type="button"
@@ -250,8 +237,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       : 'bg-zinc-950/20 border-zinc-800/80 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
                   }`}
                 >
-                  <span className="text-[11px] font-extrabold tracking-wide">Corporate</span>
-                  <span className="text-[8px] opacity-75 leading-none">For teams and organizations</span>
+                  <span className="text-sm font-extrabold tracking-wide">Corporate</span>
+                  <span className="text-[11px] opacity-75 leading-none mt-0.5">For teams and organizations</span>
                 </button>
               </div>
             </div>
@@ -259,7 +246,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {/* Email Field */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Email Address</label>
+            <label className="text-sm font-semibold text-indigo-300 uppercase tracking-wider px-1">Email Address</label>
             <div className="relative flex items-center">
               <input
                 type="email"
@@ -267,7 +254,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 placeholder="example@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 px-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
+                className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium placeholder:text-zinc-600"
               />
             </div>
           </div>
@@ -275,7 +262,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {/* Username Field (Only on Register) */}
           {!isLogin && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Username</label>
+              <label className="text-sm font-semibold text-indigo-300 uppercase tracking-wider px-1">Username</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -283,7 +270,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   placeholder="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 px-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
+                  className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium placeholder:text-zinc-600"
                 />
               </div>
             </div>
@@ -292,7 +279,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           {/* Company Name Field (Only on Register & Corporate Tier) */}
           {!isLogin && userType === 'corporate' && (
             <div className="flex flex-col gap-1.5 animate-in slide-in-from-top-2 duration-200">
-              <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Company Name</label>
+              <label className="text-sm font-semibold text-indigo-300 uppercase tracking-wider px-1">Company Name</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -300,7 +287,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   placeholder="Company Inc."
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 px-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
+                  className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium placeholder:text-zinc-600"
                 />
               </div>
             </div>
@@ -308,7 +295,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {/* Password Field */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-indigo-400 uppercase tracking-wider px-1">Password</label>
+            <label className="text-sm font-semibold text-indigo-300 uppercase tracking-wider px-1">Password</label>
             <div className="relative flex items-center">
               <input
                 type="password"
@@ -316,7 +303,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-2.5 px-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium"
+                className="w-full bg-[#0a0f1d] border border-zinc-800 focus:border-indigo-500/50 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/10 transition-all font-medium placeholder:text-zinc-600"
               />
             </div>
           </div>
@@ -325,20 +312,12 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-4 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-extrabold text-xs tracking-wider uppercase py-3 rounded-xl transition-all duration-300 shadow-[0_4px_15px_rgba(79,70,229,0.35)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full mt-5 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-extrabold text-sm tracking-wider uppercase py-3.5 rounded-xl transition-all duration-300 shadow-[0_4px_15px_rgba(79,70,229,0.35)] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
             {isLoading ? (
-              <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              <span className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
             ) : (
-              isLogin ? (
-                <>
-                  <span>LAUNCH CLOUD SESSION</span>
-                </>
-              ) : (
-                <>
-                  <span>REGISTER AND SYNC</span>
-                </>
-              )
+              <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
             )}
           </button>
         </form>

@@ -4,6 +4,7 @@ import { SchemaDiffResult, MigrationResult } from '../types/migration';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 import { useSchemaStore } from '../store/useSchemaStore';
+import { useByokStore } from '../store/useByokStore';
 
 const api = axios.create({
   baseURL: (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL)
@@ -233,40 +234,16 @@ api.interceptors.request.use(
         }
       }
 
-      // Inject BYOK Headers
-      const naminesByok = localStorage.getItem('namines-byok');
-      if (naminesByok) {
-        try {
-          const parsed = JSON.parse(naminesByok);
-          const apiKey = parsed.state?.apiKey;
-          const provider = parsed.state?.provider;
-          if (apiKey) {
-            // Decrypt the obfuscated key before attaching to headers (using same algorithm as store)
-            const SECRET_KEY = "namines-byok-obfuscator-key-20260605-darvell-labs-secret";
-            const decrypt = (cipher: string): string => {
-              if (!cipher) return '';
-              try {
-                const raw = atob(cipher);
-                let result = '';
-                for (let i = 0; i < raw.length; i++) {
-                  const charCode = raw.charCodeAt(i);
-                  const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
-                  result += String.fromCharCode(charCode ^ keyChar);
-                }
-                return result;
-              } catch (e) {
-                return '';
-              }
-            };
-            const decryptedKey = decrypt(apiKey);
-            if (decryptedKey) {
-              config.headers['X-BYOK-Key'] = decryptedKey;
-              config.headers['X-BYOK-Provider'] = provider || 'groq';
-            }
-          }
-        } catch (e) {
-          console.error('BYOK parsing error', e);
+      // Inject BYOK Headers — anahtar bellekteki store'dan (zaten çözülmüş) okunur;
+      // localStorage'da AES-256-GCM ciphertext durur, burada tekrar çözme yapılmaz.
+      try {
+        const { apiKey, provider } = useByokStore.getState();
+        if (apiKey) {
+          config.headers['X-BYOK-Key'] = apiKey;
+          config.headers['X-BYOK-Provider'] = provider || 'groq';
         }
+      } catch (e) {
+        console.error('BYOK header injection error', e);
       }
 
       // Inject AI Provider Header (Ollama local / Gemini / Groq)

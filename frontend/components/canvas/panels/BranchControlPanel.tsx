@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GitBranch, Plus, Trash2, Eye, EyeOff, GitMerge, ChevronDown } from 'lucide-react';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
+import { confirmDialog } from '../../../store/useConfirmStore';
 import { useBranchStore } from '../../../store/useBranchStore';
 import { calculateSchemaDiff } from '../../../utils/schemaDiff';
 import { useToastStore } from '../../../store/useToastStore';
@@ -61,14 +62,20 @@ export default function BranchControlPanel() {
     }
   };
 
-  const handleDeleteBranch = (e: React.MouseEvent, name: string) => {
+  const handleDeleteBranch = async (e: React.MouseEvent, name: string) => {
     e.stopPropagation();
     if (name === 'main') return;
-    
-    if (confirm(`Are you sure you want to delete branch '${name}'?`)) {
+
+    const ok = await confirmDialog({
+      title: 'Delete branch',
+      message: `Are you sure you want to delete branch '${name}'? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (ok) {
       deleteBranch(activeProject.id, name);
       triggerToast(`Branch '${name}' deleted.`, 'success');
-      
+
       if (currentBranchName === name) {
         const mainBranch = branches.find(b => b.name === 'main');
         if (mainBranch) {

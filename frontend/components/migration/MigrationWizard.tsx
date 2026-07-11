@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { confirmDialog } from '../../store/useConfirmStore';
 import { useReactFlow } from '@xyflow/react';
 import { flowToSchema } from '../../lib/flowToSchema';
 import { migrationService } from '../../services/api';
@@ -199,8 +200,14 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
     }
   };
 
-  const handleReset = () => {
-    if (confirm('Migration history will be reset. Are you sure?')) {
+  const handleReset = async () => {
+    const ok = await confirmDialog({
+      title: 'Reset migration',
+      message: 'Migration history will be reset. Are you sure?',
+      confirmLabel: 'Reset',
+      danger: true,
+    });
+    if (ok) {
       setMigrationBaseline(null);
       setDbContextCode('');
       setDiffResult(null);

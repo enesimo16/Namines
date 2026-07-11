@@ -84,43 +84,6 @@ export default function CompilePage() {
     return () => { ignore = true; };
   }, [schema, dbType, router]);
 
-  useEffect(() => {
-    const container = document.getElementById('compile-stars-container');
-    if (!container) return;
-    
-    function createStar() {
-      const star = document.createElement('div');
-      star.classList.add('shooting-star');
-      
-      const startY = Math.random() * window.innerHeight * 0.4;
-      const startX = window.innerWidth + Math.random() * 200;
-      
-      star.style.top = `${startY}px`;
-      star.style.right = `${window.innerWidth - startX}px`;
-      
-      const duration = 2.5 + Math.random() * 3;
-      star.style.animationDuration = `${duration}s`;
-      
-      container?.appendChild(star);
-      
-      setTimeout(() => {
-        if (container?.contains(star)) {
-          star.remove();
-        }
-      }, duration * 1000);
-    }
-
-    const intervalId = setInterval(createStar, 1800);
-    for(let i=0; i<3; i++) {
-      setTimeout(createStar, i * 800);
-    }
-
-    return () => {
-      clearInterval(intervalId);
-      if (container) container.innerHTML = '';
-    };
-  }, []);
-
   const handleTabChange = (tab: 'SQL' | 'EF' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN') => {
     setActiveTab(tab);
   };
@@ -231,30 +194,6 @@ export default function CompilePage() {
           animation: floatWaveCyan 27s ease-in-out infinite;
           transform-origin: bottom center;
         }
-        .shooting-star {
-          position: absolute;
-          width: 2px;
-          height: 120px;
-          background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%);
-          top: -120px;
-          right: 0;
-          transform: rotate(45deg);
-          z-index: 1;
-          pointer-events: none;
-          animation: shoot 4s linear infinite;
-          opacity: 0;
-          box-shadow: 0 0 10px rgba(255,255,255,0.8);
-        }
-        @keyframes shoot {
-          0% {
-            transform: translate(0, 0) rotate(45deg);
-            opacity: 1;
-          }
-          100% {
-            transform: translate(-1800px, 1800px) rotate(45deg);
-            opacity: 0;
-          }
-        }
       `}} />
 
       {/* Vector Deep Space Waves & Nebulas (Stitch 4a845bd2 Premium Vector Representation) */}
@@ -362,7 +301,6 @@ export default function CompilePage() {
         <div className="absolute top-[62%] left-[28%] w-[130px] h-[1px] bg-gradient-to-r from-transparent via-indigo-400/25 to-transparent rotate-[-22deg] pointer-events-none blur-[0.3px]" />
         
         {/* Dynamic shooting stars engine target container */}
-        <div id="compile-stars-container" className="absolute inset-0 pointer-events-none overflow-hidden" />
       </div>
 
       {/* V2: Global Header zaten layout.tsx'te render ediliyor.

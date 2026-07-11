@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "../components/layout/Header";
 import ToastContainer from "../components/toast/ToastContainer";
+import ConfirmDialog from "../components/common/ConfirmDialog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -60,6 +61,9 @@ export default function RootLayout({
 
         {/* Global bildirim sistemi — tüm sayfalarda sağ alt köşede çalışır */}
         <ToastContainer />
+
+        {/* Global onay dialogu — native confirm() yerine estetik modal */}
+        <ConfirmDialog />
       </body>
     </html>
   );

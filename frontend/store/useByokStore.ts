@@ -1,35 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-// AES-like Vigenere-XOR-Base64 Obfuscation helper to secure key in localStorage against simple XSS payload string-scanning.
-const SECRET_KEY = "namines-byok-obfuscator-key-20260605-darvell-labs-secret";
-
-const encrypt = (text: string): string => {
-  if (!text) return '';
-  let result = '';
-  for (let i = 0; i < text.length; i++) {
-    const charCode = text.charCodeAt(i);
-    const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
-    result += String.fromCharCode(charCode ^ keyChar);
-  }
-  return btoa(result);
-};
-
-const decrypt = (cipher: string): string => {
-  if (!cipher) return '';
-  try {
-    const raw = atob(cipher);
-    let result = '';
-    for (let i = 0; i < raw.length; i++) {
-      const charCode = raw.charCodeAt(i);
-      const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
-      result += String.fromCharCode(charCode ^ keyChar);
-    }
-    return result;
-  } catch (e) {
-    return '';
-  }
-};
+import { encryptSecret, decryptSecret } from '../lib/byokCrypto';
 
 interface ByokState {
   apiKey: string | null;
@@ -50,30 +21,30 @@ export const useByokStore = create<ByokState>()(
     }),
     {
       name: 'namines-byok',
+      // AES-256-GCM ile at-rest şifreleme (anahtar IndexedDB'de non-extractable).
       storage: {
-        getItem: (name) => {
+        getItem: async (name) => {
           const value = localStorage.getItem(name);
           if (!value) return null;
           try {
             const parsed = JSON.parse(value);
             if (parsed.state && parsed.state.apiKey) {
-              parsed.state.apiKey = decrypt(parsed.state.apiKey);
+              parsed.state.apiKey = await decryptSecret(parsed.state.apiKey);
             }
             return parsed;
-          } catch (e) {
+          } catch {
             return null;
           }
         },
-        setItem: (name, value) => {
+        setItem: async (name, value) => {
           try {
-            // Shallow clone the value state to avoid modifying the store memory state directly
             const stateClone = JSON.parse(JSON.stringify(value));
             if (stateClone.state && stateClone.state.apiKey) {
-              stateClone.state.apiKey = encrypt(stateClone.state.apiKey);
+              stateClone.state.apiKey = await encryptSecret(stateClone.state.apiKey);
             }
             localStorage.setItem(name, JSON.stringify(stateClone));
           } catch (e) {
-            console.error("Failed to serialize and encrypt BYOK store", e);
+            console.error('Failed to serialize and encrypt BYOK store', e);
           }
         },
         removeItem: (name) => localStorage.removeItem(name),
