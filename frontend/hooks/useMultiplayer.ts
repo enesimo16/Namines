@@ -126,6 +126,11 @@ export function useMultiplayer() {
       }
     });
 
+    // Peer odadan ayrılınca hayalet imlecini temizle.
+    connection.on('ReceiveUserLeft', (connectionId: string) => {
+      removeCursor(connectionId);
+    });
+
     connection.on('ReceiveSchema', (remoteSchema: DatabaseSchema) => {
       isRemoteUpdateRef.current = true;
       loadFromSchema(remoteSchema);

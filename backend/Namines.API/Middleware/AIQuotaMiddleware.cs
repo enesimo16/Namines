@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
@@ -123,14 +124,23 @@ namespace Namines.API.Middleware
                 return;
             }
 
-            // Quota check
+            // ── Token havuzu yapılandırması ────────────────────────────────────────
+            // Paylaşımlı günlük havuz (tüm kullanıcılar) + kullanıcı-başı günlük tavan.
+            // Kayıtlı kullanıcı sayısına BÖLÜNMEZ (dormant hesaba token israf edilmez):
+            // tüketim talep üzerine havuzdan düşülür; tek kullanıcı tavanı havuzu drenlemesini önler.
+            // İleride config'ten havuzu büyütmek yeterli (100k → 1M).
+            var config = context.RequestServices.GetService(typeof(IConfiguration)) as IConfiguration;
+            long dailyPool = long.TryParse(config?["AiPool:DailyTokenPool"], out var dp) ? dp : 100_000;
+            int perUserCap = int.TryParse(config?["AiPool:PerUserDailyTokens"], out var pu) ? pu : 20_000;
+
+            // ── Kullanıcı kotası (token bazlı) ──
             var quota = await db.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == userId);
             if (quota == null)
             {
                 quota = new UserAIQuota
                 {
                     UserId = userId,
-                    DailyLimit = 100, // 100% percentage-based credits
+                    DailyLimit = perUserCap,
                     DailyUsageCount = 0,
                     LastResetDate = DateTime.UtcNow
                 };
@@ -139,12 +149,9 @@ namespace Namines.API.Middleware
             }
             else
             {
-                if (quota.DailyLimit < 100)
-                {
-                    quota.DailyLimit = 100;
-                }
-
-                // Daily reset check (Turkey Time UTC+3)
+                // Eski yüzde-tabanlı satırları token tavanına normalize et.
+                if (quota.DailyLimit != perUserCap) quota.DailyLimit = perUserCap;
+                // Günlük reset (TR saati UTC+3)
                 if (quota.LastResetDate.AddHours(3).Date < DateTime.UtcNow.AddHours(3).Date)
                 {
                     quota.DailyUsageCount = 0;
@@ -154,103 +161,67 @@ namespace Namines.API.Middleware
                 await db.SaveChangesAsync();
             }
 
-            // NOT: Eskiden client'ın gönderdiği "X-AI-Provider: Ollama" header'ı tüm
-            // quota'yı bypass ediyordu (spoof edilebilir → ücretli kullanıcı bedava Groq).
-            // Kaldırıldı. Ücretsiz/yerel kullanım zaten sunucu-taraflı AIMode.DefaultNamines
-            // (multiplier 0) ile ele alınıyor; sağlayıcı client header'ından türetilmez.
-
-            // Map requested path to feature base costs & policy modes
-            AIMode selectedMode = AIMode.Medium; // default fallback if no policy
-            int baseCost = 5;
+            // ── Özellik başına tahmini token maliyeti + kullanıcı politikası ──
+            AIMode selectedMode = AIMode.Medium; // policy yoksa varsayılan
+            int estTokens = 2500;
 
             var policy = await db.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (path.StartsWith("/api/aidba"))
-            {
-                baseCost = 8;
-                if (policy != null) selectedMode = policy.DbaAnalysis;
-            }
-            else if (path.StartsWith("/api/schema/revise"))
-            {
-                baseCost = 8;
-                if (policy != null) selectedMode = policy.SchemaRevision;
-            }
-            else if (path.StartsWith("/api/smartseed") || path.StartsWith("/api/schema/mockdata"))
-            {
-                baseCost = 5;
-                if (policy != null) selectedMode = policy.SmartSeed;
-            }
-            else if (path.StartsWith("/api/schema/generate"))
-            {
-                baseCost = 5;
-                if (policy != null) selectedMode = policy.SchemaGeneration;
-            }
-            else if (path.StartsWith("/api/coderai") || path.StartsWith("/api/reverseengineer"))
-            {
-                baseCost = path.StartsWith("/api/reverseengineer") ? 15 : 10;
-                if (policy != null) selectedMode = policy.Scaffolding;
-            }
-            else if (path.StartsWith("/api/documentation"))
-            {
-                baseCost = 10;
-                if (policy != null) selectedMode = policy.Documentation;
-            }
-            else if (path.StartsWith("/api/migration"))
-            {
-                baseCost = 10;
-                if (policy != null) selectedMode = policy.Migration;
-            }
-            else if (path.StartsWith("/api/voice"))
-            {
-                baseCost = 5;
-                if (policy != null) selectedMode = policy.Voice;
-            }
+            if (path.StartsWith("/api/aidba")) { estTokens = 3500; if (policy != null) selectedMode = policy.DbaAnalysis; }
+            else if (path.StartsWith("/api/schema/revise")) { estTokens = 2500; if (policy != null) selectedMode = policy.SchemaRevision; }
+            else if (path.StartsWith("/api/smartseed") || path.StartsWith("/api/schema/mockdata")) { estTokens = 2000; if (policy != null) selectedMode = policy.SmartSeed; }
+            else if (path.StartsWith("/api/schema/generate")) { estTokens = 2500; if (policy != null) selectedMode = policy.SchemaGeneration; }
+            else if (path.StartsWith("/api/reverseengineer")) { estTokens = 4500; if (policy != null) selectedMode = policy.Scaffolding; }
+            else if (path.StartsWith("/api/coderai")) { estTokens = 6000; if (policy != null) selectedMode = policy.Scaffolding; }
+            else if (path.StartsWith("/api/documentation")) { estTokens = 3000; if (policy != null) selectedMode = policy.Documentation; }
+            else if (path.StartsWith("/api/migration")) { estTokens = 3000; if (policy != null) selectedMode = policy.Migration; }
+            else if (path.StartsWith("/api/voice")) { estTokens = 1500; if (policy != null) selectedMode = policy.Voice; }
 
-            int multiplier = selectedMode switch
-            {
-                AIMode.DefaultNamines => 0,
-                AIMode.Low => 1,
-                AIMode.Medium => 2,
-                AIMode.High => 4,
-                AIMode.HighMixtral => 5,
-                AIMode.GeminiFlash => 5,   // Gemini 1.5 Flash — High+ tier
-                AIMode.Ultra => 6,
-                AIMode.GeminiPro => 6,     // Gemini 1.5 Pro — Ultra tier
-                AIMode.BYOK => 0,
-                _ => 2
-            };
-
-            int totalCost = baseCost * multiplier;
-
-            if (selectedMode == AIMode.DefaultNamines || selectedMode == AIMode.BYOK || totalCost == 0)
+            // DefaultNamines / BYOK → zaten ücretsiz/yerel; havuzdan düşme.
+            if (selectedMode == AIMode.DefaultNamines || selectedMode == AIMode.BYOK)
             {
                 context.Items["FallbackToLocal"] = true;
                 await _next(context);
                 return;
             }
 
-            if (quota.DailyUsageCount >= quota.DailyLimit)
+            // ── Global günlük havuz satırı (gün değişince yeni satır) ──
+            var today = DateTime.UtcNow.Date;
+            var global = await db.GlobalAiUsages.FirstOrDefaultAsync(g => g.Date == today);
+            if (global == null)
             {
-                // Token bitti → İSTEĞİ BLOKLAMA. Minimum/ücretsiz motora düş ve devam et.
-                // Böylece kullanıcı tüm ücretsiz özellikleri kullanmaya devam eder.
-                // Frontend bu header'ı görüp sağ altta "token bitti" bildirimi gösterir.
+                global = new GlobalAiUsage { Date = today, TokensUsed = 0 };
+                await db.GlobalAiUsages.AddAsync(global);
+                try { await db.SaveChangesAsync(); }
+                catch { global = await db.GlobalAiUsages.FirstOrDefaultAsync(g => g.Date == today); } // yarış: başka istek oluşturdu
+            }
+            long globalUsed = global?.TokensUsed ?? 0;
+
+            // ── Havuz VEYA kullanıcı tavanı dolarsa → minimum AI'ya düş (BLOKLAMA YOK) ──
+            bool poolExhausted = globalUsed + estTokens > dailyPool;
+            bool userExhausted = quota.DailyUsageCount + estTokens > quota.DailyLimit;
+            if (poolExhausted || userExhausted)
+            {
                 context.Items["FallbackToLocal"] = true;
-                context.Response.Headers["X-AI-Fallback"] = "quota-exhausted";
+                context.Response.Headers["X-AI-Fallback"] = poolExhausted ? "pool-exhausted" : "quota-exhausted";
                 await _next(context);
                 return;
             }
 
             await _next(context);
 
-            // Increment quota only on successful AI generation response.
-            // Atomik UPDATE: eşzamanlı isteklerde read-modify-write kaynaklı kayıp artışı önler.
+            // Başarılıysa hem kullanıcı hem global sayacı ATOMİK artır (yarış-güvenli).
             if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
             {
                 int cap = quota.DailyLimit;
+                int cost = estTokens;
                 await db.UserAIQuotas
                     .Where(q => q.UserId == userId)
                     .ExecuteUpdateAsync(s => s.SetProperty(
                         q => q.DailyUsageCount,
-                        q => q.DailyUsageCount + totalCost > cap ? cap : q.DailyUsageCount + totalCost));
+                        q => q.DailyUsageCount + cost > cap ? cap : q.DailyUsageCount + cost));
+                await db.GlobalAiUsages
+                    .Where(g => g.Date == today)
+                    .ExecuteUpdateAsync(s => s.SetProperty(g => g.TokensUsed, g => g.TokensUsed + cost));
             }
         }
     }

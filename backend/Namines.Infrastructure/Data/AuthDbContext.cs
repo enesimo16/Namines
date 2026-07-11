@@ -11,6 +11,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<UserAIPolicy> UserAIPolicies { get; set; } = null!;
         public DbSet<UserAIQuota> UserAIQuotas { get; set; } = null!;
         public DbSet<Feedback> Feedbacks { get; set; } = null!;
+        public DbSet<GlobalAiUsage> GlobalAiUsages { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -41,6 +42,11 @@ namespace Namines.Infrastructure.Data
             // Stripe webhook her çağrıda StripeCustomerId ile kullanıcı arıyor → index ile full table scan önlenir.
             builder.Entity<ApplicationUser>()
                 .HasIndex(u => u.StripeCustomerId);
+
+            // Global token havuzu: gün başına tek satır (yarışta ikinci insert unique index ile düşer).
+            builder.Entity<GlobalAiUsage>()
+                .HasIndex(g => g.Date)
+                .IsUnique();
         }
     }
 }
