@@ -6,14 +6,15 @@ services:
       dockerfile: Namines.API/Dockerfile
     ports:
       - "5000:8080"
+    # Tüm sırlar kök .env dosyasından gelir ('__' convention — tek kaynak).
+    env_file:
+      - .env
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      # Groq API key — .env dosyasından gelir (örnek: GROQ_API_KEY=gsk_xxx)
-      - Groq__ApiKey=${GROQ_API_KEY}
-      # JWT — .env dosyasından gelir (örnek: JWT_KEY=super_secret_min_32_chars)
-      - Jwt__Key=${JWT_KEY:-NaminesDevFallbackKey_Change_In_Production_Min32Chars!}
       - Jwt__Issuer=NaminesServer
       - Jwt__Audience=NaminesClient
+      # Production'da SSRF koruması AÇIK (dev .env'deki true değerini ez).
+      - Executor__AllowPrivateHosts=false
     volumes:
       # Docker-in-Docker: sandbox özelliği için host socket (opsiyonel)
       - /var/run/docker.sock:/var/run/docker.sock

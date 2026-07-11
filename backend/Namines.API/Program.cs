@@ -37,6 +37,12 @@ try
 {
     Log.Information("Namines API başlatılıyor...");
 
+    // ── Tüm sırların TEK kaynağı: .env (git-ignored) ───────────────────────────
+    // Yukarı doğru gezerek en yakın .env'i bulur ve ortam değişkenlerine yükler.
+    // '__' ayracı .NET hiyerarşisine map olur (ör. Jwt__Key => Jwt:Key).
+    // Böylece user-secrets / appsettings.secrets.json'a gerek kalmaz.
+    DotNetEnv.Env.TraversePath().Load();
+
     var builder = WebApplication.CreateBuilder(args);
 
     // Serilog'u ASP.NET Host'a entegre et (bootstrap logger'ı tam config ile günceller)
@@ -60,11 +66,11 @@ try
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}");
     });
 
-    // ── Load appsettings.secrets.json (git-ignored local secrets) ──────────────
-    // This file contains Jwt:Key, Groq:ApiKey etc. — NEVER commit it.
+    // Sırların birincil kaynağı .env (yukarıda DotNetEnv ile yüklendi).
+    // appsettings.secrets.json yalnızca opsiyonel eski fallback olarak kalır (varsa).
     builder.Configuration
         .AddJsonFile("appsettings.secrets.json", optional: true, reloadOnChange: false);
-    // Environment variables override everything (for Docker / cloud deployments)
+    // Ortam değişkenleri (.env dahil) her şeyi override eder.
     builder.Configuration.AddEnvironmentVariables();
 
     // Configure QuestPDF license
