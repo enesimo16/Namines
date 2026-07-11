@@ -137,3 +137,4 @@ docker-compose.local.yml
 # =========================
 *.md
 !README.md
+telemetry.config.json

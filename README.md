@@ -1,89 +1,118 @@
-# Namines - AI-Powered Interactive Database Architecture Builder
+<div align="center">
 
-Namines is a state-of-the-art, AI-powered interactive database schema creation and compilation platform designed for modern software developers, database architects, and data engineers. It transforms natural language instructions or voice commands into fully-fledged DDL scripts, Entity Framework Core models, and comprehensive PDF data dictionaries in seconds.
+# ⚡ Namines
 
-## Key Features
+**Design interactive database architectures in seconds — with AI.**
 
-- **AI-Driven Schema Generation**: Design your database using natural language (text or voice) powered by Groq (Cloud) or Ollama (Local models).
-- **Interactive React Flow Canvas**: Visualize the generated database schema in a visual, drag-and-drop interface, reposition tables (nodes), and manage relationships (edges) dynamically.
-- **Regional Prompting / Targeted Revisions**: Request specific changes targeting only a subset of tables (e.g., "Add audit log columns to this table") instead of rebuilding the entire schema.
-- **Real-Time Database Rule Engine (Linter)**: Instantly detect issues or type mismatches in relationships (e.g., linking a VARCHAR Primary Key to an INT Foreign Key).
-- **Advanced Export Options (Compiler)**:
-  - Optimized DDL (SQL) scripts for Microsoft SQL Server, PostgreSQL, and MySQL.
-  - Ready-to-use Entity Framework Core DbContext and Model classes packaged in a single ZIP archive.
-  - Comprehensive Database Dictionary documents generated using QuestPDF.
-  - Interactive Mermaid ER Diagrams and project markdown documentation.
-- **Docker Sandbox Integration**: Execute and test the generated SQL scripts inside an isolated Docker container, streaming output in real-time and providing database backup archives (.tar / .bak).
-- **Zustand & IndexedDB Cloud Sync**: Automatically persists schemas, branch history, and chat logs inside local browser IndexedDB to prevent data loss.
+Describe your app in plain language and Namines generates a normalized schema, renders it on an
+interactive canvas, and produces production‑ready DDL, EF Core models, migrations, mock data,
+documentation and more — across six database engines.
 
-## Tech Stack & Architecture
+![Namines](docs/screenshots/landing.png)
 
-Namines adheres strictly to Clean Architecture principles to ensure modularity, testability, and high maintainability:
+</div>
 
-### Backend (.NET 8 Web API)
-- **Namines.API**: Presentation layer containing RESTful controllers and Server-Sent Events (SSE) for streaming Docker container execution logs.
-- **Namines.Core**: Enterprise domain models (SchemaTable, SchemaColumn), service interfaces, and AI prompt builders.
-- **Namines.Infrastructure**: Adapters for external dependencies including Groq API client, Ollama API integration, Docker.DotNet engine communication, DDL generators, and QuestPDF export services.
+---
 
-### Frontend (Next.js 16 - App Router)
-- **Styling & Layout**: Tailwind CSS custom styling, modern glassmorphism design variables, and dynamic particle systems.
-- **State Management**: Zustand-powered centralized store managing schema configurations, custom nodes/edges, branch history, and AI session states.
-- **Visualization**: Custom React Flow rendering engine for high-performance interactive diagrams.
-- **Voice Integration**: Native MediaRecorder API capture, converted and sent to Whisper model for fast transcription.
+## ✨ Features
 
-## Getting Started
+- **AI schema generation** — natural‑language, reference‑URL or image (vision) → normalized 3NF schema.
+- **Interactive canvas** — drag‑and‑drop tables, relations and columns (React Flow); real‑time
+  multiplayer rooms with live cursors (SignalR).
+- **Multi‑engine DDL** — SQL Server, PostgreSQL, MySQL, MariaDB, SQLite and Oracle.
+- **EF Core scaffolding & migrations** — generate `DbContext`/entities and a guided migration wizard
+  (per‑workspace, diff + preview).
+- **AI DBA advisor** — schema health score + prioritized issues.
+- **Smart Seed** — domain‑aware mock/test data generation.
+- **In‑browser SQL console** — run the generated DDL locally via SQLite (sql.js / WASM).
+- **Docker sandbox** — spin up a throwaway database container and download a `.bak`.
+- **Developer package** — export a ready‑to‑run Streamlit admin app as a ZIP.
+- **Docs & diagrams** — Data Dictionary PDF, README.md, Mermaid ER / class / flow diagrams (TR/EN).
+- **Reverse engineering** — turn an existing `DbContext` back into a visual schema.
+- **Voice input** — dictate your prompt (Whisper).
+- **Accounts & cloud sync** — JWT auth over an httpOnly cookie; projects/branches synced to the cloud.
+- **Fair AI usage** — a shared daily token pool with a per‑user cap; when exhausted, requests fall
+  back to a free local engine instead of blocking (see [AI token model](#-ai-token-model)).
+- **Pro plan** — optional $5/mo tier via Stripe Hosted Checkout.
+- **Feedback widget** — built‑in bug/idea reporting.
+
+## 🧱 Tech stack
+
+| Layer | Stack |
+|---|---|
+| Frontend | Next.js 16, React 19, TypeScript, Zustand, React Flow, Tailwind CSS |
+| Backend | .NET 8, ASP.NET Core, EF Core (SQLite), SignalR, Serilog |
+| AI | Groq (Llama 3.3 70B / GPT‑OSS 120B / Llama 4 Scout), Google Gemini, Ollama, OpenAI (BYOK), Whisper |
+| Infra | Docker / docker‑compose, Stripe |
+
+## 🗂️ Structure
+
+```
+backend/
+  Namines.API/            ASP.NET Core Web API (controllers, middleware, SignalR hub)
+  Namines.Core/           Domain models, prompt builders, interfaces
+  Namines.Infrastructure/ AI services, DDL generators, EF Core, data access
+frontend/                 Next.js app (canvas, compile, panels, stores, hooks)
+docker-compose.yml        Backend + frontend containers
+```
+
+## 🚀 Getting started
 
 ### Prerequisites
-- Docker Engine & Docker Compose (required for the sandbox and containerized features).
-- Node.js 18+ (for local frontend development).
-- .NET 8 SDK (for local backend development).
-- Groq API Key (for cloud-based AI generation).
-- *Optional*: Ollama running on `localhost:11434` for local AI models (such as `qwen2.5-coder` or `deepseek-coder`).
+- [.NET 8 SDK](https://dotnet.microsoft.com/), [Node.js 20+](https://nodejs.org/)
+- A [Groq API key](https://console.groq.com/keys) (free tier works)
+- (Optional) Docker Desktop — required only for the Docker sandbox feature
 
-### Single-Command Setup via Docker Compose
+### 1. Configure secrets
+All secrets live in a single **git‑ignored** `.env` at the repo root:
 
-1. Create a `.env` file in the root directory:
-   ```env
-   GROQ_API_KEY=your_groq_api_key_here
-   JWT_KEY=a_secure_jwt_key_of_at_least_32_characters
-   ```
+```bash
+cp .env.example .env
+```
 
-2. Build and launch the containerized application:
-   ```bash
-   docker compose up --build
-   ```
+Fill in at least `Jwt__Key` (32+ chars) and `Groq__ApiKey`. The `__` separator maps to .NET config
+(`Jwt__Key` → `Jwt:Key`). The backend auto‑loads `.env` on startup.
 
-3. Open your browser and navigate to: [http://localhost:3000](http://localhost:3000)
+### 2. Run the backend
+```bash
+cd backend/Namines.API
+dotnet run
+# → http://localhost:5000  (Swagger at /swagger)
+```
 
-Note: The initial build might take 3-5 minutes to download and cache images. Subsequent startups will take under 30 seconds.
+### 3. Run the frontend
+```bash
+cd frontend
+npm install
+npm run dev
+# → http://localhost:3000
+```
 
-### Manual Local Development Setup
+### Or with Docker
+```bash
+docker compose up --build
+```
 
-#### Backend Setup:
-1. Populate your API Key configuration in `backend/Namines.API/appsettings.json` under `Groq:ApiKey` or specify it as an environment variable `GROQ_API_KEY`.
-2. Open a terminal, restore dependencies, and launch the Web API:
-   ```bash
-   cd backend
-   dotnet restore
-   dotnet run --project Namines.API
-   ```
-   The backend API service will listen on `http://localhost:5000`.
+## 🎛️ AI token model
 
-#### Frontend Setup:
-1. Navigate to the frontend directory and install the necessary dependencies:
-   ```bash
-   cd frontend
-   npm install
-   ```
-2. Start the local development server:
-   ```bash
-   npm run dev
-   ```
-   The frontend application will be served at `http://localhost:3000`.
+Namines meters premium AI usage against a **shared daily token pool** so a single user can't drain it,
+without pre‑allocating tokens to dormant accounts:
 
-## Quality Assurance & Audit Notes
-The application codebase has undergone a comprehensive code quality and resources audit:
-- Strong resource management using explicit `using` statements for all unmanaged resources (e.g., zip streams, docker tar streams).
-- High reliability via global `ExceptionMiddleware` in the API layer.
-- Strictly clean compile phase with zero compiler warnings and zero TypeScript errors.
-- Enterprise-grade fallback engines ensuring continuous operation even when API rate limits are reached.
+- `AiPool:DailyTokenPool` — shared daily budget (default **100 000**, ~Groq free‑tier daily tokens).
+- `AiPool:PerUserDailyTokens` — per‑user daily cap (default **20 000**).
+- Consumption is charged **on demand**; when the pool **or** a user's cap is exhausted, requests
+  transparently **fall back to the free local engine** — every free feature keeps working.
+
+Raise the pool at any time (e.g. to `1000000`) in `appsettings.json` — no code changes needed.
+
+## 🔐 Security
+
+- Secrets are never committed — a single git‑ignored `.env` is the source of truth.
+- JWT is stored in an **httpOnly cookie** (not in `localStorage`), mitigating token theft via XSS.
+- BYOK API keys are encrypted at rest with **AES‑256‑GCM** (non‑extractable Web Crypto key).
+- SSRF guards on server‑side URL fetching and DB connection targets; rate limiting on sensitive
+  endpoints; prompt‑injection hardening on AI prompts.
+
+## 📄 License
+
+Released under the [MIT License](LICENSE). Update this if you prefer a different license.
