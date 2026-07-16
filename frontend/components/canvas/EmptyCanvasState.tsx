@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, FileImage, Plus, Database, ChevronRight } from 'lucide-react';
+import { Sparkles, FileImage, LayoutTemplate, Plus, Database, ChevronRight } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 
@@ -18,6 +18,10 @@ export default function EmptyCanvasState() {
 
   const handleImportFromImage = () => {
     window.dispatchEvent(new CustomEvent('namines:open-vision-modal'));
+  };
+
+  const handleBrowseTemplates = () => {
+    window.dispatchEvent(new CustomEvent('namines:open-template-gallery'));
   };
 
   const handleStartFromScratch = () => {
@@ -87,7 +91,24 @@ export default function EmptyCanvasState() {
             <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
           </button>
 
-          {/* Action 3: Start from Scratch */}
+          {/* Action 3: Browse Templates */}
+          <button
+            onClick={handleBrowseTemplates}
+            className="group relative flex items-center justify-between p-4 rounded-xl bg-zinc-950/40 hover:bg-zinc-950/85 border border-zinc-800/80 hover:border-zinc-700/85 transition-all text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                <LayoutTemplate className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-zinc-200">Browse Templates</h4>
+                <p className="text-[10px] text-zinc-500 font-medium mt-0.5">Pick a pre-built schema: e-commerce, SaaS, CRM, healthcare, and more.</p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+          </button>
+
+          {/* Action 4: Start from Scratch */}
           <button
             onClick={handleStartFromScratch}
             className="group relative flex items-center justify-between p-4 rounded-xl bg-zinc-950/40 hover:bg-zinc-950/85 border border-zinc-800/80 hover:border-zinc-700/85 transition-all text-left cursor-pointer"

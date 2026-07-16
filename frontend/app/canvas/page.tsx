@@ -25,8 +25,13 @@ import { calculateSchemaDiff } from '../../utils/schemaDiff';
 import { useToastStore } from '../../store/useToastStore';
 import { useMultiplayerStore } from '../../store/useMultiplayerStore';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
-import { Loader2 } from 'lucide-react';
+import {
+  Activity, Eye, FileImage, LayoutTemplate, Loader2,
+  Pencil, Plus, Sparkles, Upload,
+} from 'lucide-react';
 
+import CommandPalette, { PaletteAction } from '../../components/canvas/CommandPalette';
+import SchemaTemplateGallery from '../../components/canvas/SchemaTemplateGallery';
 import TableNode from '../../components/canvas/nodes/TableNode';
 import RelationEdge from '../../components/canvas/edges/RelationEdge';
 import RegionalPromptPanel from '../../components/canvas/panels/RegionalPromptPanel';
@@ -68,7 +73,7 @@ export default function CanvasPage() {
     return () => clearInterval(interval);
   }, [urlRoomId]);
 
-  const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, connectColumns, deleteTable, deleteRelation } = useSchemaStore();
+  const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, toggleEditMode, addTable, connectColumns, deleteTable, deleteRelation } = useSchemaStore();
   const { score, issues, assessment, isAnalyzing, isPanelOpen, setIsPanelOpen } = useDbaStore();
 
   const { projects, activeProjectId } = useProjectHistoryStore();
@@ -82,6 +87,87 @@ export default function CanvasPage() {
   const currentBranchName = activeProject?.currentBranch || 'main';
 
 
+
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false);
+
+  // ⌘K / Ctrl+K — toggle command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsPaletteOpen(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Custom event from EmptyCanvasState "Browse Templates" button
+  useEffect(() => {
+    const handler = () => setIsTemplateGalleryOpen(true);
+    window.addEventListener('namines:open-template-gallery', handler);
+    return () => window.removeEventListener('namines:open-template-gallery', handler);
+  }, []);
+
+  const paletteActions = useMemo<PaletteAction[]>(() => [
+    {
+      id: 'new-table',
+      label: 'Add New Table',
+      description: 'Insert an empty table onto the canvas',
+      icon: <Plus className="w-4 h-4" />,
+      keywords: ['create', 'table', 'add'],
+      onSelect: () => addTable(400, 200),
+    },
+    {
+      id: 'browse-templates',
+      label: 'Browse Schema Templates',
+      description: 'Load a pre-built schema for e-commerce, CMS, SaaS, and more',
+      icon: <LayoutTemplate className="w-4 h-4" />,
+      keywords: ['template', 'gallery', 'preset'],
+      onSelect: () => setIsTemplateGalleryOpen(true),
+    },
+    {
+      id: 'generate-ai',
+      label: 'Generate with AI',
+      description: 'Describe your database in plain language',
+      icon: <Sparkles className="w-4 h-4" />,
+      keywords: ['ai', 'generate', 'prompt'],
+      onSelect: () => window.dispatchEvent(new CustomEvent('namines:open-regional-prompt')),
+    },
+    {
+      id: 'import-sql',
+      label: 'Import SQL DDL (.sql)',
+      description: 'Upload a .sql file and parse tables onto the canvas',
+      icon: <Upload className="w-4 h-4" />,
+      keywords: ['import', 'sql', 'ddl', 'upload', 'file'],
+      onSelect: () => window.dispatchEvent(new CustomEvent('namines:import-sql')),
+    },
+    {
+      id: 'import-image',
+      label: 'Import from Image',
+      description: 'Extract schema from a whiteboard or diagram photo',
+      icon: <FileImage className="w-4 h-4" />,
+      keywords: ['import', 'image', 'vision', 'photo'],
+      onSelect: () => window.dispatchEvent(new CustomEvent('namines:open-vision-modal')),
+    },
+    {
+      id: 'toggle-edit',
+      label: isEditMode ? 'Switch to View Mode' : 'Switch to Edit Mode',
+      description: 'Toggle between view and manual editing',
+      icon: isEditMode ? <Eye className="w-4 h-4" /> : <Pencil className="w-4 h-4" />,
+      keywords: ['edit', 'view', 'mode'],
+      onSelect: toggleEditMode,
+    },
+    {
+      id: 'dba-panel',
+      label: isPanelOpen ? 'Close DBA Panel' : 'Open DBA Analysis',
+      description: 'Show or hide schema health and linter suggestions',
+      icon: <Activity className="w-4 h-4" />,
+      keywords: ['dba', 'lint', 'health', 'issues'],
+      onSelect: () => setIsPanelOpen(!isPanelOpen),
+    },
+  ], [addTable, isEditMode, toggleEditMode, isPanelOpen, setIsPanelOpen]);
 
   useAIDba();
   useProjectAutoSave();
@@ -296,6 +382,16 @@ export default function CanvasPage() {
       <TableEditorDrawer />
       <SqlExplorerPanel />
       <AIGatewayModal />
+
+      <CommandPalette
+        isOpen={isPaletteOpen}
+        onClose={() => setIsPaletteOpen(false)}
+        actions={paletteActions}
+      />
+      <SchemaTemplateGallery
+        isOpen={isTemplateGalleryOpen}
+        onClose={() => setIsTemplateGalleryOpen(false)}
+      />
     </div>
   );
 }

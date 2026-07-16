@@ -29,10 +29,12 @@ import { useRef, useState, useEffect } from 'react';
 import * as htmlToImage from 'html-to-image';
 import Draggable from 'react-draggable';
 import VisionUploadModal from './VisionUploadModal';
+import { parseSqlDdl } from '../../../lib/sqlImportParser';
+import { useToastStore } from '../../../store/useToastStore';
 
 /** Floating toolbar — sol alt köşe. Export + Edit Mode toggle + DBA drawer toggle. */
 export default function CanvasExportToolbar() {
-  const { projectName, schema, dbType, isEditMode, toggleEditMode } = useSchemaStore();
+  const { projectName, schema, dbType, isEditMode, toggleEditMode, loadFromSchema } = useSchemaStore();
   const { isExporting, exportAsPng, exportAsJpeg } = useCanvasExport();
   
   // DBA store hooks
@@ -40,14 +42,17 @@ export default function CanvasExportToolbar() {
   const setIsPanelOpen = useDbaStore(state => state.setIsPanelOpen);
   const issues = useDbaStore(state => state.issues);
 
+  const showToast = useToastStore(s => s.showToast);
+
   const [isVisionOpen, setIsVisionOpen] = useState(false);
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
   const [isLocalExporting, setIsLocalExporting] = useState(false);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [includeBiModule, setIncludeBiModule] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
-  
+
   const nodeRef = useRef<HTMLDivElement>(null);
+  const sqlFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleOpenVision = () => {
@@ -57,6 +62,34 @@ export default function CanvasExportToolbar() {
     window.addEventListener('namines:open-vision-modal', handleOpenVision);
     return () => window.removeEventListener('namines:open-vision-modal', handleOpenVision);
   }, []);
+
+  useEffect(() => {
+    const handler = () => sqlFileInputRef.current?.click();
+    window.addEventListener('namines:import-sql', handler);
+    return () => window.removeEventListener('namines:import-sql', handler);
+  }, []);
+
+  const handleSqlFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parseSqlDdl(reader.result as string);
+        if (parsed.tables.length === 0) {
+          showToast('No tables found in the SQL file.', 'error');
+          return;
+        }
+        loadFromSchema(parsed);
+        showToast(`Imported ${parsed.tables.length} table(s) from "${file.name}".`, 'success');
+      } catch {
+        showToast('Failed to parse SQL file. Check the syntax and try again.', 'error');
+      }
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-imported
+    e.target.value = '';
+  };
 
   const slug = projectName.trim().replace(/\s+/g, '-').toLowerCase() || 'namines-diagram';
   const isCurrentlyExporting = isExporting || isLocalExporting;
@@ -203,6 +236,15 @@ export default function CanvasExportToolbar() {
 
   return (
     <>
+      {/* Hidden SQL file input */}
+      <input
+        ref={sqlFileInputRef}
+        type="file"
+        accept=".sql"
+        className="hidden"
+        onChange={handleSqlFileChange}
+      />
+
       <Draggable nodeRef={nodeRef} bounds="parent" handle=".drag-handle">
         <div 
           id="canvas-toolbar"
@@ -422,6 +464,24 @@ export default function CanvasExportToolbar() {
                     >
                       <Archive className="w-3.5 h-3.5 text-indigo-400" />
                       <span>Full-Stack Project (.zip)</span>
+                    </button>
+
+                    <div className="h-px bg-indigo-500/10 my-1" />
+
+                    <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-zinc-500 uppercase tracking-wider select-none">
+                      Import
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setIsExportDropdownOpen(false);
+                        sqlFileInputRef.current?.click();
+                      }}
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors text-left"
+                      title="Parse a .sql DDL file and load tables onto the canvas"
+                    >
+                      <FileCode className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Import SQL DDL (.sql)</span>
                     </button>
                   </div>
                 )}
