@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import {
   X, AlertTriangle, Award, ShieldAlert, Cpu, Sparkles, Loader2,
-  ShieldCheck, Cloud, AlertOctagon, Info
+  ShieldCheck, Cloud, AlertOctagon, Info, Shield,
 } from 'lucide-react';
 import { DbaIssue, useAIDba } from '../../hooks/useAIDba';
 import { useAIGateway } from '../../hooks/useAIGateway';
 import { useDbaStore } from '../../store/useDbaStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
-import { schemaService } from '../../services/api';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { schemaService, authService } from '../../services/api';
 import ContextualHelpTooltip from '../help/ContextualHelpTooltip';
 import { helpContent } from '../../lib/helpContent';
 
@@ -27,9 +28,32 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
   const setSelectedTableFilter = useDbaStore(state => state.setSelectedTableFilter);
   
   const { schema, loadFromSchema, aiProvider, modelName } = useSchemaStore();
+  const { activeProjectId } = useProjectHistoryStore();
   const [isFixing, setIsFixing] = useState(false);
   const [isAnalyzingLocal, setIsAnalyzingLocal] = useState(false);
+  const [isCopyingBadge, setIsCopyingBadge] = useState(false);
   const showToast = useToastStore(state => state.showToast);
+
+  const handleCopyBadge = async () => {
+    if (!activeProjectId) {
+      showToast('Save the project to the cloud first.', 'warning');
+      return;
+    }
+    setIsCopyingBadge(true);
+    try {
+      const { token } = await authService.createShareLink(activeProjectId);
+      const base = typeof window !== 'undefined' ? window.location.origin : '';
+      const badgeUrl = `${base}/api/share/badge/${token}`;
+      const shareUrl = `${base}/s/${token}`;
+      const markdown = `[![DBA Score](${badgeUrl})](${shareUrl})`;
+      await navigator.clipboard.writeText(markdown);
+      showToast('DBA badge Markdown copied to clipboard!', 'success');
+    } catch {
+      showToast('Failed to generate badge URL.', 'error');
+    } finally {
+      setIsCopyingBadge(false);
+    }
+  };
 
   const { analyzeNow } = useAIDba();
   const { checkAccess } = useAIGateway();
@@ -206,6 +230,20 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             </div>
           </div>
         </div>
+
+        {/* DBA Badge */}
+        <button
+          onClick={handleCopyBadge}
+          disabled={isCopyingBadge}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/40 text-indigo-300 text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Copy Markdown badge for your README"
+        >
+          {isCopyingBadge
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+            : <Shield className="w-3.5 h-3.5 shrink-0" />
+          }
+          <span>Copy DBA Badge (Markdown)</span>
+        </button>
 
         {/* Assessment Section - With waving vector horizontal divider */}
         <div className="space-y-3">
