@@ -1,0 +1,131 @@
+name: Namines Schema Diff
+
+# Runs on every PR that touches the schema snapshot file.
+# Posts a Markdown diff as a PR comment; fails if destructive changes are found
+# (unless the PR carries the `allow-destructive-schema` label).
+
+on:
+  pull_request:
+    paths:
+      - 'namines-schema.json'   # adjust if you store the file elsewhere
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  pull-requests: write   # needed to post/update the comment
+  contents: read
+
+jobs:
+  schema-diff:
+    name: Schema Diff
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout both branches ──────────────────────────────────────────
+      - name: Checkout HEAD (PR branch)
+        uses: actions/checkout@v4
+        with:
+          path: head
+
+      - name: Checkout BASE (target branch)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+
+      # ── 2. Check whether schema files exist ───────────────────────────────
+      - name: Check schema files
+        id: check
+        run: |
+          HEAD_EXISTS=false
+          BASE_EXISTS=false
+          [ -f head/namines-schema.json ] && HEAD_EXISTS=true
+          [ -f base/namines-schema.json ] && BASE_EXISTS=true
+          echo "head_exists=$HEAD_EXISTS" >> "$GITHUB_OUTPUT"
+          echo "base_exists=$BASE_EXISTS" >> "$GITHUB_OUTPUT"
+
+      # ── 3. Run diff ────────────────────────────────────────────────────────
+      - name: Run schema diff
+        id: diff
+        if: steps.check.outputs.head_exists == 'true' && steps.check.outputs.base_exists == 'true'
+        run: |
+          # Copy the diff script from HEAD so we always use the latest version
+          node head/scripts/namines-diff.mjs base/namines-schema.json head/namines-schema.json \
+            > diff_output.md 2>&1
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+          # Multiline output → GITHUB_OUTPUT heredoc
+          {
+            echo "body<<EOFBODY"
+            cat diff_output.md
+            echo "EOFBODY"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── 4. Handle new schema (no base) ────────────────────────────────────
+      - name: New schema (no base to compare)
+        id: new_schema
+        if: steps.check.outputs.head_exists == 'true' && steps.check.outputs.base_exists == 'false'
+        run: |
+          TABLE_COUNT=$(node -e "
+            const s = JSON.parse(require('fs').readFileSync('head/namines-schema.json','utf8'));
+            console.log((s.tables ?? s.Tables ?? []).length);
+          ")
+          {
+            echo "body<<EOFBODY"
+            echo "## 🗃️ Namines Schema Diff"
+            echo ""
+            echo "✨ **New schema file added** — no base to compare against."
+            echo ""
+            echo "Tables in this snapshot: **${TABLE_COUNT}**"
+            echo "EOFBODY"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── 5. Post / update PR comment ───────────────────────────────────────
+      - name: Post diff comment
+        if: steps.diff.outputs.body != '' || steps.new_schema.outputs.body != ''
+        uses: actions/github-script@v7
+        env:
+          DIFF_BODY:       ${{ steps.diff.outputs.body }}
+          NEW_SCHEMA_BODY: ${{ steps.new_schema.outputs.body }}
+        with:
+          script: |
+            const body = process.env.DIFF_BODY || process.env.NEW_SCHEMA_BODY;
+            const marker = '<!-- namines-schema-diff -->';
+            const fullBody = `${marker}\n\n${body}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner:      context.repo.owner,
+                repo:       context.repo.repo,
+                comment_id: existing.id,
+                body:       fullBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: context.issue.number,
+                body:         fullBody,
+              });
+            }
+
+      # ── 6. Fail on destructive changes (unless label bypasses) ────────────
+      - name: Fail on destructive changes
+        if: steps.diff.outputs.exit_code == '2'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+            if (!labels.includes('allow-destructive-schema')) {
+              core.setFailed(
+                'Destructive schema changes detected (DROP TABLE / DROP COLUMN). ' +
+                'Add the "allow-destructive-schema" label to override.'
+              );
+            }

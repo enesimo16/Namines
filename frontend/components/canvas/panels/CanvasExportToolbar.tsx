@@ -1,21 +1,22 @@
 'use client';
 
-import { 
-  ImageDown, 
-  FileImage, 
-  Loader2, 
-  Pencil, 
-  Eye, 
-  Camera, 
-  Activity, 
-  ChevronDown, 
+import {
+  ImageDown,
+  FileImage,
+  Loader2,
+  Pencil,
+  Eye,
+  Camera,
+  Activity,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  FileCode, 
-  Braces, 
+  FileCode,
+  Braces,
   Database,
   FileText,
   Archive,
+  GitBranch,
   X
 } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
@@ -101,6 +102,25 @@ export default function CanvasExportToolbar() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('JSON export hatası:', err);
+    } finally {
+      setIsLocalExporting(false);
+    }
+  };
+
+  const exportForCi = () => {
+    setIsLocalExporting(true);
+    try {
+      const currentSchema: DatabaseSchema = schema || { schemaId: '', name: projectName, tables: [], relations: [] };
+      const blob = new Blob([JSON.stringify(currentSchema, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      // Sabit dosya adı — GitHub Action bu adı bekler.
+      link.download = 'namines-schema.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('CI snapshot export error:', err);
     } finally {
       setIsLocalExporting(false);
     }
@@ -379,6 +399,18 @@ export default function CanvasExportToolbar() {
                     >
                       <FileText className="w-3.5 h-3.5 text-sky-400" />
                       <span>PDF Technical Report (.pdf)</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        exportForCi();
+                        setIsExportDropdownOpen(false);
+                      }}
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition-colors text-left"
+                      title="Save as namines-schema.json for GitHub Actions CI diff"
+                    >
+                      <GitBranch className="w-3.5 h-3.5 text-violet-400" />
+                      <span>CI Schema Snapshot (.json)</span>
                     </button>
 
                     <button
