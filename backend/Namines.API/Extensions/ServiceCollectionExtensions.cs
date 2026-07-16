@@ -69,7 +69,10 @@ public static class ServiceCollectionExtensions
 
         // Semantic Cache Service registration
         services.AddScoped<SemanticCacheService>();
-        
+
+        // Canlı DB tersine mühendislik (INFORMATION_SCHEMA)
+        services.AddScoped<IDbIntrospectionService, DbIntrospectionService>();
+
         return services;
     }
 }

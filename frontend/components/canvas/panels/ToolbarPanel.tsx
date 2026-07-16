@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, Sparkles, History, Users, Terminal, Activity, Settings, Link2, Loader2 } from 'lucide-react';
+import { CheckCircle, Sparkles, History, Users, Terminal, Activity, Settings, Link2, Loader2, Database } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useReactFlow } from '@xyflow/react';
 import { flowToSchema } from '../../../lib/flowToSchema';
@@ -13,6 +13,7 @@ import { useByokStore } from '../../../store/useByokStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { authService } from '../../../services/api';
+import DbConnectionPanel from './DbConnectionPanel';
 
 export default function ToolbarPanel() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function ToolbarPanel() {
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
   const { getNodes, getEdges } = useReactFlow();
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
+  const [isDbConnectOpen, setIsDbConnectOpen] = useState(false);
 
   // Multiplayer and SQL Explorer stores
   const isConnected = useMultiplayerStore(s => s.isConnected);
@@ -156,6 +158,16 @@ export default function ToolbarPanel() {
           <span className="tracking-wide">SQL Console</span>
         </button>
 
+        {/* Import from live DB */}
+        <button
+          onClick={() => setIsDbConnectOpen(true)}
+          className="group relative flex items-center justify-center gap-2 bg-surface-700/90 hover:bg-surface-600 text-violet-400 hover:text-violet-200 px-4 py-2 rounded-xl text-sm font-bold transition-all border border-violet-500/20 hover:border-violet-500/40 shadow-md h-10"
+          title="Import schema from a live database"
+        >
+          <Database className="w-4 h-4" />
+          <span className="tracking-wide">Import DB</span>
+        </button>
+
         {/* Migration Button */}
         <button
           onClick={() => setIsMigrationOpen(true)}
@@ -197,6 +209,12 @@ export default function ToolbarPanel() {
       <MigrationWizard
         isOpen={isMigrationOpen}
         onClose={() => setIsMigrationOpen(false)}
+      />
+
+      {/* DB Connection / Import */}
+      <DbConnectionPanel
+        isOpen={isDbConnectOpen}
+        onClose={() => setIsDbConnectOpen(false)}
       />
     </>
   );
