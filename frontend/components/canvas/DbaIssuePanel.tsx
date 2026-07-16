@@ -10,6 +10,7 @@ import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { schemaService, authService } from '../../services/api';
+import { API_ORIGIN } from '../../lib/apiConfig';
 import ContextualHelpTooltip from '../help/ContextualHelpTooltip';
 import { helpContent } from '../../lib/helpContent';
 
@@ -42,9 +43,8 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
     setIsCopyingBadge(true);
     try {
       const { token } = await authService.createShareLink(activeProjectId);
-      const base = typeof window !== 'undefined' ? window.location.origin : '';
-      const badgeUrl = `${base}/api/share/badge/${token}`;
-      const shareUrl = `${base}/s/${token}`;
+      const badgeUrl = `${API_ORIGIN}/api/share/badge/${token}`;
+      const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${token}`;
       const markdown = `[![DBA Score](${badgeUrl})](${shareUrl})`;
       await navigator.clipboard.writeText(markdown);
       showToast('DBA badge Markdown copied to clipboard!', 'success');

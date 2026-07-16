@@ -48,11 +48,19 @@ function tableToNode(table: SchemaTable, position: { x: number; y: number }): No
   };
 }
 
+const HISTORY_LIMIT = 50;
+
+type HistorySnapshot = { schema: DatabaseSchema; nodes: Node[] };
+
 interface SchemaState {
   // ── Ağır veri (persist edilmez) ──
   schema: DatabaseSchema | null;
   nodes: Node[];
   edges: Edge[];
+
+  // ── Undo/Redo geçmişi ──
+  _past: HistorySnapshot[];
+  _future: HistorySnapshot[];
 
   // ── Hafif UI state (persist edilir) ──
   isGenerating: boolean;
@@ -76,6 +84,12 @@ interface SchemaState {
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
 
+  // ── Undo / Redo ──
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+
   // ── Faz 3: Manuel düzenleme aksiyonları ──
   toggleEditMode: () => void;
   setSelectedTableForEdit: (tableId: string | null) => void;
@@ -95,6 +109,8 @@ export const useSchemaStore = create<SchemaState>()(
       schema: null,
       nodes: [],
       edges: [],
+      _past: [],
+      _future: [],
 
       // Hafif state — persist edilir
       isGenerating: false,
@@ -106,6 +122,10 @@ export const useSchemaStore = create<SchemaState>()(
       // Faz 3
       isEditMode: false,
       selectedTableForEdit: null,
+
+      // ── Geçmişe anlık görüntü ekle (her mutasyondan önce çağrılır) ─────────
+      // set() çağrılmadan önce mevcut schema+nodes'u _past'a koy, _future'ı sıfırla.
+      // Bu fonksiyon store'un dışından çağrılmaz; action'lar içinde kullanılır.
 
       // ── Temel actions ─────────────────────────────────────────────────────
       setIsGenerating: (isGenerating) => set({ isGenerating }),
@@ -123,6 +143,40 @@ export const useSchemaStore = create<SchemaState>()(
         isEditMode: false,
         selectedTableForEdit: null,
       }),
+
+      // ── Undo / Redo ──────────────────────────────────────────────────────────
+      canUndo: () => get()._past.length > 0,
+      canRedo: () => get()._future.length > 0,
+
+      undo: () => {
+        const { schema, nodes, _past, _future } = get();
+        if (_past.length === 0 || !schema) return;
+        const prev = _past[_past.length - 1];
+        const newPast = _past.slice(0, -1);
+        const { edges } = schemaToFlow(prev.schema);
+        set({
+          schema: prev.schema,
+          nodes: prev.nodes,
+          edges,
+          _past: newPast,
+          _future: [{ schema, nodes }, ..._future].slice(0, HISTORY_LIMIT),
+        });
+      },
+
+      redo: () => {
+        const { schema, nodes, _past, _future } = get();
+        if (_future.length === 0 || !schema) return;
+        const next = _future[0];
+        const newFuture = _future.slice(1);
+        const { edges } = schemaToFlow(next.schema);
+        set({
+          schema: next.schema,
+          nodes: next.nodes,
+          edges,
+          _past: [..._past, { schema, nodes }].slice(-HISTORY_LIMIT),
+          _future: newFuture,
+        });
+      },
 
       loadFromSchema: (schema, nodePositions, preserveProjectName) => {
         const { nodes, edges } = schemaToFlow(schema);
@@ -193,6 +247,8 @@ export const useSchemaStore = create<SchemaState>()(
       addTable: (x, y) => {
         const state = get();
         if (!state.schema) return;
+        // history
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
 
         const newTableId = genId();
         const pkColId = genId();
@@ -237,6 +293,7 @@ export const useSchemaStore = create<SchemaState>()(
       deleteTable: (tableId) => {
         const state = get();
         if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
 
         const newTables = state.schema.tables.filter(t => t.id !== tableId);
         const newRelations = state.schema.relations.filter(
@@ -268,6 +325,7 @@ export const useSchemaStore = create<SchemaState>()(
       updateTable: (updatedTable) => {
         const state = get();
         if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
 
         const newTables = state.schema.tables.map(t =>
           t.id === updatedTable.id ? updatedTable : t
@@ -310,6 +368,7 @@ export const useSchemaStore = create<SchemaState>()(
       connectColumns: (connection) => {
         const state = get();
         if (!state.schema) return { ok: false, reason: 'Şema yüklü değil.' };
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
 
         const { source, target, sourceHandle, targetHandle } = connection;
         if (!source || !target || !sourceHandle || !targetHandle)
@@ -381,6 +440,7 @@ export const useSchemaStore = create<SchemaState>()(
       deleteRelation: (relationId) => {
         const state = get();
         if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
 
         const removed = state.schema.relations.find(r => r.id === relationId);
         if (!removed) return;

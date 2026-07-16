@@ -27,11 +27,12 @@ import { useMultiplayerStore } from '../../store/useMultiplayerStore';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import {
   Activity, Eye, FileImage, LayoutTemplate, Loader2,
-  Pencil, Plus, Sparkles, Upload,
+  Pencil, Plus, Redo2, Search, Sparkles, Undo2, Upload,
 } from 'lucide-react';
 
 import CommandPalette, { PaletteAction } from '../../components/canvas/CommandPalette';
 import SchemaTemplateGallery from '../../components/canvas/SchemaTemplateGallery';
+import CanvasSearch from '../../components/canvas/CanvasSearch';
 import TableNode from '../../components/canvas/nodes/TableNode';
 import RelationEdge from '../../components/canvas/edges/RelationEdge';
 import RegionalPromptPanel from '../../components/canvas/panels/RegionalPromptPanel';
@@ -73,7 +74,7 @@ export default function CanvasPage() {
     return () => clearInterval(interval);
   }, [urlRoomId]);
 
-  const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, toggleEditMode, addTable, connectColumns, deleteTable, deleteRelation } = useSchemaStore();
+  const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, toggleEditMode, addTable, connectColumns, deleteTable, deleteRelation, undo, redo, canUndo, canRedo } = useSchemaStore();
   const { score, issues, assessment, isAnalyzing, isPanelOpen, setIsPanelOpen } = useDbaStore();
 
   const { projects, activeProjectId } = useProjectHistoryStore();
@@ -90,6 +91,7 @@ export default function CanvasPage() {
 
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // ⌘K / Ctrl+K — toggle command palette
   useEffect(() => {
@@ -103,6 +105,29 @@ export default function CanvasPage() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Ctrl+F — canvas search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setIsSearchOpen(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Ctrl+Z / Ctrl+Shift+Z — undo / redo
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.key === 'z' && e.shiftKey) || e.key === 'y') { e.preventDefault(); redo(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo]);
+
   // Custom event from EmptyCanvasState "Browse Templates" button
   useEffect(() => {
     const handler = () => setIsTemplateGalleryOpen(true);
@@ -111,6 +136,30 @@ export default function CanvasPage() {
   }, []);
 
   const paletteActions = useMemo<PaletteAction[]>(() => [
+    {
+      id: 'undo',
+      label: 'Undo',
+      description: 'Undo the last change (Ctrl+Z)',
+      icon: <Undo2 className="w-4 h-4" />,
+      keywords: ['undo', 'geri al', 'ctrl z'],
+      onSelect: undo,
+    },
+    {
+      id: 'redo',
+      label: 'Redo',
+      description: 'Redo the undone change (Ctrl+Shift+Z)',
+      icon: <Redo2 className="w-4 h-4" />,
+      keywords: ['redo', 'ileri al', 'ctrl y'],
+      onSelect: redo,
+    },
+    {
+      id: 'search',
+      label: 'Search Tables & Columns',
+      description: 'Find a table or column on the canvas (Ctrl+F)',
+      icon: <Search className="w-4 h-4" />,
+      keywords: ['search', 'find', 'ara', 'bul'],
+      onSelect: () => setIsSearchOpen(true),
+    },
     {
       id: 'new-table',
       label: 'Add New Table',
@@ -134,6 +183,14 @@ export default function CanvasPage() {
       icon: <Sparkles className="w-4 h-4" />,
       keywords: ['ai', 'generate', 'prompt'],
       onSelect: () => window.dispatchEvent(new CustomEvent('namines:open-regional-prompt')),
+    },
+    {
+      id: 'export-prisma',
+      label: 'Export Prisma Schema',
+      description: 'Download as .prisma file for Prisma ORM',
+      icon: <FileImage className="w-4 h-4" />,
+      keywords: ['prisma', 'export', 'orm'],
+      onSelect: () => window.dispatchEvent(new CustomEvent('namines:export-prisma')),
     },
     {
       id: 'import-sql',
@@ -167,7 +224,7 @@ export default function CanvasPage() {
       keywords: ['dba', 'lint', 'health', 'issues'],
       onSelect: () => setIsPanelOpen(!isPanelOpen),
     },
-  ], [addTable, isEditMode, toggleEditMode, isPanelOpen, setIsPanelOpen]);
+  ], [addTable, isEditMode, toggleEditMode, isPanelOpen, setIsPanelOpen, undo, redo]);
 
   useAIDba();
   useProjectAutoSave();
@@ -376,6 +433,12 @@ export default function CanvasPage() {
         <RegionalPromptPanel />
         <CanvasExportToolbar />
         <ConflictResolverModal />
+
+        {/* Canvas arama (ReactFlowProvider içinde olmalı — fitBounds kullanır) */}
+        <CanvasSearch
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+        />
       </ReactFlowProvider>
 
 

@@ -30,6 +30,7 @@ import * as htmlToImage from 'html-to-image';
 import Draggable from 'react-draggable';
 import VisionUploadModal from './VisionUploadModal';
 import { parseSqlDdl } from '../../../lib/sqlImportParser';
+import { toPrismaSchema } from '../../../lib/prismaExporter';
 import { useToastStore } from '../../../store/useToastStore';
 
 /** Floating toolbar — sol alt köşe. Export + Edit Mode toggle + DBA drawer toggle. */
@@ -68,6 +69,13 @@ export default function CanvasExportToolbar() {
     window.addEventListener('namines:import-sql', handler);
     return () => window.removeEventListener('namines:import-sql', handler);
   }, []);
+
+  useEffect(() => {
+    const handler = () => exportAsPrisma();
+    window.addEventListener('namines:export-prisma', handler);
+    return () => window.removeEventListener('namines:export-prisma', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema, projectName]);
 
   const handleSqlFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,6 +143,25 @@ export default function CanvasExportToolbar() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('JSON export hatası:', err);
+    } finally {
+      setIsLocalExporting(false);
+    }
+  };
+
+  const exportAsPrisma = () => {
+    setIsLocalExporting(true);
+    try {
+      const currentSchema: DatabaseSchema = schema || { schemaId: '', name: projectName, tables: [], relations: [] };
+      const prismaText = toPrismaSchema(currentSchema);
+      const blob = new Blob([prismaText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${slug}.prisma`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Prisma export error:', err);
     } finally {
       setIsLocalExporting(false);
     }
@@ -430,6 +457,18 @@ export default function CanvasExportToolbar() {
                     >
                       <Braces className="w-3.5 h-3.5 text-rose-400" />
                       <span>Namines Meta Schema (.json)</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        exportAsPrisma();
+                        setIsExportDropdownOpen(false);
+                      }}
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-fuchsia-400 hover:bg-fuchsia-500/10 rounded-lg transition-colors text-left"
+                      title="Export as Prisma ORM schema file"
+                    >
+                      <Database className="w-3.5 h-3.5 text-fuchsia-400" />
+                      <span>Prisma Schema (.prisma)</span>
                     </button>
 
                     <button

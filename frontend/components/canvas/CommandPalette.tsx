@@ -129,7 +129,7 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
         <div className="flex items-center gap-3 px-4 py-2 border-t border-surface-600 text-content-muted text-xs">
           <span><kbd className="font-mono bg-surface-700 px-1 rounded">↑↓</kbd> navigate</span>
           <span><kbd className="font-mono bg-surface-700 px-1 rounded">↵</kbd> run</span>
-          <span className="ml-auto">⌘K to close</span>
+          <span className="ml-auto">ESC to close</span>
         </div>
       </div>
     </div>
