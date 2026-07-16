@@ -420,7 +420,11 @@ export default function CanvasPage() {
             />
             
             <MiniMap
-              nodeColor={isEditMode ? '#6366f1' : '#3f3f46'}
+              nodeColor={(node) => {
+                const tableColor = (node.data as any)?.table?.color;
+                if (tableColor) return tableColor;
+                return isEditMode ? '#6366f1' : '#3f3f46';
+              }}
               maskColor="rgba(0, 0, 0, 0.7)"
               className="bg-surface-700 border border-indigo-500/20 rounded-2xl overflow-hidden shadow-lg"
             />

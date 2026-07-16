@@ -84,9 +84,25 @@ export default function SharePage() {
 
   if (status === 'error') {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-surface-900 gap-3">
-        <p className="text-content-primary font-semibold text-lg">Schema not found</p>
-        <p className="text-content-muted text-sm">This link may have been revoked or never existed.</p>
+      <div className="flex flex-col items-center justify-center h-screen bg-surface-900 gap-6 px-4 text-center">
+        <div className="w-20 h-20 rounded-3xl bg-surface-800 border border-surface-600 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)]">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10 text-surface-400">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-content-primary mb-2">Link Not Available</h1>
+          <p className="text-content-muted text-sm max-w-sm leading-relaxed">
+            This share link has been revoked or never existed. Ask the schema owner to generate a new link.
+          </p>
+        </div>
+        <a
+          href="/"
+          className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+        >
+          Go to Namines
+        </a>
+        <p className="text-content-muted/50 text-xs font-mono">404 · Share token invalid or expired</p>
       </div>
     );
   }

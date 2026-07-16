@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, Sparkles, History, Users, Terminal, Activity, Settings, Link2, Loader2, Database } from 'lucide-react';
+import { CheckCircle, Sparkles, History, Users, Terminal, Activity, Settings, Link2, Loader2, Database, BookOpen, X } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useReactFlow } from '@xyflow/react';
 import { flowToSchema } from '../../../lib/flowToSchema';
@@ -12,7 +12,7 @@ import { useToastStore } from '../../../store/useToastStore';
 import { useByokStore } from '../../../store/useByokStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { authService } from '../../../services/api';
+import { authService, schemaService } from '../../../services/api';
 import DbConnectionPanel from './DbConnectionPanel';
 
 export default function ToolbarPanel() {
@@ -38,9 +38,27 @@ export default function ToolbarPanel() {
   const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const [isSharing, setIsSharing] = useState(false);
+  const [isExplaining, setIsExplaining] = useState(false);
+  const [explanation, setExplanation] = useState<string | null>(null);
 
   const openAiSettings = () => {
     window.dispatchEvent(new CustomEvent('namines:open-ai-settings'));
+  };
+
+  const handleExplainSchema = async () => {
+    if (!schema || schema.tables.length === 0) {
+      showToast('Add some tables first before explaining the schema.', 'warning');
+      return;
+    }
+    setIsExplaining(true);
+    try {
+      const readme = await schemaService.generateReadme(schema, 'en');
+      setExplanation(readme);
+    } catch {
+      showToast('Failed to generate schema explanation. Please try again.', 'error');
+    } finally {
+      setIsExplaining(false);
+    }
   };
 
   const handleApprove = () => {
@@ -114,6 +132,16 @@ export default function ToolbarPanel() {
   return (
     <>
       <div className="fixed top-[8px] right-6 z-[60] flex items-center gap-3">
+        {/* AI Explain Schema button */}
+        <button
+          onClick={handleExplainSchema}
+          disabled={isExplaining}
+          className="relative flex items-center justify-center bg-surface-700/90 hover:bg-surface-600 text-amber-400 hover:text-amber-200 w-10 h-10 rounded-xl transition-all border border-amber-500/20 hover:border-amber-500/40 shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Explain schema with AI"
+        >
+          {isExplaining ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
+        </button>
+
         {/* AI Settings button */}
         <button
           onClick={openAiSettings}
@@ -230,6 +258,30 @@ export default function ToolbarPanel() {
         isOpen={isDbConnectOpen}
         onClose={() => setIsDbConnectOpen(false)}
       />
+
+      {/* AI Schema Explanation Modal */}
+      {explanation !== null && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setExplanation(null)}>
+          <div
+            className="bg-surface-800 border border-surface-500 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
+            style={{ maxHeight: '80vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-surface-600">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-amber-400" />
+                <span className="text-content-primary font-semibold text-base">Schema Explanation</span>
+              </div>
+              <button onClick={() => setExplanation(null)} className="text-content-muted hover:text-content-primary transition-colors cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-6 py-5">
+              <pre className="text-content-secondary text-xs leading-relaxed whitespace-pre-wrap font-sans">{explanation}</pre>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
