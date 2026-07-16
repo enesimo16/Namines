@@ -42,9 +42,23 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
     }
     setIsCopyingBadge(true);
     try {
+      // Force sync with cloud first to ensure project is saved in database
+      const state = useProjectHistoryStore.getState();
+      const activeProject = state.projects.find(p => p.id === activeProjectId);
+      if (activeProject && activeProject.schema) {
+        const syncData = [{
+          id: activeProject.id,
+          name: activeProject.name,
+          dbType: activeProject.dbType,
+          schemaJson: JSON.stringify(activeProject.schema),
+          nodePositionsJson: JSON.stringify(activeProject.nodePositions ?? {}),
+        }];
+        await authService.syncProjects(syncData);
+      }
+
       const { token } = await authService.createShareLink(activeProjectId);
       const badgeUrl = `${API_ORIGIN}/api/share/badge/${token}`;
-      const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/s/${token}`;
+      const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/share/${token}`;
       const markdown = `[![DBA Score](${badgeUrl})](${shareUrl})`;
       await navigator.clipboard.writeText(markdown);
       showToast('DBA badge Markdown copied to clipboard!', 'success');

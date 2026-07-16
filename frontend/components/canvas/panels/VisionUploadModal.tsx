@@ -123,7 +123,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
       importFromVision(finalSchema);
     } catch (err: any) {
       // Ortak, kullanıcıya açıklayıcı hata (sessizce çökmesin).
-      setError(err?.message || 'İçe aktarma başarısız oldu. Şema verisi eksik veya bozuk olabilir; lütfen tekrar deneyin.');
+      setError(err?.message || 'Import failed. The schema data might be missing or corrupt; please try again.');
       return;
     }
 

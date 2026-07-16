@@ -291,7 +291,7 @@ api.interceptors.response.use(
       // Token bitti → backend minimum AI'ya düştü. Kullanıcıya sağ altta bildir (dedupe'lu).
       if (response.headers?.['x-ai-fallback'] === 'quota-exhausted') {
         useToastStore.getState().showToast(
-          'Token bitti — minimum AI ile devam ediliyor. Tüm ücretsiz özellikler açık.',
+          'Tokens exhausted — continuing with minimum AI. All free features remain active.',
           'warning'
         );
       }

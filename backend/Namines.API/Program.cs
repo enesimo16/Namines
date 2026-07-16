@@ -218,7 +218,10 @@ try
     if (!string.IsNullOrWhiteSpace(frontendUrl))
         allowedOrigins = allowedOrigins.Append(frontendUrl).ToArray();
     if (!builder.Environment.IsProduction())
-        allowedOrigins = allowedOrigins.Concat(new[] { "http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000" }).ToArray();
+        allowedOrigins = allowedOrigins.Concat(new[] {
+            "http://localhost:3000", "http://localhost:3001", "http://localhost:3002",
+            "http://localhost:3003", "http://127.0.0.1:3000", "http://127.0.0.1:3002"
+        }).ToArray();
 
     allowedOrigins = allowedOrigins
         .Where(o => !string.IsNullOrWhiteSpace(o))

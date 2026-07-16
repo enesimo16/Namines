@@ -64,17 +64,26 @@ key), while a Next.js front‑end delivers the canvas, panels and live collabora
 
 ### Visual workspace
 - **Interactive canvas** (React Flow) — drag‑and‑drop tables, columns and relations.
+- **⌘K command palette** — jump to any action from the keyboard.
+- **Undo / Redo** — Ctrl+Z / Ctrl+Shift+Z with a 50‑snapshot history stack.
+- **Canvas search** — Ctrl+F to find and zoom to any table or column.
+- **Schema templates** — 5 pre‑built starter schemas (e‑commerce, SaaS, CRM, blog, healthcare); merge into or replace the current schema.
 - **Real‑time collaboration** — shareable rooms with live cursors and schema sync (SignalR).
 - **Version control** — branches and a per‑workspace migration baseline.
 
 ### Compilation & export
 - **Multi‑engine DDL** — SQL Server, PostgreSQL, MySQL, MariaDB, SQLite, Oracle.
 - **EF Core** models & a guided **migration wizard** (diff + preview).
+- **Prisma schema export** — generate a ready‑to‑use `.prisma` file with relations and type mapping.
+- **SQL DDL import** — paste or upload a `.sql` file; `CREATE TABLE`, `ALTER TABLE ADD/DROP COLUMN`, and `ALTER TABLE ADD FOREIGN KEY` are all parsed.
 - **In‑browser SQL console** — run the generated DDL locally via SQLite (WASM).
 - **Docker sandbox** — provision a throwaway DB container and download a backup
   (`.bak` for SQL Server, `.sql` dump for PostgreSQL/MySQL).
 - **Developer package** — export a ready‑to‑run Streamlit admin app (ZIP).
 - **Docs & diagrams** — Data Dictionary PDF, README.md, Mermaid ER/class/flow (TR/EN).
+
+### CI / Developer tooling
+- **Schema diff** (`scripts/namines-diff.mjs`) — dependency‑free Markdown diff report between two schema JSON files; detects added/dropped tables, columns, and **relations**; exits 2 on destructive changes so CI can gate merges.
 
 ### Platform
 - **Accounts & cloud sync** — JWT over an httpOnly cookie; projects saved to the cloud
@@ -82,7 +91,7 @@ key), while a Next.js front‑end delivers the canvas, panels and live collabora
 - **Fair AI usage** — a shared daily token pool with a per‑user cap; on exhaustion, supported
   features fall back to a free local engine instead of blocking.
 - **Pro plan** — optional paid tier via Stripe Hosted Checkout (price configured in Stripe).
-- **Feedback widget** — built‑in bug/idea reporting.
+- **Feedback widget** — built‑in bug/idea reporting (homepage only, English).
 
 ## 🧱 Tech stack
 

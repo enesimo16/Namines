@@ -53,12 +53,28 @@ public class CoderAIController : ControllerBase
         // Capture HttpContext items and claims before spawning background thread
         bool fallbackToLocal = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var claimsPrincipal = HttpContext.User;
+        var byokKey = HttpContext.Items.ContainsKey("ByokApiKey") ? HttpContext.Items["ByokApiKey"] as string : null;
+        var byokProvider = HttpContext.Items.ContainsKey("ByokProvider") ? HttpContext.Items["ByokProvider"] as string : null;
 
         // Run background packaging task (no docker container startup)
         Task.Run(async () =>
         {
             using var scope = _scopeFactory.CreateScope();
             var sp = scope.ServiceProvider;
+
+            // Set up a mock HttpContext in the background thread so that services resolved from DI (like GroqAIService) can access user credentials and context items.
+            var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
+            var mockContext = new DefaultHttpContext
+            {
+                User = claimsPrincipal,
+                RequestServices = sp
+            };
+            if (!string.IsNullOrEmpty(byokKey)) mockContext.Items["ByokApiKey"] = byokKey;
+            if (!string.IsNullOrEmpty(byokProvider)) mockContext.Items["ByokProvider"] = byokProvider;
+            if (fallbackToLocal) mockContext.Items["FallbackToLocal"] = true;
+
+            httpContextAccessor.HttpContext = mockContext;
 
             var aiFactory = sp.GetRequiredService<IAIFactory>();
             var packager = sp.GetRequiredService<ICoderAIPackager>();

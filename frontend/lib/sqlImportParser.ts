@@ -3,20 +3,16 @@ import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../ty
 /**
  * SQL DDL → DatabaseSchema
  *
- * Desteklenen sözdizimi:
- *   CREATE TABLE name (
- *     col_name TYPE [NOT NULL] [PRIMARY KEY],
- *     ...,
- *     PRIMARY KEY (col, ...),
- *     FOREIGN KEY (col) REFERENCES other_table(other_col)
- *   );
+ * Supported syntax:
+ *   CREATE TABLE name (col TYPE [NOT NULL] [PRIMARY KEY], ..., PRIMARY KEY(...), FOREIGN KEY(...) REFERENCES ...);
+ *   ALTER TABLE name ADD [COLUMN] col TYPE [NOT NULL];
+ *   ALTER TABLE name ADD [CONSTRAINT name] FOREIGN KEY (col) REFERENCES other(col);
+ *   ALTER TABLE name DROP COLUMN col;
+ *   CREATE [UNIQUE] INDEX ... ON table(cols);  — skipped
  *
- * Sınırlamalar (kasıtlı olarak basit tutuldu):
- *   - Şema niteleyicisi yoksayılır (schema.table → table)
- *   - CONSTRAINT isim ifadeleri atlanır
- *   - UNIQUE/INDEX/CHECK kısıtları yoksayılır
- *   - CHECK ifadeleri içindeki virgüller pasörü karıştırabileceğinden
- *     bu ifadeler pre-processing'de kaldırılır
+ * Limitations (intentionally simple):
+ *   - Schema qualifier ignored (schema.table → table)
+ *   - CHECK constraints stripped in pre-processing
  */
 
 function genId() {
@@ -56,11 +52,8 @@ function stripName(raw: string): string {
 
 export function parseSqlDdl(sql: string): DatabaseSchema {
   // ── Pre-process ────────────────────────────────────────────────────────────
-  // Remove single-line comments
   let src = sql.replace(/--[^\n]*/g, '');
-  // Remove block comments
   src = src.replace(/\/\*[\s\S]*?\*\//g, '');
-  // Remove CHECK constraints (they may contain nested parentheses with commas)
   src = src.replace(/\bCHECK\s*\([^)]*\)/gi, '');
 
   const tables = new Map<string, SchemaTable>();
@@ -152,6 +145,63 @@ export function parseSqlDdl(sql: string): DatabaseSchema {
     }
 
     tables.set(tableId, { id: tableId, stableUuid: tableId, name: rawTableName, columns });
+  }
+
+  // ── Process ALTER TABLE statements ────────────────────────────────────────
+  const alterRe = /ALTER\s+TABLE\s+([^\s(]+)\s+([\s\S]*?);/gi;
+  while ((match = alterRe.exec(src)) !== null) {
+    const targetTableName = stripName(match[1].split('.').pop()!);
+    const clause = match[2].trim();
+    const tableId = tableNameToId.get(targetTableName.toLowerCase());
+    if (!tableId) continue;
+    const table = tables.get(tableId)!;
+
+    // ADD [CONSTRAINT name] FOREIGN KEY
+    if (/^ADD\s+(?:CONSTRAINT\s+\S+\s+)?FOREIGN\s+KEY/i.test(clause)) {
+      const srcCols = extractParenList(clause);
+      const refMatch = clause.match(/REFERENCES\s+([^\s(]+)\s*\(([^)]+)\)/i);
+      if (srcCols.length && refMatch) {
+        const refTable = stripName(refMatch[1].split('.').pop()!);
+        const refCol   = stripName(refMatch[2].trim());
+        relations.push({
+          id: genId(), type: 'ManyToOne',
+          sourceTableId: tableId,
+          sourceColumnId: srcCols[0].toLowerCase() + '::pending::' + targetTableName,
+          targetTableId: refTable.toLowerCase() + '::pending',
+          targetColumnId: refCol.toLowerCase() + '::pending::' + refTable,
+        });
+      }
+      continue;
+    }
+
+    // ADD [COLUMN] col TYPE [NOT NULL]
+    const addColMatch = clause.match(/^ADD\s+(?:COLUMN\s+)?([^\s]+)\s+([^\s]+(?:\s*\([^)]*\))?)(.*)/i);
+    if (addColMatch) {
+      const colName = stripName(addColMatch[1]);
+      if (!/^(CONSTRAINT|PRIMARY|FOREIGN|UNIQUE|INDEX|KEY)$/i.test(colName)) {
+        const isNotNull  = /NOT\s+NULL/i.test(addColMatch[3]);
+        const isPkInline = /PRIMARY\s+KEY/i.test(addColMatch[3]);
+        const colId = genId();
+        table.columns.push({
+          id: colId, stableUuid: colId,
+          name: colName,
+          type: normalizeType(addColMatch[2]),
+          isPK: isPkInline,
+          isFK: false,
+          isNullable: !isNotNull && !isPkInline,
+          length: null,
+          defaultValue: null,
+        });
+      }
+      continue;
+    }
+
+    // DROP COLUMN col
+    const dropColMatch = clause.match(/^DROP\s+(?:COLUMN\s+)?([^\s,;]+)/i);
+    if (dropColMatch) {
+      const colName = stripName(dropColMatch[1]);
+      table.columns = table.columns.filter(c => c.name.toLowerCase() !== colName.toLowerCase());
+    }
   }
 
   // ── Resolve pending relation references ───────────────────────────────────

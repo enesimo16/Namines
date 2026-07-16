@@ -32,15 +32,11 @@ export default function DataDictionaryPreview({ schema, projectName }: DataDicti
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      const successMsg = lang === 'tr' 
-        ? "Veri sözlüğü PDF'i başarıyla indirildi!" 
-        : "Data dictionary PDF successfully downloaded!";
+      const successMsg = "Data dictionary PDF successfully downloaded!";
       showToast(successMsg, "success");
     } catch (error) {
       console.error("Failed to download PDF", error);
-      const errorMsg = lang === 'tr'
-        ? "PDF oluşturulurken bir hata oluştu."
-        : "An error occurred while generating PDF.";
+      const errorMsg = "An error occurred while generating PDF.";
       showToast(errorMsg, "error");
     } finally {
       setIsDownloading(false);

@@ -74,6 +74,20 @@ export default function ToolbarPanel() {
     }
     setIsSharing(true);
     try {
+      // Force sync with cloud first to ensure project is saved in database
+      const state = useProjectHistoryStore.getState();
+      const activeProject = state.projects.find(p => p.id === activeProjectId);
+      if (activeProject && activeProject.schema) {
+        const syncData = [{
+          id: activeProject.id,
+          name: activeProject.name,
+          dbType: activeProject.dbType,
+          schemaJson: JSON.stringify(activeProject.schema),
+          nodePositionsJson: JSON.stringify(activeProject.nodePositions ?? {}),
+        }];
+        await authService.syncProjects(syncData);
+      }
+
       const { token } = await authService.createShareLink(activeProjectId);
       const shareUrl = `${window.location.origin}/share/${token}`;
       await navigator.clipboard.writeText(shareUrl);

@@ -65,17 +65,26 @@ Her şey, takılabilir AI sağlayıcılarıyla (Groq, Gemini, Ollama veya kendi 
 
 ### Görsel iş alanı
 - **Etkileşimli tuval** (React Flow) — tabloları, kolonları ve ilişkileri sürükle‑bırak.
+- **⌘K komut paleti** — her işleme klavyeden ulaşın.
+- **Geri al / Yinele** — Ctrl+Z / Ctrl+Shift+Z, 50 anlık görüntülük geçmiş yığını.
+- **Tuval araması** — Ctrl+F ile herhangi bir tablo veya kolonu bulup yakınlaştırın.
+- **Şema şablonları** — 5 hazır başlangıç şeması (e‑ticaret, SaaS, CRM, blog, sağlık); mevcut şemaya ekleyin veya değiştirin.
 - **Gerçek zamanlı iş birliği** — canlı imleçler ve şema senkronizasyonlu paylaşılabilir odalar (SignalR).
 - **Sürüm kontrolü** — dallar (branch) ve iş alanına özgü migration referans noktası.
 
 ### Derleme & dışa aktarım
 - **Çok motorlu DDL** — SQL Server, PostgreSQL, MySQL, MariaDB, SQLite, Oracle.
 - **EF Core** modelleri ve rehberli **migration sihirbazı** (diff + önizleme).
+- **Prisma şeması dışa aktarımı** — ilişkiler ve tür eşlemesiyle kullanıma hazır `.prisma` dosyası üretin.
+- **SQL DDL içe aktarımı** — `.sql` dosyası yapıştırın veya yükleyin; `CREATE TABLE`, `ALTER TABLE ADD/DROP COLUMN` ve `ALTER TABLE ADD FOREIGN KEY` ayrıştırılır.
 - **Tarayıcı içi SQL konsolu** — üretilen DDL'i yerelde SQLite (WASM) ile çalıştırın.
 - **Docker sandbox** — tek kullanımlık bir DB konteyneri kurup yedek indirin
   (SQL Server için `.bak`, PostgreSQL/MySQL için `.sql` dump).
 - **Geliştirici paketi** — çalışmaya hazır bir Streamlit yönetim uygulaması (ZIP) dışa aktarın.
 - **Doküman & diyagram** — Data Dictionary PDF, README.md, Mermaid ER/class/flow (TR/EN).
+
+### CI / Geliştirici araçları
+- **Şema diff** (`scripts/namines-diff.mjs`) — iki şema JSON dosyası arasında bağımsız Markdown diff raporu; eklenen/silinen tablo, kolon ve **ilişkileri** algılar; yıkıcı değişikliklerde CI kapısı olarak çıkış kodu 2 döner.
 
 ### Platform
 - **Hesaplar & bulut senkronizasyonu** — httpOnly cookie üzerinden JWT; projeler bulutta
@@ -83,7 +92,7 @@ Her şey, takılabilir AI sağlayıcılarıyla (Groq, Gemini, Ollama veya kendi 
 - **Adil AI kullanımı** — kullanıcı‑başı tavanlı paylaşımlı günlük token havuzu; tükenince
   desteklenen özellikler bloklanmadan ücretsiz yerel motora düşer.
 - **Pro plan** — Stripe Hosted Checkout ile opsiyonel ücretli katman (fiyat Stripe'ta tanımlanır).
-- **Geri bildirim widget'ı** — dahili hata/öneri bildirimi.
+- **Geri bildirim widget'ı** — dahili hata/öneri bildirimi (yalnızca ana sayfa, İngilizce).
 
 ## 🧱 Teknoloji yığını
 

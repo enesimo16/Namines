@@ -47,6 +47,10 @@ const colMap = (cols)   => new Map(cols.map(c => [c.id ?? c.Id, c]));
 const baseMap = toMap(base.tables);
 const headMap = toMap(head.tables);
 
+// Build table id→name maps for relation rendering
+const baseTableName = (id) => { const t = baseMap.get(id); return t?.name ?? t?.Name ?? id; };
+const headTableName = (id) => { const t = headMap.get(id); return t?.name ?? t?.Name ?? id; };
+
 const allTableIds = new Set([...baseMap.keys(), ...headMap.keys()]);
 
 // ── Gather changes ────────────────────────────────────────────────────────────
@@ -107,6 +111,42 @@ for (const id of allTableIds) {
   }
 }
 
+// ── Gather relation changes ───────────────────────────────────────────────────
+
+const relKey = (r, tableNameFn) => {
+  const src = tableNameFn(r.sourceTableId ?? r.SourceTableId ?? '');
+  const tgt = tableNameFn(r.targetTableId ?? r.TargetTableId ?? '');
+  return `${src}→${tgt}`;
+};
+
+const baseRelMap = new Map((base.relations ?? []).map(r => [r.id ?? r.Id, r]));
+const headRelMap = new Map((head.relations ?? []).map(r => [r.id ?? r.Id, r]));
+const allRelIds  = new Set([...baseRelMap.keys(), ...headRelMap.keys()]);
+
+const addedRelations   = [];
+const droppedRelations = [];
+const modifiedRelations = [];
+
+for (const id of allRelIds) {
+  const br = baseRelMap.get(id);
+  const hr = headRelMap.get(id);
+
+  if (!br && hr) {
+    addedRelations.push({ label: relKey(hr, headTableName), type: hr.type ?? hr.Type ?? 'ManyToOne' });
+    continue;
+  }
+  if (br && !hr) {
+    droppedRelations.push({ label: relKey(br, baseTableName), type: br.type ?? br.Type ?? 'ManyToOne' });
+    continue;
+  }
+  // Check type change
+  const baseType = br.type ?? br.Type ?? '';
+  const headType = hr.type ?? hr.Type ?? '';
+  if (baseType !== headType) {
+    modifiedRelations.push({ label: relKey(hr, headTableName), baseType, headType });
+  }
+}
+
 // ── Render Markdown ───────────────────────────────────────────────────────────
 
 const destructive = droppedTables.length > 0 || modifiedTables.some(t => t.droppedCols.length > 0);
@@ -120,9 +160,12 @@ const lines = [
 
 // Summary table
 const summary = [
-  addedTables.length    ? `✅ ${addedTables.length} table(s) added`   : null,
-  droppedTables.length  ? `💥 ${droppedTables.length} table(s) dropped` : null,
-  modifiedTables.length ? `🔧 ${modifiedTables.length} table(s) modified` : null,
+  addedTables.length      ? `✅ ${addedTables.length} table(s) added`      : null,
+  droppedTables.length    ? `💥 ${droppedTables.length} table(s) dropped`    : null,
+  modifiedTables.length   ? `🔧 ${modifiedTables.length} table(s) modified`  : null,
+  addedRelations.length   ? `🔗 ${addedRelations.length} relation(s) added`  : null,
+  droppedRelations.length ? `✂️ ${droppedRelations.length} relation(s) dropped` : null,
+  modifiedRelations.length ? `↔️ ${modifiedRelations.length} relation(s) changed` : null,
 ].filter(Boolean);
 
 if (summary.length === 0) {
@@ -176,6 +219,25 @@ for (const t of modifiedTables) {
       lines.push(`| \`${c.name}\` | ${before} | ${after} |`);
     }
   }
+  lines.push('');
+}
+
+// Relations
+if (addedRelations.length) {
+  lines.push('### 🔗 Added relations', '');
+  for (const r of addedRelations) lines.push(`- ➕ \`${r.label}\` _(${r.type})_`);
+  lines.push('');
+}
+if (droppedRelations.length) {
+  lines.push('### ✂️ Dropped relations', '');
+  for (const r of droppedRelations) lines.push(`- ❌ ~~\`${r.label}\`~~ _(${r.type})_`);
+  lines.push('');
+}
+if (modifiedRelations.length) {
+  lines.push('### ↔️ Modified relations', '');
+  lines.push('| Relation | Before | After |');
+  lines.push('|----------|--------|-------|');
+  for (const r of modifiedRelations) lines.push(`| \`${r.label}\` | ${r.baseType} | ${r.headType} |`);
   lines.push('');
 }
 

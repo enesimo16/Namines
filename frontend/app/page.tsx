@@ -159,7 +159,7 @@ export default function LandingPage() {
       console.error('Failed to generate schema:', error);
       if (error?.response?.status === 401) {
         // Guest: AI şema üretimi giriş gerektiriyor → net mesaj + login modalı.
-        showToast('Şema üretmek için lütfen giriş yapın.', 'warning');
+        showToast('Please log in to generate a schema.', 'warning');
         useAuthModalStore.getState().open();
       } else {
         showToast('An error occurred while generating the schema. Please try again.', 'error');

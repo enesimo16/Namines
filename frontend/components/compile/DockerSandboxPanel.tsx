@@ -107,7 +107,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
     const t = (raw || '').toLowerCase();
     if (t.includes('pipe') || t.includes('docker_engine') || t.includes('timed out') ||
         t.includes('timeout') || t.includes('actively refused') || t.includes('cannot find the file')) {
-      return '❌ Docker Desktop çalışmıyor gibi görünüyor. Lütfen Docker Desktop\'ı başlatıp tekrar deneyin.';
+      return '❌ Docker Desktop does not seem to be running. Please start Docker Desktop and try again.';
     }
     return `❌ ${raw}`;
   };
@@ -206,7 +206,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
     } catch (err: any) {
       setStatus('error');
-      addLog(dockerHint(err?.message || 'Bilinmeyen hata'));
+      addLog(dockerHint(err?.message || 'Unknown error'));
     }
   };
 
