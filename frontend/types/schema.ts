@@ -15,6 +15,7 @@ export interface SchemaTable {
   name: string;
   columns: SchemaColumn[];
   stableUuid?: string;
+  color?: string;
 }
 
 export interface SchemaRelation {

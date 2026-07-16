@@ -95,11 +95,14 @@ interface SchemaState {
   setSelectedTableForEdit: (tableId: string | null) => void;
   addTable: (x: number, y: number) => void;
   deleteTable: (tableId: string) => void;
+  duplicateTable: (tableId: string) => void;
   updateTable: (updatedTable: SchemaTable) => void;
   /** Canvas'ta çizilen bağlantıdan FK ilişkisi kurar. Sonuç, çağırana geri bildirim için döner. */
   connectColumns: (connection: Connection) => { ok: boolean; reason: string };
   deleteRelation: (relationId: string) => void;
   importFromVision: (schema: DatabaseSchema) => void;
+  /** Merges tables + relations from another schema into the current one (re-IDs everything). */
+  mergeFromSchema: (incoming: DatabaseSchema) => void;
 }
 
 export const useSchemaStore = create<SchemaState>()(
@@ -311,6 +314,40 @@ export const useSchemaStore = create<SchemaState>()(
           nodes: state.nodes.filter(n => n.id !== tableId),
           edges: state.edges.filter(e => !relatedRelIds.includes(e.id)),
           selectedTableForEdit: state.selectedTableForEdit === tableId ? null : state.selectedTableForEdit,
+        });
+      },
+
+      duplicateTable: (tableId) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+
+        const original = state.schema.tables.find(t => t.id === tableId);
+        if (!original) return;
+
+        const newTableId = genId();
+        const colIdMap = new Map<string, string>();
+        const newTable: SchemaTable = {
+          ...original,
+          id: newTableId,
+          stableUuid: genId(),
+          name: `${original.name}_copy`,
+          columns: original.columns.map(c => {
+            const newColId = genId();
+            colIdMap.set(c.id, newColId);
+            return { ...c, id: newColId, stableUuid: genId() };
+          }),
+        };
+
+        const originalNode = state.nodes.find(n => n.id === tableId);
+        const newNode = tableToNode(newTable, {
+          x: (originalNode?.position.x ?? 0) + 320,
+          y: (originalNode?.position.y ?? 0) + 40,
+        });
+
+        set({
+          schema: { ...state.schema, tables: [...state.schema.tables, newTable] },
+          nodes: [...state.nodes, newNode],
         });
       },
 
@@ -621,6 +658,56 @@ export const useSchemaStore = create<SchemaState>()(
           nodes: [...state.nodes, ...newNodes],
           edges: mappedEdges
         });
+      },
+
+      mergeFromSchema: (incoming) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+
+        // Re-ID all incoming tables and columns so they don't collide with existing ones
+        const tableIdMap = new Map<string, string>();
+        const colIdMap   = new Map<string, string>();
+
+        const newTables: SchemaTable[] = incoming.tables.map(t => {
+          const newTableId = genId();
+          tableIdMap.set(t.id, newTableId);
+          const newCols = t.columns.map(c => {
+            const newColId = genId();
+            colIdMap.set(c.id, newColId);
+            return { ...c, id: newColId, stableUuid: genId() };
+          });
+          return { ...t, id: newTableId, stableUuid: genId(), columns: newCols };
+        });
+
+        const newRelations = incoming.relations
+          .map(r => {
+            const srcTableId = tableIdMap.get(r.sourceTableId);
+            const tgtTableId = tableIdMap.get(r.targetTableId);
+            const srcColId   = colIdMap.get(r.sourceColumnId);
+            const tgtColId   = colIdMap.get(r.targetColumnId);
+            if (!srcTableId || !tgtTableId || !srcColId || !tgtColId) return null;
+            return { ...r, id: genId(), sourceTableId: srcTableId, targetTableId: tgtTableId, sourceColumnId: srcColId, targetColumnId: tgtColId };
+          })
+          .filter((r): r is SchemaRelation => r !== null);
+
+        // Offset new nodes so they don't overlap existing ones
+        const xOffset = state.nodes.length > 0
+          ? Math.max(...state.nodes.map(n => (n.position.x) + 360)) + 60
+          : 100;
+
+        const newNodes = newTables.map((t, i) => tableToNode(t, {
+          x: xOffset + (i % 3) * 360,
+          y: 100 + Math.floor(i / 3) * 280,
+        }));
+
+        const mergedSchema: DatabaseSchema = {
+          ...state.schema,
+          tables: [...state.schema.tables, ...newTables],
+          relations: [...state.schema.relations, ...newRelations],
+        };
+        const { edges } = schemaToFlow(mergedSchema);
+        set({ schema: mergedSchema, nodes: [...state.nodes, ...newNodes], edges });
       },
 
     }),

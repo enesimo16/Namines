@@ -206,6 +206,27 @@ export default function TableEditorDrawer() {
                 />
               </div>
 
+              {/* Table Color */}
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold tracking-wider text-indigo-300/80 uppercase">Table Color</label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[undefined, '#6366f1', '#8b5cf6', '#ec4899', '#e11d48', '#f59e0b', '#10b981', '#0ea5e9', '#64748b'].map((color) => (
+                    <button
+                      key={color ?? 'default'}
+                      type="button"
+                      onClick={() => setDraft({ ...draft, color })}
+                      title={color ?? 'Default'}
+                      className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${
+                        draft.color === color
+                          ? 'border-white scale-110 shadow-lg'
+                          : 'border-surface-500 hover:border-white/60 hover:scale-105'
+                      }`}
+                      style={{ backgroundColor: color ?? '#3f3f46' }}
+                    />
+                  ))}
+                </div>
+              </div>
+
               {/* Columns */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between border-b border-surface-500/50 pb-2">

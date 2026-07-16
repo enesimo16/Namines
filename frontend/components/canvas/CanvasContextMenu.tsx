@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useReactFlow } from '@xyflow/react';
-import { Plus, Trash2, Pencil, Table2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, Table2, Copy } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 
 interface ContextMenuState {
@@ -26,7 +26,7 @@ interface CanvasContextMenuProps {
  */
 export default function CanvasContextMenu({ children }: CanvasContextMenuProps) {
   const { screenToFlowPosition } = useReactFlow();
-  const { isEditMode, addTable, deleteTable, setSelectedTableForEdit } = useSchemaStore();
+  const { isEditMode, addTable, deleteTable, duplicateTable, setSelectedTableForEdit } = useSchemaStore();
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -106,6 +106,13 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
                 >
                   <Pencil className="w-4 h-4 text-indigo-400" />
                   <span>Edit</span>
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-sky-500/20 hover:text-sky-200 focus:bg-sky-500/20 focus:text-sky-200"
+                  onSelect={() => { if (menuState?.nodeId) { duplicateTable(menuState.nodeId); setMenuState(null); } }}
+                >
+                  <Copy className="w-4 h-4 text-sky-400" />
+                  <span>Duplicate Table</span>
                 </ContextMenu.Item>
                 <ContextMenu.Separator className="h-px bg-indigo-500/10 my-1 mx-1" />
                 <ContextMenu.Item

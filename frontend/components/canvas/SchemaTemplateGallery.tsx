@@ -13,6 +13,7 @@ interface Props {
 
 export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
+  const mergeFromSchema = useSchemaStore(s => s.mergeFromSchema);
   const showToast = useToastStore(s => s.showToast);
   const [query, setQuery] = useState('');
 
@@ -25,11 +26,19 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
       )
     : TEMPLATES;
 
-  const handleSelect = (key: string) => {
+  const handleReplace = (key: string) => {
     const tpl = TEMPLATES.find(t => t.key === key);
     if (!tpl) return;
     loadFromSchema(tpl.schema);
     showToast(`"${tpl.label}" template loaded onto canvas.`, 'success');
+    onClose();
+  };
+
+  const handleMerge = (key: string) => {
+    const tpl = TEMPLATES.find(t => t.key === key);
+    if (!tpl) return;
+    mergeFromSchema(tpl.schema);
+    showToast(`"${tpl.label}" tables merged into current schema.`, 'success');
     onClose();
   };
 
@@ -68,20 +77,33 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
             <p className="col-span-2 text-center text-content-muted text-sm py-8">No templates match your search.</p>
           )}
           {filtered.map(tpl => (
-            <button
+            <div
               key={tpl.key}
-              onClick={() => handleSelect(tpl.key)}
-              className="flex items-start gap-3 p-4 rounded-xl bg-surface-700 hover:bg-surface-600 border border-surface-500 hover:border-indigo-500/50 text-left transition-all group"
+              className="flex items-start gap-3 p-4 rounded-xl bg-surface-700 border border-surface-500 text-left transition-all"
             >
               <span className="text-2xl shrink-0 mt-0.5">{tpl.emoji}</span>
-              <div>
-                <p className="text-content-primary font-semibold text-sm group-hover:text-indigo-300 transition-colors">{tpl.label}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-content-primary font-semibold text-sm">{tpl.label}</p>
                 <p className="text-content-muted text-xs mt-0.5 leading-relaxed">{tpl.description}</p>
                 <p className="text-indigo-500 text-xs mt-2 font-medium">
                   {tpl.schema.tables.length} tables · {tpl.schema.relations.length} relations
                 </p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleReplace(tpl.key)}
+                    className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Replace
+                  </button>
+                  <button
+                    onClick={() => handleMerge(tpl.key)}
+                    className="flex-1 py-1.5 rounded-lg bg-surface-600 hover:bg-surface-500 text-content-secondary hover:text-content-primary border border-surface-400 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Merge into schema
+                  </button>
+                </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </div>

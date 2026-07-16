@@ -10,6 +10,7 @@ import {
   Panel,
   ReactFlowProvider,
   BackgroundVariant,
+  useReactFlow,
   type Connection
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -33,6 +34,7 @@ import {
 import CommandPalette, { PaletteAction } from '../../components/canvas/CommandPalette';
 import SchemaTemplateGallery from '../../components/canvas/SchemaTemplateGallery';
 import CanvasSearch from '../../components/canvas/CanvasSearch';
+import KeyboardShortcutsModal from '../../components/canvas/KeyboardShortcutsModal';
 import TableNode from '../../components/canvas/nodes/TableNode';
 import RelationEdge from '../../components/canvas/edges/RelationEdge';
 import RegionalPromptPanel from '../../components/canvas/panels/RegionalPromptPanel';
@@ -92,6 +94,7 @@ export default function CanvasPage() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   // ⌘K / Ctrl+K — toggle command palette
   useEffect(() => {
@@ -127,6 +130,17 @@ export default function CanvasPage() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [undo, redo]);
+
+  // ? — keyboard shortcuts modal
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      if (e.key === '?') setIsShortcutsOpen(v => !v);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // Custom event from EmptyCanvasState "Browse Templates" button
   useEffect(() => {
@@ -424,6 +438,7 @@ export default function CanvasPage() {
                 </div>
               </div>
               <BranchControlPanel />
+              <TableZoomList tables={schema.tables} />
             </Panel>
           </ReactFlow>
         </CanvasContextMenu>
@@ -455,6 +470,52 @@ export default function CanvasPage() {
         isOpen={isTemplateGalleryOpen}
         onClose={() => setIsTemplateGalleryOpen(false)}
       />
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
+      />
+    </div>
+  );
+}
+
+function TableZoomList({ tables }: { tables: { id: string; name: string; color?: string }[] }) {
+  const { fitBounds, getNode } = useReactFlow();
+  const [open, setOpen] = useState(false);
+
+  if (tables.length === 0) return null;
+
+  const zoomTo = (tableId: string) => {
+    const node = getNode(tableId);
+    if (!node) return;
+    const { x, y } = node.position;
+    const w = (node.measured?.width ?? node.width ?? 320) as number;
+    const h = (node.measured?.height ?? node.height ?? 200) as number;
+    fitBounds({ x, y, width: w, height: h }, { padding: 0.3, duration: 400 });
+  };
+
+  return (
+    <div className="mt-3 border-t border-indigo-500/10 pt-3">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center justify-between w-full text-xs font-semibold text-indigo-300/70 hover:text-indigo-200 transition-colors cursor-pointer"
+      >
+        <span>Tables</span>
+        <span className="text-[10px] opacity-60">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-0.5 max-h-40 overflow-y-auto pr-1">
+          {tables.map(t => (
+            <button
+              key={t.id}
+              onClick={() => zoomTo(t.id)}
+              className="flex items-center gap-2 px-2 py-1 rounded-lg text-xs text-content-secondary hover:text-content-primary hover:bg-indigo-500/10 transition-colors text-left cursor-pointer w-full truncate"
+            >
+              {t.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color }} />}
+              <span className="truncate">{t.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

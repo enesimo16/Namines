@@ -1,6 +1,6 @@
 import React from 'react';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
-import { Key, Link, Pencil, Plus, Minus, RefreshCw } from 'lucide-react';
+import { Key, Link, Pencil, Plus, Minus, RefreshCw, Copy } from 'lucide-react';
 import { SchemaTable, SchemaColumn } from '../../../types/schema';
 import { useLinterStore } from '../../../store/useLinterStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
@@ -23,6 +23,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
   const isEditMode = useSchemaStore(s => s.isEditMode);
   const setSelectedTableForEdit = useSchemaStore(s => s.setSelectedTableForEdit);
   const deleteTable = useSchemaStore(s => s.deleteTable);
+  const duplicateTable = useSchemaStore(s => s.duplicateTable);
   const onNodesChange = useSchemaStore(s => s.onNodesChange);
 
   const issues = useDbaStore(state => state.issues);
@@ -221,6 +222,19 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
             Go to AI DBA Suggestions
           </button>
 
+          {isEditMode && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateTable(table.id);
+                setShowPopover(false);
+              }}
+              className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-sky-300 hover:text-sky-200 rounded-xl text-xs font-bold transition-all border border-surface-500 cursor-pointer"
+            >
+              Duplicate Table
+            </button>
+          )}
+
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -234,7 +248,13 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
       )}
 
       {/* Header */}
-      <div className="bg-surface-700 text-content-primary font-bold px-4 py-3.5 border-b border-surface-500 flex justify-between items-center relative">
+      <div
+        className={`${table.color ? '' : 'bg-surface-700'} text-content-primary font-bold px-4 py-3.5 border-b border-surface-500 flex justify-between items-center relative`}
+        style={table.color ? { backgroundColor: table.color + '33', borderBottomColor: table.color + '66' } : {}}
+      >
+        {table.color && (
+          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: table.color }} />
+        )}
         <div className="flex items-center gap-2">
           <span>{table.name}</span>
           {diffBadge}
