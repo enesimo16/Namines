@@ -25,7 +25,7 @@ export default function GuestSchemaMigrationModal({
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] bg-gradient-to-tr from-emerald-500/10 to-indigo-500/10 rounded-full blur-[80px] pointer-events-none -z-10" />
 
       {/* Main Glassmorphic Container */}
-      <div className="relative w-full max-w-md bg-[#09111F]/95 backdrop-blur-2xl border border-emerald-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col p-6 pb-8 animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-md bg-surface-900/95 backdrop-blur-2xl border border-emerald-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col p-6 pb-8 animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">

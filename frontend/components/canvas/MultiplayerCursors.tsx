@@ -1,50 +1,50 @@
-import React from 'react';
-import { useMultiplayerStore } from '../../store/useMultiplayerStore';
+'use client';
 
+import { useMultiplayerStore } from '../../store/useMultiplayerStore';
+import { useViewport } from '@xyflow/react';
+import { MousePointer2 } from 'lucide-react';
+
+/**
+ * Odadaki diğer kullanıcıların imleçlerini gösterir.
+ *
+ * Koordinatlar FLOW uzayındadır (canvas'a sabit), ekran uzayında değil. Peer'lar
+ * farklı pan/zoom'da olduğu için ekran pikseli göndermek imleci yanlış yere düşürür;
+ * bu yüzden gönderen tarafta flow uzayına çevrilir, burada aktif viewport ile geri
+ * ekran uzayına taşınır.
+ *
+ * ReactFlowProvider içinde render EDİLMELİ (useViewport gerektirir).
+ */
 export default function MultiplayerCursors() {
-  const cursors = useMultiplayerStore(state => state.cursors);
+  const cursors = useMultiplayerStore(s => s.cursors);
+  const { x: panX, y: panY, zoom } = useViewport();
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-[60] overflow-hidden">
-      {Object.entries(cursors).map(([connectionId, pos]) => (
-        <div
-          key={connectionId}
-          className="absolute transition-all duration-100 ease-out"
-          style={{
-            left: pos.x,
-            top: pos.y,
-            transform: 'translate(-2px, -2px)',
-          }}
-        >
-          {/* Figma Style Cursor Arrow */}
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            className="drop-shadow-md"
-          >
-            <path
-              d="M3 3V21L10 14H20L3 3Z"
-              fill={pos.color}
-              stroke="white"
-              strokeWidth="2"
-              strokeLinejoin="round"
-            />
-          </svg>
+    <div className="pointer-events-none absolute inset-0 z-[40] overflow-hidden">
+      {Object.entries(cursors).map(([connectionId, cursor]) => {
+        // flow → ekran dönüşümü (React Flow'un uyguladığı transform ile aynı)
+        const screenX = cursor.x * zoom + panX;
+        const screenY = cursor.y * zoom + panY;
 
-          {/* User Name Badge */}
+        return (
           <div
-            className="ml-2.5 px-2 py-0.5 rounded text-[10px] font-extrabold text-white shadow-md border animate-in fade-in zoom-in-90 duration-150 whitespace-nowrap"
-            style={{
-              backgroundColor: pos.color,
-              borderColor: 'rgba(255, 255, 255, 0.4)',
-            }}
+            key={connectionId}
+            className="absolute transition-transform duration-75 ease-linear will-change-transform"
+            style={{ transform: `translate(${screenX}px, ${screenY}px)` }}
+            aria-hidden="true"
           >
-            {pos.userName}
+            <MousePointer2
+              className="w-4 h-4 drop-shadow-md"
+              style={{ color: cursor.color, fill: cursor.color }}
+            />
+            <span
+              className="ml-3 -mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-white whitespace-nowrap shadow-md"
+              style={{ backgroundColor: cursor.color }}
+            >
+              {cursor.userName}
+            </span>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

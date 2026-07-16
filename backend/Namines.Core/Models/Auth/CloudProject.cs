@@ -17,5 +17,10 @@ namespace Namines.Core.Models.Auth
         
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Null ise proje özel, dolu ise bu token aracılığıyla herkese salt-okunur paylaşılmış.
+        /// </summary>
+        public string? ShareToken { get; set; }
     }
 }

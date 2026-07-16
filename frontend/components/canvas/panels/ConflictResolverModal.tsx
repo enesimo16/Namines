@@ -160,7 +160,7 @@ export default function ConflictResolverModal() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-[#0F172A] border border-indigo-500/30 rounded-3xl w-[90vw] max-w-5xl h-[85vh] flex flex-col shadow-[0_0_50px_rgba(99,102,241,0.25)] overflow-hidden">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-700 border border-indigo-500/30 rounded-3xl w-[90vw] max-w-5xl h-[85vh] flex flex-col shadow-[0_0_50px_rgba(99,102,241,0.25)] overflow-hidden">
         
         {/* Header */}
         <div className="bg-slate-900/90 border-b border-indigo-500/20 px-6 py-4 flex items-center justify-between">

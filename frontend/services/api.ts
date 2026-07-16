@@ -6,11 +6,10 @@ import { useQuotaStore } from '../store/useQuotaStore';
 import { useSchemaStore } from '../store/useSchemaStore';
 import { useByokStore } from '../store/useByokStore';
 import { useToastStore } from '../store/useToastStore';
+import { API_BASE_URL } from '../lib/apiConfig';
 
 const api = axios.create({
-  baseURL: (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL)
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api`
-    : 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -181,6 +180,15 @@ export const authService = {
   getCloudProjects: async (): Promise<any[]> => {
     const response = await api.get('/auth/projects');
     return response.data;
+  },
+
+  createShareLink: async (projectId: string): Promise<{ token: string }> => {
+    const response = await api.post(`/share/${projectId}`);
+    return response.data;
+  },
+
+  revokeShareLink: async (projectId: string): Promise<void> => {
+    await api.delete(`/share/${projectId}`);
   },
 
   getProfile: async (): Promise<any> => {

@@ -154,7 +154,7 @@ export default function SqlExplorerPanel() {
   return (
     <div 
       ref={containerRef}
-      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-gradient-to-b from-[#09111F]/90 to-[#0D182A]/90 border border-indigo-500/30 shadow-[0_10px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-3xl backdrop-blur-xl"
+      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-gradient-to-b from-surface-900/90 to-surface-800/90 border border-indigo-500/30 shadow-[0_10px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-3xl backdrop-blur-xl"
     >
       {/* Background Orbs & Stars (Uzay Teması) */}
       <div className="absolute inset-0 pointer-events-none bg-[url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20200%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter%20id=%22noiseFilter%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.65%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.01] mix-blend-overlay animate-none" />
@@ -173,7 +173,7 @@ export default function SqlExplorerPanel() {
       </div>
 
       {/* Panel Header */}
-      <div className="relative z-10 flex items-center justify-between px-6 py-3 border-b border-indigo-500/10 bg-[#0F172A]/40 backdrop-blur-md select-none shrink-0">
+      <div className="relative z-10 flex items-center justify-between px-6 py-3 border-b border-indigo-500/10 bg-surface-700/40 backdrop-blur-md select-none shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400">
             <Terminal className="w-4 h-4" />

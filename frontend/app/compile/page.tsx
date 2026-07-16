@@ -11,13 +11,11 @@ import DbTypeSelector from '../../components/compile/DbTypeSelector';
 import SqlPreview from '../../components/compile/SqlPreview';
 import DataDictionaryPreview from '../../components/compile/DataDictionaryPreview';
 import ReadmePreview from '../../components/compile/ReadmePreview';
-import DockerProgressModal from '../../components/compile/DockerProgressModal';
 import MermaidPreview from '../../components/compile/MermaidPreview';
 import DownloadHubPanel from '../../components/compile/DownloadHubPanel';
 import DockerSandboxPanel from '../../components/compile/DockerSandboxPanel';
 import SmartSeedPanel from '../../components/compile/SmartSeedPanel';
 import EfCorePreview from '../../components/compile/EfCorePreview';
-import { useDockerJob } from '../../hooks/useDockerJob';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { 
   generateClassDiagram, 
@@ -48,10 +46,7 @@ export default function CompilePage() {
   >('ER');
   const [activeTab, setActiveTab] = useState<'SQL' | 'EF' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN'>('SQL');
   const [isLoading, setIsLoading] = useState(false);
-  const [isDockerModalOpen, setIsDockerModalOpen] = useState(false);
   const [isExportingSvg, setIsExportingSvg] = useState(false);
-
-  const dockerJob = useDockerJob();
 
   useEffect(() => {
     if (!schema) {
@@ -420,19 +415,6 @@ export default function CompilePage() {
         </div>
 
       </main>
-
-      <DockerProgressModal
-        isOpen={isDockerModalOpen}
-        onClose={() => {
-          setIsDockerModalOpen(false);
-          if (dockerJob.status === 'done' || dockerJob.status === 'error') {
-            dockerJob.reset();
-          }
-        }}
-        status={dockerJob.status}
-        logs={dockerJob.logs}
-        downloadUrl={dockerJob.downloadUrl}
-      />
     </div>
   );
 }

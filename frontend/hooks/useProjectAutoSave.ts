@@ -31,13 +31,13 @@ export function useProjectAutoSave() {
     // Schema yoksa kaydetme (landing sayfasında schema null olur)
     if (!schema) return;
 
-    // ── Shallow comparison guard ──────────────────────────────────────────
-    // Yalnızca node pozisyon bilgilerini (x,y) ve schema içeriğini hash'le.
-    // JSON.stringify deterministik değil ama burada sıra önemli değil;
-    // asıl amaç aynı veriyi tekrar kaydetmemek.
+    // ── Değişiklik guard'ı ────────────────────────────────────────────────
+    // Şemanın TAMAMI hash'lenmeli. Daha önce yalnızca tablo adı ve kolon SAYISI
+    // hash'leniyordu; bu yüzden kolon adı/tipi/PK/nullable değişiklikleri ile
+    // ilişki uç noktası değişiklikleri hash'i değiştirmiyor, guard erken return
+    // ediyor ve düzenlemeler hiç kaydedilmeden sayfa yenilemesinde kayboluyordu.
     const currentHash = JSON.stringify({
-      tables: schema.tables?.map(t => ({ id: t.id, name: t.name, cols: t.columns.length })),
-      relations: schema.relations?.map(r => r.id),
+      schema,
       nodePositions: nodes.map(n => ({ id: n.id, x: Math.round(n.position.x), y: Math.round(n.position.y) })),
       projectName,
       dbType,

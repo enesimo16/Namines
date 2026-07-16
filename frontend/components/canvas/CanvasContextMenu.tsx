@@ -78,7 +78,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
       {isEditMode && (
         <ContextMenu.Portal>
           <ContextMenu.Content
-            className="min-w-[180px] bg-gradient-to-b from-[#0F172A]/95 to-[#1E293B]/95 backdrop-blur-md rounded-xl border border-indigo-500/20 p-1.5 shadow-[0_8px_30px_rgb(0,0,0,0.4),0_0_15px_rgba(59,130,246,0.15)] z-[100] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+            className="min-w-[180px] bg-gradient-to-b from-surface-700/95 to-surface-600/95 backdrop-blur-md rounded-xl border border-indigo-500/20 p-1.5 shadow-[0_8px_30px_rgb(0,0,0,0.4),0_0_15px_rgba(59,130,246,0.15)] z-[100] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
             onCloseAutoFocus={e => e.preventDefault()}
           >
             {menuState?.type === 'canvas' && (

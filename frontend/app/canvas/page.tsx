@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ReactFlow,
@@ -9,7 +9,8 @@ import {
   MiniMap,
   Panel,
   ReactFlowProvider,
-  BackgroundVariant
+  BackgroundVariant,
+  type Connection
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -39,6 +40,7 @@ import ConflictResolverModal from '../../components/canvas/panels/ConflictResolv
 import DbaIssuePanel from '../../components/canvas/DbaIssuePanel';
 import AIGatewayModal from '../../components/canvas/panels/AIGatewayModal';
 import SchemaTextualSummary from '../../components/canvas/SchemaTextualSummary';
+import MultiplayerCursors from '../../components/canvas/MultiplayerCursors';
 import EmptyCanvasState from '../../components/canvas/EmptyCanvasState';
 import TourOverlay from '../../components/tour/TourOverlay';
 
@@ -66,7 +68,7 @@ export default function CanvasPage() {
     return () => clearInterval(interval);
   }, [urlRoomId]);
 
-  const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode } = useSchemaStore();
+  const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, connectColumns, deleteTable, deleteRelation } = useSchemaStore();
   const { score, issues, assessment, isAnalyzing, isPanelOpen, setIsPanelOpen } = useDbaStore();
 
   const { projects, activeProjectId } = useProjectHistoryStore();
@@ -83,6 +85,26 @@ export default function CanvasPage() {
 
   useAIDba();
   useProjectAutoSave();
+
+  // Kullanıcı iki kolon handle'ını birleştirince FK ilişkisi kur.
+  // Bu handler bağlanmazsa React Flow bağlantı çizgisini gösterir ama bırakıldığında
+  // hiçbir şey olmaz — kullanıcı canvas üzerinden hiç ilişki kuramaz.
+  const handleConnect = useCallback((connection: Connection) => {
+    const result = connectColumns(connection);
+    showToast(result.reason, result.ok ? 'success' : 'error');
+  }, [connectColumns, showToast]);
+
+  // React Flow'un Backspace ile silme davranışı yalnızca `nodes` dizisinden çıkarır;
+  // `schema.tables` dokunulmadan kalır. Sonuç: tablo görünmez olur ama şemada durur ve
+  // ilk loadFromSchema/applyRevision çağrısında geri gelir. Silmeyi şemaya da uygula.
+  const handleNodesDelete = useCallback((deleted: { id: string }[]) => {
+    deleted.forEach(node => deleteTable(node.id));
+  }, [deleteTable]);
+
+  // Aynı sorun edge'ler için: edge silmek ilişkiyi şemadan düşürmeli.
+  const handleEdgesDelete = useCallback((deleted: { id: string }[]) => {
+    deleted.forEach(edge => deleteRelation(edge.id));
+  }, [deleteRelation]);
 
   // Proje değişince eski projenin DBA sonuçları (skor/issue) kalmasın — sıfırla.
   useEffect(() => {
@@ -169,13 +191,15 @@ export default function CanvasPage() {
   }
 
   return (
-    <div className="w-full bg-zinc-950 overflow-hidden relative font-sans" style={{ height: 'calc(100vh - 56px)' }}>
+    // Header yüksekliği 52px (globals.css). Burada 56px çıkarılıyordu; 4px'lik fark
+    // canvas'ı kısa bırakıyordu.
+    <div className="w-full bg-surface-900 overflow-hidden relative" style={{ height: 'calc(100vh - 52px)' }}>
       <SchemaTextualSummary />
 
       {/* Connection Lost Overlay for Read-Only Mode */}
       {isOffline && (
         <div className="absolute inset-0 z-[8000] bg-black/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-auto">
-          <div className="bg-[#09111F]/90 border border-amber-500/30 px-6 py-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col items-center text-center gap-3 animate-in zoom-in-95 duration-200">
+          <div className="bg-surface-900/90 border border-amber-500/30 px-6 py-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col items-center text-center gap-3 animate-in zoom-in-95 duration-200">
             <span className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
               ⚠️ Connection Lost
             </span>
@@ -215,12 +239,20 @@ export default function CanvasPage() {
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
+            onConnect={handleConnect}
+            onNodesDelete={handleNodesDelete}
+            onEdgesDelete={handleEdgesDelete}
+            // Diff görünümü salt-okunur (sanal "silinmiş tablo" node'ları gerçek şemadan
+            // silinememeli) ve çevrimdışıyken değişiklik yayınlanamaz → silme tuşunu kapat.
+            deleteKeyCode={isDiffMode || isOffline ? null : ['Backspace', 'Delete']}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
             colorMode="dark"
             nodesDraggable={!isDiffMode && !isOffline}
-            nodesConnectable={!isEditMode && !isDiffMode && !isOffline}
+            // Diff görünümü salt-okunur ve çevrimdışıyken değişiklik yayınlanamaz.
+            // (Düzenleme modu bağlantı kurmayı ENGELLEMEZ — tam tersi beklenir.)
+            nodesConnectable={!isDiffMode && !isOffline}
             proOptions={{ hideAttribution: true }}
           >
             <Background
@@ -233,11 +265,14 @@ export default function CanvasPage() {
             <MiniMap
               nodeColor={isEditMode ? '#6366f1' : '#3f3f46'}
               maskColor="rgba(0, 0, 0, 0.7)"
-              className="bg-[#0F172A] border border-indigo-500/20 rounded-xl overflow-hidden shadow-lg"
+              className="bg-surface-700 border border-indigo-500/20 rounded-2xl overflow-hidden shadow-lg"
             />
 
+            {/* Odadaki diğer kullanıcıların imleçleri (ReactFlow içinde: viewport'a erişir) */}
+            <MultiplayerCursors />
+
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
-            <Panel id="schema-info-panel" position="top-left" className="bg-[#0F172A]/85 backdrop-blur-md border border-indigo-500/20 p-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.15)] mt-4 ml-4 w-64 select-none pointer-events-auto">
+            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-indigo-500/20 p-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.15)] mt-4 ml-4 w-64 select-none pointer-events-auto">
               <h2 className="text-xl font-bold bg-gradient-to-r from-zinc-100 to-indigo-200 bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
               <div className="text-xs text-indigo-300/80 flex flex-col gap-1 font-medium">
                 <div className="flex gap-4">
@@ -293,7 +328,7 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 w-[300px] h-[300px] bg-cyan-500/5 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="relative bg-[#09111F]/80 border border-indigo-500/20 p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl flex flex-col items-center text-center max-w-md w-full mx-4 gap-6 animate-in zoom-in-95 duration-300">
+      <div className="relative bg-surface-900/80 border border-indigo-500/20 p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl flex flex-col items-center text-center max-w-md w-full mx-4 gap-6 animate-in zoom-in-95 duration-300">
         
         {/* Pulse Logo / Circle */}
         <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 animate-pulse">

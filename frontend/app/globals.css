@@ -10,19 +10,38 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), var(--font-geist-sans), 'Inter', sans-serif;
+  --font-sans: var(--font-inter), 'Inter', sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-accent-gold: var(--color-accent-gold);
-  
+
   --color-ocean-dark: #0b0c10;
   --color-ocean-mid: #1a1f2e;
   --color-ocean-light: #2c3549;
   --color-primary-glow: #4f46e5;
   --color-primary-glow-hover: #6366f1;
-  
+
   --shadow-neon: 0 0 15px rgba(79, 70, 229, 0.5);
   --shadow-neon-hover: 0 0 25px rgba(99, 102, 241, 0.8);
   --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+  /* ── Canvas yüzey ölçeği ────────────────────────────────────────────────
+     Tek bir lacivert aile. Daha önce canvas'ta iki uyumsuz aile çakışıyordu:
+     nötr gri zinc (bg-zinc-900 = #18181b) ile mavi tonlu slate (#0F172A).
+     Yan yana durduklarında ton farkı gözle görülüyordu. Yeni yüzeyler bu
+     token'lardan alınmalı; ham hex yazma.
+     surface-900 en derin (sayfa zemini) → surface-500 en açık (kenarlık). */
+  --color-surface-900: #09111f;  /* en derin zemin (drawer/overlay) */
+  --color-surface-800: #0d182a;  /* panel zemini */
+  --color-surface-700: #0f172a;  /* yükseltilmiş panel */
+  --color-surface-600: #1a2333;  /* input / satır zemini */
+  --color-surface-500: #2a3750;  /* kenarlık / ayırıcı */
+
+  /* Metin ölçeği — kontrast WCAG AA (4.5:1) hedefiyle seçildi.
+     Eski text-zinc-500 (#71717a) koyu zeminde ~4.0:1 veriyordu ve kolon tipi
+     gibi 9-10px metinlerde okunmuyordu. */
+  --color-content-primary: #f4f4f5;   /* başlık / birincil metin */
+  --color-content-secondary: #cbd5e1; /* ikincil metin (~9:1) */
+  --color-content-muted: #94a3b8;     /* soluk metin (~6:1) — en düşük izinli */
 }
 
 body {

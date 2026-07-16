@@ -28,10 +28,13 @@ RUN mkdir -p /app/data
 # Publish çıktısını kopyala
 COPY --from=build /app/publish .
 
-# Kestrel 8080'de dinlesin
+# Kestrel 8080'de dinlesin.
+# ASPNETCORE_URLS şart: '+' tüm arayüzlere bind eder. 'localhost' olsaydı container
+# dışından erişilemezdi.
 EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
 
-# SQLite connection string'i /app/data klasörüne yönlendir
+# SQLite connection string'i /app/data klasörüne yönlendir (volume ile kalıcı)
 ENV ConnectionStrings__DefaultConnection="Data Source=/app/data/namines_auth.db"
 
 ENTRYPOINT ["dotnet", "Namines.API.dll"]

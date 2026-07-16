@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, Link as LinkIcon, Image as ImageIcon, ChevronDown, Check, Wand2 } from 'lucide-react';
 import { schemaService } from '../services/api';
 import { useSchemaStore } from '../store/useSchemaStore';
 import { useToastStore } from '../store/useToastStore';
@@ -239,7 +239,7 @@ export default function LandingPage() {
                   className={`w-8 h-8 rounded-lg glass-button flex items-center justify-center transition-all ${showUrlInput || referenceUrl ? 'text-indigo-400' : 'text-gray-400 hover:text-white'}`}
                   title="Add Link"
                 >
-                  <i className="fa-solid fa-link text-xs"></i>
+                  <LinkIcon className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
@@ -247,7 +247,7 @@ export default function LandingPage() {
                   className={`w-8 h-8 rounded-lg glass-button flex items-center justify-center transition-all ${image ? 'text-indigo-400' : 'text-gray-400 hover:text-white'}`}
                   title="Add Image"
                 >
-                  <i className="fa-regular fa-image text-xs"></i>
+                  <ImageIcon className="w-3.5 h-3.5" />
                 </button>
                 <input
                   type="file"
@@ -272,7 +272,7 @@ export default function LandingPage() {
               <div className="flex flex-col gap-3 p-3 bg-ocean-dark/80 rounded-xl border border-white/5 mb-6">
                 {showUrlInput && (
                   <div className="flex items-center gap-2">
-                    <i className="fa-solid fa-link text-xs text-gray-500"></i>
+                    <LinkIcon className="w-3.5 h-3.5 text-zinc-500" />
                     <input
                       type="url"
                       value={referenceUrl}
@@ -321,7 +321,7 @@ export default function LandingPage() {
                     <span className="truncate">
                       {allModels.find(m => m.id === modelName)?.label || modelName}
                     </span>
-                    <i className={`fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-200 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {modelDropdownOpen && (
@@ -344,7 +344,7 @@ export default function LandingPage() {
                           >
                             <span>{m.label}</span>
                             {isSelected && (
-                                <i className="fa-solid fa-check text-[10px] text-cyan-400" />
+                                <Check className="w-3 h-3 text-cyan-400" />
                             )}
                           </button>
                         );
@@ -373,7 +373,7 @@ export default function LandingPage() {
                        dbType === 'Spanner' ? 'Google Spanner' :
                        dbType === 'Redshift' ? 'Amazon Redshift' : dbType}
                     </span>
-                    <i className={`fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-200 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {dbDropdownOpen && (
@@ -407,7 +407,7 @@ export default function LandingPage() {
                           >
                             <span>{db.label}</span>
                             {isSelected && (
-                                <i className="fa-solid fa-check text-[10px] text-cyan-400" />
+                                <Check className="w-3 h-3 text-cyan-400" />
                             )}
                           </button>
                         );
@@ -430,7 +430,7 @@ export default function LandingPage() {
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-wand-magic-sparkles"></i>
+                    <Wand2 className="w-4 h-4" />
                     <span>Generate Schema</span>
                   </>
                 )}

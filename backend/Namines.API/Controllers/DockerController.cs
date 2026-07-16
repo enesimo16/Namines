@@ -1,9 +1,14 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Namines.API.Services;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
@@ -16,46 +21,80 @@ namespace Namines.API.Controllers;
 [Route("api/[controller]")]
 public class DockerController : ControllerBase
 {
-    private readonly IDockerService _dockerService;
     private readonly DockerJobManager _jobManager;
     private readonly IDdlGeneratorFactory _ddlFactory;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<DockerController> _logger;
 
-    public DockerController(IDockerService dockerService, DockerJobManager jobManager, IDdlGeneratorFactory ddlFactory)
+    public DockerController(
+        DockerJobManager jobManager,
+        IDdlGeneratorFactory ddlFactory,
+        IServiceScopeFactory scopeFactory,
+        ILogger<DockerController> logger)
     {
-        _dockerService = dockerService;
         _jobManager = jobManager;
         _ddlFactory = ddlFactory;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
+    private string? CurrentUserId => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+    /// <summary>
+    /// jobId yalnızca sunucu üretimi bir GUID olabilir. Doğrulanmazsa değer
+    /// Path.Combine'a ham girer ve "..%5C..%5Cfoo" gibi bir yol Outputs/ klasöründen
+    /// kaçarak diskteki rastgele dosyaların okunmasına yol açar (path traversal).
+    /// </summary>
+    private static bool IsValidJobId(string jobId) => Guid.TryParse(jobId, out _);
+
     // Hibrit güvenlik: container spawn pahalı/DoS riski → login + rate-limit.
-    // NOT: stream/download uçları açık bırakıldı — EventSource bearer header gönderemez;
-    // jobId sunucu üretimi GUID olduğundan capability olarak korur.
     [Authorize]
     [EnableRateLimiting("sensitive")]
     [HttpPost("run")]
     public IActionResult RunDockerSandbox([FromBody] CompileRequest request)
     {
-        var jobId = Guid.NewGuid().ToString();
-        _jobManager.CreateJob(jobId);
+        if (request?.Schema == null)
+            return BadRequest(new { message = "Şema bulunamadı. Lütfen önce bir şema oluşturun." });
 
-        var generator = _ddlFactory.GetGenerator(request.DbType);
-        var sql = generator.Generate(request.Schema);
-
-        // Run in background
-        Task.Run(async () =>
+        // DDL üretimi job kaydından ÖNCE yapılır: desteklenmeyen bir DbType burada
+        // exception atarsa geriye "Starting" durumunda asılı kalan bir job kalmasın.
+        string sql;
+        try
         {
+            var generator = _ddlFactory.GetGenerator(request.DbType);
+            sql = generator.Generate(request.Schema);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Docker sandbox için DDL üretilemedi. DbType={DbType}", request.DbType);
+            return BadRequest(new { message = $"'{request.DbType}' için DDL üretilemedi: {ex.Message}" });
+        }
+
+        var jobId = Guid.NewGuid().ToString();
+        var userId = CurrentUserId;
+        _jobManager.CreateJob(jobId, userId);
+
+        // Arka planda çalıştır.
+        // KRİTİK: IDockerService scoped'dur; request scope'u response yazılınca kapanır
+        // ve DockerClient dispose edilir. Fire-and-forget iş bunu kullanamaz — bu yüzden
+        // işin ömrü boyunca yaşayan KENDİ scope'unu açıyoruz.
+        _ = Task.Run(async () =>
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dockerService = scope.ServiceProvider.GetRequiredService<IDockerService>();
+
             try
             {
-                await _dockerService.RunSandboxAndBackupAsync(jobId, sql, request.DbType, log =>
+                await dockerService.RunSandboxAndBackupAsync(jobId, sql, request.DbType, log =>
                 {
                     _jobManager.AddLog(jobId, log);
                 });
 
-                var downloadUrl = $"/api/docker/download/{jobId}";
-                _jobManager.CompleteJob(jobId, downloadUrl);
+                _jobManager.CompleteJob(jobId, $"/api/docker/download/{jobId}");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Docker sandbox işi başarısız. JobId={JobId}", jobId);
                 _jobManager.CompleteJob(jobId, "", ex.Message);
             }
         });
@@ -63,12 +102,20 @@ public class DockerController : ControllerBase
         return Ok(new { jobId });
     }
 
+    /// <summary>
+    /// İlerleme akışı (SSE).
+    /// EventSource Authorization header gönderemediği için [Authorize] konulamaz;
+    /// sunucu üretimi GUID jobId capability görevi görür. Akış yalnızca log yayar —
+    /// asıl veri (backup) indirme ucunda sahiplik kontrolüyle korunur.
+    /// </summary>
     [HttpGet("stream/{jobId}")]
     public async Task StreamLogs(string jobId)
     {
-        Response.Headers.Append("Content-Type", "text/event-stream");
-        Response.Headers.Append("Cache-Control", "no-cache");
-        Response.Headers.Append("Connection", "keep-alive");
+        if (!IsValidJobId(jobId))
+        {
+            Response.StatusCode = 400;
+            return;
+        }
 
         var job = _jobManager.GetJob(jobId);
         if (job == null)
@@ -77,79 +124,133 @@ public class DockerController : ControllerBase
             return;
         }
 
+        Response.Headers.Append("Content-Type", "text/event-stream");
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("Connection", "keep-alive");
+        // Reverse proxy (nginx) arkasında tamponlamayı kapat — yoksa loglar iş bitene
+        // kadar istemciye ulaşmaz.
+        Response.Headers.Append("X-Accel-Buffering", "no");
+
+        var ct = HttpContext.RequestAborted;
         var tcs = new TaskCompletionSource();
+
+        // Response.Body'ye eşzamanlı yazım ASP.NET Core'da desteklenmez: arka plan
+        // thread'inden gelen OnProgress ile buradaki replay döngüsü çakışabilir.
+        // Tüm yazımlar tek bir kilit üzerinden seri hale getirilir.
+        var writeLock = new SemaphoreSlim(1, 1);
+
+        async Task WriteEventAsync(string payload)
+        {
+            if (ct.IsCancellationRequested) return;
+
+            await writeLock.WaitAsync(CancellationToken.None);
+            try
+            {
+                if (ct.IsCancellationRequested) return;
+                await Response.WriteAsync(FormatSseData(payload), CancellationToken.None);
+                await Response.Body.FlushAsync(CancellationToken.None);
+            }
+            catch
+            {
+                // İstemci bağlantıyı kapatmış olabilir. Bu hata YUTULMALI — aksi halde
+                // exception job thread'ine kadar yükselip çalışan sandbox'ı iptal eder.
+            }
+            finally
+            {
+                writeLock.Release();
+            }
+        }
 
         void OnProgress(string jId, string log)
         {
-            if (jId == jobId)
-            {
-                var data = $"data: {log}\n\n";
-                var bytes = System.Text.Encoding.UTF8.GetBytes(data);
-                Response.Body.WriteAsync(bytes, 0, bytes.Length).Wait();
-                Response.Body.FlushAsync().Wait();
-            }
+            if (jId != jobId) return;
+            // Job thread'ini bloklama: yazımı ateşle-unut olarak sıraya al.
+            // Sıralama writeLock ile korunur.
+            _ = WriteEventAsync(log);
         }
 
         void OnCompleted(string jId)
         {
-            if (jId == jobId)
-            {
-                tcs.TrySetResult();
-            }
+            if (jId == jobId) tcs.TrySetResult();
         }
+
+        // Mevcut logları önce yayınla, ABONELİĞİ SONRA aç: ters sırada, replay
+        // sürerken gelen bir log hem çift yazılır hem de eşzamanlı yazıma yol açar.
+        foreach (var log in job.ProgressLog.ToArray())
+            await WriteEventAsync(log);
 
         _jobManager.OnProgressUpdated += OnProgress;
         _jobManager.OnJobCompleted += OnCompleted;
 
-        // Send existing logs
-        foreach (var log in job.ProgressLog)
+        try
         {
-            await Response.WriteAsync($"data: {log}\n\n");
-        }
-        await Response.Body.FlushAsync();
+            // Abonelik açılmadan önce iş bitmiş olabilir — durumu yeniden kontrol et,
+            // aksi halde akış sonsuza dek asılı kalır.
+            if (job.Status is "Done" or "Error")
+                tcs.TrySetResult();
 
-        if (job.Status == "Done" || job.Status == "Error")
+            await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, ct));
+
+            if (job.Status == "Done" && !ct.IsCancellationRequested)
+                await WriteEventAsync($"DOWNLOAD_URL|{job.DownloadUrl}");
+        }
+        finally
         {
-            tcs.TrySetResult();
+            // try/finally ŞART: abone kaldırılmazsa singleton event ölü bir Response
+            // tutmaya devam eder ve sonraki her job'da tetiklenir.
+            _jobManager.OnProgressUpdated -= OnProgress;
+            _jobManager.OnJobCompleted -= OnCompleted;
         }
-
-        // Wait until job is completed or client disconnects
-        await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, HttpContext.RequestAborted));
-
-        _jobManager.OnProgressUpdated -= OnProgress;
-        _jobManager.OnJobCompleted -= OnCompleted;
-        
-        // Final event to signal client
-        if (job.Status == "Done")
-            await Response.WriteAsync($"data: DOWNLOAD_URL|{job.DownloadUrl}\n\n");
-            
-        await Response.Body.FlushAsync();
     }
 
+    /// <summary>
+    /// SSE'de her satır kendi "data: " önekini taşımalı ve boş satır olayı bitirir.
+    /// Çok satırlı DB hataları ham gönderilirse ilk satırdan sonrası düşer ve
+    /// "ERROR:" öneki kaybolduğu için istemci hata durumuna hiç geçmez.
+    /// </summary>
+    private static string FormatSseData(string payload)
+    {
+        var lines = payload.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        return string.Concat(lines.Select(l => $"data: {l}\n")) + "\n";
+    }
+
+    /// <summary>
+    /// Backup indirme. Çıktı kullanıcının tam veritabanı şemasını içerdiğinden
+    /// [Authorize] + sahiplik kontrolü uygulanır (IDOR koruması).
+    /// </summary>
+    [Authorize]
     [HttpGet("download/{jobId}")]
     public IActionResult DownloadBackup(string jobId)
     {
+        if (!IsValidJobId(jobId))
+            return BadRequest(new { message = "Geçersiz iş kimliği." });
+
+        var job = _jobManager.GetJob(jobId);
+        if (job == null)
+            return NotFound(new { message = "Bu sandbox işi bulunamadı veya süresi doldu. Lütfen sandbox'ı yeniden çalıştırın." });
+
+        if (job.UserId != null && job.UserId != CurrentUserId)
+            return Forbid();
+
         var outputsDir = Path.Combine(Directory.GetCurrentDirectory(), "Outputs");
-        var bakPath = Path.Combine(outputsDir, $"{jobId}.bak");
-        var sqlPath = Path.Combine(outputsDir, $"{jobId}.sql");
-        var tarPath = Path.Combine(outputsDir, $"{jobId}.tar");
 
-        if (System.IO.File.Exists(bakPath))
+        // (uzantı, MIME) — üretim tarafıyla eşleşir: MSSQL .bak, diğerleri .sql
+        var candidates = new[]
         {
-            var stream = new FileStream(bakPath, FileMode.Open, FileAccess.Read);
-            return File(stream, "application/octet-stream", $"backup_{jobId}.bak");
-        }
-        else if (System.IO.File.Exists(sqlPath))
+            (ext: ".bak", mime: "application/octet-stream"),
+            (ext: ".sql", mime: "text/plain"),
+            (ext: ".tar", mime: "application/x-tar"),
+        };
+
+        foreach (var (ext, mime) in candidates)
         {
-            var stream = new FileStream(sqlPath, FileMode.Open, FileAccess.Read);
-            return File(stream, "application/sql", $"backup_{jobId}.sql");
-        }
-        else if (System.IO.File.Exists(tarPath))
-        {
-            var stream = new FileStream(tarPath, FileMode.Open, FileAccess.Read);
-            return File(stream, "application/x-tar", $"backup_{jobId}.tar");
+            var path = Path.Combine(outputsDir, $"{jobId}{ext}");
+            if (!System.IO.File.Exists(path)) continue;
+
+            var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+            return File(stream, mime, $"namines_backup_{jobId}{ext}");
         }
 
-        return NotFound("Backup file not found.");
+        return NotFound(new { message = "Yedek dosyası bulunamadı. Sandbox tamamlanmamış olabilir veya dosya saklama süresi (2 saat) dolmuş olabilir." });
     }
 }

@@ -26,7 +26,6 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-draggable": "^4.5.0",
-    "reactflow": "^11.11.4",
     "sql.js": "^1.14.1",
     "zustand": "^5.0.13"
   },

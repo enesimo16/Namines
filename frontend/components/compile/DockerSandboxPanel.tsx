@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import SandboxActionCard from './SandboxActionCard';
 import DbPushModal from './DbPushModal';
+import { API_BASE_URL, toAbsoluteApiUrl } from '../../lib/apiConfig';
 
 interface DockerSandboxPanelProps {
   schema: DatabaseSchema;
@@ -63,7 +64,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
         controller = new AbortController();
         timeoutId = setTimeout(() => controller?.abort(), 2000);
 
-        fetch(`http://localhost:5000/api/docker/stream/${saved.jobId}`, { signal: controller.signal })
+        fetch(`${API_BASE_URL}/docker/stream/${saved.jobId}`, { signal: controller.signal })
           .then(res => {
             clearTimeout(timeoutId);
             if (cancelled) return; // unmount sonrası setState/connectSse'yi engelle
@@ -113,7 +114,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
   const connectSse = (newJobId: string) => {
     eventSourceRef.current?.close();
-    const sse = new EventSource(`http://localhost:5000/api/docker/stream/${newJobId}`);
+    const sse = new EventSource(`${API_BASE_URL}/docker/stream/${newJobId}`);
     eventSourceRef.current = sse;
 
     sse.onmessage = (e) => {
@@ -135,7 +136,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
       if (msg.startsWith('DOWNLOAD_URL|')) {
         const path = msg.split('|')[1];
-        const fullUrl = `http://localhost:5000${path}`;
+        const fullUrl = toAbsoluteApiUrl(path);
         setDownloadUrl(fullUrl);
         
         // ── Save sandbox status to IndexedDB ──────────────────────────
@@ -177,7 +178,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
     setDownloadUrl(null);
 
     try {
-      const response = await fetch('http://localhost:5000/api/docker/run', {
+      const response = await fetch(`${API_BASE_URL}/docker/run`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },

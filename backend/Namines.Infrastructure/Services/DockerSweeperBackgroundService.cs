@@ -6,22 +6,36 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Docker.DotNet;
 using Docker.DotNet.Models;
+using Namines.Core.Interfaces;
 
 namespace Namines.Infrastructure.Services;
 
 public class DockerSweeperBackgroundService : BackgroundService
 {
+    /// <summary>
+    /// Bir container'ın zombi sayılması için gereken en az yaş.
+    /// Aktif iş kaydı zaten canlı işleri koruyor; bu süre yalnızca kayıt dışı kalmış
+    /// (ör. uygulama yeniden başlamadan önce oluşturulmuş) container'lar için geçerli.
+    /// </summary>
+    private static readonly TimeSpan ZombieAge = TimeSpan.FromMinutes(30);
+
+    private const string SandboxNamePrefix = "namines-sandbox-";
+
     private readonly ILogger<DockerSweeperBackgroundService> _logger;
+    private readonly ISandboxJobRegistry _jobRegistry;
     private readonly DockerClient _client;
 
-    public DockerSweeperBackgroundService(ILogger<DockerSweeperBackgroundService> logger)
+    public DockerSweeperBackgroundService(
+        ILogger<DockerSweeperBackgroundService> logger,
+        ISandboxJobRegistry jobRegistry)
     {
         _logger = logger;
-        
-        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT 
-            ? "npipe://./pipe/docker_engine" 
+        _jobRegistry = jobRegistry;
+
+        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
+            ? "npipe://./pipe/docker_engine"
             : "unix:///var/run/docker.sock";
-            
+
         _client = new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
     }
 
@@ -65,19 +79,29 @@ public class DockerSweeperBackgroundService : BackgroundService
         var containers = await _client.Containers.ListContainersAsync(parameters, cancellationToken);
         var now = DateTime.UtcNow;
 
+        // Hâlâ süren işler: container adı 'namines-sandbox-{jobId}' olduğundan jobId ile eşleşir.
+        // Bu kontrol olmadan sweeper, yavaş bir host'ta hâlâ imaj çeken veya backup alan
+        // canlı bir sandbox'ı silip kullanıcıya anlamsız bir Docker hatası döndürür.
+        var activeJobIds = _jobRegistry.GetActiveJobIds();
+
         foreach (var container in containers)
         {
             // Check if name matches our prefix (Docker names usually start with / in ListContainers)
-            bool hasSandboxName = container.Names != null && container.Names.Any(name => 
-                name.StartsWith("/namines-sandbox-", StringComparison.OrdinalIgnoreCase) ||
-                name.StartsWith("namines-sandbox-", StringComparison.OrdinalIgnoreCase));
+            var sandboxName = container.Names?.FirstOrDefault(name =>
+                name.TrimStart('/').StartsWith(SandboxNamePrefix, StringComparison.OrdinalIgnoreCase));
 
-            if (!hasSandboxName)
+            if (sandboxName == null)
                 continue;
 
-            // Check if it has been running / created for more than 5 minutes
+            var jobId = sandboxName.TrimStart('/').Substring(SandboxNamePrefix.Length);
+            if (activeJobIds.Contains(jobId, StringComparer.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug("Container {ContainerName} atlanıyor — job {JobId} hâlâ çalışıyor.", sandboxName, jobId);
+                continue;
+            }
+
             var age = now - container.Created;
-            if (age.TotalMinutes >= 5)
+            if (age >= ZombieAge)
             {
                 _logger.LogWarning("Found zombie container {ContainerId} (Name: {ContainerName}, Age: {Age:F1}m, Status: {Status}). Attempting cleanup...", 
                     container.ID.Substring(0, 12), 

@@ -31,7 +31,7 @@ export default function EmptyCanvasState() {
 
   return (
     <div className="absolute inset-0 z-[40] flex items-center justify-center bg-black/75 backdrop-blur-sm pointer-events-auto">
-      <div className="relative w-full max-w-md p-8 rounded-3xl bg-[#09111F]/95 border border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200 font-sans">
+      <div className="relative w-full max-w-md p-8 rounded-3xl bg-surface-900/95 border border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Header Icon */}
         <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shadow-sm shrink-0">

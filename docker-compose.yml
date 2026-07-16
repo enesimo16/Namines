@@ -11,8 +11,16 @@ services:
       - .env
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      # Container içinde tüm arayüzlere bind et (localhost olsaydı dışarıdan erişilemezdi).
+      - ASPNETCORE_URLS=http://+:8080
       - Jwt__Issuer=NaminesServer
       - Jwt__Audience=NaminesClient
+      # CORS: Production'da localhost otomatik eklenmez, açıkça bildirilmeli.
+      # Gerçek deploy'da bunu kendi frontend domain'inle değiştir.
+      - App__FrontendUrl=http://localhost:3000
+      # Frontend ile API farklı site'lardaysa (ör. Vercel + Railway) 'true' yap:
+      # SameSite=None + Secure cookie üretir. Aynı host/subdomain'de gerekmez.
+      - Auth__CrossSiteCookie=false
       # Production'da SSRF koruması AÇIK (dev .env'deki true değerini ez).
       - Executor__AllowPrivateHosts=false
     volumes:

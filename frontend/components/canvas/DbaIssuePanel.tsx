@@ -132,7 +132,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
   });
 
   return (
-    <div className="fixed top-[72px] right-6 bottom-6 z-[45] w-96 bg-[#09111F]/95 backdrop-blur-2xl border border-indigo-500/30 shadow-[0_10px_50px_rgba(0,0,0,0.85)] flex flex-col font-sans transition-all duration-300 transform translate-x-0 overflow-hidden rounded-2xl">
+    <div className="fixed top-[72px] right-6 bottom-6 z-[45] w-96 bg-surface-900/95 backdrop-blur-2xl border border-indigo-500/30 shadow-[0_10px_50px_rgba(0,0,0,0.85)] flex flex-col font-sans transition-all duration-300 transform translate-x-0 overflow-hidden rounded-2xl">
       
       {/* Header - Styled to match the Celestial Dashboard perfectly */}
       <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-indigo-500/20 bg-[#0B1120]/90">

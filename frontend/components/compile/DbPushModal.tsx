@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, Database, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { API_BASE_URL } from '../../lib/apiConfig';
 
 interface DbPushModalProps {
   open: boolean;
@@ -48,7 +49,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
     setIsTesting(true);
     resetState();
     try {
-      const response = await fetch('http://localhost:5000/api/executor/test-connection', {
+      const response = await fetch(`${API_BASE_URL}/executor/test-connection`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -79,7 +80,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
     setIsDeploying(true);
     setDeployMessage(null);
     try {
-      const response = await fetch('http://localhost:5000/api/executor/execute', {
+      const response = await fetch(`${API_BASE_URL}/executor/execute`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },

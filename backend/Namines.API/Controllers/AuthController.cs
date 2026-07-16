@@ -325,29 +325,43 @@ namespace Namines.API.Controllers
 
         // JWT'yi httpOnly cookie olarak yazar → token JS'e (localStorage) sızmaz, XSS ile çalınamaz.
         private const string AuthCookieName = "namines_token";
+        private const int AuthCookieDays = 7;
 
-        private void SetAuthCookie(string token)
+        /// <summary>
+        /// Auth cookie'sinin ortam-bağımlı ayarları.
+        /// Frontend ile API farklı site'lardaysa (ör. Vercel + Railway) SameSite=Lax cookie
+        /// XHR isteklerinde tarayıcı tarafından GÖNDERİLMEZ → login başarılı görünür ama
+        /// sonraki her istek anonim kalır. Bu durumda SameSite=None + Secure zorunludur.
+        /// Auth:CrossSiteCookie=true ile açılır (aynı domain/subdomain kullanılıyorsa gerekmez).
+        /// </summary>
+        private CookieOptions BuildAuthCookieOptions(bool forExpiry = false)
         {
-            Response.Cookies.Append(AuthCookieName, token, new CookieOptions
+            var crossSite = _configuration.GetValue<bool>("Auth:CrossSiteCookie");
+
+            var options = new CookieOptions
             {
                 HttpOnly = true,
-                Secure = Request.IsHttps, // dev http'de düşmemesi, prod https'te güvenli olması için
-                SameSite = SameSiteMode.Lax,
-                Expires = DateTimeOffset.UtcNow.AddDays(7),
+                // SameSite=None kullanan cookie'ler tarayıcı kuralı gereği Secure OLMAK ZORUNDA.
+                Secure = crossSite || Request.IsHttps,
+                SameSite = crossSite ? SameSiteMode.None : SameSiteMode.Lax,
                 Path = "/"
-            });
+            };
+
+            if (!forExpiry)
+                options.Expires = DateTimeOffset.UtcNow.AddDays(AuthCookieDays);
+
+            return options;
         }
+
+        private void SetAuthCookie(string token)
+            => Response.Cookies.Append(AuthCookieName, token, BuildAuthCookieOptions());
 
         [HttpPost("logout")]
         public IActionResult Logout()
         {
-            Response.Cookies.Delete(AuthCookieName, new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = Request.IsHttps,
-                SameSite = SameSiteMode.Lax,
-                Path = "/"
-            });
+            // Silme isteği cookie'nin yazıldığı attribute'larla birebir eşleşmezse
+            // tarayıcı cookie'yi silmez — bu yüzden aynı options üzerinden gidiyoruz.
+            Response.Cookies.Delete(AuthCookieName, BuildAuthCookieOptions(forExpiry: true));
             return Ok(new { Message = "Logged out." });
         }
 

@@ -1,0 +1,28 @@
+# Sırlar — imaj katmanlarına ASLA girmemeli.
+.env
+.env.*
+!.env.example
+
+# Bağımlılıklar ve build çıktısı — imajda 'npm ci' + 'npm run build' ile yeniden üretilir.
+# Kopyalanırsa hem build çok yavaşlar hem de host'a özgü binary'ler container'ı bozabilir.
+node_modules/
+.next/
+out/
+dist/
+
+# Test / cache
+coverage/
+.turbo/
+.eslintcache
+*.tsbuildinfo
+
+# Geliştirme araçları / VCS
+.git/
+.gitignore
+.vscode/
+.idea/
+Dockerfile
+.dockerignore
+
+# Dokümanlar
+*.md

@@ -45,6 +45,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDocumentationGenerator, DocumentationGeneratorService>();
         
         services.AddSingleton<DockerJobManager>();
+        // Sweeper (Infrastructure) canlı işleri bu arayüz üzerinden görür; aynı singleton
+        // örneğine çözülmeli, yoksa boş bir kayıt okur ve çalışan container'ları siler.
+        services.AddSingleton<ISandboxJobRegistry>(sp => sp.GetRequiredService<DockerJobManager>());
         services.AddScoped<IDockerService, DockerBackupService>();
         services.AddScoped<ICoderAIPackager, CoderAIPackagerService>();
         services.AddScoped<IDatabaseExecutor, DatabaseExecutorService>();

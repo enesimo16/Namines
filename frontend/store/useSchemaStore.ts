@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
-import { Node, Edge, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
+import { Node, Edge, Connection, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import localforage from 'localforage';
-import { DatabaseSchema, SchemaTable, SchemaColumn } from '../types/schema';
+import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../types/schema';
 import { schemaToFlow } from '../lib/schemaToFlow';
 
 export type DbType = 'MSSQL' | 'PostgreSQL' | 'MySQL' | 'SQLite' | 'Oracle' | 'MariaDB' | 'Db2' | 'Firebird' | 'Spanner' | 'Redshift';
@@ -82,6 +82,9 @@ interface SchemaState {
   addTable: (x: number, y: number) => void;
   deleteTable: (tableId: string) => void;
   updateTable: (updatedTable: SchemaTable) => void;
+  /** Canvas'ta çizilen bağlantıdan FK ilişkisi kurar. Sonuç, çağırana geri bildirim için döner. */
+  connectColumns: (connection: Connection) => { ok: boolean; reason: string };
+  deleteRelation: (relationId: string) => void;
   importFromVision: (schema: DatabaseSchema) => void;
 }
 
@@ -139,11 +142,13 @@ export const useSchemaStore = create<SchemaState>()(
             ? schema.name
             : currentName);
 
-        if (schema) {
-          schema.name = newProjectName;
-        }
+        // Argümanı MUTATE ETME. Çağıranlar buraya kendilerine ait olmayan nesneler
+        // geçiyor: BranchControlPanel `branch.schema`'yı (useProjectHistoryStore'un
+        // kaydı) veriyor — mutasyon o store'un verisini set() dışından bozardı;
+        // useMultiplayer ise ağdan gelen nesneyi veriyor.
+        const normalizedSchema: DatabaseSchema = { ...schema, name: newProjectName };
 
-        set({ schema, nodes: restoredNodes, edges, projectName: newProjectName });
+        set({ schema: normalizedSchema, nodes: restoredNodes, edges, projectName: newProjectName });
       },
 
       applyRevision: (partialSchema) => {
@@ -255,6 +260,10 @@ export const useSchemaStore = create<SchemaState>()(
       /**
        * Drawer'dan gelen güncellenmiş tablo ile schema ve ilgili node'u günceller.
        * Diğer node'ların pozisyonları korunur.
+       *
+       * Tablodan kolon silindiyse o kolona bağlı ilişkiler de temizlenir: aksi hâlde
+       * relation artık var olmayan bir kolonu işaret eder, edge çizilemez ama şemada
+       * kalmaya devam eder ve derlemede olmayan bir kolona FOREIGN KEY üretilir.
        */
       updateTable: (updatedTable) => {
         const state = get();
@@ -263,7 +272,17 @@ export const useSchemaStore = create<SchemaState>()(
         const newTables = state.schema.tables.map(t =>
           t.id === updatedTable.id ? updatedTable : t
         );
-        const newSchema: DatabaseSchema = { ...state.schema, tables: newTables };
+
+        const survivingColumnIds = new Set(updatedTable.columns.map(c => c.id));
+        const touchesUpdatedTable = (tableId: string) => tableId === updatedTable.id;
+
+        const newRelations = state.schema.relations.filter(r => {
+          if (touchesUpdatedTable(r.sourceTableId) && !survivingColumnIds.has(r.sourceColumnId)) return false;
+          if (touchesUpdatedTable(r.targetTableId) && !survivingColumnIds.has(r.targetColumnId)) return false;
+          return true;
+        });
+
+        const newSchema: DatabaseSchema = { ...state.schema, tables: newTables, relations: newRelations };
 
         // Sadece ilgili node'u güncelle, pozisyonu koru
         const existingNode = state.nodes.find(n => n.id === updatedTable.id);
@@ -272,9 +291,122 @@ export const useSchemaStore = create<SchemaState>()(
           data: { table: updatedTable },
         };
 
+        const survivingRelationIds = new Set(newRelations.map(r => r.id));
+
         set({
           schema: newSchema,
           nodes: state.nodes.map(n => n.id === updatedTable.id ? updatedNode : n),
+          edges: state.edges.filter(e => survivingRelationIds.has(e.id)),
+        });
+      },
+
+      /**
+       * Canvas'ta iki kolon handle'ı birleştirildiğinde yeni bir FK ilişkisi kurar.
+       * React Flow bağlantı bırakıldığında onConnect'i çağırır; bu action bağlanmazsa
+       * kullanıcı bağlantı çizgisini görür ama hiçbir şey olmaz.
+       *
+       * Geçersiz bağlantılar sessizce yutulmaz — çağıran tarafa sebep döner.
+       */
+      connectColumns: (connection) => {
+        const state = get();
+        if (!state.schema) return { ok: false, reason: 'Şema yüklü değil.' };
+
+        const { source, target, sourceHandle, targetHandle } = connection;
+        if (!source || !target || !sourceHandle || !targetHandle)
+          return { ok: false, reason: 'Bağlantı için kaynak ve hedef kolonu seçin.' };
+
+        if (source === target)
+          return { ok: false, reason: 'Bir tabloyu kendisine bağlamak için ilişkiyi manuel düzenleyin.' };
+
+        const sourceTable = state.schema.tables.find(t => t.id === source);
+        const targetTable = state.schema.tables.find(t => t.id === target);
+        if (!sourceTable || !targetTable)
+          return { ok: false, reason: 'Tablo bulunamadı.' };
+
+        // React Flow handle id'leri kolon id'sidir (schemaToFlow bu şekilde üretir).
+        const sourceColumn = sourceTable.columns.find(c => c.id === sourceHandle);
+        const targetColumn = targetTable.columns.find(c => c.id === targetHandle);
+        if (!sourceColumn || !targetColumn)
+          return { ok: false, reason: 'Kolon bulunamadı.' };
+
+        // Hedef bir anahtar olmalı: FK yalnızca PK/UNIQUE bir kolonu işaret edebilir.
+        if (!targetColumn.isPK)
+          return { ok: false, reason: `İlişki birincil anahtara kurulmalı. '${targetTable.name}.${targetColumn.name}' bir PK değil.` };
+
+        const alreadyExists = state.schema.relations.some(r =>
+          r.sourceTableId === source && r.sourceColumnId === sourceHandle &&
+          r.targetTableId === target && r.targetColumnId === targetHandle
+        );
+        if (alreadyExists)
+          return { ok: false, reason: 'Bu ilişki zaten mevcut.' };
+
+        const newRelation: SchemaRelation = {
+          id: genId(),
+          type: 'OneToMany',
+          sourceTableId: source,
+          sourceColumnId: sourceHandle,
+          targetTableId: target,
+          targetColumnId: targetHandle,
+        };
+
+        // Kaynak kolon artık bir yabancı anahtar — DDL üretimi bu bayrağa bakar.
+        const newTables = state.schema.tables.map(t =>
+          t.id !== source ? t : {
+            ...t,
+            columns: t.columns.map(c => c.id === sourceHandle ? { ...c, isFK: true } : c),
+          }
+        );
+
+        const newSchema: DatabaseSchema = {
+          ...state.schema,
+          tables: newTables,
+          relations: [...state.schema.relations, newRelation],
+        };
+
+        // Node/edge'leri şemadan yeniden türet, pozisyonları koru.
+        const { nodes: regeneratedNodes, edges: newEdges } = schemaToFlow(newSchema);
+        const finalNodes = regeneratedNodes.map(n => {
+          const existing = state.nodes.find(en => en.id === n.id);
+          return existing ? { ...n, position: existing.position } : n;
+        });
+
+        set({ schema: newSchema, nodes: finalNodes, edges: newEdges });
+        return { ok: true, reason: `${sourceTable.name}.${sourceColumn.name} → ${targetTable.name}.${targetColumn.name} ilişkisi kuruldu.` };
+      },
+
+      /**
+       * Bir ilişkiyi (ve edge'ini) siler; kaynak kolonun başka ilişkisi kalmadıysa
+       * isFK bayrağını da kaldırır.
+       */
+      deleteRelation: (relationId) => {
+        const state = get();
+        if (!state.schema) return;
+
+        const removed = state.schema.relations.find(r => r.id === relationId);
+        if (!removed) return;
+
+        const newRelations = state.schema.relations.filter(r => r.id !== relationId);
+
+        const stillReferenced = newRelations.some(
+          r => r.sourceTableId === removed.sourceTableId && r.sourceColumnId === removed.sourceColumnId
+        );
+
+        const newTables = stillReferenced
+          ? state.schema.tables
+          : state.schema.tables.map(t =>
+              t.id !== removed.sourceTableId ? t : {
+                ...t,
+                columns: t.columns.map(c => c.id === removed.sourceColumnId ? { ...c, isFK: false } : c),
+              }
+            );
+
+        set({
+          schema: { ...state.schema, tables: newTables, relations: newRelations },
+          nodes: state.nodes.map(n => {
+            const table = newTables.find(t => t.id === n.id);
+            return table ? { ...n, data: { table } } : n;
+          }),
+          edges: state.edges.filter(e => e.id !== relationId),
         });
       },
 
@@ -350,26 +482,71 @@ export const useSchemaStore = create<SchemaState>()(
         });
 
         // 2. Create relationships with mapped table IDs
+        //
+        // Kolon bağlama kuralları (görsel/AI çıktısı güvenilmez olduğu için):
+        //  - Kolon çözülemezse ilişki ATLANIR. Eskiden `|| genId()` ile uydurma bir id
+        //    üretiliyordu; bu id hiçbir kolona karşılık gelmediğinden edge çizilmiyor
+        //    ama ilişki şemada kalıyor ve olmayan bir kolona FOREIGN KEY üretiliyordu.
+        //  - Aynı kaynak kolon iki ilişkiye bağlanmaz: bir tabloda iki FK varsa
+        //    (Orders.CustomerId, Orders.ProductId) ilk FK'yı seçmek her iki ilişkiyi de
+        //    aynı kolona çökertiyordu. Bağlananlar takip edilir.
+        const boundSourceColumns = new Set<string>();
+        const skippedRelations: string[] = [];
+
         visionRelations.forEach((r: any) => {
           const mappedSourceTableId = idMap[r.sourceTableId] || r.sourceTableId;
           const mappedTargetTableId = idMap[r.targetTableId] || r.targetTableId;
 
-          // Resolve columns to bind relations
           const sourceTable = updatedTables.find(t => t.id === mappedSourceTableId);
           const targetTable = updatedTables.find(t => t.id === mappedTargetTableId);
+          if (!sourceTable || !targetTable) {
+            skippedRelations.push(`${r.sourceTableId} → ${r.targetTableId} (tablo bulunamadı)`);
+            return;
+          }
 
-          const sourceColumnId = sourceTable?.columns.find(c => c.isFK)?.id || genId();
-          const targetColumnId = targetTable?.columns.find(c => c.isPK)?.id || genId();
+          // Hedef: birincil anahtar. Yoksa ilişki kurulamaz.
+          const targetColumn = targetTable.columns.find(c => c.isPK);
+          if (!targetColumn) {
+            skippedRelations.push(`${sourceTable.name} → ${targetTable.name} (hedefte birincil anahtar yok)`);
+            return;
+          }
+
+          // Kaynak: önce isim yakınlığı (Orders.CustomerId → Customers), sonra
+          // henüz bağlanmamış herhangi bir FK kolonu.
+          const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const targetHint = normalized(targetTable.name).replace(/s$/, '');
+
+          const available = sourceTable.columns.filter(
+            c => c.isFK && !boundSourceColumns.has(c.id)
+          );
+
+          const sourceColumn =
+            available.find(c => normalized(c.name).includes(targetHint)) ??
+            available[0];
+
+          if (!sourceColumn) {
+            skippedRelations.push(`${sourceTable.name} → ${targetTable.name} (kaynakta uygun yabancı anahtar kolonu yok)`);
+            return;
+          }
+
+          boundSourceColumns.add(sourceColumn.id);
 
           updatedRelations.push({
             id: genId(),
             type: r.type || 'OneToMany',
             sourceTableId: mappedSourceTableId,
-            sourceColumnId: sourceColumnId,
+            sourceColumnId: sourceColumn.id,
             targetTableId: mappedTargetTableId,
-            targetColumnId: targetColumnId
+            targetColumnId: targetColumn.id,
           });
         });
+
+        if (skippedRelations.length > 0) {
+          console.warn(
+            `[importFromVision] ${skippedRelations.length} ilişki kolonlara bağlanamadığı için atlandı:\n` +
+            skippedRelations.join('\n')
+          );
+        }
 
         const newSchema: DatabaseSchema = {
           ...currentSchema,

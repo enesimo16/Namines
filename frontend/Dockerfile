@@ -9,8 +9,10 @@ RUN npm ci --frozen-lockfile
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Build-time API URL (docker-compose build args'dan gelir)
-ARG NEXT_PUBLIC_API_URL=http://localhost:5000/api
+# Build-time API URL (docker-compose build args'dan gelir).
+# DİKKAT: '/api' YAZMA — services/api.ts bu değerin sonuna '/api' ekler; iki kez
+# yazılırsa istekler '.../api/api/...' adresine gider.
+ARG NEXT_PUBLIC_API_URL=http://localhost:5000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 COPY --from=deps /app/node_modules ./node_modules

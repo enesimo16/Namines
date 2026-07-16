@@ -5,6 +5,7 @@ import { useQuotaStore } from './useQuotaStore';
 import { useMultiplayerStore } from './useMultiplayerStore';
 import { useProjectHistoryStore } from './useProjectHistoryStore';
 import { useSchemaStore } from './useSchemaStore';
+import { API_BASE_URL } from '../lib/apiConfig';
 
 export interface UserProfile {
   username: string;
@@ -43,10 +44,7 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         // Sunucudaki httpOnly cookie'yi de temizle.
-        const base = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL)
-          ? `${process.env.NEXT_PUBLIC_API_URL}/api`
-          : 'http://localhost:5000/api';
-        fetch(`${base}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+        fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
         set({ token: null, user: null, isAuthenticated: false });
         useQuotaStore.getState().reset();
 

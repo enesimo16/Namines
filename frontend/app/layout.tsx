@@ -1,23 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "../components/layout/Header";
 import ToastContainer from "../components/toast/ToastContainer";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import FeedbackWidget from "../components/feedback/FeedbackWidget";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
+// Arayüz fontu: Inter. (Geist Sans kaldırıldı — --font-sans zinciri Inter'i ilk
+// sırada çözdüğü için hiç kullanılmıyor, yalnızca boşuna indiriliyordu.)
 const inter = Inter({
   variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+// Kod/monospace bloklarında kullanılır (--font-mono).
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
@@ -34,11 +32,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
+      className={`${geistMono.variable} ${inter.variable} h-full antialiased`}
     >
-      <head>
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-      </head>
+      {/* NOT: Font Awesome CDN kaldırıldı — render'ı bloklayan harici bir stylesheet'ti
+          ve ikonlar lucide-react'e taşındı. İkon setini tek yerde tut. */}
       <body className="min-h-full flex flex-col font-sans">
         <a href="#main-content" className="skip-link">
           Skip to main content

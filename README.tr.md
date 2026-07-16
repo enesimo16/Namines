@@ -65,22 +65,24 @@ Her şey, takılabilir AI sağlayıcılarıyla (Groq, Gemini, Ollama veya kendi 
 
 ### Görsel iş alanı
 - **Etkileşimli tuval** (React Flow) — tabloları, kolonları ve ilişkileri sürükle‑bırak.
-- **Gerçek zamanlı iş birliği** — canlı imleçlerle paylaşılabilir odalar (SignalR).
-- **Sürüm kontrolü** — dallar (branch) ve iş alanına özgü migration geçmişi.
+- **Gerçek zamanlı iş birliği** — canlı imleçler ve şema senkronizasyonlu paylaşılabilir odalar (SignalR).
+- **Sürüm kontrolü** — dallar (branch) ve iş alanına özgü migration referans noktası.
 
 ### Derleme & dışa aktarım
 - **Çok motorlu DDL** — SQL Server, PostgreSQL, MySQL, MariaDB, SQLite, Oracle.
 - **EF Core** modelleri ve rehberli **migration sihirbazı** (diff + önizleme).
 - **Tarayıcı içi SQL konsolu** — üretilen DDL'i yerelde SQLite (WASM) ile çalıştırın.
-- **Docker sandbox** — tek kullanımlık bir DB konteyneri kurup `.bak` indirin.
+- **Docker sandbox** — tek kullanımlık bir DB konteyneri kurup yedek indirin
+  (SQL Server için `.bak`, PostgreSQL/MySQL için `.sql` dump).
 - **Geliştirici paketi** — çalışmaya hazır bir Streamlit yönetim uygulaması (ZIP) dışa aktarın.
 - **Doküman & diyagram** — Data Dictionary PDF, README.md, Mermaid ER/class/flow (TR/EN).
 
 ### Platform
-- **Hesaplar & bulut senkronizasyonu** — httpOnly cookie üzerinden JWT; projeler/dallar bulutta.
-- **Adil AI kullanımı** — kullanıcı‑başı tavanlı paylaşımlı günlük token havuzu; tükenince istekler
-  bloklanmadan ücretsiz yerel motora düşer.
-- **Pro plan** — Stripe Hosted Checkout ile opsiyonel $5/ay katman.
+- **Hesaplar & bulut senkronizasyonu** — httpOnly cookie üzerinden JWT; projeler bulutta
+  (dallar cihaza özel, yerelde tutulur).
+- **Adil AI kullanımı** — kullanıcı‑başı tavanlı paylaşımlı günlük token havuzu; tükenince
+  desteklenen özellikler bloklanmadan ücretsiz yerel motora düşer.
+- **Pro plan** — Stripe Hosted Checkout ile opsiyonel ücretli katman (fiyat Stripe'ta tanımlanır).
 - **Geri bildirim widget'ı** — dahili hata/öneri bildirimi.
 
 ## 🧱 Teknoloji yığını
@@ -140,6 +142,25 @@ npm run dev
 docker compose up --build
 ```
 
+## 🚢 Deploy
+
+Production, yerel `.env` yerine **ayrı** env dosyaları kullanır:
+
+| Hedef | Şablon | Not |
+|---|---|---|
+| Backend (Railway / Render / Fly / VPS) | [`deploy/backend.env.example`](deploy/backend.env.example) | `Jwt__Key`, `Groq__ApiKey`, `App__FrontendUrl` zorunlu |
+| Frontend (Vercel) | [`deploy/frontend.env.example`](deploy/frontend.env.example) | Yalnızca `NEXT_PUBLIC_API_URL` — **build** sırasında gömülür |
+
+Deploy'un çalışıp çalışmamasını belirleyen üç ayar:
+
+1. **`App__FrontendUrl`** frontend'in tam origin'ine eşit olmalı — Production'da localhost otomatik
+   eklenmez, yanlış değer tüm tarayıcı isteklerini CORS'a takar.
+2. Frontend ve API *farklı* site'lardaysa (ör. Vercel + Railway) **`Auth__CrossSiteCookie=true`**
+   olmalı. Aksi hâlde tarayıcı auth cookie'sini göndermez ve login sessizce tutmaz.
+3. **`NEXT_PUBLIC_API_URL`** sonunda `/api` OLMAMALI — istemci bunu kendisi ekler.
+
+`/app/data` (SQLite volume) kalıcı olmalı; aksi hâlde her deploy'da tüm hesaplar silinir.
+
 ## 🎛️ AI token modeli
 
 Namines, premium AI kullanımını **paylaşımlı günlük token havuzuna** göre ölçer; böylece tek bir
@@ -147,8 +168,9 @@ kullanıcı havuzu tüketemez — ve dormant hesaplara token ön‑tahsisi yapı
 
 - `AiPool:DailyTokenPool` — paylaşımlı günlük bütçe (varsayılan **100 000**, ≈ Groq free tier günlük).
 - `AiPool:PerUserDailyTokens` — kullanıcı‑başı günlük tavan (varsayılan **20 000**).
-- Tüketim **talep üzerine** düşülür; havuz **veya** kullanıcı tavanı dolunca istekler şeffaf biçimde
-  **ücretsiz yerel motora düşer** — tüm ücretsiz özellikler çalışmaya devam eder.
+- Tüketim **talep üzerine** düşülür; havuz **veya** kullanıcı tavanı dolunca desteklenen özellikler
+  (doküman, sahte veri, geliştirici paketi, tersine mühendislik) şeffaf biçimde **ücretsiz yerel
+  motora düşer** — hata vermez.
 
 Havuzu istediğiniz zaman `appsettings.json` içinden büyütün (örn. `1000000`) — kod değişmez.
 

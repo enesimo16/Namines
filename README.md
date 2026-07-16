@@ -21,12 +21,12 @@ documentation and more — across **six** database engines.
 ## 📑 Table of contents
 
 - [Overview](#-overview)
-- [Screenshots](#-screenshots)
+- [Screenshots](#️-screenshots)
 - [Features](#-features)
 - [Tech stack](#-tech-stack)
-- [Project structure](#-project-structure)
+- [Project structure](#️-project-structure)
 - [Getting started](#-getting-started)
-- [AI token model](#-ai-token-model)
+- [AI token model](#️-ai-token-model)
 - [Security](#-security)
 - [License](#-license)
 
@@ -64,22 +64,24 @@ key), while a Next.js front‑end delivers the canvas, panels and live collabora
 
 ### Visual workspace
 - **Interactive canvas** (React Flow) — drag‑and‑drop tables, columns and relations.
-- **Real‑time collaboration** — shareable rooms with live cursors (SignalR).
-- **Version control** — branches and per‑workspace migration history.
+- **Real‑time collaboration** — shareable rooms with live cursors and schema sync (SignalR).
+- **Version control** — branches and a per‑workspace migration baseline.
 
 ### Compilation & export
 - **Multi‑engine DDL** — SQL Server, PostgreSQL, MySQL, MariaDB, SQLite, Oracle.
 - **EF Core** models & a guided **migration wizard** (diff + preview).
 - **In‑browser SQL console** — run the generated DDL locally via SQLite (WASM).
-- **Docker sandbox** — provision a throwaway DB container and download a `.bak`.
+- **Docker sandbox** — provision a throwaway DB container and download a backup
+  (`.bak` for SQL Server, `.sql` dump for PostgreSQL/MySQL).
 - **Developer package** — export a ready‑to‑run Streamlit admin app (ZIP).
 - **Docs & diagrams** — Data Dictionary PDF, README.md, Mermaid ER/class/flow (TR/EN).
 
 ### Platform
-- **Accounts & cloud sync** — JWT over an httpOnly cookie; projects/branches saved to the cloud.
-- **Fair AI usage** — a shared daily token pool with a per‑user cap; on exhaustion, requests fall
-  back to a free local engine instead of blocking.
-- **Pro plan** — optional $5/mo tier via Stripe Hosted Checkout.
+- **Accounts & cloud sync** — JWT over an httpOnly cookie; projects saved to the cloud
+  (branches are kept locally, per device).
+- **Fair AI usage** — a shared daily token pool with a per‑user cap; on exhaustion, supported
+  features fall back to a free local engine instead of blocking.
+- **Pro plan** — optional paid tier via Stripe Hosted Checkout (price configured in Stripe).
 - **Feedback widget** — built‑in bug/idea reporting.
 
 ## 🧱 Tech stack
@@ -139,6 +141,25 @@ npm run dev
 docker compose up --build
 ```
 
+## 🚢 Deploying
+
+Production uses **separate** env files — not the local `.env`:
+
+| Target | Template | Notes |
+|---|---|---|
+| Backend (Railway / Render / Fly / VPS) | [`deploy/backend.env.example`](deploy/backend.env.example) | `Jwt__Key`, `Groq__ApiKey`, `App__FrontendUrl` are required |
+| Frontend (Vercel) | [`deploy/frontend.env.example`](deploy/frontend.env.example) | Only `NEXT_PUBLIC_API_URL` — baked in at **build** time |
+
+Three settings decide whether a deploy works:
+
+1. **`App__FrontendUrl`** must equal the frontend's exact origin — in Production, localhost is not
+   auto‑allowed, so a wrong value blocks every browser request via CORS.
+2. **`Auth__CrossSiteCookie=true`** when frontend and API are on *different* sites (e.g. Vercel +
+   Railway). Otherwise the browser drops the auth cookie and login silently never sticks.
+3. **`NEXT_PUBLIC_API_URL`** must **not** end in `/api` — the client appends it.
+
+Persist `/app/data` (the SQLite volume) or every account is wiped on redeploy.
+
 ## 🎛️ AI token model
 
 Namines meters premium AI usage against a **shared daily token pool**, so a single user can’t drain
@@ -146,8 +167,9 @@ it — without pre‑allocating tokens to dormant accounts:
 
 - `AiPool:DailyTokenPool` — shared daily budget (default **100 000**, ≈ Groq free‑tier daily tokens).
 - `AiPool:PerUserDailyTokens` — per‑user daily cap (default **20 000**).
-- Consumption is charged **on demand**; when the pool **or** a user’s cap is exhausted, requests
-  transparently **fall back to the free local engine** — every free feature keeps working.
+- Consumption is charged **on demand**; when the pool **or** a user’s cap is exhausted, supported
+  features (docs, mock data, dev package, reverse engineering) transparently **fall back to the
+  free local engine** rather than erroring out.
 
 Raise the pool at any time (e.g. to `1000000`) in `appsettings.json` — no code changes needed.
 

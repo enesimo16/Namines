@@ -1,4 +1,5 @@
 import React from 'react';
+import { Cloud, Server } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 
 export default function AIProviderSelector() {
@@ -27,7 +28,7 @@ export default function AIProviderSelector() {
             : 'text-gray-500 hover:text-gray-300'
         }`}
       >
-        <i className="fa-solid fa-cloud text-[10px]"></i>
+        <Cloud className="w-3 h-3" />
         <div className="text-left leading-tight">
           <div>Groq</div>
           <div className="text-[9px] opacity-70">(Cloud)</div>
@@ -43,7 +44,7 @@ export default function AIProviderSelector() {
             : 'text-gray-500 hover:text-gray-300'
         }`}
       >
-        <i className="fa-solid fa-server text-[10px]"></i>
+        <Server className="w-3 h-3" />
         <div className="text-left leading-tight">
           <div>Ollama</div>
           <div className="text-[9px] opacity-70">(Local)</div>

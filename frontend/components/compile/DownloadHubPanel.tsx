@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { scaffolderService, coderAIService } from '../../services/api';
 import { useAIGateway } from '../../hooks/useAIGateway';
+import { toAbsoluteApiUrl } from '../../lib/apiConfig';
 
 interface DownloadHubPanelProps {
   schema: DatabaseSchema;
@@ -81,7 +82,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
 
         if (msg.startsWith('DOWNLOAD_URL|')) {
           const path = msg.split('|')[1];
-          const fullUrl = `http://localhost:5000${path}`;
+          const fullUrl = toAbsoluteApiUrl(path);
           setDownloadUrl(fullUrl);
           setLogs(prev => [...prev, '📦 Project package (.zip) successfully generated!']);
           

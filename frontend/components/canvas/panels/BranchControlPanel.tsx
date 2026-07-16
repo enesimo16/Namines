@@ -254,7 +254,7 @@ export default function BranchControlPanel() {
 
       {/* Expandable Dropdown Menu */}
       {isOpen && (
-        <div className="absolute top-full left-0 w-full mt-1.5 bg-[#0F172A]/95 backdrop-blur-lg border border-indigo-500/25 rounded-2xl shadow-2xl p-3 animate-in fade-in duration-200 z-50">
+        <div className="absolute top-full left-0 w-full mt-1.5 bg-surface-700/95 backdrop-blur-lg border border-indigo-500/25 rounded-2xl shadow-2xl p-3 animate-in fade-in duration-200 z-50">
           <div className="text-[10px] font-extrabold text-indigo-400/70 tracking-widest uppercase mb-2 px-1">Branches</div>
           
           <div className="flex flex-col gap-1 max-h-36 overflow-y-auto mb-2 pr-1">

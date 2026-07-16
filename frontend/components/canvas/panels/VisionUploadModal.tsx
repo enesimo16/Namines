@@ -181,7 +181,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="relative w-full max-w-lg rounded-3xl bg-[#0F172A]/95 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.25)] p-6 md:p-8 flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="relative w-full max-w-lg rounded-3xl bg-surface-700/95 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.25)] p-6 md:p-8 flex flex-col max-h-[85vh] overflow-hidden">
         
         {/* Header */}
         <div className="flex justify-between items-start mb-6 shrink-0 select-none">
@@ -393,7 +393,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
         {/* Overwrite warning dialog */}
         {showOverwriteWarning && (
           <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
-            <div className="w-full max-w-md bg-gradient-to-b from-[#1F1635]/95 via-[#0F172A]/98 to-[#0F172A]/98 border border-amber-500/40 rounded-3xl p-8 shadow-[0_0_50px_rgba(245,158,11,0.25)] text-center space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="w-full max-w-md bg-gradient-to-b from-[#1F1635]/95 via-surface-700/98 to-surface-700/98 border border-amber-500/40 rounded-3xl p-8 shadow-[0_0_50px_rgba(245,158,11,0.25)] text-center space-y-5 animate-in zoom-in-95 duration-200">
               <div className="w-14 h-14 bg-gradient-to-tr from-amber-500/20 to-yellow-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center rounded-2xl mx-auto shadow-[0_0_15px_rgba(245,158,11,0.2)]">
                 <AlertTriangle className="w-7 h-7" />
               </div>

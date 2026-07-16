@@ -12,7 +12,9 @@ using Namines.Infrastructure.Data;
 using Serilog;
 using Serilog.Events;
 using System.Text;
+using System.Threading.RateLimiting;
 using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.HttpOverrides;
 
 // ── Serilog Bootstrap (before WebApplication.CreateBuilder) ─────────────────
 // İki sink: Console (human-readable) ve günlük dönen dosya (logs/).
@@ -41,7 +43,17 @@ try
     // Yukarı doğru gezerek en yakın .env'i bulur ve ortam değişkenlerine yükler.
     // '__' ayracı .NET hiyerarşisine map olur (ör. Jwt__Key => Jwt:Key).
     // Böylece user-secrets / appsettings.secrets.json'a gerek kalmaz.
-    DotNetEnv.Env.TraversePath().Load();
+    //
+    // Container/PaaS ortamlarında .env dosyası YOKTUR — sırlar gerçek ortam
+    // değişkeni olarak enjekte edilir. Bu yüzden dosyanın yokluğu hata değildir.
+    try
+    {
+        DotNetEnv.Env.TraversePath().Load();
+    }
+    catch (Exception ex)
+    {
+        Log.Information("Yerel .env yüklenmedi ({Reason}) — ortam değişkenleri kullanılacak.", ex.Message);
+    }
 
     var builder = WebApplication.CreateBuilder(args);
 
@@ -161,26 +173,69 @@ try
     builder.Services.AddSwaggerGen();
 
     // Rate limiting: pahalı/tehlikeli uçlar (Docker sandbox, DB execute) için istismarı sınırla.
+    // KRİTİK: partition'sız bir limiter TÜM kullanıcılar için ortak sayaç tutar; tek kullanıcı
+    // limiti doldurunca herkes 429 alır. Bu yüzden kullanıcı kimliği (yoksa IP) ile bölünür.
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-        options.AddFixedWindowLimiter("sensitive", opt =>
+        options.AddPolicy("sensitive", httpContext =>
         {
-            opt.Window = TimeSpan.FromMinutes(1);
-            opt.PermitLimit = 5;
-            opt.QueueLimit = 0;
+            var partitionKey =
+                httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "anonymous";
+
+            return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+            {
+                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = 5,
+                QueueLimit = 0
+            });
         });
+    });
+
+    // Reverse proxy (Nginx / Railway / Render / Fly) arkasında TLS proxy'de sonlanır ve
+    // uygulamaya düz HTTP gelir. Bu header'lar işlenmezse Request.IsHttps=false olur
+    // (auth cookie'sinin Secure bayrağı düşer) ve RemoteIpAddress proxy'yi gösterir
+    // (rate limit tüm kullanıcıları tek partition'a toplar).
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        // Proxy IP'leri PaaS'te dinamiktir; bilinen ağ kısıtını kaldırıyoruz.
+        // Güvenlik notu: uygulama yalnızca güvenilen bir proxy arkasında yayınlanmalıdır.
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
     });
 
     // Register SignalR real-time collaboration services
     builder.Services.AddSignalR();
 
-    // Setup CORS for Next.js frontend
+    // Setup CORS for Next.js frontend.
+    // İzinli origin'ler config'den gelir; localhost yalnızca Production DIŞINDA eklenir.
+    // Cors:AllowedOrigins (dizi) veya App:FrontendUrl (tek değer) kullanılabilir.
+    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+    var frontendUrl = builder.Configuration["App:FrontendUrl"];
+    if (!string.IsNullOrWhiteSpace(frontendUrl))
+        allowedOrigins = allowedOrigins.Append(frontendUrl).ToArray();
+    if (!builder.Environment.IsProduction())
+        allowedOrigins = allowedOrigins.Concat(new[] { "http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000" }).ToArray();
+
+    allowedOrigins = allowedOrigins
+        .Where(o => !string.IsNullOrWhiteSpace(o))
+        .Select(o => o.TrimEnd('/'))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    if (allowedOrigins.Length == 0)
+        Log.Warning("CORS izinli origin listesi boş. Production'da App:FrontendUrl veya Cors:AllowedOrigins tanımlayın, aksi halde tarayıcı istekleri bloklanır.");
+    else
+        Log.Information("CORS izinli origin'ler: {Origins}", string.Join(", ", allowedOrigins));
+
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowNextJs", policy =>
         {
-            policy.WithOrigins("http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000")
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .WithExposedHeaders("X-AI-Fallback") // JS'in token-bitti header'ını okuyabilmesi için
@@ -188,8 +243,19 @@ try
         });
     });
 
-    // Force Kestrel to listen on port 5000
-    builder.WebHost.UseUrls("http://localhost:5000");
+    // Kestrel bind adresi.
+    // Container/PaaS: ASPNETCORE_URLS (ör. http://+:8080) veya PORT ile dışarıdan verilir —
+    // burada override ETMEYİZ, yoksa container dışarıdan erişilemez hale gelir.
+    // Yerel geliştirme: alışıldık http://localhost:5000 adresine sabitle.
+    var urlsFromEnv = builder.Configuration["ASPNETCORE_URLS"];
+    var portFromEnv = builder.Configuration["PORT"]; // Railway/Render/Heroku bu değişkeni verir
+    if (string.IsNullOrWhiteSpace(urlsFromEnv))
+    {
+        if (!string.IsNullOrWhiteSpace(portFromEnv))
+            builder.WebHost.UseUrls($"http://+:{portFromEnv}");
+        else
+            builder.WebHost.UseUrls("http://localhost:5000");
+    }
 
     // Setup custom services
     builder.Services.AddHttpContextAccessor();
@@ -235,6 +301,10 @@ try
             throw;
         }
     }
+
+    // X-Forwarded-* header'larını en başta işle: sonraki tüm middleware'ler (cookie Secure
+    // bayrağı, rate limit partition'ı, redirect URL'leri) doğru şema/IP görsün.
+    app.UseForwardedHeaders();
 
     // Use global exception handler (üretimde stack trace sızdırmaz)
     app.UseMiddleware<ExceptionMiddleware>();

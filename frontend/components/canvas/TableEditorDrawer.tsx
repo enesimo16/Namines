@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Plus, Trash2, Key, Link as LinkIcon } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import { useToastStore } from '../../store/useToastStore';
 import { SchemaTable, SchemaColumn } from '../../types/schema';
 
 const COLUMN_TYPES = [
@@ -24,6 +25,7 @@ const genId = (): string =>
 
 export default function TableEditorDrawer() {
   const { schema, selectedTableForEdit, setSelectedTableForEdit, updateTable } = useSchemaStore();
+  const showToast = useToastStore(state => state.showToast);
 
   // Find selected table
   const originalTable = schema?.tables.find((t: SchemaTable) => t.id === selectedTableForEdit) ?? null;
@@ -38,13 +40,13 @@ export default function TableEditorDrawer() {
 
   const isOpen = !!selectedTableForEdit && !!draft;
 
+  /**
+   * Değişiklikleri ATMADAN kapat.
+   * Drawer'ın açık bir "Save Changes" butonu var; kapatma yollarının sessizce
+   * kaydetmesi "Cancel" etiketiyle çelişir ve kullanıcı iptal ettiğini sanırken
+   * değişiklikleri commit eder. Kaydetmek yalnızca handleSave'in işi.
+   */
   const handleClose = () => {
-    if (draft && originalTable) {
-      // Auto-save when closing
-      if (JSON.stringify(draft) !== JSON.stringify(originalTable)) {
-        updateTable(draft);
-      }
-    }
     setSelectedTableForEdit(null);
   };
 
@@ -67,15 +69,26 @@ export default function TableEditorDrawer() {
 
   const handleAddColumn = () => {
     if (!draft) return;
+
+    // İsim mevcut kolonlara göre benzersiz olmalı. Sayaç olarak columns.length
+    // kullanmak yetmez: bir kolon silindiğinde uzunluk geri düşer ve üretilen ad
+    // hâlâ duran bir kolonla çakışır (ör. column_4 iki kez).
+    const existingNames = new Set(draft.columns.map((c: SchemaColumn) => c.name.toLowerCase()));
+    let suffix = draft.columns.length + 1;
+    while (existingNames.has(`column_${suffix}`.toLowerCase())) suffix++;
+
     const newCol: SchemaColumn = {
       id: genId(),
-      name: `column_${draft.columns.length + 1}`,
+      name: `column_${suffix}`,
       type: 'VARCHAR',
       length: 255,
       isPK: false,
       isFK: false,
       isNullable: true,
       defaultValue: null,
+      // Diğer tüm kolon üretim yollarında olduğu gibi: schemaDiff kimliği
+      // önce stableUuid üzerinden eşler; bu alan yoksa diff isim/id'ye düşer.
+      stableUuid: genId(),
     };
     setDraft({ ...draft, columns: [...draft.columns, newCol] });
   };
@@ -85,8 +98,39 @@ export default function TableEditorDrawer() {
     setDraft({ ...draft, columns: draft.columns.filter((c: SchemaColumn) => c.id !== colId) });
   };
 
+  /**
+   * Kaydetmeden önce doğrula. Bu kontroller olmadan geçersiz bir tablo sessizce
+   * şemaya girer ve hata ancak DDL derlemesinde ortaya çıkar.
+   */
+  const validate = (t: SchemaTable): string | null => {
+    if (!t.name.trim()) return 'Tablo adı boş olamaz.';
+
+    if (t.columns.length === 0) return 'Tablo en az bir kolon içermeli.';
+
+    const emptyCol = t.columns.find(c => !c.name.trim());
+    if (emptyCol) return 'Kolon adı boş olamaz.';
+
+    const seen = new Set<string>();
+    for (const c of t.columns) {
+      const key = c.name.trim().toLowerCase();
+      if (seen.has(key)) return `'${c.name}' kolonu birden fazla kez tanımlanmış. Kolon adları benzersiz olmalı.`;
+      seen.add(key);
+    }
+
+    if (!t.columns.some(c => c.isPK)) return 'Tablonun en az bir birincil anahtarı (PK) olmalı.';
+
+    return null;
+  };
+
   const handleSave = () => {
     if (!draft) return;
+
+    const error = validate(draft);
+    if (error) {
+      showToast(error, 'error');
+      return;
+    }
+
     updateTable(draft);
     setSelectedTableForEdit(null);
   };
@@ -99,7 +143,7 @@ export default function TableEditorDrawer() {
 
         {/* Drawer */}
         <Dialog.Content
-          className="fixed top-0 right-0 h-full w-[450px] bg-gradient-to-b from-[#09111F] to-[#0D182A] border-l border-indigo-500/20 shadow-[-20px_0_40px_rgba(0,0,0,0.4)] z-[90] flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          className="fixed top-0 right-0 h-full w-[450px] bg-gradient-to-b from-surface-900 to-surface-800 border-l border-indigo-500/20 shadow-[-20px_0_40px_rgba(0,0,0,0.4)] z-[90] flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
           aria-describedby="table-editor-desc"
           onInteractOutside={handleClose}
           onEscapeKeyDown={handleClose}
@@ -156,7 +200,7 @@ export default function TableEditorDrawer() {
                 <input
                   value={draft.name}
                   onChange={e => handleTableNameChange(e.target.value)}
-                  className="w-full bg-[#111928] border border-[#2A3750] rounded-xl px-4 py-3 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-600"
+                  className="w-full bg-surface-800 border border-surface-500 rounded-xl px-4 py-3 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-600"
                   placeholder="e.g. users"
                   spellCheck={false}
                 />
@@ -164,7 +208,7 @@ export default function TableEditorDrawer() {
 
               {/* Columns */}
               <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between border-b border-[#2A3750]/50 pb-2">
+                <div className="flex items-center justify-between border-b border-surface-500/50 pb-2">
                   <span className="text-xs font-bold tracking-wider text-indigo-300/80 uppercase">Columns</span>
                   <button 
                     onClick={handleAddColumn} 
@@ -178,7 +222,7 @@ export default function TableEditorDrawer() {
                 {/* Column rows */}
                 <div className="flex flex-col gap-2 mt-1">
                   {draft.columns.map((col) => (
-                    <div key={col.id} className="group flex items-center gap-2 p-2.5 bg-[#111928]/60 border border-[#2A3750]/60 rounded-xl hover:border-indigo-500/30 transition-all hover:bg-[#111928]">
+                    <div key={col.id} className="group flex items-center gap-2 p-2.5 bg-surface-800/60 border border-surface-500/60 rounded-xl hover:border-indigo-500/30 transition-all hover:bg-surface-800">
                       {/* PK/FK Badge */}
                       <div className="flex-shrink-0 w-5 flex justify-center">
                         {col.isPK && <Key className="w-4 h-4 text-amber-500/90 drop-shadow-[0_0_3px_rgba(245,158,11,0.5)]" />}
@@ -190,7 +234,7 @@ export default function TableEditorDrawer() {
                       <input
                         value={col.name}
                         onChange={e => handleColumnChange(col.id, 'name', e.target.value)}
-                        className="flex-1 min-w-0 bg-[#1A2333] border border-[#2A3750] rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500/50 transition-colors placeholder:text-zinc-600"
+                        className="flex-1 min-w-0 bg-surface-600 border border-surface-500 rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500/50 transition-colors placeholder:text-zinc-600"
                         placeholder="column_name"
                         spellCheck={false}
                       />
@@ -199,7 +243,7 @@ export default function TableEditorDrawer() {
                       <select
                         value={col.type}
                         onChange={e => handleColumnChange(col.id, 'type', e.target.value)}
-                        className="w-28 flex-shrink-0 bg-[#1A2333] border border-[#2A3750] rounded-lg px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500/50 transition-colors appearance-none cursor-pointer"
+                        className="w-28 flex-shrink-0 bg-surface-600 border border-surface-500 rounded-lg px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500/50 transition-colors appearance-none cursor-pointer"
                       >
                         {COLUMN_TYPES.map(t => (
                           <option key={t} value={t}>{t}</option>
@@ -210,11 +254,15 @@ export default function TableEditorDrawer() {
                       <div className="flex flex-col gap-1.5 shrink-0 px-1">
                         <label className="flex items-center gap-1.5 cursor-pointer group/chk">
                           <div className="relative flex items-center justify-center">
+                            {/* Son PK'nın işareti kaldırılamaz: tablo anahtarsız kalır ve
+                                onu hedefleyen ilişkiler anahtar olmayan bir kolona FK
+                                üretir. Delete butonu zaten aynı kuralı uyguluyor. */}
                             <input
                               type="checkbox"
                               checked={col.isPK}
+                              disabled={col.isPK && draft.columns.filter((c: SchemaColumn) => c.isPK).length <= 1}
                               onChange={e => handleColumnChange(col.id, 'isPK', e.target.checked)}
-                              className="peer sr-only"
+                              className="peer sr-only disabled:cursor-not-allowed"
                             />
                             <div className="w-3.5 h-3.5 border border-zinc-600 rounded bg-zinc-800 peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-colors" />
                             <svg className="absolute w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7"/></svg>
@@ -249,8 +297,8 @@ export default function TableEditorDrawer() {
                   ))}
 
                   {draft.columns.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-10 border border-dashed border-[#2A3750] rounded-xl bg-[#111928]/30">
-                      <div className="w-10 h-10 rounded-full bg-[#1A2333] border border-[#2A3750] flex items-center justify-center text-zinc-500 mb-3">
+                    <div className="flex flex-col items-center justify-center py-10 border border-dashed border-surface-500 rounded-xl bg-surface-800/30">
+                      <div className="w-10 h-10 rounded-full bg-surface-600 border border-surface-500 flex items-center justify-center text-zinc-500 mb-3">
                         <Plus className="w-5 h-5" />
                       </div>
                       <p className="text-sm text-zinc-400">No columns added yet.</p>
@@ -268,7 +316,7 @@ export default function TableEditorDrawer() {
           )}
 
           {/* Footer */}
-          <div className="relative z-10 p-6 border-t border-[#2A3750]/50 bg-[#09111F]/80 backdrop-blur-md shrink-0 flex items-center justify-end gap-3">
+          <div className="relative z-10 p-6 border-t border-surface-500/50 bg-surface-900/80 backdrop-blur-md shrink-0 flex items-center justify-end gap-3">
             <button 
               onClick={handleClose} 
               className="px-5 py-2.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 rounded-xl transition-colors"

@@ -1,40 +1,86 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, Sparkles, History, Users, Terminal, Activity, Settings } from 'lucide-react';
+import { CheckCircle, Sparkles, History, Users, Terminal, Activity, Settings, Link2, Loader2 } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useReactFlow } from '@xyflow/react';
 import { flowToSchema } from '../../../lib/flowToSchema';
 import MigrationWizard from '../../migration/MigrationWizard';
 import { useMultiplayerStore } from '../../../store/useMultiplayerStore';
+import { useBranchStore } from '../../../store/useBranchStore';
 import { useSqlExplorerStore } from '../../../store/useSqlExplorerStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useByokStore } from '../../../store/useByokStore';
+import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
+import { useAuthStore } from '../../../store/useAuthStore';
+import { authService } from '../../../services/api';
 
 export default function ToolbarPanel() {
   const router = useRouter();
-  const { schema, loadFromSchema } = useSchemaStore();
+  // Dar selector'lar — selector'suz çağrı tüm store'a abone olur ve her
+  // değişiklikte bu paneli gereksiz yere yeniden render eder.
+  const schema = useSchemaStore(s => s.schema);
+  const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
   const { getNodes, getEdges } = useReactFlow();
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
 
   // Multiplayer and SQL Explorer stores
-  const { isConnected, roomId } = useMultiplayerStore();
+  const isConnected = useMultiplayerStore(s => s.isConnected);
+  const roomId = useMultiplayerStore(s => s.roomId);
+  const isDiffMode = useBranchStore(s => s.isDiffMode);
   const isSqlExplorerOpen = useSqlExplorerStore(state => state.isOpen);
   const toggleSqlExplorer = useSqlExplorerStore(state => state.toggleOpen);
 
-  const { apiKey } = useByokStore();
+  const apiKey = useByokStore(s => s.apiKey);
   const showToast = useToastStore(state => state.showToast);
+
+  const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
+  const [isSharing, setIsSharing] = useState(false);
 
   const openAiSettings = () => {
     window.dispatchEvent(new CustomEvent('namines:open-ai-settings'));
   };
 
   const handleApprove = () => {
-    // Sync current UI state back to schema before leaving
-    const updatedSchema = flowToSchema(schema, getNodes(), getEdges());
-    if (updatedSchema) {
-      loadFromSchema(updatedSchema);
+    // Diff görünümü SALT-OKUNUR. processedNodes bu modda karşılaştırılan branch'ten
+    // sanal "silinmiş tablo" node'ları enjekte eder; getNodes() bunları da döndürür ve
+    // flowToSchema hepsini schema.tables'a geri yazarak silinmiş tabloları diriltir.
+    // Bu modda senkronize etmeden geç.
+    if (!isDiffMode) {
+      const updatedSchema = flowToSchema(schema, getNodes(), getEdges());
+      if (updatedSchema) {
+        // Pozisyonları koru: nodePositions verilmezse loadFromSchema node'ları
+        // schemaToFlow'un ham ızgarasına (col*400, row*300) geri döker ve
+        // kullanıcının elle yaptığı tüm yerleşim kaybolur.
+        const nodePositions = Object.fromEntries(
+          getNodes().map(n => [n.id, { x: n.position.x, y: n.position.y }])
+        );
+        loadFromSchema(updatedSchema, nodePositions, true);
+      }
     }
     router.push('/compile');
+  };
+
+  const handleShareReadOnly = async () => {
+    if (!isAuthenticated) {
+      showToast('Sign in to share your schema.', 'warning');
+      return;
+    }
+    if (!activeProjectId) {
+      showToast('Save your project first (generate a schema and it will auto-save).', 'warning');
+      return;
+    }
+    setIsSharing(true);
+    try {
+      const { token } = await authService.createShareLink(activeProjectId);
+      const shareUrl = `${window.location.origin}/share/${token}`;
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('Read-only share link copied to clipboard!', 'success');
+    } catch {
+      showToast('Failed to generate share link. Try again.', 'error');
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const shareRoomLink = () => {
@@ -55,7 +101,7 @@ export default function ToolbarPanel() {
         {/* AI Settings button */}
         <button
           onClick={openAiSettings}
-          className="relative flex items-center justify-center bg-[#0F172A]/90 hover:bg-[#1E293B] text-zinc-400 hover:text-zinc-200 w-10 h-10 rounded-[10px] transition-all border border-indigo-500/20 hover:border-indigo-500/40 shadow-md cursor-pointer"
+          className="relative flex items-center justify-center bg-surface-700/90 hover:bg-surface-600 text-zinc-400 hover:text-zinc-200 w-10 h-10 rounded-xl transition-all border border-indigo-500/20 hover:border-indigo-500/40 shadow-md cursor-pointer"
           title="AI & BYOK Settings"
         >
           <Settings className="w-4 h-4" />
@@ -67,11 +113,24 @@ export default function ToolbarPanel() {
           )}
         </button>
 
+        {/* Read-only share link */}
+        <button
+          onClick={handleShareReadOnly}
+          disabled={isSharing}
+          className="relative flex items-center justify-center gap-2 bg-surface-700/90 hover:bg-surface-600 text-emerald-400 hover:text-emerald-200 px-4 py-2 rounded-xl text-sm font-bold transition-all border border-emerald-500/20 hover:border-emerald-500/40 shadow-md h-10 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Copy read-only share link"
+        >
+          {isSharing
+            ? <Loader2 className="w-4 h-4 animate-spin" />
+            : <Link2 className="w-4 h-4" />}
+          <span className="tracking-wide">Share</span>
+        </button>
+
         {/* Live Share (SignalR Room Share) */}
         {isConnected && (
           <button
             onClick={shareRoomLink}
-            className="group relative flex items-center justify-center gap-2 bg-[#0F172A]/90 hover:bg-[#1E293B] text-pink-400 hover:text-pink-200 px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-pink-500/20 hover:border-pink-500/40 shadow-md h-10 animate-none"
+            className="group relative flex items-center justify-center gap-2 bg-surface-700/90 hover:bg-surface-600 text-pink-400 hover:text-pink-200 px-4 py-2 rounded-xl text-sm font-bold transition-all border border-pink-500/20 hover:border-pink-500/40 shadow-md h-10 animate-none"
             title="Copy Simultaneous Workspace Link"
           >
             <Users className="w-4 h-4 text-pink-400" />
@@ -86,10 +145,10 @@ export default function ToolbarPanel() {
         {/* SQL Console (SQL Explorer) */}
         <button
           onClick={toggleSqlExplorer}
-          className={`group relative flex items-center justify-center gap-2 px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border shadow-md h-10 animate-none ${
+          className={`group relative flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border shadow-md h-10 animate-none ${
             isSqlExplorerOpen
               ? 'bg-indigo-600/30 text-indigo-200 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.25)]'
-              : 'bg-[#0F172A]/90 hover:bg-[#1E293B] text-indigo-400 hover:text-indigo-200 border-indigo-500/20'
+              : 'bg-surface-700/90 hover:bg-surface-600 text-indigo-400 hover:text-indigo-200 border-indigo-500/20'
           }`}
           title="Open Live SQL Console"
         >
@@ -100,7 +159,7 @@ export default function ToolbarPanel() {
         {/* Migration Button */}
         <button
           onClick={() => setIsMigrationOpen(true)}
-          className="group relative flex items-center justify-center gap-2 bg-[#0F172A]/90 hover:bg-[#1E293B] text-indigo-300 hover:text-white px-4 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-indigo-500/30 hover:border-indigo-400/50 shadow-md h-10 animate-none"
+          className="group relative flex items-center justify-center gap-2 bg-surface-700/90 hover:bg-surface-600 text-indigo-300 hover:text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-indigo-500/30 hover:border-indigo-400/50 shadow-md h-10 animate-none"
           title="Open Migration Engine Panel"
         >
           <History className="w-4 h-4 text-indigo-400" />
@@ -111,7 +170,7 @@ export default function ToolbarPanel() {
         <button
           id="approve-diagram-btn"
           onClick={handleApprove}
-          className="group relative flex items-center justify-center gap-2 bg-gradient-to-r from-[#4f46e5] to-[#6366f1] hover:from-[#5b4ff8] hover:to-[#818cf8] text-white px-5 py-2 rounded-[10px] text-[14px] font-bold transition-all border border-[#818cf8]/40 shadow-[0_0_15px_rgba(79,70,229,0.5)] overflow-hidden h-10 animate-none"
+          className="group relative flex items-center justify-center gap-2 bg-gradient-to-r from-primary-glow to-primary-glow-hover hover:from-primary-glow-hover hover:to-indigo-400 text-white px-5 py-2 rounded-xl text-sm font-bold transition-all border border-primary-glow-hover/40 shadow-neon overflow-hidden h-10 animate-none"
         >
           {/* Starry Background */}
           <div 

@@ -149,7 +149,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-indigo-500/10 to-violet-500/10 rounded-full blur-[90px] pointer-events-none -z-10" />
 
       {/* Main Glassmorphic Container */}
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" className="relative w-full max-w-lg bg-[#09111F]/90 backdrop-blur-2xl border border-indigo-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col p-8 pb-14 animate-in zoom-in-95 duration-200">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" className="relative w-full max-w-lg bg-surface-900/90 backdrop-blur-2xl border border-indigo-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col p-8 pb-14 animate-in zoom-in-95 duration-200">
 
         {/* Header */}
         <div className="flex items-center justify-between pb-5 border-b border-indigo-500/10">

@@ -4,27 +4,35 @@ import { useSchemaStore } from '../store/useSchemaStore';
 import { useMultiplayerStore } from '../store/useMultiplayerStore';
 import { DatabaseSchema } from '../types/schema';
 import { useToastStore } from '../store/useToastStore';
+import { CANVAS_HUB_URL } from '../lib/apiConfig';
+import { screenToFlowPosition } from '../lib/flowCoords';
+import { mergeSchemas } from '../utils/mergeSchemas';
 
 export function useMultiplayer() {
-  const { schema, loadFromSchema } = useSchemaStore();
-  const { 
-    roomId, 
-    userName, 
-    isConnected, 
-    isOffline,
-    setRoomInfo, 
-    setIsConnected, 
-    setIsOffline,
-    updateCursor, 
-    removeCursor,
-    clearCursors 
-  } = useMultiplayerStore();
+  // Dar selector'lar. Selector'suz `useMultiplayerStore()` `cursors`a da abone olur;
+  // her uzak imleç paketi (saniyede onlarca) bu hook'u çağıran canvas sayfasının
+  // TAMAMINI yeniden render ederdi. Aynısı `useSchemaStore()` için de geçerli.
+  const schema = useSchemaStore(s => s.schema);
+  const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
+
+  const roomId = useMultiplayerStore(s => s.roomId);
+  const userName = useMultiplayerStore(s => s.userName);
+  const isConnected = useMultiplayerStore(s => s.isConnected);
+  const isOffline = useMultiplayerStore(s => s.isOffline);
+  const setRoomInfo = useMultiplayerStore(s => s.setRoomInfo);
+  const setIsConnected = useMultiplayerStore(s => s.setIsConnected);
+  const setIsOffline = useMultiplayerStore(s => s.setIsOffline);
+  const updateCursor = useMultiplayerStore(s => s.updateCursor);
+  const removeCursor = useMultiplayerStore(s => s.removeCursor);
+  const clearCursors = useMultiplayerStore(s => s.clearCursors);
 
   const showToast = useToastStore(state => state.showToast);
 
   const connectionRef = useRef<signalR.HubConnection | null>(null);
-  const isRemoteUpdateRef = useRef(false);
-  const remoteUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Peer'dan gelip store'a uygulanan son şemanın serileştirilmiş hâli (echo tespiti). */
+  const lastAppliedRemoteRef = useRef<string | null>(null);
+  /** Üç yönlü birleştirmenin ortak atası: iki tarafın en son üzerinde anlaştığı şema. */
+  const lastAgreedSchemaRef = useRef<DatabaseSchema | null>(null);
   const lastSentCursorRef = useRef({ x: 0, y: 0 });
   const schemaRef = useRef<DatabaseSchema | null>(null);
   
@@ -99,7 +107,7 @@ export function useMultiplayer() {
 
     // 3. Connect to SignalR Hub
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5000/hubs/canvas', {
+      .withUrl(CANVAS_HUB_URL, {
         skipNegotiation: true,
         transport: signalR.HttpTransportType.WebSockets
       })
@@ -132,17 +140,30 @@ export function useMultiplayer() {
     });
 
     connection.on('ReceiveSchema', (remoteSchema: DatabaseSchema) => {
-      isRemoteUpdateRef.current = true;
-      loadFromSchema(remoteSchema);
-      
-      if (remoteUpdateTimeoutRef.current) {
-        clearTimeout(remoteUpdateTimeoutRef.current);
-      }
-      
-      remoteUpdateTimeoutRef.current = setTimeout(() => {
-        isRemoteUpdateRef.current = false;
-        remoteUpdateTimeoutRef.current = null;
-      }, 300);
+      const localSchema = useSchemaStore.getState().schema;
+      const base = lastAgreedSchemaRef.current;
+
+      // Üç yönlü birleştir: yereli körce ezme. Ortak ata (base) yoksa (odaya yeni
+      // katıldık) gelen şemayı olduğu gibi al — birleştirilecek bir yerel geçmiş yok.
+      const nextSchema = (base && localSchema)
+        ? mergeSchemas(base, localSchema, remoteSchema)
+        : remoteSchema;
+
+      loadFromSchema(nextSchema);
+
+      // Birleştirilmiş sonuç artık iki tarafın da yeni ortak atası. Store normalize
+      // ettiği için ham nesneyi değil, gerçekten yazılan hâli referans al.
+      const applied = useSchemaStore.getState().schema;
+      lastAgreedSchemaRef.current = applied;
+
+      // Echo guard: yayına çıkmaması gereken tek şey az önce uyguladığımız şemadır.
+      // Süreyle değil içerikle tanınır (eski 300ms penceresi o an yapılan yerel
+      // düzenlemeyi yutup bir daha denemiyordu → sessiz desync).
+      //
+      // NOT: birleştirme yerel değişiklik EKLEDİYSE applied ≠ remoteSchema olur;
+      // bu durumda aşağıdaki sync effect farkı görüp merge sonucunu peer'a yayar,
+      // böylece iki taraf da aynı birleşik şemaya yakınsar.
+      lastAppliedRemoteRef.current = JSON.stringify(applied);
     });
 
     // Reconnection & connection status callbacks
@@ -179,6 +200,9 @@ export function useMultiplayer() {
           setIsConnected(true);
           setIsOffline(false);
           showToast('Real-time Collaborative Room Connection Established!', 'success');
+          // Odaya katılırken mevcut yerel şema ilk ortak atadır: ilk ReceiveSchema
+          // gelene kadar yaptığımız yerel değişiklikler bu base'e göre korunur.
+          lastAgreedSchemaRef.current = useSchemaStore.getState().schema;
           await connection.invoke('JoinRoom', currentRoomId, currentUserName);
         }
       } catch (err) {
@@ -209,19 +233,22 @@ export function useMultiplayer() {
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
 
-    // Clean up
     const handleWindowMouseMove = (e: MouseEvent) => {
       if (useMultiplayerStore.getState().isOffline) return; // Don't track/send cursor position if offline
       if (!connection.state || connection.state !== signalR.HubConnectionState.Connected) return;
 
-      const x = e.clientX;
-      const y = e.clientY;
-      const dist = Math.hypot(x - lastSentCursorRef.current.x, y - lastSentCursorRef.current.y);
+      // Ekran koordinatı DEĞİL, flow (canvas) koordinatı gönder. Peer'lar farklı
+      // pan/zoom'da olduğu için ham clientX/clientY imleci karşı tarafta yanlış
+      // yere düşürür.
+      const flowPos = screenToFlowPosition(e.clientX, e.clientY);
+      if (!flowPos) return;
+
+      const dist = Math.hypot(flowPos.x - lastSentCursorRef.current.x, flowPos.y - lastSentCursorRef.current.y);
       if (dist < 15) return;
 
-      lastSentCursorRef.current = { x, y };
+      lastSentCursorRef.current = flowPos;
 
-      connection.invoke('MoveCursor', currentRoomId, currentUserName, x, y)
+      connection.invoke('MoveCursor', currentRoomId, currentUserName, flowPos.x, flowPos.y)
         .catch(() => {});
     };
 
@@ -246,11 +273,15 @@ export function useMultiplayer() {
           if (connection.state === signalR.HubConnectionState.Connected) {
             connection.stop().catch(() => {});
             clearInterval(stopInterval);
+            clearTimeout(stopTimeout);
           } else if (connection.state === signalR.HubConnectionState.Disconnected) {
             clearInterval(stopInterval);
+            clearTimeout(stopTimeout);
           }
         }, 100);
-        setTimeout(() => clearInterval(stopInterval), 5000);
+        // Emniyet: handshake hiç tamamlanmazsa yoklamayı sonlandır.
+        // (Timeout'un kendisi de temizlenmeli, aksi halde unmount sonrası ateşlenir.)
+        const stopTimeout = setTimeout(() => clearInterval(stopInterval), 5000);
       }
 
       if (connectionRef.current === null) {
@@ -263,10 +294,18 @@ export function useMultiplayer() {
   // 5. Sync Local Schema Changes
   useEffect(() => {
     if (!isConnected || isOffline || !connectionRef.current || !roomId || !schema) return;
-    if (isRemoteUpdateRef.current) return;
+
+    // Az önce peer'dan alıp uyguladığımız şemayı geri yayınlama (sonsuz echo).
+    // İçerik farklıysa bu gerçek bir yerel düzenlemedir ve MUTLAKA yayınlanmalı.
+    const serialized = JSON.stringify(schema);
+    if (serialized === lastAppliedRemoteRef.current) return;
+    lastAppliedRemoteRef.current = null;
 
     // Send update to peers only if connection is active
     if (connectionRef.current.state === signalR.HubConnectionState.Connected) {
+      // Yayınladığımız şema, birleştirmenin yeni ortak atasıdır: bir sonraki
+      // ReceiveSchema bu noktadan itibaren "kim ne değiştirdi"yi buna göre hesaplar.
+      lastAgreedSchemaRef.current = schema;
       connectionRef.current.invoke('UpdateSchema', roomId, schema)
         .catch(() => {});
     }

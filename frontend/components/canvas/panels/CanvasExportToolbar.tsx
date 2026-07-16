@@ -187,7 +187,7 @@ export default function CanvasExportToolbar() {
         <div 
           id="canvas-toolbar"
           ref={nodeRef} 
-          className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-xl bg-gradient-to-r from-[#0F172A]/90 to-[#1E293B]/80 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] select-none transition-all duration-300"
+          className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-xl bg-gradient-to-r from-surface-700/90 to-surface-600/80 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] select-none transition-all duration-300"
           style={{ width: isCollapsed ? '76px' : 'auto' }}
         >
           {/* Drag Handle */}

@@ -1,0 +1,30 @@
+# Sırlar — imaj katmanlarına ASLA girmemeli.
+# (Sırlar runtime'da ortam değişkeni / env_file ile enjekte edilir.)
+**/.env
+**/.env.*
+**/appsettings.secrets.json
+**/appsettings.Development.json
+
+# Build çıktıları — imajda yeniden derlenir, kopyalamak katmanı şişirir ve
+# host/container runtime uyuşmazlığına yol açabilir.
+**/bin/
+**/obj/
+**/artifacts/
+**/TestResults/
+
+# Yerel veritabanı ve loglar
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/logs/
+
+# Geliştirme araçları / VCS
+.git/
+.gitignore
+.vs/
+.vscode/
+.idea/
+**/*.user
+
+# Dokümanlar
+**/*.md
