@@ -1,3 +1,4 @@
+using Namines.Core.Enums;
 using System.Text;
 using System.Linq;
 using Namines.Core.Interfaces;
@@ -71,11 +72,12 @@ public class OracleDdlGenerator : IDdlGenerator
                 var fkName = $"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}";
                 if (fkName.Length > 30) fkName = fkName[..30];
 
+                var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.Oracle);
+
                 sb.AppendLine($"ALTER TABLE \"{sourceTable.Name}\"");
                 sb.AppendLine($"    ADD CONSTRAINT \"{fkName}\"");
                 sb.AppendLine($"    FOREIGN KEY (\"{sourceCol.Name}\")");
-                sb.AppendLine($"    REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\")");
-                sb.AppendLine("    ON DELETE CASCADE;");
+                sb.AppendLine($"    REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\"){actions};");
                 sb.AppendLine();
             }
         }

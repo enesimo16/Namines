@@ -1,3 +1,4 @@
+using Namines.Core.Enums;
 using System.Text;
 using System.Linq;
 using Namines.Core.Interfaces;
@@ -74,7 +75,9 @@ public class SqliteDdlGenerator : IDdlGenerator
                                     ?? targetTable.Columns.FirstOrDefault(c => c.IsPK);
                     if (sourceCol == null || targetCol == null) continue; // PK yoksa geçerli FK üretilemez → atla
 
-                    lines.Add($"    FOREIGN KEY (\"{sourceCol.Name}\") REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\") ON DELETE CASCADE");
+                    var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.SQLite);
+
+                    lines.Add($"    FOREIGN KEY (\"{sourceCol.Name}\") REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\"){actions}");
                 }
             }
 

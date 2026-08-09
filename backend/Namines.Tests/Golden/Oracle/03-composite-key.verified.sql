@@ -18,12 +18,10 @@ CREATE TABLE "OrderProducts" (
 ALTER TABLE "OrderProducts"
     ADD CONSTRAINT "FK_OrderProducts_Orders_OrderI"
     FOREIGN KEY ("OrderId")
-    REFERENCES "Orders" ("Id")
-    ON DELETE CASCADE;
+    REFERENCES "Orders" ("Id");
 
 ALTER TABLE "OrderProducts"
     ADD CONSTRAINT "FK_OrderProducts_Products_Prod"
     FOREIGN KEY ("ProductId")
-    REFERENCES "Products" ("Id")
-    ON DELETE CASCADE;
+    REFERENCES "Products" ("Id");
 

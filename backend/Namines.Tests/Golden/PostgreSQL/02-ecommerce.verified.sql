@@ -30,14 +30,11 @@ CREATE TABLE "OrderItems" (
 );
 
 ALTER TABLE "Orders" ADD CONSTRAINT "FK_Orders_Users_UserId" FOREIGN KEY("UserId")
-REFERENCES "Users" ("Id")
-ON DELETE CASCADE;
+REFERENCES "Users" ("Id");
 
 ALTER TABLE "OrderItems" ADD CONSTRAINT "FK_OrderItems_Orders_OrderId" FOREIGN KEY("OrderId")
-REFERENCES "Orders" ("Id")
-ON DELETE CASCADE;
+REFERENCES "Orders" ("Id");
 
 ALTER TABLE "OrderItems" ADD CONSTRAINT "FK_OrderItems_Products_ProductId" FOREIGN KEY("ProductId")
-REFERENCES "Products" ("Id")
-ON DELETE CASCADE;
+REFERENCES "Products" ("Id");
 

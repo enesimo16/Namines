@@ -1,5 +1,5 @@
 import { Node, Edge } from '@xyflow/react';
-import { DatabaseSchema, SchemaTable, SchemaRelation } from '../types/schema';
+import { DatabaseSchema, SchemaTable, SchemaRelation, ReferentialAction } from '../types/schema';
 
 export function flowToSchema(
   originalSchema: DatabaseSchema | null,
@@ -24,6 +24,10 @@ export function flowToSchema(
       sourceColumnId: e.sourceHandle || '',
       targetTableId: e.target,
       targetColumnId: e.targetHandle || '',
+      // FK davranışını koru. Bu satırlar olmadan kullanıcının seçtiği ON DELETE
+      // değeri canvas'a her dokunulduğunda sessizce kaybolur.
+      onDelete: (e.data?.onDelete as ReferentialAction) || 'NoAction',
+      onUpdate: (e.data?.onUpdate as ReferentialAction) || 'NoAction',
     }));
 
   return {

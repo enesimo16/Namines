@@ -1,4 +1,5 @@
 using System.Text;
+using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using System.Linq;
@@ -58,9 +59,10 @@ public class MssqlDdlGenerator : IDdlGenerator
 
                 if (sourceCol == null || targetCol == null) continue;
 
+                var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.MSSQL);
+
                 sb.AppendLine($"ALTER TABLE [{sourceTable.Name}] WITH CHECK ADD CONSTRAINT [FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}] FOREIGN KEY([{sourceCol.Name}])");
-                sb.AppendLine($"REFERENCES [{targetTable.Name}] ([{targetCol.Name}])");
-                sb.AppendLine("ON DELETE CASCADE;");
+                sb.AppendLine($"REFERENCES [{targetTable.Name}] ([{targetCol.Name}]){actions};");
                 sb.AppendLine();
             }
         }

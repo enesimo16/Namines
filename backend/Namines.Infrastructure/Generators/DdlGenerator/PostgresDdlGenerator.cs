@@ -1,3 +1,4 @@
+using Namines.Core.Enums;
 using System.Text;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -60,9 +61,10 @@ public class PostgresDdlGenerator : IDdlGenerator
 
                 if (sourceCol == null || targetCol == null) continue;
 
+                var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.PostgreSQL);
+
                 sb.AppendLine($"ALTER TABLE \"{sourceTable.Name}\" ADD CONSTRAINT \"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}\" FOREIGN KEY(\"{sourceCol.Name}\")");
-                sb.AppendLine($"REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\")");
-                sb.AppendLine("ON DELETE CASCADE;");
+                sb.AppendLine($"REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\"){actions};");
                 sb.AppendLine();
             }
         }

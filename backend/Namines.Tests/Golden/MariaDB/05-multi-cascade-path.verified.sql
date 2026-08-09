@@ -19,14 +19,11 @@ CREATE TABLE IF NOT EXISTS `Orders` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE `Addresses` ADD CONSTRAINT `FK_Addresses_Users_UserId`
-    FOREIGN KEY (`UserId`) REFERENCES `Users` (`Id`)
-    ON DELETE CASCADE;
+    FOREIGN KEY (`UserId`) REFERENCES `Users` (`Id`);
 
 ALTER TABLE `Orders` ADD CONSTRAINT `FK_Orders_Users_UserId`
-    FOREIGN KEY (`UserId`) REFERENCES `Users` (`Id`)
-    ON DELETE CASCADE;
+    FOREIGN KEY (`UserId`) REFERENCES `Users` (`Id`);
 
 ALTER TABLE `Orders` ADD CONSTRAINT `FK_Orders_Addresses_AddressId`
-    FOREIGN KEY (`AddressId`) REFERENCES `Addresses` (`Id`)
-    ON DELETE CASCADE;
+    FOREIGN KEY (`AddressId`) REFERENCES `Addresses` (`Id`);
 

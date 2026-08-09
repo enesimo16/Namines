@@ -6,8 +6,7 @@ using Namines.Tests.Fixtures;
 namespace Namines.Tests.Ddl;
 
 /// <summary>
-/// BİLİNEN HATA — G3'te düzeltilecek. Bu testler ARZU EDİLEN davranışı ifade eder,
-/// bu yüzden ŞU AN KIRMIZIDIR. Kırmızı olmaları hatanın kanıtıdır.
+/// REGRESYON KORUMASI — G3'te düzeltilen hatanın geri gelmesini engeller.
 ///
 /// Geçmişte altı DDL üreticisinin altısı da her yabancı anahtara koşulsuz
 /// <c>ON DELETE CASCADE</c> yazıyordu. İki sonucu vardı:
@@ -31,7 +30,6 @@ public class CascadePathTests
 {
     // ── Test 1 — Çoklu cascade yolu üretilmemeli ─────────────────────────────
     [Theory]
-    [Trait("Category", "KnownIssue")]
     [InlineData(DatabaseType.MSSQL)]
     public void Mssql_ddl_must_not_contain_multiple_cascade_paths(DatabaseType engine)
     {
@@ -53,7 +51,6 @@ public class CascadePathTests
     // Kendine referans veren tablo (parent_id) + CASCADE = döngü.
     // SQL Server bunu da reddeder.
     [Theory]
-    [Trait("Category", "KnownIssue")]
     [InlineData(DatabaseType.MSSQL)]
     public void Self_referencing_fk_must_not_cascade(DatabaseType engine)
     {
@@ -74,7 +71,6 @@ public class CascadePathTests
     // Kullanıcı açıkça istemediyse silme davranışı NO ACTION / RESTRICT olmalıdır.
     // Sessiz veri kaybı, veritabanı tasarım aracının üretebileceği en kötü çıktıdır.
     [Theory]
-    [Trait("Category", "KnownIssue")]
     [InlineData(DatabaseType.MSSQL)]
     [InlineData(DatabaseType.PostgreSQL)]
     [InlineData(DatabaseType.MySQL)]

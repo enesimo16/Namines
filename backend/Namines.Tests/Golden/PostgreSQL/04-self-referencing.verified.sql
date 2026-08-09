@@ -6,6 +6,5 @@
 );
 
 ALTER TABLE "Categories" ADD CONSTRAINT "FK_Categories_Categories_ParentId" FOREIGN KEY("ParentId")
-REFERENCES "Categories" ("Id")
-ON DELETE CASCADE;
+REFERENCES "Categories" ("Id");
 

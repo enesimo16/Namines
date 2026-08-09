@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "OrderProducts" (
     "ProductId" INTEGER NOT NULL,
     "Quantity" INTEGER NOT NULL,
     PRIMARY KEY ("OrderId", "ProductId"),
-    FOREIGN KEY ("OrderId") REFERENCES "Orders" ("Id") ON DELETE CASCADE,
-    FOREIGN KEY ("ProductId") REFERENCES "Products" ("Id") ON DELETE CASCADE
+    FOREIGN KEY ("OrderId") REFERENCES "Orders" ("Id"),
+    FOREIGN KEY ("ProductId") REFERENCES "Products" ("Id")
 );
 

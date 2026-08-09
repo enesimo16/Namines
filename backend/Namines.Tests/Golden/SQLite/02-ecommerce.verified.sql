@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS "Orders" (
     "UserId" INTEGER NOT NULL,
     "Total" REAL NOT NULL,
     "PlacedAt" TEXT NOT NULL,
-    FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
+    FOREIGN KEY ("UserId") REFERENCES "Users" ("Id")
 );
 
 CREATE TABLE IF NOT EXISTS "OrderItems" (
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS "OrderItems" (
     "OrderId" INTEGER NOT NULL,
     "ProductId" INTEGER NOT NULL,
     "Quantity" INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY ("OrderId") REFERENCES "Orders" ("Id") ON DELETE CASCADE,
-    FOREIGN KEY ("ProductId") REFERENCES "Products" ("Id") ON DELETE CASCADE
+    FOREIGN KEY ("OrderId") REFERENCES "Orders" ("Id"),
+    FOREIGN KEY ("ProductId") REFERENCES "Products" ("Id")
 );
 

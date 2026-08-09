@@ -30,14 +30,11 @@ CREATE TABLE IF NOT EXISTS `OrderItems` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE `Orders` ADD CONSTRAINT `FK_Orders_Users_UserId`
-    FOREIGN KEY (`UserId`) REFERENCES `Users` (`Id`)
-    ON DELETE CASCADE;
+    FOREIGN KEY (`UserId`) REFERENCES `Users` (`Id`);
 
 ALTER TABLE `OrderItems` ADD CONSTRAINT `FK_OrderItems_Orders_OrderId`
-    FOREIGN KEY (`OrderId`) REFERENCES `Orders` (`Id`)
-    ON DELETE CASCADE;
+    FOREIGN KEY (`OrderId`) REFERENCES `Orders` (`Id`);
 
 ALTER TABLE `OrderItems` ADD CONSTRAINT `FK_OrderItems_Products_ProductId`
-    FOREIGN KEY (`ProductId`) REFERENCES `Products` (`Id`)
-    ON DELETE CASCADE;
+    FOREIGN KEY (`ProductId`) REFERENCES `Products` (`Id`);
 

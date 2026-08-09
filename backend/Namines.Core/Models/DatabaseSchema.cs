@@ -43,4 +43,17 @@ public class SchemaRelation
     public string SourceColumnId { get; set; } = string.Empty;
     public string TargetTableId { get; set; } = string.Empty;
     public string TargetColumnId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Hedef satır silindiğinde ne olacağı. Varsayılan <see cref="ReferentialAction.NoAction"/>.
+    /// Eski kayıtlarda bu alan yoktur; JSON'dan okunurken varsayılana düşer — yani mevcut
+    /// şemalar otomatik olarak güvenli davranışa geçer.
+    /// </summary>
+    public ReferentialAction OnDelete { get; set; } = ReferentialAction.NoAction;
+
+    /// <summary>
+    /// Hedef anahtar güncellendiğinde ne olacağı. Varsayılan <see cref="ReferentialAction.NoAction"/>.
+    /// Oracle ON UPDATE'i hiç desteklemez — o motorda yok sayılır.
+    /// </summary>
+    public ReferentialAction OnUpdate { get; set; } = ReferentialAction.NoAction;
 }

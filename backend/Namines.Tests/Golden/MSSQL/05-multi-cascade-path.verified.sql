@@ -19,14 +19,11 @@ CREATE TABLE [Orders] (
 );
 
 ALTER TABLE [Addresses] WITH CHECK ADD CONSTRAINT [FK_Addresses_Users_UserId] FOREIGN KEY([UserId])
-REFERENCES [Users] ([Id])
-ON DELETE CASCADE;
+REFERENCES [Users] ([Id]);
 
 ALTER TABLE [Orders] WITH CHECK ADD CONSTRAINT [FK_Orders_Users_UserId] FOREIGN KEY([UserId])
-REFERENCES [Users] ([Id])
-ON DELETE CASCADE;
+REFERENCES [Users] ([Id]);
 
 ALTER TABLE [Orders] WITH CHECK ADD CONSTRAINT [FK_Orders_Addresses_AddressId] FOREIGN KEY([AddressId])
-REFERENCES [Addresses] ([Id])
-ON DELETE CASCADE;
+REFERENCES [Addresses] ([Id]);
 

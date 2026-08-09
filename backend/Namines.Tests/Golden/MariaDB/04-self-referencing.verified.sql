@@ -6,6 +6,5 @@
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE `Categories` ADD CONSTRAINT `FK_Categories_Categories_ParentId`
-    FOREIGN KEY (`ParentId`) REFERENCES `Categories` (`Id`)
-    ON DELETE CASCADE;
+    FOREIGN KEY (`ParentId`) REFERENCES `Categories` (`Id`);
 

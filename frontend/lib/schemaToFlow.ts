@@ -37,6 +37,10 @@ export function schemaToFlow(schema: DatabaseSchema): { nodes: Node[]; edges: Ed
       targetHandle: relation.targetColumnId,
       data: {
         relationType: relation.type,
+        // FK davranışını edge.data'da taşı — flowToSchema geri okuyacak.
+        // Taşınmazsa canvas'ta yapılan HER düzenlemede bu değerler sıfırlanır.
+        onDelete: relation.onDelete || 'NoAction',
+        onUpdate: relation.onUpdate || 'NoAction',
       },
       animated: true,
       style: { stroke: '#6366f1', strokeWidth: 2 },
