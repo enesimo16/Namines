@@ -1,0 +1,43 @@
+﻿CREATE TABLE `Users` (
+    `Id` INT NOT NULL AUTO_INCREMENT,
+    `Email` NVARCHAR(255) NOT NULL,
+    `CreatedAt` DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+    , PRIMARY KEY (`Id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `Products` (
+    `Id` INT NOT NULL AUTO_INCREMENT,
+    `Name` NVARCHAR(200) NOT NULL,
+    `Price` DECIMAL NOT NULL,
+    `Stock` INT NOT NULL DEFAULT 0
+    , PRIMARY KEY (`Id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `Orders` (
+    `Id` INT NOT NULL AUTO_INCREMENT,
+    `UserId` INT NOT NULL,
+    `Total` DECIMAL NOT NULL,
+    `PlacedAt` DATETIME2 NOT NULL
+    , PRIMARY KEY (`Id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `OrderItems` (
+    `Id` INT NOT NULL AUTO_INCREMENT,
+    `OrderId` INT NOT NULL,
+    `ProductId` INT NOT NULL,
+    `Quantity` INT NOT NULL DEFAULT 1
+    , PRIMARY KEY (`Id`)
+) ENGINE=InnoDB;
+
+ALTER TABLE `Orders` ADD CONSTRAINT `FK_Orders_Users_UserId` FOREIGN KEY(`UserId`)
+REFERENCES `Users` (`Id`)
+ON DELETE CASCADE;
+
+ALTER TABLE `OrderItems` ADD CONSTRAINT `FK_OrderItems_Orders_OrderId` FOREIGN KEY(`OrderId`)
+REFERENCES `Orders` (`Id`)
+ON DELETE CASCADE;
+
+ALTER TABLE `OrderItems` ADD CONSTRAINT `FK_OrderItems_Products_ProductId` FOREIGN KEY(`ProductId`)
+REFERENCES `Products` (`Id`)
+ON DELETE CASCADE;
+

@@ -1,0 +1,49 @@
+﻿CREATE TABLE "Users" (
+    "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
+    "Email" NVARCHAR2(255) NOT NULL,
+    "CreatedAt" NVARCHAR2(255) NOT NULL DEFAULT GETUTCDATE(),
+    CONSTRAINT "PK_Users" PRIMARY KEY ("Id")
+);
+
+CREATE TABLE "Products" (
+    "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
+    "Name" NVARCHAR2(200) NOT NULL,
+    "Price" NUMBER(18,4) NOT NULL,
+    "Stock" NUMBER(10) NOT NULL DEFAULT 0,
+    CONSTRAINT "PK_Products" PRIMARY KEY ("Id")
+);
+
+CREATE TABLE "Orders" (
+    "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
+    "UserId" NUMBER(10) NOT NULL,
+    "Total" NUMBER(18,4) NOT NULL,
+    "PlacedAt" NVARCHAR2(255) NOT NULL,
+    CONSTRAINT "PK_Orders" PRIMARY KEY ("Id")
+);
+
+CREATE TABLE "OrderItems" (
+    "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
+    "OrderId" NUMBER(10) NOT NULL,
+    "ProductId" NUMBER(10) NOT NULL,
+    "Quantity" NUMBER(10) NOT NULL DEFAULT 1,
+    CONSTRAINT "PK_OrderItems" PRIMARY KEY ("Id")
+);
+
+ALTER TABLE "Orders"
+    ADD CONSTRAINT "FK_Orders_Users_UserId"
+    FOREIGN KEY ("UserId")
+    REFERENCES "Users" ("Id")
+    ON DELETE CASCADE;
+
+ALTER TABLE "OrderItems"
+    ADD CONSTRAINT "FK_OrderItems_Orders_OrderId"
+    FOREIGN KEY ("OrderId")
+    REFERENCES "Orders" ("Id")
+    ON DELETE CASCADE;
+
+ALTER TABLE "OrderItems"
+    ADD CONSTRAINT "FK_OrderItems_Products_Product"
+    FOREIGN KEY ("ProductId")
+    REFERENCES "Products" ("Id")
+    ON DELETE CASCADE;
+

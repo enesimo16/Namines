@@ -1,0 +1,7 @@
+﻿PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS "users" (
+    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "Name" TEXT NOT NULL
+);
+

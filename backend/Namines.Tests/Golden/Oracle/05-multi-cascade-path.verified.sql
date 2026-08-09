@@ -1,0 +1,38 @@
+﻿CREATE TABLE "Users" (
+    "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
+    "Email" NVARCHAR2(255) NOT NULL,
+    CONSTRAINT "PK_Users" PRIMARY KEY ("Id")
+);
+
+CREATE TABLE "Addresses" (
+    "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
+    "UserId" NUMBER(10) NOT NULL,
+    "Line1" NVARCHAR2(200) NOT NULL,
+    CONSTRAINT "PK_Addresses" PRIMARY KEY ("Id")
+);
+
+CREATE TABLE "Orders" (
+    "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
+    "UserId" NUMBER(10) NOT NULL,
+    "AddressId" NUMBER(10) NOT NULL,
+    CONSTRAINT "PK_Orders" PRIMARY KEY ("Id")
+);
+
+ALTER TABLE "Addresses"
+    ADD CONSTRAINT "FK_Addresses_Users_UserId"
+    FOREIGN KEY ("UserId")
+    REFERENCES "Users" ("Id")
+    ON DELETE CASCADE;
+
+ALTER TABLE "Orders"
+    ADD CONSTRAINT "FK_Orders_Users_UserId"
+    FOREIGN KEY ("UserId")
+    REFERENCES "Users" ("Id")
+    ON DELETE CASCADE;
+
+ALTER TABLE "Orders"
+    ADD CONSTRAINT "FK_Orders_Addresses_AddressId"
+    FOREIGN KEY ("AddressId")
+    REFERENCES "Addresses" ("Id")
+    ON DELETE CASCADE;
+

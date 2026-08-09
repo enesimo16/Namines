@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Shouldly" Version="4.3.0" />
+    <!-- Golden-file (snapshot) testleri: üretilen DDL'i kayıtlı çıktıyla karşılaştırır.
+         Çıktı değişirse test kırılır ve geliştirici diff'i bilinçli olarak onaylar. -->
+    <PackageReference Include="Verify.Xunit" Version="31.12.5" />
+    <!-- Verify.Xunit 31.x, xunit 2.9.3 gerektiriyor (xunit.extensibility.core = 2.9.3). -->
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+    <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

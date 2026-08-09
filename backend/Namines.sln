@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Namines.Core", "Namines.Cor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Namines.Infrastructure", "Namines.Infrastructure\Namines.Infrastructure.csproj", "{1AF61259-8B43-4854-B201-EEE662C8DBA0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Namines.Tests", "Namines.Tests\Namines.Tests.csproj", "{4479D3B0-6D37-4816-BE7F-3C50B520A79A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{1AF61259-8B43-4854-B201-EEE662C8DBA0}.Release|x64.Build.0 = Release|Any CPU
 		{1AF61259-8B43-4854-B201-EEE662C8DBA0}.Release|x86.ActiveCfg = Release|Any CPU
 		{1AF61259-8B43-4854-B201-EEE662C8DBA0}.Release|x86.Build.0 = Release|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Debug|x64.Build.0 = Debug|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Debug|x86.Build.0 = Debug|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Release|x64.ActiveCfg = Release|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Release|x64.Build.0 = Release|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Release|x86.ActiveCfg = Release|Any CPU
+		{4479D3B0-6D37-4816-BE7F-3C50B520A79A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
