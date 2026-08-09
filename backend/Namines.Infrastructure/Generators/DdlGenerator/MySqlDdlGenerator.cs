@@ -40,8 +40,20 @@ public class MySqlDdlGenerator : IDdlGenerator
                 sb.AppendLine($"    , PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => $"`{c.Name}`"))})");
             }
 
+            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MySQL, Quote))
+            {
+                sb.AppendLine($"    , {constraint.TrimStart()}");
+            }
+
             sb.AppendLine(") ENGINE=InnoDB;");
             sb.AppendLine();
+
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.MySQL, Quote);
+            if (!string.IsNullOrEmpty(indexes))
+            {
+                sb.Append(indexes);
+                sb.AppendLine();
+            }
         }
 
         if (schema.Relations != null && schema.Relations.Any())
@@ -68,4 +80,6 @@ public class MySqlDdlGenerator : IDdlGenerator
 
         return sb.ToString();
     }
+
+    private static string Quote(string identifier) => $"`{identifier}`";
 }

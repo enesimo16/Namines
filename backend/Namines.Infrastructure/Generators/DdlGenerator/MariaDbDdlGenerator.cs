@@ -48,9 +48,18 @@ public class MariaDbDdlGenerator : IDdlGenerator
                 lines.Add($"    PRIMARY KEY ({pkCols})");
             }
 
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.MariaDB, Quote));
+
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
             sb.AppendLine();
+
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.MariaDB, Quote);
+            if (!string.IsNullOrEmpty(indexes))
+            {
+                sb.Append(indexes);
+                sb.AppendLine();
+            }
         }
 
         // Foreign key constraints (ayrı ALTER TABLE)
@@ -79,4 +88,6 @@ public class MariaDbDdlGenerator : IDdlGenerator
 
     private static bool IsIntegerType(string type) =>
         type.ToUpperInvariant() is "INT" or "INTEGER" or "BIGINT" or "SMALLINT" or "TINYINT";
+
+    private static string Quote(string identifier) => $"`{identifier}`";
 }

@@ -41,8 +41,18 @@ public class MssqlDdlGenerator : IDdlGenerator
                 sb.AppendLine($"    , CONSTRAINT [PK_{table.Name}] PRIMARY KEY CLUSTERED ({string.Join(", ", pkColumns.Select(c => $"[{c.Name}]"))})");
             }
 
+            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MSSQL, Quote))
+                sb.AppendLine($"    , {constraint.TrimStart()}");
+
             sb.AppendLine(");");
             sb.AppendLine();
+
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.MSSQL, Quote);
+            if (!string.IsNullOrEmpty(indexes))
+            {
+                sb.Append(indexes);
+                sb.AppendLine();
+            }
         }
 
         if (schema.Relations != null && schema.Relations.Any())
@@ -69,4 +79,6 @@ public class MssqlDdlGenerator : IDdlGenerator
 
         return sb.ToString();
     }
+
+    private static string Quote(string identifier) => $"[{identifier}]";
 }

@@ -5,7 +5,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, Plus, Trash2, Key, Link as LinkIcon } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
-import { SchemaTable, SchemaColumn } from '../../types/schema';
+import { SchemaTable, SchemaColumn, SchemaIndex } from '../../types/schema';
 
 const COLUMN_TYPES = [
   'INT', 'BIGINT', 'SMALLINT', 'TINYINT',
@@ -98,6 +98,82 @@ export default function TableEditorDrawer() {
     setDraft({ ...draft, columns: draft.columns.filter((c: SchemaColumn) => c.id !== colId) });
   };
 
+  // ── Index yönetimi ────────────────────────────────────────────────────────
+  // Index'ler Faz 1'de modelde hiç yoktu. FK kolonunda index olmaması üretimdeki
+  // en yaygın performans hatasıdır — bu yüzden eksik olanlar için uyarı gösteriyoruz.
+
+  const handleAddIndex = () => {
+    if (!draft) return;
+    const firstCol = draft.columns[0];
+    if (!firstCol) {
+      showToast('Index eklemek için önce en az bir kolon ekleyin.', 'error');
+      return;
+    }
+    const newIndex: SchemaIndex = {
+      id: `ix_${Date.now()}`,
+      columns: [{ columnId: firstCol.id }],
+      isUnique: false,
+    };
+    setDraft({ ...draft, indexes: [...(draft.indexes ?? []), newIndex] });
+  };
+
+  const handleIndexChange = <K extends keyof SchemaIndex>(
+    indexId: string,
+    field: K,
+    value: SchemaIndex[K]
+  ) => {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      indexes: (draft.indexes ?? []).map(ix =>
+        ix.id === indexId ? { ...ix, [field]: value } : ix
+      ),
+    });
+  };
+
+  const handleToggleIndexColumn = (indexId: string, columnId: string) => {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      indexes: (draft.indexes ?? []).map(ix => {
+        if (ix.id !== indexId) return ix;
+        const exists = ix.columns.some(c => c.columnId === columnId);
+        return {
+          ...ix,
+          columns: exists
+            ? ix.columns.filter(c => c.columnId !== columnId)
+            : [...ix.columns, { columnId }],
+        };
+      }),
+    });
+  };
+
+  const handleDeleteIndex = (indexId: string) => {
+    if (!draft) return;
+    setDraft({ ...draft, indexes: (draft.indexes ?? []).filter(ix => ix.id !== indexId) });
+  };
+
+  /**
+   * FK olarak işaretli ama index'i olmayan kolonlar.
+   * Bunlar sorgu planında tam tablo taramasına yol açar.
+   */
+  const unindexedFkColumns = draft
+    ? draft.columns.filter(
+        c => c.isFK && !(draft.indexes ?? []).some(ix => ix.columns[0]?.columnId === c.id)
+      )
+    : [];
+
+  const handleAddMissingFkIndexes = () => {
+    if (!draft) return;
+    const added: SchemaIndex[] = unindexedFkColumns.map((c, i) => ({
+      id: `ix_fk_${Date.now()}_${i}`,
+      columns: [{ columnId: c.id }],
+      isUnique: false,
+    }));
+    setDraft({ ...draft, indexes: [...(draft.indexes ?? []), ...added] });
+    showToast(`${added.length} yabancı anahtar index'i eklendi.`, 'success');
+  };
+
   /**
    * Kaydetmeden önce doğrula. Bu kontroller olmadan geçersiz bir tablo sessizce
    * şemaya girer ve hata ancak DDL derlemesinde ortaya çıkar.
@@ -118,6 +194,18 @@ export default function TableEditorDrawer() {
     }
 
     if (!t.columns.some(c => c.isPK)) return 'Tablonun en az bir birincil anahtarı (PK) olmalı.';
+
+    // Index doğrulaması — kolonsuz index geçersiz SQL üretir.
+    const emptyIndex = (t.indexes ?? []).find(ix => ix.columns.length === 0);
+    if (emptyIndex) return 'Her index en az bir kolon içermeli.';
+
+    // Aynı kolon setine sahip yinelenen index'ler disk ve yazma maliyeti üretir.
+    const indexKeys = new Set<string>();
+    for (const ix of t.indexes ?? []) {
+      const key = ix.columns.map(c => c.columnId).join(',') + (ix.isUnique ? ':u' : '');
+      if (indexKeys.has(key)) return 'Aynı kolon setine sahip birden fazla index var.';
+      indexKeys.add(key);
+    }
 
     return null;
   };
@@ -323,13 +411,115 @@ export default function TableEditorDrawer() {
                         <Plus className="w-5 h-5" />
                       </div>
                       <p className="text-sm text-zinc-400">No columns added yet.</p>
-                      <button 
+                      <button
                         onClick={handleAddColumn}
                         className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                       >
                         Add the first column
                       </button>
                     </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Index'ler ────────────────────────────────────────────── */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-200">Index'ler</h3>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      Sorgu performansı için. Yabancı anahtar kolonlarında index olması önerilir.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleAddIndex}
+                    className="text-xs px-2.5 py-1.5 rounded-md bg-surface-600 hover:bg-surface-500 border border-surface-500 text-zinc-300 transition-colors flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Index ekle
+                  </button>
+                </div>
+
+                {unindexedFkColumns.length > 0 && (
+                  <div className="mb-3 flex items-start gap-2 p-2.5 rounded-md bg-amber-950/40 border border-amber-800/50">
+                    <span className="text-amber-400 text-sm leading-none mt-0.5">⚠</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-amber-200">
+                        {unindexedFkColumns.map(c => c.name).join(', ')} yabancı anahtar
+                        {unindexedFkColumns.length > 1 ? ' kolonlarında' : ' kolonunda'} index yok.
+                        Bu, sorgu planında tam tablo taramasına yol açar.
+                      </p>
+                      <button
+                        onClick={handleAddMissingFkIndexes}
+                        className="mt-1.5 text-[11px] text-amber-300 hover:text-amber-100 underline underline-offset-2"
+                      >
+                        Eksik index'leri ekle
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {(draft.indexes ?? []).map(ix => (
+                    <div
+                      key={ix.id}
+                      className="p-3 rounded-md bg-surface-700/50 border border-surface-500/50"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          value={ix.name ?? ''}
+                          onChange={e => handleIndexChange(ix.id, 'name', e.target.value)}
+                          placeholder="(ad otomatik türetilir)"
+                          className="flex-1 min-w-0 bg-surface-800 border border-surface-500 rounded px-2 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 font-mono"
+                        />
+                        <label className="flex items-center gap-1.5 text-[11px] text-zinc-400 shrink-0 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!ix.isUnique}
+                            onChange={e => handleIndexChange(ix.id, 'isUnique', e.target.checked)}
+                            className="accent-indigo-500"
+                          />
+                          UNIQUE
+                        </label>
+                        <button
+                          onClick={() => handleDeleteIndex(ix.id)}
+                          aria-label="Index'i sil"
+                          className="p-1 rounded text-zinc-500 hover:text-red-400 hover:bg-red-950/40 transition-colors shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {draft.columns.map(col => {
+                          const selected = ix.columns.some(c => c.columnId === col.id);
+                          return (
+                            <button
+                              key={col.id}
+                              onClick={() => handleToggleIndexColumn(ix.id, col.id)}
+                              className={`px-2 py-0.5 rounded text-[11px] font-mono border transition-colors ${
+                                selected
+                                  ? 'bg-indigo-600/25 border-indigo-500/60 text-indigo-200'
+                                  : 'bg-surface-800 border-surface-500 text-zinc-500 hover:text-zinc-300'
+                              }`}
+                            >
+                              {col.name || '(adsız)'}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <input
+                        value={ix.where ?? ''}
+                        onChange={e => handleIndexChange(ix.id, 'where', e.target.value)}
+                        placeholder="Kısmi index koşulu — ör. DeletedAt IS NULL (MSSQL/PostgreSQL/SQLite)"
+                        className="mt-2 w-full bg-surface-800 border border-surface-500 rounded px-2 py-1 text-[11px] text-zinc-300 placeholder:text-zinc-600 font-mono"
+                      />
+                    </div>
+                  ))}
+
+                  {(draft.indexes ?? []).length === 0 && unindexedFkColumns.length === 0 && (
+                    <p className="text-[11px] text-zinc-600 py-2">Henüz index tanımlanmadı.</p>
                   )}
                 </div>
               </div>

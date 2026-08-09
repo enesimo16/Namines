@@ -81,9 +81,18 @@ public class SqliteDdlGenerator : IDdlGenerator
                 }
             }
 
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.SQLite, Quote));
+
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(");");
             sb.AppendLine();
+
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.SQLite, Quote);
+            if (!string.IsNullOrEmpty(indexes))
+            {
+                sb.Append(indexes);
+                sb.AppendLine();
+            }
         }
 
         return sb.ToString();
@@ -105,4 +114,6 @@ public class SqliteDdlGenerator : IDdlGenerator
             _ => "TEXT"
         };
     }
+
+    private static string Quote(string identifier) => $"\"{identifier}\"";
 }

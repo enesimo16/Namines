@@ -10,12 +10,59 @@ export interface SchemaColumn {
   stableUuid?: string;
 }
 
+/** Index'te yer alan kolon ve sıralama yönü. */
+export interface SchemaIndexColumn {
+  columnId: string;
+  descending?: boolean;
+}
+
+/**
+ * Tablo üzerinde bir index.
+ *
+ * Faz 1'de bu kavram modelde hiç yoktu — üretilen şemalar index'siz geliyordu.
+ * Yabancı anahtar kolonunda index olmaması, üretimdeki en yaygın performans hatasıdır.
+ */
+export interface SchemaIndex {
+  id: string;
+  stableUuid?: string;
+  /** Boşsa backend deterministik ad türetir (IX_Tablo_Kolonlar). */
+  name?: string;
+  columns: SchemaIndexColumn[];
+  isUnique?: boolean;
+  /** Kısmi index koşulu. MSSQL/PostgreSQL/SQLite destekler. */
+  where?: string;
+  /** Kapsayan index kolonları. Yalnızca MSSQL ve PostgreSQL. */
+  includeColumnIds?: string[];
+  /** btree | hash | gin | gist | brin | fulltext | spatial */
+  method?: string;
+}
+
+/** Tablo seviyesi UNIQUE kısıtı. */
+export interface SchemaUnique {
+  id: string;
+  stableUuid?: string;
+  name?: string;
+  columnIds: string[];
+}
+
+/** Tablo seviyesi CHECK kısıtı. İfade ham SQL'dir. */
+export interface SchemaCheck {
+  id: string;
+  stableUuid?: string;
+  name?: string;
+  expression: string;
+}
+
 export interface SchemaTable {
   id: string;
   name: string;
   columns: SchemaColumn[];
   stableUuid?: string;
   color?: string;
+  /** Eski kayıtlarda bu alanlar yoktur → undefined; üreticiler boş liste gibi davranır. */
+  indexes?: SchemaIndex[];
+  uniques?: SchemaUnique[];
+  checks?: SchemaCheck[];
 }
 
 /**

@@ -20,6 +20,18 @@ public class SchemaTable
     public string Name { get; set; } = string.Empty;
     public string StableUuid { get; set; } = Guid.NewGuid().ToString();
     public List<SchemaColumn> Columns { get; set; } = new();
+
+    /// <summary>
+    /// Tablo üzerindeki index'ler. Eski kayıtlarda bu alan yoktur → boş liste olur,
+    /// yani mevcut şemalar bozulmadan çalışmaya devam eder.
+    /// </summary>
+    public List<SchemaIndex> Indexes { get; set; } = new();
+
+    /// <summary>Tablo seviyesi UNIQUE kısıtları.</summary>
+    public List<SchemaUnique> Uniques { get; set; } = new();
+
+    /// <summary>Tablo seviyesi CHECK kısıtları.</summary>
+    public List<SchemaCheck> Checks { get; set; } = new();
 }
 
 public class SchemaColumn

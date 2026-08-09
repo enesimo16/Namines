@@ -50,9 +50,18 @@ public class OracleDdlGenerator : IDdlGenerator
                 lines.Add($"    CONSTRAINT \"PK_{table.Name}\" PRIMARY KEY ({pkCols})");
             }
 
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.Oracle, Quote));
+
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(");");
             sb.AppendLine();
+
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.Oracle, Quote);
+            if (!string.IsNullOrEmpty(indexes))
+            {
+                sb.Append(indexes);
+                sb.AppendLine();
+            }
         }
 
         // Foreign key constraints (ayrı ALTER TABLE blokları)
@@ -111,4 +120,6 @@ public class OracleDdlGenerator : IDdlGenerator
             _                                               => "NVARCHAR2(255)"
         };
     }
+
+    private static string Quote(string identifier) => $"\"{identifier}\"";
 }

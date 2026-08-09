@@ -43,8 +43,20 @@ public class PostgresDdlGenerator : IDdlGenerator
                 sb.AppendLine($"    , CONSTRAINT \"PK_{table.Name}\" PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => $"\"{c.Name}\""))})");
             }
 
+            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.PostgreSQL, Quote))
+            {
+                sb.AppendLine($"    , {constraint.TrimStart()}");
+            }
+
             sb.AppendLine(");");
             sb.AppendLine();
+
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.PostgreSQL, Quote);
+            if (!string.IsNullOrEmpty(indexes))
+            {
+                sb.Append(indexes);
+                sb.AppendLine();
+            }
         }
 
         if (schema.Relations != null && schema.Relations.Any())
@@ -71,4 +83,6 @@ public class PostgresDdlGenerator : IDdlGenerator
 
         return sb.ToString();
     }
+
+    private static string Quote(string identifier) => $"\"{identifier}\"";
 }

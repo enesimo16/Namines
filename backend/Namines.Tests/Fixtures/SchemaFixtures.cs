@@ -21,6 +21,7 @@ public static class SchemaFixtures
         yield return ("03-composite-key", CompositeKey());
         yield return ("04-self-referencing", SelfReferencing());
         yield return ("05-multi-cascade-path", MultiCascadePath());
+        yield return ("06-indexes-constraints", IndexesAndConstraints());
     }
 
     public static DatabaseSchema ByName(string name) =>
@@ -175,6 +176,100 @@ public static class SchemaFixtures
         schema.Relations.Add(Fk("r1", "t_addr", "c_a_user", "t_users", "c_u_id"));
         schema.Relations.Add(Fk("r2", "t_orders", "c_o_user", "t_users", "c_u_id"));
         schema.Relations.Add(Fk("r3", "t_orders", "c_o_addr", "t_addr", "c_a_id"));
+
+        return schema;
+    }
+
+    // ── 06 — Index, UNIQUE ve CHECK kısıtları ─────────────────────────────────
+    // Amaç: Faz 1'de modelde HİÇ OLMAYAN kavramları kapsamak.
+    // Kısmi index ve INCLUDE her motorda yok — üreticilerin bunları sessizce
+    // düşürmeyip açıklama satırı yazdığını da bu fixture doğrular.
+    public static DatabaseSchema IndexesAndConstraints()
+    {
+        var users = Table("t_u", "Users",
+            Col("c_id", "Id", "INT", isPk: true),
+            Col("c_email", "Email", "NVARCHAR", length: 255),
+            Col("c_country", "CountryCode", "CHAR", length: 2, defaultValue: "'TR'"),
+            Col("c_age", "Age", "INT", isNullable: true),
+            Col("c_created", "CreatedAt", "DATETIME2"),
+            Col("c_deleted", "DeletedAt", "DATETIME2", isNullable: true));
+
+        users.Uniques.Add(new SchemaUnique
+        {
+            Id = "uq1",
+            StableUuid = "uuid-uq1",
+            Name = "UQ_Users_Email",
+            ColumnIds = { "c_email" }
+        });
+
+        users.Checks.Add(new SchemaCheck
+        {
+            Id = "ck1",
+            StableUuid = "uuid-ck1",
+            Name = "CK_Users_Age",
+            Expression = "Age IS NULL OR Age >= 0"
+        });
+
+        // Bileşik index, ikinci kolon azalan sıralı
+        users.Indexes.Add(new SchemaIndex
+        {
+            Id = "ix1",
+            StableUuid = "uuid-ix1",
+            Columns =
+            {
+                new SchemaIndexColumn { ColumnId = "c_country" },
+                new SchemaIndexColumn { ColumnId = "c_created", Descending = true }
+            }
+        });
+
+        // Kısmi (filtreli) benzersiz index — MySQL/MariaDB/Oracle desteklemez
+        users.Indexes.Add(new SchemaIndex
+        {
+            Id = "ix2",
+            StableUuid = "uuid-ix2",
+            Name = "UX_Users_Email_Active",
+            IsUnique = true,
+            Columns = { new SchemaIndexColumn { ColumnId = "c_email" } },
+            Where = "DeletedAt IS NULL"
+        });
+
+        // Kapsayan index — yalnızca MSSQL ve PostgreSQL destekler
+        users.Indexes.Add(new SchemaIndex
+        {
+            Id = "ix3",
+            StableUuid = "uuid-ix3",
+            Columns = { new SchemaIndexColumn { ColumnId = "c_created" } },
+            IncludeColumnIds = { "c_email" }
+        });
+
+        var orders = Table("t_o", "Orders",
+            Col("c_o_id", "Id", "INT", isPk: true),
+            Col("c_o_user", "UserId", "INT", isFk: true),
+            Col("c_o_total", "Total", "DECIMAL"));
+
+        orders.Checks.Add(new SchemaCheck
+        {
+            Id = "ck2",
+            StableUuid = "uuid-ck2",
+            Expression = "Total >= 0"
+        });
+
+        // FK kolonunda index — en yaygın performans hatasının düzeltmesi
+        orders.Indexes.Add(new SchemaIndex
+        {
+            Id = "ix4",
+            StableUuid = "uuid-ix4",
+            Columns = { new SchemaIndexColumn { ColumnId = "c_o_user" } }
+        });
+
+        var schema = new DatabaseSchema
+        {
+            SchemaId = "fixture-06",
+            Name = "IndexesAndConstraints",
+            Tables = { users, orders }
+        };
+
+        schema.Relations.Add(Fk("r1", "t_o", "c_o_user", "t_u", "c_id"));
 
         return schema;
     }
