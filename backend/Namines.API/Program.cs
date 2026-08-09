@@ -17,23 +17,45 @@ using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.HttpOverrides;
 
 // ── Serilog Bootstrap (before WebApplication.CreateBuilder) ─────────────────
-// İki sink: Console (human-readable) ve günlük dönen dosya (logs/).
+// Birincil sink Console (stdout) — container/PaaS ortamlarında logları toplayan
+// tek güvenilir kanal budur.
+//
+// Dosya sink'i VARSAYILAN OLARAK KAPALIDIR. Efemer dosya sistemlerinde (Railway,
+// Render, Fly, Kubernetes) her deploy'da loglar kaybolur, çok instance'lı kurulumda
+// log parçalanır ve disk sessizce dolabilir. Yerel geliştirmede açmak için:
+//   Serilog__WriteTo__File=true
 // Seq şimdilik devre dışı — ileride Seq:Url config key'i eklendiğinde aktive edilir.
-Log.Logger = new LoggerConfiguration()
+const string ConsoleTemplate =
+    "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
+const string FileTemplate =
+    "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
+
+static bool FileLoggingEnabled(IConfiguration? configuration = null)
+{
+    var raw = configuration?["Serilog:WriteTo:File"]
+              ?? Environment.GetEnvironmentVariable("Serilog__WriteTo__File");
+    return bool.TryParse(raw, out var enabled) && enabled;
+}
+
+var bootstrapConfig = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
     .Enrich.FromLogContext()
     .Enrich.WithMachineName()
     .Enrich.WithThreadId()
-    .WriteTo.Console(
-        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}")
-    .WriteTo.File(
+    .WriteTo.Console(outputTemplate: ConsoleTemplate);
+
+if (FileLoggingEnabled())
+{
+    bootstrapConfig.WriteTo.File(
         path: "logs/namines-.log",
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 30,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}")
-    .CreateBootstrapLogger();
+        outputTemplate: FileTemplate);
+}
+
+Log.Logger = bootstrapConfig.CreateBootstrapLogger();
 
 try
 {
@@ -69,13 +91,16 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithMachineName()
             .Enrich.WithThreadId()
-            .WriteTo.Console(
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}")
-            .WriteTo.File(
+            .WriteTo.Console(outputTemplate: ConsoleTemplate);
+
+        if (FileLoggingEnabled(ctx.Configuration))
+        {
+            config.WriteTo.File(
                 path: "logs/namines-.log",
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 30,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}");
+                outputTemplate: FileTemplate);
+        }
     });
 
     // Sırların birincil kaynağı .env (yukarıda DotNetEnv ile yüklendi).
@@ -201,10 +226,58 @@ try
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        // Proxy IP'leri PaaS'te dinamiktir; bilinen ağ kısıtını kaldırıyoruz.
-        // Güvenlik notu: uygulama yalnızca güvenilen bir proxy arkasında yayınlanmalıdır.
+
+        // GÜVENLİK: Bilinen proxy listesini koşulsuz temizlemek, X-Forwarded-For
+        // header'ını herkesin sahte doldurabilmesi demektir. Bu durumda saldırgan
+        // her istekte farklı bir IP göstererek rate limit partition'ını atlatabilir.
+        // Bu yüzden güvenilen ağlar config'den okunur:
+        //   ForwardedHeaders__KnownNetworks__0=10.0.0.0/8
+        //   ForwardedHeaders__KnownNetworks__1=100.64.0.0/10
+        var knownNetworks = builder.Configuration
+            .GetSection("ForwardedHeaders:KnownNetworks")
+            .Get<string[]>() ?? Array.Empty<string>();
+
         options.KnownNetworks.Clear();
         options.KnownProxies.Clear();
+
+        var parsed = 0;
+        foreach (var cidr in knownNetworks.Where(n => !string.IsNullOrWhiteSpace(n)))
+        {
+            var parts = cidr.Split('/', 2);
+            if (parts.Length == 2
+                && System.Net.IPAddress.TryParse(parts[0], out var prefix)
+                && int.TryParse(parts[1], out var prefixLength))
+            {
+                options.KnownNetworks.Add(new IPNetwork(prefix, prefixLength));
+                parsed++;
+            }
+            else if (System.Net.IPAddress.TryParse(cidr, out var proxyIp))
+            {
+                options.KnownProxies.Add(proxyIp);
+                parsed++;
+            }
+            else
+            {
+                Log.Warning("ForwardedHeaders:KnownNetworks içindeki '{Value}' ayrıştırılamadı, yok sayıldı.", cidr);
+            }
+        }
+
+        if (parsed == 0)
+        {
+            // PaaS'te (Railway/Render/Fly) proxy IP'si dinamiktir ve bilinmeyebilir.
+            // Bu durumda header'a güvenmek zorundayız — ama bunu sessizce yapmıyoruz.
+            if (builder.Environment.IsProduction())
+            {
+                Log.Warning(
+                    "ForwardedHeaders:KnownNetworks tanımlı değil — X-Forwarded-For header'ı doğrulanmadan " +
+                    "kabul edilecek. Uygulama yalnızca güvenilen bir proxy arkasında yayınlanmalıdır, " +
+                    "aksi halde rate limit atlatılabilir. Proxy CIDR'larını tanımlayın.");
+            }
+        }
+        else
+        {
+            Log.Information("ForwardedHeaders: {Count} güvenilen ağ/proxy tanımlandı.", parsed);
+        }
     });
 
     // Register SignalR real-time collaboration services
@@ -288,9 +361,27 @@ try
 
     var app = builder.Build();
 
-    // Auto-create/migrate database on startup
-    using (var scope = app.Services.CreateScope())
+    // ── Veritabanı migration ──────────────────────────────────────────────────
+    // İki çalışma biçimi:
+    //   1) `dotnet run -- --migrate`  → yalnızca migration uygular ve çıkar.
+    //      Deploy pipeline'ında ayrı bir adım/Job olarak çalıştırılır. Birden fazla
+    //      uygulama instance'ı aynı anda migration denemez.
+    //   2) Startup'ta otomatik (Database:MigrateOnStartup, varsayılan true).
+    //      Tek instance için pratiktir; yatay ölçeklemede yarış koşulu üretir,
+    //      bu yüzden Production'da false yapılıp (1) tercih edilmelidir.
+    var migrateOnly = args.Contains("--migrate", StringComparer.OrdinalIgnoreCase);
+    var migrateOnStartup = app.Configuration.GetValue("Database:MigrateOnStartup", defaultValue: true);
+
+    if (migrateOnly || migrateOnStartup)
     {
+        if (!migrateOnly && app.Environment.IsProduction())
+        {
+            Log.Warning(
+                "Database:MigrateOnStartup Production'da açık. Birden fazla instance çalıştırıyorsanız " +
+                "bunu false yapıp migration'ı ayrı bir adımda `--migrate` ile çalıştırın.");
+        }
+
+        using var scope = app.Services.CreateScope();
         try
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
@@ -303,6 +394,18 @@ try
             // Migration hatası kritik — uygulamayı devam ettirmek tehlikelidir.
             throw;
         }
+    }
+    else
+    {
+        Log.Information(
+            "Startup migration atlandı (Database:MigrateOnStartup=false). " +
+            "Şemanın güncel olduğundan emin olun — `--migrate` ile ayrı çalıştırın.");
+    }
+
+    if (migrateOnly)
+    {
+        Log.Information("--migrate modu: migration tamamlandı, uygulama başlatılmadan çıkılıyor.");
+        return 0;
     }
 
     // X-Forwarded-* header'larını en başta işle: sonraki tüm middleware'ler (cookie Secure
@@ -356,6 +459,7 @@ try
 
     Log.Information("Namines API hazır. http://localhost:5000 adresinde dinleniyor.");
     app.Run();
+    return 0;
 }
 catch (Exception ex) when (ex is not HostAbortedException)
 {

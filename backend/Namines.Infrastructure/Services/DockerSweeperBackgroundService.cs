@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Docker.DotNet;
@@ -24,13 +25,21 @@ public class DockerSweeperBackgroundService : BackgroundService
     private readonly ILogger<DockerSweeperBackgroundService> _logger;
     private readonly ISandboxJobRegistry _jobRegistry;
     private readonly DockerClient _client;
+    private readonly bool _enabled;
 
     public DockerSweeperBackgroundService(
         ILogger<DockerSweeperBackgroundService> logger,
-        ISandboxJobRegistry jobRegistry)
+        ISandboxJobRegistry jobRegistry,
+        IConfiguration configuration)
     {
         _logger = logger;
         _jobRegistry = jobRegistry;
+
+        // Sandbox özelliği artık host'un docker socket'ine bağlı DEĞİL — compose'da
+        // socket mount'u kaldırıldı (host'ta root eşdeğeri yetki veriyordu).
+        // Bu servis yalnızca yerel geliştirmede, açıkça etkinleştirildiğinde çalışır.
+        // Kalıcı çözüm: ayrı provisioning broker'ı (bkz. new-phase/06-DATA-PLANE.md).
+        _enabled = configuration.GetValue("Sandbox:Enabled", defaultValue: false);
 
         var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
             ? "npipe://./pipe/docker_engine"
@@ -47,16 +56,43 @@ public class DockerSweeperBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!_enabled)
+        {
+            _logger.LogInformation(
+                "Docker sandbox sweeper devre dışı (Sandbox:Enabled=false). Host docker socket'i " +
+                "artık mount edilmiyor — yerel geliştirmede kullanmak için Sandbox__Enabled=true verin.");
+            return;
+        }
+
         _logger.LogInformation("Docker Sweeper Background Service is starting.");
+
+        var consecutiveFailures = 0;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 await SweepZombieContainersAsync(stoppingToken);
+                consecutiveFailures = 0;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception ex)
             {
+                consecutiveFailures++;
+
+                // Docker erişilemiyorsa her 5 dakikada bir hata basmak yerine kendini kapat.
+                // Aksi halde socket'i olmayan bir ortamda log ve alert gürültüsü üretir.
+                if (consecutiveFailures >= 3)
+                {
+                    _logger.LogWarning(ex,
+                        "Docker'a {Count} kez üst üste erişilemedi — sweeper kapatılıyor. " +
+                        "Docker çalışmıyorsa bu beklenen durumdur.", consecutiveFailures);
+                    return;
+                }
+
                 _logger.LogError(ex, "An error occurred while sweeping Docker containers.");
             }
 

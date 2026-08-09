@@ -24,8 +24,17 @@ services:
       # Production'da SSRF koruması AÇIK (dev .env'deki true değerini ez).
       - Executor__AllowPrivateHosts=false
     volumes:
-      # Docker-in-Docker: sandbox özelliği için host socket (opsiyonel)
-      - /var/run/docker.sock:/var/run/docker.sock
+      # GÜVENLİK: /var/run/docker.sock BİLİNÇLİ OLARAK MOUNT EDİLMEZ.
+      # Host'un docker socket'ini container'a vermek, container içindeki koda
+      # host üzerinde root eşdeğeri yetki verir (istediği imajı ayrıcalıklı
+      # çalıştırabilir, host dosya sistemini mount edebilir). Kullanıcı
+      # tetiklemeli sandbox provisioning'i olan çok kiracılı bir serviste bu
+      # kabul edilemez.
+      #
+      # Sandbox özelliği bunun yerine ayrı bir provisioning broker'ı üzerinden
+      # çalışır (Kubernetes Job API + gVisor izolasyonu).
+      # Bkz. new-phase/06-DATA-PLANE.md
+      #
       # SQLite veritabanını kalıcı tut
       - namines-db:/app/data
     healthcheck:
