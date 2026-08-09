@@ -7,11 +7,11 @@
     [DeletedAt] DATETIME2 NULL
     , CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED ([Id])
     , CONSTRAINT [UQ_Users_Email] UNIQUE ([Email])
-    , CONSTRAINT [CK_Users_Age] CHECK (Age IS NULL OR Age >= 0)
+    , CONSTRAINT [CK_Users_Age] CHECK ("Age" IS NULL OR "Age" >= 0)
 );
 
 CREATE INDEX [IX_Users_CountryCode_CreatedAt] ON [Users] ([CountryCode], [CreatedAt] DESC);
-CREATE UNIQUE INDEX [UX_Users_Email_Active] ON [Users] ([Email]) WHERE DeletedAt IS NULL;
+CREATE UNIQUE INDEX [UX_Users_Email_Active] ON [Users] ([Email]) WHERE "DeletedAt" IS NULL;
 CREATE INDEX [IX_Users_CreatedAt] ON [Users] ([CreatedAt]) INCLUDE ([Email]);
 
 CREATE TABLE [Orders] (
@@ -19,7 +19,7 @@ CREATE TABLE [Orders] (
     [UserId] INT NOT NULL,
     [Total] DECIMAL NOT NULL
     , CONSTRAINT [PK_Orders] PRIMARY KEY CLUSTERED ([Id])
-    , CONSTRAINT [CK_Orders_ck2] CHECK (Total >= 0)
+    , CONSTRAINT [CK_Orders_ck2] CHECK ("Total" >= 0)
 );
 
 CREATE INDEX [IX_Orders_UserId] ON [Orders] ([UserId]);

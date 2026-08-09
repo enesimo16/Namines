@@ -9,8 +9,8 @@ CREATE TABLE `Products` (
 ) ENGINE=InnoDB;
 
 CREATE TABLE `OrderProducts` (
-    `OrderId` INT NOT NULL AUTO_INCREMENT,
-    `ProductId` INT NOT NULL AUTO_INCREMENT,
+    `OrderId` INT NOT NULL,
+    `ProductId` INT NOT NULL,
     `Quantity` INT NOT NULL
     , PRIMARY KEY (`OrderId`, `ProductId`)
 ) ENGINE=InnoDB;

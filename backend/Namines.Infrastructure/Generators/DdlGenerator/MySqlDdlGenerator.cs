@@ -21,13 +21,19 @@ public class MySqlDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var lengthStr = col.Length.HasValue ? $"({col.Length})" : "";
+                var sqlType = TypeSql.Map(col.Type, col.Length, DatabaseType.MySQL);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
-                var defaultStr = !string.IsNullOrWhiteSpace(col.DefaultValue) ? $" DEFAULT {col.DefaultValue}" : "";
+                var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.MySQL);
+                var defaultStr = !string.IsNullOrWhiteSpace(defaultValue) ? $" DEFAULT {defaultValue}" : "";
 
-                var aiStr = (col.IsPK && (col.Type.ToUpper() == "INT" || col.Type.ToUpper() == "BIGINT")) ? " AUTO_INCREMENT" : "";
+                // AUTO_INCREMENT yalnızca TEK KOLONLU PK'da uygulanır. MySQL bir tabloda
+                // yalnızca bir AUTO_INCREMENT kolonuna izin verir; bileşik PK'nın her iki
+                // kolonu da INT ise ikisine birden vermek geçersiz DDL üretir.
+                var aiStr = (col.IsPK && pkColumns.Count == 1 &&
+                             (col.Type.ToUpper() == "INT" || col.Type.ToUpper() == "BIGINT"))
+                    ? " AUTO_INCREMENT" : "";
 
-                sb.Append($"    `{col.Name}` {col.Type.ToUpper()}{lengthStr} {nullStr}{defaultStr}{aiStr}");
+                sb.Append($"    `{col.Name}` {sqlType} {nullStr}{defaultStr}{aiStr}");
                 
                 if (i < table.Columns.Count - 1)
                     sb.AppendLine(",");

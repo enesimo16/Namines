@@ -11,7 +11,7 @@ CREATE TABLE "Products" (
 CREATE TABLE "OrderProducts" (
     "OrderId" SERIAL NOT NULL,
     "ProductId" SERIAL NOT NULL,
-    "Quantity" INT NOT NULL
+    "Quantity" integer NOT NULL
     , CONSTRAINT "PK_OrderProducts" PRIMARY KEY ("OrderId", "ProductId")
 );
 

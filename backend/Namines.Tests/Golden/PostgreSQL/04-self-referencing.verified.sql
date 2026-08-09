@@ -1,7 +1,7 @@
 ﻿CREATE TABLE "Categories" (
     "Id" SERIAL NOT NULL,
-    "Name" NVARCHAR(120) NOT NULL,
-    "ParentId" INT NULL
+    "Name" varchar(120) NOT NULL,
+    "ParentId" integer NULL
     , CONSTRAINT "PK_Categories" PRIMARY KEY ("Id")
 );
 

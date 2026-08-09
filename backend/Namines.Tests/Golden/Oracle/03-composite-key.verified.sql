@@ -9,8 +9,8 @@ CREATE TABLE "Products" (
 );
 
 CREATE TABLE "OrderProducts" (
-    "OrderId" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
-    "ProductId" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
+    "OrderId" NUMBER(10) NOT NULL,
+    "ProductId" NUMBER(10) NOT NULL,
     "Quantity" NUMBER(10) NOT NULL,
     CONSTRAINT "PK_OrderProducts" PRIMARY KEY ("OrderId", "ProductId")
 );

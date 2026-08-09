@@ -9,8 +9,8 @@ CREATE TABLE [Products] (
 );
 
 CREATE TABLE [OrderProducts] (
-    [OrderId] INT IDENTITY(1,1) NOT NULL,
-    [ProductId] INT IDENTITY(1,1) NOT NULL,
+    [OrderId] INT NOT NULL,
+    [ProductId] INT NOT NULL,
     [Quantity] INT NOT NULL
     , CONSTRAINT [PK_OrderProducts] PRIMARY KEY CLUSTERED ([OrderId], [ProductId])
 );

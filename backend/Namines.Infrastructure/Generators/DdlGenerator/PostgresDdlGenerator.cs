@@ -21,16 +21,21 @@ public class PostgresDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var type = col.Type.ToUpper();
-                
-                if (col.IsPK && type == "INT") type = "SERIAL";
-                if (col.IsPK && type == "BIGINT") type = "BIGSERIAL";
-                
-                var lengthStr = (col.Length.HasValue && !type.Contains("SERIAL")) ? $"({col.Length})" : "";
-                var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
-                var defaultStr = !string.IsNullOrWhiteSpace(col.DefaultValue) ? $" DEFAULT {col.DefaultValue}" : "";
+                var rawType = col.Type.ToUpper();
 
-                sb.Append($"    \"{col.Name}\" {type}{lengthStr} {nullStr}{defaultStr}");
+                // SERIAL/BIGSERIAL kısayolu tip eşlemesinden ÖNCE, ham kanonik tip
+                // üzerinden karar verilir — böylece yalnızca gerçek PK INT/BIGINT
+                // kolonları otomatik artan olur.
+                string type;
+                if (col.IsPK && rawType == "INT") type = "SERIAL";
+                else if (col.IsPK && rawType == "BIGINT") type = "BIGSERIAL";
+                else type = TypeSql.Map(col.Type, col.Length, DatabaseType.PostgreSQL);
+
+                var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
+                var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.PostgreSQL);
+                var defaultStr = !string.IsNullOrWhiteSpace(defaultValue) ? $" DEFAULT {defaultValue}" : "";
+
+                sb.Append($"    \"{col.Name}\" {type} {nullStr}{defaultStr}");
                 
                 if (i < table.Columns.Count - 1)
                     sb.AppendLine(",");

@@ -207,7 +207,13 @@ public static class SchemaFixtures
             Id = "ck1",
             StableUuid = "uuid-ck1",
             Name = "CK_Users_Age",
-            Expression = "Age IS NULL OR Age >= 0"
+            // Kolon adları PascalCase ve tüm üreticiler tarafından tırnaklanarak
+            // (case-preserving) yaratılıyor. CHECK ifadesi HAM SQL olarak aktarılır
+            // (bilinçli tasarım — bkz. ConstraintSql.cs), bu yüzden burada da tırnaklı
+            // referans vermek gerekiyor: PostgreSQL tırnaksız tanımlayıcıyı küçük harfe
+            // çevirir ("age" ≠ "Age") — gerçek bir Postgres container'ına karşı
+            // çalıştırılan entegrasyon testi bunu kanıtladı.
+            Expression = "\"Age\" IS NULL OR \"Age\" >= 0"
         });
 
         // Bileşik index, ikinci kolon azalan sıralı
@@ -230,7 +236,8 @@ public static class SchemaFixtures
             Name = "UX_Users_Email_Active",
             IsUnique = true,
             Columns = { new SchemaIndexColumn { ColumnId = "c_email" } },
-            Where = "DeletedAt IS NULL"
+            // Ham SQL — aynı case-folding gerekçesiyle tırnaklı (bkz. CK_Users_Age yorumu).
+            Where = "\"DeletedAt\" IS NULL"
         });
 
         // Kapsayan index — yalnızca MSSQL ve PostgreSQL destekler
@@ -251,7 +258,7 @@ public static class SchemaFixtures
         {
             Id = "ck2",
             StableUuid = "uuid-ck2",
-            Expression = "Total >= 0"
+            Expression = "\"Total\" >= 0"
         });
 
         // FK kolonunda index — en yaygın performans hatasının düzeltmesi

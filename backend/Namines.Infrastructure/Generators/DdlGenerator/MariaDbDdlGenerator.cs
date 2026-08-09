@@ -27,18 +27,21 @@ public class MariaDbDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var lengthStr = col.Length.HasValue ? $"({col.Length})" : "";
+                var sqlType = TypeSql.Map(col.Type, col.Length, DatabaseType.MariaDB);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
-                var defaultStr = !string.IsNullOrWhiteSpace(col.DefaultValue)
-                    ? $" DEFAULT {col.DefaultValue}"
+                var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.MariaDB);
+                var defaultStr = !string.IsNullOrWhiteSpace(defaultValue)
+                    ? $" DEFAULT {defaultValue}"
                     : "";
 
-                // AUTO_INCREMENT: INT/BIGINT PK için
-                var autoIncStr = (col.IsPK && IsIntegerType(col.Type))
+                // AUTO_INCREMENT: yalnızca TEK KOLONLU INT/BIGINT PK için. MariaDB (MySQL
+                // gibi) bir tabloda yalnızca bir AUTO_INCREMENT kolonuna izin verir;
+                // bileşik PK'nın iki kolonuna birden vermek geçersiz DDL üretir.
+                var autoIncStr = (col.IsPK && pkColumns.Count == 1 && IsIntegerType(col.Type))
                     ? " AUTO_INCREMENT"
                     : "";
 
-                lines.Add($"    `{col.Name}` {col.Type.ToUpper()}{lengthStr} {nullStr}{defaultStr}{autoIncStr}");
+                lines.Add($"    `{col.Name}` {sqlType} {nullStr}{defaultStr}{autoIncStr}");
             }
 
             // Primary Key

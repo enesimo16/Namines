@@ -67,7 +67,8 @@ public class IndexConstraintTests
         var ddl = Ddl(engine);
 
         Assert.Contains("CHECK", ddl, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Total >= 0", ddl);
+        Assert.Contains("Total", ddl);
+        Assert.Contains(">= 0", ddl);
     }
 
     [Theory]
@@ -101,7 +102,7 @@ public class IndexConstraintTests
     {
         var ddl = Ddl(engine);
 
-        Assert.Contains("WHERE DeletedAt IS NULL", ddl, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("WHERE \"DeletedAt\" IS NULL", ddl, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -115,7 +116,7 @@ public class IndexConstraintTests
         var ddl = Ddl(engine);
 
         Assert.Contains("kısmi index desteklemiyor", ddl);
-        Assert.DoesNotContain("WHERE DeletedAt IS NULL;", ddl, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("WHERE \"DeletedAt\" IS NULL;", ddl, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

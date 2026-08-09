@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS `Products` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `OrderProducts` (
-    `OrderId` INT NOT NULL AUTO_INCREMENT,
-    `ProductId` INT NOT NULL AUTO_INCREMENT,
+    `OrderId` INT NOT NULL,
+    `ProductId` INT NOT NULL,
     `Quantity` INT NOT NULL,
     PRIMARY KEY (`OrderId`, `ProductId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

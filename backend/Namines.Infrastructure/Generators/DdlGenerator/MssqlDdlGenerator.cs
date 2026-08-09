@@ -21,14 +21,20 @@ public class MssqlDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var lengthStr = col.Length.HasValue ? $"({col.Length})" : "";
+                var sqlType = TypeSql.Map(col.Type, col.Length, DatabaseType.MSSQL);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
-                var defaultStr = !string.IsNullOrWhiteSpace(col.DefaultValue) ? $" DEFAULT {col.DefaultValue}" : "";
+                var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.MSSQL);
+                var defaultStr = !string.IsNullOrWhiteSpace(defaultValue) ? $" DEFAULT {defaultValue}" : "";
 
-                // Identity for INT/BIGINT PK
-                var identityStr = (col.IsPK && (col.Type.ToUpper() == "INT" || col.Type.ToUpper() == "BIGINT")) ? " IDENTITY(1,1)" : "";
+                // IDENTITY yalnızca TEK KOLONLU PK'da uygulanır. Bileşik PK'nın her iki
+                // kolonu da INT ise, ikisine birden IDENTITY vermek SQL Server'ın
+                // "Multiple identity columns specified" (Msg 2744) hatasına yol açar —
+                // gerçek SQL Server'a karşı çalıştırılan bir entegrasyon testi bunu kanıtladı.
+                var identityStr = (col.IsPK && pkColumns.Count == 1 &&
+                                    (col.Type.ToUpper() == "INT" || col.Type.ToUpper() == "BIGINT"))
+                    ? " IDENTITY(1,1)" : "";
 
-                sb.Append($"    [{col.Name}] {col.Type.ToUpper()}{lengthStr}{identityStr} {nullStr}{defaultStr}");
+                sb.Append($"    [{col.Name}] {sqlType}{identityStr} {nullStr}{defaultStr}");
                 
                 if (i < table.Columns.Count - 1)
                     sb.AppendLine(",");

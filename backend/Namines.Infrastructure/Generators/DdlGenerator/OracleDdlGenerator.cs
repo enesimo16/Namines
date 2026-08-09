@@ -31,12 +31,15 @@ public class OracleDdlGenerator : IDdlGenerator
                 var col = table.Columns[i];
                 var oracleType = MapToOracleType(col.Type, col.Length);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
-                var defaultStr = !string.IsNullOrWhiteSpace(col.DefaultValue)
-                    ? $" DEFAULT {col.DefaultValue}"
+                var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.Oracle);
+                var defaultStr = !string.IsNullOrWhiteSpace(defaultValue)
+                    ? $" DEFAULT {defaultValue}"
                     : "";
 
-                // Oracle 12c+ IDENTITY (auto-increment)
-                var identityStr = (col.IsPK && IsNumericType(col.Type))
+                // Oracle 12c+ IDENTITY (auto-increment) — yalnızca TEK KOLONLU PK için.
+                // Oracle bir tabloda yalnızca bir IDENTITY kolonuna izin verir (ORA-30673);
+                // bileşik PK'nın iki kolonuna birden vermek geçersiz DDL üretir.
+                var identityStr = (col.IsPK && pkColumns.Count == 1 && IsNumericType(col.Type))
                     ? " GENERATED ALWAYS AS IDENTITY"
                     : "";
 

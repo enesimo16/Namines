@@ -1,20 +1,20 @@
 ﻿CREATE TABLE "Users" (
     "Id" SERIAL NOT NULL,
-    "Email" NVARCHAR(255) NOT NULL
+    "Email" varchar(255) NOT NULL
     , CONSTRAINT "PK_Users" PRIMARY KEY ("Id")
 );
 
 CREATE TABLE "Addresses" (
     "Id" SERIAL NOT NULL,
-    "UserId" INT NOT NULL,
-    "Line1" NVARCHAR(200) NOT NULL
+    "UserId" integer NOT NULL,
+    "Line1" varchar(200) NOT NULL
     , CONSTRAINT "PK_Addresses" PRIMARY KEY ("Id")
 );
 
 CREATE TABLE "Orders" (
     "Id" SERIAL NOT NULL,
-    "UserId" INT NOT NULL,
-    "AddressId" INT NOT NULL
+    "UserId" integer NOT NULL,
+    "AddressId" integer NOT NULL
     , CONSTRAINT "PK_Orders" PRIMARY KEY ("Id")
 );
 

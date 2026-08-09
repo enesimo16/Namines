@@ -5,6 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- TypeSql/DefaultValueSql bilinçli olarak internal — dış API yüzeyi değiller.
+         Testler onları doğrudan çağırabilsin diye derleme birimini test projesine açıyoruz. -->
+    <InternalsVisibleTo Include="Namines.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Docker.DotNet" Version="3.125.15" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.8" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />

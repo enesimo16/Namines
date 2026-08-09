@@ -13,6 +13,9 @@
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="Shouldly" Version="4.3.0" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.13.0" />
+    <PackageReference Include="Testcontainers.MySql" Version="4.13.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <!-- Golden-file (snapshot) testleri: üretilen DDL'i kayıtlı çıktıyla karşılaştırır.
          Çıktı değişirse test kırılır ve geliştirici diff'i bilinçli olarak onaylar. -->
     <PackageReference Include="Verify.Xunit" Version="31.12.5" />

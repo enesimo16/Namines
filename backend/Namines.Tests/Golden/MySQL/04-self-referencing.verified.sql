@@ -1,6 +1,6 @@
 ﻿CREATE TABLE `Categories` (
     `Id` INT NOT NULL AUTO_INCREMENT,
-    `Name` NVARCHAR(120) NOT NULL,
+    `Name` VARCHAR(120) NOT NULL,
     `ParentId` INT NULL
     , PRIMARY KEY (`Id`)
 ) ENGINE=InnoDB;

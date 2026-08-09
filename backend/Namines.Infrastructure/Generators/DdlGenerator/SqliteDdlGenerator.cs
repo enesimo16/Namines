@@ -37,8 +37,9 @@ public class SqliteDdlGenerator : IDdlGenerator
                 var col = table.Columns[i];
                 var sqliteType = MapToSqliteType(col.Type);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
-                var defaultStr = !string.IsNullOrWhiteSpace(col.DefaultValue)
-                    ? $" DEFAULT {col.DefaultValue}"
+                var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.SQLite);
+                var defaultStr = !string.IsNullOrWhiteSpace(defaultValue)
+                    ? $" DEFAULT {defaultValue}"
                     : "";
 
                 // SQLite'ta tek INT PK → AUTOINCREMENT için özel syntax

@@ -1,31 +1,31 @@
 ﻿CREATE TABLE "Users" (
     "Id" SERIAL NOT NULL,
-    "Email" NVARCHAR(255) NOT NULL,
-    "CreatedAt" DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+    "Email" varchar(255) NOT NULL,
+    "CreatedAt" timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'utc')
     , CONSTRAINT "PK_Users" PRIMARY KEY ("Id")
 );
 
 CREATE TABLE "Products" (
     "Id" SERIAL NOT NULL,
-    "Name" NVARCHAR(200) NOT NULL,
-    "Price" DECIMAL NOT NULL,
-    "Stock" INT NOT NULL DEFAULT 0
+    "Name" varchar(200) NOT NULL,
+    "Price" numeric NOT NULL,
+    "Stock" integer NOT NULL DEFAULT 0
     , CONSTRAINT "PK_Products" PRIMARY KEY ("Id")
 );
 
 CREATE TABLE "Orders" (
     "Id" SERIAL NOT NULL,
-    "UserId" INT NOT NULL,
-    "Total" DECIMAL NOT NULL,
-    "PlacedAt" DATETIME2 NOT NULL
+    "UserId" integer NOT NULL,
+    "Total" numeric NOT NULL,
+    "PlacedAt" timestamp NOT NULL
     , CONSTRAINT "PK_Orders" PRIMARY KEY ("Id")
 );
 
 CREATE TABLE "OrderItems" (
     "Id" SERIAL NOT NULL,
-    "OrderId" INT NOT NULL,
-    "ProductId" INT NOT NULL,
-    "Quantity" INT NOT NULL DEFAULT 1
+    "OrderId" integer NOT NULL,
+    "ProductId" integer NOT NULL,
+    "Quantity" integer NOT NULL DEFAULT 1
     , CONSTRAINT "PK_OrderItems" PRIMARY KEY ("Id")
 );
 
