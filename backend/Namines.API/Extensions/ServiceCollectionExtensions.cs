@@ -1,4 +1,5 @@
 using System;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Namines.Core.Interfaces;
 using Namines.Infrastructure;
@@ -6,14 +7,16 @@ using Namines.Infrastructure.AI;
 using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Infrastructure.Generators.EfCoreGenerator;
 using Namines.Infrastructure.Generators.DocumentationGenerator;
+using Namines.Infrastructure.Realtime;
 using Namines.Infrastructure.Services;
 using Namines.API.Services;
+using StackExchange.Redis;
 
 namespace Namines.API.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddNaminesServices(this IServiceCollection services)
+    public static IServiceCollection AddNaminesServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddHttpClient<GroqAIService>(client =>
         {
@@ -72,6 +75,25 @@ public static class ServiceCollectionExtensions
 
         // Canlı DB tersine mühendislik (INFORMATION_SCHEMA)
         services.AddScoped<IDbIntrospectionService, DbIntrospectionService>();
+
+        // ── Presence deposu (CanvasHub'ın oda üyeliği takibi) ───────────────────
+        // Redis yapılandırılmışsa çok instance'lı dağıtımda doğru çalışan Redis
+        // implementasyonu; aksi halde tek instance için bellek-içi implementasyon.
+        // Aynı IConnectionMultiplexer, aşağıda SignalR backplane'i tarafından da
+        // yeniden kullanılabilir (Program.cs bunu ayrıca yapılandırır çünkü
+        // AddStackExchangeRedis kendi bağlantısını kurar — burada sadece presence
+        // deposu için singleton bir multiplexer kaydediyoruz).
+        var redisConnectionString = configuration["Redis:ConnectionString"];
+        if (!string.IsNullOrWhiteSpace(redisConnectionString))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(_ =>
+                ConnectionMultiplexer.Connect(redisConnectionString));
+            services.AddSingleton<IPresenceStore, RedisPresenceStore>();
+        }
+        else
+        {
+            services.AddSingleton<IPresenceStore, InMemoryPresenceStore>();
+        }
 
         return services;
     }

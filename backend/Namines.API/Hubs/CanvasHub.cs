@@ -1,35 +1,49 @@
-using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
+using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Core.Realtime;
 
 namespace Namines.API.Hubs;
 
-// NOT: Odalar "paylaşım-linki capability" modeliyle çalışır (tahmin edilemez roomId).
-// Guest erişimi tasarım gereğidir. roomId biçimi doğrulanır ve bağlantı→oda üyeliği
-// takip edilerek peer-mesajları yalnızca aynı odadaki bağlantılara gönderilir.
+// NOT: Odalar "paylaşım-linki capability" modeliyle çalışır (tahmin edilemez roomId,
+// crypto.randomUUID() ile üretilir). Guest erişimi TASARIM GEREĞİDİR — girişsiz
+// kullanıcılar da /canvas sayfasında gerçek zamanlı işbirliği yapabilmeli. Bu yüzden
+// hub'a bağlanmak JWT ZORUNLU DEĞİL.
+//
+// Ama kimliği doğrulanmış (giriş yapmış) bir kullanıcı bağlanıyorsa, sunum adı için
+// istemcinin gönderdiği serbest metin yerine JWT claim'inden gelen gerçek adı
+// kullanıyoruz — böylece giriş yapmış bir kullanıcının kimliğine bürünmek (başka
+// birinin adını yazıp onun gibi görünmek) mümkün olmuyor. Anonim/guest kullanıcılar
+// için davranış değişmedi.
 public class CanvasHub : Hub
 {
-    // connectionId -> roomId üyelik haritası (peer doğrulaması ve leave bildirimi için).
-    private static readonly ConcurrentDictionary<string, string> Membership = new();
+    private readonly IPresenceStore _presence;
+
+    public CanvasHub(IPresenceStore presence)
+    {
+        _presence = presence;
+    }
 
     private static readonly Regex RoomIdPattern = new(@"^[A-Za-z0-9_\-]{1,100}$", RegexOptions.Compiled);
     private static bool IsValidRoomId(string? roomId) => !string.IsNullOrEmpty(roomId) && RoomIdPattern.IsMatch(roomId);
-    private static string Trim(string? s, int max) => string.IsNullOrEmpty(s) ? string.Empty : (s.Length > max ? s.Substring(0, max) : s);
+
+    private string ResolveDisplayName(string clientSuppliedName) =>
+        PresenceIdentity.ResolveDisplayName(Context.User, clientSuppliedName);
 
     public async Task JoinRoom(string roomId, string userName)
     {
         if (!IsValidRoomId(roomId)) return;
-        Membership[Context.ConnectionId] = roomId;
+        await _presence.SetRoomAsync(Context.ConnectionId, roomId);
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
-        await Clients.OthersInGroup(roomId).SendAsync("ReceiveUserJoined", Context.ConnectionId, Trim(userName, 64));
+        await Clients.OthersInGroup(roomId).SendAsync("ReceiveUserJoined", Context.ConnectionId, ResolveDisplayName(userName));
     }
 
     public async Task MoveCursor(string roomId, string userName, double x, double y)
     {
         if (!IsValidRoomId(roomId)) return;
-        await Clients.OthersInGroup(roomId).SendAsync("ReceiveCursor", Context.ConnectionId, Trim(userName, 64), x, y);
+        await Clients.OthersInGroup(roomId).SendAsync("ReceiveCursor", Context.ConnectionId, ResolveDisplayName(userName), x, y);
     }
 
     public async Task UpdateSchema(string roomId, DatabaseSchema schema)
@@ -39,12 +53,20 @@ public class CanvasHub : Hub
     }
 
     // Yalnızca çağıran ile hedefin AYNI odada olması durumunda şema gönderilir
-    // (cross-room şema enjeksiyonunu engeller).
+    // (cross-room şema enjeksiyonunu engeller). Üyelik artık IPresenceStore
+    // üzerinden okunuyor: Redis yapılandırılmışsa bu kontrol çok instance'lı
+    // dağıtımda da doğru çalışır — bellek-içi static dictionary yalnızca
+    // kendi instance'ının bağlantılarını görebiliyordu.
     public async Task SendSchemaToPeer(string peerConnectionId, DatabaseSchema schema)
     {
         if (string.IsNullOrEmpty(peerConnectionId)) return;
-        if (!Membership.TryGetValue(Context.ConnectionId, out var callerRoom)) return;
-        if (!Membership.TryGetValue(peerConnectionId, out var targetRoom)) return;
+
+        var callerRoom = await _presence.TryGetRoomAsync(Context.ConnectionId);
+        if (callerRoom is null) return;
+
+        var targetRoom = await _presence.TryGetRoomAsync(peerConnectionId);
+        if (targetRoom is null) return;
+
         if (callerRoom != targetRoom) return;
         await Clients.Client(peerConnectionId).SendAsync("ReceiveSchema", schema);
     }
@@ -52,7 +74,8 @@ public class CanvasHub : Hub
     public override async Task OnDisconnectedAsync(System.Exception? exception)
     {
         // Peer ayrılınca odadakilere bildir → hayalet imleç kalmaz.
-        if (Membership.TryRemove(Context.ConnectionId, out var roomId) && IsValidRoomId(roomId))
+        var roomId = await _presence.RemoveAsync(Context.ConnectionId);
+        if (roomId is not null && IsValidRoomId(roomId))
         {
             await Clients.OthersInGroup(roomId).SendAsync("ReceiveUserLeft", Context.ConnectionId);
         }

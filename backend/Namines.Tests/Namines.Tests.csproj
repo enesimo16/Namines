@@ -16,6 +16,7 @@
     <PackageReference Include="Testcontainers.MsSql" Version="4.13.0" />
     <PackageReference Include="Testcontainers.MySql" Version="4.13.0" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <PackageReference Include="Testcontainers.Redis" Version="4.13.0" />
     <!-- Golden-file (snapshot) testleri: üretilen DDL'i kayıtlı çıktıyla karşılaştırır.
          Çıktı değişirse test kırılır ve geliştirici diff'i bilinçli olarak onaylar. -->
     <PackageReference Include="Verify.Xunit" Version="31.12.5" />

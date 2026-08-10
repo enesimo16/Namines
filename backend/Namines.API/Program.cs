@@ -280,8 +280,37 @@ try
         }
     });
 
-    // Register SignalR real-time collaboration services
-    builder.Services.AddSignalR();
+    // Register SignalR real-time collaboration services.
+    //
+    // MaximumReceiveMessageSize varsayılanı (32 KB) UpdateSchema'nın taşıdığı tam
+    // şema JSON'ı için yetersiz — orta büyüklükte bir şema (30-40 tablo) bu sınırı
+    // kolayca aşar ve mesaj sessizce reddedilir. 512 KB'ye çıkarıyoruz; büyük ama
+    // sınırsız değil (DoS koruması hâlâ var).
+    var signalRBuilder = builder.Services.AddSignalR(options =>
+    {
+        options.MaximumReceiveMessageSize = 512 * 1024;
+    });
+
+    // Redis backplane: yapılandırılmışsa çok instance'lı dağıtımda grup yayınları
+    // (JoinRoom/MoveCursor/UpdateSchema) tüm instance'lara ulaşır. Yapılandırılmamışsa
+    // (yerel geliştirme, tek instance) SignalR varsayılan bellek-içi davranışıyla
+    // çalışmaya devam eder — davranış değişikliği yok, sadece ölçeklenme sınırı var.
+    var redisConnectionStringForSignalR = builder.Configuration["Redis:ConnectionString"];
+    if (!string.IsNullOrWhiteSpace(redisConnectionStringForSignalR))
+    {
+        signalRBuilder.AddStackExchangeRedis(redisConnectionStringForSignalR, options =>
+        {
+            options.Configuration.ChannelPrefix = StackExchange.Redis.RedisChannel.Literal("namines-signalr");
+        });
+        Log.Information("SignalR Redis backplane etkin — çok instance'lı dağıtımda canlı işbirliği senkron kalır.");
+    }
+    else
+    {
+        Log.Warning(
+            "Redis:ConnectionString tanımlı değil — SignalR tek instance modunda çalışıyor. " +
+            "Yatay ölçeklemede (2+ API instance) canlı işbirliği (Studio çoklu kullanıcı) " +
+            "instance'lar arasında senkron kalmaz. Yerel geliştirme ve tek instance dağıtımda sorun değildir.");
+    }
 
     // Setup CORS for Next.js frontend.
     // İzinli origin'ler config'den gelir; localhost yalnızca Production DIŞINDA eklenir.
@@ -336,7 +365,7 @@ try
     // Setup custom services
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddMemoryCache();
-    builder.Services.AddNaminesServices();
+    builder.Services.AddNaminesServices(builder.Configuration);
 
     // ── HealthChecks ──────────────────────────────────────────────────────────
     // /health      → Tüm check'ler (Kubernetes readiness probe için detaylı)
