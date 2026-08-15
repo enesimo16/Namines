@@ -139,4 +139,6 @@ docker-compose.local.yml
 !README.md
 !README.tr.md
 !frontend/README.md
+!CLAUDE.md
+!new-phase/*.md
 telemetry.config.json

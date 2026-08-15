@@ -8,13 +8,23 @@
 
 > ## 👉 İlk kez okuyorsan: **[BASLA-BURADAN.md](BASLA-BURADAN.md)**
 > Bütün planın anlatı halinde özeti. ~20 dakika, tablo yok, baştan sona okunmak için yazıldı.
-> Aşağıdaki 27 dosya referanstır — ihtiyaç duydukça aç.
+> Aşağıdaki dosyalar referanstır — ihtiyaç duydukça aç.
+>
+> ⚠️ **2026-08 stratejik dönüş:** [27-LIFECYCLE-PIVOT.md](27-LIFECYCLE-PIVOT.md) güncel
+> yönü belirliyor — "AI ile database üret" değil, **"AI ile database/backend
+> lifecycle'ını güvenle yönet."** 00/01/02/24 hâlâ geçerli ama önceliklendirmesi
+> 27 tarafından düzeltildi. Kod yazmadan önce 27'yi oku.
 
 ---
 
-## Tek cümlelik hedef
+## Tek cümlelik hedef (2026-08 itibarıyla keskinleşti)
 
-> **Namines, bir fikri tarif ettiğin anda; şemayı tasarlayan, gerçek bir veritabanı ayağa kaldıran, üstüne çalışan bir API ve yönetim paneli üreten, ve bunların hepsini şema değiştikçe senkron tutan tek platformdur.**
+> **Namines, bir fikri tarif ettiğin anda şemayı tasarlar, gerçek bir veritabanı ayağa kaldırır — ve en önemlisi, o şema değiştiğinde neyin kırılacağını KANITLAR, teknik olmayan birinin bile onaylayabileceği bir inceleme ekranında.**
+
+Eski çerçeve (üretim-öncelikli) hâlâ geçerli ama artık ikincil — asıl fark
+[27-LIFECYCLE-PIVOT.md §5](27-LIFECYCLE-PIVOT.md)'te: agent'lar (Claude Code, Codex)
+kod/şema üretimini emtialaştırıyor, **production değişikliği etrafındaki kanıt ve
+onay sürecini** emtialaştırmıyor.
 
 Şema = tek doğruluk kaynağı (single source of truth). Geri kalan her şey (DDL, API, admin UI, dokümantasyon, migration, mock data, tipler) **türetilmiş artefakttır** ve otomatik güncellenir.
 
@@ -93,17 +103,28 @@ Faz 1'de yazılmış her özellik Faz 2'de bir katmana **terfi ediyor**:
 |---|---|---|
 | 22 | [22-BUSINESS-MODEL.md](22-BUSINESS-MODEL.md) | Fiyatlandırma, katmanlar, birim ekonomisi, metering |
 | 23 | [23-GTM.md](23-GTM.md) | Pazara çıkış, büyüme döngüleri, içerik, topluluk |
-| 24 | [24-ROADMAP.md](24-ROADMAP.md) | 12 aylık faz planı, sprint kırılımı, DoD |
+| 24 | [24-ROADMAP.md](24-ROADMAP.md) | 12 aylık faz planı, sprint kırılımı, DoD (⚠ 27 ile önceliklendirmesi düzeltildi) |
 | 25 | [25-RISKS.md](25-RISKS.md) | Risk kaydı, azaltma planları |
 | 26 | [26-GLOSSARY.md](26-GLOSSARY.md) | Terimler sözlüğü |
+
+### Lifecycle Pivot (2026-08 — güncel yön)
+| # | Dosya | İçerik |
+|---|---|---|
+| 27 | [27-LIFECYCLE-PIVOT.md](27-LIFECYCLE-PIVOT.md) | **Başla buradan** — güncel strateji, repo gerçeği, Claude Code/Lovable farkı |
+| 28 | [28-IMPACT-ANALYSIS-ENGINE.md](28-IMPACT-ANALYSIS-ENGINE.md) | "Bu değişiklik neyi etkiler" motoru — yeni ana farklılaştırıcı |
+| 29 | [29-DATABASE-CHANGE-REVIEW.md](29-DATABASE-CHANGE-REVIEW.md) | GitHub PR'ın veritabanı karşılığı — onay ekranı |
+| 30 | [30-SERVER-SIDE-BRANCHING.md](30-SERVER-SIDE-BRANCHING.md) | Cihaz-bazlı branch'ten sunucu-otoriteli modele geçiş |
+| 31 | [31-NEW-BUSINESS-LINES.md](31-NEW-BUSINESS-LINES.md) | 5 yeni iş fikri, ticari değerlendirme + öncelik sırası |
+| 32 | [32-DEFERRED-NOT-REJECTED.md](32-DEFERRED-NOT-REJECTED.md) | "Kesinlikle yapmayacaklar" — neden şimdi değil, ne zaman evet |
 
 ---
 
 ## Nasıl okumalı
 
-- **Sadece 20 dakikan varsa:** `00` → `01` → `02` → `24`
-- **Kod yazmaya başlayacaksan:** `03` → `04` → `17` → `15` → `16` → `19`
-- **Yatırımcıya/jüriye anlatacaksan:** `00` → `01` → `07` → `22` → `24`
+- **Sadece 20 dakikan varsa:** `27` → `00` → `01`
+- **Kod yazmaya başlayacaksan:** `27` → `28` → `29` → `30` → `17` → `19`
+- **Yatırımcıya/jüriye anlatacaksan:** `27` → `00` → `01` → `22` → `24`
+- **"Şunu neden yapmıyoruz" sorusuna cevap arıyorsan:** `32`
 
 ---
 
