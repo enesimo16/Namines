@@ -125,8 +125,19 @@ try
     }
 
     // Configure Database
+    //
+    // G7: control DB SQLite'tan PostgreSQL'e tam geçiş. Gerekçe: SQLite tek dosya,
+    // eşzamanlı yazmayı desteklemez — yatay ölçeklemede (2+ API instance) veri
+    // bozulması riski taşır. Ayrıca G9-G10'daki sunucu-taraflı branch tabloları
+    // (new-phase/30-SERVER-SIDE-BRANCHING.md) gerçek eşzamanlı yazma gerektiriyor.
+    //
+    // NOT: Bu, kullanıcının HEDEF motor olarak SQLite seçme özelliğini etkilemez —
+    // DatabaseExecutorService/ScaffolderService'teki Microsoft.Data.Sqlite kullanımı
+    // ayrı bir şey (BYODB/execute özelliği), buradan kaldırılmadı.
+    var controlDbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
     builder.Services.AddDbContext<AuthDbContext>(options =>
-        options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=namines_auth.db"));
+        options.UseNpgsql(controlDbConnectionString));
 
     // Configure Identity Core
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -371,11 +382,10 @@ try
     // /health      → Tüm check'ler (Kubernetes readiness probe için detaylı)
     // /health/ready → Sadece "critical" tag'li check'ler (DB + AI gateway)
     // /health/live  → Her zaman Healthy döner (Kubernetes liveness probe)
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=namines_auth.db";
     builder.Services.AddHealthChecks()
-        .AddSqlite(
-            connectionString: connectionString,
-            name: "sqlite-auth-db",
+        .AddNpgSql(
+            connectionString: controlDbConnectionString,
+            name: "postgres-control-db",
             failureStatus: HealthStatus.Unhealthy,
             tags: new[] { "db", "critical" })
         .AddCheck("memory", () =>

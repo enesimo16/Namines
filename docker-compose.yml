@@ -1,4 +1,23 @@
 services:
+  # ─── Control DB: PostgreSQL (G7 — SQLite'tan tam geçiş) ──────────────────
+  namines-control-db:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=namines
+      - POSTGRES_PASSWORD=namines_dev_only_change_in_prod
+      - POSTGRES_DB=namines_control
+    volumes:
+      - namines-control-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U namines"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      # Yerel geliştirmede host'tan da bağlanabilmek için (dotnet ef vb.).
+      # Prod'da bu portu dışarı açma — yönetilen bir DB kullan (bkz. 06-DATA-PLANE.md).
+      - "5432:5432"
+
   # ─── Backend: ASP.NET Core 8 API ─────────────────────────────────────────
   namines-backend:
     build:
@@ -23,6 +42,11 @@ services:
       - Auth__CrossSiteCookie=false
       # Production'da SSRF koruması AÇIK (dev .env'deki true değerini ez).
       - Executor__AllowPrivateHosts=false
+      # G7: control DB artık PostgreSQL. Container ağında servis adıyla erişilir.
+      - ConnectionStrings__DefaultConnection=Host=namines-control-db;Port=5432;Database=namines_control;Username=namines;Password=namines_dev_only_change_in_prod
+    depends_on:
+      namines-control-db:
+        condition: service_healthy
     volumes:
       # GÜVENLİK: /var/run/docker.sock BİLİNÇLİ OLARAK MOUNT EDİLMEZ.
       # Host'un docker socket'ini container'a vermek, container içindeki koda
@@ -34,9 +58,7 @@ services:
       # Sandbox özelliği bunun yerine ayrı bir provisioning broker'ı üzerinden
       # çalışır (Kubernetes Job API + gVisor izolasyonu).
       # Bkz. new-phase/06-DATA-PLANE.md
-      #
-      # SQLite veritabanını kalıcı tut
-      - namines-db:/app/data
+      - namines-app-data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
@@ -61,6 +83,7 @@ services:
       namines-backend:
         condition: service_started
 
-# Kalıcı veri volume'u (SQLite DB)
+# Kalıcı veri volume'ları
 volumes:
-  namines-db:
+  namines-control-db-data:   # PostgreSQL control DB (G7)
+  namines-app-data:          # Uygulama verisi (loglar, geçici dosyalar vb.)

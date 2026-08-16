@@ -99,7 +99,7 @@ Her şey, takılabilir AI sağlayıcılarıyla (Groq, Gemini, Ollama veya kendi 
 | Katman | Yığın |
 |---|---|
 | Ön yüz | Next.js 16, React 19, TypeScript, Zustand, React Flow, Tailwind CSS |
-| Arka uç | .NET 8, ASP.NET Core, EF Core (SQLite), SignalR, Serilog |
+| Arka uç | .NET 8, ASP.NET Core, EF Core (PostgreSQL), SignalR (Redis backplane), Serilog |
 | AI | Groq (Llama 3.3 70B / GPT‑OSS 120B / Llama 4 Scout), Google Gemini, Ollama, OpenAI (BYOK), Whisper |
 | Altyapı | Docker / docker‑compose, Stripe |
 
@@ -168,7 +168,9 @@ Deploy'un çalışıp çalışmamasını belirleyen üç ayar:
    olmalı. Aksi hâlde tarayıcı auth cookie'sini göndermez ve login sessizce tutmaz.
 3. **`NEXT_PUBLIC_API_URL`** sonunda `/api` OLMAMALI — istemci bunu kendisi ekler.
 
-`/app/data` (SQLite volume) kalıcı olmalı; aksi hâlde her deploy'da tüm hesaplar silinir.
+Control DB artık PostgreSQL — yönetilen bir sağlayıcı kullan (Neon/RDS/Azure Database)
+veya `namines-control-db-data` volume'unu kalıcı tut; her iki durumda da yedekle,
+aksi hâlde her deploy'da tüm hesaplar silinir.
 
 ## 🎛️ AI token modeli
 

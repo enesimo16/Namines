@@ -98,7 +98,7 @@ key), while a Next.js front‑end delivers the canvas, panels and live collabora
 | Layer | Stack |
 |---|---|
 | Frontend | Next.js 16, React 19, TypeScript, Zustand, React Flow, Tailwind CSS |
-| Backend | .NET 8, ASP.NET Core, EF Core (SQLite), SignalR, Serilog |
+| Backend | .NET 8, ASP.NET Core, EF Core (PostgreSQL), SignalR (Redis backplane), Serilog |
 | AI | Groq (Llama 3.3 70B / GPT‑OSS 120B / Llama 4 Scout), Google Gemini, Ollama, OpenAI (BYOK), Whisper |
 | Infra | Docker / docker‑compose, Stripe |
 
@@ -167,7 +167,9 @@ Three settings decide whether a deploy works:
    Railway). Otherwise the browser drops the auth cookie and login silently never sticks.
 3. **`NEXT_PUBLIC_API_URL`** must **not** end in `/api` — the client appends it.
 
-Persist `/app/data` (the SQLite volume) or every account is wiped on redeploy.
+Control DB is PostgreSQL — use a managed provider (Neon/RDS/Azure Database) or persist
+the `namines-control-db-data` volume; either way, back it up, or every account is wiped
+on redeploy.
 
 ## 🎛️ AI token model
 

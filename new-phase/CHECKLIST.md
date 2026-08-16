@@ -186,13 +186,40 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
   "read-only file system" durumuna düştü — `wsl --shutdown` ile tam temiz kapanış
   gerekti. Kod regresyonu değildi.
 
-## Sonraki
+## G7 — Control DB: SQLite → PostgreSQL ✅ TAMAMLANDI
 
-- [ ] **G7 — Control DB: SQLite → PostgreSQL** (tam geçiş, SQLite kaldırılacak)
-      ⚠️ Disk alanı yüzünden bekliyor — Docker'a güvenmeden önce
-      `Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"` ile boş alanı kontrol et.
-      Artık sadece ölçekleme için değil, G9'daki sunucu-taraflı branch tablolarının
-      **ön koşulu** olduğu için önceliği arttı.
+- [x] **Paket geçişi** — `Microsoft.EntityFrameworkCore.Sqlite` ve
+      `AspNetCore.HealthChecks.Sqlite` kaldırıldı; `Npgsql.EntityFrameworkCore.PostgreSQL`
+      8.0.8 + `AspNetCore.HealthChecks.NpgSql` 8.0.1 eklendi
+  - ⚠️ Bulgu: `Npgsql.EntityFrameworkCore.PostgreSQL 8.0.8` → `Npgsql 8.0.4` istiyordu,
+    ama projede doğrudan `Npgsql 10.0.2` pinliydi (hedef-motor DDL çalıştırma için) —
+    NuGet "en yakın kazanır" kuralıyla 10.0.2'yi seçip `HackyEnumTypeMapping` yükleme
+    hatası veriyordu. `Npgsql`'i 8.0.7'ye indirerek çözüldü.
+  - **Korunan ayrım:** `Microsoft.Data.Sqlite` paketi KALDIRILMADI —
+    `DatabaseExecutorService`/`ScaffolderService`'teki kullanımı control DB değil,
+    kullanıcının hedef motor olarak seçtiği SQLite desteği (6 motordan biri)
+- [x] `Program.cs`: `UseSqlite` → `UseNpgsql`, health check `AddSqlite` → `AddNpgSql`
+- [x] Migration'lar yeniden oluşturuldu — eski SQLite migration'ları silindi
+      (provider'a özgü, taşınamaz), `InitialPostgres` olarak tek migration'da yeniden üretildi
+- [x] **Gerçek PostgreSQL container'ına karşı doğrulandı** (Docker açıkken, disk
+      alanı önce kontrol edildi: `Get-CimInstance Win32_LogicalDisk`)
+  - `dotnet ef database update` → 13 tablo gerçekten oluştu (`\dt` ile doğrulandı)
+  - `dotnet run -- --migrate` → "already up to date", exit 0
+  - Normal başlatma → `/health` → `{"status":"Healthy","postgres-control-db":"Healthy"}`
+- [x] **321/321 non-integration + 8/8 Postgres integration test yeşil** (Npgsql
+      indirmesinin DDL-hedef Postgres çalıştırmasını bozmadığının kanıtı)
+- [x] `docker-compose.yml` — `namines-control-db` servisi eklendi (postgres:17-alpine),
+      backend'in `depends_on: condition: service_healthy` ile bağlandığı
+- [x] `README.md`/`README.tr.md`/`deploy/backend.env.example` — control DB referansları
+      PostgreSQL'e güncellendi (hedef-motor SQLite desteği metinleri dokunulmadan kaldı)
+- ⚠️ Not: `.env.example` sandbox izniyle korunuyor, otomatik güncellenemedi —
+  **elle kontrol et:** `ConnectionStrings__DefaultConnection` satırı SQLite formatındaysa
+  Postgres formatına çevir (`Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres`)
+- ⚠️ Not: MSSQL/MySQL/Redis integration testleri bu turda TEKRAR ÇALIŞTIRILMADI —
+  disk alanı tekrar daraldığı (1.25GB) için gereksiz risk alınmadı. Bu değişiklik
+  o motorların koduna hiç dokunmadı, sadece control DB'yi ilgilendiriyor.
+
+## Sonraki
 
 ## G8+ — Lifecycle Pivot (2026-08-10, [27](27-LIFECYCLE-PIVOT.md) kararına göre)
 

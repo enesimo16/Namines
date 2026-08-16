@@ -21,16 +21,16 @@
 
 ## Şu an neredeyiz (özet — güncel durum için CHECKLIST.md'ye bak)
 
-Faz 0 (G0-G6) tamamlandı: güvenlik sertleştirmesi, test altyapısı (golden-file +
+Faz 0 (G0-G7) tamamlandı: güvenlik sertleştirmesi, test altyapısı (golden-file +
 Testcontainers), `ON DELETE CASCADE` hatası düzeltildi, index/unique/check desteği
-eklendi, SignalR Redis backplane + kimlik sertleştirmesi. **350+ test yeşil.**
-
-G7 (SQLite→PostgreSQL) host diskinin dolması nedeniyle **bekliyor** — Docker'a
-güvenmeden önce disk alanını kontrol et (`Get-CimInstance Win32_LogicalDisk`).
+eklendi, SignalR Redis backplane + kimlik sertleştirmesi, **control DB SQLite'tan
+PostgreSQL'e tam geçiş** (gerçek Postgres'e karşı doğrulandı, health check yeşil).
+**320+ test yeşil.**
 
 Sıradaki iş G8'den başlıyor: Impact Analysis Engine ([28](new-phase/28-IMPACT-ANALYSIS-ENGINE.md))
 + Database Change Review ([29](new-phase/29-DATABASE-CHANGE-REVIEW.md)) + Server-Side
 Branching ([30](new-phase/30-SERVER-SIDE-BRANCHING.md)) — tam sıra [27 §4](new-phase/27-LIFECYCLE-PIVOT.md)'te.
+Server-side branch tabloları artık PostgreSQL'de yaşayabilir (G7'nin ön koşulu buydu).
 
 ---
 
@@ -60,6 +60,15 @@ Branching ([30](new-phase/30-SERVER-SIDE-BRANCHING.md)) — tam sıra [27 §4](n
   aynı prensibi uygula.
 - **Commit'i kullanıcı onaylamadan atma.** Her zaman `git status`/`git diff` ile
   önce göster, hangi değişikliklerin hangi commit'e gireceğini netleştir.
+- **"SQLite kaldırıldı" demek yanıltıcı — iki ayrı SQLite kullanımı var.** G7'de
+  kaldırılan, control DB'nin ORM sağlayıcısıydı (`Microsoft.EntityFrameworkCore.Sqlite`).
+  `Microsoft.Data.Sqlite` paketi hâlâ duruyor ve duracak — `DatabaseExecutorService`/
+  `ScaffolderService`'te kullanıcının hedef motor olarak SQLite seçebilmesi (6 motordan
+  biri) için gerekli, control DB ile ilgisi yok. İkisini karıştırma.
+- **`.gitignore`'da genel bir `*.md` kuralı var**, `!README.md`/`!CLAUDE.md`/
+  `!new-phase/*.md` istisnalarıyla. Yeni bir kök-dizin veya alt-dizin markdown
+  dosyası eklersen (new-phase dışında) `git status`'ta gerçekten göründüğünü
+  doğrula — sessizce yutulabilir (bir kere oldu, `49bc637` bunu düzeltti).
 - **`C:\Users\Enes Yel` kendisi ayrı, ilgisiz bir git deposu** (remote:
   `automated-recruitment-pipeline`). Repo kökü burası (`namines/`), oradaki `.git`'e
   dokunma.
