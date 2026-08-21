@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -341,6 +342,14 @@ public class BranchController : ControllerBase
         if (latest is null)
             return BadRequest(new { error = "Bu branch'te henüz bir şema sürümü yok." });
 
+        // ── Plan kotası (06 §10) ─────────────────────────────────────────────
+        // Kontrol, container AÇILMADAN önce: kotayı aştıktan sonra kapatmak, açılış
+        // maliyetini zaten ödemek demek olurdu. Zaten açık olan bir veritabanını
+        // yeniden istemek kotaya sayılmaz — sağlayıcı onu yeni açmıyor, mevcudu
+        // döndürüyor.
+        var quotaFailure = await CheckBranchDatabaseQuotaAsync(userId, branchId, cancellationToken);
+        if (quotaFailure is not null) return quotaFailure;
+
         DatabaseSchema schema;
         try
         {
@@ -447,6 +456,47 @@ public class BranchController : ControllerBase
 
         await _databases.DestroyAsync(branchId, cancellationToken);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Kullanıcının açık branch veritabanı sayısını planının sınırıyla karşılaştırır.
+    ///
+    /// Sayım KULLANICININ branch'leriyle sınırlı: host'taki tüm container'ları saymak,
+    /// başka bir kullanıcının açtığı veritabanı yüzünden kota dolmuş göstermek olurdu.
+    /// </summary>
+    private async Task<IActionResult?> CheckBranchDatabaseQuotaAsync(
+        string userId, string branchId, CancellationToken ct)
+    {
+        var existing = await _databases.GetAsync(branchId, ct);
+        if (existing is not null) return null;
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        var tier = PlanQuotas.Resolve(user?.SubscriptionStatus);
+        var limits = PlanQuotas.For(tier);
+
+        if (limits.BranchDatabases < 0) return null;
+
+        // Kullanıcının erişebildiği projelerin branch'leri.
+        var ownBranchIds = await _context.Branches
+            .Where(b => _context.CloudProjects
+                .Where(p => p.UserId == userId)
+                .Select(p => p.Id)
+                .Contains(b.ProjectId))
+            .Select(b => b.Id)
+            .ToListAsync(ct);
+
+        var open = await _databases.ListOpenBranchIdsAsync(ct);
+        var current = open.Count(id => ownBranchIds.Contains(id));
+
+        if (!PlanQuotas.IsExceeded(limits.BranchDatabases, current)) return null;
+
+        return StatusCode(402, new
+        {
+            error = PlanQuotas.LimitMessage(tier, "branch databases", limits.BranchDatabases),
+            plan = tier.ToString(),
+            limit = limits.BranchDatabases,
+            current,
+        });
     }
 
     /// <summary>

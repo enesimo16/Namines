@@ -18,7 +18,8 @@ public sealed record CreateGatewayKeyRequest(
     string? AllowedOrigins = null,
     string? AllowedIps = null,
     int? RateLimitPerMinute = null);
-public sealed record SetTablePermissionRequest(string TableName, bool CanRead, bool CanWrite);
+public sealed record SetTablePermissionRequest(
+    string TableName, bool CanRead, bool CanWrite, string? MaskedColumns = null);
 
 /// <summary>
 /// Gateway API anahtarları ve tablo izinleri (08 §4.3).
@@ -151,7 +152,10 @@ public class GatewayKeyController : ControllerBase
             .OrderBy(p => p.TableName)
             .ToListAsync(ct);
 
-        return Ok(permissions.Select(p => new { p.TableName, p.CanRead, p.CanWrite, p.UpdatedAt }));
+        return Ok(permissions.Select(p => new
+        {
+            p.TableName, p.CanRead, p.CanWrite, p.MaskedColumns, p.UpdatedAt,
+        }));
     }
 
     /// <summary>
@@ -198,9 +202,10 @@ public class GatewayKeyController : ControllerBase
         // doğrulayamaz ve bu neredeyse her zaman istenmeyen bir yapılandırmadır.
         if (request.CanWrite) existing.CanRead = true;
         existing.CanWrite = request.CanWrite;
+        existing.MaskedColumns = Normalize(request.MaskedColumns);
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(ct);
-        return Ok(new { existing.TableName, existing.CanRead, existing.CanWrite });
+        return Ok(new { existing.TableName, existing.CanRead, existing.CanWrite, existing.MaskedColumns });
     }
 }

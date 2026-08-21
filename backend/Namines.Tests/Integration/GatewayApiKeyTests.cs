@@ -298,4 +298,55 @@ public class GatewayApiKeyTests : IAsyncLifetime
         Assert.Equal("X-Namines-Key", apiKey["name"]);
         Assert.Equal("header", apiKey["in"]);
     }
+
+    // ── PII maskeleme (06 §4) ────────────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Masked_columns_are_stored_and_read_back()
+    {
+        var (context, projectId) = await SeededAsync();
+
+        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        {
+            ProjectId = projectId, TableName = "users",
+            CanRead = true, MaskedColumns = "email, phone",
+        });
+        await context.SaveChangesAsync();
+
+        var masked = await context.MaskedColumnsAsync(projectId, "users");
+
+        Assert.Equal(2, masked.Count);
+        Assert.Contains("email", masked);
+        Assert.Contains("phone", masked);
+    }
+
+    [RequiresDockerFact]
+    public async Task A_table_without_masking_returns_no_masked_columns()
+    {
+        var (context, projectId) = await SeededAsync();
+
+        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        {
+            ProjectId = projectId, TableName = "orders", CanRead = true,
+        });
+        await context.SaveChangesAsync();
+
+        Assert.Empty(await context.MaskedColumnsAsync(projectId, "orders"));
+    }
+
+    [RequiresDockerFact]
+    public async Task Masking_config_does_not_leak_across_projects()
+    {
+        var (context, projectId) = await SeededAsync();
+        var (_, otherProjectId) = await SeededAsync();
+
+        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        {
+            ProjectId = otherProjectId, TableName = "users",
+            CanRead = true, MaskedColumns = "email",
+        });
+        await context.SaveChangesAsync();
+
+        Assert.Empty(await context.MaskedColumnsAsync(projectId, "users"));
+    }
 }

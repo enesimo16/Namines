@@ -114,7 +114,7 @@ public class GatewayController : ControllerBase
     /// Anahtarın kendi yetkisini genişletememesi için anahtar yönetimi uçları
     /// (GatewayKeyController) yalnızca oturumla korunur.
     /// </summary>
-    private async Task<(bool Allowed, IActionResult? Failure)> AuthorizeAsync(
+    private async Task<(bool Allowed, IActionResult? Failure, GatewayApiKey? Key)> AuthorizeAsync(
         string tableName, bool forWrite, CancellationToken ct)
     {
         if (!Request.Headers.TryGetValue(ApiKeyHeader, out var header) ||
@@ -122,28 +122,28 @@ public class GatewayController : ControllerBase
         {
             // Anahtar yok → oturum yolundayız. [Authorize] zaten kimliği doğruladı.
             return User?.Identity?.IsAuthenticated == true
-                ? (true, null)
-                : (false, Unauthorized());
+                ? (true, null, null)
+                : (false, Unauthorized(), null);
         }
 
         var key = await _context.AuthenticateAsync(header.ToString(), ct);
         if (key is null)
-            return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }));
+            return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }), null);
 
         // Kaynak kısıtları tablo izninden ÖNCE: kısıtı geçemeyen bir çağrının hangi
         // tabloya erişmeye çalıştığı bilgisini geri vermeye gerek yok.
         if (!GatewayKeyRestrictions.IsOriginAllowed(key, Request.Headers.Origin.ToString()))
-            return (false, StatusCode(403, new { message = "This key is not allowed from this origin." }));
+            return (false, StatusCode(403, new { message = "This key is not allowed from this origin." }), null);
 
         if (!GatewayKeyRestrictions.IsIpAllowed(
                 key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
-            return (false, StatusCode(403, new { message = ipReason }));
+            return (false, StatusCode(403, new { message = ipReason }), null);
 
         if (!GatewayRateLimiter.TryAcquire(key))
             return (false, StatusCode(429, new
             {
                 message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
-            }));
+            }), null);
 
         if (!await _context.IsTableAllowedAsync(key, tableName, forWrite, ct))
             // 403 ve 404 arasında bilinçli tercih: anahtar geçerli, tablo yok demek
@@ -153,7 +153,7 @@ public class GatewayController : ControllerBase
                 message = forWrite
                     ? $"This API key is not allowed to write to '{tableName}'."
                     : $"This API key is not allowed to read '{tableName}'.",
-            }));
+            }), null);
 
         // Kullanılmayan anahtarları fark edip kapatabilmek için. Her istekte yazmak
         // gereksiz yük olurdu; dakikada birden sık güncellenmez.
@@ -163,8 +163,61 @@ public class GatewayController : ControllerBase
             await _context.SaveChangesAsync(ct);
         }
 
-        return (true, null);
+        return (true, null, key);
     }
+
+    /// <summary>
+    /// PII maskeleme (06 §4). Yalnızca API-ANAHTARI yolunda uygulanır.
+    ///
+    /// Oturum yolunda uygulanmıyor, çünkü orada kullanıcı bağlantı dizesini kendisi
+    /// giriyor — istediği anda psql açıp aynı veriyi ham hâliyle görebilir. Orada
+    /// maskelemek güvenlik sağlamaz, yalnızca kendi ekranını işe yaramaz kılar.
+    /// Anahtar yolunda ise çağıran veritabanına doğrudan erişemez; maskeleme orada
+    /// gerçek bir sınır.
+    ///
+    /// Maskeleme gizli anahtarı PROJE BAŞINA türetiliyor: iki farklı projede aynı
+    /// e-posta farklı maskelenir, yani bir projenin çıktısı diğeriyle eşleştirilerek
+    /// kimlik çözülemez.
+    /// </summary>
+    private async Task<IReadOnlyList<GatewayRow>> MaskAsync(
+        GatewayApiKey? key, string tableName, IReadOnlyList<GatewayRow> rows, CancellationToken ct)
+    {
+        if (key is null || rows.Count == 0) return rows;
+
+        var masked = await _context.MaskedColumnsAsync(key.ProjectId, tableName, ct);
+        if (masked.Count == 0) return rows;
+
+        var secret = MaskingSecret(key.ProjectId);
+        var lookup = new HashSet<string>(masked, StringComparer.OrdinalIgnoreCase);
+
+        return rows.Select(row =>
+        {
+            var values = new Dictionary<string, object?>(row.Values);
+            foreach (var column in values.Keys.ToList())
+            {
+                if (!lookup.Contains(column)) continue;
+
+                values[column] = values[column] switch
+                {
+                    null => null,
+                    long l => PiiMasker.MaskNumber(l, secret),
+                    int i => PiiMasker.MaskNumber(i, secret),
+                    // Diğer her tip metne çevrilip maskeleniyor: maskelenmemiş bir
+                    // tipi "tanımadım" diye geçirmek, tek bir kolon tipiyle tüm
+                    // korumayı sessizce delerdi.
+                    var other => PiiMasker.Mask(other.ToString(), secret),
+                };
+            }
+            return new GatewayRow(values);
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Proje başına maskeleme anahtarı. Sunucu gizli anahtarından türetiliyor —
+    /// ayrı bir sır yönetimi gerektirmesin, ama projeler arasında da ortak olmasın.
+    /// </summary>
+    private string MaskingSecret(string projectId) =>
+        (_configuration["Jwt:Key"] ?? "namines-masking-fallback") + ":mask:" + projectId;
 
     [HttpPost("list")]
     public async Task<IActionResult> List([FromBody] GatewayListRequest request, CancellationToken cancellationToken)
@@ -172,7 +225,7 @@ public class GatewayController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName))
             return BadRequest(new { message = "Connection string and table name are required." });
 
-        var (allowed, failure) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
         try
@@ -183,7 +236,8 @@ public class GatewayController : ControllerBase
                 request.IncludeTotalCount, request.SortDirection, request.Filters,
                 request.OrGroups, request.Select, request.Expand, cancellationToken);
 
-            return Ok(result);
+            var rows = await MaskAsync(apiKey, request.TableName, result.Rows, cancellationToken);
+            return Ok(new GatewayListResult(rows, result.Page, result.PageSize, result.TotalCount));
         }
         catch (ArgumentException ex)
         {
@@ -210,7 +264,7 @@ public class GatewayController : ControllerBase
             || string.IsNullOrWhiteSpace(request.PkColumn) || request.PkValue is null)
             return BadRequest(new { message = "Connection string, table name, PK column and PK value are required." });
 
-        var (allowed, failure) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
         try
@@ -219,7 +273,10 @@ public class GatewayController : ControllerBase
                 request.ConnectionString, request.DbType, request.TableName,
                 request.PkColumn, request.PkValue, cancellationToken);
 
-            return row is null ? NotFound(new { message = "No row found for the given key." }) : Ok(row);
+            if (row is null) return NotFound(new { message = "No row found for the given key." });
+
+            var masked = await MaskAsync(apiKey, request.TableName, new[] { row }, cancellationToken);
+            return Ok(masked[0]);
         }
         catch (ArgumentException ex)
         {
@@ -256,7 +313,7 @@ public class GatewayController : ControllerBase
         if (request.Values is null || request.Values.Count == 0)
             return BadRequest(new { message = "At least one column value is required." });
 
-        var (allowed, failure) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
         return await ExecuteAsync(async () =>
@@ -278,7 +335,7 @@ public class GatewayController : ControllerBase
         if (request.Values is null || request.Values.Count == 0)
             return BadRequest(new { message = "At least one column value is required." });
 
-        var (allowed, failure) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
         return await ExecuteAsync(async () =>
@@ -300,7 +357,7 @@ public class GatewayController : ControllerBase
             || string.IsNullOrWhiteSpace(request.PkColumn) || request.PkValue is null)
             return BadRequest(new { message = "Connection string, table name, PK column and PK value are required." });
 
-        var (allowed, failure) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
         return await ExecuteAsync(async () =>
@@ -365,7 +422,7 @@ public class GatewayController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName))
             return BadRequest(new { message = "Connection string and table name are required." });
 
-        var (allowed, failure) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
         var format = (request.Format ?? "csv").Trim().ToLowerInvariant();
@@ -374,10 +431,14 @@ public class GatewayController : ControllerBase
 
         try
         {
-            var rows = await _gateway.ExportAsync(
+            IReadOnlyList<GatewayRow> rows = await _gateway.ExportAsync(
                 request.ConnectionString, request.DbType, request.TableName,
                 request.MaxRows, request.OrderByColumn, request.SortDirection,
                 request.Filters, request.OrGroups, request.Select, cancellationToken);
+
+            // Dışa aktarım da maskeleniyor: maskelenmiş bir listeden sonra ham bir
+            // CSV indirilebilseydi koruma tamamen anlamsız olurdu.
+            rows = await MaskAsync(apiKey, request.TableName, rows, cancellationToken);
 
             var fileName = $"{request.TableName}.{format}";
 

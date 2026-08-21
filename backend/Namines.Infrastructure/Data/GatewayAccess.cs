@@ -112,6 +112,23 @@ public static class GatewayAccess
         return forWrite ? permission.CanWrite : permission.CanRead;
     }
 
+    /// <summary>
+    /// Bu tablo için maskelenecek kolonlar. İzin satırı yoksa boş döner — zaten
+    /// erişim de yoktur.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> MaskedColumnsAsync(
+        this AuthDbContext context, string projectId, string tableName, CancellationToken ct = default)
+    {
+        var permission = await context.GatewayTablePermissions
+            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.TableName == tableName, ct);
+
+        if (permission is null || string.IsNullOrWhiteSpace(permission.MaskedColumns))
+            return Array.Empty<string>();
+
+        return permission.MaskedColumns
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
     /// <summary>Anahtarın erişebildiği tablolar — <c>/tables</c> ucunun kaynağı.</summary>
     public static async Task<List<GatewayTablePermission>> ReadableTablesAsync(
         this AuthDbContext context, string projectId, CancellationToken ct = default) =>

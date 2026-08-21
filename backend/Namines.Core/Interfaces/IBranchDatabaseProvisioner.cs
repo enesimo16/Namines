@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Namines.Core.Enums;
@@ -32,6 +33,15 @@ public interface IBranchDatabaseProvisioner
 
     /// <summary>Branch'in veritabanı varsa döner; yoksa null. Container oluşturmaz.</summary>
     Task<BranchDatabase?> GetAsync(string branchId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Şu an açık olan tüm branch veritabanlarının branch id'leri.
+    ///
+    /// Kota kontrolü için: kullanıcının kaç veritabanı açtığını saymanın tek yolu
+    /// bu. Branch başına <see cref="GetAsync"/> çağırmak, kullanıcının her branch'i
+    /// için ayrı bir Docker sorgusu demek olurdu.
+    /// </summary>
+    Task<IReadOnlyList<string>> ListOpenBranchIdsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Veritabanını yok eder. Yoksa sessizce başarılı sayılır — "zaten yok" ile

@@ -290,6 +290,18 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
         return seed.TableRowCounts.Values.Sum();
     }
 
+    public async Task<IReadOnlyList<string>> ListOpenBranchIdsAsync(CancellationToken cancellationToken = default)
+    {
+        var containers = await _client.Containers.ListContainersAsync(
+            new ContainersListParameters { All = true }, cancellationToken);
+
+        return containers
+            .Where(c => c.Labels is not null && c.Labels.ContainsKey(BranchLabel))
+            .Select(c => c.Labels[BranchLabel])
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
     public async Task DestroyAsync(string branchId, CancellationToken cancellationToken = default)
     {
         var container = await FindContainerAsync(branchId, cancellationToken);

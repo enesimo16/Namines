@@ -99,5 +99,15 @@ public class GatewayTablePermission
     public bool CanRead { get; set; }
     public bool CanWrite { get; set; }
 
+    /// <summary>
+    /// Virgülle ayrılmış kolon adları — API anahtarıyla okunduğunda değerleri
+    /// maskelenir (06 §4). Boşsa maskeleme yok.
+    ///
+    /// Tabloyu tamamen kapatmak yerine kolon maskelemek, geliştiricinin verinin
+    /// ŞEKLİYLE çalışmasını sağlar: satır sayısı, birleştirmeler ve dağılım
+    /// gerçek kalır, kişisel içerik kalmaz.
+    /// </summary>
+    public string? MaskedColumns { get; set; }
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
