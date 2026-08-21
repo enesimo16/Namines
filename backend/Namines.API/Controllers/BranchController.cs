@@ -43,6 +43,7 @@ public class CommitSchemaVersionRequest
 /// </summary>
 [ApiController]
 public sealed record ProvisionBranchDatabaseRequest(DatabaseType Engine = DatabaseType.PostgreSQL);
+public sealed record SeedBranchDatabaseRequest(int RowsPerTable = 25);
 
 [Route("api/[controller]")]
 [Authorize]
@@ -381,6 +382,56 @@ public class BranchController : ControllerBase
         return database is null
             ? NotFound(new { error = "Bu branch'in canlı veritabanı yok." })
             : Ok(Describe(database));
+    }
+
+    /// <summary>
+    /// Branch veritabanını örnek veriyle doldurur.
+    ///
+    /// Sağlamadan AYRI: şeması olan ama boş bir veritabanı pek işe yaramıyor, ama
+    /// tohumlama da her zaman istenmez. Kararı kullanıcı verir.
+    /// </summary>
+    [HttpPost("{branchId}/database/seed")]
+    public async Task<IActionResult> SeedDatabase(string branchId, [FromBody] SeedBranchDatabaseRequest request, CancellationToken cancellationToken)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
+        if (branch is null) return NotFound(new { error = "Branch bulunamadı." });
+        if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
+            return NotFound(new { error = "Branch bulunamadı." });
+
+        var latest = await _context.SchemaVersions
+            .Where(v => v.BranchId == branchId)
+            .OrderByDescending(v => v.Version)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (latest is null)
+            return BadRequest(new { error = "Bu branch'te henüz bir şema sürümü yok." });
+
+        DatabaseSchema schema;
+        try
+        {
+            schema = JsonSerializer.Deserialize<DatabaseSchema>(latest.SchemaJson, SchemaJsonOptions)
+                     ?? new DatabaseSchema();
+        }
+        catch (JsonException)
+        {
+            return BadRequest(new { error = "Branch şeması okunamadı." });
+        }
+
+        // Üst sınır bilinçli: tek istekle branch veritabanını şişirmek kolay olmamalı.
+        var rows = Math.Clamp(request.RowsPerTable, 1, 500);
+
+        try
+        {
+            var inserted = await _databases.SeedAsync(branchId, schema, rows, cancellationToken);
+            return Ok(new { rowsInserted = inserted });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpDelete("{branchId}/database")]

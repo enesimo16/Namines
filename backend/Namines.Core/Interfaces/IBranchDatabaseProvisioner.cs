@@ -40,6 +40,22 @@ public interface IBranchDatabaseProvisioner
     Task DestroyAsync(string branchId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Branch veritabanına örnek veri yazar ve eklenen satır sayısını döner.
+    ///
+    /// Neden ayrı bir adım: şeması olan ama BOŞ bir veritabanı pratikte pek işe
+    /// yaramıyor — geliştirici bağlanıyor, bakacak bir şey bulamıyor. Ama tohumlama
+    /// her zaman istenmez (gerçek veriyle çalışılan bir branch'te istenmez), o yüzden
+    /// sağlama ile birleştirilmedi.
+    ///
+    /// Üretim DETERMİNİSTİKTİR: yapay zekâ çağrısı yapılmaz. Bir geliştirme
+    /// veritabanını doldurmak için API anahtarı gerektirmek ve her çalıştırmada
+    /// farklı veri üretmek, özelliği hem kırılgan hem tekrar edilemez yapardı.
+    /// </summary>
+    Task<int> SeedAsync(
+        string branchId, DatabaseSchema schema, int rowsPerTable = 25,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Süresi dolmuş branch veritabanlarını temizler ve kaç tane kapatıldığını döner.
     /// Bir zaman aşımı olmadan bu container'lar host'u doldurur.
     /// </summary>

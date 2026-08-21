@@ -90,15 +90,9 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
 
     private async Task<DatabaseSchema> IntrospectMssqlAsync(string cs, CancellationToken ct)
     {
-        var builder = new SqlConnectionStringBuilder(cs)
-        {
-            ConnectTimeout = ConnectTimeoutSeconds,
-            // Güvenlik: yerel Windows hesaplarıyla SSPI üzerinden erişimi kapat.
-            IntegratedSecurity = false,
-        };
-
-        await using var conn = new SqlConnection(builder.ConnectionString);
-        await conn.OpenAsync(ct);
+        // Sertleştirme (zaman aşımı, TLS, salt-okunur oturum) tek kapıdan —
+        // introspection ASLA yazmaz, o yüzden readOnly her zaman true.
+        await using var conn = await UserDbConnection.OpenAsync(cs, "MSSQL", readOnly: true, ct);
 
         const string sql = """
             SELECT
@@ -137,14 +131,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
 
     private async Task<DatabaseSchema> IntrospectPostgresAsync(string cs, CancellationToken ct)
     {
-        var builder = new NpgsqlConnectionStringBuilder(cs)
-        {
-            Timeout = ConnectTimeoutSeconds,
-            CommandTimeout = (int)QueryTimeout.TotalSeconds,
-        };
-
-        await using var conn = new NpgsqlConnection(builder.ConnectionString);
-        await conn.OpenAsync(ct);
+        await using var conn = await UserDbConnection.OpenAsync(cs, "PostgreSQL", readOnly: true, ct);
 
         const string sql = """
             SELECT
@@ -174,21 +161,14 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY c.table_name, c.ordinal_position
             """;
 
-        return await BuildSchemaAsync(conn, sql, builder.Database ?? conn.Database, ct);
+        return await BuildSchemaAsync(conn, sql, conn.Database, ct);
     }
 
     // ── MySQL / MariaDB ───────────────────────────────────────────────────────
 
     private async Task<DatabaseSchema> IntrospectMySqlAsync(string cs, CancellationToken ct)
     {
-        var builder = new MySqlConnectionStringBuilder(cs)
-        {
-            ConnectionTimeout = ConnectTimeoutSeconds,
-            DefaultCommandTimeout = (uint)QueryTimeout.TotalSeconds,
-        };
-
-        await using var conn = new MySqlConnection(builder.ConnectionString);
-        await conn.OpenAsync(ct);
+        await using var conn = await UserDbConnection.OpenAsync(cs, "MySQL", readOnly: true, ct);
 
         const string sql = """
             SELECT
@@ -207,15 +187,14 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION
             """;
 
-        return await BuildSchemaAsync(conn, sql, builder.Database ?? conn.Database, ct);
+        return await BuildSchemaAsync(conn, sql, conn.Database, ct);
     }
 
     // ── Oracle ────────────────────────────────────────────────────────────────
 
     private async Task<DatabaseSchema> IntrospectOracleAsync(string cs, CancellationToken ct)
     {
-        await using var conn = new OracleConnection(cs);
-        await conn.OpenAsync(ct);
+        await using var conn = await UserDbConnection.OpenAsync(cs, "Oracle", readOnly: true, ct);
 
         const string sql = """
             SELECT

@@ -51,6 +51,7 @@ public static class ServiceCollectionExtensions
         // yaşar, bellekte değil — süreç yeniden başlasa bile branch veritabanları
         // bulunabilir kalır.
         services.AddSingleton<IBranchDatabaseProvisioner, BranchDatabaseProvisioner>();
+        services.AddScoped<IDbPrivilegeInspector, DbPrivilegeInspector>();
         services.AddScoped<IDocumentationGenerator, DocumentationGeneratorService>();
         
         services.AddSingleton<DockerJobManager>();

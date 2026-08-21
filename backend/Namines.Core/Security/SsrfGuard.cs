@@ -42,6 +42,34 @@ public static class SsrfGuard
         return addresses.All(IsPublicAddress);
     }
 
+    /// <summary>
+    /// Host'un KESİN OLARAK özel/loopback olduğunu doğrular.
+    ///
+    /// <see cref="IsHostSafe"/>'in tersi DEĞİLDİR: orası "hepsi public mi?" diye
+    /// sorar ve çözülemeyen bir ada da false der. Çağıranın "özel mi?" sorusunu
+    /// onun olumsuzuyla cevaplamak, BİLİNMEYEN bir host'u özel saymak olurdu —
+    /// TLS zorunluluğu gibi kararlarda bu, varsayılanı güvensiz tarafa düşürür.
+    /// Burada bilinmeyen host özel SAYILMAZ.
+    /// </summary>
+    public static bool IsHostPrivate(string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host)) return false;
+
+        IPAddress[] addresses;
+        if (IPAddress.TryParse(host, out var literal))
+        {
+            addresses = new[] { literal };
+        }
+        else
+        {
+            try { addresses = Dns.GetHostAddresses(host); }
+            catch { return false; }
+            if (addresses.Length == 0) return false;
+        }
+
+        return addresses.All(ip => !IsPublicAddress(ip));
+    }
+
     private static bool IsPublicAddress(IPAddress ip)
     {
         if (IPAddress.IsLoopback(ip)) return false;

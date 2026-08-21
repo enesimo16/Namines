@@ -1,4 +1,9 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Http;
+using Namines.Core.Interfaces;
+using Namines.Infrastructure.AI;
 using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Infrastructure.Generators.DdlGenerator;
@@ -27,7 +32,21 @@ namespace Namines.Tests.RunTests;
 public class BranchDatabaseProvisionerTests
 {
     private static BranchDatabaseProvisioner Provisioner() =>
-        new(new DdlGeneratorFactory(), NullLogger<BranchDatabaseProvisioner>.Instance);
+        new(new DdlGeneratorFactory(), SeedService(), NullLogger<BranchDatabaseProvisioner>.Instance);
+
+    /// <summary>
+    /// GERÇEK <see cref="SmartSeedService"/>. Groq bağımlılığı sahte nesnelerle
+    /// karşılanıyor ama hiç kullanılmıyor: provisioner tohumlamayı her zaman
+    /// <c>forceDeterministic</c> ile çağırır ve o dal yapay zekâya hiç gitmez.
+    /// Sahte bir seed servisi koymak, testin asıl doğruladığı şeyi — üretilen
+    /// INSERT'lerin gerçek motorda çalışmasını — kaybettirirdi.
+    /// </summary>
+    private static ISmartSeedService SeedService() =>
+        new SmartSeedService(new GroqAIService(
+            new HttpClient(),
+            new ConfigurationBuilder().Build(),
+            new HttpContextAccessor(),
+            new MemoryCache(new MemoryCacheOptions())));
 
     private static DatabaseSchema UsersSchema() => new()
     {
@@ -194,5 +213,44 @@ public class BranchDatabaseProvisionerTests
         // adı doğrudan geçseydi "feature/x" gibi tamamen normal bir ad oluşturmayı
         // bozardı.
         Assert.Equal(expected, BranchDatabaseProvisioner.Sanitize(input));
+    }
+
+    [RequiresDockerFact]
+    public async Task Seeding_fills_the_branch_database_with_rows()
+    {
+        // Şeması olan ama boş bir veritabanı pratikte pek işe yaramıyor; bu testin
+        // doğruladığı şey tam olarak o boşluğun kapandığı.
+        var branchId = "test-" + Guid.NewGuid().ToString("N")[..8];
+        var provisioner = Provisioner();
+
+        try
+        {
+            var db = await provisioner.ProvisionAsync(branchId, UsersSchema(), DatabaseType.PostgreSQL);
+
+            var inserted = await provisioner.SeedAsync(branchId, UsersSchema(), rowsPerTable: 5);
+            Assert.True(inserted > 0);
+
+            await using var conn = new NpgsqlConnection(db.ConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM users";
+
+            // Bildirilen sayı ile veritabanındaki gerçek satır sayısı uyuşmalı:
+            // "tohumlandı" deyip boş bir tablo bırakmak, en kötü türden sessiz hata.
+            Assert.True(Convert.ToInt64(await cmd.ExecuteScalarAsync()) > 0);
+        }
+        finally
+        {
+            await provisioner.DestroyAsync(branchId);
+        }
+    }
+
+    [RequiresDockerFact]
+    public async Task Seeding_without_a_database_says_so_instead_of_failing_obscurely()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Provisioner().SeedAsync("test-" + Guid.NewGuid().ToString("N")[..8], UsersSchema()));
+
+        Assert.Contains("Provision", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 }

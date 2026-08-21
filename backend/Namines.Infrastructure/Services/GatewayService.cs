@@ -59,7 +59,7 @@ public sealed class GatewayService : IGatewayService
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200); // sınırsız sayfa boyutu = kaza ile tüm tabloyu dökme riski
 
-        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, cancellationToken);
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: true, cancellationToken);
 
         // COUNT(*) büyük tabloda tam tarama — her sayfa gezinmesinde tekrarlamak yerine
         // yalnızca istendiğinde (ilk yükleme) hesaplanır. -1 = "önceki değeri koru".
@@ -92,7 +92,7 @@ public sealed class GatewayService : IGatewayService
         ValidateIdentifierOrThrow(tableName, nameof(tableName));
         ValidateIdentifierOrThrow(pkColumn, nameof(pkColumn));
 
-        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, cancellationToken);
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: true, cancellationToken);
 
         var sql = BuildDetailSql(dbType, tableName, pkColumn);
         await using var cmd = CreateCommand(conn, dbType);
@@ -114,7 +114,7 @@ public sealed class GatewayService : IGatewayService
         ValidateIdentifierOrThrow(tableName, nameof(tableName));
         var columns = ValidateColumns(values);
 
-        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, cancellationToken);
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: false, cancellationToken);
         await using var tx = await conn.BeginTransactionAsync(cancellationToken);
 
         await using var cmd = CreateCommand(conn, dbType);
@@ -154,7 +154,7 @@ public sealed class GatewayService : IGatewayService
         ValidateIdentifierOrThrow(pkColumn, nameof(pkColumn));
         var columns = ValidateColumns(values);
 
-        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, cancellationToken);
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: false, cancellationToken);
 
         return await ExecuteGuardedWriteAsync(conn, dbType, cancellationToken, cmd =>
         {
@@ -172,7 +172,7 @@ public sealed class GatewayService : IGatewayService
         ValidateIdentifierOrThrow(tableName, nameof(tableName));
         ValidateIdentifierOrThrow(pkColumn, nameof(pkColumn));
 
-        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, cancellationToken);
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: false, cancellationToken);
 
         return await ExecuteGuardedWriteAsync(conn, dbType, cancellationToken, cmd =>
         {
@@ -512,7 +512,14 @@ public sealed class GatewayService : IGatewayService
 
     // ── Bağlantı açma — DbIntrospectionService ile aynı SSRF/timeout deseni ────
 
-    private async Task<DbConnection> OpenGuardedConnectionAsync(string connectionString, string dbType, CancellationToken ct)
+    /// <param name="readOnly">
+    /// Okuma uçları için true. PostgreSQL ve MySQL'de oturum salt-okunura çekilir —
+    /// yani liste/detay yolundaki bir SQL üretim hatası bile veri YAZAMAZ. 06 §5'in
+    /// "salt-okunur mod varsayılan, yazma için açık onay" kuralı budur; yazma uçları
+    /// bunu bilinçli olarak false geçer.
+    /// </param>
+    private async Task<DbConnection> OpenGuardedConnectionAsync(
+        string connectionString, string dbType, bool readOnly, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(dbType);
@@ -523,28 +530,6 @@ public sealed class GatewayService : IGatewayService
         if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
             throw new InvalidOperationException(denyReason);
 
-        DbConnection conn = dbType.ToUpperInvariant() switch
-        {
-            "MSSQL" or "SQLSERVER" => new SqlConnection(new SqlConnectionStringBuilder(connectionString)
-            {
-                ConnectTimeout = ConnectTimeoutSeconds,
-                IntegratedSecurity = false,
-            }.ConnectionString),
-            "POSTGRESQL" or "POSTGRES" => new NpgsqlConnection(new NpgsqlConnectionStringBuilder(connectionString)
-            {
-                Timeout = ConnectTimeoutSeconds,
-                CommandTimeout = (int)QueryTimeout.TotalSeconds,
-            }.ConnectionString),
-            "MYSQL" or "MARIADB" => new MySqlConnection(new MySqlConnectionStringBuilder(connectionString)
-            {
-                ConnectionTimeout = ConnectTimeoutSeconds,
-                DefaultCommandTimeout = (uint)QueryTimeout.TotalSeconds,
-            }.ConnectionString),
-            "ORACLE" => new OracleConnection(connectionString),
-            _ => throw new NotSupportedException($"Database type '{dbType}' is not supported by the Gateway."),
-        };
-
-        await conn.OpenAsync(ct);
-        return conn;
+        return await UserDbConnection.OpenAsync(connectionString, dbType, readOnly, ct);
     }
 }

@@ -48,6 +48,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 {
     private readonly DockerClient _client;
     private readonly IDdlGeneratorFactory _ddlFactory;
+    private readonly ISmartSeedService _seedService;
     private readonly ILogger<BranchDatabaseProvisioner> _logger;
 
     /// <summary>Container adı branch'i taşır — süpürücü ve "zaten var mı" kontrolü buna bakar.</summary>
@@ -64,9 +65,11 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
     private const string DatabaseName = "naminesdb";
 
     public BranchDatabaseProvisioner(
-        IDdlGeneratorFactory ddlFactory, ILogger<BranchDatabaseProvisioner> logger)
+        IDdlGeneratorFactory ddlFactory, ISmartSeedService seedService,
+        ILogger<BranchDatabaseProvisioner> logger)
     {
         _ddlFactory = ddlFactory;
+        _seedService = seedService;
         _logger = logger;
 
         var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
@@ -195,6 +198,59 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
         return new BranchDatabase(
             branchId, engine, "127.0.0.1", port, DatabaseName,
             UsernameFor(engine), password ?? string.Empty, expiresAt);
+    }
+
+    public async Task<int> SeedAsync(
+        string branchId, DatabaseSchema schema, int rowsPerTable = 25,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+
+        var database = await GetAsync(branchId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                "This branch has no live database yet. Provision one before seeding.");
+
+        var container = await FindContainerAsync(branchId, cancellationToken)
+            ?? throw new InvalidOperationException("The branch database container disappeared.");
+
+        // forceDeterministic: yapay zekâ çağrısı YOK — bkz. arayüz yorumu.
+        var seed = await _seedService.GenerateSmartSeedAsync(
+            schema, database.Engine, domainHint: null, rowCount: rowsPerTable, forceDeterministic: true);
+
+        if (string.IsNullOrWhiteSpace(seed.SqlScript)) return 0;
+
+        using var tar = DockerTarFile.SingleFile("seed.sql", seed.SqlScript);
+        await _client.Containers.ExtractArchiveToContainerAsync(
+            container.ID, new ContainerPathStatParameters { Path = "/tmp" }, tar, cancellationToken);
+
+        var command = database.Engine switch
+        {
+            DatabaseType.PostgreSQL => new[]
+            {
+                "sh", "-c",
+                $"PGPASSWORD={database.Password} psql -U {database.Username} -d {DatabaseName} " +
+                "-f /tmp/seed.sql -v ON_ERROR_STOP=1",
+            },
+            DatabaseType.MySQL => new[]
+            {
+                "sh", "-c", $"mysql -u {database.Username} -p\"{database.Password}\" {DatabaseName} < /tmp/seed.sql",
+            },
+            DatabaseType.MSSQL => new[]
+            {
+                "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", database.Username,
+                "-P", database.Password, "-C", "-b", "-d", DatabaseName, "-i", "/tmp/seed.sql",
+            },
+            _ => throw new NotSupportedException(),
+        };
+
+        var (exit, output) = await ExecAsync(container.ID, command, cancellationToken);
+
+        // Yarım uygulanmış tohum verisi sessizce "başarılı" sayılmamalı: kullanıcı
+        // eksik veriyle çalışıp yanlış sonuca varır. ON_ERROR_STOP / -b bunu garanti eder.
+        if (exit != 0)
+            throw new InvalidOperationException($"The seed data could not be applied: {output}");
+
+        return seed.TableRowCounts.Values.Sum();
     }
 
     public async Task DestroyAsync(string branchId, CancellationToken cancellationToken = default)
