@@ -4,6 +4,7 @@ import { SchemaDiffResult, MigrationResult } from '../types/migration';
 import { ChangeRequestSummary, ChangeRequestDetail, ApprovalDecision, ChangeRequestStatus, AffectedCodeScanResult, ChangeRequestAuditEntry } from '../types/changeRequest';
 import { GatewayListResult, GatewayRow } from '../types/gateway';
 import { ProjectMember, OrgRole } from '../types/member';
+import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 import { useSchemaStore } from '../store/useSchemaStore';
@@ -227,6 +228,48 @@ export const memberService = {
 
   remove: async (projectId: string, memberUserId: string): Promise<void> => {
     await api.delete(`/project/${projectId}/members/${memberUserId}`);
+  },
+};
+
+/**
+ * Gateway API anahtarları ve tablo izinleri (08 §4.3).
+ *
+ * Anahtar yönetimi OTURUMLA korunur, API anahtarıyla değil: bir anahtarın kendi
+ * yetkisini genişletebilmesi ya da yeni anahtar üretebilmesi, anahtar
+ * sınırlamasının tamamını anlamsız kılardı.
+ */
+export const gatewayKeyService = {
+  list: async (projectId: string): Promise<GatewayKey[]> => {
+    const response = await api.get<GatewayKey[]>(`/gateway/keys/${projectId}`);
+    return response.data;
+  },
+
+  create: async (
+    projectId: string,
+    name: string,
+    canWrite: boolean,
+    expiresAt: string | null,
+  ): Promise<GatewayKeyCreated> => {
+    const response = await api.post(`/gateway/keys/${projectId}`, { name, canWrite, expiresAt });
+    return response.data;
+  },
+
+  revoke: async (projectId: string, keyId: string): Promise<void> => {
+    await api.delete(`/gateway/keys/${projectId}/${keyId}`);
+  },
+
+  listTables: async (projectId: string): Promise<GatewayTablePermission[]> => {
+    const response = await api.get<GatewayTablePermission[]>(`/gateway/keys/${projectId}/tables`);
+    return response.data;
+  },
+
+  setTable: async (
+    projectId: string,
+    tableName: string,
+    canRead: boolean,
+    canWrite: boolean,
+  ): Promise<void> => {
+    await api.put(`/gateway/keys/${projectId}/tables`, { tableName, canRead, canWrite });
   },
 };
 

@@ -285,4 +285,71 @@ public class GatewayWriteExecutionTests : IAsyncLifetime
         Assert.NotNull(row);
         Assert.Equal("shipped", row!.Values["status"]?.ToString());
     }
+
+    [RequiresDockerFact]
+    public async Task Or_groups_narrow_correctly_against_a_real_engine()
+    {
+        await SeedOrdersAsync();
+        await ExecuteAsync("INSERT INTO orders (status, note) VALUES ('cancelled','d')");
+
+        // (status = paid OR status = cancelled) — 2 paid + 1 cancelled = 3
+        var groups = new List<GatewayFilterGroup>
+        {
+            new(new List<GatewayFilter>
+            {
+                new("status", GatewayOperator.Eq, new string?[] { "paid" }),
+                new("status", GatewayOperator.Eq, new string?[] { "cancelled" }),
+            }),
+        };
+
+        var result = await Service().ListAsync(
+            ConnectionString, "PostgreSQL", "orders", 1, 25, "id", true,
+            GatewaySortDirection.Asc, filters: null, orGroups: groups);
+
+        Assert.Equal(3, result.Rows.Count);
+        Assert.Equal(3, result.TotalCount);
+    }
+
+    [RequiresDockerFact]
+    public async Task An_and_filter_combined_with_an_or_group_keeps_its_meaning()
+    {
+        // Parantezleme hatası tam burada görünür: parantezsiz yazılsaydı
+        // "note='a' AND status='paid' OR status='shipped'" olur ve shipped satırı
+        // note filtresini atlayarak sonuca girerdi.
+        await SeedOrdersAsync();
+
+        var filters = new List<GatewayFilter> { new("note", GatewayOperator.Eq, new string?[] { "a" }) };
+        var groups = new List<GatewayFilterGroup>
+        {
+            new(new List<GatewayFilter>
+            {
+                new("status", GatewayOperator.Eq, new string?[] { "paid" }),
+                new("status", GatewayOperator.Eq, new string?[] { "shipped" }),
+            }),
+        };
+
+        var result = await Service().ListAsync(
+            ConnectionString, "PostgreSQL", "orders", 1, 25, "id", true,
+            GatewaySortDirection.Asc, filters, groups);
+
+        Assert.Single(result.Rows);
+        Assert.Equal("a", result.Rows[0].Values["note"]?.ToString());
+    }
+
+    [RequiresDockerFact]
+    public async Task Select_returns_only_the_requested_columns()
+    {
+        await SeedOrdersAsync();
+
+        var result = await Service().ListAsync(
+            ConnectionString, "PostgreSQL", "orders", 1, 25, "id", false,
+            GatewaySortDirection.Asc, filters: null, orGroups: null,
+            selectColumns: new[] { "id", "status" });
+
+        Assert.NotEmpty(result.Rows);
+        // "note" hiç okunmamalı: istemcinin istemediği bir kolonu döndürmek onu
+        // istemeden loglara/önbelleğe taşıyabilir.
+        Assert.False(result.Rows[0].Values.ContainsKey("note"));
+        Assert.True(result.Rows[0].Values.ContainsKey("status"));
+    }
 }

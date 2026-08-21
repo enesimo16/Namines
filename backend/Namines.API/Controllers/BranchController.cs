@@ -41,10 +41,10 @@ public class CommitSchemaVersionRequest
 /// Mevcut AuthController deseniyle tutarlı: ayrı bir servis katmanı yok, doğrudan
 /// AuthDbContext + sahiplik kontrolü (CloudProject.UserId == giriş yapan kullanıcı).
 /// </summary>
-[ApiController]
 public sealed record ProvisionBranchDatabaseRequest(DatabaseType Engine = DatabaseType.PostgreSQL);
 public sealed record SeedBranchDatabaseRequest(int RowsPerTable = 25);
 
+[ApiController]
 [Route("api/[controller]")]
 [Authorize]
 public class BranchController : ControllerBase

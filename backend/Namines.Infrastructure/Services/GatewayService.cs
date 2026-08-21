@@ -52,6 +52,8 @@ public sealed class GatewayService : IGatewayService
         bool includeTotalCount = true,
         GatewaySortDirection sortDirection = GatewaySortDirection.Asc,
         IReadOnlyList<GatewayFilter>? filters = null,
+        IReadOnlyList<GatewayFilterGroup>? orGroups = null,
+        IReadOnlyList<string>? selectColumns = null,
         CancellationToken cancellationToken = default)
     {
         ValidateIdentifierOrThrow(tableName, nameof(tableName));
@@ -66,10 +68,12 @@ public sealed class GatewayService : IGatewayService
         // Filtreler COUNT'a da uygulanır: aksi hâlde sayfalama çubuğu, filtrelenmiş
         // listeyle çelişen bir toplam gösterirdi.
         var totalCount = includeTotalCount
-            ? await CountAsync(conn, dbType, tableName, filters, cancellationToken)
+            ? await CountAsync(conn, dbType, tableName, filters, orGroups, cancellationToken)
             : -1L;
 
-        var (sql, bind) = BuildListSql(dbType, tableName, page, pageSize, orderByColumn, sortDirection, filters);
+        var (sql, bind) = BuildListSql(
+            dbType, tableName, page, pageSize, orderByColumn, sortDirection,
+            filters, orGroups, selectColumns);
         await using var cmd = CreateCommand(conn, dbType);
         cmd.CommandText = sql;
         cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
@@ -305,13 +309,16 @@ public sealed class GatewayService : IGatewayService
     internal static (string Sql, Action<DbCommand> Bind) BuildListSql(
         string dbType, string tableName, int page, int pageSize, string? orderByColumn = null,
         GatewaySortDirection sortDirection = GatewaySortDirection.Asc,
-        IReadOnlyList<GatewayFilter>? filters = null)
+        IReadOnlyList<GatewayFilter>? filters = null,
+        IReadOnlyList<GatewayFilterGroup>? orGroups = null,
+        IReadOnlyList<string>? selectColumns = null)
     {
         var table = Quote(dbType, tableName);
         var skip = (page - 1) * pageSize;
         var engine = dbType.ToUpperInvariant();
 
-        var where = BuildWhere(dbType, filters, out var bindFilters);
+        var where = BuildWhere(dbType, filters, orGroups, out var bindFilters);
+        var projection = BuildProjection(dbType, selectColumns);
 
         // Yön SQL'e ENUM'dan yazılır, kullanıcı metninden değil.
         var direction = sortDirection == GatewaySortDirection.Desc ? " DESC" : " ASC";
@@ -324,16 +331,16 @@ public sealed class GatewayService : IGatewayService
         return engine switch
         {
             "MSSQL" or "SQLSERVER" => (
-                $"SELECT * FROM {table}{where}{order} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY",
+                $"SELECT {projection} FROM {table}{where}{order} OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY",
                 (DbCommand cmd) => { bindFilters(cmd); AddParameter(cmd, dbType, "skip", skip); AddParameter(cmd, dbType, "take", pageSize); }),
             "POSTGRESQL" or "POSTGRES" or "SQLITE" => (
-                $"SELECT * FROM {table}{where}{order} LIMIT @take OFFSET @skip",
+                $"SELECT {projection} FROM {table}{where}{order} LIMIT @take OFFSET @skip",
                 (DbCommand cmd) => { bindFilters(cmd); AddParameter(cmd, dbType, "take", pageSize); AddParameter(cmd, dbType, "skip", skip); }),
             "MYSQL" or "MARIADB" => (
-                $"SELECT * FROM {table}{where}{order} LIMIT @skip, @take",
+                $"SELECT {projection} FROM {table}{where}{order} LIMIT @skip, @take",
                 (DbCommand cmd) => { bindFilters(cmd); AddParameter(cmd, dbType, "skip", skip); AddParameter(cmd, dbType, "take", pageSize); }),
             "ORACLE" => (
-                $"SELECT * FROM {table}{where}{order} OFFSET :skip ROWS FETCH NEXT :take ROWS ONLY",
+                $"SELECT {projection} FROM {table}{where}{order} OFFSET :skip ROWS FETCH NEXT :take ROWS ONLY",
                 (DbCommand cmd) => { bindFilters(cmd); AddParameter(cmd, dbType, "skip", skip); AddParameter(cmd, dbType, "take", pageSize); }),
             _ => throw new NotSupportedException($"Database type '{dbType}' is not supported by the Gateway."),
         };
@@ -348,13 +355,23 @@ public sealed class GatewayService : IGatewayService
     /// injection yüzeyini geri açardı.
     /// </summary>
     internal static string BuildWhere(
-        string dbType, IReadOnlyList<GatewayFilter>? filters, out Action<DbCommand> bind)
+        string dbType, IReadOnlyList<GatewayFilter>? filters, out Action<DbCommand> bind) =>
+        BuildWhere(dbType, filters, orGroups: null, out bind);
+
+    internal static string BuildWhere(
+        string dbType, IReadOnlyList<GatewayFilter>? filters,
+        IReadOnlyList<GatewayFilterGroup>? orGroups, out Action<DbCommand> bind)
     {
-        if (filters is null || filters.Count == 0)
+        var hasFilters = filters is { Count: > 0 };
+        var hasGroups = orGroups is not null && orGroups.Any(g => g.Any.Count > 0);
+
+        if (!hasFilters && !hasGroups)
         {
             bind = _ => { };
             return string.Empty;
         }
+
+        filters ??= Array.Empty<GatewayFilter>();
 
         var prefix = dbType.Equals("ORACLE", StringComparison.OrdinalIgnoreCase) ? ":" : "@";
         var clauses = new List<string>();
@@ -363,49 +380,26 @@ public sealed class GatewayService : IGatewayService
 
         foreach (var filter in filters)
         {
+            // Boş IN listesi motorlarda sözdizimi hatasıdır; RenderFilter bunu
+            // anlaşılır bir doğrulama hatasına çevirir.
             ValidateIdentifierOrThrow(filter.Column, "filter.Column");
-            var column = Quote(dbType, filter.Column);
+            clauses.Add(RenderFilter(dbType, filter, prefix, parameters, ref index));
+        }
 
-            switch (filter.Operator)
+        foreach (var group in orGroups ?? Array.Empty<GatewayFilterGroup>())
+        {
+            if (group.Any.Count == 0) continue;
+
+            var alternatives = new List<string>();
+            foreach (var filter in group.Any)
             {
-                case GatewayOperator.IsNull:
-                    clauses.Add($"{column} IS NULL");
-                    break;
-
-                case GatewayOperator.IsNotNull:
-                    clauses.Add($"{column} IS NOT NULL");
-                    break;
-
-                case GatewayOperator.In:
-                {
-                    // Boş IN listesi motorlarda SÖZDİZİMİ HATASIDIR. "Hiçbiri eşleşmesin"
-                    // demek isteniyorsa bunu ham SQL hatası olarak değil, anlaşılır bir
-                    // doğrulama hatası olarak bildir.
-                    if (filter.Values.Count == 0)
-                        throw new ArgumentException($"Filter on '{filter.Column}' uses IN with no values.");
-
-                    var names = new List<string>();
-                    foreach (var value in filter.Values)
-                    {
-                        var name = $"f{index++}";
-                        names.Add(prefix + name);
-                        parameters.Add((name, value));
-                    }
-                    clauses.Add($"{column} IN ({string.Join(", ", names)})");
-                    break;
-                }
-
-                default:
-                {
-                    if (filter.Values.Count == 0)
-                        throw new ArgumentException($"Filter on '{filter.Column}' has no value.");
-
-                    var name = $"f{index++}";
-                    parameters.Add((name, filter.Values[0]));
-                    clauses.Add($"{column} {ComparisonSql(filter.Operator)} {prefix}{name}");
-                    break;
-                }
+                ValidateIdentifierOrThrow(filter.Column, "filter.Column");
+                alternatives.Add(RenderFilter(dbType, filter, prefix, parameters, ref index));
             }
+
+            // Parantez ŞART: OR'lu bir grup parantezsiz yazılırsa, AND'in önceliği
+            // yüzünden anlam sessizce değişir ve filtre beklenenden fazla satır döndürür.
+            clauses.Add("(" + string.Join(" OR ", alternatives) + ")");
         }
 
         bind = cmd =>
@@ -414,6 +408,69 @@ public sealed class GatewayService : IGatewayService
         };
 
         return clauses.Count == 0 ? string.Empty : " WHERE " + string.Join(" AND ", clauses);
+    }
+
+    /// <summary>Tek bir filtrenin SQL parçası. AND listesi ve OR grupları aynı gövdeyi kullanır.</summary>
+    private static string RenderFilter(
+        string dbType, GatewayFilter filter, string prefix,
+        List<(string Name, object? Value)> parameters, ref int index)
+    {
+        var column = Quote(dbType, filter.Column);
+
+        switch (filter.Operator)
+        {
+            case GatewayOperator.IsNull:
+                return $"{column} IS NULL";
+
+            case GatewayOperator.IsNotNull:
+                return $"{column} IS NOT NULL";
+
+            case GatewayOperator.In:
+            {
+                if (filter.Values.Count == 0)
+                    throw new ArgumentException($"Filter on '{filter.Column}' uses IN with no values.");
+
+                var names = new List<string>();
+                foreach (var value in filter.Values)
+                {
+                    var name = $"f{index++}";
+                    names.Add(prefix + name);
+                    parameters.Add((name, value));
+                }
+                return $"{column} IN ({string.Join(", ", names)})";
+            }
+
+            default:
+            {
+                if (filter.Values.Count == 0)
+                    throw new ArgumentException($"Filter on '{filter.Column}' has no value.");
+
+                var name = $"f{index++}";
+                parameters.Add((name, filter.Values[0]));
+                return $"{column} {ComparisonSql(filter.Operator)} {prefix}{name}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Kolon projeksiyonu (08 §2.1 <c>select=</c>).
+    ///
+    /// Kolon adları tanımlayıcı doğrulamasından geçer ve quote'lanır; liste boşsa
+    /// <c>*</c> döner. Projeksiyon yalnızca ağ trafiğini azaltmaz — istemcinin
+    /// ihtiyaç duymadığı kolonları hiç okumaması, kaza ile hassas bir alanı
+    /// loglara taşımasını da engeller.
+    /// </summary>
+    internal static string BuildProjection(string dbType, IReadOnlyList<string>? columns)
+    {
+        if (columns is null || columns.Count == 0) return "*";
+
+        var quoted = new List<string>();
+        foreach (var column in columns)
+        {
+            ValidateIdentifierOrThrow(column, "select");
+            quoted.Add(Quote(dbType, column));
+        }
+        return string.Join(", ", quoted);
     }
 
     private static string ComparisonSql(GatewayOperator op) => op switch
@@ -439,7 +496,13 @@ public sealed class GatewayService : IGatewayService
     internal static string BuildCountSql(
         string dbType, string tableName,
         IReadOnlyList<GatewayFilter>? filters, out Action<DbCommand> bind) =>
-        $"SELECT COUNT(*) FROM {Quote(dbType, tableName)}{BuildWhere(dbType, filters, out bind)}";
+        BuildCountSql(dbType, tableName, filters, orGroups: null, out bind);
+
+    internal static string BuildCountSql(
+        string dbType, string tableName,
+        IReadOnlyList<GatewayFilter>? filters, IReadOnlyList<GatewayFilterGroup>? orGroups,
+        out Action<DbCommand> bind) =>
+        $"SELECT COUNT(*) FROM {Quote(dbType, tableName)}{BuildWhere(dbType, filters, orGroups, out bind)}";
 
     private static void AddParameter(DbCommand cmd, string dbType, string name, object? value)
     {
@@ -475,10 +538,11 @@ public sealed class GatewayService : IGatewayService
 
     private static async Task<long> CountAsync(
         DbConnection conn, string dbType, string tableName,
-        IReadOnlyList<GatewayFilter>? filters, CancellationToken ct)
+        IReadOnlyList<GatewayFilter>? filters, IReadOnlyList<GatewayFilterGroup>? orGroups,
+        CancellationToken ct)
     {
         await using var cmd = CreateCommand(conn, dbType);
-        cmd.CommandText = BuildCountSql(dbType, tableName, filters, out var bind);
+        cmd.CommandText = BuildCountSql(dbType, tableName, filters, orGroups, out var bind);
         cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
         bind(cmd);
         var result = await cmd.ExecuteScalarAsync(ct);

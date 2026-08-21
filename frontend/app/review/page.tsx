@@ -9,6 +9,7 @@ import { changeRequestService, authService } from '../../services/api';
 import { ChangeRequestSummary, RiskLevel } from '../../types/changeRequest';
 import { useToastStore } from '../../store/useToastStore';
 import TeamPanel from '../../components/review/TeamPanel';
+import GatewayKeyPanel from '../../components/review/GatewayKeyPanel';
 
 const RISK_LABEL: Record<RiskLevel, string> = {
   Safe: 'SAFE',
@@ -120,6 +121,12 @@ export default function ChangeRequestListPage() {
         {isAuthenticated && activeProjectId && (
           <div className="mb-6">
             <TeamPanel projectId={activeProjectId} currentUserEmail={currentUserEmail} />
+          </div>
+        )}
+
+        {isAuthenticated && activeProjectId && (
+          <div className="mb-6">
+            <GatewayKeyPanel projectId={activeProjectId} />
           </div>
         )}
 

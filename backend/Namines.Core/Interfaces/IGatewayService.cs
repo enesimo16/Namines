@@ -16,12 +16,16 @@ public interface IGatewayService
     /// Uygulanacak filtreler. COUNT da AYNI filtrelerle çalışır — aksi hâlde sayfalama
     /// çubuğu filtrelenmiş listeyle çelişen bir toplam gösterirdi.
     /// </param>
+    /// <param name="orGroups">Her grup kendi içinde OR, gruplar birbiriyle AND.</param>
+    /// <param name="selectColumns">Boşsa tüm kolonlar döner.</param>
     Task<GatewayListResult> ListAsync(
         string connectionString, string dbType, string tableName,
         int page, int pageSize, string? orderByColumn = null,
         bool includeTotalCount = true,
         GatewaySortDirection sortDirection = GatewaySortDirection.Asc,
         IReadOnlyList<GatewayFilter>? filters = null,
+        IReadOnlyList<GatewayFilterGroup>? orGroups = null,
+        IReadOnlyList<string>? selectColumns = null,
         CancellationToken cancellationToken = default);
 
     Task<GatewayRow?> DetailAsync(

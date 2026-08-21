@@ -32,6 +32,16 @@ public sealed record GatewayFilter(
     GatewayOperator Operator,
     IReadOnlyList<string?> Values);
 
+/// <summary>
+/// İçindeki filtreler OR ile birleşir; gruplar birbiriyle ve tekil filtrelerle
+/// AND ile birleşir (08 §2.1 <c>?or=(...)</c>).
+///
+/// Serbest bir ifade grameri yerine bu sabit yapı bilinçli: keyfi derinlikte
+/// AND/OR ağacı, hem ayrıştırıcı hem de "bu sorgu ne kadar pahalı" tahmini
+/// gerektirir. İki seviye, pratikteki filtrelerin neredeyse tamamını karşılıyor.
+/// </summary>
+public sealed record GatewayFilterGroup(IReadOnlyList<GatewayFilter> Any);
+
 public enum GatewaySortDirection
 {
     Asc,

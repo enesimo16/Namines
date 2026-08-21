@@ -212,4 +212,96 @@ public class GatewayWriteTests
             return true;
         }
     }
+
+    // ── Sorgu dili: projeksiyon ve OR grupları (08 §2.1) ─────────────────────
+
+    [Fact]
+    public void No_select_list_returns_every_column()
+    {
+        Assert.Equal("*", GatewayService.BuildProjection("PostgreSQL", null));
+        Assert.Equal("*", GatewayService.BuildProjection("PostgreSQL", Array.Empty<string>()));
+    }
+
+    [Fact]
+    public void Select_quotes_each_column()
+    {
+        var projection = GatewayService.BuildProjection("MySQL", new[] { "id", "total" });
+        Assert.Equal("`id`, `total`", projection);
+    }
+
+    [Fact]
+    public void Select_columns_go_through_identifier_validation()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            GatewayService.BuildProjection("PostgreSQL", new[] { "id, (SELECT password FROM users)" }));
+    }
+
+    [Fact]
+    public void An_or_group_is_parenthesised()
+    {
+        // Parantezsiz yazılırsa AND'in önceliği yüzünden anlam SESSİZCE değişir ve
+        // filtre beklenenden fazla satır döndürür — sessiz yanlış sonuç.
+        var filters = new List<GatewayFilter> { new("tenant_id", GatewayOperator.Eq, new string?[] { "7" }) };
+        var groups = new List<GatewayFilterGroup>
+        {
+            new(new List<GatewayFilter>
+            {
+                new("status", GatewayOperator.Eq, new string?[] { "paid" }),
+                new("total", GatewayOperator.Gte, new string?[] { "1000" }),
+            }),
+        };
+
+        var where = GatewayService.BuildWhere("PostgreSQL", filters, groups, out _);
+
+        Assert.Equal(
+            " WHERE \"tenant_id\" = @f0 AND (\"status\" = @f1 OR \"total\" >= @f2)",
+            where);
+    }
+
+    [Fact]
+    public void Or_group_values_are_still_parameterised()
+    {
+        var groups = new List<GatewayFilterGroup>
+        {
+            new(new List<GatewayFilter> { new("status", GatewayOperator.Eq, new string?[] { "paid'; DROP TABLE t--" }) }),
+        };
+
+        var where = GatewayService.BuildWhere("PostgreSQL", null, groups, out _);
+        Assert.DoesNotContain("DROP", where);
+    }
+
+    [Fact]
+    public void An_empty_or_group_is_ignored_rather_than_producing_broken_sql()
+    {
+        var groups = new List<GatewayFilterGroup> { new(Array.Empty<GatewayFilter>()) };
+        Assert.Equal(string.Empty, GatewayService.BuildWhere("PostgreSQL", null, groups, out _));
+    }
+
+    [Fact]
+    public void Count_applies_or_groups_too()
+    {
+        // Liste ile COUNT ayrışırsa sayfalama çubuğu listeyle çelişir.
+        var groups = new List<GatewayFilterGroup>
+        {
+            new(new List<GatewayFilter>
+            {
+                new("status", GatewayOperator.Eq, new string?[] { "paid" }),
+                new("status", GatewayOperator.Eq, new string?[] { "shipped" }),
+            }),
+        };
+
+        var sql = GatewayService.BuildCountSql("PostgreSQL", "orders", null, groups, out _);
+        Assert.Contains("OR", sql);
+        Assert.StartsWith("SELECT COUNT(*)", sql);
+    }
+
+    [Fact]
+    public void List_sql_honours_the_select_list()
+    {
+        var (sql, _) = GatewayService.BuildListSql(
+            "PostgreSQL", "orders", 1, 25, "id", GatewaySortDirection.Asc,
+            filters: null, orGroups: null, selectColumns: new[] { "id", "status" });
+
+        Assert.StartsWith("SELECT \"id\", \"status\" FROM", sql);
+    }
 }

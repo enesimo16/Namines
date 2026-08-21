@@ -872,6 +872,53 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     metadata cache (§6). Anahtar/izin modeli bunların çoğunun ÖN KOŞULU olduğu için
     önce o yapıldı.
 
+- [x] **G27 — Gateway sorgu dili + anahtar yönetimi arayüzü ([08](08-GATEWAY-API.md) §2.1)** ✅ TAMAMLANDI
+  - `select` kolon projeksiyonu ve `or` grupları (§2.1). Projeksiyon yalnızca ağ
+    trafiğini azaltmıyor: istemcinin istemediği bir kolonu döndürmek onu istemeden
+    log'a/önbelleğe taşıyabilir.
+  - **OR grupları parantezleniyor.** Parantezsiz yazılırsa AND'in önceliği yüzünden
+    anlam SESSİZCE değişir ve filtre beklenenden fazla satır döndürür — gerçek
+    Postgres'e karşı yazılan test tam bu senaryoyu kilitliyor (`note='a'` AND
+    (paid OR shipped): parantezsiz hâlde shipped satırı note filtresini atlardı).
+  - Keyfi derinlikte AND/OR ağacı bilinçli YAPILMADI: hem ayrıştırıcı hem "bu sorgu
+    ne kadar pahalı" tahmini gerektirir; iki seviye pratikteki filtrelerin neredeyse
+    tamamını karşılıyor.
+  - `GatewayKeyPanel` (frontend/components/review) — anahtar üret/iptal + tablo
+    izinleri. Üretilen ham anahtar, kullanıcı kapatana kadar duran bir blokta
+    gösteriliyor (geçici bildirim değil): kaybolan anahtar geri getirilemez.
+    Tablo listesi varsayılan olarak boş görünüyor, çünkü izin satırı olmayan tablo
+    erişilemez demektir — kullanıcının "neden çalışmıyor" sorusuna cevap listenin
+    kendisi olmalı.
+  - ⚠️ **Bulunan hata (uygulamayı gerçekten çalıştırınca):** `ProvisionBranchDatabaseRequest`
+    record'u `[ApiController]` attribute'unun hemen altına düşmüştü; ASP.NET onu
+    controller sanıp "Action 'Equals' does not have an attribute route" ile
+    **uygulamanın açılmasını tamamen engelliyordu.** 584 test yeşilken bile
+    yakalanmamıştı, çünkü hiçbir test tam uygulamayı ayağa kaldırmıyor.
+  - **Uçtan uca doğrulama (gerçek HTTP, gerçek kontrol DB'si):** kullanıcı kaydı →
+    proje → anahtar üretimi (`nmn_…`, uyarı metniyle) → izin YOKKEN liste **403**
+    ("not allowed to read 'users'") → tabloyu okumaya aç → salt-okunur anahtarla
+    yazma denemesi **403** → `/tables` doğru satırı döndürdü → geçersiz anahtar
+    **401** → iptal sonrası **401** → şema sürümü sonrası `/openapi.json` **200**:
+    yalnızca `users` belgelendi (`password_resets` izinsiz olduğu için YOK),
+    yalnızca okuma yolları çıktı, `id` integer, `note` `["string","null"]`.
+  - ⚠️ **Doğrulanamayan:** `GatewayKeyPanel`'in canlı render'ı. JWT httpOnly
+    cookie'de tutuluyor (XSS'e karşı doğru tasarım), yani tarayıcıda oturum açmak
+    giriş formuna parola yazmayı gerektiriyordu. Tip kontrolü temiz ve component
+    mevcut `TeamPanel`/`PanelKit` desenini izliyor, ama gözle görülmedi.
+  - **Dokümandan bilinçli iki sapma:** (1) `Authorization: Bearer` yerine
+    `X-Namines-Key` — aynı uçlarda JWT de var, ikisini tek başlıkta taşımak "hangi
+    kimlik?" belirsizliği yaratıyordu. (2) argon2id yerine SHA-256 — argon2 DÜŞÜK
+    entropili parolalar için; burada anahtar 256-bit rastgele, argon2'nin yavaşlığı
+    hiçbir şey kazandırmaz, her isteğe gecikme ekler.
+  - **Kapsam dışı:** `expand` (ilişki gömme) — çalışma zamanında ŞEMA bilgisi ister,
+    ama Gateway durumsuz (istek başına bağlantı dizesi). Anahtar yolunda proje
+    biliniyor, oturum yolunda bilinmiyor; yalnızca bir kimlik yolunda çalışan bir
+    özellik, hiç olmamasından kötü. GraphQL, `/realtime`, export/import, `/rpc`,
+    `/query`, SDK üretimi, metadata cache de yapılmadı.
+  - **Neon (06 §3):** hesap gerektirdiği için yapılamadı. Geldiğinde YENİ BİR
+    SOYUTLAMA GEREKMİYOR — `IBranchDatabaseProvisioner`'ın ikinci bir
+    implementasyonu olarak takılır ve yapılandırmadan seçilir.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

@@ -21,7 +21,9 @@ public sealed record GatewayListRequest(
     int Page = 1, int PageSize = 25,
     string? OrderByColumn = null, bool IncludeTotalCount = true,
     GatewaySortDirection SortDirection = GatewaySortDirection.Asc,
-    IReadOnlyList<GatewayFilter>? Filters = null);
+    IReadOnlyList<GatewayFilter>? Filters = null,
+    IReadOnlyList<GatewayFilterGroup>? OrGroups = null,
+    IReadOnlyList<string>? Select = null);
 public sealed record GatewayDetailRequest(string ConnectionString, string DbType, string TableName, string PkColumn, string PkValue);
 
 public sealed record GatewayCreateRequest(
@@ -136,7 +138,7 @@ public class GatewayController : ControllerBase
                 request.ConnectionString, request.DbType, request.TableName,
                 request.Page, request.PageSize, request.OrderByColumn,
                 request.IncludeTotalCount, request.SortDirection, request.Filters,
-                cancellationToken);
+                request.OrGroups, request.Select, cancellationToken);
 
             return Ok(result);
         }
