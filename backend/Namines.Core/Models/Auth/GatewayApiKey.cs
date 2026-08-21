@@ -36,6 +36,30 @@ public class GatewayApiKey
     /// </summary>
     public bool CanWrite { get; set; }
 
+    /// <summary>
+    /// İzin verilen kaynaklar, virgülle ayrılmış (<c>https://app.musteri.com</c>).
+    /// Boşsa kısıt yok. Doluysa <c>Origin</c> başlığı taşımayan istek de reddedilir —
+    /// "origin kısıtla" diyen biri, başlığı hiç göndermeyen istemciye kapıyı açık
+    /// bırakmayı kastetmez.
+    /// </summary>
+    public string? AllowedOrigins { get; set; }
+
+    /// <summary>
+    /// İzin verilen kaynak adresler, virgülle ayrılmış düz IP ya da CIDR
+    /// (<c>1.2.3.4</c>, <c>10.0.0.0/8</c>). Boşsa kısıt yok.
+    ///
+    /// Uygulama güvenilen proxy ağları tanımlanmadan bir proxy arkasındaysa istemci
+    /// adresi taklit edilebilir; o durumda bu liste doluysa istek REDDEDİLİR
+    /// (bkz. <c>GatewayKeyRestrictions.IsIpAllowed</c>).
+    /// </summary>
+    public string? AllowedIps { get; set; }
+
+    /// <summary>
+    /// Dakikadaki istek sınırı. Null ise sunucunun genel politikası geçerli.
+    /// Anahtar başına sınır, tek bir istemcinin tüm kotayı tüketmesini engeller.
+    /// </summary>
+    public int? RateLimitPerMinute { get; set; }
+
     public string CreatedByUserId { get; set; } = null!;
     public ApplicationUser CreatedByUser { get; set; } = null!;
 

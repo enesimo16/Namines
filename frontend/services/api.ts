@@ -249,8 +249,15 @@ export const gatewayKeyService = {
     name: string,
     canWrite: boolean,
     expiresAt: string | null,
+    restrictions?: {
+      allowedOrigins?: string | null;
+      allowedIps?: string | null;
+      rateLimitPerMinute?: number | null;
+    },
   ): Promise<GatewayKeyCreated> => {
-    const response = await api.post(`/gateway/keys/${projectId}`, { name, canWrite, expiresAt });
+    const response = await api.post(`/gateway/keys/${projectId}`, {
+      name, canWrite, expiresAt, ...restrictions,
+    });
     return response.data;
   },
 

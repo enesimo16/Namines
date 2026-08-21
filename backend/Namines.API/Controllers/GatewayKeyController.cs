@@ -11,7 +11,13 @@ using Namines.Infrastructure.Data;
 
 namespace Namines.API.Controllers;
 
-public sealed record CreateGatewayKeyRequest(string Name, bool CanWrite = false, DateTime? ExpiresAt = null);
+public sealed record CreateGatewayKeyRequest(
+    string Name,
+    bool CanWrite = false,
+    DateTime? ExpiresAt = null,
+    string? AllowedOrigins = null,
+    string? AllowedIps = null,
+    int? RateLimitPerMinute = null);
 public sealed record SetTablePermissionRequest(string TableName, bool CanRead, bool CanWrite);
 
 /// <summary>
@@ -50,8 +56,19 @@ public class GatewayKeyController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Name))
             return BadRequest(new { error = "Anahtar için bir ad gerekli." });
 
+        // Sıfır ya da negatif bir limit anahtarı tamamen kullanılamaz kılardı; bunu
+        // "limit yok" saymak da yanlış olurdu, o yüzden açıkça reddediliyor.
+        // Doğrulama anahtar üretilmeden ÖNCE: reddedilecek bir istek için entropi
+        // harcamak ve yarı kurulmuş bir nesne bırakmak gereksiz.
+        if (request.RateLimitPerMinute is <= 0)
+            return BadRequest(new { error = "Rate limit must be greater than zero." });
+
         var (entity, rawKey) = GatewayAccess.CreateKey(
             projectId, request.Name.Trim(), userId, request.CanWrite, request.ExpiresAt);
+
+        entity.AllowedOrigins = Normalize(request.AllowedOrigins);
+        entity.AllowedIps = Normalize(request.AllowedIps);
+        entity.RateLimitPerMinute = request.RateLimitPerMinute;
 
         _context.GatewayApiKeys.Add(entity);
         await _context.SaveChangesAsync(ct);
@@ -65,6 +82,9 @@ public class GatewayKeyController : ControllerBase
             entity.Prefix,
             entity.CanWrite,
             entity.ExpiresAt,
+            entity.AllowedOrigins,
+            entity.AllowedIps,
+            entity.RateLimitPerMinute,
             key = rawKey,
             warning = "This is the only time the key is shown. Store it now.",
         });
@@ -85,6 +105,7 @@ public class GatewayKeyController : ControllerBase
             .Select(k => new
             {
                 k.Id, k.Name, k.Prefix, k.CanWrite,
+                k.AllowedOrigins, k.AllowedIps, k.RateLimitPerMinute,
                 k.CreatedAt, k.ExpiresAt, k.RevokedAt, k.LastUsedAt,
             })
             .ToListAsync(ct);
@@ -110,6 +131,10 @@ public class GatewayKeyController : ControllerBase
 
         return NoContent();
     }
+
+    /// <summary>Boş/whitespace listeyi null'a indirger: "" ile null aynı anlama gelmeli.</summary>
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     // ── Tablo izinleri ───────────────────────────────────────────────────────
 

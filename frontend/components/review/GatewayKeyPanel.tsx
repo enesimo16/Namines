@@ -34,6 +34,10 @@ export default function GatewayKeyPanel({ projectId }: Props) {
 
   const [name, setName] = useState('');
   const [canWrite, setCanWrite] = useState(false);
+  const [showRestrictions, setShowRestrictions] = useState(false);
+  const [allowedOrigins, setAllowedOrigins] = useState('');
+  const [allowedIps, setAllowedIps] = useState('');
+  const [rateLimit, setRateLimit] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [busyTable, setBusyTable] = useState<string | null>(null);
@@ -52,11 +56,25 @@ export default function GatewayKeyPanel({ projectId }: Props) {
     if (!name.trim()) return;
     setIsCreating(true);
     try {
-      const result = await gatewayKeyService.create(projectId, name.trim(), canWrite, null);
+      const parsedLimit = rateLimit.trim() === '' ? null : Number(rateLimit);
+      if (parsedLimit !== null && (!Number.isFinite(parsedLimit) || parsedLimit <= 0)) {
+        showToast('Rate limit must be a number greater than zero.', 'error');
+        return;
+      }
+
+      const result = await gatewayKeyService.create(projectId, name.trim(), canWrite, null, {
+        allowedOrigins: allowedOrigins.trim() || null,
+        allowedIps: allowedIps.trim() || null,
+        rateLimitPerMinute: parsedLimit,
+      });
       setCreated(result);
       setCopied(false);
       setName('');
       setCanWrite(false);
+      setAllowedOrigins('');
+      setAllowedIps('');
+      setRateLimit('');
+      setShowRestrictions(false);
       load();
     } catch {
       showToast('Key could not be created.', 'error');
@@ -163,6 +181,12 @@ export default function GatewayKeyPanel({ projectId }: Props) {
           Allow writes
         </label>
         <button
+          onClick={() => setShowRestrictions(v => !v)}
+          className="text-[11px] text-content-muted hover:text-content-primary transition-colors"
+        >
+          {showRestrictions ? 'Hide limits' : 'Limits…'}
+        </button>
+        <button
           onClick={handleCreate}
           disabled={isCreating || !name.trim()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-[11px] font-medium text-content-primary transition-colors disabled:opacity-50"
@@ -170,6 +194,49 @@ export default function GatewayKeyPanel({ projectId }: Props) {
           {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
           Create
         </button>
+
+        {/*
+          Kısıtlar varsayılan olarak KAPALI: boş bırakılan bir alan "kısıt yok"
+          demek, ve zorunlu görünen boş alanlar kullanıcıyı anlamadığı bir şeyi
+          doldurmaya iter. İsteyen açar.
+        */}
+        {showRestrictions && (
+          <div className="w-full grid gap-2 pt-2 sm:grid-cols-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] text-content-muted">Allowed origins</span>
+              <input
+                value={allowedOrigins}
+                onChange={e => setAllowedOrigins(e.target.value)}
+                placeholder="https://app.example.com"
+                className="bg-surface-800 border border-content-primary/15 rounded-lg px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] text-content-muted">Allowed IPs / CIDR</span>
+              <input
+                value={allowedIps}
+                onChange={e => setAllowedIps(e.target.value)}
+                placeholder="1.2.3.4, 10.0.0.0/8"
+                className="bg-surface-800 border border-content-primary/15 rounded-lg px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] text-content-muted">Requests / minute</span>
+              <input
+                value={rateLimit}
+                onChange={e => setRateLimit(e.target.value)}
+                inputMode="numeric"
+                placeholder="600"
+                className="bg-surface-800 border border-content-primary/15 rounded-lg px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
+              />
+            </label>
+            <p className="sm:col-span-3 text-[10px] text-content-muted leading-relaxed">
+              Leave a field empty for no restriction. IP rules are only enforced when the server can
+              determine the caller&apos;s address reliably; if it cannot, requests with an IP list are
+              refused rather than silently let through.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Anahtar listesi */}
@@ -192,6 +259,9 @@ export default function GatewayKeyPanel({ projectId }: Props) {
                 </p>
                 <p className="text-[10px] font-mono text-content-subtle truncate">
                   {key.prefix}… · {key.canWrite ? 'read + write' : 'read only'}
+                  {key.rateLimitPerMinute ? ` · ${key.rateLimitPerMinute}/min` : ''}
+                  {key.allowedIps ? ' · ip-restricted' : ''}
+                  {key.allowedOrigins ? ' · origin-restricted' : ''}
                   {key.lastUsedAt ? ` · last used ${new Date(key.lastUsedAt).toLocaleDateString()}` : ' · never used'}
                 </p>
               </div>

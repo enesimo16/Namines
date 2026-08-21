@@ -8,6 +8,12 @@ export interface GatewayKey {
   /** Anahtarın gösterilebilir baş kısmı. Gizli değildir, tek başına kimlik doğrulamaz. */
   prefix: string;
   canWrite: boolean;
+  /** Virgülle ayrılmış origin listesi; null ise kısıt yok. */
+  allowedOrigins: string | null;
+  /** Virgülle ayrılmış IP/CIDR listesi; null ise kısıt yok. */
+  allowedIps: string | null;
+  /** Null ise sunucunun genel politikası geçerli. */
+  rateLimitPerMinute: number | null;
   createdAt: string;
   expiresAt: string | null;
   revokedAt: string | null;

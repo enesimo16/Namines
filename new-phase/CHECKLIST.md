@@ -919,6 +919,38 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     SOYUTLAMA GEREKMİYOR — `IBranchDatabaseProvisioner`'ın ikinci bir
     implementasyonu olarak takılır ve yapılandırmadan seçilir.
 
+- [x] **G28 — API anahtarı kaynak kısıtları ve anahtar başına rate limit ([08](08-GATEWAY-API.md) §4.3, §5)** ✅ TAMAMLANDI
+  - `allowedOrigins`, `allowedIps` (düz IP + CIDR) ve `rateLimitPerMinute`
+    (migration `AddGatewayKeyRestrictions`), `GatewayKeyRestrictions` +
+    `GatewayRateLimiter`, arayüzde açılır "Limits…" bölümü.
+  - ⚠️ **Tasarımın kritik noktası — IP kısıtı ne zaman UYGULANMAZ:** `Program.cs`,
+    `ForwardedHeaders:KnownNetworks` tanımlı DEĞİLSE `X-Forwarded-For`'ı
+    doğrulamadan kabul ediyor (PaaS'te proxy IP'si dinamik olabildiği için bilinçli
+    bir taviz, kod bunu zaten uyarıyla söylüyor). O hâlde istemci kendi adresini
+    istediği gibi yazabilir ve IP beyaz listesi **hiçbir şey doğrulamaz**. Böyle bir
+    ortamda listeyi "uyguluyormuş gibi" davranmak, kullanıcıya korunduğunu
+    sandıracak sahte bir güvence verirdi. Karar: **liste doluysa ve adres güvenilir
+    değilse istek REDDEDİLİR**, nedeni de söylenir. Kısıtı sessizce uygulanamaz
+    hâle getirmek, onu hiç istememekten kötüdür.
+  - Origin başlığı taşımayan istek de liste doluysa reddediliyor: "origin kısıtla"
+    diyen biri, başlığı hiç göndermeyen istemciye kapıyı açık bırakmayı kastetmez.
+  - Reddetme mesajı çağıranın IP'sini **yankılamıyor** — hangi adres olarak
+    görüldüğünü söylemek, kuralı atlatmayı deneyen birine geri bildirim verir.
+  - Ayrıştırılamayan bir kural asla eşleşmez: bozuk kuralı "her şeye uyar" saymak,
+    tek bir yazım hatasıyla kısıtı tamamen kaldırırdı.
+  - ⚠️ **Rate limit bellek içi, yani INSTANCE BAŞINA.** Doküman (§5) Redis token
+    bucket istiyor; Redis bu kurulumda yok. İki instance'ta gerçek sınır iki katına
+    çıkar. Sabit pencere seçildi — sürgülü pencere daha adil ama istek başına zaman
+    damgası listesi tutmayı, yani bellekte sınırsız büyüyebilen bir yapıyı gerektirir;
+    sınır koymak için bellek sızdırmak yanlış takas.
+  - Doğrulama: `GatewayKeyRestrictionTests` 24/24 (CIDR bayt-sınırı dışı prefix'ler,
+    IPv4-mapped IPv6, bozuk kural, pencere sıfırlanması, anahtarların pencere
+    paylaşmaması). Tam paket **608 test yeşil**.
+  - **Uçtan uca (gerçek HTTP):** origin'siz istek **403**, yanlış origin **403**,
+    doğru origin + 2/dk limit → 1. ve 2. istek kısıtları geçti, 3. istek **429**;
+    IP kısıtlı anahtar `KnownNetworks` tanımsızken **403** ve mesaj nedeni açıkça
+    söyledi ("Refusing rather than pretending the restriction is enforced").
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

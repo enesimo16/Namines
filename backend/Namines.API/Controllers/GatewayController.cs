@@ -11,6 +11,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
+using Microsoft.Extensions.Configuration;
+using System.Linq;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 
@@ -55,12 +57,26 @@ public class GatewayController : ControllerBase
 {
     private readonly IGatewayService _gateway;
     private readonly AuthDbContext _context;
+    private readonly IConfiguration _configuration;
 
-    public GatewayController(IGatewayService gateway, AuthDbContext context)
+    public GatewayController(IGatewayService gateway, AuthDbContext context, IConfiguration configuration)
     {
         _gateway = gateway;
         _context = context;
+        _configuration = configuration;
     }
+
+    /// <summary>
+    /// İstemci adresine güvenilebilir mi?
+    ///
+    /// Program.cs, <c>ForwardedHeaders:KnownNetworks</c> tanımlı DEĞİLSE
+    /// <c>X-Forwarded-For</c>'ı doğrulamadan kabul ediyor (PaaS'te proxy IP'si
+    /// dinamik olabildiği için bilinçli bir taviz). O hâlde istemci kendi adresini
+    /// istediği gibi yazabilir; IP kısıtı böyle bir ortamda hiçbir şey doğrulamaz.
+    /// Aynı yapılandırma anahtarını okuyoruz ki iki yer ayrışmasın.
+    /// </summary>
+    private bool ClientAddressIsTrustworthy =>
+        _configuration.GetSection("ForwardedHeaders:KnownNetworks").GetChildren().Any();
 
     /// <summary>API anahtarının taşındığı başlık.</summary>
     public const string ApiKeyHeader = "X-Namines-Key";
@@ -101,6 +117,21 @@ public class GatewayController : ControllerBase
         var key = await _context.AuthenticateAsync(header.ToString(), ct);
         if (key is null)
             return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }));
+
+        // Kaynak kısıtları tablo izninden ÖNCE: kısıtı geçemeyen bir çağrının hangi
+        // tabloya erişmeye çalıştığı bilgisini geri vermeye gerek yok.
+        if (!GatewayKeyRestrictions.IsOriginAllowed(key, Request.Headers.Origin.ToString()))
+            return (false, StatusCode(403, new { message = "This key is not allowed from this origin." }));
+
+        if (!GatewayKeyRestrictions.IsIpAllowed(
+                key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
+            return (false, StatusCode(403, new { message = ipReason }));
+
+        if (!GatewayRateLimiter.TryAcquire(key))
+            return (false, StatusCode(429, new
+            {
+                message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
+            }));
 
         if (!await _context.IsTableAllowedAsync(key, tableName, forWrite, ct))
             // 403 ve 404 arasında bilinçli tercih: anahtar geçerli, tablo yok demek
