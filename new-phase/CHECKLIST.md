@@ -803,6 +803,75 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     (§10), Vault ile kimlik saklama (§5). Buradaki sağlayıcı **yerel geliştirme
     veritabanı** üretir — prod verisi için değildir.
 
+- [x] **G25 — BYODB sertleştirme + branch DB tohumlama ([06](06-DATA-PLANE.md) §4-5)** ✅ TAMAMLANDI
+  - `UserDbConnection` — kullanıcının kendi veritabanına açılan bağlantıların TEK
+    kapısı. Introspection ve Gateway ayrı ayrı bağlantı açıyordu; TLS zorunluluğu
+    birine eklenip diğerinde unutulabilirdi (OrgAccess'te bedeli ödenmiş hata).
+  - **Salt-okunur oturum:** okuma yolları PostgreSQL/MySQL'de oturumu salt-okunura
+    çekiyor — koruma bizim kodumuzun disiplinine değil, MOTORUN uyguladığı bir
+    kurala dayanıyor, yani SQL üretimimizdeki bir hata bile veri yazamıyor.
+    SQL Server/Oracle'da oturum seviyesinde karşılığı yok; orada uygulanmıyor ve
+    "uygulandı" gibi de gösterilmiyor (`AppliesReadOnlySession`).
+  - ⚠️ **Testin yakaladığı kusur:** TLS kuralı ilk yazımda "host public ise zorunlu"
+    idi. Çözülemeyen bir ad (DNS'i henüz yayılmamış bir sunucu) "public değil"
+    sayılıp TLS'siz bağlanıyordu — varsayılan güvensiz tarafa düşüyordu. Kural
+    tersine çevrildi: **özel/loopback olduğu KESİN değilse TLS zorunlu**
+    (`SsrfGuard.IsHostPrivate`).
+  - `DbPrivilegeInspector` — "bu kullanıcı DROP TABLE yapabiliyor, daha dar bir rol
+    öneriyoruz". Engellemiyor, gösteriyor: kullanıcının kendi veritabanı, ama
+    insanlar alışkanlıkla süper kullanıcıyla bağlanıyor. Motor desteklenmiyorsa
+    "yetki yok" DEMİYOR, bakmadığını söylüyor — "kontrol edilemedi" ile "risk yok"
+    karışırsa kullanıcı sahte güvence kazanır. Öneri yalnızca yapılacak bir şey
+    varken veriliyor; salt-okunur bağlantıya uyarı basmak uyarıyı gürültüye çevirir.
+  - **Branch DB tohumlama:** şeması olan ama boş bir veritabanı pratikte işe
+    yaramıyor. Üretim deterministik (yapay zekâ çağrısı yok) — bir geliştirme
+    veritabanını doldurmak için API anahtarı gerektirmek ve her çalıştırmada farklı
+    veri üretmek özelliği hem kırılgan hem tekrar edilemez yapardı. Sağlamadan ayrı,
+    çünkü gerçek veriyle çalışılan bir branch'te tohumlama istenmez.
+  - ⚠️ **Bulunan DI ömür hatası:** `BranchDatabaseProvisioner` singleton'dı ama
+    scoped `ISmartSeedService` tüketiyordu — tutsak bağımlılık. **API Development'ta
+    hiç açılmazdı.** Bir EF migration komutunun DI doğrulaması ortaya çıkardı.
+    Çözüm bağımlılığı singleton'a zorlamak değil (HttpClient/IHttpContextAccessor
+    zinciri istek başına durum taşıyor); tohumlama anında kısa ömürlü scope açılıyor.
+    `IDdlGeneratorFactory` ise gerçekten durumsuz olduğu için singleton'a çekildi.
+  - Doğrulama: `ByodbHardeningTests` 6/6 (salt-okunur oturumun yazmayı GERÇEKTEN
+    reddettiği ve yazılabilir oturumun hâlâ yazabildiği, gerçek PostgreSQL'e karşı;
+    süper kullanıcı ve salt-okunur rol raporları). `BranchDatabaseProvisionerTests`
+    **17/17 gerçek Docker** (tohumlama sonrası satırların gerçekten var olduğu).
+
+- [x] **G26 — Gateway API anahtarları, tablo izinleri ve OpenAPI ([08](08-GATEWAY-API.md) §1, §2, §4.3)** ✅ TAMAMLANDI
+  - `GatewayApiKey` + `GatewayTablePermission` (migration `AddGatewayApiKeys`),
+    `GatewayAccess` (üretim/doğrulama/izin — tek kopya, `OrgAccess` ile aynı gerekçe),
+    `GatewayKeyController` (üret/listele/iptal + tablo izinleri),
+    `X-Namines-Key` ile Gateway veri uçlarına erişim, `/tables`, `/openapi.json`.
+  - **Ham anahtar SAKLANMIYOR** — yalnızca SHA-256 özeti. Anahtar bir kez gösteriliyor.
+    Kontrol veritabanının bir yedeği sızsa bile müşterinin veritabanına erişim
+    vermemeli; ham anahtarı saklamak tam olarak bunu verirdi. Karşılaştırma sabit
+    zamanlı (normal string eşitliği ilk farklı baytta dönerek zamanlama sızdırır).
+  - **08 §1'in kuralı kodda:** izin kaydı YOKSA erişim yok. Varsayılanı "her tablo
+    okunabilir" yapmak, projeye sonradan eklenen bir tabloyu — `password_resets`
+    gibi — kimse istemeden internete açardı. İki ayrı kapı var: anahtarın yazma
+    yetkisi ve tablonun izni; ikisi de geçilmeli.
+  - **İki kimlik yolu, farklı yetkiler:** oturum (Studio; kullanıcı bağlantı dizesini
+    zaten kendisi giriyor, tablo izni uygulanmaz) ve API anahtarı (müşterinin
+    uygulaması; tablo izinleri uygulanır). Anahtar yönetimi uçları YALNIZCA oturumla
+    korunuyor — bir anahtarın kendi yetkisini genişletebilmesi tüm modeli anlamsız
+    kılardı. Controller `[AllowAnonymous]` ama anonim erişim YOK: kontrol
+    middleware'den controller'a taşındı, çünkü anahtar yolu JWT taşımıyor.
+  - **OpenAPI 3.1** deterministik üretiliyor (dil modeline yazdırılmadı: belge
+    istemci SDK'sı üretmek için kullanılıyor, "çoğunlukla doğru" bir çıktı sessizce
+    yanlış tipli bir istemci demek). **Yalnızca izinli tablolar belgeleniyor** —
+    aksi hâlde izin kuralı belge üzerinden delinir, şemanın tamamı okunabilir olurdu.
+    Tamsayı/ondalık ayrılıyor (ikisini "number" saymak para alanlarını kayan noktaya
+    düşürürdü) ve nullable kolonlar tip birleşimiyle işaretleniyor.
+  - Doğrulama: `GatewayApiKeyTests` **17/17 gerçek PostgreSQL'e karşı** (bellek içi
+    sağlayıcı unique index/FK uygulamaz, kurallar test edilmiş görünüp gerçekte
+    doğrulanmamış olurdu). Tam paket **573 test yeşil**, RunTests 17/17.
+  - **Kapsam dışı, bilinçli:** GraphQL, `/realtime`, `expand` ile ilişki gömme,
+    `?or=(...)`, export/import, `/rpc`, `/query`, `/query/nl`, istemci SDK üretimi,
+    metadata cache (§6). Anahtar/izin modeli bunların çoğunun ÖN KOŞULU olduğu için
+    önce o yapıldı.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

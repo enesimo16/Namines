@@ -12,6 +12,7 @@ using MySqlConnector;
 using Npgsql;
 using Docker.DotNet;
 using Docker.DotNet.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
@@ -48,7 +49,8 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 {
     private readonly DockerClient _client;
     private readonly IDdlGeneratorFactory _ddlFactory;
-    private readonly ISmartSeedService _seedService;
+    private readonly IServiceScopeFactory? _scopeFactory;
+    private readonly ISmartSeedService? _seedService;
     private readonly ILogger<BranchDatabaseProvisioner> _logger;
 
     /// <summary>Container adı branch'i taşır — süpürücü ve "zaten var mı" kontrolü buna bakar.</summary>
@@ -64,11 +66,39 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 
     private const string DatabaseName = "naminesdb";
 
+    /// <summary>
+    /// Uygulama kaydı. Bu servis SINGLETON'dır (tek bir DockerClient tutar ve arka
+    /// plan süpürücüsü tarafından da kullanılır), ama <see cref="ISmartSeedService"/>
+    /// SCOPED'dır — doğrudan enjekte edilseydi tutsak bağımlılık (captive dependency)
+    /// olurdu ve uygulama Development'ta HİÇ AÇILMAZDI.
+    ///
+    /// Bunu bir EF migration komutu ortaya çıkardı: DI doğrulaması
+    /// "Cannot consume scoped service from singleton" dedi. Çözüm bağımlılığı
+    /// singleton'a zorlamak değil — SmartSeed zinciri HttpClient ve
+    /// IHttpContextAccessor'a bağlı, singleton yapmak istek başına durumu paylaşırdı.
+    /// Bunun yerine tohumlama anında kısa ömürlü bir scope açılır.
+    /// </summary>
     public BranchDatabaseProvisioner(
+        IDdlGeneratorFactory ddlFactory, IServiceScopeFactory scopeFactory,
+        ILogger<BranchDatabaseProvisioner> logger)
+        : this(ddlFactory, scopeFactory, seedService: null, logger)
+    {
+    }
+
+    /// <summary>Testler için: scope altyapısı olmadan doğrudan seed servisi verilir.</summary>
+    internal BranchDatabaseProvisioner(
         IDdlGeneratorFactory ddlFactory, ISmartSeedService seedService,
         ILogger<BranchDatabaseProvisioner> logger)
+        : this(ddlFactory, scopeFactory: null, seedService, logger)
+    {
+    }
+
+    private BranchDatabaseProvisioner(
+        IDdlGeneratorFactory ddlFactory, IServiceScopeFactory? scopeFactory,
+        ISmartSeedService? seedService, ILogger<BranchDatabaseProvisioner> logger)
     {
         _ddlFactory = ddlFactory;
+        _scopeFactory = scopeFactory;
         _seedService = seedService;
         _logger = logger;
 
@@ -213,8 +243,15 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
         var container = await FindContainerAsync(branchId, cancellationToken)
             ?? throw new InvalidOperationException("The branch database container disappeared.");
 
+        // Scoped servis, singleton'ın içinde tutulmaz; her çağrıda kısa ömürlü bir
+        // scope açılır (bkz. kurucu yorumu).
+        using var scope = _scopeFactory?.CreateScope();
+        var seedService = _seedService
+            ?? scope?.ServiceProvider.GetService(typeof(ISmartSeedService)) as ISmartSeedService
+            ?? throw new InvalidOperationException("No seed service is available.");
+
         // forceDeterministic: yapay zekâ çağrısı YOK — bkz. arayüz yorumu.
-        var seed = await _seedService.GenerateSmartSeedAsync(
+        var seed = await seedService.GenerateSmartSeedAsync(
             schema, database.Engine, domainHint: null, rowCount: rowsPerTable, forceDeterministic: true);
 
         if (string.IsNullOrWhiteSpace(seed.SqlScript)) return 0;

@@ -19,6 +19,8 @@ namespace Namines.Infrastructure.Data
         public DbSet<ChangeRequestAuditLog> ChangeRequestAuditLogs { get; set; } = null!;
         public DbSet<Organization> Organizations { get; set; } = null!;
         public DbSet<OrganizationMember> OrganizationMembers { get; set; } = null!;
+        public DbSet<GatewayApiKey> GatewayApiKeys { get; set; } = null!;
+        public DbSet<GatewayTablePermission> GatewayTablePermissions { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -181,6 +183,35 @@ namespace Namines.Infrastructure.Data
                 .HasIndex(a => new { a.ChangeRequestId, a.CreatedAt });
 
             // ── 05 §6 — Organizasyon / üyelik (RBAC sınırı) ──────────────────
+            // Anahtar doğrulaması önce önekle aday bulur; index olmadan her istek
+            // tüm anahtar tablosunu tarardı.
+            builder.Entity<GatewayApiKey>()
+                .HasIndex(k => k.Prefix);
+
+            builder.Entity<GatewayApiKey>()
+                .HasOne(k => k.Project)
+                .WithMany()
+                .HasForeignKey(k => k.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<GatewayApiKey>()
+                .HasOne(k => k.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(k => k.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Proje başına tablo adı tekil: aynı tabloya iki çelişen izin satırı
+            // olsaydı hangisinin geçerli olduğu kayda bağlı hale gelirdi.
+            builder.Entity<GatewayTablePermission>()
+                .HasIndex(p => new { p.ProjectId, p.TableName })
+                .IsUnique();
+
+            builder.Entity<GatewayTablePermission>()
+                .HasOne(p => p.Project)
+                .WithMany()
+                .HasForeignKey(p => p.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             builder.Entity<Organization>()
                 .HasOne(o => o.CreatedByUser)
                 .WithMany()

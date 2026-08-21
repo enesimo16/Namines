@@ -44,7 +44,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAIService>(sp => sp.GetRequiredService<GroqAIService>());
 
         services.AddScoped<ILinterService, LinterService>();
-        services.AddScoped<IDdlGeneratorFactory, DdlGeneratorFactory>();
+        // Singleton: tamamen durumsuz bir fabrika. Scoped kalsaydı, onu tüketen
+        // singleton'lar (branch veritabanı sağlayıcısı, arka plan süpürücüsü)
+        // tutsak bağımlılık üretirdi.
+        services.AddSingleton<IDdlGeneratorFactory, DdlGeneratorFactory>();
         services.AddScoped<IEfCoreGenerator, EfCoreGeneratorService>();
         services.AddScoped<IPrismaGenerator, PrismaGeneratorService>();
         // Singleton: tek bir DockerClient tutar ve durumu container etiketlerinde
