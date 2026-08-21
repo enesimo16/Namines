@@ -82,6 +82,31 @@ export const schemaService = {
     return response.data;
   },
 
+  /**
+   * Eject hedefleri (12-CODEGEN-EJECT.md). Liste arka uçtan geliyor — istemcide
+   * ikinci bir kopya tutmak, yeni bir hedef eklendiğinde UI'ın onu göstermemesi
+   * demek olurdu.
+   */
+  ejectTargets: async (): Promise<{ target: string; name: string }[]> => {
+    const response = await api.get('/compile/eject/targets');
+    return response.data;
+  },
+
+  eject: async (
+    target: string,
+    schema: DatabaseSchema,
+    dbType: string,
+  ): Promise<{ files: Record<string, string>; warnings: string[] }> => {
+    const response = await api.post(`/compile/eject/${target}`, { schema, dbType });
+    return response.data;
+  },
+
+  ejectZip: async (target: string, schema: DatabaseSchema, dbType: string): Promise<Blob> => {
+    const response = await api.post(
+      `/compile/eject/${target}/zip`, { schema, dbType }, { responseType: 'blob' });
+    return response.data;
+  },
+
   runDockerSandbox: async (schema: DatabaseSchema, dbType: string): Promise<string> => {
     const response = await api.post('/docker/run', { schema, dbType });
     return response.data.jobId;

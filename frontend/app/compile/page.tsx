@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileCode2, Boxes, Layers, GitFork, Database, BookOpenText, FileText, Container, Package, Download } from 'lucide-react';
+import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpenText, FileText, Container, Package, Download } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { schemaService } from '../../services/api';
@@ -17,6 +17,7 @@ import DockerSandboxPanel from '../../components/compile/DockerSandboxPanel';
 import SmartSeedPanel from '../../components/compile/SmartSeedPanel';
 import EfCorePreview from '../../components/compile/EfCorePreview';
 import PrismaPreview from '../../components/compile/PrismaPreview';
+import EjectPanel from '../../components/compile/EjectPanel';
 import { IconButton } from '../../components/compile/PanelKit';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import {
@@ -34,12 +35,13 @@ import {
   generateRequirementDiagram
 } from '../../utils/diagramGenerators';
 
-type TabId = 'SQL' | 'EF' | 'PRISMA' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN';
+type TabId = 'SQL' | 'EF' | 'PRISMA' | 'EJECT' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN';
 
 const TABS: { id: TabId; label: string; icon: typeof FileCode2 }[] = [
   { id: 'SQL',        label: 'DDL Script',       icon: FileCode2 },
   { id: 'EF',         label: 'EF Core',          icon: Boxes },
   { id: 'PRISMA',     label: 'Prisma',           icon: Layers },
+  { id: 'EJECT',      label: 'Export to…',       icon: Blocks },
   { id: 'ER',         label: 'Mermaid ER',       icon: GitFork },
   { id: 'MOCK',       label: 'Test Data',        icon: Database },
   { id: 'DICTIONARY', label: 'Data Dictionary',  icon: BookOpenText },
@@ -281,6 +283,7 @@ export default function CompilePage() {
               )}
               {activeTab === 'EF' && <EfCorePreview schema={schema} />}
               {activeTab === 'PRISMA' && <PrismaPreview schema={schema} dbType={dbType} />}
+              {activeTab === 'EJECT' && <EjectPanel schema={schema} dbType={dbType} />}
             </div>
           )}
         </div>

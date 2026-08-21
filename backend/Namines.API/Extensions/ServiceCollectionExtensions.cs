@@ -6,6 +6,7 @@ using Namines.Infrastructure;
 using Namines.Infrastructure.AI;
 using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Infrastructure.Generators.EfCoreGenerator;
+using Namines.Infrastructure.Generators.Eject;
 using Namines.Infrastructure.Generators.PrismaGenerator;
 using Namines.Infrastructure.Generators.DocumentationGenerator;
 using Namines.Infrastructure.Realtime;
@@ -50,6 +51,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDdlGeneratorFactory, DdlGeneratorFactory>();
         services.AddScoped<IEfCoreGenerator, EfCoreGeneratorService>();
         services.AddScoped<IPrismaGenerator, PrismaGeneratorService>();
+        // Singleton: üreticiler durumsuz, kayıt defteri de öyle.
+        services.AddSingleton<IEjectGeneratorRegistry, EjectGeneratorRegistry>();
         // Singleton: tek bir DockerClient tutar ve durumu container etiketlerinde
         // yaşar, bellekte değil — süreç yeniden başlasa bile branch veritabanları
         // bulunabilir kalır.

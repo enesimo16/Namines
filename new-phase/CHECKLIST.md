@@ -951,6 +951,55 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     IP kısıtlı anahtar `KnownNetworks` tanımsızken **403** ve mesaj nedeni açıkça
     söyledi ("Refusing rather than pretending the restriction is enforced").
 
+- [x] **G29 — Gateway sorgu dilinin kalanı: export ve expand ([08](08-GATEWAY-API.md) §2)** ✅ TAMAMLANDI
+  - CSV/JSON dışa aktarım + `expand` (ilişki gömme). `CsvWriter` kendi yazıldı:
+    kaçırılmayan bir virgül CSV'nin SÜTUN SAYISINI değiştirir ve dosya sessizce
+    bozulur. Aynı sınıftan iki tuzak daha kapatıldı — sayılar kültürden bağımsız
+    (Türkçe kültürde `12,5` yeni bir sütun açar), `byte[]` base64 (ToString()
+    "System.Byte[]" verip veriyi yok ederdi). UTF-8 BOM: Excel BOM'suz dosyayı
+    ANSI sanıp Türkçe karakterleri bozuyor.
+  - Tavan aşılırsa sorgu **kırpılmaz, reddedilir** — kırpılmış dosya eksik
+    olduğunu söylemez, kullanıcı onu tam sanıp üzerine rapor kurar.
+  - `expand`'de ilişkiyi **çağıran bildiriyor**, Gateway şemadan çıkarmıyor:
+    Gateway durumsuz, projenin şemasını bilmiyor. Şemayı sunucuda aramak yalnızca
+    API-anahtarı yolunda mümkün olurdu; tek kimlik yolunda çalışan bir özellik hiç
+    olmamasından kötüdür. İlişki başına TEK ek sorgu (§2.1'in "N+1 yok" vaadi).
+
+- [x] **G30 — Eject hedeflerinin tamamı ([12](12-CODEGEN-EJECT.md))** ✅ TAMAMLANDI
+  - **15 hedef:** `types.typescript` (P0), `types.zod`, `types.csharp`,
+    `types.python` (Pydantic v2), `contract.graphql`, `contract.jsonschema`,
+    `contract.protobuf`, `orm.drizzle`, `orm.typeorm`, `orm.sqlalchemy`,
+    `orm.django`, `orm.sequelize`, `orm.gorm`, `mig.flyway`, `mig.liquibase`.
+    `IEjectGenerator` + `EjectGeneratorRegistry`, `POST /api/compile/eject/{target}`
+    (+ `/zip`), `/compile` sayfasında "Export to…" sekmesi.
+  - Kayıt defteri **yansımayla taranmıyor**, elle yazılıyor: yansıma yarım kalmış
+    bir üreticiyi sessizce yayına sokar. Bir hedefin listeye girmesi bilinçli olmalı.
+  - `CanonicalType` ve `EjectNaming` tek kopya. 15 hedefin her biri kendi tip
+    listesini yazsaydı, biri yeni bir tipi eklemeyi unuttuğunda o hedef sessizce
+    "string" üretirdi — ve bu ancak çalışma zamanında görülürdü.
+  - Her hedef **ifade edemediğini bildiriyor** (Prisma'da alınan karar): CHECK
+    kısıtı, index, unique. Uyarılar ZIP'in içine de yazılıyor — dosyayı bir hafta
+    sonra açan kişi neyin taşınmadığını hatırlamaz.
+  - Hedefe özgü, sessizce yanlış çalışan noktalar kapatıldı: TypeScript'te BIGINT
+    → `string` (`number` 2^53 üstünü yuvarlar), Go'da alanlar PascalCase (küçük
+    harfle başlayan alan dışa açık olmaz ve hiç doldurulmaz) ve nullable kolonlar
+    pointer (yoksa NULL ile boş metin ayırt edilemez), Django'da `db_table` ve
+    DecimalField'ın zorunlu argümanları, Sequelize'de `freezeTableName`/
+    `timestamps:false` (varsayılanlar var olmayan kolonlara sorgu atardı),
+    TypeORM'de her ad açık, C#'ta `JsonPropertyName`, GraphQL'de custom scalar
+    bildirimi, Liquibase'de CDATA sonlandırıcısının kaçışı.
+  - Drizzle Oracle/SQL Server'ı **reddediyor** — sessizce `pg-core` yazmak
+    derlenebilir ama tamamen yanlış bir dosya üretirdi.
+  - Flyway/Liquibase DDL'i yeniden yazmıyor, mevcut ve gerçek motorlara karşı
+    doğrulanmış üreticiyi kullanıyor; Liquibase'in soyut etiketlerine çevirmek o
+    doğrulamayı kaybetmek olurdu.
+  - Doğrulama: `EjectGeneratorTests` **69/69** — her hedef için ortak sözleşme
+    (boş çıktı yok, tablo adı geçiyor, boş şemada patlamıyor) + hedefe özgü
+    tuzaklar. Tam paket **725 test yeşil**.
+  - ⚠️ **Sınır:** üretilen kodun DERLENDİĞİ doğrulanmadı — Go, Python, Java ve
+    TypeScript derleyicileri gerekirdi. Prisma'da `prisma validate` ile yapılabilen
+    şeyin karşılığı burada yok; testler metin sözleşmesini kilitliyor.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

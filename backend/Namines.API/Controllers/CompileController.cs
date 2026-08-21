@@ -3,6 +3,8 @@ using System.IO.Compression;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Namines.Core.Analysis;
+using System.Linq;
+using Namines.Infrastructure.Generators.Eject;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Infrastructure.Generators.DdlGenerator;
@@ -16,15 +18,18 @@ public class CompileController : ControllerBase
     private readonly IDdlGeneratorFactory _ddlFactory;
     private readonly IEfCoreGenerator _efCoreGenerator;
     private readonly IPrismaGenerator _prismaGenerator;
+    private readonly IEjectGeneratorRegistry _eject;
 
     public CompileController(
         IDdlGeneratorFactory ddlFactory,
         IEfCoreGenerator efCoreGenerator,
-        IPrismaGenerator prismaGenerator)
+        IPrismaGenerator prismaGenerator,
+        IEjectGeneratorRegistry eject)
     {
         _ddlFactory = ddlFactory;
         _efCoreGenerator = efCoreGenerator;
         _prismaGenerator = prismaGenerator;
+        _eject = eject;
     }
 
     [HttpPost("sql")]
@@ -144,5 +149,85 @@ public class CompileController : ControllerBase
 
         memoryStream.Position = 0;
         return File(memoryStream.ToArray(), "application/zip", $"{request.Schema.Name ?? "Schema"}_Prisma.zip");
+    }
+
+    // ── Eject hedefleri (12-CODEGEN-EJECT.md) ────────────────────────────────
+
+    /// <summary>Kullanılabilir hedefler — arayüzün listeyi elle taşımaması için.</summary>
+    [HttpGet("eject/targets")]
+    public IActionResult EjectTargets() =>
+        Ok(_eject.All.Select(g => new { target = g.Target, name = g.DisplayName }));
+
+    /// <summary>
+    /// Bir hedef için dosyaları üretir ve UYARILARLA birlikte döndürür.
+    ///
+    /// ZIP'ten ayrı bir önizleme ucu: uyarıları ancak indirdikten sonra görmek,
+    /// hedefin neyi taşımadığını iş işten geçtikten sonra öğrenmek olurdu
+    /// (Prisma ucunda alınan aynı karar).
+    /// </summary>
+    [HttpPost("eject/{target}")]
+    public IActionResult Eject(string target, [FromBody] CompileRequest request)
+    {
+        if (request.Schema == null) return BadRequest("Schema is required.");
+
+        try
+        {
+            var result = _eject.Get(target).Generate(request.Schema, request.DbType);
+            return Ok(new { files = result.Files, warnings = result.Warnings });
+        }
+        catch (NotSupportedException ex)
+        {
+            // Hedefin bu motoru desteklememesi de (ör. Drizzle + Oracle) buraya düşer;
+            // uydurma bir çıktı üretmektense reddetmek doğru.
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("eject/{target}/zip")]
+    public IActionResult EjectZip(string target, [FromBody] CompileRequest request)
+    {
+        if (request.Schema == null) return BadRequest("Schema is required.");
+
+        EjectResult result;
+        IEjectGenerator generator;
+        try
+        {
+            generator = _eject.Get(target);
+            result = generator.Generate(request.Schema, request.DbType);
+        }
+        catch (NotSupportedException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+
+        using var memoryStream = new MemoryStream();
+        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+        {
+            foreach (var file in result.Files)
+            {
+                var entry = archive.CreateEntry(file.Key);
+                using var entryStream = entry.Open();
+                using var streamWriter = new StreamWriter(entryStream, Encoding.UTF8);
+                streamWriter.Write(file.Value);
+            }
+
+            // Uyarılar ZIP'in İÇİNE de yazılıyor: dosyayı bir hafta sonra açan kişi
+            // hangi yapıların taşınmadığını hatırlamaz, ve o bilgi olmadan üretilen
+            // kodu şemanın tam karşılığı sanar.
+            if (result.Warnings.Count > 0)
+            {
+                var entry = archive.CreateEntry("NAMINES-WARNINGS.txt");
+                using var entryStream = entry.Open();
+                using var streamWriter = new StreamWriter(entryStream, Encoding.UTF8);
+                streamWriter.WriteLine($"{generator.DisplayName} could not express the following:");
+                streamWriter.WriteLine();
+                foreach (var warning in result.Warnings) streamWriter.WriteLine($"  - {warning}");
+            }
+        }
+
+        memoryStream.Position = 0;
+        var safeTarget = target.Replace('.', '-');
+        return File(memoryStream.ToArray(), "application/zip",
+            $"{request.Schema.Name ?? "Schema"}_{safeTarget}.zip");
     }
 }
