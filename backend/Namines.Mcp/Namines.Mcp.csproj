@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>namines-mcp</AssemblyName>
+    <RootNamespace>Namines.Mcp</RootNamespace>
+
+    <!-- dotnet tool olarak da yayinlanir: `dotnet tool install -g Namines.Mcp`.
+         .NET'i olan kullanicilar icin tek satirlik kurulum; .NET'i olmayanlar
+         icin npm sarmalayicisi var (packaging/npm). -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>namines-mcp</ToolCommandName>
+    <PackageId>Namines.Mcp</PackageId>
+    <PackageDescription>Namines MCP server - deterministic schema impact analysis and migration proof for AI coding agents.</PackageDescription>
+    <PackageTags>namines mcp database schema migration</PackageTags>
+    <Authors>Namines</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <!--
+    new-phase/33-MCP-AND-SKILL.md §4 — bilinçli mimari karar:
+    MCP sunucusu .NET ve Namines.Core/Infrastructure'ı DOĞRUDAN gömüyor.
+
+    Alternatif (Node/TS → HTTP → Namines backend) üç şeyi kaybettiriyordu:
+      1) SSRF sorunu geri gelirdi — barındırılan backend yine kullanıcının
+         localhost DB'sine ulaşamaz (bkz. 33 §2)
+      2) Auth sürtünmesi (token yönetimi) eklerdi
+      3) prove_migration'ın Docker maliyeti SUNUCUYA düşerdi
+
+    Gömülü hâlde: kullanıcının kendi makinesinde çalışır, kendi Docker'ını
+    kullanır, backend ayakta olmasına gerek yoktur, ve 469 testle doğrulanmış
+    kod aynen yeniden kullanılır.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+    <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "namines": {
+      "command": "npx",
+      "args": ["-y", "@namines/mcp"]
+    }
+  }
+}

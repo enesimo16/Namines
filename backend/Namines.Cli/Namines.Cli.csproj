@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>namines</AssemblyName>
+    <RootNamespace>Namines.Cli</RootNamespace>
+
+    <!-- dotnet tool olarak da yayinlanir: `dotnet tool install -g Namines.Cli`.
+         .NET'i olan kullanicilar icin tek satirlik kurulum; .NET'i olmayanlar
+         icin npm sarmalayicisi var (packaging/npm). -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>namines</ToolCommandName>
+    <PackageId>Namines.Cli</PackageId>
+    <PackageDescription>Namines CLI - pull schemas, analyze impact, generate DDL and prove migrations from the terminal.</PackageDescription>
+    <PackageTags>namines cli database schema migration ddl</PackageTags>
+    <Authors>Namines</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <!--
+    new-phase/11-MIGRATIONS-BRANCHING.md §9 — CLI komutları.
+
+    CLI, Namines.Mcp'yi referans alır ve MCP araçlarının GÖVDESİNİ yeniden
+    kullanır. Ters yönde (MCP → CLI) veya iki ayrı kopya olarak yazmak cazipti;
+    tercih edilmedi, çünkü bu kod tabanı aynı mantığı kopyalamanın bedelini
+    zaten ödedi (6 controller'da tekrarlanan yetki kontrolü → OrgAccess).
+    Tek kopya olduğu sürece CLI ile MCP'nin davranışı ayrışamaz: `namines diff`
+    ne diyorsa `namines_analyze_impact` da aynısını der.
+
+    Bedeli: CLI, kullanmadığı ModelContextProtocol paketini de taşır. Attribute'lar
+    MCP host'u olmadan etkisizdir; bu, davranış ayrışması riskinin yanında ucuz.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Namines.Mcp\Namines.Mcp.csproj" />
+  </ItemGroup>
+
+</Project>

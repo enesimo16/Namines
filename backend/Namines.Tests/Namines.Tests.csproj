@@ -32,6 +32,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
+    <ProjectReference Include="..\Namines.Mcp\Namines.Mcp.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,14 @@
+{
+  "name": "namines",
+  "owner": {
+    "name": "Namines",
+    "url": "https://github.com/enesimo16/Namines"
+  },
+  "plugins": [
+    {
+      "name": "namines",
+      "source": "./",
+      "description": "Deterministic schema impact analysis, 6-dialect DDL generation, and migration proof against a real database container. Bundles the MCP server and the review policy skill."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "namines",
+  "version": "0.1.0",
+  "description": "Prove database schema changes before they run: deterministic impact analysis, engine-accurate DDL for 6 dialects, and migration proof against a real database container.",
+  "author": {
+    "name": "Namines"
+  },
+  "homepage": "https://github.com/enesimo16/Namines",
+  "license": "MIT",
+  "keywords": ["database", "schema", "migration", "postgresql", "mysql", "sqlserver"]
+}

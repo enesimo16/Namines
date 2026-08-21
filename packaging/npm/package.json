@@ -1,0 +1,34 @@
+{
+  "name": "@namines/mcp",
+  "version": "0.1.0",
+  "description": "Namines MCP server — deterministic schema impact analysis and migration proof for AI coding agents.",
+  "license": "MIT",
+  "bin": {
+    "namines-mcp": "bin/namines-mcp.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node lib/download.js || true"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "database",
+    "schema",
+    "migration",
+    "postgresql",
+    "mysql",
+    "sqlserver"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enesimo16/Namines.git"
+  }
+}
