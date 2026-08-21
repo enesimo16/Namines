@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -54,6 +55,7 @@ public sealed class GatewayService : IGatewayService
         IReadOnlyList<GatewayFilter>? filters = null,
         IReadOnlyList<GatewayFilterGroup>? orGroups = null,
         IReadOnlyList<string>? selectColumns = null,
+        IReadOnlyList<GatewayExpand>? expands = null,
         CancellationToken cancellationToken = default)
     {
         ValidateIdentifierOrThrow(tableName, nameof(tableName));
@@ -86,7 +88,59 @@ public sealed class GatewayService : IGatewayService
                 rows.Add(ReadRow(reader));
         }
 
+        await ApplyExpandsAsync(conn, dbType, rows, expands, cancellationToken);
+
         return new GatewayListResult(rows, page, pageSize, totalCount);
+    }
+
+    /// <summary>08 §5: sorgu maliyeti tavanı. Aşan istek kırpılmaz, REDDEDİLİR —
+    /// sessizce kırpılmış bir dışa aktarım, eksik olduğunu söylemeyen bir dosyadır.</summary>
+    internal const int MaxExportRows = 10_000;
+
+    public async Task<IReadOnlyList<GatewayRow>> ExportAsync(
+        string connectionString, string dbType, string tableName,
+        int maxRows,
+        string? orderByColumn = null,
+        GatewaySortDirection sortDirection = GatewaySortDirection.Asc,
+        IReadOnlyList<GatewayFilter>? filters = null,
+        IReadOnlyList<GatewayFilterGroup>? orGroups = null,
+        IReadOnlyList<string>? selectColumns = null,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateIdentifierOrThrow(tableName, nameof(tableName));
+        if (orderByColumn is not null) ValidateIdentifierOrThrow(orderByColumn, nameof(orderByColumn));
+
+        if (maxRows <= 0) maxRows = MaxExportRows;
+        if (maxRows > MaxExportRows)
+            throw new ArgumentException(
+                $"Export is capped at {MaxExportRows} rows. Narrow the filter, or page through /list instead.");
+
+        // Dışa aktarım OKUMA yoludur: salt-okunur oturum (06 §5).
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: true, cancellationToken);
+
+        // Tek sayfa olarak, tavan + 1 satır iste: fazladan gelen satır "sonuç
+        // kesildi" demektir ve bunu sessizce yutmak yerine hata veriyoruz.
+        var (sql, bind) = BuildListSql(
+            dbType, tableName, page: 1, pageSize: maxRows + 1, orderByColumn, sortDirection,
+            filters, orGroups, selectColumns);
+
+        await using var cmd = CreateCommand(conn, dbType);
+        cmd.CommandText = sql;
+        cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+        bind(cmd);
+
+        var rows = new List<GatewayRow>();
+        await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+                rows.Add(ReadRow(reader));
+        }
+
+        if (rows.Count > maxRows)
+            throw new ArgumentException(
+                $"This query matches more than {maxRows} rows. Narrow the filter, or page through /list instead.");
+
+        return rows;
     }
 
     public async Task<GatewayRow?> DetailAsync(
@@ -279,6 +333,94 @@ public sealed class GatewayService : IGatewayService
     {
         var prefix = dbType.Equals("ORACLE", StringComparison.OrdinalIgnoreCase) ? ":" : "@";
         return $"DELETE FROM {Quote(dbType, tableName)} WHERE {Quote(dbType, pkColumn)} = {prefix}pkvalue";
+    }
+
+    // ── expand: ilişki gömme (08 §2.1) ───────────────────────────────────────
+
+    /// <summary>
+    /// Her ilişki için TEK ek sorgu çalıştırır ve sonucu satırlara gömer.
+    ///
+    /// Satır başına sorgu (N+1) bilinçli olarak yapılmıyor: 50 satırlık bir sayfa
+    /// 51 sorguya dönüşür ve gecikme sayfa boyutuyla doğrusal artar. Bunun yerine
+    /// ana sorgudan gelen yabancı anahtar değerleri toplanıp tek bir <c>IN (...)</c>
+    /// ile çekiliyor.
+    /// </summary>
+    private static async Task ApplyExpandsAsync(
+        DbConnection conn, string dbType, List<GatewayRow> rows,
+        IReadOnlyList<GatewayExpand>? expands, CancellationToken ct)
+    {
+        if (expands is null || expands.Count == 0 || rows.Count == 0) return;
+
+        foreach (var expand in expands)
+        {
+            ValidateIdentifierOrThrow(expand.FromColumn, nameof(expand.FromColumn));
+            ValidateIdentifierOrThrow(expand.Table, nameof(expand.Table));
+            ValidateIdentifierOrThrow(expand.ToColumn, nameof(expand.ToColumn));
+
+            var alias = string.IsNullOrWhiteSpace(expand.As) ? expand.Table : expand.As!;
+            ValidateIdentifierOrThrow(alias, nameof(expand.As));
+
+            // Null yabancı anahtarlar sorguya girmez: NULL hiçbir şeye eşit değildir,
+            // IN listesine koymak yalnızca sorguyu büyütür.
+            var keys = rows
+                .Select(r => r.Values.TryGetValue(expand.FromColumn, out var v) ? v : null)
+                .Where(v => v is not null)
+                .Distinct()
+                .ToList();
+
+            if (keys.Count == 0) continue;
+
+            var prefix = dbType.Equals("ORACLE", StringComparison.OrdinalIgnoreCase) ? ":" : "@";
+            var names = keys.Select((_, i) => $"{prefix}e{i}").ToList();
+
+            await using var cmd = CreateCommand(conn, dbType);
+            cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+            cmd.CommandText =
+                $"SELECT * FROM {Quote(dbType, expand.Table)} " +
+                $"WHERE {Quote(dbType, expand.ToColumn)} IN ({string.Join(", ", names)})";
+
+            for (var i = 0; i < keys.Count; i++)
+                AddParameter(cmd, dbType, $"e{i}", keys[i]);
+
+            var related = new Dictionary<string, GatewayRow>(StringComparer.Ordinal);
+            await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                {
+                    var row = ReadRow(reader);
+                    if (row.Values.TryGetValue(expand.ToColumn, out var key) && key is not null)
+                        // Anahtar metne çevrilerek eşleştiriliyor: motorlar aynı değeri
+                        // farklı CLR tipleriyle döndürebiliyor (int vs long vs decimal)
+                        // ve tip üzerinden eşleştirmek sessizce eşleşmeme üretirdi.
+                        related[Convert.ToString(key, CultureInfo.InvariantCulture)!] = row;
+                }
+            }
+
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var values = new Dictionary<string, object?>(rows[i].Values);
+
+                if (values.TryGetValue(expand.FromColumn, out var fk) && fk is not null)
+                {
+                    var lookup = Convert.ToString(fk, CultureInfo.InvariantCulture)!;
+                    // Eşleşme yoksa alan NULL olarak eklenir; hiç eklememek, istemcinin
+                    // "alan var mı yok mu" diye ayrı bir kontrol yazmasını gerektirirdi.
+                    values[alias] = related.TryGetValue(lookup, out var match) ? match.Values : null;
+                }
+                else
+                {
+                    // Yabancı anahtarı NULL olan satırda da alan bulunmalı: aynı
+                    // sorgunun bazı satırlarında olup bazılarında olmayan bir alan,
+                    // istemci tarafında tip belirsizliği yaratır.
+                    values[alias] = null;
+                }
+
+                // GatewayRow'un sözlüğünü yerinde değiştirmek yerine satır yeniden
+                // kuruluyor: IReadOnlyDictionary'yi IDictionary'ye cast etmek,
+                // ReadRow'un somut tipine gizli bir bağımlılık olurdu.
+                rows[i] = new GatewayRow(values);
+            }
+        }
     }
 
     // ── Kimlik doğrulama + quote (SQL injection'a karşı tek savunma hattı) ─────

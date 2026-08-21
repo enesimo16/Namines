@@ -10,4 +10,10 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Yeni public API yüzeyi açmadan iç yardımcıları test edebilmek için
+         (Namines.Infrastructure ile aynı desen). -->
+    <InternalsVisibleTo Include="Namines.Tests" />
+  </ItemGroup>
+
 </Project>

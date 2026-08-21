@@ -13,6 +13,7 @@ using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
 using Microsoft.Extensions.Configuration;
 using System.Linq;
+using System.Text;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 
@@ -22,6 +23,17 @@ public sealed record GatewayListRequest(
     string ConnectionString, string DbType, string TableName,
     int Page = 1, int PageSize = 25,
     string? OrderByColumn = null, bool IncludeTotalCount = true,
+    GatewaySortDirection SortDirection = GatewaySortDirection.Asc,
+    IReadOnlyList<GatewayFilter>? Filters = null,
+    IReadOnlyList<GatewayFilterGroup>? OrGroups = null,
+    IReadOnlyList<string>? Select = null,
+    IReadOnlyList<GatewayExpand>? Expand = null);
+
+public sealed record GatewayExportRequest(
+    string ConnectionString, string DbType, string TableName,
+    string Format = "csv",
+    int MaxRows = 10_000,
+    string? OrderByColumn = null,
     GatewaySortDirection SortDirection = GatewaySortDirection.Asc,
     IReadOnlyList<GatewayFilter>? Filters = null,
     IReadOnlyList<GatewayFilterGroup>? OrGroups = null,
@@ -169,7 +181,7 @@ public class GatewayController : ControllerBase
                 request.ConnectionString, request.DbType, request.TableName,
                 request.Page, request.PageSize, request.OrderByColumn,
                 request.IncludeTotalCount, request.SortDirection, request.Filters,
-                request.OrGroups, request.Select, cancellationToken);
+                request.OrGroups, request.Select, request.Expand, cancellationToken);
 
             return Ok(result);
         }
@@ -331,6 +343,67 @@ public class GatewayController : ControllerBase
         catch (InvalidOperationException ex) when (ex.Message.Contains("Refusing to modify"))
         {
             return Conflict(new { message = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { message = "Could not connect or query the database. Check credentials and network access." });
+        }
+    }
+
+    // ── Dışa aktarım (08 §2) ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Filtrelenmiş satırları CSV ya da JSON olarak indirir.
+    ///
+    /// Sunucu tarafında bir TAVAN var (08 §5): aşan sorgu sessizce KIRPILMAZ,
+    /// reddedilir. Kırpılmış bir dosya, eksik olduğunu söylemez — kullanıcı onu
+    /// tam sanıp üzerine rapor kurar.
+    /// </summary>
+    [HttpPost("export")]
+    public async Task<IActionResult> Export([FromBody] GatewayExportRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName))
+            return BadRequest(new { message = "Connection string and table name are required." });
+
+        var (allowed, failure) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
+        if (!allowed) return failure!;
+
+        var format = (request.Format ?? "csv").Trim().ToLowerInvariant();
+        if (format is not ("csv" or "json"))
+            return BadRequest(new { message = "Format must be 'csv' or 'json'." });
+
+        try
+        {
+            var rows = await _gateway.ExportAsync(
+                request.ConnectionString, request.DbType, request.TableName,
+                request.MaxRows, request.OrderByColumn, request.SortDirection,
+                request.Filters, request.OrGroups, request.Select, cancellationToken);
+
+            var fileName = $"{request.TableName}.{format}";
+
+            if (format == "csv")
+            {
+                var csv = CsvWriter.Write(rows.Select(r => r.Values).ToList());
+                // UTF-8 BOM: Excel BOM'suz bir CSV'yi ANSI sanıp Türkçe karakterleri
+                // bozuk gösteriyor. Dosyayı açan çoğu kişi Excel kullanıyor.
+                var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
+                return File(bytes, "text/csv; charset=utf-8", fileName);
+            }
+
+            var json = JsonSerializer.Serialize(rows.Select(r => r.Values));
+            return File(Encoding.UTF8.GetBytes(json), "application/json; charset=utf-8", fileName);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (NotSupportedException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not allowed"))
+        {
+            return BadRequest(new { message = "Connection target is not allowed (private or reserved address)." });
         }
         catch (Exception)
         {

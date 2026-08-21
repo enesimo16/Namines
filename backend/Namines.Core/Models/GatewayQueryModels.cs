@@ -48,6 +48,21 @@ public enum GatewaySortDirection
     Desc,
 }
 
+/// <summary>
+/// Bir ilişkinin gömülmesi (08 §2.1 <c>expand=</c>).
+///
+/// İlişkiyi ÇAĞIRAN bildirir, Gateway şemadan çıkarmaz. Sebep: Gateway durumsuz —
+/// her istekte bağlantı dizesi alıyor, projenin şemasını bilmiyor. Şemayı sunucuda
+/// aramak yalnızca API-anahtarı yolunda mümkün olurdu (orada proje belli), oturum
+/// yolunda olmazdı; yalnızca bir kimlik yolunda çalışan bir özellik, hiç olmamasından
+/// kötüdür. İstemci (Studio ya da üretilen SDK) şemayı zaten biliyor.
+/// </summary>
+/// <param name="FromColumn">Ana tablodaki yabancı anahtar kolonu.</param>
+/// <param name="Table">Hedef tablo.</param>
+/// <param name="ToColumn">Hedef tablodaki anahtar kolonu.</param>
+/// <param name="As">Sonuçta hangi ad altında görüneceği. Boşsa hedef tablo adı.</param>
+public sealed record GatewayExpand(string FromColumn, string Table, string ToColumn, string? As = null);
+
 /// <param name="AffectedRows">Motorun bildirdiği etkilenen satır sayısı.</param>
 /// <param name="Row">
 /// Yazma sonrası satır — yalnızca motor bunu TEK ifadede güvenle döndürebiliyorsa

@@ -352,4 +352,100 @@ public class GatewayWriteExecutionTests : IAsyncLifetime
         Assert.False(result.Rows[0].Values.ContainsKey("note"));
         Assert.True(result.Rows[0].Values.ContainsKey("status"));
     }
+
+    // ── expand: ilişki gömme (08 §2.1) ───────────────────────────────────────
+
+    private async Task SeedRelatedAsync()
+    {
+        await ExecuteAsync("DROP TABLE IF EXISTS posts; DROP TABLE IF EXISTS authors");
+        await ExecuteAsync("CREATE TABLE authors (id INT PRIMARY KEY, name VARCHAR(32) NOT NULL)");
+        await ExecuteAsync("INSERT INTO authors VALUES (1,'ali'),(2,'veli')");
+        await ExecuteAsync(@"CREATE TABLE posts (
+            id SERIAL PRIMARY KEY, title VARCHAR(64) NOT NULL, author_id INT NULL)");
+        await ExecuteAsync(
+            "INSERT INTO posts (title, author_id) VALUES ('a',1),('b',2),('c',1),('orphan',NULL)");
+    }
+
+    [RequiresDockerFact]
+    public async Task Expand_embeds_the_related_row()
+    {
+        await SeedRelatedAsync();
+
+        var result = await Service().ListAsync(
+            ConnectionString, "PostgreSQL", "posts", 1, 25, "id", false,
+            GatewaySortDirection.Asc, filters: null, orGroups: null, selectColumns: null,
+            expands: new List<GatewayExpand> { new("author_id", "authors", "id", "author") });
+
+        Assert.Equal(4, result.Rows.Count);
+
+        var first = result.Rows[0].Values;
+        var author = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(first["author"]);
+        Assert.Equal("ali", author["name"]?.ToString());
+    }
+
+    [RequiresDockerFact]
+    public async Task Expand_leaves_the_field_present_but_null_for_an_orphan_row()
+    {
+        // Aynı sorgunun bazı satırlarında olup bazılarında olmayan bir alan,
+        // istemci tarafında tip belirsizliği yaratır.
+        await SeedRelatedAsync();
+
+        var result = await Service().ListAsync(
+            ConnectionString, "PostgreSQL", "posts", 1, 25, "id", false,
+            GatewaySortDirection.Asc, filters: null, orGroups: null, selectColumns: null,
+            expands: new List<GatewayExpand> { new("author_id", "authors", "id", "author") });
+
+        var orphan = result.Rows.Single(r => r.Values["title"]?.ToString() == "orphan").Values;
+        Assert.True(orphan.ContainsKey("author"));
+        Assert.Null(orphan["author"]);
+    }
+
+    [RequiresDockerFact]
+    public async Task Expand_identifiers_go_through_validation()
+    {
+        await SeedRelatedAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => Service().ListAsync(
+            ConnectionString, "PostgreSQL", "posts", 1, 25, "id", false,
+            GatewaySortDirection.Asc, null, null, null,
+            new List<GatewayExpand> { new("author_id", "authors; DROP TABLE posts--", "id") }));
+    }
+
+    // ── Dışa aktarım (08 §2) ─────────────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Export_returns_all_matching_rows_without_paging()
+    {
+        await SeedOrdersAsync();
+
+        var rows = await Service().ExportAsync(
+            ConnectionString, "PostgreSQL", "orders", maxRows: 1000, orderByColumn: "id");
+
+        Assert.Equal(3, rows.Count);
+    }
+
+    [RequiresDockerFact]
+    public async Task Export_refuses_rather_than_silently_truncating()
+    {
+        // Kırpılmış bir dosya, eksik olduğunu SÖYLEMEZ; kullanıcı onu tam sanıp
+        // üzerine rapor kurar. Bu yüzden aşan sorgu reddediliyor.
+        await SeedOrdersAsync();
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => Service().ExportAsync(
+            ConnectionString, "PostgreSQL", "orders", maxRows: 2, orderByColumn: "id"));
+
+        Assert.Contains("more than 2 rows", ex.Message);
+    }
+
+    [RequiresDockerFact]
+    public async Task Export_honours_filters()
+    {
+        await SeedOrdersAsync();
+
+        var rows = await Service().ExportAsync(
+            ConnectionString, "PostgreSQL", "orders", maxRows: 1000, orderByColumn: "id",
+            filters: new List<GatewayFilter> { new("status", GatewayOperator.Eq, new string?[] { "paid" }) });
+
+        Assert.Equal(2, rows.Count);
+    }
 }

@@ -18,10 +18,32 @@ public interface IGatewayService
     /// </param>
     /// <param name="orGroups">Her grup kendi içinde OR, gruplar birbiriyle AND.</param>
     /// <param name="selectColumns">Boşsa tüm kolonlar döner.</param>
+    /// <param name="expands">
+    /// Gömülecek ilişkiler. İlişki başına TEK ek sorgu çalışır (satır başına değil) —
+    /// 08 §2.1'in "N+1 yok" vaadi budur.
+    /// </param>
     Task<GatewayListResult> ListAsync(
         string connectionString, string dbType, string tableName,
         int page, int pageSize, string? orderByColumn = null,
         bool includeTotalCount = true,
+        GatewaySortDirection sortDirection = GatewaySortDirection.Asc,
+        IReadOnlyList<GatewayFilter>? filters = null,
+        IReadOnlyList<GatewayFilterGroup>? orGroups = null,
+        IReadOnlyList<string>? selectColumns = null,
+        IReadOnlyList<GatewayExpand>? expands = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Filtrelenmiş satırları toplu okur (08 §2 <c>/export</c>).
+    ///
+    /// <paramref name="maxRows"/> ZORUNLU bir tavan: sınırsız bir dışa aktarım, tek
+    /// bir istekle milyonlarca satırı belleğe alıp sunucuyu düşürebilir. 08 §5'in
+    /// "max 10.000 satır" sorgu maliyeti kuralı burada uygulanır.
+    /// </summary>
+    Task<IReadOnlyList<GatewayRow>> ExportAsync(
+        string connectionString, string dbType, string tableName,
+        int maxRows,
+        string? orderByColumn = null,
         GatewaySortDirection sortDirection = GatewaySortDirection.Asc,
         IReadOnlyList<GatewayFilter>? filters = null,
         IReadOnlyList<GatewayFilterGroup>? orGroups = null,
