@@ -1,0 +1,108 @@
+name: Release
+
+# Etiket atıldığında (v0.1.0 gibi) her platform için self-contained binary üretir,
+# checksum'larıyla birlikte GitHub Release'e ekler.
+#
+# Self-contained: kullanıcıda .NET runtime ŞARTI YOK. Hedef kitle .NET geliştiricisi
+# değil (bkz. packaging/npm/lib/download.js) — npm sarmalayıcısı bu asset'leri indirir.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64,    os: windows-latest, ext: '.exe' }
+          - { rid: win-arm64,  os: windows-latest, ext: '.exe' }
+          - { rid: linux-x64,  os: ubuntu-latest,  ext: '' }
+          - { rid: linux-arm64, os: ubuntu-latest, ext: '' }
+          - { rid: osx-x64,    os: macos-latest,   ext: '' }
+          - { rid: osx-arm64,  os: macos-latest,   ext: '' }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      # PublishTrimmed KULLANILMIYOR. Ado.NET sağlayıcıları ve System.Text.Json
+      # yoğun şekilde reflection kullanıyor; trimming bunları çalışma zamanında,
+      # yalnızca belirli bir motora bağlanınca patlayan hâle getirir. Sıkıştırma
+      # ise güvenli: 141 MB -> 68 MB (ölçüldü, win-x64), bedeli yalnızca ilk
+      # çalıştırmadaki açma süresi.
+      #
+      # Boyutun asıl sebebi Namines.Infrastructure'ın tek parça olması: MCP'nin
+      # hiç kullanmadığı QuestPDF (~12 MB), EF Core ve Kestrel de içeri geliyor.
+      # Kalıcı çözüm Infrastructure'ı bölmek; bu ayrı bir iş.
+      - name: Publish MCP
+        run: >
+          dotnet publish backend/Namines.Mcp/Namines.Mcp.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o out/mcp
+
+      - name: Publish CLI
+        run: >
+          dotnet publish backend/Namines.Cli/Namines.Cli.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o out/cli
+
+      # İndirici asset'leri RID ile adlandırılmış bekliyor (namines-mcp-linux-x64).
+      - name: Rename assets
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "out/mcp/namines-mcp${{ matrix.ext }}" "dist/namines-mcp-${{ matrix.rid }}${{ matrix.ext }}"
+          cp "out/cli/namines${{ matrix.ext }}"     "dist/namines-${{ matrix.rid }}${{ matrix.ext }}"
+
+      - name: Checksums
+        shell: bash
+        run: cd dist && shasum -a 256 * > "checksums-${{ matrix.rid }}.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.rid }}
+          path: dist/
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: staging
+
+      # Platform başına üretilen checksum dosyaları TEK bir checksums.txt'de
+      # birleşir — indirici tam olarak bu adı arıyor.
+      - name: Collect
+        run: |
+          mkdir -p dist
+          find staging -type f ! -name 'checksums-*.txt' -exec cp {} dist/ \;
+          cat staging/*/checksums-*.txt > dist/checksums.txt
+          ls -la dist
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

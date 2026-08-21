@@ -1,0 +1,179 @@
+name: CI
+
+# Her push ve PR'da derleme + test. Bu depoda daha önce hiçbir pipeline
+# build/test koşmuyordu — tek workflow (namines-schema-diff) bir PR yorumcusuydu.
+# Yani her değişiklik doğrulanmamış gidiyordu.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Aynı dal için üst üste binen koşuları iptal et — CI dakikası boşa gitmesin.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Backend: derleme + TÜM testler ────────────────────────────────────────
+  # ubuntu-latest'te Docker hazır gelir, bu yüzden Testcontainers/Docker.DotNet
+  # tabanlı integration testleri de GERÇEKTEN koşar. DockerAvailable.cs'in kendi
+  # notu bunu şart koşuyor: "CI'da Docker HER ZAMAN olmalıdır — orada atlanan
+  # test bir uyarıdır, kabul değil."
+  backend:
+    name: Backend (build + test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          # Projeler net8.0 hedefliyor; SDK 9 net8 hedefini derleyebilir ve
+          # yerel geliştirme ortamıyla eşleşir.
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore backend/Namines.sln
+
+      - name: Build
+        run: dotnet build backend/Namines.sln --no-restore --configuration Release
+
+      - name: Docker hazır mı
+        run: docker info --format '{{.ServerVersion}}'
+
+      # Integration testleri gerçek DB container'ları açıyor. CLAUDE.md'nin kuralı:
+      # paralel çalıştırmak Docker'ı boğabiliyor — sıralı koş.
+      - name: Test — Namines.Tests
+        run: >
+          dotnet test backend/Namines.Tests/Namines.Tests.csproj
+          --no-build --configuration Release
+          --logger "trx;LogFileName=namines-tests.trx"
+          --logger "console;verbosity=normal"
+          -- xunit.parallelizeAssembly=false xunit.parallelizeTestCollections=false
+
+      # Ayrı proje: Testcontainers ile ham Docker.DotNet aynı process'te
+      # çakışıyor (bkz. CHECKLIST G12 notu), o yüzden bağımsız koşar.
+      - name: Test — Namines.Tests.RunTests (gerçek Docker)
+        run: >
+          dotnet test backend/Namines.Tests.RunTests/Namines.Tests.RunTests.csproj
+          --no-build --configuration Release
+          --logger "trx;LogFileName=runtests.trx"
+          --logger "console;verbosity=normal"
+          -- xunit.parallelizeAssembly=false xunit.parallelizeTestCollections=false
+
+      # CLI'ın CI kapısı olarak kullanılabilmesi çıkış kodlarına bağlı. Birim testi
+      # bunu kanıtlamaz — asıl sözleşme "yıkıcı değişiklikte 0 DÖNDÜRME"dir, ve
+      # sessizce 0 dönen bir kapı hiç kapı olmamasından kötüdür.
+      - name: Duman testi — namines CLI çıkış kodları
+        shell: bash
+        run: |
+          set -uo pipefail
+          CLI="dotnet backend/Namines.Cli/bin/Release/net8.0/namines.dll"
+          cat > /tmp/base.json <<'JSON'
+          {"name":"app","tables":[{"name":"users","columns":[
+           {"name":"id","type":"INT","isPK":true,"isNullable":false},
+           {"name":"email","type":"VARCHAR","length":255,"isNullable":false}]}],"relations":[]}
+          JSON
+          cat > /tmp/target.json <<'JSON'
+          {"name":"app","tables":[{"name":"users","columns":[
+           {"name":"id","type":"INT","isPK":true,"isNullable":false}]}],"relations":[]}
+          JSON
+
+          $CLI ddl --schema /tmp/base.json --engine PostgreSQL > /dev/null
+          [ $? -eq 0 ] || { echo "::error::ddl 0 dönmedi"; exit 1; }
+
+          $CLI diff --base /tmp/base.json --target /tmp/target.json --engine PostgreSQL > /dev/null
+          [ $? -eq 2 ] || { echo "::error::kolon silme için diff 2 (breaking) dönmedi"; exit 1; }
+
+          $CLI diff --base /tmp/base.json --target /tmp/base.json --engine PostgreSQL > /dev/null
+          [ $? -eq 0 ] || { echo "::error::değişiklik yokken diff 0 dönmedi"; exit 1; }
+
+          $CLI prove --schema /tmp/base.json --engine SQLite > /dev/null
+          [ $? -eq 0 ] || { echo "::error::SQLite prove 0 dönmedi"; exit 1; }
+
+          $CLI prisma --schema /tmp/base.json --engine PostgreSQL > /tmp/schema.prisma
+          [ $? -eq 0 ] || { echo "::error::prisma 0 dönmedi"; exit 1; }
+          grep -q "provider = \"postgresql\"" /tmp/schema.prisma             || { echo "::error::üretilen prisma şeması provider taşımıyor"; exit 1; }
+
+          # Oracle'ı Prisma desteklemiyor; sessizce başka bir provider yazmak yerine
+          # reddetmeli. Sessiz kabul, ancak canlıda fark edilecek bir hata üretirdi.
+          $CLI prisma --schema /tmp/base.json --engine Oracle > /dev/null 2>&1
+          [ $? -eq 1 ] || { echo "::error::Oracle için prisma reddetmedi"; exit 1; }
+
+          echo "CLI çıkış kodları doğru."
+
+      - name: Test sonuçlarını yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: '**/TestResults/*.trx'
+          if-no-files-found: ignore
+
+  # ── Frontend: tip kontrolü + production build ─────────────────────────────
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # Ayrı adım: build'in içindeki tsc hata verirse hangi aşamada patladığı
+      # log'dan net görünsün.
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Build
+        run: npm run build
+
+  # ── Tasarım sistemi bekçisi ───────────────────────────────────────────────
+  # FRONTEND.md §4: component'te ham hex YAZILMAZ, token kullanılır. 1753 ihlal
+  # elle temizlendi; bu adım geri sızmasını engeller. Ayrıca §2'nin yasakladığı
+  # saf beyaz/siyah ve indigo/mor ailesini de yakalar.
+  design-tokens:
+    name: Tasarım tokenları (ham hex yok)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tailwind arbitrary hex kullanımı var mı
+        run: |
+          if grep -rn "[a-z-]\+-\[#[0-9a-fA-F]\{6\}\]" frontend/app frontend/components; then
+            echo "::error::Ham hex bulundu. FRONTEND.md §4: token kullan (ör. bg-surface-700), arbitrary hex yazma."
+            exit 1
+          fi
+          echo "Temiz: ham hex yok."
+
+      - name: Yasaklı renkler (saf beyaz/siyah, indigo/mor)
+        run: |
+          # globals.css'teki açıklama satırları hariç tutulur (yorumda hex geçebilir).
+          if grep -rniE "#(ffffff|000000)\b|#(6366f1|818cf8|a5b4fc|4f46e5)\b" \
+               frontend/app frontend/components --include="*.tsx" --include="*.ts"; then
+            echo "::error::FRONTEND.md §2 ihlali: saf beyaz/siyah veya indigo/mor kullanılmış."
+            exit 1
+          fi
+          echo "Temiz: yasaklı renk yok."
