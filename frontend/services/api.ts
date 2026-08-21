@@ -1,6 +1,9 @@
 import axios from 'axios';
 import { DatabaseSchema } from '../types/schema';
 import { SchemaDiffResult, MigrationResult } from '../types/migration';
+import { ChangeRequestSummary, ChangeRequestDetail, ApprovalDecision, ChangeRequestStatus, AffectedCodeScanResult, ChangeRequestAuditEntry } from '../types/changeRequest';
+import { GatewayListResult, GatewayRow } from '../types/gateway';
+import { ProjectMember, OrgRole } from '../types/member';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 import { useSchemaStore } from '../store/useSchemaStore';
@@ -56,6 +59,25 @@ export const schemaService = {
 
   compileEfCore: async (schema: DatabaseSchema, dbType: string): Promise<Blob> => {
     const response = await api.post('/compile/efcore', { schema, dbType }, { responseType: 'blob' });
+    return response.data;
+  },
+
+  /**
+   * Prisma şeması. Önizleme arka uçtan çekilir, istemcide YENİDEN ÜRETİLMEZ:
+   * üretici 21 testle (4'ü gerçek `prisma validate`) doğrulanmış tek kopyadır ve
+   * `warnings` ancak oradan gelir. İstemcide ikinci bir üretici, gösterilen şema
+   * ile indirilen şemanın sessizce ayrışmasına yol açardı.
+   */
+  compilePrisma: async (
+    schema: DatabaseSchema,
+    dbType: string,
+  ): Promise<{ schema: string; env: string; warnings: string[] }> => {
+    const response = await api.post('/compile/prisma', { schema, dbType });
+    return response.data;
+  },
+
+  compilePrismaZip: async (schema: DatabaseSchema, dbType: string): Promise<Blob> => {
+    const response = await api.post('/compile/prisma/zip', { schema, dbType }, { responseType: 'blob' });
     return response.data;
   },
 
@@ -127,13 +149,111 @@ export const migrationService = {
     return response.data;
   },
 
-  calculateDiff: async (oldSchema: DatabaseSchema, newSchema: DatabaseSchema): Promise<SchemaDiffResult> => {
-    const response = await api.post<SchemaDiffResult>('/migration/diff', { oldSchema, newSchema });
+  calculateDiff: async (oldSchema: DatabaseSchema, newSchema: DatabaseSchema, dbType?: string): Promise<SchemaDiffResult> => {
+    const response = await api.post<SchemaDiffResult>('/migration/diff', { oldSchema, newSchema, dbType });
     return response.data;
   },
 
   generateMigration: async (oldSchema: DatabaseSchema, newSchema: DatabaseSchema, dbType: string): Promise<MigrationResult> => {
     const response = await api.post<MigrationResult>('/migration/generate', { oldSchema, newSchema, dbType });
+    return response.data;
+  }
+};
+
+export const changeRequestService = {
+  createQuick: async (projectId: string, schema: DatabaseSchema, title?: string, message?: string): Promise<{ id: string }> => {
+    const response = await api.post<{ id: string }>('/changerequest/quick', {
+      projectId,
+      schemaJson: JSON.stringify(schema),
+      title,
+      message,
+    });
+    return response.data;
+  },
+
+  listForProject: async (projectId: string): Promise<ChangeRequestSummary[]> => {
+    const response = await api.get<ChangeRequestSummary[]>(`/changerequest/project/${projectId}`);
+    return response.data;
+  },
+
+  getDetail: async (id: string): Promise<ChangeRequestDetail> => {
+    const response = await api.get<ChangeRequestDetail>(`/changerequest/${id}`);
+    return response.data;
+  },
+
+  decide: async (id: string, decision: ApprovalDecision, comment?: string): Promise<{ id: string; status: ChangeRequestStatus }> => {
+    const response = await api.post<{ id: string; status: ChangeRequestStatus }>(`/changerequest/${id}/decide`, { decision, comment });
+    return response.data;
+  },
+
+  runTests: async (id: string): Promise<{ supported: boolean; success: boolean; engineMessage: string | null; failedStatement: string | null; durationMs: number }> => {
+    // Container başlatma dahil senkron çalışır — 5-20sn sürebilir (bkz. backend yorumu).
+    const response = await api.post(`/changerequest/${id}/run-tests`, {}, { timeout: 90000 });
+    return response.data;
+  },
+
+  scanAffectedCode: async (id: string, files: { fileName: string; content: string }[]): Promise<AffectedCodeScanResult> => {
+    const response = await api.post<AffectedCodeScanResult>(`/changerequest/${id}/scan-affected-code`, { files });
+    return response.data;
+  },
+
+  // G16 — Safe risk'li değişikliklerin insan onayı beklemeden otomatik onaylanması.
+  setAutoApproveSafe: async (projectId: string, enabled: boolean): Promise<{ id: string; autoApproveSafeChanges: boolean }> => {
+    const response = await api.put(`/changerequest/project/${projectId}/auto-approve-safe`, { enabled });
+    return response.data;
+  },
+
+  getAuditLog: async (id: string): Promise<ChangeRequestAuditEntry[]> => {
+    const response = await api.get(`/changerequest/${id}/audit`);
+    return response.data;
+  }
+};
+
+// G18 — proje ekibi (organizasyon üyeliği, 05 §6).
+export const memberService = {
+  list: async (projectId: string): Promise<ProjectMember[]> => {
+    const response = await api.get<ProjectMember[]>(`/project/${projectId}/members`);
+    return response.data;
+  },
+
+  add: async (projectId: string, email: string, role: OrgRole): Promise<ProjectMember> => {
+    const response = await api.post(`/project/${projectId}/members`, { email, role });
+    return response.data;
+  },
+
+  changeRole: async (projectId: string, memberUserId: string, role: OrgRole): Promise<void> => {
+    await api.put(`/project/${projectId}/members/${memberUserId}`, { role });
+  },
+
+  remove: async (projectId: string, memberUserId: string): Promise<void> => {
+    await api.delete(`/project/${projectId}/members/${memberUserId}`);
+  },
+};
+
+// G17 — CanvasHub'ın roomId'sini sunucu-otoriteli branch_id'ye bağlamak için.
+export const branchService = {
+  getOrCreateDefault: async (projectId: string): Promise<{ id: string; projectId: string; name: string }> => {
+    const response = await api.get(`/branch/project/${projectId}/default`);
+    return response.data;
+  }
+};
+
+// G14 — Minimal Gateway: şemadan otomatik salt-okunur REST (liste + detay).
+export const gatewayService = {
+  list: async (
+    connectionString: string, dbType: string, tableName: string,
+    page: number, pageSize: number,
+    orderByColumn?: string | null, includeTotalCount: boolean = true,
+  ): Promise<GatewayListResult> => {
+    const response = await api.post<GatewayListResult>('/gateway/list', {
+      connectionString, dbType, tableName, page, pageSize,
+      orderByColumn: orderByColumn ?? null, includeTotalCount,
+    });
+    return response.data;
+  },
+
+  detail: async (connectionString: string, dbType: string, tableName: string, pkColumn: string, pkValue: string): Promise<GatewayRow> => {
+    const response = await api.post<GatewayRow>('/gateway/detail', { connectionString, dbType, tableName, pkColumn, pkValue });
     return response.data;
   }
 };

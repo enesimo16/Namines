@@ -43,7 +43,7 @@ export function schemaToFlow(schema: DatabaseSchema): { nodes: Node[]; edges: Ed
         onUpdate: relation.onUpdate || 'NoAction',
       },
       animated: true,
-      style: { stroke: '#6366f1', strokeWidth: 2 },
+      style: { stroke: '#5b6b93', strokeWidth: 2 },
     });
   });
 

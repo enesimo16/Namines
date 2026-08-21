@@ -13,6 +13,7 @@ import AuthModal from '../canvas/panels/AuthModal';
 import AIPreferencesModal from '../canvas/panels/AIPreferencesModal';
 import QuotaExhaustedModal from '../canvas/panels/QuotaExhaustedModal';
 import ProjectSidebar from './ProjectSidebar';
+import Logo from './Logo';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 
 export default function Header() {
@@ -82,63 +83,38 @@ export default function Header() {
 
   return (
     <>
-      <header className="flex items-center justify-between h-14 px-6 bg-[#0B1120]/80 backdrop-blur-md border-b border-blue-500/20 sticky top-0 z-50 w-full">
+      <header className="flex items-center justify-between h-14 px-3 sm:px-6 bg-surface-800/85 backdrop-blur-md border-b border-content-primary/10 sticky top-0 z-50 w-full">
         {/* Left — Logo + Workspace + Project Name */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2 sm:gap-6 min-w-0">
           <button
             onClick={handleLogoClick}
-            className="group flex items-center gap-2"
+            className="shrink-0"
             title="Return to landing page and reset project"
             aria-label="Namines landing page"
           >
-            <svg className="w-7 h-7 drop-shadow-[0_0_8px_rgba(99,102,241,0.4)]" viewBox="0 0 100 100" fill="none">
-              <circle cx="50" cy="50" r="46" stroke="url(#circle-grad-header)" strokeWidth="3" fill="#090B11" />
-              <path d="M20,62 C32,48 42,66 52,52 C62,38 72,56 84,42 L84,82 L20,82 Z" fill="url(#wave-grad-header)" opacity="0.8" />
-              <path d="M16,68 C28,56 38,74 50,62 C62,50 72,68 84,56 L84,84 L16,84 Z" fill="url(#wave-grad-2-header)" opacity="0.4" />
-              {/* Stars */}
-              <circle cx="35" cy="30" r="1.5" fill="#FFF" />
-              <circle cx="65" cy="25" r="2" fill="#FFF" />
-              <circle cx="50" cy="20" r="1" fill="#FFF" />
-              <circle cx="75" cy="35" r="1.2" fill="#FFF" />
-              <defs>
-                <linearGradient id="circle-grad-header" x1="0" y1="0" x2="100" y2="100">
-                  <stop offset="0%" stopColor="#06b6d4" />
-                  <stop offset="50%" stopColor="#818cf8" />
-                  <stop offset="100%" stopColor="#a855f7" />
-                </linearGradient>
-                <linearGradient id="wave-grad-header" x1="50" y1="30" x2="50" y2="90" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#1e1b4b" stopOpacity="0.1" />
-                </linearGradient>
-                <linearGradient id="wave-grad-2-header" x1="50" y1="40" x2="50" y2="90" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.6" />
-                  <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <span className="font-bold tracking-widest text-lg bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">NAMINES</span>
+            <Logo size="sm" />
           </button>
 
-          <div className="h-4 w-px bg-blue-500/20" />
+          <div className="h-4 w-px bg-surface-500 shrink-0" />
 
           <button
             id="header-workspace-btn"
             onClick={() => setIsSidebarOpen(true)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              isSidebarOpen 
-                ? 'bg-blue-500/10 text-blue-400' 
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+            className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0 ${
+              isSidebarOpen
+                ? 'bg-white/[0.08] text-content-primary'
+                : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
             }`}
             title="View your saved projects"
           >
             <FolderOpen className="w-4 h-4" />
-            <span>Workspace</span>
+            <span className="hidden sm:inline">Workspace</span>
           </button>
 
-          <div className="h-4 w-px bg-blue-500/20" />
+          <div className="h-4 w-px bg-surface-500 shrink-0 hidden sm:block" />
 
-          {/* Project Name Editor moved to left */}
-          <div className="flex items-center">
+          {/* Project Name Editor moved to left — dar ekranda gizli, yer kaplamasın */}
+          <div className="hidden md:flex items-center">
             {isEditing ? (
               <div className="flex items-center gap-2">
                 <input
@@ -147,13 +123,13 @@ export default function Header() {
                   onChange={(e) => setDraft(e.target.value)}
                   onBlur={commitEdit}
                   onKeyDown={handleKeyDown}
-                  className="bg-zinc-900/50 border border-blue-500/30 text-white rounded px-2 py-1 text-sm w-48 focus:outline-none focus:border-blue-400"
+                  className="bg-surface-700/70 border border-content-primary/15 text-content-primary rounded px-2 py-1 text-sm w-48 focus:outline-none focus:border-focus-ring"
                   maxLength={60}
                   autoFocus
                 />
                 <button
                   onClick={commitEdit}
-                  className="text-emerald-400 hover:text-emerald-300 p-1"
+                  className="text-success hover:text-success-text p-1"
                   aria-label="Save"
                 >
                   <Check className="w-4 h-4" />
@@ -162,10 +138,10 @@ export default function Header() {
             ) : (
               <button
                 onClick={startEditing}
-                className="group flex items-center gap-2 text-zinc-300 hover:text-white px-2 py-1 rounded transition-colors"
+                className="group flex items-center gap-2 text-content-primary hover:text-content-primary px-2 py-1 rounded transition-colors"
                 title="Edit project name"
               >
-                <span className="text-sm font-medium">{projectName}</span>
+                <span className="text-sm font-medium max-w-[160px] truncate">{projectName}</span>
                 <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             )}
@@ -173,33 +149,33 @@ export default function Header() {
         </div>
 
         {/* Right — Actions depending on path */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {isCanvas || isCompile ? (
             <button
                 onClick={() => setIsAIPreferencesOpen(true)}
                 title="Settings"
                 aria-label="Open Settings"
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 hover:bg-cyan-500/5 border border-white/10 hover:border-cyan-500/35 text-zinc-300 hover:text-cyan-400 transition-all duration-200 cursor-pointer active:scale-95"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/[0.04] hover:bg-content-primary/15 border border-content-primary/10 hover:border-white/25 text-content-primary hover:text-content-primary transition-all duration-200 cursor-pointer active:scale-95"
               >
                 <Settings className="w-4 h-4" />
               </button>
           ) : isAuthenticated ? (
-            <div 
+            <div
               onClick={() => setIsAIPreferencesOpen(true)}
-              className="flex items-center gap-3 pl-2 pr-3 py-1 bg-cyan-950/20 border border-cyan-500/20 hover:border-cyan-500/40 rounded-full select-none shadow-[0_2px_12px_rgba(6,182,212,0.08)] hover:bg-cyan-500/5 transition-all duration-200 cursor-pointer"
+              className="flex items-center gap-2 sm:gap-3 pl-1.5 sm:pl-2 pr-1.5 sm:pr-3 py-1 bg-white/[0.06] border border-content-primary/15 hover:border-white/25 rounded-full select-none shadow-[0_2px_12px_rgba(60,74,107,0.1)] hover:bg-white/[0.08] transition-all duration-200 cursor-pointer"
             >
               {/* Clean Avatar Orb */}
-              <div 
-                className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-teal-500 border border-cyan-400/20 flex items-center justify-center text-[#06101a] text-[11px] font-bold uppercase tracking-wider select-none overflow-hidden shrink-0"
+              <div
+                className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-accent-hover to-accent border border-focus-ring/30 flex items-center justify-center text-content-primary text-[11px] font-bold uppercase tracking-wider select-none overflow-hidden shrink-0"
                 title={user?.username}
               >
                 {user?.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
               </div>
-              <div className="flex flex-col gap-0.5 justify-center">
-                <span className="text-xs font-bold text-zinc-250 leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
+              <div className="hidden sm:flex flex-col gap-0.5 justify-center">
+                <span className="text-xs font-bold text-content-primary leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
                   {user?.username}
                 </span>
-                <span className="text-[8px] text-cyan-400/80 font-bold leading-none uppercase tracking-widest mt-0.5">
+                <span className="text-[8px] text-content-primary font-bold leading-none uppercase tracking-widest mt-0.5">
                   {user?.type === 'corporate' ? 'PRO MEMBER' : 'FREE MEMBER'}
                 </span>
               </div>
@@ -209,8 +185,9 @@ export default function Header() {
                   logout();
                   showToast('Logged out successfully.', 'info');
                 }}
-                className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-cyan-500/10 rounded-full transition-all duration-200 cursor-pointer ml-1.5 active:scale-95 shrink-0"
+                className="p-1.5 text-content-muted hover:text-danger hover:bg-danger-subtle rounded-full transition-all duration-200 cursor-pointer ml-0 sm:ml-1.5 active:scale-95 shrink-0"
                 title="Log Out"
+                aria-label="Log Out"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -219,9 +196,10 @@ export default function Header() {
             <button
               id="auth-modal-trigger"
               onClick={openAuthModal}
-              className="flex items-center justify-center py-1.5 px-4 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 hover:text-white text-[10px] font-extrabold uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(99,102,241,0.15)] cursor-pointer"
+              className="flex items-center justify-center py-1.5 px-3 sm:px-4 rounded-xl bg-content-primary hover:bg-content-primary-hover text-surface-900 text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap"
             >
-              <span>Login / Sign Up</span>
+              <span className="hidden sm:inline">Login / Sign Up</span>
+              <span className="inline sm:hidden">Login</span>
             </button>
           )}
         </div>
@@ -289,40 +267,33 @@ function QuotaBottomRightAlert({ remainingPercent, show }: QuotaAlertProps) {
   if (!show || isDismissed || currentRange === 100) return null;
 
   let message = "";
-  let dotColor = "bg-amber-400";
-  let borderClass = "border-amber-500/20";
-  let shadowClass = "shadow-amber-500/5";
+  // Sarı/turuncu aile kaldırıldı — yalnızca gerçek kritik durum kırmızı,
+  // geri kalanı nötr off-white ile (bkz. kullanıcı talimatı).
+  let dotColor = "bg-content-muted";
+  let borderClass = "border-content-primary/10";
 
   if (remainingPercent === 0) {
     message = "Token bitti — minimum AI aktif. Tüm ücretsiz özellikler açık.";
-    dotColor = "bg-rose-500";
-    borderClass = "border-rose-500/30";
-    shadowClass = "shadow-rose-500/15";
+    dotColor = "bg-danger";
+    borderClass = "border-danger/30";
   } else if (remainingPercent <= 10) {
     message = `AI token: %${remainingPercent} kaldı — birazdan minimum AI'ya geçilecek.`;
-    dotColor = "bg-red-500 animate-pulse";
-    borderClass = "border-red-500/30";
-    shadowClass = "shadow-red-500/15";
-  } else if (remainingPercent <= 25) {
-    message = `AI token: %${remainingPercent} kaldı.`;
-    dotColor = "bg-orange-500";
-    borderClass = "border-orange-500/20";
-    shadowClass = "shadow-orange-500/5";
+    dotColor = "bg-danger";
+    borderClass = "border-danger/30";
   } else {
     message = `AI token: %${remainingPercent} kaldı.`;
-    dotColor = "bg-amber-400";
-    borderClass = "border-amber-500/20";
-    shadowClass = "shadow-amber-500/5";
+    dotColor = "bg-content-muted";
+    borderClass = "border-content-primary/10";
   }
 
   // Sağ altta; toast yığınının üstünde durması için bottom-24.
   return (
-    <div className={`fixed bottom-24 right-6 z-[9998] flex items-center gap-2.5 px-4.5 py-2.5 rounded-full bg-slate-950/90 border ${borderClass} shadow-xl ${shadowClass} backdrop-blur-md animate-in slide-in-from-bottom-3 duration-250 text-zinc-300 font-sans text-xs select-none`}>
+    <div className={`fixed bottom-24 right-6 z-[9998] flex items-center gap-2.5 px-4.5 py-2.5 rounded-full bg-surface-800/95 border ${borderClass} backdrop-blur-md animate-in slide-in-from-bottom-3 duration-250 text-content-secondary font-sans text-xs select-none`}>
       <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0`} />
       <span className="font-semibold">{message}</span>
       <button
         onClick={() => setIsDismissed(true)}
-        className="ml-1.5 p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 cursor-pointer active:scale-90"
+        className="ml-1.5 p-0.5 text-content-subtle hover:text-content-secondary transition-colors shrink-0 cursor-pointer active:scale-90"
         aria-label="Dismiss alert"
       >
         <X className="w-3.5 h-3.5" />

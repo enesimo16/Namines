@@ -102,34 +102,34 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[480px] bg-[#111318] border border-zinc-800 rounded-2xl shadow-2xl z-50 flex flex-col animate-in fade-in zoom-in-95 overflow-hidden">
+        <Dialog.Overlay className="fixed inset-0 bg-surface-900/80 backdrop-blur-sm z-50 animate-in fade-in" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[460px] bg-surface-700 border border-surface-500 rounded-2xl z-50 flex flex-col animate-in fade-in zoom-in-95 overflow-hidden">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-6 pb-4">
-            <Dialog.Title className="text-[18px] font-bold text-white flex items-center gap-2.5">
-              <Database className="w-5 h-5 text-indigo-400 animate-none" strokeWidth={2} />
+          <div className="flex items-center justify-between px-6 pt-5 pb-3">
+            <Dialog.Title className="text-base font-bold text-content-primary flex items-center gap-2.5">
+              <Database className="w-4.5 h-4.5 text-content-muted" strokeWidth={2} />
               Deploy to Live Database
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors">
+              <button className="w-7 h-7 flex items-center justify-center text-content-subtle hover:text-content-secondary hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </Dialog.Close>
           </div>
 
-          <div className="px-6 pb-6 flex flex-col gap-5">
+          <div className="px-6 pb-6 flex flex-col gap-4">
             {/* DB Type */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-zinc-400 flex items-center gap-2">
-                <Database className="w-4 h-4 text-zinc-500 animate-none" />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-content-subtle flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-content-subtle" />
                 Target Database Type
               </label>
               <div className="relative">
                 <select
                   value={dbType}
                   onChange={(e) => { setDbType(e.target.value as any); resetState(); }}
-                  className="w-full appearance-none bg-[#1a1d24] border border-zinc-700/60 text-white text-[15px] rounded-xl px-4 py-3 pr-10 focus:outline-none focus:border-indigo-500/60 transition-colors cursor-pointer"
+                  className="w-full appearance-none bg-surface-600 border border-surface-500 text-content-primary text-sm rounded-lg px-3.5 py-2.5 pr-9 focus:outline-none focus:border-focus-ring transition-colors cursor-pointer"
                 >
                   <option value="MSSQL">SQL Server</option>
                   <option value="PostgreSQL">PostgreSQL</option>
@@ -142,9 +142,8 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                   <option value="Spanner">Google Spanner</option>
                   <option value="Redshift">Amazon Redshift</option>
                 </select>
-                {/* Chevron */}
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                  <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5 text-content-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
@@ -152,8 +151,8 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
             </div>
 
             {/* Connection String */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-zinc-300">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-content-subtle">
                 Connection String
               </label>
               <textarea
@@ -161,48 +160,48 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                 onChange={(e) => { setConnectionString(e.target.value); resetState(); }}
                 placeholder={DB_PLACEHOLDERS[dbType] || DB_PLACEHOLDERS['MSSQL']}
                 rows={3}
-                className="w-full bg-[#1a1d24] border border-zinc-700/60 text-zinc-200 text-sm rounded-xl px-4 py-3 resize-none focus:outline-none focus:border-indigo-500/60 transition-colors font-mono placeholder:text-zinc-600 leading-relaxed"
+                className="w-full bg-surface-600 border border-surface-500 text-content-secondary text-sm rounded-lg px-3.5 py-2.5 resize-none focus:outline-none focus:border-focus-ring transition-colors font-mono placeholder:text-content-subtle leading-relaxed"
               />
-              <p className="text-xs text-amber-500/90 flex items-center gap-1.5 font-semibold">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0 animate-none" />
+              <p className="text-[11px] text-content-subtle flex items-center gap-1.5 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 Your credentials are not saved or logged. They are deleted when the session ends.
               </p>
             </div>
 
             {/* Feedback */}
             {deployMessage && (
-              <div className={`px-4 py-3 rounded-xl text-sm flex items-start gap-2 ${
+              <div className={`px-3.5 py-2.5 rounded-lg text-xs flex items-start gap-2 ${
                 deployMessage.isError
-                  ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  ? 'bg-danger-text/10 text-danger-text'
+                  : 'bg-success-text/10 text-success-text'
               }`}>
                 {deployMessage.isError
-                  ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 animate-none" />
-                  : <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 animate-none" />}
-                <span className="leading-relaxed font-semibold">{deployMessage.text}</span>
+                  ? <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  : <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />}
+                <span className="leading-relaxed font-medium">{deployMessage.text}</span>
               </div>
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 pt-1">
+            <div className="flex gap-2.5 pt-1">
               <button
                 onClick={handleTestConnection}
                 disabled={isTesting || !connectionString.trim()}
-                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-200 text-sm font-medium rounded-xl transition-colors border border-zinc-700 flex items-center justify-center gap-2 cursor-pointer animate-none"
+                className="flex-1 py-2.5 bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 text-content-secondary text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isTesting
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : testSuccess === true
-                    ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    ? <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />
                     : null}
                 Test Connection
               </button>
               <button
                 onClick={handleDeploy}
                 disabled={!testSuccess || isDeploying || !connectionString.trim() || !sqlScript.trim()}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:bg-zinc-800 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer animate-none"
+                className="flex-1 py-2.5 bg-content-primary hover:bg-content-primary-hover disabled:opacity-40 disabled:bg-white/[0.06] text-surface-900 disabled:text-content-subtle text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
-                {isDeploying ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {isDeploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 Run Script
               </button>
             </div>

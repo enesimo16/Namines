@@ -53,87 +53,79 @@ export default function QuotaExhaustedModal() {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      {/* Soft Light Blue Backdrop */}
-      <div 
-        className="absolute inset-0 bg-sky-950/20 backdrop-blur-sm transition-opacity duration-200"
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={() => setExhaustedModalOpen(false)}
       />
 
-      {/* Sky Glow Shadow Background Element */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-sky-500/10 rounded-full blur-[100px] pointer-events-none" />
-
-      {/* Main Container - Premium Ice Blue Glassmorphism */}
-      <div className="relative w-full max-w-md bg-gradient-to-br from-[#f0f9ff] via-[#e0f2fe] to-[#bae6fd] border border-sky-300/50 shadow-[0_20px_50px_rgba(14,165,233,0.18)] rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 text-sky-950">
-        
-        {/* Top Accent Line */}
-        <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-sky-400 via-sky-500 to-sky-600" />
+      <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
 
         {/* Header */}
-        <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-sky-200/50 bg-white/70">
+        <div className="flex justify-between items-center px-5 pt-5 pb-3 border-b border-content-primary/10">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-white border border-sky-200 shadow-[0_2px_8px_rgba(14,165,233,0.08)]">
-              <ShieldAlert className="w-5 h-5 text-sky-550" />
+            <div className="p-1.5 rounded-lg bg-surface-600 border border-content-primary/15">
+              <ShieldAlert className="w-4 h-4 text-content-secondary" />
             </div>
             <div>
-              <h3 className="text-xs font-black text-sky-955 uppercase tracking-widest">
+              <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
                 Credits Exhausted
               </h3>
-              <p className="text-[9px] text-sky-600 font-bold tracking-wider uppercase">Daily AI Quota Exceeded</p>
+              <p className="text-[10px] text-content-subtle">Daily AI quota exceeded</p>
             </div>
           </div>
           <button
             onClick={() => setExhaustedModalOpen(false)}
-            className="p-1.5 rounded-lg text-sky-400 hover:text-sky-700 hover:bg-sky-50 transition-all cursor-pointer"
+            className="p-1 rounded-lg text-content-subtle hover:text-content-primary hover:bg-white/[0.06] transition-all cursor-pointer"
             aria-label="Close modal"
           >
-            <X className="w-4.5 h-4.5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-6">
-          <p className="text-xs text-sky-900 leading-relaxed font-semibold">
-            You have used all <span className="text-sky-600 font-bold">{progressPercent}%</span> of your free daily AI credits for today. Quotas reset daily to maintain server resource stability.
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-content-primary leading-relaxed">
+            You have used <span className="text-content-primary font-semibold">{progressPercent}%</span> of your free daily AI credits. Quotas reset daily to keep server resources stable.
           </p>
 
           {/* Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-[9px] font-bold text-sky-700 uppercase tracking-wider">
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[10px] font-semibold text-content-subtle uppercase tracking-wider">
               <span>Daily Limit Usage</span>
-              <span className="text-sky-955">{progressPercent}% Used</span>
+              <span className="text-content-primary">{progressPercent}%</span>
             </div>
-            <div className="h-2 w-full bg-white border border-sky-200/50 rounded-full overflow-hidden shadow-inner">
-              <div 
-                className="h-full bg-gradient-to-r from-sky-400 via-sky-500 to-sky-600 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(14,165,233,0.25)]"
+            <div className="h-1.5 w-full bg-surface-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-focus-ring rounded-full transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
           </div>
 
-          {/* Reset Info Banner */}
-          <div className="bg-white/80 border border-sky-200/60 rounded-xl p-3.5 flex items-center gap-3 text-[11px] text-sky-850 font-medium">
-            <HelpCircle className="w-4 h-4 text-sky-500 shrink-0" />
-            <span>Your credits will fully reset at <span className="text-sky-955 font-bold">{getResetTimeFormatted()}</span>.</span>
+          {/* Reset Info */}
+          <div className="bg-surface-700 border border-content-primary/8 rounded-xl p-3 flex items-center gap-2.5 text-[11px] text-content-primary">
+            <HelpCircle className="w-3.5 h-3.5 text-content-muted shrink-0" />
+            <span>Credits reset at <span className="text-content-primary font-semibold">{getResetTimeFormatted()}</span>.</span>
           </div>
 
           {/* Free Default / Local switch option */}
-          <div className="bg-white/85 border border-sky-200/70 rounded-2xl p-4 flex flex-col gap-2.5 text-[11px] text-sky-900 font-medium shadow-sm">
-            <div className="flex items-center gap-2 text-sky-800">
-              <Sliders className="w-4 h-4 text-sky-550 shrink-0" />
-              <span className="font-extrabold uppercase tracking-wide text-[10px]">Switch to Free Local Engine</span>
+          <div className="bg-surface-700 border border-content-primary/8 rounded-xl p-3.5 flex flex-col gap-2 text-[11px] text-content-primary">
+            <div className="flex items-center gap-2 text-content-primary">
+              <Sliders className="w-3.5 h-3.5 text-content-muted shrink-0" />
+              <span className="font-bold uppercase tracking-wide text-[10px]">Switch to Free Local Engine</span>
             </div>
-            <p className="text-[10px] text-sky-700 leading-relaxed font-semibold">
-              You can instantly bypass credit restrictions by switching your AI configurations to the free <strong className="text-sky-900">Default (Namines)</strong> engine. This routes requests through the local template compiler.
+            <p className="text-[10px] text-content-muted leading-relaxed">
+              Instantly bypass credit restrictions by switching your AI configurations to the free <strong className="text-content-primary">Default (Namines)</strong> engine — routes requests through the local template compiler.
             </p>
             <button
               type="button"
               disabled={isUpdating}
               onClick={handleSwitchToDefault}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-100 hover:bg-sky-200 disabled:opacity-75 text-sky-750 font-black rounded-lg transition-colors cursor-pointer text-[10px] border border-sky-250 self-start"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.12] disabled:opacity-60 text-content-primary font-semibold rounded-lg transition-colors cursor-pointer text-[10px] border border-white/15 self-start"
             >
               {isUpdating ? (
                 <>
-                  <Loader2 className="w-3 h-3 animate-spin text-sky-600" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                   <span>Updating configurations...</span>
                 </>
               ) : (
@@ -143,27 +135,22 @@ export default function QuotaExhaustedModal() {
           </div>
 
           {/* Action Buttons */}
-          <div className="space-y-3 pt-2">
+          <div className="space-y-2 pt-1">
             <button
               onClick={handleOpenSettings}
-              className="w-full relative group flex items-center justify-center gap-2 py-3 bg-sky-600 hover:bg-sky-550 text-white font-bold text-xs tracking-wider uppercase rounded-xl shadow-[0_4px_15px_rgba(14,165,233,0.15)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 border border-sky-400/20 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-xs rounded-xl transition-all cursor-pointer"
             >
-              <Key className="w-4 h-4 text-sky-200 group-hover:text-white transition-colors" />
+              <Key className="w-3.5 h-3.5" />
               <span>Use My Own API Key (BYOK)</span>
             </button>
-            
+
             <button
               onClick={() => setExhaustedModalOpen(false)}
-              className="w-full py-3 bg-white hover:bg-sky-50 text-sky-750 hover:text-sky-900 text-xs font-bold rounded-xl border border-sky-200 hover:border-sky-300 shadow-sm transition-all cursor-pointer text-center"
+              className="w-full py-2.5 bg-transparent hover:bg-white/[0.04] text-content-muted hover:text-content-primary text-xs font-medium rounded-xl border border-content-primary/10 transition-all cursor-pointer text-center"
             >
               I'll wait until tomorrow
             </button>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-3 bg-white/60 border-t border-sky-200/40 flex justify-center items-center text-[9px] text-sky-500/80 font-bold uppercase tracking-widest">
-          <span>Darvell Labs</span>
         </div>
       </div>
     </div>

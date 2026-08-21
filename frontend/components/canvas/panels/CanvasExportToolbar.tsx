@@ -276,11 +276,11 @@ export default function CanvasExportToolbar() {
         <div 
           id="canvas-toolbar"
           ref={nodeRef} 
-          className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-xl bg-gradient-to-r from-surface-700/90 to-surface-600/80 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] select-none transition-all duration-300"
+          className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-xl bg-gradient-to-r from-surface-700/90 to-surface-600/80 backdrop-blur-md border border-content-primary/12 select-none transition-all duration-300"
           style={{ width: isCollapsed ? '76px' : 'auto' }}
         >
           {/* Drag Handle */}
-          <div className="drag-handle cursor-move px-1.5 text-indigo-500/50 hover:text-indigo-400 transition-colors shrink-0" title="Drag">
+          <div className="drag-handle cursor-move px-1.5 text-accent-hover/50 hover:text-content-primary transition-colors shrink-0" title="Drag">
             <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
               <circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/>
               <circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/>
@@ -292,7 +292,7 @@ export default function CanvasExportToolbar() {
             /* COLLAPSED STATE (Compact mode) */
             <button
               onClick={() => setIsCollapsed(false)}
-              className="p-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 transition-all shrink-0"
+              className="p-2 rounded-lg bg-content-primary/[0.06] hover:bg-content-primary/12 border border-content-primary/12 text-content-primary transition-all shrink-0"
               title="Expand Toolbar"
             >
               <ChevronRight className="w-4 h-4" />
@@ -304,16 +304,16 @@ export default function CanvasExportToolbar() {
               <button
                 id="canvas-vision-import-btn"
                 onClick={() => setIsVisionOpen(true)}
-                className="group/btn flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-indigo-300 hover:text-indigo-100 hover:bg-indigo-500/10 transition-all border border-transparent hover:border-indigo-500/20 relative shadow-sm overflow-hidden shrink-0"
+                className="group/btn flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-content-primary hover:text-content-primary hover:bg-content-primary/[0.06] transition-all border border-transparent hover:border-content-primary/12 relative shadow-sm overflow-hidden shrink-0"
                 title="Upload Whiteboard Photo"
                 aria-label="Import from Whiteboard"
               >
-                <span className="absolute inset-0 bg-indigo-500/5 opacity-50 group-hover/btn:opacity-100 transition-opacity duration-300" />
-                <Camera className="w-3.5 h-3.5 text-indigo-400 relative z-10" />
+                <span className="absolute inset-0 bg-accent-hover/5 opacity-50 group-hover/btn:opacity-100 transition-opacity duration-300" />
+                <Camera className="w-3.5 h-3.5 text-content-primary relative z-10" />
                 <span className="relative z-10">Import</span>
               </button>
 
-              <div className="w-px h-5 bg-indigo-500/20 mx-0.5 shrink-0" />
+              <div className="w-px h-5 bg-content-primary/12 mx-0.5 shrink-0" />
 
               {/* DBA Button */}
               <button
@@ -321,34 +321,34 @@ export default function CanvasExportToolbar() {
                 onClick={() => setIsPanelOpen(!isPanelOpen)}
                 className={`group/btn flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all relative overflow-hidden border shrink-0 ${
                   isPanelOpen 
-                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.25)]' 
-                    : 'text-emerald-400 hover:text-emerald-200 hover:bg-emerald-500/10 border-transparent hover:border-emerald-500/20'
+                    ? 'bg-content-primary/12 text-content-primary border-white/25' 
+                    : 'text-success hover:text-success-text hover:bg-success-subtle border-transparent hover:border-success/30'
                 }`}
                 title="Inspect Database DBA Analysis"
                 aria-label="DBA Analysis"
               >
-                <svg className="w-3.5 h-3.5 text-emerald-400 relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-3.5 h-3.5 text-success relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2L20 6.5V17.5L12 22L4 17.5V6.5L12 2Z" className="opacity-80" />
-                  <circle cx="12" cy="12" r="3" className="fill-current text-cyan-400" />
-                  <path d="M12 2v7M12 15v7M4 6.5l8 5.5M20 6.5l-8 5.5M4 17.5l8-5.5M20 17.5l-8-5.5" className="opacity-60 text-emerald-400" />
+                  <circle cx="12" cy="12" r="3" className="fill-current text-content-primary" />
+                  <path d="M12 2v7M12 15v7M4 6.5l8 5.5M20 6.5l-8 5.5M4 17.5l8-5.5M20 17.5l-8-5.5" className="opacity-60 text-success" />
                 </svg>
                 <span className="relative z-10">DBA</span>
                 
                 {issues.length > 0 && (
                   <span className="relative z-10 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-danger"></span>
                   </span>
                 )}
               </button>
 
-              <div className="w-px h-5 bg-indigo-500/20 mx-0.5 shrink-0" />
+              <div className="w-px h-5 bg-content-primary/12 mx-0.5 shrink-0" />
 
               {/* Edit Mode Toggle */}
               <button
                 id="canvas-edit-mode-btn"
                 onClick={toggleEditMode}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 shrink-0 ${isEditMode ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.25)]' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 shrink-0 ${isEditMode ? 'bg-content-primary/12 text-content-primary border border-white/15' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'}`}
                 title={isEditMode ? 'Switch to view mode' : 'Switch to edit mode'}
                 aria-label={isEditMode ? 'Disable edit mode' : 'Enable edit mode'}
                 aria-pressed={isEditMode}
@@ -366,7 +366,7 @@ export default function CanvasExportToolbar() {
                 )}
               </button>
 
-              <div className="w-px h-5 bg-indigo-500/20 mx-0.5 shrink-0" />
+              <div className="w-px h-5 bg-content-primary/12 mx-0.5 shrink-0" />
 
               {/* Export Dropdown Button */}
               <div className="relative shrink-0">
@@ -376,14 +376,14 @@ export default function CanvasExportToolbar() {
                   disabled={isCurrentlyExporting}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
                     isExportDropdownOpen
-                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.25)]'
-                      : 'text-zinc-300 hover:text-cyan-300 hover:bg-cyan-500/10 border-transparent hover:border-cyan-500/20'
+                      ? 'bg-white/[0.08] text-content-primary border-white/25 shadow-none'
+                      : 'text-zinc-300 hover:text-content-primary hover:bg-white/[0.06] border-transparent hover:border-content-primary/12'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                   title="Export diagram..."
                   aria-label="Export"
                 >
                   {isCurrentlyExporting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-content-primary" />
                   ) : (
                     <ImageDown className="w-3.5 h-3.5" />
                   )}
@@ -393,7 +393,7 @@ export default function CanvasExportToolbar() {
 
                 {/* Dropdown Menu (Opens upwards) */}
                 {isExportDropdownOpen && (
-                  <div className="absolute bottom-full left-0 mb-2 w-52 rounded-xl bg-zinc-950/95 border border-indigo-500/20 shadow-[0_0_25px_rgba(99,102,241,0.3)] flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200">
+                  <div className="absolute bottom-full left-0 mb-2 w-52 rounded-xl bg-zinc-950/95 border border-content-primary/12 flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200">
                     <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-zinc-500 uppercase tracking-wider select-none">
                       Image Export
                     </div>
@@ -403,9 +403,9 @@ export default function CanvasExportToolbar() {
                         exportAsPng({ fileName: slug });
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-colors text-left"
                     >
-                      <FileImage className="w-3.5 h-3.5 text-cyan-400" />
+                      <FileImage className="w-3.5 h-3.5 text-content-primary" />
                       <span>PNG Image (.png)</span>
                     </button>
 
@@ -414,9 +414,9 @@ export default function CanvasExportToolbar() {
                         exportAsJpeg({ fileName: slug });
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-primary hover:bg-content-primary/[0.06] rounded-lg transition-colors text-left"
                     >
-                      <FileImage className="w-3.5 h-3.5 text-indigo-400" />
+                      <FileImage className="w-3.5 h-3.5 text-content-primary" />
                       <span>JPEG Image (.jpg)</span>
                     </button>
 
@@ -425,13 +425,13 @@ export default function CanvasExportToolbar() {
                         exportAsSvg();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
                     >
-                      <FileCode className="w-3.5 h-3.5 text-amber-400" />
+                      <FileCode className="w-3.5 h-3.5 text-content-muted" />
                       <span>Vector Graphic (.svg)</span>
                     </button>
 
-                    <div className="h-px bg-indigo-500/10 my-1" />
+                    <div className="h-px bg-content-primary/[0.06] my-1" />
 
                     <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-zinc-500 uppercase tracking-wider select-none">
                       Data & Document
@@ -442,9 +442,9 @@ export default function CanvasExportToolbar() {
                         exportAsSql();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-success hover:bg-success-subtle rounded-lg transition-colors text-left"
                     >
-                      <Database className="w-3.5 h-3.5 text-emerald-400" />
+                      <Database className="w-3.5 h-3.5 text-success" />
                       <span>SQL Schema Code (.sql)</span>
                     </button>
 
@@ -453,9 +453,9 @@ export default function CanvasExportToolbar() {
                         exportAsJson();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-danger hover:bg-danger-subtle rounded-lg transition-colors text-left"
                     >
-                      <Braces className="w-3.5 h-3.5 text-rose-400" />
+                      <Braces className="w-3.5 h-3.5 text-danger" />
                       <span>Namines Meta Schema (.json)</span>
                     </button>
 
@@ -464,10 +464,10 @@ export default function CanvasExportToolbar() {
                         exportAsPrisma();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-fuchsia-400 hover:bg-fuchsia-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
                       title="Export as Prisma ORM schema file"
                     >
-                      <Database className="w-3.5 h-3.5 text-fuchsia-400" />
+                      <Database className="w-3.5 h-3.5 text-content-muted" />
                       <span>Prisma Schema (.prisma)</span>
                     </button>
 
@@ -476,9 +476,9 @@ export default function CanvasExportToolbar() {
                         exportAsPdf();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-sky-400 hover:bg-sky-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
                     >
-                      <FileText className="w-3.5 h-3.5 text-sky-400" />
+                      <FileText className="w-3.5 h-3.5 text-content-muted" />
                       <span>PDF Technical Report (.pdf)</span>
                     </button>
 
@@ -487,10 +487,10 @@ export default function CanvasExportToolbar() {
                         exportForCi();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
                       title="Save as namines-schema.json for GitHub Actions CI diff"
                     >
-                      <GitBranch className="w-3.5 h-3.5 text-violet-400" />
+                      <GitBranch className="w-3.5 h-3.5 text-content-muted" />
                       <span>CI Schema Snapshot (.json)</span>
                     </button>
 
@@ -499,13 +499,13 @@ export default function CanvasExportToolbar() {
                         setIsCloudModalOpen(true);
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors text-left border border-transparent hover:border-indigo-500/20"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-primary hover:bg-content-primary/[0.06] rounded-lg transition-colors text-left border border-transparent hover:border-content-primary/12"
                     >
-                      <Archive className="w-3.5 h-3.5 text-indigo-400" />
+                      <Archive className="w-3.5 h-3.5 text-content-primary" />
                       <span>Full-Stack Project (.zip)</span>
                     </button>
 
-                    <div className="h-px bg-indigo-500/10 my-1" />
+                    <div className="h-px bg-content-primary/[0.06] my-1" />
 
                     <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-zinc-500 uppercase tracking-wider select-none">
                       Import
@@ -516,17 +516,17 @@ export default function CanvasExportToolbar() {
                         setIsExportDropdownOpen(false);
                         sqlFileInputRef.current?.click();
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
                       title="Parse a .sql DDL file and load tables onto the canvas"
                     >
-                      <FileCode className="w-3.5 h-3.5 text-amber-400" />
+                      <FileCode className="w-3.5 h-3.5 text-content-muted" />
                       <span>Import SQL DDL (.sql)</span>
                     </button>
                   </div>
                 )}
               </div>
 
-              <div className="w-px h-5 bg-indigo-500/20 mx-0.5 shrink-0" />
+              <div className="w-px h-5 bg-content-primary/12 mx-0.5 shrink-0" />
 
               {/* Collapse Toggle Button */}
               <button
@@ -550,11 +550,11 @@ export default function CanvasExportToolbar() {
       {/* Zero-to-Cloud Infrastructure Selector Modal */}
       {isCloudModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-[450px] p-6 rounded-2xl bg-gradient-to-b from-zinc-900/95 to-zinc-950/98 border border-indigo-500/30 shadow-[0_0_35px_rgba(99,102,241,0.25)] flex flex-col gap-5 text-sans select-none">
+          <div className="w-[450px] p-6 rounded-2xl bg-gradient-to-b from-zinc-900/95 to-zinc-950/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
             {/* Title */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Archive className="w-5 h-5 text-indigo-400 animate-pulse" />
+                <Archive className="w-5 h-5 text-content-primary animate-pulse" />
                 <h3 className="text-md font-extrabold text-white tracking-wide">Zero-to-Cloud Selector</h3>
               </div>
               <button
@@ -575,7 +575,7 @@ export default function CanvasExportToolbar() {
               onClick={() => setIncludeBiModule(!includeBiModule)}
               className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
                 includeBiModule 
-                  ? 'bg-indigo-500/10 border-indigo-500/40 shadow-[0_0_12px_rgba(99,102,241,0.15)] text-indigo-300' 
+                  ? 'bg-content-primary/[0.06] border-white/25 text-content-primary' 
                   : 'bg-zinc-900/20 border-zinc-800 text-zinc-400 hover:border-zinc-700'
               }`}
             >
@@ -584,7 +584,7 @@ export default function CanvasExportToolbar() {
                   type="checkbox"
                   checked={includeBiModule}
                   onChange={() => {}} 
-                  className="rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500/30 h-4 w-4"
+                  className="rounded border-zinc-700 bg-zinc-900 text-accent focus:ring-accent-hover/30 h-4 w-4"
                 />
                 <div>
                   <h4 className="text-xs font-bold text-zinc-200">Premium: AI Data Analytics (BI) Assistant</h4>
@@ -615,7 +615,7 @@ export default function CanvasExportToolbar() {
               {/* Option 2: AWS */}
               <button
                 onClick={() => exportAsFullStackProject('AWS')}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-orange-950/10 hover:bg-orange-950/20 border border-orange-900/20 hover:border-orange-500/40 shadow-[0_0_15px_rgba(249,115,22,0.03)] hover:shadow-[0_0_20px_rgba(249,115,22,0.1)] transition-all text-left group cursor-pointer"
+                className="flex items-center justify-between p-3.5 rounded-xl bg-orange-950/10 hover:bg-orange-950/20 border border-orange-900/20 hover:border-orange-500/40 transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 font-extrabold text-xs">
@@ -632,18 +632,18 @@ export default function CanvasExportToolbar() {
               {/* Option 3: Azure */}
               <button
                 onClick={() => exportAsFullStackProject('Azure')}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-sky-950/10 hover:bg-sky-950/20 border border-sky-900/20 hover:border-sky-500/40 shadow-[0_0_15px_rgba(14,165,233,0.03)] hover:shadow-[0_0_20px_rgba(14,165,233,0.1)] transition-all text-left group cursor-pointer"
+                className="flex items-center justify-between p-3.5 rounded-xl bg-sky-950/10 hover:bg-sky-950/20 border border-sky-900/20 hover:border-sky-500/40 transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-500 font-extrabold text-xs">
+                  <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center text-content-muted font-extrabold text-xs">
                     AZ
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-sky-400">Azure Cloud Infrastructure</h4>
+                    <h4 className="text-xs font-bold text-content-muted">Azure Cloud Infrastructure</h4>
                     <p className="text-[10px] text-zinc-500 font-semibold">Terraform (RG, App Service Plan, Web App Container, SQL Server) + CI/CD</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-sky-500 group-hover:text-sky-400">Generate ➔</span>
+                <span className="text-[10px] font-bold text-content-muted group-hover:text-content-muted">Generate ➔</span>
               </button>
             </div>
 

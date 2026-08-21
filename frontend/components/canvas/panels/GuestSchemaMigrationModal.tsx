@@ -20,55 +20,49 @@ export default function GuestSchemaMigrationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in animate-none">
-      {/* Glow Backdrop Orbs */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] bg-gradient-to-tr from-emerald-500/10 to-indigo-500/10 rounded-full blur-[80px] pointer-events-none -z-10" />
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col p-5 animate-in zoom-in-95 duration-200">
 
-      {/* Main Glassmorphic Container */}
-      <div className="relative w-full max-w-md bg-surface-900/95 backdrop-blur-2xl border border-emerald-500/20 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col p-6 pb-8 animate-in zoom-in-95 duration-200">
-        
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
-          <div className="flex items-center gap-2 text-emerald-400">
-            <CloudLightning className="w-5 h-5 shrink-0" />
-            <h3 className="text-sm font-extrabold uppercase tracking-wider text-emerald-100">
-              Guest Session Migration
-            </h3>
-          </div>
+        <div className="flex items-center gap-2 pb-3 border-b border-content-primary/10 text-accent-text">
+          <CloudLightning className="w-4 h-4 shrink-0" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-content-primary">
+            Guest Session Migration
+          </h3>
         </div>
 
         {/* Title / Description */}
-        <div className="my-5 flex flex-col gap-2">
-          <span className="text-sm font-bold text-zinc-100 leading-snug">
+        <div className="my-4 flex flex-col gap-1.5">
+          <span className="text-sm font-bold text-content-primary leading-snug">
             You have {projects.length} project{projects.length > 1 ? 's' : ''} from your guest session
           </span>
-          <p className="text-[11px] text-zinc-400 leading-relaxed font-semibold">
+          <p className="text-xs text-content-muted leading-relaxed">
             Would you like to sync these local projects to your cloud account, or discard them and start fresh?
           </p>
         </div>
 
         {/* Local Projects List */}
-        <div className="max-h-40 overflow-y-auto mb-6 bg-zinc-950/40 border border-zinc-850/80 rounded-2xl p-3 flex flex-col gap-2 custom-scrollbar">
+        <div className="max-h-40 overflow-y-auto mb-5 bg-surface-700 border border-content-primary/8 rounded-xl p-2 flex flex-col gap-1.5">
           {projects.map((proj) => {
             const tableCount = proj.schema?.tables?.length || 0;
             const updatedDate = new Date(proj.updatedAt).toLocaleDateString();
             return (
-              <div 
-                key={proj.id} 
-                className="flex items-center justify-between p-2.5 rounded-xl bg-[#121824] border border-zinc-800/50 hover:border-zinc-700/50 transition-all duration-200"
+              <div
+                key={proj.id}
+                className="flex items-center justify-between p-2 rounded-lg bg-surface-600 border border-content-primary/6"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <FolderGit2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <FolderGit2 className="w-3.5 h-3.5 text-content-muted shrink-0" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-zinc-200 truncate leading-none mb-1">
+                    <span className="text-xs font-semibold text-content-secondary truncate leading-none mb-1">
                       {proj.name}
                     </span>
-                    <span className="text-[9px] text-zinc-500 font-semibold leading-none">
+                    <span className="text-[9px] text-content-subtle leading-none">
                       {proj.dbType} • {tableCount} table{tableCount !== 1 ? 's' : ''}
                     </span>
                   </div>
                 </div>
-                <span className="text-[9px] text-zinc-500 font-semibold shrink-0">
+                <span className="text-[9px] text-content-subtle shrink-0">
                   {updatedDate}
                 </span>
               </div>
@@ -77,18 +71,18 @@ export default function GuestSchemaMigrationModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button
             onClick={onDiscard}
-            className="flex-1 py-3 px-4 rounded-xl border border-zinc-700/60 bg-[#121824] hover:bg-zinc-800 text-zinc-300 hover:text-white font-bold text-xs tracking-wider uppercase transition-all duration-200 flex items-center justify-center cursor-pointer"
+            className="flex-1 py-2.5 px-4 rounded-lg border border-content-primary/10 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-secondary font-semibold text-xs transition-all cursor-pointer"
           >
-            <span>Start Fresh</span>
+            Start Fresh
           </button>
           <button
             onClick={onSync}
-            className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs tracking-wider uppercase transition-all duration-300 shadow-[0_4px_15px_rgba(16,185,129,0.3)] hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center cursor-pointer"
+            className="flex-1 py-2.5 px-4 rounded-lg bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-xs transition-all cursor-pointer"
           >
-            <span>Sync to Cloud</span>
+            Sync to Cloud
           </button>
         </div>
 

@@ -1,48 +1,61 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { CheckCircle2, XCircle, AlertTriangle, Info, Loader2, Sparkles } from 'lucide-react';
 import { useToastStore, Toast, ToastType } from '../../store/useToastStore';
 
 // ─── Tip Mappings ─────────────────────────────────────────────────────────────
+// Yalnızca iki semantik renk: başarı (yeşil) ve hata (kırmızı). Warning/info/
+// loading/ai nötr off-white — sarı/mor/indigo aile tamamen kaldırıldı
+// (kullanıcı talimatı: "sarı bir şey istemiyorum").
 
 /** Sol kenar çubuğu rengi */
 const ACCENT: Record<ToastType, string> = {
-  success: '#10b981',  // emerald-500
-  error:   '#ef4444',  // red-500
-  warning: '#f59e0b',  // amber-500
-  info:    '#FFD700',  // Darvell gold
-  loading: '#818cf8',  // indigo-400
-  ai:      '#a855f7',  // purple-500
+  success: '#4b8a6f',
+  error:   '#b8544b',
+  warning: '#e7e9ee',
+  info:    '#e7e9ee',
+  loading: '#e7e9ee',
+  ai:      '#e7e9ee',
 };
 
-/** Glassmorphism arka plan sınıfları */
+/** Arka plan sınıfları */
 const BG_CLASS: Record<ToastType, string> = {
-  success: 'bg-emerald-950/90 border-emerald-500/25',
-  error:   'bg-red-950/90 border-red-500/25',
-  warning: 'bg-amber-950/90 border-amber-500/25',
-  info:    'bg-[#1a1a2e]/90 border-[#FFD700]/20',
-  loading: 'bg-[#1a1a2e]/90 border-indigo-500/25',
-  ai:      'bg-gradient-to-r from-[#1a1a2e]/90 to-purple-950/90 border-purple-500/25',
+  success: 'bg-success-subtle/95 border-success/25',
+  error:   'bg-danger-subtle/95 border-danger/25',
+  warning: 'bg-surface-800/95 border-content-primary/12',
+  info:    'bg-surface-800/95 border-content-primary/12',
+  loading: 'bg-surface-800/95 border-content-primary/12',
+  ai:      'bg-surface-800/95 border-content-primary/12',
 };
 
 /** Progress bar rengi */
 const BAR_CLASS: Record<ToastType, string> = {
-  success: 'from-emerald-400 to-emerald-600',
-  error:   'from-red-400 to-red-600',
-  warning: 'from-amber-400 to-amber-600',
-  info:    'from-[#FFD700] to-yellow-500',
-  loading: 'from-indigo-400 to-violet-500',
-  ai:      'from-purple-400 via-violet-400 to-indigo-400',
+  success: 'from-success to-success-text',
+  error:   'from-danger to-danger-text',
+  warning: 'from-content-muted to-content-secondary',
+  info:    'from-content-muted to-content-secondary',
+  loading: 'from-content-muted to-content-secondary',
+  ai:      'from-content-muted to-content-secondary',
 };
 
-/** Varsayılan ikonlar */
-const ICON: Record<ToastType, string> = {
-  success: '✅',
-  error:   '❌',
-  warning: '⚠️',
-  info:    '💡',
-  loading: '⏳',
-  ai:      '⚗️',
+/** Varsayılan ikonlar — emoji değil, SVG (bkz. FRONTEND.md) */
+const ICON: Record<ToastType, React.ComponentType<{ className?: string }>> = {
+  success: CheckCircle2,
+  error:   XCircle,
+  warning: AlertTriangle,
+  info:    Info,
+  loading: Loader2,
+  ai:      Sparkles,
+};
+
+const ICON_COLOR: Record<ToastType, string> = {
+  success: 'text-success-text',
+  error:   'text-danger-text',
+  warning: 'text-content-secondary',
+  info:    'text-content-muted',
+  loading: 'text-content-muted animate-spin',
+  ai:      'text-content-secondary',
 };
 
 // ─── Tek Toast Kartı ──────────────────────────────────────────────────────────
@@ -136,12 +149,13 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       {/* İçerik */}
       <div className="flex items-start gap-3 px-4 py-3 pl-5">
         {/* İkon */}
-        <span className="text-lg leading-none mt-0.5 flex-shrink-0 select-none">
-          {ICON[toast.type]}
-        </span>
+        {(() => {
+          const IconComp = ICON[toast.type];
+          return <IconComp className={`w-4 h-4 mt-0.5 flex-shrink-0 ${ICON_COLOR[toast.type]}`} />;
+        })()}
 
         {/* Mesaj */}
-        <p className="flex-1 text-sm font-medium text-white/90 leading-snug break-words min-w-0">
+        <p className="flex-1 text-sm font-medium text-content-primary leading-snug break-words min-w-0">
           {toast.message}
         </p>
 
@@ -197,16 +211,6 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         </div>
       )}
 
-      {/* AI tip: hafif glow efekti */}
-      {toast.type === 'ai' && (
-        <div
-          className="absolute inset-0 rounded-2xl pointer-events-none"
-          style={{
-            boxShadow: '0 0 20px rgba(168, 85, 247, 0.12) inset',
-            animation: 'namines-toast-glow 2s ease-in-out infinite',
-          }}
-        />
-      )}
     </div>
   );
 }

@@ -24,12 +24,12 @@ const DB_OPTIONS: { id: DbType; label: string }[] = [
 export default function DbTypeSelector({ selectedDb, onSelect, disabled }: DbTypeSelectorProps) {
   return (
     <div className="flex items-center gap-2">
-      <Database className="w-4 h-4 text-zinc-500 shrink-0" />
+      <Database className="w-3.5 h-3.5 text-content-muted shrink-0" />
       <select
         value={selectedDb}
         onChange={(e) => onSelect(e.target.value)}
         disabled={disabled}
-        className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="bg-surface-600 border border-surface-500 text-content-secondary text-xs rounded-lg px-3 py-1.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] transition-colors cursor-pointer hover:bg-surface-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Select database type"
       >
         {DB_OPTIONS.map((opt) => (

@@ -40,18 +40,18 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
 
   return (
     <div className="space-y-4">
-      {/* Breaking Change & Warnings Banner */}
+      {/* Breaking Change & Warnings Banner — semantik danger, desatüre */}
       {(hasBreakingChanges || (migration?.warnings && migration.warnings.length > 0)) && (
-        <div className="bg-rose-950/20 border border-rose-500/30 rounded-xl p-4 space-y-2">
-          <div className="flex items-center gap-2 text-rose-400 text-sm font-bold">
-            <AlertCircle className="w-5 h-5 animate-pulse" />
+        <div className="bg-danger-subtle border border-danger/25 rounded-xl p-3.5 space-y-2">
+          <div className="flex items-center gap-2 text-danger-text text-sm font-bold">
+            <AlertCircle className="w-4 h-4" />
             <span>Critical Data Loss / Destructive Change Warning!</span>
           </div>
-          <ul className="list-disc pl-5 space-y-1 text-xs text-rose-200/90 font-medium">
+          <ul className="list-disc pl-5 space-y-1 text-xs text-content-secondary">
             {migration?.warnings && migration.warnings.length > 0 ? (
               migration.warnings.map((w, idx) => <li key={idx}>{w}</li>)
             ) : (
-              <li>Destructive changes (table or column deletion, narrowing, etc.) were detected in the schema comparison! Make sure to backup your database before applying the migration.</li>
+              <li>Destructive changes (table or column deletion, narrowing, etc.) were detected. Back up your database before applying this migration.</li>
             )}
           </ul>
         </div>
@@ -59,27 +59,27 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
 
       {/* Summary Box */}
       {migration?.summary && (
-        <div className="bg-[#1E293B]/40 border border-indigo-500/10 rounded-xl p-3 flex gap-2.5 items-start">
-          <Award className="w-4 h-4 text-indigo-400 mt-0.5" />
+        <div className="bg-surface-700 rounded-xl p-3 flex gap-2.5 items-start">
+          <FileCode className="w-4 h-4 text-content-muted mt-0.5" />
           <div>
-            <span className="text-indigo-300 text-xs font-bold block mb-0.5">Change Summary</span>
-            <p className="text-zinc-300 text-xs leading-relaxed">{migration.summary}</p>
+            <span className="text-content-secondary text-xs font-bold block mb-0.5">Change Summary</span>
+            <p className="text-content-muted text-xs leading-relaxed">{migration.summary}</p>
           </div>
         </div>
       )}
 
       {/* Tab Controls & Copy Button */}
-      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-        <div className="flex gap-1 bg-zinc-900/60 p-1 rounded-xl border border-zinc-800/80">
+      <div className="flex items-center justify-between border-b border-content-primary/8 pb-2">
+        <div className="flex gap-1 bg-surface-700 p-1 rounded-lg">
           <button
             onClick={() => setActiveTab('up')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'up' ? 'bg-[#4f46e5] text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'}`}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'up' ? 'bg-white/[0.1] text-content-primary' : 'text-content-subtle hover:text-content-secondary'}`}
           >
             Up() Method (Apply)
           </button>
           <button
             onClick={() => setActiveTab('down')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'down' ? 'bg-[#4f46e5] text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'}`}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'down' ? 'bg-white/[0.1] text-content-primary' : 'text-content-subtle hover:text-content-secondary'}`}
           >
             Down() Method (Rollback)
           </button>
@@ -88,21 +88,21 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
         <div className="flex gap-2">
           <button
             onClick={handleDownload}
-            className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-emerald-400 bg-zinc-900/60 hover:bg-emerald-500/10 border border-zinc-800 hover:border-emerald-500/20 px-3.5 py-1.5 rounded-xl transition-all"
+            className="flex items-center gap-1.5 text-xs text-content-secondary hover:text-content-primary bg-surface-700 hover:bg-surface-600 px-3 py-1.5 rounded-lg transition-all"
             title="Download C# class file"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <Download className="w-3.5 h-3.5" />
             <span>Download File</span>
           </button>
 
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 px-3.5 py-1.5 rounded-xl transition-all"
+            className="flex items-center gap-1.5 text-xs text-content-muted hover:text-content-primary bg-surface-700 hover:bg-surface-600 px-3 py-1.5 rounded-lg transition-all"
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400 font-medium">Copied!</span>
+                <Check className="w-3.5 h-3.5 text-success-text" />
+                <span className="text-success-text font-medium">Copied!</span>
               </>
             ) : (
               <>
@@ -115,16 +115,16 @@ export default function MigrationCodeView({ migration, hasBreakingChanges }: Mig
       </div>
 
       {/* Code Display Area */}
-      <div className="relative rounded-xl border border-zinc-800/80 overflow-hidden bg-zinc-950/80 backdrop-blur-md">
-        <div className="flex items-center justify-between bg-zinc-900/40 border-b border-zinc-800/60 px-4 py-2">
+      <div className="relative rounded-xl overflow-hidden bg-surface-700">
+        <div className="flex items-center justify-between bg-surface-600 px-3.5 py-2">
           <div className="flex items-center gap-2">
-            <FileCode className="w-4 h-4 text-indigo-400" />
-            <span className="text-zinc-400 text-xs font-mono">
+            <FileCode className="w-3.5 h-3.5 text-content-subtle" />
+            <span className="text-content-muted text-xs font-mono">
               {activeTab === 'up' ? 'Migration_Up.cs' : 'Migration_Down.cs'}
             </span>
           </div>
         </div>
-        <pre className="p-4 text-xs font-mono max-h-[300px] overflow-auto custom-scrollbar bg-zinc-950">
+        <pre className="p-3.5 text-xs font-mono max-h-[300px] overflow-auto bg-surface-800">
           <code className="language-csharp">{codeToShow || '// No code generated.'}</code>
         </pre>
       </div>

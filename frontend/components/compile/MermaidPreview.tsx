@@ -31,7 +31,7 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
         setSvgContent(svg);
       } catch (error) {
         console.error("Mermaid rendering failed", error);
-        setSvgContent('<div class="text-red-400 p-4">An error occurred while generating the Mermaid diagram.</div>');
+        setSvgContent('<div class="p-4 text-[13px]" style="color:#e08787">An error occurred while generating the Mermaid diagram.</div>');
       } finally {
         setIsRendering(false);
       }
@@ -41,15 +41,15 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
   }, [mermaidCode]);
 
   return (
-    <div className="w-full h-full bg-[#1d1f21] rounded-xl overflow-hidden border border-zinc-800 shadow-2xl relative flex items-center justify-center">
+    <div className="w-full h-full bg-surface-700 rounded-lg overflow-hidden border border-surface-500 relative">
       {isRendering && (
-        <div className="absolute inset-0 z-20 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+        <div className="absolute inset-0 z-20 bg-surface-900/80 backdrop-blur-sm flex items-center justify-center">
+          <Loader2 className="w-4 h-4 animate-spin text-content-muted" />
         </div>
       )}
-      <div 
+      <div
         ref={containerRef}
-        className="w-full h-full p-4 overflow-auto custom-scrollbar flex items-center justify-center [&>svg]:max-w-none"
+        className="w-full h-full p-3 overflow-auto flex items-center justify-center [&>svg]:max-w-none"
         dangerouslySetInnerHTML={{ __html: svgContent }}
       />
     </div>

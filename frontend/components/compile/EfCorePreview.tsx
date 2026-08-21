@@ -4,10 +4,11 @@ import 'prismjs/components/prism-clike';
 import 'prismjs/components/prism-csharp';
 import 'prismjs/themes/prism-tomorrow.css';
 import { DatabaseSchema } from '../../types/schema';
-import { Package, Loader2 } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import { Panel, PanelBar, ActionButton } from './PanelKit';
 
 
 interface EfCorePreviewProps {
@@ -133,34 +134,30 @@ namespace Namines.Generated
   };
 
   return (
-    <div className="w-full h-full bg-[#030307]/60 backdrop-blur-md rounded-xl overflow-hidden border border-zinc-800/80 shadow-2xl relative flex flex-col">
-      <div className="shrink-0 px-4 py-2 bg-zinc-950/40 backdrop-blur-sm border-b border-zinc-800/60 flex justify-between items-center z-10 select-none">
-        <span className="text-xs text-zinc-400 font-mono">AppDbContext.cs &amp; EntityModel.cs</span>
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">EF Core 8.0</span>
-          <button
-            onClick={handleDownloadEfCore}
-            disabled={isDownloading}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-400 rounded-md transition-all cursor-pointer active:scale-95 select-none disabled:opacity-50"
-            title="Download EF Core Zip"
-          >
-            {isDownloading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Package className="w-3.5 h-3.5" />
-            )}
-            <span>Download Zip</span>
-          </button>
+    <Panel scroll={false}>
+      <div className="h-full flex flex-col">
+        <PanelBar
+          left={
+            <>
+              <span className="text-[11px] font-mono text-content-secondary truncate">AppDbContext.cs</span>
+              <span className="text-[10px] font-mono text-content-muted shrink-0">EF Core 8.0</span>
+            </>
+          }
+        >
+          <ActionButton icon={Package} onClick={handleDownloadEfCore} busy={isDownloading} tone="primary">
+            Download .zip
+          </ActionButton>
+        </PanelBar>
+
+        <div className="flex-1 min-h-0 overflow-auto bg-surface-900">
+          <pre className="!bg-transparent !m-0 !p-3 !text-[11px] !leading-relaxed">
+            <code ref={codeRef} className="language-csharp">
+              {codeString}
+            </code>
+          </pre>
         </div>
       </div>
-      <div className="flex-1 overflow-auto custom-scrollbar">
-        <pre className="!bg-transparent !m-0 !p-4 !text-sm">
-          <code ref={codeRef} className="language-csharp">
-            {codeString}
-          </code>
-        </pre>
-      </div>
-    </div>
+    </Panel>
   );
 }
 

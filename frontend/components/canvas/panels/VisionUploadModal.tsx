@@ -180,25 +180,26 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="relative w-full max-w-lg rounded-3xl bg-surface-700/95 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.25)] p-6 md:p-8 flex flex-col max-h-[85vh] overflow-hidden">
-        
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="relative w-full max-w-md rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] p-5 flex flex-col max-h-[85vh] overflow-hidden">
+
         {/* Header */}
-        <div className="flex justify-between items-start mb-6 shrink-0 select-none">
+        <div className="flex justify-between items-start mb-4 shrink-0 select-none">
           <div>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-200 via-indigo-400 to-indigo-100 bg-clip-text text-transparent flex items-center gap-2">
-              <span>{showVerification ? 'Schema Verification' : 'Import from Whiteboard'}</span>
+            <h2 className="text-sm font-bold text-content-primary">
+              {showVerification ? 'Schema Verification' : 'Import from Whiteboard'}
             </h2>
-            <p className="text-zinc-400 text-xs mt-1">
-              {showVerification 
-                ? 'Review the table structures and foreign keys detected by the AI.' 
-                : 'Upload a photo of the database schema you drew on a physical whiteboard, and let AI convert it to digital tables instantly.'}
+            <p className="text-content-muted text-xs mt-1">
+              {showVerification
+                ? 'Review the table structures and foreign keys detected by the AI.'
+                : 'Upload a photo of a whiteboard schema and let AI convert it to digital tables.'}
             </p>
           </div>
-          <button 
+          <button
             onClick={handleClose}
             disabled={loading}
-            className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all disabled:opacity-50"
+            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-all disabled:opacity-50"
+            aria-label="Close"
           >
             <X className="w-4 h-4" />
           </button>
@@ -206,61 +207,61 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-rose-950/20 border border-rose-500/20 rounded-2xl p-4 flex gap-3 items-start mb-5 shrink-0 animate-in fade-in slide-in-from-top-2">
-            <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+          <div className="bg-danger-subtle border border-danger/25 rounded-xl p-3 flex gap-2.5 items-start mb-4 shrink-0">
+            <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
             <div>
-              <span className="text-rose-400 text-xs font-bold block mb-0.5 animate-none">Analysis Failed</span>
-              <p className="text-zinc-300 text-[11px] leading-relaxed">{error}</p>
+              <span className="text-danger-text text-xs font-bold block mb-0.5">Analysis Failed</span>
+              <p className="text-content-primary text-[11px] leading-relaxed">{error}</p>
             </div>
           </div>
         )}
 
         {/* Success Alert */}
         {success && (
-          <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-4 flex gap-3 items-start mb-5 shrink-0 animate-in fade-in">
-            <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+          <div className="bg-success-subtle border border-success/25 rounded-xl p-3 flex gap-2.5 items-start mb-4 shrink-0">
+            <CheckCircle className="w-4 h-4 text-success-text mt-0.5 shrink-0" />
             <div>
-              <span className="text-emerald-400 text-xs font-bold block mb-0.5 animate-none">Schema Imported Successfully!</span>
-              <p className="text-zinc-300 text-[11px] leading-relaxed">Tables and relationships detected and placed. Updating canvas...</p>
+              <span className="text-success-text text-xs font-bold block mb-0.5">Schema Imported Successfully!</span>
+              <p className="text-content-primary text-[11px] leading-relaxed">Tables and relationships detected and placed. Updating canvas...</p>
             </div>
           </div>
         )}
 
         {/* Dynamic content scrollable area */}
-        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar min-h-[220px] flex flex-col justify-start">
-          
+        <div className="flex-1 overflow-y-auto pr-1 min-h-[220px] flex flex-col justify-start">
+
           {showVerification && parsedSchema ? (
             /* Verification Screen */
-            <div className="space-y-4 py-2 animate-in fade-in slide-in-from-bottom-2">
-              <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 flex gap-3 items-start">
-                <AlertCircle className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
+            <div className="space-y-3 py-1">
+              <div className="bg-surface-700 border border-content-primary/8 rounded-xl p-3 flex gap-2.5 items-start">
+                <AlertCircle className="w-4 h-4 text-content-primary mt-0.5 shrink-0" />
                 <div>
-                  <span className="text-indigo-300 text-xs font-bold block mb-0.5 animate-none">Parsing Successful!</span>
-                  <p className="text-zinc-400 text-[10px] leading-relaxed">
-                    Review the parsed table structures and relationships below. You can uncheck mismatched relationships to exclude them from the import.
+                  <span className="text-content-primary text-xs font-bold block mb-0.5">Parsing Successful!</span>
+                  <p className="text-content-subtle text-[10px] leading-relaxed">
+                    Review the parsed tables and relationships below. Uncheck mismatched relationships to exclude them.
                   </p>
                 </div>
               </div>
 
               {/* Detected Tables Section */}
-              <div className="space-y-2 select-none">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Detected Tables ({parsedSchema.tables.length})</span>
-                <div className="grid grid-cols-2 gap-2 max-h-[110px] overflow-y-auto pr-1 custom-scrollbar">
+              <div className="space-y-1.5 select-none">
+                <span className="text-[10px] font-bold text-content-subtle uppercase tracking-wider block">Detected Tables ({parsedSchema.tables.length})</span>
+                <div className="grid grid-cols-2 gap-1.5 max-h-[110px] overflow-y-auto pr-1">
                   {parsedSchema.tables.map((t: any) => (
-                    <div key={t.id} className="p-2.5 bg-zinc-950/40 border border-zinc-900 rounded-xl flex justify-between items-center text-xs">
-                      <span className="text-zinc-200 font-bold truncate max-w-[120px]">{t.name}</span>
-                      <span className="text-zinc-500 text-[10px]">{t.columns?.length || 0} Columns</span>
+                    <div key={t.id} className="p-2 bg-surface-700 border border-content-primary/8 rounded-lg flex justify-between items-center text-xs">
+                      <span className="text-content-primary font-semibold truncate max-w-[120px]">{t.name}</span>
+                      <span className="text-content-subtle text-[10px]">{t.columns?.length || 0} Columns</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Detected Relationships Section */}
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Detected Relationships (Foreign Keys - {parsedSchema.relations?.length || 0})</span>
-                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-content-subtle uppercase tracking-wider block">Detected Relationships ({parsedSchema.relations?.length || 0})</span>
+                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
                   {(!parsedSchema.relations || parsedSchema.relations.length === 0) ? (
-                    <p className="text-zinc-500 text-xs italic p-3 bg-zinc-950/20 border border-zinc-900 rounded-xl text-center select-none">No relationships detected.</p>
+                    <p className="text-content-subtle text-xs italic p-3 bg-surface-700 border border-content-primary/8 rounded-lg text-center select-none">No relationships detected.</p>
                   ) : (
                     parsedSchema.relations.map((rel: any, idx: number) => {
                       const sourceTable = parsedSchema.tables.find((t: any) => t.id === rel.sourceTableId || t.name === rel.sourceTableId);
@@ -270,12 +271,12 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                       const key = rel.id || `rel-${idx}`;
 
                       return (
-                        <div key={key} className="flex items-center justify-between p-2.5 bg-zinc-950/40 hover:bg-zinc-900/40 border border-zinc-900 rounded-xl transition-all">
-                          <div className="flex items-center gap-2 text-[11px] select-none">
-                            <span className="text-zinc-200 font-semibold truncate max-w-[100px]">{sourceName}</span>
-                            <span className="text-indigo-400 px-1 py-0.5 bg-indigo-500/10 rounded border border-indigo-500/20 text-[9px] font-mono shrink-0">{rel.type || 'OneToMany'}</span>
-                            <span className="text-zinc-500">➔</span>
-                            <span className="text-zinc-200 font-semibold truncate max-w-[100px]">{targetName}</span>
+                        <div key={key} className="flex items-center justify-between p-2 bg-surface-700 hover:bg-surface-600 border border-content-primary/8 rounded-lg transition-all">
+                          <div className="flex items-center gap-1.5 text-[11px] select-none">
+                            <span className="text-content-primary font-semibold truncate max-w-[100px]">{sourceName}</span>
+                            <span className="text-content-primary px-1 py-0.5 bg-white/[0.08] rounded border border-white/15 text-[9px] font-mono shrink-0">{rel.type || 'OneToMany'}</span>
+                            <span className="text-content-subtle">→</span>
+                            <span className="text-content-primary font-semibold truncate max-w-[100px]">{targetName}</span>
                           </div>
                           <input
                             type="checkbox"
@@ -286,7 +287,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                                 [key]: !prev[key]
                               }));
                             }}
-                            className="w-4 h-4 rounded text-indigo-600 border-zinc-800 bg-zinc-950 focus:ring-indigo-500 cursor-pointer accent-indigo-500 shrink-0"
+                            className="w-3.5 h-3.5 rounded accent-accent-hover cursor-pointer shrink-0"
                           />
                         </div>
                       );
@@ -297,45 +298,44 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
             </div>
           ) : !previewUrl ? (
             /* Dropzone area */
-            <div 
+            <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all duration-300 min-h-[200px] select-none ${isDragOver ? 'border-indigo-400 bg-indigo-500/5' : 'border-zinc-800 hover:border-zinc-700 bg-zinc-950/20'}`}
+              className={`border border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all duration-300 min-h-[180px] select-none ${isDragOver ? 'border-focus-ring bg-white/[0.08]/40' : 'border-content-primary/12 hover:border-content-primary/20 bg-surface-700/40'}`}
             >
-              <input 
-                type="file" 
+              <input
+                type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
               />
-              <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center rounded-2xl shadow-inner">
-                <Image className="w-5 h-5 animate-pulse animate-none" />
+              <div className="w-10 h-10 bg-surface-600 border border-content-primary/10 text-content-primary flex items-center justify-center rounded-xl">
+                <Image className="w-4 h-4" />
               </div>
               <div className="text-center">
-                <span className="text-zinc-200 text-sm font-bold block">Drag and Drop Your Image File</span>
-                <span className="text-zinc-400 text-xs mt-1 block">or click to select from your device (JPEG, PNG, WebP - Max 10MB)</span>
+                <span className="text-content-primary text-sm font-semibold block">Drag and Drop Your Image File</span>
+                <span className="text-content-subtle text-xs mt-1 block">or click to select (JPEG, PNG, WebP · max 10MB)</span>
               </div>
             </div>
           ) : (
             /* Preview Area */
-            <div className="space-y-4">
-              <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 max-h-[250px] flex items-center justify-center shadow-inner">
-                <img 
-                  src={previewUrl} 
-                  alt="Preview" 
-                  className="max-h-[250px] object-contain w-full"
+            <div className="space-y-3">
+              <div className="relative rounded-xl overflow-hidden border border-content-primary/10 bg-surface-700 max-h-[220px] flex items-center justify-center">
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="max-h-[220px] object-contain w-full"
                 />
-                
+
                 {loading && (
-                  /* Floating Loading Overlay */
-                  <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3 animate-in fade-in duration-300 select-none">
-                    <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                  <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3 select-none">
+                    <RefreshCw className="w-6 h-6 text-content-primary animate-spin" />
                     <div className="text-center px-4">
-                      <span className="text-zinc-100 text-xs font-bold block animate-pulse animate-none">Parsing Schema...</span>
-                      <span className="text-zinc-400 text-[10px] mt-1 block">AI is analyzing the image, reading handwritings and lines.</span>
+                      <span className="text-content-primary text-xs font-bold block">Parsing Schema...</span>
+                      <span className="text-content-muted text-[10px] mt-1 block">AI is analyzing the image, reading handwriting and lines.</span>
                     </div>
                   </div>
                 )}
@@ -350,7 +350,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                       setShowVerification(false);
                       setParsedSchema(null);
                     }}
-                    className="text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-xl transition-all"
+                    className="text-xs text-content-muted hover:text-content-primary bg-surface-700 border border-content-primary/10 px-3 py-1.5 rounded-lg transition-all"
                   >
                     Select Another Image
                   </button>
@@ -361,61 +361,61 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
         </div>
 
         {/* Footer */}
-        <div className="border-t border-zinc-900 pt-6 mt-6 flex justify-end gap-3 shrink-0 select-none">
-          <button 
+        <div className="border-t border-content-primary/10 pt-4 mt-4 flex justify-end gap-2 shrink-0 select-none">
+          <button
             onClick={handleClose}
             disabled={loading}
-            className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-bold px-5 py-2.5 rounded-xl transition-all disabled:opacity-50"
+            className="bg-transparent hover:bg-white/[0.04] border border-content-primary/10 text-content-muted hover:text-content-primary text-xs font-medium px-4 py-2 rounded-lg transition-all disabled:opacity-50"
           >
             Close
           </button>
-          
+
           {showVerification && parsedSchema && !success && (
-            <button 
+            <button
               onClick={handleConfirmImport}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-bold px-6 py-2.5 border border-emerald-500/40 rounded-xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.4)] animate-in fade-in"
+              className="flex items-center gap-1.5 bg-success hover:bg-success-text text-surface-800 text-xs font-semibold px-4 py-2 rounded-lg transition-all"
             >
-              <CheckCircle className="w-3.5 h-3.5 animate-none" />
+              <CheckCircle className="w-3.5 h-3.5" />
               <span>Confirm & Import to Canvas</span>
             </button>
           )}
 
           {previewUrl && !showVerification && !loading && !success && (
-            <button 
+            <button
               onClick={handleAnalyze}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-bold px-6 py-2.5 border border-indigo-500/40 rounded-xl transition-all shadow-[0_0_15px_rgba(99,102,241,0.4)]"
+              className="flex items-center gap-1.5 bg-content-primary hover:bg-content-secondary text-surface-900 text-xs font-semibold px-4 py-2 rounded-lg transition-all"
             >
               <span>Convert to Schema with AI</span>
             </button>
           )}
         </div>
 
-        {/* Overwrite warning dialog */}
+        {/* Overwrite warning dialog — desatüre uyarı/amber, veri kaybı riski (semantik) */}
         {showOverwriteWarning && (
-          <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
-            <div className="w-full max-w-md bg-gradient-to-b from-[#1F1635]/95 via-surface-700/98 to-surface-700/98 border border-amber-500/40 rounded-3xl p-8 shadow-[0_0_50px_rgba(245,158,11,0.25)] text-center space-y-5 animate-in zoom-in-95 duration-200">
-              <div className="w-14 h-14 bg-gradient-to-tr from-amber-500/20 to-yellow-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center rounded-2xl mx-auto shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-                <AlertTriangle className="w-7 h-7" />
+          <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
+            <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-2xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)] text-center space-y-4">
+              <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-xl mx-auto">
+                <AlertTriangle className="w-5 h-5" />
               </div>
-              <div className="space-y-2">
-                <h4 className="text-zinc-100 text-base font-extrabold tracking-wide uppercase">Destructive Import Warning</h4>
-                <p className="text-zinc-300 text-xs leading-relaxed font-semibold">
-                  Importing this schema will overwrite your existing tables and layout. Are you sure you want to proceed?
+              <div className="space-y-1.5">
+                <h4 className="text-content-primary text-sm font-bold">Destructive Import Warning</h4>
+                <p className="text-content-muted text-xs leading-relaxed">
+                  Importing this schema will overwrite your existing tables and layout. Continue?
                 </p>
               </div>
-              <div className="flex gap-3 justify-center pt-2 select-none">
+              <div className="flex gap-2 justify-center pt-1 select-none">
                 <button
                   onClick={() => {
                     setShowOverwriteWarning(false);
                     setPendingSchema(null);
                   }}
-                  className="text-xs text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-5 py-2.5 rounded-xl transition-all cursor-pointer"
+                  className="text-xs text-content-muted hover:text-content-primary bg-transparent hover:bg-white/[0.04] border border-content-primary/10 px-4 py-2 rounded-lg transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmOverwrite}
-                  className="text-xs text-black font-bold bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-amber-400/40 px-6 py-2.5 rounded-xl transition-all cursor-pointer"
+                  className="text-xs text-surface-800 font-semibold bg-danger hover:bg-danger-text px-4 py-2 rounded-lg transition-all cursor-pointer"
                 >
                   Confirm & Overwrite
                 </button>

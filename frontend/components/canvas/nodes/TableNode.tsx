@@ -141,27 +141,27 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
       );
     } else if (diff.status === 'modified') {
       // animate-pulse kaldırıldı: 20 değişmiş tabloda 20 sonsuz animasyon aynı anda dönüyordu.
-      borderColorClass = 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.3)]';
+      borderColorClass = 'border-content-primary/25';
       diffBadge = (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5 shadow-[0_0_8px_rgba(245,158,11,0.2)]">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/[0.08] text-content-secondary border border-white/20 flex items-center gap-0.5">
           <RefreshCw className="w-2.5 h-2.5" /> Modified
         </span>
       );
     } else {
-      borderColorClass = selected ? 'border-indigo-500 shadow-indigo-500/20' : 'border-surface-500';
+      borderColorClass = selected ? 'border-focus-ring shadow-focus-ring/20' : 'border-surface-500';
     }
   } else {
     // Normal styling
     borderColorClass = hasError || hasDbaError
       ? 'border-red-500 shadow-red-500/20'
       : hasDbaWarning
-        ? 'border-amber-500 shadow-amber-500/20'
+        ? 'border-content-primary/30 shadow-none'
         : isEditMode
           ? selected
-            ? 'border-amber-400 shadow-amber-400/20'
-            : 'border-amber-500/50 shadow-amber-500/10'
+            ? 'border-focus-ring shadow-focus-ring/20'
+            : 'border-accent-hover/50 shadow-accent-hover/10'
           : selected
-            ? 'border-indigo-500 shadow-indigo-500/20'
+            ? 'border-focus-ring shadow-focus-ring/20'
             : 'border-surface-500';
   }
 
@@ -205,7 +205,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               setSelectedTableForEdit(table.id);
               setShowPopover(false);
             }}
-            className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-indigo-400/20 cursor-pointer"
+            className="w-full py-2.5 px-4 bg-content-primary hover:bg-content-secondary text-surface-900 rounded-xl text-xs font-bold transition-all border border-accent-hover/40 cursor-pointer"
           >
             Edit Manual Structure
           </button>
@@ -217,7 +217,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               setIsPanelOpen(true);
               setShowPopover(false);
             }}
-            className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-emerald-300 hover:text-emerald-200 rounded-xl text-xs font-bold transition-all border border-surface-500 cursor-pointer"
+            className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary rounded-xl text-xs font-bold transition-all border border-surface-500 cursor-pointer"
           >
             Go to AI DBA Suggestions
           </button>
@@ -229,7 +229,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 duplicateTable(table.id);
                 setShowPopover(false);
               }}
-              className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-sky-300 hover:text-sky-200 rounded-xl text-xs font-bold transition-all border border-surface-500 cursor-pointer"
+              className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary rounded-xl text-xs font-bold transition-all border border-surface-500 cursor-pointer"
             >
               Duplicate Table
             </button>
@@ -267,8 +267,8 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               className={`
                 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold select-none cursor-pointer
                 ${hasDbaError ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.65)]' :
-                  hasDbaWarning ? 'bg-amber-500 text-surface-900 shadow-[0_0_12px_rgba(245,158,11,0.65)]' :
-                  'bg-sky-600 text-white shadow-[0_0_12px_rgba(14,165,233,0.65)]'}
+                  hasDbaWarning ? 'bg-content-primary text-surface-900 shadow-none' :
+                  'bg-surface-600 text-content-secondary shadow-none'}
               `}
               title={`${dbaIssues.length} DBA warnings present`}
               aria-label={`${table.name}: ${dbaIssues.length} DBA warnings. Open the DBA panel.`}
@@ -298,7 +298,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
       <div className="flex flex-col py-1.5 divide-y divide-surface-500/20">
         {columnsToRender.map(({ column: col, diffStatus, details }) => {
           // Setup custom styling based on column level diff
-          let rowClass = "relative flex items-center justify-between px-4 py-2.5 hover:bg-indigo-500/5 group transition-all";
+          let rowClass = "relative flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.03] group transition-all";
           let textStyle = col.isPK ? 'font-semibold text-content-primary' : 'text-content-secondary';
           let statusIndicator = null;
           let typeLabel = `${col.type}${col.length ? `(${col.length})` : ''}`;
@@ -312,9 +312,9 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
             textStyle = 'text-rose-300 line-through';
             statusIndicator = <Minus className="w-3 h-3 text-rose-400" />;
           } else if (diffStatus === 'modified') {
-            rowClass += ' bg-amber-950/20 border-l-2 border-amber-500';
-            textStyle = 'font-semibold text-amber-300';
-            statusIndicator = <RefreshCw className="w-3 h-3 text-amber-400" />;
+            rowClass += ' bg-white/[0.04] border-l-2 border-white/30';
+            textStyle = 'font-semibold text-content-primary';
+            statusIndicator = <RefreshCw className="w-3 h-3 text-content-secondary" />;
 
             if (details?.typeChanged && details?.oldColumn) {
               const oldType = `${details.oldColumn.type}${details.oldColumn.length ? `(${details.oldColumn.length})` : ''}`;
@@ -329,13 +329,13 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 type="target"
                 position={Position.Left}
                 id={col.id}
-                className="!w-3 !h-3 !bg-indigo-500 !border-2 !border-surface-800 -ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="!w-3 !h-3 !bg-accent-hover !border-2 !border-surface-800 -ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
               />
 
               <div className="flex items-center gap-2">
                 {statusIndicator}
-                {col.isPK && <Key className="w-3.5 h-3.5 text-amber-400" />}
-                {col.isFK && !col.isPK && <Link className="w-3.5 h-3.5 text-indigo-400" />}
+                {col.isPK && <Key className="w-3.5 h-3.5 text-accent-text" />}
+                {col.isFK && !col.isPK && <Link className="w-3.5 h-3.5 text-content-muted" />}
                 {!col.isPK && !col.isFK && !statusIndicator && <div className="w-3.5 h-3.5" />}
 
                 <span className={`text-sm ${textStyle}`}>
@@ -347,7 +347,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 {/* Kolon tipi her satırdaki birincil bilgi — eski text-zinc-500
                     koyu zeminde ~4.0:1 ile AA'nın altındaydı. */}
                 <span className={diffStatus === 'modified' && details?.typeChanged
-                  ? 'text-amber-200 font-bold bg-amber-500/10 px-1 py-0.5 rounded'
+                  ? 'text-content-primary font-bold bg-white/[0.06] px-1 py-0.5 rounded'
                   : 'text-content-muted'}>
                   {typeLabel}
                 </span>
@@ -363,7 +363,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 type="source"
                 position={Position.Right}
                 id={col.id}
-                className="!w-3 !h-3 !bg-indigo-500 !border-2 !border-surface-800 -mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="!w-3 !h-3 !bg-accent-hover !border-2 !border-surface-800 -mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
               />
             </div>
           );

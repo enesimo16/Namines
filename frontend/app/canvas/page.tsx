@@ -27,7 +27,7 @@ import { useToastStore } from '../../store/useToastStore';
 import { useMultiplayerStore } from '../../store/useMultiplayerStore';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import {
-  Activity, Eye, FileImage, LayoutTemplate, Loader2,
+  Activity, AlertTriangle, Eye, FileImage, LayoutTemplate, Loader2,
   Pencil, Plus, Redo2, Search, Sparkles, Undo2, Upload,
 } from 'lucide-react';
 
@@ -356,19 +356,20 @@ export default function CanvasPage() {
       {/* Connection Lost Overlay for Read-Only Mode */}
       {isOffline && (
         <div className="absolute inset-0 z-[8000] bg-black/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-auto">
-          <div className="bg-surface-900/90 border border-amber-500/30 px-6 py-5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col items-center text-center gap-3 animate-in zoom-in-95 duration-200">
-            <span className="bg-amber-500/10 text-amber-300 border border-amber-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
-              ⚠️ Connection Lost
+          <div className="bg-surface-800 border border-danger/25 px-6 py-5 rounded-2xl flex flex-col items-center text-center gap-3">
+            <span className="flex items-center gap-1.5 bg-danger-subtle text-danger-text border border-danger/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
+              <AlertTriangle className="w-3 h-3" />
+              Connection Lost
             </span>
             <div className="flex flex-col gap-1">
-              <h4 className="text-zinc-200 font-extrabold text-sm">Read-Only Mode Active</h4>
-              <p className="text-zinc-400 text-[11px] leading-relaxed max-w-[280px]">
+              <h4 className="text-content-primary font-bold text-sm">Read-Only Mode Active</h4>
+              <p className="text-content-muted text-[11px] leading-relaxed max-w-[280px]">
                 Collaborative session is disconnected. You cannot modify the schema until the connection is restored.
               </p>
             </div>
             <button
               onClick={() => setIsOffline(false)}
-              className="mt-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl border border-zinc-700 transition-all cursor-pointer shadow-sm hover:shadow-md"
+              className="mt-2 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-content-secondary text-xs font-semibold rounded-xl transition-all cursor-pointer"
             >
               Work Offline (Local Mode)
             </button>
@@ -413,7 +414,7 @@ export default function CanvasPage() {
             proOptions={{ hideAttribution: true }}
           >
             <Background
-              color={isEditMode ? '#4338ca' : '#3f3f46'}
+              color={isEditMode ? '#4c5c82' : '#1e2430'}
               variant={BackgroundVariant.Dots}
               gap={20}
               size={1}
@@ -423,19 +424,19 @@ export default function CanvasPage() {
               nodeColor={(node) => {
                 const tableColor = (node.data as any)?.table?.color;
                 if (tableColor) return tableColor;
-                return isEditMode ? '#6366f1' : '#3f3f46';
+                return isEditMode ? '#4c5c82' : '#1e2430';
               }}
               maskColor="rgba(0, 0, 0, 0.7)"
-              className="bg-surface-700 border border-indigo-500/20 rounded-2xl overflow-hidden shadow-lg"
+              className="bg-surface-700 border border-content-primary/12 rounded-2xl overflow-hidden shadow-lg"
             />
 
             {/* Odadaki diğer kullanıcıların imleçleri (ReactFlow içinde: viewport'a erişir) */}
             <MultiplayerCursors />
 
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
-            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-indigo-500/20 p-4 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.15)] mt-4 ml-4 w-64 select-none pointer-events-auto">
-              <h2 className="text-xl font-bold bg-gradient-to-r from-zinc-100 to-indigo-200 bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
-              <div className="text-xs text-indigo-300/80 flex flex-col gap-1 font-medium">
+            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 p-4 rounded-2xl mt-4 ml-4 w-64 select-none pointer-events-auto">
+              <h2 className="text-xl font-bold bg-gradient-to-r from-zinc-100 to-content-primary bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
+              <div className="text-xs text-content-secondary/80 flex flex-col gap-1 font-medium">
                 <div className="flex gap-4">
                   <span>{schema.tables.length} Tables</span>
                   <span>{schema.relations.length} Relations</span>
@@ -498,10 +499,10 @@ function TableZoomList({ tables }: { tables: { id: string; name: string; color?:
   };
 
   return (
-    <div className="mt-3 border-t border-indigo-500/10 pt-3">
+    <div className="mt-3 border-t border-content-primary/[0.06] pt-3">
       <button
         onClick={() => setOpen(v => !v)}
-        className="flex items-center justify-between w-full text-xs font-semibold text-indigo-300/70 hover:text-indigo-200 transition-colors cursor-pointer"
+        className="flex items-center justify-between w-full text-xs font-semibold text-content-secondary/70 hover:text-content-primary transition-colors cursor-pointer"
       >
         <span>Tables</span>
         <span className="text-[10px] opacity-60">{open ? '▲' : '▼'}</span>
@@ -512,7 +513,7 @@ function TableZoomList({ tables }: { tables: { id: string; name: string; color?:
             <button
               key={t.id}
               onClick={() => zoomTo(t.id)}
-              className="flex items-center gap-2 px-2 py-1 rounded-lg text-xs text-content-secondary hover:text-content-primary hover:bg-indigo-500/10 transition-colors text-left cursor-pointer w-full truncate"
+              className="flex items-center gap-2 px-2 py-1 rounded-lg text-xs text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] transition-colors text-left cursor-pointer w-full truncate"
             >
               {t.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color }} />}
               <span className="truncate">{t.name}</span>
@@ -547,27 +548,22 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center font-sans">
-      {/* Background glow effects */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 left-1/3 w-[300px] h-[300px] bg-cyan-500/5 rounded-full blur-[100px] pointer-events-none" />
+    <div className="fixed inset-0 z-[9999] bg-surface-900 flex flex-col items-center justify-center font-sans">
+      <div className="relative bg-surface-800 border border-content-primary/10 p-6 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col items-center text-center max-w-sm w-full mx-4 gap-5">
 
-      <div className="relative bg-surface-900/80 border border-indigo-500/20 p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-xl flex flex-col items-center text-center max-w-md w-full mx-4 gap-6 animate-in zoom-in-95 duration-300">
-        
-        {/* Pulse Logo / Circle */}
-        <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 animate-pulse">
-          <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-surface-600 border border-content-primary/10">
+          <Loader2 className="w-5 h-5 text-accent-text animate-spin" />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <h3 className="text-lg font-black text-white bg-gradient-to-r from-zinc-100 to-indigo-200 bg-clip-text text-transparent">
+        <div className="flex flex-col gap-1.5">
+          <h3 className="text-sm font-bold text-content-primary">
             {status === 'connecting' ? 'Connecting to Room' : 'Room is Empty'}
           </h3>
-          <p className="text-indigo-300/80 font-mono text-[11px] bg-indigo-500/5 border border-indigo-500/10 px-2.5 py-1 rounded-lg">
+          <p className="text-content-muted font-mono text-[11px] bg-surface-700 border border-content-primary/8 px-2.5 py-1 rounded-lg">
             Room ID: {roomId}
           </p>
-          <p className="text-zinc-400 text-xs leading-relaxed max-w-sm mt-1">
-            {status === 'connecting' 
+          <p className="text-content-muted text-xs leading-relaxed max-w-sm mt-1">
+            {status === 'connecting'
               ? 'Establishing real-time connection and retrieving the shared schema from active peers...'
               : 'We connected to the room, but there are no active peers online to share the schema.'}
           </p>
@@ -576,21 +572,21 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
         {status === 'connecting' ? (
           <button
             onClick={onCancel}
-            className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white font-bold text-xs rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer"
+            className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-primary font-semibold text-xs rounded-lg border border-content-primary/10 transition-all cursor-pointer"
           >
             Cancel and Return
           </button>
         ) : (
-          <div className="flex flex-col gap-2.5 w-full">
+          <div className="flex flex-col gap-2 w-full">
             <button
               onClick={handleStartBlank}
-              className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-extrabold text-xs rounded-xl shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer border border-indigo-400/20"
+              className="w-full py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-xs rounded-lg transition-all cursor-pointer"
             >
               Start Clean Schema (Host Room)
             </button>
             <button
               onClick={onCancel}
-              className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 font-bold text-xs rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer"
+              className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-secondary font-semibold text-xs rounded-lg border border-content-primary/10 transition-all cursor-pointer"
             >
               Return to Main Menu
             </button>

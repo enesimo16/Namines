@@ -14,8 +14,8 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
 
   if (!hasChanges) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 text-zinc-400">
-        <CheckCircle className="w-12 h-12 text-emerald-500 mb-2 animate-bounce" />
+      <div className="flex flex-col items-center justify-center py-10 text-content-muted">
+        <CheckCircle className="w-12 h-12 text-success-text mb-2" />
         <span className="text-[14px]">No changes were found between schemas.</span>
       </div>
     );
@@ -25,15 +25,15 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
     <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
       {/* Added Tables */}
       {hasAdded && (
-        <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-4">
-          <h4 className="text-emerald-400 text-sm font-bold flex items-center gap-2 mb-2">
+        <div className="bg-success-subtle border border-success/20 rounded-xl p-4">
+          <h4 className="text-success-text text-sm font-bold flex items-center gap-2 mb-2">
             <PlusCircle className="w-4 h-4" />
             <span>Added Tables ({diff.addedTables.length})</span>
           </h4>
           <ul className="grid grid-cols-2 gap-2">
             {diff.addedTables.map((t) => (
-              <li key={t} className="text-zinc-300 text-xs bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <li key={t} className="text-content-secondary text-xs bg-success-subtle border border-success/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-success" />
                 {t}
               </li>
             ))}
@@ -43,15 +43,15 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
 
       {/* Deleted Tables */}
       {hasRemoved && (
-        <div className="bg-rose-950/20 border border-rose-500/20 rounded-xl p-4">
-          <h4 className="text-rose-400 text-sm font-bold flex items-center gap-2 mb-2">
+        <div className="bg-danger-subtle border border-danger/20 rounded-xl p-4">
+          <h4 className="text-danger-text text-sm font-bold flex items-center gap-2 mb-2">
             <MinusCircle className="w-4 h-4" />
             <span>Deleted Tables ({diff.removedTables.length})</span>
           </h4>
           <ul className="grid grid-cols-2 gap-2">
             {diff.removedTables.map((t) => (
-              <li key={t} className="text-zinc-300 text-xs bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 font-medium line-through decoration-rose-500/50">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              <li key={t} className="text-content-secondary text-xs bg-danger-subtle border border-danger/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 font-medium line-through decoration-danger/50">
+                <span className="w-1.5 h-1.5 rounded-full bg-danger" />
                 {t}
               </li>
             ))}
@@ -61,36 +61,36 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
 
       {/* Modified Tables */}
       {hasModified && (
-        <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-4">
-          <h4 className="text-amber-400 text-sm font-bold flex items-center gap-2 mb-2">
+        <div className="bg-surface-600 border border-content-primary/15 rounded-xl p-4">
+          <h4 className="text-content-secondary text-sm font-bold flex items-center gap-2 mb-2">
             <AlertTriangle className="w-4 h-4" />
             <span>Modified Tables ({diff.modifiedTables.length})</span>
           </h4>
           <div className="space-y-3">
             {diff.modifiedTables.map((tbl) => (
-              <div key={tbl.tableName} className="bg-zinc-900/60 border border-zinc-800/80 rounded-lg p-3 space-y-2">
-                <div className="text-zinc-100 text-xs font-bold border-b border-zinc-800 pb-1.5 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <div key={tbl.tableName} className="bg-surface-700 border border-content-primary/8 rounded-lg p-3 space-y-2">
+                <div className="text-content-primary text-xs font-bold border-b border-content-primary/8 pb-1.5 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-content-muted" />
                   {tbl.tableName}
                 </div>
                 
                 {tbl.addedColumns.length > 0 && (
-                  <div className="text-[11px] text-zinc-400">
-                    <span className="text-emerald-400 font-bold mr-1">Added:</span>
+                  <div className="text-[11px] text-content-muted">
+                    <span className="text-success-text font-bold mr-1">Added:</span>
                     {tbl.addedColumns.join(', ')}
                   </div>
                 )}
                 
                 {tbl.removedColumns.length > 0 && (
-                  <div className="text-[11px] text-zinc-400">
-                    <span className="text-rose-400 font-bold mr-1 line-through">Deleted:</span>
-                    <span className="line-through decoration-rose-500/30">{tbl.removedColumns.join(', ')}</span>
+                  <div className="text-[11px] text-content-muted">
+                    <span className="text-danger-text font-bold mr-1 line-through">Deleted:</span>
+                    <span className="line-through decoration-danger/30">{tbl.removedColumns.join(', ')}</span>
                   </div>
                 )}
 
                 {tbl.modifiedColumns.length > 0 && (
-                  <div className="text-[11px] text-zinc-400">
-                    <span className="text-amber-400 font-bold mr-1">Modified:</span>
+                  <div className="text-[11px] text-content-muted">
+                    <span className="text-content-secondary font-bold mr-1">Modified:</span>
                     {tbl.modifiedColumns.join(', ')}
                   </div>
                 )}

@@ -78,17 +78,17 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
       {isEditMode && (
         <ContextMenu.Portal>
           <ContextMenu.Content
-            className="min-w-[180px] bg-gradient-to-b from-surface-700/95 to-surface-600/95 backdrop-blur-md rounded-xl border border-indigo-500/20 p-1.5 shadow-[0_8px_30px_rgb(0,0,0,0.4),0_0_15px_rgba(59,130,246,0.15)] z-[100] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+            className="min-w-[180px] bg-gradient-to-b from-surface-700/95 to-surface-600/95 backdrop-blur-md rounded-xl border border-content-primary/12 p-1.5 shadow-[0_8px_30px_rgb(0,0,0,0.4),0_0_15px_rgba(59,130,246,0.15)] z-[100] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
             onCloseAutoFocus={e => e.preventDefault()}
           >
             {menuState?.type === 'canvas' && (
               <>
-                <div className="px-2 py-1.5 text-xs font-semibold text-indigo-300/80 uppercase tracking-wider mb-1">Canvas</div>
+                <div className="px-2 py-1.5 text-xs font-semibold text-content-muted uppercase tracking-wider mb-1">Canvas</div>
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-indigo-500/20 hover:text-indigo-200 focus:bg-indigo-500/20 focus:text-indigo-200"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
                   onSelect={handleAddTable}
                 >
-                  <Plus className="w-4 h-4 text-indigo-400" />
+                  <Plus className="w-4 h-4 text-accent-text" />
                   <span>Add New Table</span>
                 </ContextMenu.Item>
               </>
@@ -96,15 +96,15 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
 
             {menuState?.type === 'node' && (
               <>
-                <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-indigo-300/80 uppercase tracking-wider mb-1">
+                <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-content-muted uppercase tracking-wider mb-1">
                   <Table2 className="w-3.5 h-3.5" />
                   Table Operations
                 </div>
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-indigo-500/20 hover:text-indigo-200 focus:bg-indigo-500/20 focus:text-indigo-200"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
                   onSelect={handleEditTable}
                 >
-                  <Pencil className="w-4 h-4 text-indigo-400" />
+                  <Pencil className="w-4 h-4 text-accent-text" />
                   <span>Edit</span>
                 </ContextMenu.Item>
                 <ContextMenu.Item
@@ -114,7 +114,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
                   <Copy className="w-4 h-4 text-sky-400" />
                   <span>Duplicate Table</span>
                 </ContextMenu.Item>
-                <ContextMenu.Separator className="h-px bg-indigo-500/10 my-1 mx-1" />
+                <ContextMenu.Separator className="h-px bg-content-primary/[0.06] my-1 mx-1" />
                 <ContextMenu.Item
                   className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-red-500/20 hover:text-red-300 focus:bg-red-500/20 focus:text-red-300 group"
                   onSelect={handleDeleteTable}

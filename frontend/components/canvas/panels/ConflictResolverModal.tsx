@@ -148,60 +148,61 @@ export default function ConflictResolverModal() {
 
   const getConflictBadge = (type: string) => {
     switch(type) {
-      case 'table_added': return <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">New Table</span>;
-      case 'table_deleted': return <span className="bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold">Deleted Table</span>;
-      case 'table_name': return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold">Name Change</span>;
-      case 'column_added': return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px]">New Column</span>;
-      case 'column_deleted': return <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded text-[10px]">Deleted Column</span>;
-      case 'column_modified': return <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px]">Column Modification</span>;
+      case 'table_added': return <span className="bg-success-subtle text-success-text border border-success/25 px-2 py-0.5 rounded text-[10px] font-semibold">New Table</span>;
+      case 'table_deleted': return <span className="bg-danger-subtle text-danger-text border border-danger/25 px-2 py-0.5 rounded text-[10px] font-semibold">Deleted Table</span>;
+      case 'table_name': return <span className="bg-surface-600 text-content-secondary border border-content-primary/15 px-2 py-0.5 rounded text-[10px] font-semibold">Name Change</span>;
+      case 'column_added': return <span className="bg-success-subtle text-success-text border border-success/20 px-2 py-0.5 rounded text-[10px]">New Column</span>;
+      case 'column_deleted': return <span className="bg-danger-subtle text-danger-text border border-danger/20 px-2 py-0.5 rounded text-[10px]">Deleted Column</span>;
+      case 'column_modified': return <span className="bg-surface-600 text-content-secondary border border-content-primary/15 px-2 py-0.5 rounded text-[10px]">Column Modification</span>;
       default: return null;
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-700 border border-indigo-500/30 rounded-3xl w-[90vw] max-w-5xl h-[85vh] flex flex-col shadow-[0_0_50px_rgba(99,102,241,0.25)] overflow-hidden">
-        
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-800 border border-content-primary/12 rounded-2xl w-[90vw] max-w-4xl h-[85vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden">
+
         {/* Header */}
-        <div className="bg-slate-900/90 border-b border-indigo-500/20 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-indigo-500/10 border border-indigo-500/25 rounded-2xl flex items-center justify-center">
-              <GitMerge className="w-5 h-5 text-indigo-400 animate-pulse" />
+        <div className="bg-surface-800 border-b border-content-primary/10 px-5 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-lg flex items-center justify-center">
+              <GitMerge className="w-4 h-4 text-content-primary" />
             </div>
             <div>
-              <h2 id="merge-modal-title" className="text-lg font-bold text-zinc-100 flex items-center gap-2 animate-none">
-                Merge Branches (Git Merge)
+              <h2 id="merge-modal-title" className="text-sm font-bold text-content-primary">
+                Merge Branches
               </h2>
-              <p className="text-xs text-indigo-300/80">
-                Changes from <span className="font-semibold text-indigo-200">{mergeSourceBranch}</span> are being merged into your active branch <span className="font-semibold text-indigo-200">{mergeTargetBranch}</span>.
+              <p className="text-[11px] text-content-muted">
+                Merging <span className="font-semibold text-content-primary">{mergeSourceBranch}</span> into <span className="font-semibold text-content-primary">{mergeTargetBranch}</span>
               </p>
             </div>
           </div>
-          
-          <button 
+
+          <button
             onClick={resetMergeSession}
-            className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 hover:bg-white/[0.06] rounded-lg text-content-subtle hover:text-content-primary transition-colors"
+            aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Warning banner */}
-        <div className="bg-indigo-500/10 border-b border-indigo-500/20 px-6 py-3.5 flex items-center justify-between text-xs text-indigo-200">
-          <div className="flex items-center gap-2 font-medium">
-            <AlertTriangle className="w-4 h-4 text-indigo-400 animate-none" />
-            <span>A total of <strong>{conflicts.length}</strong> structural changes detected. Please select the branch version you want to apply for each row.</span>
+        {/* Info banner */}
+        <div className="bg-surface-700 border-b border-content-primary/10 px-5 py-2.5 flex items-center justify-between text-xs text-content-primary">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-content-muted" />
+            <span><strong>{conflicts.length}</strong> structural changes detected. Choose a version for each row.</span>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => handleAutoResolve('source')}
-              className="bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 px-3 py-1.5 rounded-lg border border-indigo-500/20 font-bold transition-all"
+              className="bg-surface-600 hover:bg-white/[0.08] text-content-primary px-2.5 py-1.5 rounded-md border border-content-primary/10 font-semibold transition-all text-[11px]"
             >
               Keep All Active
             </button>
             <button
               onClick={() => handleAutoResolve('target')}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg border border-indigo-500/30 font-bold transition-all shadow-[0_0_10px_rgba(99,102,241,0.2)]"
+              className="bg-content-primary hover:bg-content-secondary text-surface-900 px-2.5 py-1.5 rounded-md font-semibold transition-all text-[11px]"
             >
               Accept All Incoming
             </button>
@@ -209,90 +210,88 @@ export default function ConflictResolverModal() {
         </div>
 
         {/* Conflict list container */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-950/20">
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
           {conflicts.map((item) => {
             const isSourceSelected = item.selectedChoice === 'source';
             const isTargetSelected = item.selectedChoice === 'target';
 
             return (
-              <div 
-                key={item.id} 
-                className="bg-[#111A2E]/70 border border-slate-800 hover:border-indigo-500/15 rounded-2xl p-4 transition-all"
+              <div
+                key={item.id}
+                className="bg-surface-700 border border-content-primary/8 rounded-xl p-3.5"
               >
                 {/* Meta details */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2.5">
-                    {getConflictBadge(item.type)}
-                    <ChevronRight className="w-3.5 h-3.5 text-zinc-600 animate-none" />
-                    <span className="text-xs font-extrabold text-zinc-300 tracking-wide">
-                      {item.tableName}
-                      {item.columnName && <span className="text-zinc-500 font-normal"> ➔ {item.columnName}</span>}
-                    </span>
-                  </div>
+                <div className="flex items-center gap-2 mb-2.5">
+                  {getConflictBadge(item.type)}
+                  <ChevronRight className="w-3 h-3 text-content-subtle" />
+                  <span className="text-xs font-bold text-content-primary tracking-wide">
+                    {item.tableName}
+                    {item.columnName && <span className="text-content-subtle font-normal"> → {item.columnName}</span>}
+                  </span>
                 </div>
 
                 {/* Side-by-Side comparison cards */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   {/* Left Choice: Keep Source (Active Branch) */}
-                  <div 
+                  <div
                     onClick={() => updateConflictChoice(item.id, 'source')}
-                    className={`border-2 rounded-xl p-3 cursor-pointer transition-all flex flex-col justify-between ${
-                      isSourceSelected 
-                        ? 'border-indigo-500 bg-indigo-500/5 shadow-[0_0_12px_rgba(99,102,241,0.1)]' 
-                        : 'border-slate-800 bg-slate-900/40 opacity-70 hover:opacity-100 hover:border-zinc-700'
+                    className={`border rounded-lg p-2.5 cursor-pointer transition-all flex flex-col justify-between ${
+                      isSourceSelected
+                        ? 'border-focus-ring bg-white/[0.06]'
+                        : 'border-content-primary/8 bg-surface-800 opacity-70 hover:opacity-100 hover:border-content-primary/15'
                     }`}
                   >
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Active Branch (Current)</span>
-                      {isSourceSelected && <CheckCircle2 className="w-4 h-4 text-indigo-400 animate-none" />}
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-[9px] font-bold text-content-muted uppercase tracking-widest">Active (Current)</span>
+                      {isSourceSelected && <CheckCircle2 className="w-3.5 h-3.5 text-content-primary" />}
                     </div>
 
-                    <div className="text-xs font-mono text-zinc-300 bg-black/25 p-2 rounded-lg border border-slate-800/45 min-h-[44px] flex items-center">
+                    <div className="text-xs font-mono text-content-primary bg-black/20 p-2 rounded-md min-h-[40px] flex items-center">
                       {item.sourceValue ? (
                         typeof item.sourceValue === 'string' ? (
                           <span>{item.sourceValue}</span>
                         ) : (
                           <div className="flex flex-col gap-1 w-full">
-                            <span className="font-bold text-zinc-100">{item.sourceValue.name}</span>
-                            <span className="text-[10px] text-zinc-500">
+                            <span className="font-semibold text-content-primary">{item.sourceValue.name}</span>
+                            <span className="text-[10px] text-content-subtle">
                               {item.sourceValue.type ? `${item.sourceValue.type} ${item.sourceValue.isPK ? '[PK]' : ''} ${item.sourceValue.isFK ? '[FK]' : ''}` : `${item.sourceValue.columns?.length || 0} Columns`}
                             </span>
                           </div>
                         )
                       ) : (
-                        <span className="text-rose-500 italic font-sans font-semibold">Not in This Branch</span>
+                        <span className="text-danger-text italic font-sans">Not in this branch</span>
                       )}
                     </div>
                   </div>
 
                   {/* Right Choice: Keep Target (Incoming Branch) */}
-                  <div 
+                  <div
                     onClick={() => updateConflictChoice(item.id, 'target')}
-                    className={`border-2 rounded-xl p-3 cursor-pointer transition-all flex flex-col justify-between ${
-                      isTargetSelected 
-                        ? 'border-emerald-500 bg-emerald-500/5 shadow-[0_0_12px_rgba(16,185,129,0.1)]' 
-                        : 'border-slate-800 bg-slate-900/40 opacity-70 hover:opacity-100 hover:border-zinc-700'
+                    className={`border rounded-lg p-2.5 cursor-pointer transition-all flex flex-col justify-between ${
+                      isTargetSelected
+                        ? 'border-success bg-success-subtle/60'
+                        : 'border-content-primary/8 bg-surface-800 opacity-70 hover:opacity-100 hover:border-content-primary/15'
                     }`}
                   >
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Incoming Branch (Source)</span>
-                      {isTargetSelected && <CheckCircle2 className="w-4 h-4 text-emerald-400 animate-none" />}
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-[9px] font-bold text-success-text uppercase tracking-widest">Incoming</span>
+                      {isTargetSelected && <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />}
                     </div>
 
-                    <div className="text-xs font-mono text-zinc-300 bg-black/25 p-2 rounded-lg border border-slate-800/45 min-h-[44px] flex items-center">
+                    <div className="text-xs font-mono text-content-primary bg-black/20 p-2 rounded-md min-h-[40px] flex items-center">
                       {item.targetValue ? (
                         typeof item.targetValue === 'string' ? (
                           <span>{item.targetValue}</span>
                         ) : (
                           <div className="flex flex-col gap-1 w-full">
-                            <span className="font-bold text-zinc-100">{item.targetValue.name}</span>
-                            <span className="text-[10px] text-zinc-500">
+                            <span className="font-semibold text-content-primary">{item.targetValue.name}</span>
+                            <span className="text-[10px] text-content-subtle">
                               {item.targetValue.type ? `${item.targetValue.type} ${item.targetValue.isPK ? '[PK]' : ''} ${item.targetValue.isFK ? '[FK]' : ''}` : `${item.targetValue.columns?.length || 0} Columns`}
                             </span>
                           </div>
                         )
                       ) : (
-                        <span className="text-rose-500 italic font-sans font-semibold">Not in This Branch</span>
+                        <span className="text-danger-text italic font-sans">Not in this branch</span>
                       )}
                     </div>
                   </div>
@@ -303,20 +302,20 @@ export default function ConflictResolverModal() {
         </div>
 
         {/* Footer actions */}
-        <div className="bg-slate-900/90 border-t border-indigo-500/20 px-6 py-4 flex items-center justify-between">
+        <div className="bg-surface-800 border-t border-content-primary/10 px-5 py-3.5 flex items-center justify-between">
           <button
             onClick={resetMergeSession}
-            className="px-5 py-2.5 rounded-xl border border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800 text-sm font-semibold transition-colors animate-none"
+            className="px-4 py-2 rounded-lg border border-content-primary/10 text-content-muted hover:text-content-primary hover:bg-white/[0.04] text-xs font-semibold transition-colors"
           >
             Cancel
           </button>
-          
+
           <button
             onClick={handleCompleteMerge}
-            className="bg-gradient-to-r from-[#4f46e5] to-[#6366f1] hover:from-[#5b4ff8] hover:to-[#818cf8] text-white px-6 py-2.5 rounded-xl text-sm font-extrabold shadow-[0_0_20px_rgba(79,70,229,0.5)] flex items-center gap-2 transition-all animate-none"
+            className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all"
           >
-            <GitMerge className="w-4.5 h-4.5" />
-            <span>Apply Decisions & Complete Merge</span>
+            <GitMerge className="w-3.5 h-3.5" />
+            <span>Apply & Complete Merge</span>
           </button>
         </div>
 

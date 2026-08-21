@@ -152,45 +152,24 @@ export default function SqlExplorerPanel() {
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-gradient-to-b from-surface-900/90 to-surface-800/90 border border-indigo-500/30 shadow-[0_10px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-3xl backdrop-blur-xl"
+      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-surface-800 border border-content-primary/12 shadow-[0_10px_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-2xl"
     >
-      {/* Background Orbs & Stars (Uzay Teması) */}
-      <div className="absolute inset-0 pointer-events-none bg-[url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20200%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter%20id=%22noiseFilter%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.65%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.01] mix-blend-overlay animate-none" />
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-600/10 via-purple-900/5 to-transparent opacity-80" />
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-teal-500/5 via-transparent to-transparent opacity-60" />
-      
-      {/* Glowing Orbs */}
-      <div className="absolute top-10 right-20 w-44 h-44 bg-indigo-500/10 rounded-full blur-[60px] pointer-events-none animate-none" />
-      <div className="absolute bottom-10 left-20 w-40 h-40 bg-purple-500/5 rounded-full blur-[70px] pointer-events-none animate-none" />
-
-      {/* Decorative Wave SVG (Bottom) */}
-      <div className="absolute bottom-0 left-0 w-full h-[60%] pointer-events-none opacity-[0.04] z-0">
-        <svg viewBox="0 0 400 150" preserveAspectRatio="none" className="w-full h-full fill-indigo-300">
-          <path d="M0,50 C100,150 300,0 400,100 L400,150 L0,150 Z" />
-        </svg>
-      </div>
-
       {/* Panel Header */}
-      <div className="relative z-10 flex items-center justify-between px-6 py-3 border-b border-indigo-500/10 bg-surface-700/40 backdrop-blur-md select-none shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-400">
-            <Terminal className="w-4 h-4" />
-          </div>
-          <span className="text-xs font-bold tracking-wider text-indigo-200 uppercase">SQL Console</span>
+      <div className="flex items-center justify-between px-5 py-2.5 border-b border-content-primary/10 select-none shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Terminal className="w-4 h-4 text-accent-text" />
+          <span className="text-xs font-bold tracking-wider text-content-primary uppercase">SQL Console</span>
 
           {/* Active status indicator badge */}
           {sqliteService.isActive() && !isSyncing ? (
-            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/5 border border-emerald-500/15 text-[10px] font-medium text-emerald-400 animate-none">
-              <span className="relative flex h-1.5 w-1.5 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-              </span>
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-success-subtle border border-success/20 text-[10px] font-medium text-success-text">
+              <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
               <span>Live DB Active</span>
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-zinc-900/30 border border-zinc-800 text-[10px] font-medium text-zinc-500">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-700 border border-content-primary/8 text-[10px] font-medium text-content-subtle">
               <span>Live DB Inactive</span>
             </span>
           )}
@@ -198,21 +177,20 @@ export default function SqlExplorerPanel() {
 
         {/* Action controls */}
         <div className="flex items-center gap-2">
-          {/* Database Reset/Sync button */}
           <button
             onClick={syncAndSeedDb}
             disabled={isSyncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-200 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all disabled:opacity-50 cursor-pointer shadow-sm animate-none"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-content-secondary hover:text-content-primary bg-surface-700 hover:bg-surface-600 border border-content-primary/8 transition-all disabled:opacity-50 cursor-pointer"
             title="Reload diagram schema and mock data into local database"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-400' : 'text-indigo-400/70'}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? 'Setting up DB...' : 'Reset & Seed'}</span>
           </button>
 
-          {/* Close Panel button */}
-          <button 
+          <button
             onClick={() => setIsOpen(false)}
-            className="p-1.5 text-indigo-300/60 hover:text-white hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-indigo-500/20 cursor-pointer"
+            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
+            aria-label="Close SQL Console"
           >
             <X className="w-4 h-4" />
           </button>
@@ -220,83 +198,79 @@ export default function SqlExplorerPanel() {
       </div>
 
       {/* Main Panel Content Area */}
-      <div className="relative z-10 flex-1 flex overflow-hidden">
-        
+      <div className="flex-1 flex overflow-hidden">
+
         {/* Left Side: Tabular Results Grid */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
-          
+        <div className="flex-1 flex flex-col overflow-hidden">
+
           {/* Status/Errors inside Result Section */}
           {syncError && (
-            <div className="m-4 bg-rose-950/10 border border-rose-500/20 rounded-xl p-4 flex gap-3 items-start animate-in fade-in shrink-0">
-              <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+            <div className="m-3 bg-danger-subtle border border-danger/25 rounded-lg p-3 flex gap-2.5 items-start shrink-0">
+              <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
               <div>
-                <span className="text-red-400 text-xs font-bold block mb-0.5 animate-none">Setup Error</span>
-                <p className="text-zinc-500 text-[11px] leading-relaxed font-mono">{syncError}</p>
+                <span className="text-danger-text text-xs font-bold block mb-0.5">Setup Error</span>
+                <p className="text-content-muted text-[11px] leading-relaxed font-mono">{syncError}</p>
               </div>
             </div>
           )}
 
           {syncSuccess && (
-            <div className="m-4 bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-4 flex gap-3 items-start animate-in fade-in shrink-0">
-              <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+            <div className="m-3 bg-success-subtle border border-success/25 rounded-lg p-3 flex gap-2.5 items-start shrink-0">
+              <CheckCircle className="w-4 h-4 text-success-text mt-0.5 shrink-0" />
               <div>
-                <span className="text-emerald-400 text-xs font-bold block mb-0.5 animate-none">Sync Successful</span>
-                <p className="text-indigo-200/80 text-[11px] leading-relaxed">Tables are created and mock data is loaded. Ready to test.</p>
+                <span className="text-success-text text-xs font-bold block mb-0.5">Sync Successful</span>
+                <p className="text-content-secondary text-[11px] leading-relaxed">Tables are created and mock data is loaded. Ready to test.</p>
               </div>
             </div>
           )}
 
           {queryError && (
-            <div className="m-4 bg-rose-950/20 border border-rose-500/30 rounded-xl p-4 flex gap-3 items-start animate-in fade-in shrink-0">
-              <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+            <div className="m-3 bg-danger-subtle border border-danger/25 rounded-lg p-3 flex gap-2.5 items-start shrink-0">
+              <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
               <div>
-                <span className="text-rose-400 text-xs font-bold block mb-0.5 animate-none">Runtime Error</span>
-                <p className="text-rose-200/80 text-xs font-mono mt-1 leading-relaxed bg-[#070D19]/60 p-2.5 rounded-lg border border-rose-500/20">{queryError}</p>
+                <span className="text-danger-text text-xs font-bold block mb-0.5">Runtime Error</span>
+                <p className="text-danger-text text-xs font-mono mt-1 leading-relaxed bg-black/20 p-2 rounded-md">{queryError}</p>
               </div>
             </div>
           )}
 
           {/* Grid / Content Rendering */}
-          <div className="flex-1 overflow-auto p-4 custom-scrollbar">
+          <div className="flex-1 overflow-auto p-3">
             {isSyncing ? (
-              /* Loading Spinner when db is initializing */
               <div className="h-full flex flex-col items-center justify-center gap-3">
-                <RefreshCw className="w-6 h-6 text-indigo-400 animate-spin" />
+                <RefreshCw className="w-5 h-5 text-accent-text animate-spin" />
                 <div className="text-center">
-                  <span className="text-indigo-250 text-xs font-bold block animate-none">Setting up Database...</span>
-                  <span className="text-indigo-400/60 text-[10px] mt-1 block">Modules are loading and data is seeding.</span>
+                  <span className="text-content-secondary text-xs font-bold block">Setting up Database...</span>
+                  <span className="text-content-subtle text-[10px] mt-1 block">Modules are loading and data is seeding.</span>
                 </div>
               </div>
             ) : queryResult ? (
-              /* Table Rendering for SELECT queries, or message for DDL/DML */
               queryResult.isSelect ? (
                 queryResult.rows.length === 0 ? (
-                  /* Empty SELECT results */
                   <div className="h-full flex flex-col items-center justify-center gap-2 select-none">
-                    <Table2 className="w-6 h-6 text-indigo-400/60" />
+                    <Table2 className="w-5 h-5 text-content-subtle" />
                     <div className="text-center">
-                      <span className="text-indigo-300 text-xs font-bold block animate-none">Result Set is Empty</span>
-                      <span className="text-indigo-400/50 text-[10px] mt-1 block">Query executed successfully but returned no results.</span>
+                      <span className="text-content-secondary text-xs font-bold block">Result Set is Empty</span>
+                      <span className="text-content-subtle text-[10px] mt-1 block">Query executed successfully but returned no results.</span>
                     </div>
                   </div>
                 ) : (
-                  /* Render actual table */
-                  <div className="border border-indigo-500/20 rounded-xl overflow-hidden shadow-2xl bg-[#070D19]/40 backdrop-blur-md">
+                  <div className="border border-content-primary/10 rounded-lg overflow-hidden bg-surface-700">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="bg-indigo-950/40 border-b border-indigo-500/20 text-[10px] font-bold text-indigo-300 uppercase tracking-wider">
+                        <tr className="bg-surface-600 border-b border-content-primary/10 text-[10px] font-bold text-content-muted uppercase tracking-wider">
                           {queryResult.columns.map((col) => (
-                            <th key={col} className="px-4 py-2.5 font-semibold">{col}</th>
+                            <th key={col} className="px-3 py-2 font-semibold">{col}</th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-indigo-950/50 text-indigo-100 font-mono text-[11px]">
+                      <tbody className="divide-y divide-content-primary/6 text-content-secondary font-mono text-[11px]">
                         {queryResult.rows.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-indigo-500/5 transition-colors">
+                          <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
                             {queryResult.columns.map((col) => (
-                              <td key={col} className="px-4 py-2 truncate max-w-[200px]">
+                              <td key={col} className="px-3 py-1.5 truncate max-w-[200px]">
                                 {row[col] === null ? (
-                                  <span className="text-indigo-400/40 italic">null</span>
+                                  <span className="text-content-subtle italic">null</span>
                                 ) : typeof row[col] === 'boolean' ? (
                                   row[col] ? 'true' : 'false'
                                 ) : (
@@ -311,25 +285,21 @@ export default function SqlExplorerPanel() {
                   </div>
                 )
               ) : (
-                /* Success message for INSERT/UPDATE/DELETE queries */
-                <div className="h-full flex flex-col items-center justify-center gap-2 animate-in fade-in select-none">
-                  <CheckCircle className="w-6 h-6 text-emerald-400 animate-pulse" />
+                <div className="h-full flex flex-col items-center justify-center gap-2 select-none">
+                  <CheckCircle className="w-5 h-5 text-success-text" />
                   <div className="text-center">
-                    <span className="text-zinc-200 text-xs font-bold block animate-none">Operation Successful</span>
-                    <span className="text-emerald-400 font-mono text-xs mt-1 block">{queryResult.message}</span>
+                    <span className="text-content-secondary text-xs font-bold block">Operation Successful</span>
+                    <span className="text-success-text font-mono text-xs mt-1 block">{queryResult.message}</span>
                   </div>
                 </div>
               )
             ) : !queryError && !syncError ? (
-              /* Empty Initial State */
               <div className="h-full flex flex-col items-center justify-center gap-3 select-none">
-                <div className="w-10 h-10 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center rounded-xl animate-none">
-                  <Database className="w-4 h-4 animate-pulse" />
-                </div>
+                <Database className="w-5 h-5 text-content-subtle" />
                 <div className="text-center max-w-sm">
-                  <span className="text-indigo-200 text-xs font-bold block animate-none">No Query Run</span>
-                  <span className="text-indigo-400/50 text-[10px] mt-1 leading-relaxed block">
-                    You can write SQL queries on the right and test them in the live database with the &apos;Execute Query&apos; button.
+                  <span className="text-content-secondary text-xs font-bold block">No Query Run</span>
+                  <span className="text-content-subtle text-[10px] mt-1 leading-relaxed block">
+                    Write a SQL query on the right and run it against the live in-browser database.
                   </span>
                 </div>
               </div>
@@ -338,24 +308,24 @@ export default function SqlExplorerPanel() {
         </div>
 
         {/* Right Side: SQL Input Editor Area */}
-        <div className="w-[35%] border-l border-indigo-500/10 flex flex-col p-4 gap-3 shrink-0">
+        <div className="w-[35%] border-l border-content-primary/10 flex flex-col p-3 gap-2.5 shrink-0">
           <div className="flex justify-between items-center select-none">
-            <span className="text-[10px] font-bold text-indigo-300/60 uppercase tracking-wider">SQL Query</span>
-            <span className="text-[9px] text-indigo-400/50 font-mono">SQLite Wasm</span>
+            <span className="text-[10px] font-bold text-content-subtle uppercase tracking-wider">SQL Query</span>
+            <span className="text-[9px] text-content-subtle font-mono">SQLite Wasm</span>
           </div>
 
           <textarea
             value={sqlQuery}
             onChange={(e) => setSqlQuery(e.target.value)}
             placeholder="SELECT * FROM Users LIMIT 10;"
-            className="flex-1 font-mono text-xs text-indigo-100 bg-[#070D19]/60 backdrop-blur-sm border border-indigo-500/20 rounded-xl p-3 focus:border-indigo-500/50 focus:outline-none resize-none leading-relaxed custom-scrollbar shadow-inner"
+            className="flex-1 font-mono text-xs text-content-primary bg-surface-700 border border-content-primary/10 rounded-lg p-2.5 focus:border-focus-ring focus:outline-none resize-none leading-relaxed"
             spellCheck={false}
           />
 
           <button
             onClick={handleRunQuery}
             disabled={executing || isSyncing || !sqlQuery.trim()}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-450 transition-colors shadow-[0_4px_15px_rgba(99,102,241,0.25)] disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-400/30 cursor-pointer animate-none"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-semibold text-xs text-surface-900 bg-content-primary hover:bg-content-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {executing ? (
               <>

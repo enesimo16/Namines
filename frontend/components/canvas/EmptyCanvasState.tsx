@@ -38,7 +38,7 @@ export default function EmptyCanvasState() {
       <div className="relative w-full max-w-md p-8 rounded-3xl bg-surface-900/95 border border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Header Icon */}
-        <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shadow-sm shrink-0">
+        <div className="w-12 h-12 rounded-xl bg-content-primary/[0.06] border border-content-primary/12 text-accent-text flex items-center justify-center shadow-sm shrink-0">
           <Database className="w-5 h-5" />
         </div>
 
@@ -63,7 +63,7 @@ export default function EmptyCanvasState() {
             className="group relative flex items-center justify-between p-4 rounded-xl bg-zinc-950/40 hover:bg-zinc-950/85 border border-zinc-800/80 hover:border-zinc-700/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <div className="w-8 h-8 rounded-lg bg-content-primary/[0.06] border border-content-primary/12 flex items-center justify-center text-accent-text">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
@@ -97,7 +97,7 @@ export default function EmptyCanvasState() {
             className="group relative flex items-center justify-between p-4 rounded-xl bg-zinc-950/40 hover:bg-zinc-950/85 border border-zinc-800/80 hover:border-zinc-700/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+              <div className="w-8 h-8 rounded-lg bg-content-primary/[0.04] border border-accent-hover/20 flex items-center justify-center text-content-muted">
                 <LayoutTemplate className="w-4 h-4" />
               </div>
               <div>

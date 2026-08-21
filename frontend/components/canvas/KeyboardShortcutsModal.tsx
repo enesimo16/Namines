@@ -61,7 +61,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
       >
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-surface-600">
           <div className="flex items-center gap-2">
-            <Keyboard className="w-5 h-5 text-indigo-400" />
+            <Keyboard className="w-5 h-5 text-accent-text" />
             <span className="text-content-primary font-semibold text-base">Keyboard Shortcuts</span>
           </div>
           <button onClick={onClose} className="text-content-muted hover:text-content-primary transition-colors cursor-pointer">
@@ -72,7 +72,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
         <div className="overflow-y-auto px-6 py-5 flex flex-col gap-6">
           {SECTIONS.map(section => (
             <div key={section.title}>
-              <p className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-3">{section.title}</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-accent-text mb-3">{section.title}</p>
               <div className="flex flex-col gap-1.5">
                 {section.shortcuts.map(s => (
                   <div key={s.label} className="flex items-center justify-between gap-4">

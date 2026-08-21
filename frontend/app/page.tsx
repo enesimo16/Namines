@@ -169,7 +169,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="relative font-sans text-white flex-1 flex flex-col items-center justify-center overflow-hidden h-[calc(100vh-56px)]">
+    <div className="relative font-sans text-content-primary flex-1 flex flex-col items-center justify-center overflow-hidden min-h-[calc(100vh-56px)] py-8">
       {/* Background Effects */}
       <div aria-hidden="true" className="ocean-wave">
         <div className="wave wave1"></div>
@@ -179,48 +179,19 @@ export default function LandingPage() {
       <div aria-hidden="true" id="stars-container"></div>
 
       {/* Main Content Container */}
-      <main className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center justify-center py-4">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 text-cyan-400 mb-6 shadow-[0_0_30px_rgba(6,182,212,0.3)] glass-panel border border-cyan-500/30">
-            <svg className="w-14 h-14 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)] animate-none" viewBox="0 0 100 100" fill="none">
-              <circle cx="50" cy="50" r="46" stroke="url(#circle-grad-landing)" strokeWidth="3" fill="#090B11" />
-              <path d="M20,62 C32,48 42,66 52,52 C62,38 72,56 84,42 L84,82 L20,82 Z" fill="url(#wave-grad-landing)" opacity="0.8" />
-              <path d="M16,68 C28,56 38,74 50,62 C62,50 72,68 84,56 L84,84 L16,84 Z" fill="url(#wave-grad-2-landing)" opacity="0.4" />
-              {/* Stars */}
-              <circle cx="35" cy="30" r="1.5" fill="#FFF" />
-              <circle cx="65" cy="25" r="2" fill="#FFF" />
-              <circle cx="50" cy="20" r="1" fill="#FFF" />
-              <circle cx="75" cy="35" r="1.2" fill="#FFF" />
-              <defs>
-                <linearGradient id="circle-grad-landing" x1="0" y1="0" x2="100" y2="100">
-                  <stop offset="0%" stopColor="#06b6d4" />
-                  <stop offset="50%" stopColor="#818cf8" />
-                  <stop offset="100%" stopColor="#a855f7" />
-                </linearGradient>
-                <linearGradient id="wave-grad-landing" x1="50" y1="30" x2="50" y2="90" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#1e1b4b" stopOpacity="0.1" />
-                </linearGradient>
-                <linearGradient id="wave-grad-2-landing" x1="50" y1="40" x2="50" y2="90" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.6" />
-                  <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          <h1 className="text-5xl font-extrabold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 drop-shadow-md">
+      <main className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center justify-center">
+        {/* Hero Section — minimalist, ikon kutusu kaldırıldı (bkz. FRONTEND.md) */}
+        <div className="text-center mb-8 sm:mb-10">
+          <h1 className="font-mono text-3xl sm:text-4xl font-bold tracking-tight mb-3 text-content-primary">
             Namines
           </h1>
-          <p className="text-gray-400 text-lg font-medium">
+          <p className="text-content-primary text-sm sm:text-base font-medium max-w-md mx-auto">
             Design interactive database architectures in seconds with artificial intelligence.
           </p>
         </div>
 
         {/* Form Card */}
-        <div className="w-full max-w-3xl glass-panel rounded-3xl p-6 sm:p-8 relative overflow-visible group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
-          
+        <div className="w-full max-w-2xl glass-panel rounded-2xl p-4 sm:p-6 relative overflow-visible group">
           <form onSubmit={handleGenerate} className="relative">
             {/* Textarea Section */}
             <div className="mb-4 relative">
@@ -228,15 +199,15 @@ export default function LandingPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
-                className="w-full h-40 p-4 rounded-xl glass-input resize-none placeholder-gray-500 text-sm leading-relaxed"
+                className="w-full h-24 sm:h-28 p-3 rounded-xl glass-input resize-none placeholder-content-muted text-sm leading-relaxed"
                 disabled={isGenerating}
               ></textarea>
-              
-              <div className="absolute bottom-3 right-3 flex gap-2">
+
+              <div className="absolute bottom-2.5 right-2.5 flex gap-1.5">
                 <button
                   type="button"
                   onClick={() => setShowUrlInput(!showUrlInput)}
-                  className={`w-8 h-8 rounded-lg glass-button flex items-center justify-center transition-all ${showUrlInput || referenceUrl ? 'text-indigo-400' : 'text-gray-400 hover:text-white'}`}
+                  className={`w-7 h-7 rounded-lg glass-button flex items-center justify-center transition-all ${showUrlInput || referenceUrl ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
                   title="Add Link"
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
@@ -244,7 +215,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-8 h-8 rounded-lg glass-button flex items-center justify-center transition-all ${image ? 'text-indigo-400' : 'text-gray-400 hover:text-white'}`}
+                  className={`w-7 h-7 rounded-lg glass-button flex items-center justify-center transition-all ${image ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
                   title="Add Image"
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
@@ -256,11 +227,11 @@ export default function LandingPage() {
                   accept=".png,.jpg,.jpeg"
                   className="hidden"
                 />
-                <div className="w-8 h-8 rounded-lg glass-button flex items-center justify-center transition-all overflow-hidden relative">
+                <div className="w-7 h-7 rounded-lg glass-button flex items-center justify-center transition-all overflow-hidden relative">
                   <div className="absolute inset-0 flex items-center justify-center scale-[0.8]">
-                    <VoiceRecorder 
-                      disabled={isGenerating} 
-                      onTranscription={(text) => setPrompt(prev => prev ? `${prev} ${text}` : text)} 
+                    <VoiceRecorder
+                      disabled={isGenerating}
+                      onTranscription={(text) => setPrompt(prev => prev ? `${prev} ${text}` : text)}
                     />
                   </div>
                 </div>
@@ -269,36 +240,36 @@ export default function LandingPage() {
 
             {/* Extended Inputs Area */}
             {(showUrlInput || image) && (
-              <div className="flex flex-col gap-3 p-3 bg-ocean-dark/80 rounded-xl border border-white/5 mb-6">
+              <div className="flex flex-col gap-3 p-3 bg-surface-800/80 rounded-xl border border-white/[0.04] mb-6">
                 {showUrlInput && (
                   <div className="flex items-center gap-2">
-                    <LinkIcon className="w-3.5 h-3.5 text-zinc-500" />
+                    <LinkIcon className="w-3.5 h-3.5 text-content-muted" />
                     <input
                       type="url"
                       value={referenceUrl}
                       onChange={(e) => setReferenceUrl(e.target.value)}
                       placeholder="https://example.com/schema-docs"
-                      className="flex-1 bg-transparent text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none"
+                      className="flex-1 bg-transparent text-sm text-content-primary placeholder:text-content-muted focus:outline-none"
                       disabled={isGenerating}
                     />
                     {referenceUrl && (
-                      <button type="button" onClick={() => setReferenceUrl('')} className="text-gray-500 hover:text-gray-300">
+                      <button type="button" onClick={() => setReferenceUrl('')} className="text-content-muted hover:text-content-primary">
                         <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 )}
-                
+
                 {image && (
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 shrink-0">
                       <img src={URL.createObjectURL(image)} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-300 truncate">{image.name}</p>
-                      <p className="text-xs text-gray-500">{(image.size / 1024).toFixed(1)} KB</p>
+                      <p className="text-sm text-content-primary truncate">{image.name}</p>
+                      <p className="text-xs text-content-muted">{(image.size / 1024).toFixed(1)} KB</p>
                     </div>
-                    <button type="button" onClick={() => setImage(null)} className="p-1 text-gray-500 hover:text-red-400 transition-colors">
+                    <button type="button" onClick={() => setImage(null)} className="p-1 text-content-muted hover:text-danger transition-colors">
                       <X className="w-5 h-5" />
                     </button>
                   </div>
@@ -307,25 +278,25 @@ export default function LandingPage() {
             )}
 
             {/* Options & Submit Section */}
-            <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 mt-6">
-              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
+              <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto shrink-0">
 
                 {/* Unified AI Model Select */}
-                <div className="relative w-[205px]" ref={modelDropdownRef}>
+                <div className="relative flex-1 min-w-[120px] sm:flex-initial sm:w-[205px]" ref={modelDropdownRef}>
                   <button
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                    className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-900/60"
+                    className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
                   >
                     <span className="truncate">
                       {allModels.find(m => m.id === modelName)?.label || modelName}
                     </span>
-                    <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-200 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {modelDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-cyan-500/20 bg-[#08131c]/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(6,182,212,0.15)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
+                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(0,0,0,0.4)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
                       {allModels.map(m => {
                         const isSelected = m.id === modelName;
                         return (
@@ -338,13 +309,13 @@ export default function LandingPage() {
                             }}
                             className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all text-left ${
                               isSelected
-                                ? 'bg-cyan-500/20 text-cyan-200 border-l-2 border-cyan-500 pl-2'
-                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                ? 'bg-white/[0.08] text-content-primary border-l-2 border-white/40 pl-2'
+                                : 'text-content-muted hover:bg-white/[0.04] hover:text-content-primary'
                             }`}
                           >
                             <span>{m.label}</span>
                             {isSelected && (
-                                <Check className="w-3 h-3 text-cyan-400" />
+                                <Check className="w-3 h-3 text-content-primary" />
                             )}
                           </button>
                         );
@@ -354,12 +325,12 @@ export default function LandingPage() {
                 </div>
 
                 {/* Database Select */}
-                <div className="relative w-[215px]" ref={dbDropdownRef}>
+                <div className="relative flex-1 min-w-[140px] sm:flex-initial sm:w-[215px]" ref={dbDropdownRef}>
                   <button
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
-                    className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-gray-300 focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-900/60"
+                    className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
                   >
                     <span className="truncate">
                       {dbType === 'MSSQL' ? 'SQL Server' :
@@ -373,11 +344,11 @@ export default function LandingPage() {
                        dbType === 'Spanner' ? 'Google Spanner' :
                        dbType === 'Redshift' ? 'Amazon Redshift' : dbType}
                     </span>
-                    <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-200 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {dbDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-cyan-500/20 bg-[#08131c]/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(6,182,212,0.15)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
+                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(0,0,0,0.4)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
                       {[
                         { value: 'MSSQL', label: 'SQL Server' },
                         { value: 'PostgreSQL', label: 'PostgreSQL' },
@@ -401,13 +372,13 @@ export default function LandingPage() {
                             }}
                             className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all text-left ${
                               isSelected
-                                ? 'bg-cyan-500/20 text-cyan-200 border-l-2 border-cyan-500 pl-2'
-                                : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                ? 'bg-white/[0.08] text-content-primary border-l-2 border-white/40 pl-2'
+                                : 'text-content-muted hover:bg-white/[0.04] hover:text-content-primary'
                             }`}
                           >
                             <span>{db.label}</span>
                             {isSelected && (
-                                <Check className="w-3 h-3 text-cyan-400" />
+                                <Check className="w-3 h-3 text-content-primary" />
                             )}
                           </button>
                         );
@@ -421,11 +392,11 @@ export default function LandingPage() {
               <button
                 type="submit"
                 disabled={isGenerating || !prompt.trim()}
-                className="w-full md:w-auto bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium py-3 px-6 rounded-xl shadow-neon hover:shadow-neon-hover transition-all duration-300 flex items-center justify-center gap-2 border border-indigo-400/30 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full md:w-auto bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {isGenerating ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Generating...</span>
                   </>
                 ) : (

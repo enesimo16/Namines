@@ -110,15 +110,15 @@ export default function RelationEdge({
             title={`Silme davranışı: ${onDelete}\nDeğiştirmek için tıkla`}
             aria-label={`İlişki ayarları. Silme davranışı ${onDelete}`}
             aria-expanded={open}
-            className="flex items-center gap-1 bg-zinc-800 text-indigo-300 px-2 py-1 rounded border border-zinc-700 shadow-md font-mono hover:border-indigo-500 transition-colors cursor-pointer"
+            className="flex items-center gap-1 bg-surface-700 text-content-primary px-2 py-1 rounded border border-content-primary/12 shadow-md font-mono hover:border-white/25 transition-colors cursor-pointer"
           >
             <span>{label}</span>
             {badge && (
               <span
                 className={`px-1 rounded text-[9px] ${
                   onDelete === 'Cascade'
-                    ? 'bg-red-900/60 text-red-300'
-                    : 'bg-zinc-700 text-zinc-300'
+                    ? 'bg-danger-subtle text-danger-text'
+                    : 'bg-surface-600 text-content-muted'
                 }`}
               >
                 {badge}
@@ -129,9 +129,9 @@ export default function RelationEdge({
           {open && (
             <div
               role="menu"
-              className="absolute left-1/2 top-full mt-1 -translate-x-1/2 z-50 w-64 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl p-1"
+              className="absolute left-1/2 top-full mt-1 -translate-x-1/2 z-50 w-64 bg-surface-800 border border-content-primary/12 rounded-lg shadow-xl p-1"
             >
-              <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-zinc-500 font-semibold">
+              <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-content-subtle font-semibold">
                 Silinince (ON DELETE)
               </div>
               {ON_DELETE_OPTIONS.map((opt) => (
@@ -143,17 +143,17 @@ export default function RelationEdge({
                   onClick={() => setOnDelete(opt.value)}
                   className={`w-full text-left px-2 py-1.5 rounded text-[11px] transition-colors ${
                     onDelete === opt.value
-                      ? 'bg-indigo-600/25 text-indigo-200'
-                      : 'text-zinc-300 hover:bg-zinc-800'
+                      ? 'bg-white/[0.08] text-content-primary'
+                      : 'text-content-primary hover:bg-white/[0.04]'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono">{opt.label}</span>
                     {opt.danger && (
-                      <span className="text-[9px] text-red-400 shrink-0">veri kaybı</span>
+                      <span className="text-[9px] text-danger-text shrink-0">veri kaybı</span>
                     )}
                   </div>
-                  <div className="text-[10px] text-zinc-500 mt-0.5 leading-snug">{opt.hint}</div>
+                  <div className="text-[10px] text-content-subtle mt-0.5 leading-snug">{opt.hint}</div>
                 </button>
               ))}
             </div>

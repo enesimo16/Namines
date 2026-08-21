@@ -30,7 +30,7 @@ export default function ConfirmDialog() {
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
-        className="relative w-full max-w-sm bg-[#0b1120]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-sm bg-surface-800/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden animate-in zoom-in-95 duration-150"
       >
         <div className="p-6 flex flex-col items-center text-center gap-3">
           <div

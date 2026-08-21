@@ -1,20 +1,20 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "../components/layout/Header";
 import ToastContainer from "../components/toast/ToastContainer";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import FeedbackWidget from "../components/feedback/FeedbackWidget";
 
-// Arayüz fontu: Inter. (Geist Sans kaldırıldı — --font-sans zinciri Inter'i ilk
-// sırada çözdüğü için hiç kullanılmıyor, yalnızca boşuna indiriliyordu.)
-const inter = Inter({
+// Arayüz fontu: IBM Plex Sans — bkz. FRONTEND.md §3 ("Developer Mono" eşleşmesi).
+const ibmPlexSans = IBM_Plex_Sans({
   variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
-// Kod/monospace bloklarında kullanılır (--font-mono).
-const geistMono = Geist_Mono({
+// Başlık/kod/tablo-kolon/rakam bloklarında kullanılır (--font-mono).
+const jetbrainsMono = JetBrains_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
@@ -32,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistMono.variable} ${inter.variable} h-full antialiased`}
+      className={`${jetbrainsMono.variable} ${ibmPlexSans.variable} h-full antialiased`}
     >
       {/* NOT: Font Awesome CDN kaldırıldı — render'ı bloklayan harici bir stylesheet'ti
           ve ikonlar lucide-react'e taşındı. İkon setini tek yerde tut. */}

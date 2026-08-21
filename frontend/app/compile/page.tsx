@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Code2 } from 'lucide-react';
+import { ArrowLeft, FileCode2, Boxes, Layers, GitFork, Database, BookOpenText, FileText, Container, Package, Download } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { schemaService } from '../../services/api';
@@ -16,11 +16,13 @@ import DownloadHubPanel from '../../components/compile/DownloadHubPanel';
 import DockerSandboxPanel from '../../components/compile/DockerSandboxPanel';
 import SmartSeedPanel from '../../components/compile/SmartSeedPanel';
 import EfCorePreview from '../../components/compile/EfCorePreview';
+import PrismaPreview from '../../components/compile/PrismaPreview';
+import { IconButton } from '../../components/compile/PanelKit';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
-import { 
-  generateClassDiagram, 
-  generateFlowchart, 
-  generateMindmap, 
+import {
+  generateClassDiagram,
+  generateFlowchart,
+  generateMindmap,
   generateStateDiagram,
   generateSequenceDiagram,
   generateGanttChart,
@@ -32,19 +34,43 @@ import {
   generateRequirementDiagram
 } from '../../utils/diagramGenerators';
 
+type TabId = 'SQL' | 'EF' | 'PRISMA' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN';
+
+const TABS: { id: TabId; label: string; icon: typeof FileCode2 }[] = [
+  { id: 'SQL',        label: 'DDL Script',       icon: FileCode2 },
+  { id: 'EF',         label: 'EF Core',          icon: Boxes },
+  { id: 'PRISMA',     label: 'Prisma',           icon: Layers },
+  { id: 'ER',         label: 'Mermaid ER',       icon: GitFork },
+  { id: 'MOCK',       label: 'Test Data',        icon: Database },
+  { id: 'DICTIONARY', label: 'Data Dictionary',  icon: BookOpenText },
+  { id: 'README',     label: 'README.md',        icon: FileText },
+  { id: 'SANDBOX',    label: 'Docker Sandbox',   icon: Container },
+  { id: 'ADMIN',      label: 'Developer Package', icon: Package },
+];
+
+/**
+ * Compile ekranı — üç sütunlu konsol düzeni: sol dar ikon+etiket navigasyonu,
+ * ortada içerik, sağda daraltılabilir "Schema Info" paneli (tablo/kolon/ilişki
+ * sayımı + motor rozeti — sekmeler arasında taşınan bağlam tek yerde, her panel
+ * onu tekrar çizmiyor). Aktif sekme artık paletin "minimal lacivert" aksan
+ * ailesini (--color-accent-subtle/--color-accent-text) kullanıyor — önceki
+ * sürüm her yerde aynı nötr `bg-white/[0.1]` overlay'ini kullanıyordu, bu yüzden
+ * "aktif" durumu diğer hover durumlarından ayırt edilmiyordu. Dikey nav +
+ * yoğunlaştırılmış boşluklar sayesinde 8 sekmenin hepsi de scroll olmadan
+ * tek ekrana sığıyor (1024px yükseklikte bile).
+ */
 export default function CompilePage() {
   const router = useRouter();
   const { schema, dbType, setDbType, projectName } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
   const { getActiveSandbox } = useProjectHistoryStore();
 
-  // dbType artık global store'dan geliyor (V2)
   const [sql, setSql] = useState('');
   const [mermaidCode, setMermaidCode] = useState('');
   const [diagramType, setDiagramType] = useState<
     'ER' | 'CLASS' | 'FLOW' | 'MINDMAP' | 'STATE' | 'SEQUENCE' | 'GANTT' | 'PIE' | 'GIT' | 'JOURNEY' | 'TIMELINE' | 'QUADRANT' | 'REQUIREMENT'
   >('ER');
-  const [activeTab, setActiveTab] = useState<'SQL' | 'EF' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN'>('SQL');
+  const [activeTab, setActiveTab] = useState<TabId>('SQL');
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingSvg, setIsExportingSvg] = useState(false);
 
@@ -62,7 +88,6 @@ export default function CompilePage() {
         if (ignore) return;
         setSql(generatedSql);
 
-        // Fetch mermaid code
         const mCode = await schemaService.generateMermaid(schema);
         if (ignore) return;
         setMermaidCode(mCode);
@@ -78,10 +103,6 @@ export default function CompilePage() {
     fetchSql();
     return () => { ignore = true; };
   }, [schema, dbType, router]);
-
-  const handleTabChange = (tab: 'SQL' | 'EF' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN') => {
-    setActiveTab(tab);
-  };
 
   const updateDiagram = async (
     type: 'ER' | 'CLASS' | 'FLOW' | 'MINDMAP' | 'STATE' | 'SEQUENCE' | 'GANTT' | 'PIE' | 'GIT' | 'JOURNEY' | 'TIMELINE' | 'QUADRANT' | 'REQUIREMENT'
@@ -149,272 +170,158 @@ export default function CompilePage() {
 
   if (!schema) return null;
 
+  const activeMeta = TABS.find(t => t.id === activeTab)!;
+
+  const totalColumns = schema.tables.reduce((sum, t) => sum + t.columns.length, 0);
+
   return (
-    <div className="min-h-screen bg-[#030208] text-zinc-200 flex flex-col font-sans relative overflow-hidden">
-      {/* Dynamic Starry Sky Gradient */}
-      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#05040d] via-[#080718] to-[#020205] z-0" />
-      <div className="absolute inset-0 pointer-events-none bg-[url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20200%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter%20id=%22noiseFilter%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.65%22%20numOctaves=%223%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.012] mix-blend-overlay z-0" />
+    <div className="h-[calc(100vh-56px)] bg-surface-900 text-content-primary flex font-sans overflow-hidden">
 
-      {/* Inline styles for Premium Wave & Twinkle Animations */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes floatWavePurple {
-          0%, 100% { transform: translateY(0) scaleY(1) skewX(0deg); }
-          50% { transform: translateY(-25px) scaleY(1.08) skewX(1deg); }
-        }
-        @keyframes floatWaveTeal {
-          0%, 100% { transform: translateY(0) scaleY(1) skewX(0deg); }
-          50% { transform: translateY(18px) scaleY(0.93) skewX(-1.5deg); }
-        }
-        @keyframes floatWaveIndigo {
-          0%, 100% { transform: translateY(0) scaleY(1) scaleX(1); }
-          50% { transform: translateY(-12px) scaleY(1.04) scaleX(1.03); }
-        }
-        @keyframes floatWaveCyan {
-          0%, 100% { transform: translateY(0) scaleY(1) rotate(0deg); }
-          50% { transform: translateY(15px) scaleY(0.96) rotate(0.5deg); }
-        }
-        .animate-wave-purple {
-          animation: floatWavePurple 16s ease-in-out infinite;
-          transform-origin: bottom center;
-        }
-        .animate-wave-teal {
-          animation: floatWaveTeal 19s ease-in-out infinite;
-          transform-origin: bottom center;
-        }
-        .animate-wave-indigo {
-          animation: floatWaveIndigo 23s ease-in-out infinite;
-          transform-origin: bottom center;
-        }
-        .animate-wave-cyan {
-          animation: floatWaveCyan 27s ease-in-out infinite;
-          transform-origin: bottom center;
-        }
-      `}} />
+      {/* Sol dar navigasyon — ikon + kısa etiket, aktif durum aksan ailesinde */}
+      <aside className="w-48 shrink-0 bg-surface-800 border-r border-surface-500 flex flex-col">
+        <div className="p-2.5">
+          <button
+            onClick={() => router.push('/canvas')}
+            className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors cursor-pointer text-[11px] font-medium"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            <span>Back to Diagram</span>
+          </button>
+        </div>
 
-      {/* Vector Deep Space Waves & Nebulas (Stitch 4a845bd2 Premium Vector Representation) */}
-      <svg 
-        className="absolute bottom-0 left-0 w-full h-[65%] pointer-events-none z-0 mix-blend-screen"
-        viewBox="0 0 1440 600" 
-        fill="none" 
-        xmlns="http://www.w3.org/2000/svg" 
-        preserveAspectRatio="none"
-      >
-        <defs>
-          {/* Gradients */}
-          <linearGradient id="purpleWaveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#1e0b36" stopOpacity="0.85" />
-            <stop offset="40%" stopColor="#581c87" stopOpacity="0.45" />
-            <stop offset="70%" stopColor="#3b0764" stopOpacity="0.65" />
-            <stop offset="100%" stopColor="#0f051d" stopOpacity="0.9" />
-          </linearGradient>
-          
-          <linearGradient id="tealWaveGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#042f2e" stopOpacity="0.75" />
-            <stop offset="35%" stopColor="#0d9488" stopOpacity="0.4" />
-            <stop offset="65%" stopColor="#0f766e" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#115e59" stopOpacity="0.1" />
-          </linearGradient>
+        <div className="px-3 pb-2.5 border-b border-surface-500">
+          <h1 className="text-[13px] font-bold text-content-primary truncate leading-tight" title={schema.name}>{schema.name || 'Untitled Schema'}</h1>
+          <p className="text-[10px] text-content-muted mt-0.5 font-mono">{schema.tables.length} tables · {schema.relations.length} rel.</p>
+        </div>
 
-          <linearGradient id="indigoWaveGrad" x1="100%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#1e1b4b" stopOpacity="0.8" />
-            <stop offset="50%" stopColor="#4338ca" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#312e81" stopOpacity="0.75" />
-          </linearGradient>
+        <nav className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex items-center gap-2 w-full pl-2.5 pr-2 py-1.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                  isActive
+                    ? 'bg-accent-subtle text-accent-text'
+                    : 'text-content-muted hover:text-content-secondary hover:bg-white/[0.04]'
+                }`}
+              >
+                {isActive && <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-accent-hover" />}
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
 
-          <linearGradient id="cyanWaveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="10%" stopColor="#083344" stopOpacity="0.7" />
-            <stop offset="50%" stopColor="#0891b2" stopOpacity="0.35" />
-            <stop offset="85%" stopColor="#0e7490" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="#164e63" stopOpacity="0.1" />
-          </linearGradient>
+      {/* Orta içerik sütunu */}
+      <div className="flex-1 min-w-0 flex flex-col">
 
-          {/* Smooth Soft Glow Filter */}
-          <filter id="softGlowFilter" x="-10%" y="-10%" width="120%" height="120%">
-            <feGaussianBlur stdDeviation="30" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-
-          <filter id="heavyGlowFilter" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="55" />
-          </filter>
-        </defs>
-
-        {/* Dynamic Wave 1: Mor/Purple (Deep Base) */}
-        <path 
-          d="M0,600 L0,180 C200,90 420,290 700,240 C980,190 1200,420 1440,320 L1440,600 Z" 
-          fill="url(#purpleWaveGrad)" 
-          filter="url(#softGlowFilter)"
-          className="animate-wave-purple"
-        />
-
-        {/* Dynamic Wave 2: Teal/Cyan (Vibrant Midground) */}
-        <path 
-          d="M0,600 L0,390 C180,430 380,310 650,380 C920,450 1180,140 1440,200 L1440,600 Z" 
-          fill="url(#tealWaveGrad)" 
-          filter="url(#softGlowFilter)"
-          className="animate-wave-teal"
-        />
-
-        {/* Dynamic Wave 3: Indigo (Atmospheric Depth) */}
-        <path 
-          d="M0,600 L0,290 C300,180 580,480 880,330 C1150,200 1280,390 1440,240 L1440,600 Z" 
-          fill="url(#indigoWaveGrad)" 
-          filter="url(#softGlowFilter)"
-          className="animate-wave-indigo"
-        />
-
-        {/* Dynamic Wave 4: Cyan (Brilliant Foreground Highlight) */}
-        <path 
-          d="M0,600 L0,480 C250,380 480,520 720,440 C980,350 1220,220 1440,110 L1440,600 Z" 
-          fill="url(#cyanWaveGrad)" 
-          filter="url(#softGlowFilter)"
-          className="animate-wave-cyan"
-        />
-
-        {/* Ambient Nebula Light Blurs behind components */}
-        <circle cx="200" cy="400" r="280" fill="#a855f7" fillOpacity="0.08" filter="url(#heavyGlowFilter)" />
-        <circle cx="1200" cy="250" r="320" fill="#0d9488" fillOpacity="0.06" filter="url(#heavyGlowFilter)" />
-        <circle cx="700" cy="450" r="250" fill="#4f46e5" fillOpacity="0.07" filter="url(#heavyGlowFilter)" />
-      </svg>
-
-      {/* Cosmic Sparkles & Shooting Stars */}
-      <div className="absolute inset-0 pointer-events-none opacity-90 z-0">
-        {/* Shimmering Vector Stars */}
-        <div className="absolute top-[8%] left-[12%] w-1.5 h-1.5 bg-yellow-100 rounded-full animate-ping duration-[4000ms] blur-[0.2px]" />
-        <div className="absolute top-[22%] left-[82%] w-2 h-2 bg-white/95 rounded-full blur-[0.5px] animate-pulse duration-[2500ms]" />
-        <div className="absolute top-[78%] left-[15%] w-1.5 h-1.5 bg-yellow-200/90 rounded-full blur-[0.2px] animate-pulse duration-[3500ms]" />
-        <div className="absolute top-[14%] left-[64%] w-2 h-2 bg-cyan-200/80 rounded-full blur-[0.4px] animate-pulse duration-[5000ms]" />
-        <div className="absolute top-[58%] left-[38%] w-1 h-1 bg-white/90 rounded-full animate-pulse duration-[3000ms]" />
-        <div className="absolute top-[84%] left-[68%] w-2 h-2 bg-purple-200/85 rounded-full blur-[0.5px] animate-pulse duration-[6000ms]" />
-        <div className="absolute top-[40%] left-[5%] w-1 h-1 bg-white/70 rounded-full animate-pulse duration-[3500ms]" />
-        <div className="absolute top-[68%] left-[90%] w-1.5 h-1.5 bg-white/80 rounded-full" />
-        <div className="absolute top-[48%] left-[52%] w-1 h-1 bg-yellow-100/90 rounded-full blur-[0.2px] animate-pulse duration-[2800ms]" />
-
-        {/* High-fidelity Vector Shooting Stars */}
-        <div className="absolute top-12 left-[8%] w-[180px] h-[1.5px] bg-gradient-to-r from-transparent via-cyan-300/35 to-transparent rotate-[-22deg] pointer-events-none blur-[0.3px]" />
-        <div className="absolute top-44 left-[72%] w-[150px] h-[1.5px] bg-gradient-to-r from-transparent via-purple-400/30 to-transparent rotate-[-22deg] pointer-events-none blur-[0.3px]" />
-        <div className="absolute top-[62%] left-[28%] w-[130px] h-[1px] bg-gradient-to-r from-transparent via-indigo-400/25 to-transparent rotate-[-22deg] pointer-events-none blur-[0.3px]" />
-        
-        {/* Dynamic shooting stars engine target container */}
-      </div>
-
-      {/* V2: Global Header zaten layout.tsx'te render ediliyor.
-          Bu sayfada sadece içerik üstten başlıyor (has-header layout wrapper'dan geliyor). */}
-
-      <main className="flex-1 flex flex-col max-w-[1650px] w-full mx-auto p-6 gap-6 relative z-10" style={{ height: 'calc(100vh - 52px)', overflow: 'hidden' }}>
-
-        {/* Left Column: Preview */}
-        <div className="flex-1 flex flex-col gap-4 min-w-0 h-full">
-          {/* Back to Diagram Button - Top Left */}
-          <div className="flex items-center justify-between shrink-0">
-            <button
-              onClick={() => router.push('/canvas')}
-              className="flex items-center gap-2 pl-3 pr-3.5 py-1.5 rounded-lg border border-indigo-500/25 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-300 hover:text-white transition-all duration-300 shadow-[0_0_12px_rgba(99,102,241,0.08)] cursor-pointer active:scale-95 group font-bold text-xs select-none"
-              title="Go Back to Diagram Canvas"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform duration-300 text-indigo-400" />
-              <span>Back to Diagram</span>
-            </button>
+        {/* Ortak üst şerit — panel başına tekrar başlık çizmek yerine tek yerde */}
+        <div className="flex items-center justify-between shrink-0 h-10 px-4 bg-surface-800 border-b border-surface-500">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-accent-text">
+            <activeMeta.icon className="w-3.5 h-3.5" />
+            <span>{activeMeta.label}</span>
           </div>
 
-          {/* Schema Info and Tabs */}
-          <div className="flex items-center justify-between shrink-0 border-b border-zinc-900 pb-2">
-            <div className="flex flex-col gap-2">
-              <h2 className="text-base font-extrabold text-white tracking-wide">{schema.name || 'Untitled Schema'}</h2>
-              <div className="flex gap-4">
-                {(['SQL', 'EF', 'ER', 'MOCK', 'DICTIONARY', 'README', 'SANDBOX', 'ADMIN'] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => handleTabChange(tab)}
-                    className={`text-xs pb-1.5 border-b-2 transition-all font-semibold uppercase tracking-wider ${
-                      activeTab === tab 
-                        ? 'border-indigo-500 text-indigo-400 font-bold' 
-                        : 'border-transparent text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    {tab === 'SQL' ? 'DDL Script' : tab === 'EF' ? 'EF Core' : tab === 'ER' ? 'Mermaid ER' : tab === 'MOCK' ? 'Test Data' : tab === 'DICTIONARY' ? 'Data Dictionary' : tab === 'README' ? 'README.md' : tab === 'SANDBOX' ? 'Docker Sandbox' : 'Developer Package'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              {activeTab === 'SQL' && <DbTypeSelector selectedDb={dbType} onSelect={(v) => setDbType(v as DbType)} disabled={isLoading} />}
-              {activeTab === 'ER' && (
-                <div className="flex gap-1 bg-zinc-900/80 p-1 rounded-lg border border-zinc-800 items-center">
-                  <select
-                    value={diagramType}
-                    onChange={(e) => updateDiagram(e.target.value as any)}
-                    className="bg-zinc-950 border-0 text-zinc-300 text-xs rounded-md px-2 py-1 focus:outline-none cursor-pointer max-w-[170px]"
-                  >
-                    <option value="ER">ER Diagram</option>
-                    <option value="CLASS">Class Diagram</option>
-                    <option value="FLOW">Flowchart</option>
-                    <option value="MINDMAP">Mind Map</option>
-                    <option value="STATE">State Diagram</option>
-                    <option value="SEQUENCE">Sequence Diagram</option>
-                    <option value="GANTT">Gantt Chart</option>
-                    <option value="PIE">Pie Chart</option>
-                    <option value="GIT">Git Branch Diagram</option>
-                    <option value="JOURNEY">User Journey</option>
-                    <option value="TIMELINE">Timeline</option>
-                    <option value="QUADRANT">Quadrant Chart</option>
-                    <option value="REQUIREMENT">Requirement Diagram</option>
-                  </select>
-                  <div className="w-px h-4 bg-zinc-700" />
-                  <button
-                    id="mermaid-export-svg-btn"
-                    onClick={handleExportSvg}
-                    disabled={isExportingSvg || !mermaidCode}
-                    className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50"
-                    title="Download SVG"
-                    aria-label="Download SVG"
-                  >
-                    {isExportingSvg ? (
-                      <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M12 15V3m0 12-4-4m4 4 4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17" />
-                      </svg>
-                    )}
-                    <span>SVG</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Content area — fills remaining vertical space */}
-          <div className="flex-1 min-h-0" style={{ display: 'flex', flexDirection: 'column' }}>
-            {activeTab === 'ADMIN' && <DownloadHubPanel schema={schema} dbType={dbType} />}
-            {activeTab === 'SANDBOX' && <DockerSandboxPanel schema={schema} dbType={dbType} sql={sql} />}
-            {activeTab === 'DICTIONARY' && <DataDictionaryPreview schema={schema} projectName={projectName} />}
-            {activeTab === 'README' && <ReadmePreview schema={schema} />}
-            {activeTab !== 'ADMIN' && activeTab !== 'SANDBOX' && activeTab !== 'DICTIONARY' && activeTab !== 'README' && (
-              <div className="flex-1 min-h-0 relative">
-                {isLoading && (
-                  <div className="absolute inset-0 z-20 bg-zinc-950/50 backdrop-blur-sm flex items-center justify-center rounded-xl border border-zinc-800">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-                  </div>
-                )}
-                {activeTab === 'SQL' && <SqlPreview sql={sql} />}
-                {activeTab === 'MOCK' && <SmartSeedPanel schema={schema} dbType={dbType} />}
-                {activeTab === 'ER' && (
-                  <div className="flex flex-col h-full relative">
-                    <div className="mermaid-preview-container flex-1 min-h-0">
-                      <MermaidPreview mermaidCode={mermaidCode} />
-                    </div>
-                  </div>
-                )}
-                {activeTab === 'EF' && <EfCorePreview schema={schema} />}
-              </div>
+          <div className="flex items-center gap-3">
+            {activeTab === 'SQL' && <DbTypeSelector selectedDb={dbType} onSelect={(v) => setDbType(v as DbType)} disabled={isLoading} />}
+            {activeTab === 'ER' && (
+              <>
+                <select
+                  value={diagramType}
+                  onChange={(e) => updateDiagram(e.target.value as any)}
+                  aria-label="Diagram type"
+                  className="bg-surface-600 border border-surface-500 rounded-md h-8 pl-2 pr-6 text-[11px] text-content-secondary focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] cursor-pointer"
+                >
+                  <option value="ER">ER Diagram</option>
+                  <option value="CLASS">Class Diagram</option>
+                  <option value="FLOW">Flowchart</option>
+                  <option value="MINDMAP">Mind Map</option>
+                  <option value="STATE">State Diagram</option>
+                  <option value="SEQUENCE">Sequence Diagram</option>
+                  <option value="GANTT">Gantt Chart</option>
+                  <option value="PIE">Pie Chart</option>
+                  <option value="GIT">Git Branch Diagram</option>
+                  <option value="JOURNEY">User Journey</option>
+                  <option value="TIMELINE">Timeline</option>
+                  <option value="QUADRANT">Quadrant Chart</option>
+                  <option value="REQUIREMENT">Requirement Diagram</option>
+                </select>
+                <IconButton icon={Download} label="Download diagram as SVG" onClick={handleExportSvg} busy={isExportingSvg} disabled={!mermaidCode} />
+              </>
             )}
           </div>
         </div>
 
-      </main>
+        {/* Content area */}
+        <div className="flex-1 min-h-0 p-3 bg-surface-900" style={{ display: 'flex', flexDirection: 'column' }}>
+          {activeTab === 'ADMIN' && <DownloadHubPanel schema={schema} dbType={dbType} />}
+          {activeTab === 'SANDBOX' && <DockerSandboxPanel schema={schema} dbType={dbType} sql={sql} />}
+          {activeTab === 'DICTIONARY' && <DataDictionaryPreview schema={schema} projectName={projectName} />}
+          {activeTab === 'README' && <ReadmePreview schema={schema} />}
+          {activeTab !== 'ADMIN' && activeTab !== 'SANDBOX' && activeTab !== 'DICTIONARY' && activeTab !== 'README' && (
+            <div className="flex-1 min-h-0 relative">
+              {isLoading && (
+                <div className="absolute inset-0 z-20 bg-surface-900/60 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-surface-500 border-t-content-primary" />
+                </div>
+              )}
+              {activeTab === 'SQL' && <SqlPreview sql={sql} />}
+              {activeTab === 'MOCK' && <SmartSeedPanel schema={schema} dbType={dbType} />}
+              {activeTab === 'ER' && (
+                <div className="flex flex-col h-full relative">
+                  <div className="mermaid-preview-container flex-1 min-h-0">
+                    <MermaidPreview mermaidCode={mermaidCode} />
+                  </div>
+                </div>
+              )}
+              {activeTab === 'EF' && <EfCorePreview schema={schema} />}
+              {activeTab === 'PRISMA' && <PrismaPreview schema={schema} dbType={dbType} />}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sağ bilgi rayı — sekmeler arasında taşınan şema bağlamı tek yerde,
+          her panel bunu tekrar çizmesin diye ayrı bir sütuna alındı. */}
+      <aside className="w-56 shrink-0 bg-surface-800 border-l border-surface-500 hidden xl:flex flex-col overflow-hidden">
+        <div className="px-3.5 py-2.5 border-b border-surface-500">
+          <p className="text-[10px] font-bold text-content-muted uppercase tracking-wider">Schema Info</p>
+        </div>
+        <div className="px-3.5 py-3 border-b border-surface-500 grid grid-cols-3 gap-2">
+          <div>
+            <p className="text-base font-bold text-content-primary font-mono leading-none">{schema.tables.length}</p>
+            <p className="text-[9px] text-content-muted mt-1 uppercase tracking-wide">Tables</p>
+          </div>
+          <div>
+            <p className="text-base font-bold text-content-primary font-mono leading-none">{totalColumns}</p>
+            <p className="text-[9px] text-content-muted mt-1 uppercase tracking-wide">Columns</p>
+          </div>
+          <div>
+            <p className="text-base font-bold text-content-primary font-mono leading-none">{schema.relations.length}</p>
+            <p className="text-[9px] text-content-muted mt-1 uppercase tracking-wide">Relations</p>
+          </div>
+        </div>
+        <div className="px-3.5 py-2.5 border-b border-surface-500 flex items-center justify-between">
+          <span className="text-[10px] text-content-muted font-medium">Target Engine</span>
+          <span className="text-[10px] font-mono font-semibold text-accent-text bg-accent-subtle px-2 py-0.5 rounded">{dbType}</span>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+          <p className="text-[9px] font-bold text-content-muted uppercase tracking-wider px-1.5 mb-1.5">Tables</p>
+          <div className="space-y-0.5">
+            {schema.tables.map(t => (
+              <div key={t.id} className="flex items-center justify-between px-1.5 py-1 rounded text-[11px] hover:bg-white/[0.04]">
+                <span className="text-content-secondary font-mono truncate">{t.name}</span>
+                <span className="text-content-muted font-mono text-[10px] shrink-0 ml-2">{t.columns.length}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }

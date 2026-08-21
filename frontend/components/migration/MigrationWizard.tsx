@@ -195,7 +195,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       }
 
       // Call Calculate Diff
-      const diff = await migrationService.calculateDiff(oldSchema, currentSchema);
+      const diff = await migrationService.calculateDiff(oldSchema, currentSchema, selectedDbType);
       setDiffResult(diff);
 
       // Call Generate Migration
@@ -228,82 +228,81 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm animate-in fade-in duration-300 animate-none">
-      <div className="relative w-full max-w-3xl rounded-3xl bg-[#0F172A]/90 backdrop-blur-md border border-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.2)] p-6 md:p-8 flex flex-col max-h-[85vh] overflow-hidden">
-        
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="relative w-full max-w-2xl rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] p-5 md:p-6 flex flex-col max-h-[85vh] overflow-hidden">
+
         {/* Header */}
-        <div className="flex justify-between items-start mb-6 select-none">
+        <div className="flex justify-between items-start mb-5 select-none">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-indigo-200 via-indigo-400 to-indigo-100 bg-clip-text text-transparent flex items-center gap-2">
-              <span>Migration Engine</span>
-            </h2>
-            <p className="text-zinc-400 text-xs mt-1">
-              Upload your existing DbContext C# code, modify your schema on the Canvas, and generate C# EF Core Migration code instantly.
+            <h2 className="text-sm font-bold text-content-primary">Migration Engine</h2>
+            <p className="text-content-muted text-xs mt-1">
+              Upload your DbContext, edit the schema on the canvas, and generate EF Core migration code.
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all cursor-pointer"
+            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-all cursor-pointer"
+            aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center gap-4 mb-6 bg-zinc-950/40 border border-zinc-900 p-3 rounded-2xl select-none">
-          <div className="flex items-center gap-2 flex-1 justify-center">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 1 ? 'bg-indigo-600 text-white shadow-md' : 'bg-zinc-900 text-zinc-500 border border-zinc-800'}`}>
-              {step > 1 ? <Check className="w-4 h-4" /> : '1'}
+        <div className="flex items-center gap-3 mb-5 bg-surface-700 p-2.5 rounded-xl select-none">
+          <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${step >= 1 ? 'bg-content-primary text-surface-900' : 'bg-surface-600 text-content-subtle'}`}>
+              {step > 1 ? <Check className="w-3.5 h-3.5" /> : '1'}
             </div>
-            <span className={`text-xs font-semibold ${step >= 1 ? 'text-indigo-300' : 'text-zinc-500'}`}>Upload DbContext</span>
+            <span className={`text-[11px] font-semibold truncate ${step >= 1 ? 'text-content-primary' : 'text-content-subtle'}`}>Upload DbContext</span>
           </div>
-          <ChevronRight className="w-4 h-4 text-zinc-700" />
-          <div className="flex items-center gap-2 flex-1 justify-center">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 2 ? 'bg-indigo-600 text-white shadow-md' : 'bg-zinc-900 text-zinc-500 border border-zinc-800'}`}>
-              {step > 2 ? <Check className="w-4 h-4" /> : '2'}
+          <ChevronRight className="w-3.5 h-3.5 text-content-subtle shrink-0" />
+          <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${step >= 2 ? 'bg-content-primary text-surface-900' : 'bg-surface-600 text-content-subtle'}`}>
+              {step > 2 ? <Check className="w-3.5 h-3.5" /> : '2'}
             </div>
-            <span className={`text-xs font-semibold ${step >= 2 ? 'text-indigo-300' : 'text-zinc-500'}`}>Edit on Canvas</span>
+            <span className={`text-[11px] font-semibold truncate ${step >= 2 ? 'text-content-primary' : 'text-content-subtle'}`}>Edit on Canvas</span>
           </div>
-          <ChevronRight className="w-4 h-4 text-zinc-700" />
-          <div className="flex items-center gap-2 flex-1 justify-center">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${step >= 3 ? 'bg-indigo-600 text-white shadow-md' : 'bg-zinc-900 text-zinc-500 border border-zinc-800'}`}>
+          <ChevronRight className="w-3.5 h-3.5 text-content-subtle shrink-0" />
+          <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${step >= 3 ? 'bg-content-primary text-surface-900' : 'bg-surface-600 text-content-subtle'}`}>
               3
             </div>
-            <span className={`text-xs font-semibold ${step >= 3 ? 'text-indigo-300' : 'text-zinc-500'}`}>Generate Migration</span>
+            <span className={`text-[11px] font-semibold truncate ${step >= 3 ? 'text-content-primary' : 'text-content-subtle'}`}>Generate Migration</span>
           </div>
         </div>
 
         {/* Errors */}
         {error && (
-          <div className="bg-rose-950/20 border border-rose-500/20 rounded-2xl p-4 flex gap-3 items-start mb-6 animate-in fade-in slide-in-from-top-2">
-            <AlertCircle className="w-5 h-5 text-rose-400 mt-0.5 shrink-0" />
+          <div className="bg-danger-subtle border border-danger/25 rounded-xl p-3 flex gap-2.5 items-start mb-5">
+            <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
             <div>
-              <span className="text-rose-400 text-xs font-bold block mb-0.5">Operation Failed</span>
-              <p className="text-zinc-300 text-xs leading-relaxed">{error}</p>
+              <span className="text-danger-text text-xs font-bold block mb-0.5">Operation Failed</span>
+              <p className="text-content-secondary text-xs leading-relaxed">{error}</p>
             </div>
           </div>
         )}
 
         {/* Dynamic Step Content */}
-        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar min-h-[300px]">
-          
+        <div className="flex-1 overflow-y-auto pr-1 min-h-[300px]">
+
           {/* STEP 1: UPLOAD/PASTE */}
           {step === 1 && (
-            <div className="space-y-6">
-              
+            <div className="space-y-4">
+
               {/* Controls: DB Type */}
-              <div className="flex items-center justify-between bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/80">
+              <div className="flex items-center justify-between bg-surface-700 p-3.5 rounded-xl">
                 <div className="flex items-center gap-2.5">
-                  <Database className="w-5 h-5 text-indigo-400" />
+                  <Database className="w-4 h-4 text-content-muted" />
                   <div>
-                    <span className="text-zinc-200 text-xs font-bold block">Database Provider</span>
-                    <span className="text-zinc-400 text-[11px]">The database schema migration will be computed specifically for this configuration.</span>
+                    <span className="text-content-primary text-xs font-bold block">Database Provider</span>
+                    <span className="text-content-subtle text-[11px]">Migration will be computed for this configuration.</span>
                   </div>
                 </div>
-                <select 
+                <select
                   value={selectedDbType}
                   onChange={(e) => setSelectedDbType(e.target.value as DbType)}
-                  className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-xs font-semibold text-zinc-300 focus:outline-none focus:border-indigo-500"
+                  className="bg-surface-800 border border-content-primary/10 rounded-lg px-3 py-1.5 text-xs font-semibold text-content-secondary focus:outline-none focus:border-focus-ring"
                 >
                   <option value="MSSQL">Microsoft SQL Server</option>
                   <option value="PostgreSQL">PostgreSQL</option>
@@ -319,65 +318,63 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               </div>
 
               {/* Option 2: Use Current Diagram as Baseline */}
-              <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-600/5 to-transparent border border-emerald-500/20 rounded-3xl p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="bg-surface-700 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center rounded-xl shadow-inner mt-0.5 shrink-0">
-                    <CheckCircle className="w-5.5 h-5.5" />
-                  </div>
+                  <CheckCircle className="w-4 h-4 text-content-muted mt-0.5 shrink-0" />
                   <div>
-                    <span className="text-zinc-200 text-xs font-bold block">Set Current Canvas as Baseline</span>
-                    <span className="text-zinc-400 text-[11px] leading-relaxed block mt-0.5">
-                      If you do not have an existing DbContext or database script, you can declare your current whiteboard design as the reference baseline. Any subsequent changes you make on the canvas will be compared to this baseline to generate migration scripts.
+                    <span className="text-content-primary text-xs font-bold block">Set Current Canvas as Baseline</span>
+                    <span className="text-content-subtle text-[11px] leading-relaxed block mt-0.5">
+                      No existing DbContext? Declare the current whiteboard design as the reference baseline — future canvas edits are compared to it.
                     </span>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleUseCurrentAsBaseline}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-md shrink-0 flex items-center gap-1.5 cursor-pointer"
+                  className="bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold px-4 py-2 rounded-lg transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Set as Reference Baseline</span>
+                  <span>Set as Baseline</span>
                 </button>
               </div>
 
               {/* Drag n Drop Zone */}
-              <div 
+              <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all duration-300 ${isDragOver ? 'border-indigo-400 bg-indigo-500/5' : 'border-zinc-800 hover:border-zinc-700 bg-zinc-950/20'}`}
+                className={`border border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all duration-300 ${isDragOver ? 'border-focus-ring bg-accent-subtle/30' : 'border-content-primary/12 hover:border-content-primary/20 bg-surface-700/40'}`}
               >
-                <input 
-                  type="file" 
+                <input
+                  type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   accept=".cs"
                   className="hidden"
                 />
-                <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center rounded-2xl shadow-inner">
-                  <Upload className="w-6 h-6 animate-pulse" />
+                <div className="w-10 h-10 bg-surface-600 border border-content-primary/10 text-accent-text flex items-center justify-center rounded-xl">
+                  <Upload className="w-4 h-4" />
                 </div>
                 <div className="text-center">
-                  <span className="text-zinc-200 text-sm font-bold block">Drag and drop your DbContext.cs file here</span>
-                  <span className="text-zinc-400 text-xs mt-1 block">or click to browse from your computer (.cs source file)</span>
+                  <span className="text-content-secondary text-sm font-semibold block">Drag and drop your DbContext.cs file here</span>
+                  <span className="text-content-subtle text-xs mt-1 block">or click to browse (.cs source file)</span>
                 </div>
               </div>
 
               {/* Text Area for raw pasting */}
-              <div className="space-y-2">
-                <span className="text-zinc-400 text-xs font-semibold block">Or paste your DbContext C# source code directly:</span>
-                <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950/50">
+              <div className="space-y-1.5">
+                <span className="text-content-subtle text-xs font-medium block">Or paste your DbContext C# source code directly:</span>
+                <div className="relative rounded-xl overflow-hidden border border-content-primary/10 bg-surface-700">
                   <textarea
                     value={dbContextCode}
                     onChange={(e) => setDbContextCode(e.target.value)}
                     placeholder="public class AppDbContext : DbContext { ..."
-                    className="w-full h-44 bg-transparent text-xs font-mono text-zinc-300 p-4 focus:outline-none resize-none custom-scrollbar"
+                    className="w-full h-40 bg-transparent text-xs font-mono text-content-secondary p-3.5 focus:outline-none resize-none"
                   />
-                  <div className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-[#0F172A] border border-zinc-800 px-3 py-1 rounded-lg select-none">
-                    <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-                    <span className="text-zinc-500 text-[10px] font-semibold uppercase">C# Source</span>
+                  <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-surface-800 border border-content-primary/10 px-2.5 py-1 rounded-md select-none">
+                    <Terminal className="w-3 h-3 text-content-subtle" />
+                    <span className="text-content-subtle text-[10px] font-semibold uppercase">C# Source</span>
                   </div>
                 </div>
               </div>
@@ -386,32 +383,32 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
           {/* STEP 2: CANVAS EDIT GUIDANCE */}
           {step === 2 && (
-            <div className="space-y-6 flex flex-col items-center justify-center py-6">
-              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center rounded-3xl shadow-[0_0_20px_rgba(16,185,129,0.2)] animate-bounce">
-                <CheckCircle className="w-8 h-8" />
+            <div className="space-y-5 flex flex-col items-center justify-center py-4">
+              <div className="w-12 h-12 bg-surface-600 border border-content-primary/10 text-accent-text flex items-center justify-center rounded-xl">
+                <CheckCircle className="w-5 h-5" />
               </div>
               <div className="text-center max-w-md select-none">
-                <h3 className="text-lg font-bold text-zinc-100 mb-2">
+                <h3 className="text-sm font-bold text-content-primary mb-1.5">
                   {dbContextCode.trim() ? 'DbContext Successfully Parsed!' : 'Baseline Schema Successfully Saved!'}
                 </h3>
-                <p className="text-zinc-400 text-xs leading-relaxed font-semibold">
-                  {dbContextCode.trim() 
-                    ? 'Your C# DbContext has been parsed successfully and your schema tables are loaded onto the canvas.' 
-                    : 'Your current canvas layout has been securely saved as the reference baseline schema.'}
+                <p className="text-content-muted text-xs leading-relaxed">
+                  {dbContextCode.trim()
+                    ? 'Your C# DbContext has been parsed and your schema tables are loaded onto the canvas.'
+                    : 'Your current canvas layout has been saved as the reference baseline schema.'}
                 </p>
               </div>
 
               {/* Guidance Box */}
-              <div className="bg-[#1E293B]/40 border border-indigo-500/15 rounded-3xl p-5 w-full space-y-3.5">
-                <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold">
-                  <AlertTriangle className="w-4 h-4" />
+              <div className="bg-surface-700 rounded-xl p-4 w-full space-y-2.5">
+                <div className="flex items-center gap-2 text-content-secondary text-xs font-bold">
+                  <AlertTriangle className="w-3.5 h-3.5 text-content-muted" />
                   <span>What Should I Do Next?</span>
                 </div>
-                <ol className="list-decimal pl-5 space-y-2.5 text-xs text-zinc-300 leading-relaxed font-medium">
-                  <li>Close this window and head to the interactive database Canvas.</li>
-                  <li>Modify the schema as desired on the canvas (add/delete tables, edit columns, configure relationships, etc.).</li>
-                  <li>Once your updates are complete, click the **"Migration"** button on the top toolbar again.</li>
-                  <li>Click **"Compare & Generate Migration"** below to calculate changes and receive your C# EF Core code instantly!</li>
+                <ol className="list-decimal pl-5 space-y-2 text-xs text-content-muted leading-relaxed">
+                  <li>Close this window and head to the interactive canvas.</li>
+                  <li>Modify the schema as desired (add/delete tables, edit columns, configure relationships).</li>
+                  <li>Once your updates are complete, click <strong className="text-content-secondary">"Migration"</strong> in the top toolbar again.</li>
+                  <li>Click <strong className="text-content-secondary">"Compare & Generate Migration"</strong> below for your EF Core code.</li>
                 </ol>
               </div>
             </div>
@@ -419,20 +416,20 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
           {/* STEP 3: DIFF & MIGRATION GENERATED */}
           {step === 3 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {diffResult && (
-                <div className="space-y-2.5">
-                  <span className="text-zinc-400 text-xs font-bold block">1. Detected Schema Changes (Diff)</span>
+                <div className="space-y-2">
+                  <span className="text-content-subtle text-xs font-bold block">1. Detected Schema Changes (Diff)</span>
                   <DiffViewer diff={diffResult} />
                 </div>
               )}
-              
+
               {migrationResult && (
-                <div className="space-y-2.5 pt-4 border-t border-zinc-900">
-                  <span className="text-zinc-400 text-xs font-bold block">2. Generated EF Core Migration Code</span>
-                  <MigrationCodeView 
-                    migration={migrationResult} 
-                    hasBreakingChanges={diffResult?.hasBreakingChanges || false} 
+                <div className="space-y-2 pt-3 border-t border-content-primary/8">
+                  <span className="text-content-subtle text-xs font-bold block">2. Generated EF Core Migration Code</span>
+                  <MigrationCodeView
+                    migration={migrationResult}
+                    hasBreakingChanges={diffResult?.hasBreakingChanges || false}
                   />
                 </div>
               )}
@@ -441,21 +438,21 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
         </div>
 
         {/* Footer Buttons */}
-        <div className="border-t border-zinc-900 pt-6 mt-6 flex justify-between gap-3 items-center">
+        <div className="border-t border-content-primary/10 pt-4 mt-4 flex justify-between gap-3 items-center">
           <div>
             {step === 2 && (
-              <button 
+              <button
                 onClick={handleReset}
-                className="text-xs text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/20 px-3 py-2 rounded-xl transition-all cursor-pointer"
+                className="text-xs text-danger-text hover:text-danger-text font-semibold flex items-center gap-1.5 bg-danger-subtle hover:bg-danger-subtle px-3 py-2 rounded-lg transition-all cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Reset Baseline</span>
               </button>
             )}
             {step === 3 && (
-              <button 
+              <button
                 onClick={() => setStep(2)}
-                className="text-xs text-zinc-400 hover:text-zinc-200 font-bold flex items-center gap-1.5 bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="text-xs text-content-muted hover:text-content-secondary font-semibold flex items-center gap-1.5 bg-surface-700 hover:bg-surface-600 px-3 py-2 rounded-lg transition-all cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Go Back</span>
@@ -463,12 +460,12 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             {step === 1 && (
-              <button 
+              <button
                 onClick={handleParse}
                 disabled={loading || !dbContextCode.trim()}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800/80 disabled:border-zinc-800 disabled:text-zinc-500 text-white text-xs font-bold px-6 py-2.5 border border-indigo-500/40 rounded-xl transition-all shadow-md disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center gap-2 bg-content-primary hover:bg-content-primary-hover disabled:bg-surface-600 disabled:text-content-subtle text-surface-900 text-xs font-semibold px-5 py-2 rounded-lg transition-all disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -478,7 +475,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 ) : (
                   <>
                     <span>Load Schema & Begin</span>
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </>
                 )}
               </button>
@@ -486,16 +483,16 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
             {step === 2 && (
               <>
-                <button 
+                <button
                   onClick={onClose}
-                  className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-bold px-5 py-2.5 rounded-xl transition-all cursor-pointer"
+                  className="bg-surface-700 hover:bg-surface-600 text-content-secondary text-xs font-semibold px-4 py-2 rounded-lg transition-all cursor-pointer"
                 >
                   Edit Schema (Close)
                 </button>
-                <button 
+                <button
                   onClick={handleGenerate}
                   disabled={loading}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800/80 disabled:border-zinc-800 disabled:text-zinc-500 text-white text-xs font-bold px-6 py-2.5 border border-indigo-500/40 rounded-xl transition-all shadow-md cursor-pointer"
+                  className="flex items-center gap-2 bg-content-primary hover:bg-content-primary-hover disabled:bg-surface-600 disabled:text-content-subtle text-surface-900 text-xs font-semibold px-5 py-2 rounded-lg transition-all cursor-pointer"
                 >
                   {loading ? (
                     <>
@@ -505,7 +502,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                   ) : (
                     <>
                       <span>Compare & Generate Migration</span>
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </>
                   )}
                 </button>
@@ -513,9 +510,9 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             )}
 
             {step === 3 && (
-              <button 
+              <button
                 onClick={onClose}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-6 py-2.5 border border-indigo-500/40 rounded-xl transition-all shadow-md cursor-pointer"
+                className="bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold px-5 py-2 rounded-lg transition-all cursor-pointer"
               >
                 Complete & Close
               </button>
@@ -523,32 +520,32 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
           </div>
         </div>
 
-        {/* Overwrite warning dialog */}
+        {/* Overwrite warning dialog — desatüre amber, veri kaybı riski (semantik) */}
         {showOverwriteWarning && (
-          <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
-            <div className="w-full max-w-md bg-gradient-to-b from-[#1F1635]/95 via-[#0F172A]/98 to-[#0F172A]/98 border border-amber-500/40 rounded-3xl p-8 shadow-[0_0_50px_rgba(245,158,11,0.25)] text-center space-y-5 animate-in zoom-in-95 duration-200">
-              <div className="w-14 h-14 bg-gradient-to-tr from-amber-500/20 to-yellow-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center rounded-2xl mx-auto shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-                <AlertTriangle className="w-7 h-7" />
+          <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
+            <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-2xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)] text-center space-y-4">
+              <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-xl mx-auto">
+                <AlertTriangle className="w-5 h-5" />
               </div>
-              <div className="space-y-2">
-                <h4 className="text-zinc-100 text-base font-extrabold tracking-wide uppercase">Destructive Import Warning</h4>
-                <p className="text-zinc-300 text-xs leading-relaxed font-semibold">
-                  Loading this schema will overwrite your existing whiteboard tables and canvas layout. Are you sure you want to proceed?
+              <div className="space-y-1.5">
+                <h4 className="text-content-primary text-sm font-bold">Destructive Import Warning</h4>
+                <p className="text-content-muted text-xs leading-relaxed">
+                  Loading this schema will overwrite your existing whiteboard tables and canvas layout. Continue?
                 </p>
               </div>
-              <div className="flex gap-3 justify-center pt-2 select-none">
+              <div className="flex gap-2 justify-center pt-1 select-none">
                 <button
                   onClick={() => {
                     setShowOverwriteWarning(false);
                     setPendingParsedSchema(null);
                   }}
-                  className="text-xs text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-5 py-2.5 rounded-xl transition-all cursor-pointer"
+                  className="text-xs text-content-muted hover:text-content-secondary bg-transparent hover:bg-white/[0.04] border border-content-primary/10 px-4 py-2 rounded-lg transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmOverwrite}
-                  className="text-xs text-black font-bold bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] border border-amber-400/40 px-6 py-2.5 rounded-xl transition-all cursor-pointer"
+                  className="text-xs text-surface-800 font-semibold bg-danger hover:bg-danger-text px-4 py-2 rounded-lg transition-all cursor-pointer"
                 >
                   Confirm & Overwrite
                 </button>

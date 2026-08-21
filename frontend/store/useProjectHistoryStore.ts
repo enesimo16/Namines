@@ -193,7 +193,18 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           );
           set({ projects: updated });
         } else {
-          // Yeni proje oluştur
+          // ── Boş şemadan YENİ proje oluşturma ────────────────────────────
+          // Canvas her açılışta boş bir şema ({tables: []}) kuruyor ve otomatik
+          // kaydetme 3sn sonra buraya düşüyordu; aktif proje yoksa her ziyaret
+          // "Yeni Proje / 0 tables" adında bir çöp kayıt üretiyordu (kullanıcının
+          // workspace'inde birikmişti). useProjectAutoSave'in `if (!schema)`
+          // guard'ı yalnızca null'ı yakalıyor, BOŞ şemayı değil.
+          //
+          // Ayrım önemli: MEVCUT bir projeyi boş şemayla güncellemek meşrudur
+          // (kullanıcı tüm tabloları silmiş olabilir) — engellenen yalnızca
+          // yoktan yeni bir boş proje YARATMAK.
+          if (!schema?.tables?.length) return;
+
           const newProjectId = generateId();
           targetId = newProjectId;
           const defaultBranch: Branch = {

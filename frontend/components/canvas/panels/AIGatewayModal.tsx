@@ -49,7 +49,7 @@ export default function AIGatewayModal() {
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4.5 border-b border-zinc-800/80 bg-zinc-950/20">
           <div className="flex items-center gap-2.5">
-            <Lock className="w-4.5 h-4.5 text-indigo-400" />
+            <Lock className="w-4.5 h-4.5 text-accent-text" />
             <div>
               <h3 className="text-xs font-extrabold text-zinc-200 uppercase tracking-wider">
                 AI Authentication Required
@@ -68,12 +68,12 @@ export default function AIGatewayModal() {
         {/* Modal Body */}
         <div className="p-6 space-y-6 flex-1 overflow-y-auto">
           {/* Warning Banner */}
-          <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-4 flex gap-3 relative overflow-hidden">
-            <ShieldAlert className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+          <div className="bg-content-primary/[0.04] border border-accent-hover/15 rounded-xl p-4 flex gap-3 relative overflow-hidden">
+            <ShieldAlert className="w-5 h-5 text-accent-text shrink-0 mt-0.5" />
             <div className="space-y-1">
               <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">AI Operations Restricted</h4>
               <p className="text-[11px] text-zinc-400 leading-relaxed font-semibold">
-                You are currently accessing the canvas as a <strong className="text-indigo-400">Guest</strong>. The feature <span className="text-indigo-300 font-mono font-bold">"{featureName || 'AI Agent'}"</span> requires enterprise credits or your own secure API token to prevent resource drainage.
+                You are currently accessing the canvas as a <strong className="text-accent-text">Guest</strong>. The feature <span className="text-content-secondary font-mono font-bold">"{featureName || 'AI Agent'}"</span> requires enterprise credits or your own secure API token to prevent resource drainage.
               </p>
             </div>
           </div>
@@ -97,7 +97,7 @@ export default function AIGatewayModal() {
                   showToast('Please sign in or create an account via the Header navigation.', 'info');
                 }
               }}
-              className="w-full group relative flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer shadow-md"
+              className="w-full group relative flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-bold text-xs uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer shadow-md"
             >
               <LogIn className="w-4 h-4 text-white/95 group-hover:translate-x-0.5 transition-transform" />
               <span>Access Namines Cloud</span>
@@ -146,7 +146,7 @@ export default function AIGatewayModal() {
                     onChange={(e) => setInputKey(e.target.value)}
                     disabled={isSaved}
                     placeholder={isSaved ? "••••••••••••••••••••" : `Enter your ${selectedProvider.toUpperCase()} Key`}
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500 transition-all font-mono"
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-accent-hover transition-all font-mono"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
                     <Key className="w-3.5 h-3.5" />
@@ -174,7 +174,7 @@ export default function AIGatewayModal() {
               ) : (
                 <button
                   type="submit"
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs tracking-wider uppercase rounded-xl transition-all duration-200 cursor-pointer shadow-sm"
+                  className="w-full py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-bold text-xs tracking-wider uppercase rounded-xl transition-all duration-200 cursor-pointer shadow-sm"
                 >
                   Encrypt and Mount Key
                 </button>

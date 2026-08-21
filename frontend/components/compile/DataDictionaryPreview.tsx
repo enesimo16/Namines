@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Download, Table2, Key, Link2, Loader2, FileSpreadsheet, Globe } from 'lucide-react';
+import { Download, Table2, Key, Link2 } from 'lucide-react';
 import { DatabaseSchema } from '../../types/schema';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
+import { Panel, PanelBar, ActionButton, PanelEmpty, Segmented, StatStrip } from './PanelKit';
 
 interface DataDictionaryPreviewProps {
   schema: DatabaseSchema;
@@ -86,158 +87,104 @@ export default function DataDictionaryPreview({ schema, projectName }: DataDicti
 
   if (!schema.tables || schema.tables.length === 0) {
     return (
-      <div className="w-full h-full bg-[#030307]/60 backdrop-blur-md rounded-xl border border-zinc-800/80 shadow-2xl flex flex-col items-center justify-center p-8 text-center">
-        <Table2 className="w-12 h-12 text-zinc-600 mb-4 animate-pulse" />
-        <h3 className="text-base font-semibold text-zinc-300">{t.noTables}</h3>
-        <p className="text-xs text-zinc-500 max-w-sm mt-1">{t.noTablesDesc}</p>
-      </div>
+      <Panel scroll={false}>
+        <PanelEmpty icon={Table2} title={t.noTables} hint={t.noTablesDesc} />
+      </Panel>
     );
   }
 
+  const totalColumns = schema.tables.reduce((s, tb) => s + tb.columns.length, 0);
+
   return (
-    <div className="w-full h-full bg-[#030307]/60 backdrop-blur-md rounded-xl overflow-hidden border border-zinc-800/80 shadow-2xl flex flex-col">
-      {/* Header section with inline action button and language toggle */}
-      <div className="shrink-0 px-5 py-3 bg-zinc-950/40 backdrop-blur-sm border-b border-zinc-800/60 flex justify-between items-center z-10 select-none">
-        <div className="flex items-center gap-2">
-          <FileSpreadsheet className="w-4 h-4 text-rose-400" />
-          <span className="text-xs font-semibold text-zinc-300 tracking-wide font-mono">{t.fileTitle}</span>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          {/* Segmented language selector */}
-          <div className="flex bg-zinc-900 border border-zinc-800 p-0.5 rounded-lg items-center">
-            <button
-              onClick={() => setLang('tr')}
-              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md transition-all cursor-pointer ${
-                lang === 'tr'
-                  ? 'bg-zinc-800 text-indigo-400 shadow-md'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              TR
-            </button>
-            <button
-              onClick={() => setLang('en')}
-              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md transition-all cursor-pointer ${
-                lang === 'en'
-                  ? 'bg-zinc-800 text-indigo-400 shadow-md'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              EN
-            </button>
-          </div>
+    <Panel scroll={false}>
+      <div className="h-full flex flex-col">
+        <PanelBar
+          left={<span className="text-[11px] font-mono text-content-secondary truncate">{t.fileTitle}</span>}
+        >
+          <Segmented
+            ariaLabel="Document language"
+            value={lang}
+            onChange={setLang}
+            options={[{ value: 'tr' as Lang, label: 'TR' }, { value: 'en' as Lang, label: 'EN' }]}
+          />
+          <ActionButton icon={Download} onClick={handleDownloadPdf} busy={isDownloading} tone="primary">
+            PDF
+          </ActionButton>
+        </PanelBar>
 
-          {/* Download PDF Button */}
-          <button
-            onClick={handleDownloadPdf}
-            disabled={isDownloading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 hover:border-rose-500/30 rounded-lg transition-all duration-300 disabled:opacity-50 select-none cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(244,63,94,0.05)] font-medium"
-          >
-            {isDownloading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Download className="w-3.5 h-3.5" />
-            )}
-            <span>{t.downloadPdf}</span>
-          </button>
-        </div>
-      </div>
+        <StatStrip
+          items={[
+            { label: t.columns, value: totalColumns },
+            { label: t.relations, value: schema.relations.length },
+          ]}
+        />
 
-      {/* Main dictionary content area */}
-      <div className="flex-1 overflow-auto p-6 space-y-8 custom-scrollbar">
-        {schema.tables.map((table) => {
-          const relCount = getRelationsCount(table.id);
-          return (
-            <div 
-              key={table.id} 
-              className="bg-zinc-950/30 border border-zinc-800/50 rounded-xl p-5 hover:border-zinc-800 transition-all duration-300 shadow-lg relative group overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-zinc-800/5 rounded-full blur-[60px] pointer-events-none" />
-              
-              {/* Table Name Header */}
-              <div className="flex items-center justify-between mb-4 border-b border-zinc-900 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 bg-zinc-900 rounded-lg border border-zinc-800 text-zinc-400 group-hover:text-indigo-400 group-hover:border-indigo-500/25 transition-all">
-                    <Table2 className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-white tracking-wide">{table.name}</h4>
-                    <p className="text-[10px] text-zinc-500 font-mono mt-0.5">ID: {table.id.substring(0, 8)}...</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400">
-                    {table.columns.length} {t.columns}
-                  </span>
-                  {relCount > 0 && (
-                    <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                      {relCount} {t.relations}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Columns Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-zinc-900 text-zinc-500 text-[10px] uppercase font-bold tracking-wider bg-zinc-950/50">
-                      <th className="py-2.5 px-3 rounded-l-lg">{t.colName}</th>
-                      <th className="py-2.5 px-3">{t.colType}</th>
-                      <th className="py-2.5 px-3">{t.colConstraints}</th>
-                      <th className="py-2.5 px-3">{t.colNullable}</th>
-                      <th className="py-2.5 px-3 rounded-r-lg">{t.colDefault}</th>
+        {/* Kart-başına-tablo yerine TEK sürekli tablo: grup başlıkları sticky,
+            böylece uzun sözlükte hangi tabloya bakıldığı kaybolmuyor. */}
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-surface-800 text-content-muted text-[9px] uppercase font-bold tracking-wider">
+                <th className="py-1.5 px-3 font-semibold">{t.colName}</th>
+                <th className="py-1.5 px-3 font-semibold">{t.colType}</th>
+                <th className="py-1.5 px-3 font-semibold">{t.colConstraints}</th>
+                <th className="py-1.5 px-3 font-semibold">{t.colNullable}</th>
+                <th className="py-1.5 px-3 font-semibold">{t.colDefault}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schema.tables.map((table) => {
+                const relCount = getRelationsCount(table.id);
+                return (
+                  <React.Fragment key={table.id}>
+                    <tr className="sticky top-[26px] z-[9]">
+                      <td colSpan={5} className="bg-surface-600 border-y border-surface-500 py-1.5 px-3">
+                        <div className="flex items-center gap-2">
+                          <Table2 className="w-3.5 h-3.5 text-accent-text shrink-0" />
+                          <span className="text-[12px] font-semibold text-content-primary font-mono">{table.name}</span>
+                          <span className="text-[10px] text-content-muted">
+                            {table.columns.length} {t.columns}
+                            {relCount > 0 && ` · ${relCount} ${t.relations}`}
+                          </span>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
                     {table.columns.map((col) => (
-                      <tr 
-                        key={col.id} 
-                        className="border-b border-zinc-900/40 text-xs text-zinc-300 hover:bg-zinc-900/20 transition-colors"
-                      >
-                        <td className="py-2.5 px-3 font-semibold font-mono text-zinc-200">
-                          {col.name}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-zinc-400 text-[11px]">
+                      <tr key={col.id} className="border-b border-surface-500/40 hover:bg-surface-600/50 transition-colors">
+                        <td className="py-1.5 px-3 font-mono text-[11px] text-content-primary">{col.name}</td>
+                        <td className="py-1.5 px-3 font-mono text-[11px] text-content-muted">
                           {col.type.toUpperCase()}{col.length ? `(${col.length})` : ''}
                         </td>
-                        <td className="py-2.5 px-3">
+                        <td className="py-1.5 px-3">
                           <div className="flex flex-wrap gap-1">
                             {col.isPK && (
-                              <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-500">
-                                <Key className="w-2.5 h-2.5" />
-                                PK
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-accent-subtle text-accent-text">
+                                <Key className="w-2.5 h-2.5" /> PK
                               </span>
                             )}
                             {col.isFK && (
-                              <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400">
-                                <Link2 className="w-2.5 h-2.5" />
-                                FK
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-surface-500/30 text-content-muted">
+                                <Link2 className="w-2.5 h-2.5" /> FK
                               </span>
                             )}
-                            {!col.isPK && !col.isFK && (
-                              <span className="text-[10px] text-zinc-600">-</span>
-                            )}
+                            {!col.isPK && !col.isFK && <span className="text-[10px] text-content-muted">—</span>}
                           </div>
                         </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`text-[10px] font-semibold ${col.isNullable ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                            {col.isNullable ? t.yes : t.no}
-                          </span>
+                        <td className="py-1.5 px-3 text-[10px] font-medium text-content-muted">
+                          {col.isNullable ? t.yes : t.no}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-zinc-500 text-[11px]">
+                        <td className="py-1.5 px-3 font-mono text-[11px] text-content-muted">
                           {col.defaultValue !== null ? col.defaultValue : 'NULL'}
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </Panel>
   );
 }

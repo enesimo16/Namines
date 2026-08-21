@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import * as signalR from '@microsoft/signalr';
 import { useSchemaStore } from '../store/useSchemaStore';
 import { useMultiplayerStore } from '../store/useMultiplayerStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { useProjectHistoryStore } from '../store/useProjectHistoryStore';
 import { DatabaseSchema } from '../types/schema';
 import { useToastStore } from '../store/useToastStore';
 import { CANVAS_HUB_URL } from '../lib/apiConfig';
+import { branchService } from '../services/api';
 import { screenToFlowPosition } from '../lib/flowCoords';
 import { mergeSchemas } from '../utils/mergeSchemas';
 
@@ -78,20 +81,50 @@ export function useMultiplayer() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    /** Effect sökülünce true olur; uçuşta kalan async işlerin geç etki etmesini engeller. */
+    let cancelled = false;
+
     // 1. Get or Generate Room ID
     let currentRoomId = roomIdFromUrl;
     if (!currentRoomId) {
       const urlParams = new URLSearchParams(window.location.search);
       currentRoomId = urlParams.get('roomId');
       if (!currentRoomId) {
-        // Tahmin edilemez roomId (capability modeli) — Math.random yerine crypto.
-        const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
-          ? crypto.randomUUID()
-          : Math.random().toString(36).substring(2, 11);
-        currentRoomId = 'room-' + rand;
-        const newUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + '?roomId=' + currentRoomId;
-        window.history.pushState({ path: newUrl }, '', newUrl);
-        setRoomIdFromUrl(currentRoomId);
+        // Branch çözümlemesi ağ üzerinden gelir; bu sırada kullanıcı başka bir sayfaya
+        // geçerse (ör. /review) pushState O sayfanın URL'ini bozardı — pathname çağrı
+        // anında okunuyor. Effect temizliğinde bayrak kalkar ve geç gelen yanıt yutulur.
+        const pathnameAtStart = window.location.pathname;
+        const pushRoomUrl = (roomId: string) => {
+          if (cancelled || window.location.pathname !== pathnameAtStart) return;
+          const newUrl = window.location.protocol + '//' + window.location.host + pathnameAtStart + '?roomId=' + roomId;
+          window.history.pushState({ path: newUrl }, '', newUrl);
+          setRoomIdFromUrl(roomId);
+        };
+        const randomRoomId = () => {
+          const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : Math.random().toString(36).substring(2, 11);
+          return 'room-' + rand;
+        };
+
+        // G17 — new-phase/30-SERVER-SIDE-BRANCHING.md §3 Adım 2: "CanvasHub'ın bugünkü
+        // roomId kavramı branch_id'ye eşlenir." Kimliği doğrulanmış bir kullanıcının aktif
+        // bir projesi varsa, rastgele bir oda üretmek yerine projenin sunucu-otoriteli
+        // varsayılan branch'ini oda kimliği olarak kullan — aynı projenin aynı branch'i
+        // üzerinde çalışan iki kullanıcı, link paylaşmadan otomatik aynı odada buluşur.
+        // Guest/anonim kullanıcılar (proje yok) ve branch çözümlenemezse (ağ hatası vb.)
+        // eski "tahmin edilemez roomId" (capability modeli) davranışına düşülür —
+        // bu bilinçli: guest erişimi tasarım gereği, bu akış bozulmamalı.
+        const { isAuthenticated } = useAuthStore.getState();
+        const { activeProjectId } = useProjectHistoryStore.getState();
+
+        if (isAuthenticated && activeProjectId) {
+          branchService.getOrCreateDefault(activeProjectId)
+            .then(branch => pushRoomUrl(branch.id))
+            .catch(() => pushRoomUrl(randomRoomId()));
+        } else {
+          pushRoomUrl(randomRoomId());
+        }
         return; // Exit early, the state update will trigger the effect again with the correct roomIdFromUrl
       }
     }
@@ -256,6 +289,7 @@ export function useMultiplayer() {
 
     // Clean up
     return () => {
+      cancelled = true;
       clearCursors();
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('offline', handleOffline);

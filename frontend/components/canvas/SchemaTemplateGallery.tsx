@@ -49,7 +49,7 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-surface-600">
           <div className="flex items-center gap-2">
-            <LayoutTemplate className="w-5 h-5 text-indigo-400" />
+            <LayoutTemplate className="w-5 h-5 text-accent-text" />
             <span className="text-content-primary font-semibold text-base">Schema Templates</span>
           </div>
           <button onClick={onClose} className="text-content-muted hover:text-content-primary transition-colors">
@@ -66,7 +66,7 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search templates…"
-              className="w-full bg-surface-900 border border-surface-500 focus:border-indigo-500 rounded-xl pl-9 pr-4 py-2 text-sm text-content-primary placeholder-content-muted outline-none"
+              className="w-full bg-surface-900 border border-surface-500 focus:border-accent-hover rounded-xl pl-9 pr-4 py-2 text-sm text-content-primary placeholder-content-muted outline-none"
             />
           </div>
         </div>
@@ -85,13 +85,13 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
               <div className="flex-1 min-w-0">
                 <p className="text-content-primary font-semibold text-sm">{tpl.label}</p>
                 <p className="text-content-muted text-xs mt-0.5 leading-relaxed">{tpl.description}</p>
-                <p className="text-indigo-500 text-xs mt-2 font-medium">
+                <p className="text-accent-hover text-xs mt-2 font-medium">
                   {tpl.schema.tables.length} tables · {tpl.schema.relations.length} relations
                 </p>
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => handleReplace(tpl.key)}
-                    className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                    className="flex-1 py-1.5 rounded-lg bg-content-primary hover:bg-content-secondary text-surface-900 text-xs font-bold transition-colors cursor-pointer"
                   >
                     Replace
                   </button>

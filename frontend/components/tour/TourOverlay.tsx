@@ -180,16 +180,16 @@ export default function TourOverlay() {
       {/* Tour Dialog Card */}
       <div
         style={cardStyle}
-        className="w-[320px] p-6 rounded-2xl bg-gradient-to-b from-[#18112d]/95 via-[#110b21]/98 to-[#0b0716]/99 border border-[#FFD700]/30 shadow-[0_15px_40px_rgba(139,92,246,0.25)] backdrop-blur-xl flex flex-col gap-4 text-sans animate-in zoom-in-95 duration-200"
+        className="w-[320px] p-5 rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col gap-4 text-sans animate-in zoom-in-95 duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-extrabold text-[#FFD700] tracking-widest uppercase font-mono">
+          <span className="text-[10px] font-bold text-content-muted tracking-widest uppercase font-mono">
             Onboarding Tour ({activeStepIndex + 1} / {steps.length})
           </span>
           <button
             onClick={endTour}
-            className="text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 rounded-lg hover:bg-white/5 cursor-pointer"
+            className="text-content-subtle hover:text-content-primary transition-colors p-0.5 rounded-lg hover:bg-white/[0.06] cursor-pointer"
             title="Skip Tour"
           >
             <X className="w-4 h-4" />
@@ -198,17 +198,17 @@ export default function TourOverlay() {
 
         {/* Content */}
         <div className="space-y-1">
-          <h4 className="text-sm font-bold text-zinc-100">{currentStep.title}</h4>
-          <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+          <h4 className="text-sm font-bold text-content-primary">{currentStep.title}</h4>
+          <p className="text-xs text-content-muted leading-relaxed">
             {currentStep.description}
           </p>
         </div>
 
         {/* Footer Navigation */}
-        <div className="flex items-center justify-between mt-2 pt-3 border-t border-indigo-500/10">
+        <div className="flex items-center justify-between mt-1 pt-3 border-t border-content-primary/8">
           <button
             onClick={endTour}
-            className="text-[11px] font-bold text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+            className="text-[11px] font-semibold text-content-subtle hover:text-content-secondary transition-colors cursor-pointer"
           >
             Skip Tour
           </button>
@@ -217,7 +217,7 @@ export default function TourOverlay() {
             {activeStepIndex > 0 && (
               <button
                 onClick={prevStep}
-                className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-850 hover:bg-zinc-800 text-zinc-300 transition-colors flex items-center justify-center cursor-pointer"
+                className="p-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-content-secondary transition-colors flex items-center justify-center cursor-pointer"
                 title="Previous"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -225,7 +225,7 @@ export default function TourOverlay() {
             )}
             <button
               onClick={isLastStep ? endTour : nextStep}
-              className="px-3.5 py-1.5 rounded-lg bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-[11px] font-bold transition-all border border-[#a78bfa]/20 shadow-sm flex items-center gap-1 cursor-pointer"
+              className="px-3.5 py-1.5 rounded-lg bg-content-primary hover:bg-content-primary-hover text-surface-900 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
             >
               <span>{isLastStep ? 'Complete' : 'Next'}</span>
               {!isLastStep && <ChevronRight className="w-3.5 h-3.5" />}

@@ -36,8 +36,6 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const filtered = query.trim()
     ? actions.filter(a => {
         const q = query.toLowerCase();
@@ -48,6 +46,22 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
         );
       })
     : actions;
+
+  // Scroll active item into view — early return'den ÖNCE tanımlanmalı: hook'lar
+  // her render'da aynı sırada çağrılmalı, "isOpen=false" durumunda erken dönüş
+  // bu iki effect'i atlatıp render'lar arası hook sayısını değiştiriyordu
+  // ("Rendered more hooks than during the previous render" çökmesi).
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const item = list.querySelector(`[data-idx="${activeIdx}"]`) as HTMLElement | null;
+    item?.scrollIntoView({ block: 'nearest' });
+  }, [activeIdx]);
+
+  // Reset active idx when filter changes
+  useEffect(() => { setActiveIdx(0); }, [query]);
+
+  if (!isOpen) return null;
 
   const select = (action: PaletteAction) => {
     onClose();
@@ -60,17 +74,6 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
     if (e.key === 'Enter' && filtered[activeIdx]) { e.preventDefault(); select(filtered[activeIdx]); }
     if (e.key === 'Escape')     { onClose(); }
   };
-
-  // Scroll active item into view
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list) return;
-    const item = list.querySelector(`[data-idx="${activeIdx}"]`) as HTMLElement | null;
-    item?.scrollIntoView({ block: 'nearest' });
-  }, [activeIdx]);
-
-  // Reset active idx when filter changes
-  useEffect(() => { setActiveIdx(0); }, [query]);
 
   return (
     <div
@@ -107,11 +110,11 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
               onClick={() => select(action)}
               onMouseEnter={() => setActiveIdx(idx)}
               className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                idx === activeIdx ? 'bg-indigo-600/20' : 'hover:bg-surface-700'
+                idx === activeIdx ? 'bg-white/[0.08]' : 'hover:bg-surface-700'
               }`}
             >
               <span className={`w-8 h-8 flex items-center justify-center rounded-lg shrink-0 ${
-                idx === activeIdx ? 'bg-indigo-600/30 text-indigo-300' : 'bg-surface-700 text-content-muted'
+                idx === activeIdx ? 'bg-content-primary/30 text-content-primary' : 'bg-surface-700 text-content-muted'
               }`}>
                 {action.icon}
               </span>
