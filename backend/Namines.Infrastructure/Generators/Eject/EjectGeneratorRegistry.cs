@@ -47,6 +47,9 @@ public sealed class EjectGeneratorRegistry : IEjectGeneratorRegistry
             new SequelizeGenerator(),
             new GormGenerator(),
 
+            // Konsol (07 §8)
+            new ConsoleNextjsGenerator(),
+
             // Migration biçimleri — DDL üreticisini yeniden kullanırlar.
             new FlywayGenerator(ddlFactory),
             new LiquibaseGenerator(ddlFactory),

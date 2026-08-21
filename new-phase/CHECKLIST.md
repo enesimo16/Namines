@@ -1000,6 +1000,38 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     TypeScript derleyicileri gerekirdi. Prisma'da `prisma validate` ile yapılabilen
     şeyin karşılığı burada yok; testler metin sözleşmesini kilitliyor.
 
+- [x] **G31 — Console eject: Next.js admin paneli ([07](07-CONSOLE-ADMIN-UI.md) §8)** ✅ TAMAMLANDI
+  - `console.nextjs` eject hedefi: şemadan ÇALIŞAN bir admin paneli (package.json,
+    tsconfig, layout, tablo listesi, dinamik `[table]` sayfası, tipli Gateway
+    istemcisi).
+  - **Panel Gateway'e API anahtarıyla konuşuyor, veritabanına doğrudan değil.**
+    İki sebep: bağlantı dizesi tarayıcıya inmez, ve Gateway'in tablo izinleri ile
+    PII maskelemesi panelde de geçerli olur — panel ayrı bir güvenlik yüzeyi açmaz.
+    Anahtar `NEXT_PUBLIC_` öneki OLMADAN, yalnızca sunucuda okunuyor.
+  - **Desen seçimi otomatik** (§3.2): birincil anahtarı olmayan tablo salt-okunur
+    (anahtarsız satır güvenle hedeflenemez, Gateway zaten reddediyor), bileşik
+    anahtarın tamamı yabancı anahtarsa junction, kendine referans veren FK varsa
+    tree. "Sıfır konfigürasyonda anlamlı panel" vaadi buradan geliyor — kullanıcıya
+    "bu tablo nasıl görünsün?" diye sormak panelin değerini yok ederdi.
+  - Şema meta verisi **veri olarak** gömülüyor, tablo başına sayfa olarak değil:
+    40 tablolu bir şemada 40 dosya üretmek, kullanıcının bakımını yapacağı kodu
+    40 katına çıkarırdı.
+  - ⚠️ **Dokümandan sapma, bilinçli:** §8 "Next.js 16 + shadcn/ui + TanStack Table"
+    diyor; üretilen paket bunları kullanmıyor, düz React + inline stil. shadcn ayrı
+    bir CLI adımı ve onlarca dosya ister. **Kutudan çıktığı gibi çalışan** bir panel,
+    kurulum adımı gerektiren "daha güzel" bir panelden iyidir; çıktı gerçek kaynak
+    kod olduğu için kullanıcı üstüne kurabilir.
+  - ⚠️ Yol boyunca: JSX'in `style={{...}}` çift süslü parantezi C#'ın `$$` ham dize
+    interpolasyon sınırlayıcısıyla çakışıp derleme hatası verdi; yer tutucu + Replace
+    ile çözüldü.
+  - **Doğrulama — 12'de yapamadığımın karşılığı burada var:** üretilen panel diske
+    döküldü, `npm install` ve **`npm run build` temiz geçti** (4 rota üretildi),
+    `tsc --noEmit` 0 hata. Yani "üretilen kod derleniyor" bu hedefte KANITLANDI.
+    `EjectGeneratorTests` **78/78**, tam paket **734 test yeşil**.
+  - **Kapsam dışı:** React+Vite, Blazor, Retool JSON hedefleri; form/düzenleme
+    ekranları (şu an liste + sayfalama var, yazma yok); §4 Console RBAC, §5 audit
+    log, §6 dashboard, §7 doğal dil sorgu, §9 özelleştirme overlay'i.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

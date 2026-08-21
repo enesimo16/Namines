@@ -337,4 +337,104 @@ public class EjectGeneratorTests
 
         Assert.Contains("]]>", sql);
     }
+
+    // ── Console eject (07 §8) ────────────────────────────────────────────────
+
+    [Fact]
+    public void Console_produces_a_runnable_next_app()
+    {
+        var files = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL).Files;
+
+        // Bu dosyalar olmadan `npm install && npm run dev` çalışmaz.
+        Assert.Contains("package.json", files.Keys);
+        Assert.Contains("tsconfig.json", files.Keys);
+        Assert.Contains("app/layout.tsx", files.Keys);
+        Assert.Contains("app/page.tsx", files.Keys);
+        Assert.Contains("app/[table]/page.tsx", files.Keys);
+    }
+
+    [Fact]
+    public void Console_keeps_the_api_key_on_the_server()
+    {
+        // NEXT_PUBLIC_ öneki anahtarı tarayıcıya indirir ve her ziyaretçiye
+        // anahtarın eriştiği tabloları açar.
+        var files = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL).Files;
+
+        Assert.DoesNotContain("NEXT_PUBLIC_NAMINES_API_KEY", files[".env.example"]);
+        Assert.Contains("server-only", files["lib/gateway.ts"]);
+    }
+
+    [Fact]
+    public void Console_talks_to_the_gateway_not_the_database()
+    {
+        // Doğrudan bağlanmak, tablo izinlerini ve PII maskelemesini atlardı.
+        var gateway = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["lib/gateway.ts"];
+
+        Assert.Contains("/api/gateway/", gateway);
+        Assert.Contains("X-Namines-Key", gateway);
+    }
+
+    [Fact]
+    public void Console_detects_a_junction_table()
+    {
+        // Bileşik anahtarın tamamı yabancı anahtarsa tablo kendi sayfasını
+        // hak etmiyor; 07 §3.2'nin otomatik desen seçimi.
+        var schema = Schema();
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t3", Name = "user_roles",
+            Columns =
+            {
+                new SchemaColumn { Id = "c8", Name = "user_id", Type = "INT", IsPK = true },
+                new SchemaColumn { Id = "c9", Name = "role_id", Type = "INT", IsPK = true },
+            },
+        });
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t4", Name = "roles",
+            Columns = { new SchemaColumn { Id = "c10", Name = "id", Type = "INT", IsPK = true } },
+        });
+        schema.Relations.Add(new SchemaRelation
+        {
+            Id = "r2", SourceTableId = "t3", SourceColumnId = "c8", TargetTableId = "t1", TargetColumnId = "c1",
+        });
+        schema.Relations.Add(new SchemaRelation
+        {
+            Id = "r3", SourceTableId = "t3", SourceColumnId = "c9", TargetTableId = "t4", TargetColumnId = "c10",
+        });
+
+        var result = Registry.Get("console.nextjs").Generate(schema, DatabaseType.PostgreSQL);
+
+        Assert.Contains("\"junction\"", result.Files["lib/schema.ts"]);
+        Assert.Contains(result.Warnings, w => w.Contains("junction"));
+    }
+
+    [Fact]
+    public void Console_marks_a_keyless_table_read_only()
+    {
+        // Anahtarsız satırı güvenle hedefleyemeyiz; Gateway zaten anahtarsız
+        // yazmayı reddediyor, panel de düzenleme sunmamalı.
+        var schema = Schema();
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t5", Name = "audit_log",
+            Columns = { new SchemaColumn { Id = "c11", Name = "message", Type = "TEXT" } },
+        });
+
+        var result = Registry.Get("console.nextjs").Generate(schema, DatabaseType.PostgreSQL);
+
+        Assert.Contains("\"readonly\"", result.Files["lib/schema.ts"]);
+        Assert.Contains(result.Warnings, w => w.Contains("no primary key"));
+    }
+
+    [Fact]
+    public void Console_picks_a_human_readable_label_column()
+    {
+        // Yabancı anahtar gösterirken ham id yerine bu kolon gösterilecek.
+        var metadata = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["lib/schema.ts"];
+
+        Assert.Contains("\"labelColumn\": \"email\"", metadata);
+    }
 }
