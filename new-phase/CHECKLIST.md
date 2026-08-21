@@ -24,8 +24,11 @@ Lifecycle Pivot ([27-LIFECYCLE-PIVOT.md](27-LIFECYCLE-PIVOT.md))
 - [x] **Backend ayağa kalkıyor**
   - Doğrulama: `curl /health` → `HTTP 200` + `{"status":"Healthy"}` (sqlite + memory check yeşil) ✔
   - ⚠️ Bulgu: `launchSettings.json` portu **5117**'ye zorluyor, `Program.cs` ise `5000` diyor. Yerel geliştirmede kafa karıştırıcı — G-ekstra'ya alındı.
-- [ ] **Frontend derleniyor**
-  - Doğrulama: `npm install && npm run build` → hatasız
+- [x] **Frontend derleniyor**
+  - Doğrulama: `npm run build` (Next.js 16, Turbopack) → derleme + TypeScript + statik
+    sayfa üretimi hatasız, 7 route (`/`, `/canvas`, `/compile`, `/review`, `/review/[id]`,
+    `/share/[token]`) ✔ (G17 sonrası, bu oturumda doğrulandı — önceden hiç çalıştırılmamış
+    stale bir G0 maddesiydi)
 
 ---
 
@@ -228,35 +231,596 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
 > [29-DATABASE-CHANGE-REVIEW.md](29-DATABASE-CHANGE-REVIEW.md) ·
 > [30-SERVER-SIDE-BRANCHING.md](30-SERVER-SIDE-BRANCHING.md)
 
-- [ ] **G8 — `SchemaImpactAnalyzer`** — `FkCascadeAnalyzer`'ı genelleştir
+- [x] **G8 — `SchemaImpactAnalyzer`** ✅ TAMAMLANDI — `FkCascadeAnalyzer`'ı genelleştir
       (Namines.Core/Analysis): `ImpactReport` modeli (AffectedTables/Relations/
       Indexes, BreakingChanges, DataLossRisks, LockRisks, IndexSuggestions,
       RollbackAssessment, OverallRisk = max() kuralı)
-- [ ] **G9 — Migration risk sınıflandırması** — `MigrationService`'e ImpactReport
-      entegrasyonu, [11-MIGRATIONS-BRANCHING.md §2](11-MIGRATIONS-BRANCHING.md)'deki
+  - `Namines.Core/Enums/RiskLevel.cs` + `LockSeverity.cs` — `MigrationService`'in de
+    (G9) paylaşacağı ortak sözlük
+  - `Namines.Core/Models/ImpactReport.cs` — doc'taki record şeması birebir + `ChangeKind`/
+    `BreakingChangeKind` enum'ları
+  - `Namines.Core/Analysis/SchemaImpactAnalyzer.cs` — eşleştirme `StableUuid` üzerinden
+    (rename ≠ add+remove); katman 1-5 (yapısal diff, cascade/FK — `FkCascadeAnalyzer`
+    doğrudan devralınıyor, kilit/süre sınıfı, veri kaybı riski, eksik index önerisi)
+    [28-IMPACT-ANALYSIS-ENGINE.md §3](28-IMPACT-ANALYSIS-ENGINE.md)'e göre uygulandı;
+    katman 6 (etkilenen API/UI) bilinçli olarak G13'e bırakıldı (Gateway'siz sadece tahmin)
+  - Risk sınıfları [11-MIGRATIONS-BRANCHING.md §2](11-MIGRATIONS-BRANCHING.md) tablosundan
+    birebir: ADD COLUMN nullable→Safe, DROP COLUMN/TABLE→Breaking+Destructive+irreversible,
+    RENAME→Breaking, tip daraltma→Breaking+DataLossRisk, CREATE INDEX→Blocking (CONCURRENTLY
+    önerisiyle)
+  - **Not:** doc'un test-planı metni "kolon silindi → Destructive" diyor ama doc'un kendi
+    `BreakingChangeKind` enum'u `ColumnRemoved`'ı da içeriyor — ikisi birden tetiklenince
+    §4'teki max() kuralı gereği sonuç `Breaking` (Destructive'den daha şiddetli). Enum
+    şeklini prosa metninden daha otoriter kaynak sayıp buna göre uyguladım.
+  - Doğrulama: `SchemaImpactAnalyzerTests.cs` — 14/14 yeşil (doc §6 test planındaki her
+    senaryo + "max, ortalama değil" testi) · tam suite 362/362 yeşil, regresyon yok
+- [x] **G9 — Migration risk sınıflandırması** ✅ TAMAMLANDI — `MigrationService`'e
+      ImpactReport entegrasyonu, [11-MIGRATIONS-BRANCHING.md §2](11-MIGRATIONS-BRANCHING.md)'deki
       risk tablosunun koda dökülmesi
-- [ ] **G10 — Control DB: server-side `branches`/`schema_versions` tabloları**
-      (G7'ye bağımlı — Postgres olmadan gerçek anlamda yapılamaz)
-- [ ] **G11 — Database Change Review UI** — diff + impact + risk + test sonucu
-      tek ekranda, onay/red mekanizması (control DB'de `pending_review`/`rejected`
-      durumları)
-- [ ] **G12 — "Run Tests" aksiyonu** — G5'in Testcontainers altyapısını runtime'a
-      taşı (ephemeral branch DB, tek seferlik)
-- [ ] **G13 — Etkilenen API/UI statik tahmini** — basit metin/AST taraması,
-      "olası etki" olarak işaretlenir, kesin değil
-- [ ] **G14 — Minimal Gateway** — şemadan otomatik salt-okunur REST (liste+detay)
-- [ ] **G15 — AI Impact Explainer ajanı** — `ImpactReport`'u insan diline çevirir
-- [ ] **G16 — Destructive işlem onay mekanizması** — control DB'de audit +
+  - `MigrationService.CalculateDiffAsync` artık `engine` parametresi alıyor
+    (varsayılan PostgreSQL) ve dağınık altı ayrı `HasBreakingChanges = true`
+    atamasının yerine tek çağrıyla `SchemaImpactAnalyzer.Analyze(...)` çalıştırıp
+    sonucu `SchemaDiffResult.Impact`'e (yeni alan) yazıyor
+  - `SchemaDiffResult`'a `OverallRisk` (RiskLevel) + `Impact` (tam `ImpactReport`)
+    eklendi; `HasBreakingChanges` **geriye uyumlu kalması için korundu** ama artık
+    `Impact.BreakingChanges.Count > 0`'dan türetiliyor — ad-hoc tahmin değil
+  - `SchemaDiffRequest.DbType` nullable eklendi (`MigrationController` `?? PostgreSQL`
+    ile geçiriyor) — mevcut çağıranlar hiçbir şey göndermese de kırılmıyor
+  - Frontend: `types/migration.ts`'e `RiskLevel`/`LockSeverity`/`ImpactReport` ve
+    tüm alt tipleri eklendi (backend sözleşmesiyle bire bir, camelCase); `MigrationWizard.tsx`
+    artık `calculateDiff`'e seçili `dbType`'ı geçiyor (motora özgü mesajlar için, ör. Msg 1785)
+  - Doğrulama: `MigrationServiceRiskTests.cs` — 4/4 yeşil (wiring uçtan uca: aynı şema→Safe,
+    kolon silme→Breaking+Impact dolu, MSSQL motoru→"Msg 1785" mesajı, motor belirtilmezse
+    PostgreSQL varsayılan) · tam suite 366/366 yeşil · `npx tsc --noEmit` frontend'de temiz
+- [x] **G10 — Control DB: server-side `branches`/`schema_versions` tabloları** ✅ TAMAMLANDI
+      (G7'ye bağımlıydı — Postgres olmadan gerçek anlamda yapılamazdı)
+  - Kapsam bilinçli olarak [30-SERVER-SIDE-BRANCHING.md §3 Adım 1](30-SERVER-SIDE-BRANCHING.md)
+    ile sınırlı: sadece "sunucu branch'in varlığını biliyor" — CRDT bağlanması (Adım 2)
+    ve ephemeral branch DB (Adım 3) G17'de
+  - `Namines.Core/Models/Auth/Branch.cs` + `SchemaVersion.cs` — 18-CONTROL-PLANE-DDL.md'deki
+    tasarımın Faz 0 karşılığı: `projects`/`users` yerine mevcut `CloudProject`/`ApplicationUser`'a
+    bağlanıyor (Faz 2'nin ayrı ULID şeması yok — "yanına eklenir, değiştirmez" prensibi)
+  - `AuthDbContext` — 2 yeni `DbSet`, FK'lar doc'taki §2 tablosuyla birebir: Project→Cascade,
+    ParentBranch→SetNull, CreatedByUser→Restrict; unique (ProjectId,Name); kısmi unique
+    (ProjectId WHERE IsDefault) — projede en fazla bir "main"; SchemaVersion (BranchId,Version) unique
+  - `Namines.Infrastructure/Data/AuthDbContextFactory.cs` (yeni) — `dotnet ef` için tasarım-zamanı
+    fabrika, Namines.API'yi (çalışan dev sunucusuyla dll kilidi çakışabiliyordu) startup project
+    olarak gerektirmeden migration üretimini mümkün kılıyor
+  - Migration `20260817172816_AddBranchesAndSchemaVersions` — **gerçek `namines-control-db`
+    container'ına uygulandı**, `\d` ile tablo/index/FK'lar doğrulandı (G7 doğrulama bar'ıyla tutarlı)
+  - `BranchController.cs` (yeni) — create/list branch, commit/list/get schema version;
+    mevcut `AuthController` deseniyle tutarlı (ayrı servis katmanı yok, doğrudan `AuthDbContext`
+    + `CloudProject.UserId` sahiplik kontrolü); checksum sunucuda SHA-256 ile hesaplanıyor,
+    istemciden gelene güvenilmiyor; ikinci `IsDefault` isteği önce eskisini kapatıyor (DB'nin
+    çıplak constraint-violation 500'ünü kullanıcıya göstermemek için)
+  - Doğrulama: `BranchSchemaVersionTests.cs` — **gerçek Postgres'e karşı 7/7 yeşil**
+    (Testcontainers, G5 deseniyle): branch adı benzersizliği, ikinci default branch DB
+    tarafından reddediliyor (sadece EF değil), versiyon numarası çakışması reddediliyor,
+    proje silinince branch+versiyon cascade siliniyor, ebeveyn branch silinince çocuğun
+    ParentBranchId'si NULL'lanıyor (silinmiyor) · tam suite regresyonsuz
+- [x] **G11 — Database Change Review UI** ✅ TAMAMLANDI (backend + frontend,
+      canlı uçtan-uca tıklama testiyle doğrulandı — bkz. not) — diff + impact +
+      risk tek ekranda, onay/red mekanizması
+  - **Kapsam sadeleştirmesi (bilinçli):** doc, kullanıcının önce sunucu-taraflı bir
+    branch açıp üzerinde çalıştığı tam Git-benzeri akış varsayıyor. Frontend'de böyle
+    bir branch-yönetim UI'ı yok (canvas'taki `BranchControlPanel` hâlâ TAMAMEN
+    istemci-taraflı eski model — G17'nin işi). Bunun yerine tek aksiyon: canvas
+    toolbar'daki **"Request Review"** butonu — proje için sunucu-taraflı "main"
+    branch'i yoksa oluşturur, mevcut şemayı yeni `SchemaVersion` olarak commit'ler,
+    bir önceki versiyona karşı `SchemaImpactAnalyzer` çalıştırıp CR açar. Kullanıcı
+    branch kavramıyla hiç uğraşmıyor ama altyapı G10'un gerçek tabloları üzerinde.
+  - **"Run Tests" sekmesi bilinçli olarak yapılmadı** — doc'un kendi roadmap'i bunu
+    ayrı bir iş olarak ayırıyor (G12: Testcontainers'ı runtime'a taşımak). "SQL"
+    sekmesi de dürüstlük gereği ham ALTER-diff DDL değil, mevcut EF Core migration
+    üreticisinin (`GenerateMigrationAsync`) çıktısı — ayrı bir DDL-diff motoru
+    yok, var olmayan bir şeyi var gibi göstermemek için böyle etiketlendi
+  - `Namines.Core/Enums/ChangeRequestStatus.cs` + `ApprovalDecision.cs`
+  - `Namines.Core/Models/Auth/ChangeRequest.cs` + `ChangeRequestApproval.cs` —
+    `HeadVersion`/`BaseVersion` (nullable — ilk versiyon boş şemayla kıyaslanır),
+    `ImpactReportJson` (deterministik olduğu için saklanıyor, tekrar hesaplanmıyor)
+  - `Namines.Core/Analysis/ChangeRequestApprovalPolicy.cs` (yeni) — onay iş kuralı
+    (kim ne zaman onaylayabilir) bilinçli olarak controller'dan ayrı, saf fonksiyon
+    olarak yazıldı — G8'deki `SchemaImpactAnalyzer` deseni: HTTP/DB'ye gömülen bir
+    iş kuralı ucuz birim testlerle kanıtlanamaz. [29 §3](29-DATABASE-CHANGE-REVIEW.md):
+    Safe/Risky→1 onay, Destructive/Breaking→2 onay + onaylayan yazarla aynı olamaz;
+    tek bir "reddet" hemen kapatır
+  - `ChangeRequestController.cs` (yeni) — `POST quick` (tek-tık review akışı),
+    `GET {id}` (tam detay: impact + migration kodu + onaylar), `GET project/{id}`
+    (liste), `POST {id}/decide` (onayla/reddet)
+  - **Bulunan ve düzeltilen gerçek hata (canlı tarayıcı testinde yakalandı):**
+    `BranchController`/`ChangeRequestController`'daki manuel `JsonSerializer.Deserialize
+    <DatabaseSchema>` çağrıları `JsonStringEnumConverter` içermiyordu — frontend
+    `ReferentialAction` gibi enum'ları string yazıyor (`"NoAction"`), dönüştürücüsüz
+    deserializasyon `JsonException` fırlatıyordu. Golden-file/birim testleri bunu
+    YAKALAYAMAZDI (ikisi de backend'in kendi ürettiği JSON'u kullanıyordu) — sadece
+    gerçek frontend→backend isteği bunu ortaya çıkardı. Paylaşılan `SchemaJsonOptions`
+    static alanıyla düzeltildi, her iki controller'da.
+  - Migration `AddChangeRequests` — gerçek `namines-control-db`'ye uygulandı, `\d`
+    ile doğrulandı
+  - Frontend: `types/changeRequest.ts`, `services/api.ts` → `changeRequestService`,
+    `ToolbarPanel.tsx`'e "Request Review" butonu, `app/review/page.tsx` (liste),
+    `app/review/[id]/page.tsx` (tek ekran: risk metre + Schema Diff/Migration Code/
+    Impact Analysis sekmeleri + onaylar + Approve/Reject)
+  - Doğrulama: `ChangeRequestApprovalPolicyTests.cs` — 17/17 yeşil (saf iş kuralı,
+    DB'siz) · `ChangeRequestIntegrationTests.cs` — gerçek Postgres'e karşı 4/4 yeşil
+    (çoklu cascade yolu — Branch→ChangeRequest + Branch→SchemaVersion aynı silmede
+    birlikte çalışıyor — , tekrar oy verememe, cascade delete) · tam suite 394/394 yeşil
+  - **Not — ara kesinti ve kurtarma:** enum-deserialization hatası düzeltildikten
+    sonra backend'i yeniden başlatırken makine 0 bayt boş disk alanına düştü
+    (`C:` sürücüsü 233 GB'lık) ve Docker Desktop/WSL2 yanıt vermez oldu
+    (`namines-control-db` container'ına erişilemedi) — CLAUDE.md'nin önceden bildiği
+    kırılganlık ("disk alanı kritik olabilir", "Docker Desktop bu makinede kırılgan").
+    Kullanıcı disk alanını temizledikten sonra `wsl --shutdown` + Docker Desktop
+    process'lerini öldürüp yeniden başlatarak toparlandı; `namines-control-db`
+    container'ı durmuş ama silinmemiş halde bulundu, `docker start` ile ayağa
+    kaldırıldı.
+  - **Canlı uçtan-uca doğrulama (tarayıcı, gerçek backend + gerçek Postgres):**
+    canvas'ta şema yükle → "Request Review" → `POST /api/changerequest/quick`
+    200 OK, `/review/{id}`'ye yönlendirdi → Schema Diff sekmesi 6 tabloyu da
+    "ADDED" gösterdi → Impact Analysis sekmesi her yeni FK için "ADD FOREIGN KEY
+    — BLOCKING" kilit riski ve eksik index önerilerini doğru listeledi → Migration
+    Code sekmesi AI anahtarı yokken dürüst fallback mesajı gösterdi (hata değil) →
+    Risk doğru şekilde RISKY hesaplandı (yeni FK'ler yüzünden) → **Approve** tıklandı,
+    `POST .../decide` 200 OK, durum anında "1/1 approvals · APPROVED · enesimo
+    approved this change" oldu → `/review` liste sayfası CR'ı doğru rozetlerle
+    gösterdi. Konsol hatasız (sadece kesinti sırasındaki eski SignalR log'ları,
+    yeni hata yok).
+- [x] **G12 — "Run Tests" aksiyonu** ✅ TAMAMLANDI — G5'in Testcontainers altyapısı
+      DEĞİL, ham `Docker.DotNet` (bkz. not) runtime'a taşındı: her CR için ephemeral,
+      tek seferlik container (MSSQL/PostgreSQL/MySQL) + dosya-tabanlı SQLite.
+  - **Testcontainers KULLANILMADI (mimari karar):** Testcontainers 4.x kendi
+    "Docker.DotNet.Enhanced" forkunu getiriyor, bu fork gerçek `Docker.DotNet` paketiyle
+    AYNI derlenmiş dosya adını (`Docker.DotNet.dll`) paylaşıyor. Bu proje zaten
+    `DockerBackupService` üzerinden gerçek Docker.DotNet 3.125.15'e bağımlı (Docker
+    Sandbox özelliği) — ikisi aynı process'te bir arada olunca NuGet'in sürüm çakışması
+    çözümü sessizce yanlış DLL'i seçip DockerBackupService.cs'i derleme zamanında
+    bozdu (CS0246/CS1061). Çözüm: Testcontainers'a hiç dokunma, `BranchTestRunnerService`
+    zaten kanıtlanmış Docker.DotNet istemcisini ve `ContainerProfiles`'ı (Docker Sandbox'ın
+    kullandığı) doğrudan yeniden kullanıyor. Test projesi de aynı nedenle AYRI:
+    `Namines.Tests.RunTests/` — Namines.Tests Testcontainers'a bağımlı olduğu için
+    aynı process'te TypeLoadException veriyordu, izole bir .csproj ile çözüldü.
+  - **Canlı Docker'a karşı test sırasında 2 gerçek hata bulundu ve düzeltildi:**
+    (1) `sqlcmd -i script.sql` `-b` bayrağı olmadan T-SQL hatalarında sessizce exit 0
+    dönüyordu — Msg 1785 (multi-cascade path) testi bunu yakaladı, `-b` eklendi.
+    `DockerBackupService.cs`'in KENDİ sqlcmd çağrıları da aynı eksikliğe sahip, ayrı
+    bir görev olarak flaglendi (Docker Sandbox'ın DDL hatalarını sessizce yutabileceği
+    anlamına gelir). (2) `mysqladmin ping` MySQL 8'in iki-aşamalı başlangıcındaki
+    (init server → restart → gerçek server) geçici sunucuya karşı erken `0` dönüyordu
+    — health check gerçek kimlik doğrulamalı bir `SELECT 1` sorgusuna çevrildi.
+  - `Namines.Core/Models/TestRunResult.cs`, `IBranchTestRunner`, `BranchTestRunnerService`
+    (Namines.Infrastructure/Services) — MSSQL/PostgreSQL/MySQL gerçek container,
+    SQLite dosya-tabanlı, diğer 6 motor (Oracle/MariaDB/Db2/Firebird/Spanner/Redshift)
+    `Supported=false` ile dürüstçe işaretleniyor (resmi container profili yok)
+  - `ChangeRequestController.RunTests` (`POST {id}/run-tests`) — senkron, container
+    açılışı dahil (~10-25sn), sonuç `ChangeRequest`'e kalıcı yazılıyor (TestRun* alanları,
+    migration `AddChangeRequestTestRun`, gerçek control DB'ye uygulandı)
+  - Frontend: review detay sayfasına "Run Tests" sekmesi — buton, container süresi,
+    pass/fail, motorun HAM hatası
+  - **Doğrulama — gerçek Docker'a karşı** (`Namines.Tests.RunTests/`, ayrı proje):
+    6/6 yeşil — geçerli şema Postgres/MSSQL/MySQL'de gerçekten uygulandı, multi-cascade
+    path gerçek MSSQL'de Msg 1785 ile reddedildi (ham mesaj doğrulandı), SQLite
+    Docker'sız çalıştı, desteklenmeyen motor dürüstçe işaretlendi. Namines.Tests: 398/398
+    yeşil (4 yeni: AffectedCodeScannerTests, G13).
+  - **Canlı tarayıcı doğrulaması:** canvas'tan E-Commerce şablonu yüklendi → Request
+    Review → CR açıldı → Run Tests tıklandı → GERÇEK MSSQL container'ı şablonun kendi
+    hatasını yakaladı ("Could not create IDENTITY attribute on nullable column 'id'" —
+    şablonun `id` kolonu yanlışlıkla nullable işaretli, PK olamaz) — bu tam olarak
+    özelliğin vaadi: "tahmin değil, kanıt".
+- [x] **G13 — Etkilenen API/UI statik tahmini** ✅ TAMAMLANDI — basit kelime-sınırı
+      metin taraması (AST değil — doc'un izin verdiği ucuz seçenek), "olası etki"
+      olarak işaretleniyor, kesin değil.
+  - **Kapsam kararı:** doc'un "compile geçmişinden tara" önerisi bu projede karşılığı
+    olmayan bir şeye dayanıyor — Namines üretilen kodu (EF Core/TypeScript) HİÇ
+    saklamıyor (CompileController transient, DB'ye yazmıyor). Bunun yerine kullanıcı
+    kendi uygulama dosyalarını (model/route/query) bu ekranda yapıştırır/yükler;
+    tarama o dosyalara karşı çalışır. Kalıcı DEĞİL — her çağrıda yeniden hesaplanır,
+    keyfi kullanıcı kaynak kodu DB'de saklanmıyor.
+  - `Namines.Core/Models/AffectedCodeMatch.cs`, `Namines.Core/Analysis/AffectedCodeScanner.cs`
+    (saf fonksiyon — `ChangeRequestApprovalPolicy`/`SchemaImpactAnalyzer` ile aynı desen).
+    Aday kimlikler `ImpactReport.BreakingChanges` (en yüksek sinyal) +
+    `AffectedTables`'ın Removed/RenamedFrom/Modified'ından çıkarılıyor, kelime-sınırlı
+    regex ile satır satır aranıyor.
+  - `ChangeRequestController.ScanAffectedCode` (`POST {id}/scan-affected-code`)
+  - Frontend: review detay sayfasına "Affected Code" sekmesi — dosya yükleme, tarama,
+    dosya:satır + eşleşen isim + satır metni listesi, sürekli "olası etki, kesin değil" uyarısı
+  - Doğrulama: `AffectedCodeScannerTests.cs` — 4/4 yeşil (breaking-change çıkarımı,
+    çok-dosyalı satır numarası eşleşmesi, kelime-sınırı — "Id" "ValidId" içinde
+    eşleşmiyor, boş aday listesi = boş sonuç). Canlı tarayıcıda sekme render + upload/scan
+    akışı doğrulandı.
+- [x] **G14 — Minimal Gateway** ✅ TAMAMLANDI — şemadan otomatik salt-okunur REST
+      (liste + detay), kullanıcının kendi canlı veritabanına karşı.
+  - **Kapsam kararı:** connection string hiçbir yerde saklanmıyor —
+    `DbIntrospectController`/`DatabaseExecutorController` ile AYNI güvenlik modeli
+    (her istekte bir kez kullanılır, `Namines.Core.Security.SsrfGuard` ile
+    localhost/private IP aralıkları reddedilir — bu yüzden bu servis kategorisi
+    yerel Docker'a karşı test edilemiyor, `DbIntrospectionService`'in de zaten
+    sahip olduğu önceden var olan bir sınır, yeni bir boşluk değil).
+  - **Yazma yolu yok:** sadece SELECT üretilir. Tablo/kolon adları katı bir regex'ten
+    (`^[A-Za-z_][A-Za-z0-9_]*$`) geçmeden asla SQL'e eklenmez, motora özgü quote
+    (`[x]`/`"x"`/`` `x` ``) ile sarılır — DDL üreticilerindeki aynı `Quote()` deseni.
+    WHERE değeri her zaman parametreli.
+  - `Namines.Core/Models/GatewayModels.cs`, `IGatewayService`, `GatewayService`
+    (Namines.Infrastructure) — MSSQL/PostgreSQL/MySQL/MariaDB/Oracle, her motor için
+    doğru sayfalama sözdizimi (OFFSET/FETCH, LIMIT/OFFSET, LIMIT skip,take)
+  - `GatewayController` (`POST /api/gateway/list`, `POST /api/gateway/detail`) —
+    login zorunlu, rate-limit'li (DatabaseExecutorController ile aynı `"sensitive"` politika)
+  - Frontend: `GatewayExplorerPanel.tsx` (yeni) — canvas toolbar'ında "Browse live
+    data (read-only)" ikonu, DbConnectionPanel'in bağlantı formuyla aynı desen +
+    şemadaki tablolardan seçim + sayfalı liste + satır tıklayınca detay görünümü
+  - Doğrulama: `GatewayServiceTests.cs` — 24/24 yeşil (kimlik doğrulama/reddetme,
+    motor başına quote karakteri, parametreli WHERE — SQL'de asla değer yok, sadece
+    isim, her motor için sayfalama sözdizimi). Namines.Tests toplamı: 422/422 yeşil.
+    Canlı tarayıcıda uçtan uca doğrulandı: E-Commerce şablonuyla Data Explorer açıldı,
+    `users` tablosu seçildi, yerel bir bağlantı dizesiyle gönderildi → backend gerçekten
+    `400 "Connection target is not allowed (private or reserved address)"` döndürdü ve
+    UI bunu doğru gösterdi — SSRF koruması gerçek bir HTTP isteğiyle kanıtlandı.
+- [x] **G15 — AI Impact Explainer ajanı** ✅ TAMAMLANDI — `ImpactReport`'u insan diline çevirir
+  - **Kural (doc'un ilkesi, aynen uygulandı):** "motor kanıtladı, AI özetledi" — AI kendi
+    başına yeni bulgu ÜRETMEZ, sistem talimatında açıkça yasaklandı ("NEVER invent").
+    Sadece `ImpactReport`'un zaten içerdiği tablo/kolon adları, breaking change'ler, veri
+    kaybı riskleri, kilit riskleri ve rollback durumunu düz metne çevirir.
+  - `IAIService.ExplainImpactAsync(ImpactReport)` — hem `GroqAIService` hem `OllamaAIService`'te
+    implemente edildi (projedeki tek iki `IAIService` implementasyonu).
+  - `Namines.Core/Prompts/ImpactExplainerPromptBuilder.cs` (yeni, saf fonksiyon — mevcut
+    `DbaPromptBuilder`/`StreamlitPromptBuilder` deseniyle aynı yerde) — sistem talimatı +
+    yapılandırılmış bulgulardan üretilen kullanıcı prompt'u.
+  - `ChangeRequestController.GetDetail`'e bağlandı — `Migration` alanıyla AYNI zaten var olan
+    graceful-degradation deseni (AI anahtarı/servis yoksa `AiExplanation: null`, sekme
+    boş görünür, hata fırlatmaz). Yeni `AIMode` kategorisi eklenmedi — mevcut "Documentation"
+    kategorisi (`UserAIPolicy.Documentation`) yeniden kullanıldı, DocumentationController'ın
+    kendi hassasiyetiyle tutarlı.
+  - Frontend: review detay sayfası, Impact Analysis sekmesinin en üstünde "AI Summary" kutusu
+    (yalnızca `aiExplanation` doluysa render olur) + "bu bağımsız bir bulgu değil, aşağıdaki
+    yapısal analizden üretildi" notu.
+  - Doğrulama: `ImpactExplainerPromptBuilderTests.cs` — 7/7 yeşil (icat yasağı sistem
+    promptunda var, gerçek tablo/kolon adları ve mitigation metinleri prompt'a giriyor, güvenli/
+    riskli durumlar doğru ayırt ediliyor). Namines.Tests toplamı: 429/429 yeşil. Canlı
+    tarayıcıda uçtan uca doğrulandı: gerçek bir CR'ın Impact Analysis sekmesi açıldı, ağ
+    yanıtında `aiExplanation` alanı doğru şekilde mevcut ve `null` (bu ortamda Groq API
+    anahtarı yok — `migration` alanı da aynı sebeple `null`, tutarlı), UI hatasız/sessizce
+    kutuyu gizliyor. Gerçek bir AI yanıtı üretme adımı (API anahtarı gerektirir) bu oturumda
+    test edilemedi — Migration Code sekmesinin baştan beri sahip olduğu aynı sınır.
+- [x] **G16 — Destructive işlem onay mekanizması** ✅ TAMAMLANDI — control DB'de audit +
       approval tablosu, [29 §3](29-DATABASE-CHANGE-REVIEW.md)'teki 1-kişi/2-kişi kuralı
-- [ ] **G17 — CanvasHub'ı branch_id'ye bağla** — G6'daki `IPresenceStore` aynı
-      kalır, `roomId` kavramı `branch_id`'ye eşlenir ([30 §3 Adım 2](30-SERVER-SIDE-BRANCHING.md))
+  - **1-kişi/2-kişi kuralı zaten G11'de vardı** (`ChangeRequestApprovalPolicy`) — bu G'nin
+    gerçek eksiği doc'un aynı tablosundaki **"Safe | Otomatik onaylanabilir (opt-in ayar)"**
+    satırıydı: her risk seviyesi (Safe dahil) koşulsuz PendingReview'dan başlıyordu.
+  - `CloudProject.AutoApproveSafeChanges` (bool, varsayılan false) — proje bazlı opt-in.
+    Açıksa, `CreateQuick`'te Safe risk'li CR'lar insan onayı beklemeden direkt `Approved`
+    açılır (`ResolvedAt` anında set edilir).
+  - **Audit tablosu — bilinçli kapsam sadeleştirmesi:** doc'taki [18](18-CONTROL-PLANE-DDL.md)
+    `audit_log` çok-kiracılı (org_id), genel amaçlı bir tablo — bu projede henüz bir
+    Organization kavramı yok. Onun yerine `ChangeRequestAuditLog` — ChangeRequest'e özel,
+    append-only bir zaman çizelgesi (Created/AutoApproved/Approved/Rejected). İnsan oyları
+    zaten `ChangeRequestApproval`'da vardı (G11) — bu tablo onun YERİNE değil, sistem-güdümlü
+    olayların (otomatik onay gibi insan aktörü olmayan olaylar, `ActorUserId=null`) da aynı
+    zaman çizelgesinde görünmesi için var.
+  - `ChangeRequestController`: `PUT project/{projectId}/auto-approve-safe` (proje sahibi
+    toggle'lar), `GET {id}/audit` (append-only zaman çizelgesi okuma)
+  - Migration `AddChangeRequestAuditLogAndAutoApprove` — gerçek control DB'ye uygulandı
+  - Frontend: `/review` liste sayfasında proje-bazlı "Auto-approve Safe changes" toggle'ı
+    (mevcut projenin ayarını `GET /api/auth/projects`'ten okuyup gösteriyor); CR detay
+    sayfasında Approvals panelinin altında "History" bloğu (kim/ne zaman/otomatik mi)
+  - Doğrulama: 3 yeni entegrasyon testi (gerçek Postgres'e karşı) — sistem-güdümlü olayda
+    `ActorUserId=null` doğru kaydediliyor, branch silinince audit log cascade oluyor, zaman
+    çizelgesi sırası korunuyor. Namines.Tests toplamı: 432/432 yeşil.
+  - **Canlı uçtan uca doğrulama** (UI otomasyonu bu akış için kırılgan olduğundan gerçek bir
+    HTTP isteğiyle doğrulandı): toggle açıldı (`PUT .../auto-approve-safe` → 200,
+    `autoApproveSafeChanges:true`), Safe risk'li bir CR gerçek `/api/changerequest/quick`
+    çağrısıyla oluşturuldu → **`status:"Approved"` döndü** (PendingReview değil),
+    `/audit` iki doğru sıralı kayıt gösterdi ("Created" by g13tester, sonra "AutoApproved"
+    `actorUserId:null`) — tarayıcıda `/review/{id}` sayfası bunu "APPROVED" rozeti + History
+    bloğunda "Auto-approved (automatic) — Safe risk + project.AutoApproveSafeChanges enabled"
+    olarak doğru render etti. Konsol hatasız (sadece backend restart'tan kalma eski
+    SignalR yeniden bağlanma log'ları).
+- [x] **G17 — CanvasHub'ı branch_id'ye bağla** ✅ TAMAMLANDI — `IPresenceStore`
+      DEĞİŞMEDİ (doc'un öngördüğü tam olarak buydu), `roomId` kavramı `branch_id`'ye
+      eşlendi ([30 §3 Adım 2](30-SERVER-SIDE-BRANCHING.md))
+  - **Aşamalı, kırmayan geçiş:** rastgele `room-xxxx` roomId üretimi TAMAMEN kaldırılmadı —
+    yalnızca kimliği doğrulanmış + aktif projesi olan kullanıcılar için branch ID'sine
+    yönlendirildi. Guest/anonim kullanıcılar (proje yok) ve branch çözümlenemezse (ağ
+    hatası vb.) eski "tahmin edilemez roomId" (capability-link) davranışına düşülür —
+    guest erişimi tasarım gereği (CanvasHub.cs'in kendi yorumu), bu akış korunmalıydı.
+  - `BranchController.GetOrCreateDefaultBranch` (`GET project/{id}/default`, yeni) —
+    `ChangeRequestController.CreateQuick`'teki "yoksa oluştur" deseniyle aynı: proje
+    senkronize edildiğinde henüz Branch satırı açılmıyor, ilk canlı işbirliği bağlantısında
+    "main" branch'i bul-yoksa-oluştur.
+  - `CanvasHub.cs` KOD OLARAK değişmedi — sadece dokümantasyon yorumu eklendi (hub, roomId'nin
+    rastgele mi yoksa gerçek bir branch ID'si mi olduğunu bilmiyor/bilmesi gerekmiyor).
+  - Frontend: `hooks/useMultiplayer.ts`'deki oda-çözümleme mantığı — URL'de roomId yoksa
+    ve kullanıcı authenticated + `activeProjectId` varsa `branchService.getOrCreateDefault`
+    çağrılır, dönen branch ID'si oda kimliği olarak URL'e yazılır.
+  - Doğrulama: 2 yeni entegrasyon testi (gerçek Postgres) — find-or-create idempotency
+    (`GetOrCreateDefaultBranch_returns_the_same_branch_on_repeated_calls`, ikinci çağrı
+    yeni satır açmıyor). Namines.Tests toplamı: 434/434 yeşil. **Canlı tarayıcıda uçtan uca
+    doğrulandı:** endpoint'e iki kez curl ile istek atıldı, ikisi de AYNI branch ID'sini
+    döndürdü; canvas açıldığında tarayıcının URL'i `?roomId=0e4afe56-98f5-...` oldu — bu,
+    G16 testinde oluşan "Yeni Proje" projesinin GERÇEK server-side "main" branch ID'si
+    (rastgele `room-xxxx` DEĞİL), sayfa "We connected to the room" gösterdi. Konsol
+    hatasız (sadece backend restart'lardan kalma eski SignalR log'ları).
+
+---
+
+- [x] **CI — derleme + test pipeline** ✅ TAMAMLANDI (`.github/workflows/ci.yml`)
+  - Depoda daha önce **hiçbir pipeline build/test koşmuyordu** — tek workflow
+    (`namines-schema-diff.yml`) bir PR yorumcusuydu ve dayandığı `namines-schema.json`
+    repoda olmadığı için **hiç tetiklenmiyordu**. Yani her değişiklik doğrulanmamış gidiyordu.
+  - 4 iş: **backend** (Release build + her iki test projesi, Docker'lı integration
+    testleri dahil, CLAUDE.md'nin kuralı gereği sıralı), **frontend** (`npm ci` +
+    `tsc --noEmit` + `build`), **design-tokens** (FRONTEND.md §4/§2 bekçisi: ham hex,
+    saf beyaz/siyah, indigo/mor).
+  - Doğrulama: bekçilerin geçtiği DEĞİL, **yakaladığı** kanıtlandı — kasıtlı ihlal
+    içeren dosya konup üç ihlalin de yakalandığı görüldü, sonra silindi. `dotnet test`
+    argüman sözdizimi ve **Release** yapılandırmasında tam solution derlemesi yerelde
+    doğrulandı (hep Debug'da çalışıyorduk).
+  - ⚠️ Not: `--filter "Category!=RequiresDocker"` daha önceki komutlarda **hiçbir şey
+    filtrelemiyordu** — `RequiresDockerFact` yalnızca `Skip` set ediyor, Category trait
+    eklemiyor. Raporlanan test sayıları zaten tüm paketti.
+
+- [x] **G18 — Organizasyon / üyelik (05 §6 RBAC)** ✅ TAMAMLANDI
+  - **Çözülen somut hata:** `Breaking`/`Destructive` risk taşıyan bir change request
+    **hiçbir zaman onaylanamıyordu**. Kural (29 §3) "2 farklı kişi, yazar olamaz" diyor;
+    ama yetki sınırı `CloudProject.UserId` olduğu için CR'a **yalnızca proje sahibi**
+    erişebiliyordu ve sahibi de yazar olduğu için 403 alıyordu → kalıcı kilit.
+    Canlı doğrulandı (fix öncesi: sahip onay denemesi → `403`).
+    Birim testlerin kaçırma sebebi: sahte kullanıcı ID'leriyle saf politika testi
+    yapıyorlar, sahiplik katmanına hiç dokunmuyorlar.
+  - `Organization` + `OrganizationMember` (bileşik PK, `OrgRole`: Viewer/Editor/Admin/
+    Owner/Billing) + `CloudProject.OrganizationId`.
+  - `OrgAccess` (Infrastructure/Data) — yetki kontrolünün **tek kopyası**:
+    `CanViewAsync` / `CanEditAsync` / `CanManageMembersAsync` / `GetOrCreatePersonalOrgAsync`.
+    Önceden 6 controller'da `p.UserId == userId` kopyalanıyordu; SSRF regex'i ve branch
+    find-or-create'te aynı kopyalama bize hata olarak dönmüştü.
+  - `ProjectMemberController` — üye listele/ekle/rol değiştir/çıkar. Son Owner'ın
+    düşürülmesi/çıkarılması engelli (org sahipsiz kalıp üye yönetimi kilitlenmesin).
+  - Migration `AddOrganizationsAndMembers` + **idempotent backfill SQL**: her kullanıcıya
+    kişisel org, projeler oraya taşındı. Doğrulandı: 4 kullanıcı → 4 org, 3 proje,
+    **0 sahipsiz proje**.
+  - **Kapsam sadeleştirmesi:** doc'taki `org_invites` (token + expiry + e-posta) akışı
+    YAPILMADI — e-posta altyapısı yok. Üye doğrudan e-postayla eklenir, kullanıcının
+    önceden kayıtlı olması gerekir. ULID/slug de ertelendi (mevcut GUID deseni korundu).
+  - **Uçtan uca kanıt (gerçek HTTP):** ikinci kullanıcı ekibe eklendi → onayladı (`200`,
+    hâlâ PendingReview çünkü 2 onay gerekiyor) → üçüncü kullanıcı onayladı →
+    **`status: "Approved"`**. Audit zinciri eksiksiz: `Created by g13tester |
+    Approved by reviewer | Approved by reviewer2` (ilk onaylayanın görünmesi G16
+    düzeltmesinin karşılığı).
+  - Doğrulama: `OrgAccessTests` 7/7 yeşil (rol matrisi, `billing`in yetki almadığı —
+    sayısal olarak Owner'dan büyük olduğu için `>=` kullanılsaydı sessizce her yetkiyi
+    alırdı —, org'suz eski projede geri-uyum, idempotent kişisel org, üye çıkarınca
+    erişimin anında kesilmesi). Tam paket: **450 → 457 test yeşil**.
+  - ⚠️ **Ürün kısıtı, bilinmeli:** kural gereği Breaking/Destructive için yazar hariç
+    2 onay gerekiyor → böyle bir değişikliği geçirmek için ekipte **en az 3 kişi**
+    olmalı. Tek/iki kişilik ekipte bu risk seviyesi geçirilemez. 29 §3'ün doğru okuması
+    bu, ama ürün kararı olarak gözden geçirilmeli.
+
+- [x] **G19 — Ekip büyüklüğüne duyarlı onay + üye yönetimi UI** ✅ TAMAMLANDI
+  - G18'in sonundaki ⚠️ ürün kısıtının cevabı: kural "2 onay" derken ekipte 3 kişi
+    olduğunu varsayıyordu. `ChangeRequestApprovalPolicy` artık ekip büyüklüğünü
+    biliyor: `EffectiveRequiredApprovals(risk, teamSize)` ideali oy verebilecek
+    kişi sayısıyla (`teamSize - 1`) sınırlar, tabanı 1'dir. 2 kişilik ekipte
+    Breaking/Destructive **tek onayla** geçer; yazar-dışı şartı (`RequiresDistinctFromAuthor`)
+    korunur, yani tek kişilik ekipte kendi değişikliğini kendin onaylayamama kuralı
+    gevşemez — orada ikinci kişi eklemek gerekir.
+  - Oy sayımı yalnızca **Editor/Admin/Owner**'ı sayar (`OrgAccess.CountVotingMembersAsync`);
+    Viewer ve Billing ekip büyüklüğünü şişirip gereken onayı sahte yükseltmez.
+  - `TeamPanel` (frontend/components/review) — üye listesi, rol değiştirme, ekleme,
+    çıkarma; ekip büyüklüğüne göre "şu an kaç onay gerekiyor" mesajını gösterir.
+  - ⚠️ **Bulunan sessiz hata:** `OrgRole` frontend'de sayısal enum olarak yazılmıştı,
+    ama API global `JsonStringEnumConverter` ile `"Owner"` string'i döndürüyor —
+    bütün rol karşılaştırmaları sessizce `false`'tu. String union'a çevrildi.
+
+- [x] **G20 — MCP sunucusu, Faz 1** ✅ TAMAMLANDI ([33](33-MCP-AND-SKILL.md) §5)
+  - `backend/Namines.Mcp/` — stdio MCP sunucusu (`namines-mcp`), resmî
+    `ModelContextProtocol` paketi. Üç salt-okunur araç: `namines_pull_schema`,
+    `namines_analyze_impact`, `namines_prove_migration`. **Yeni iş mantığı yok** —
+    hepsi mevcut, test edilmiş servisleri sarar.
+  - **Neden .NET, neden ayrı süreç:** barındırılan API SSRF koruması yüzünden
+    kullanıcının `localhost`'undaki DB'ye ulaşamaz (33 §2). Sunucu kullanıcının
+    kendi makinesinde çalıştığı için connection string ağdan hiç geçmez ve
+    backend'in ayakta olmasına gerek yoktur.
+  - **stdout protokol kanalıdır** — log'lar stderr'e yönlendirildi; oraya serbest
+    metin yazan bir değişiklik JSON-RPC akışını bozar.
+  - ⚠️ **Bulunan sessiz hata (bu iş boyunca en önemlisi):** camelCase şema JSON'u —
+    ki `pull_schema`'nın *kendi çıktısı* camelCase — sessizce **boş şemaya** çözülüyordu.
+    Sonuç: gerçek bir tablo eklemesi için analiz "Safe, hiçbir şey değişmemiş" diyordu.
+    Yanlış güven veren analiz, analiz olmamasından kötüdür. `PropertyNameCaseInsensitive`
+    eklendi; ayrıca `ParseSchema`'ya **sessiz boşalma koruması** kondu: girdi tablo
+    taşıdığını söylüyor ama 0 tablo bağlandıysa, ya da tablolar adsız çözüldüyse,
+    devam etmek yerine açık hatayla reddedilir.
+  - Doğrulama: ham JSON-RPC ile protokol kanıtlandı (`initialize` → `namines-mcp`,
+    3 araç listelendi); `ANALYZE(camelCase)` → `risk=Breaking, veri kaybı=users.email`;
+    bozuk şekil reddedildi; `PROVE(SQLite)` → `supported=true success=true`.
+    `NaminesToolsTests` **11/11 yeşil** (odak: iş mantığı değil, LLM'den gelen JSON'un
+    sınır katmanında doğru bağlanması). Kurulum: `backend/Namines.Mcp/README.md`.
+  - **Bilinçli sınır: yazma yolu YOK.** Faz 1'de hiçbir araç kullanıcının DB'sini
+    değiştirmez — okur, analiz eder, kanıtlar, önerir (33 §7).
+
+- [x] **G21 — MCP Faz 2 + CLI + Skill + dağıtım ("Faz A")** ✅ TAMAMLANDI
+  - **MCP Faz 2 (33 §5):** `namines_generate_ddl` (deterministik, 6 lehçe, golden-file
+    testli) ve `namines_open_change_request` (sunucuda inceleme açar; **yazan tek araç**,
+    kullanıcının DB'sine yine dokunmaz, `NAMINES_API_TOKEN` ister). Toplam 5 araç.
+  - ⚠️ **`generate_migration` bilinçli olarak YAPILMADI.** Mevcut
+    `MigrationService.GenerateMigrationAsync` migration kodunu Groq'a yazdırıyor; onu
+    araç olarak sunmak BAŞKA bir dil modelinin tahminini "Namines'in deterministik
+    çıktısı" kılığında Claude'a geri vermek olurdu — 33 §3'ün tam tersi. Deterministik
+    bir üretici (6 motor + golden-file) yazıldığında eklenebilir.
+  - **CLI (`backend/Namines.Cli`, 11 §9):** `namines pull|diff|ddl|prove`. MCP araçlarının
+    GÖVDESİNİ yeniden kullanır (Namines.Mcp'ye referans) — iki kopya yazmak, bu kod
+    tabanının daha önce bedelini ödediği hata (6 controller'da tekrarlanan yetki kontrolü
+    → `OrgAccess`). Çıkış kodları CI kapısı olacak şekilde ayrıştırıldı:
+    `0` iyi · `1` hata · `2` destructive/breaking · `3` motor DDL'i reddetti.
+  - **Skill (`skills/namines-schema-review/`, 33 §6):** politika katmanı. MCP "ne
+    yapabilirim", Skill "ne zaman ve nasıl" — risk seviyesinin ne yapmayı zorunlu
+    kıldığı araç tanımına gömülemez, çünkü bu politikadır.
+  - **Dağıtım:** `packaging/npm` (`npx -y @namines/mcp` — .NET ŞARTI YOK, platforma
+    uygun self-contained binary'yi indirir, checksum doğrular) + `PackAsTool`
+    (`dotnet tool install -g Namines.Mcp` / `Namines.Cli`) + **Claude Code eklentisi**
+    (`.claude-plugin/plugin.json` + `marketplace.json` + kök `.mcp.json`: tek
+    `/plugin install` ile MCP sunucusu VE skill birlikte gelir — skill tek başına
+    yarımdır, çünkü riski hesaplayacak aracı içermez) + `.github/workflows/release.yml`
+    (6 RID, checksums.txt, etiketle tetiklenir). Binary 141 MB → **68 MB**
+    (`EnableCompressionInSingleFile`; trimming YAPILMADI — ADO.NET sağlayıcıları
+    reflection kullanıyor, trimming onları yalnızca belirli bir motora bağlanınca
+    patlayan hâle getirirdi). Boyutun asıl sebebi `Namines.Infrastructure`'ın tek parça
+    olması: MCP'nin hiç kullanmadığı QuestPDF (~12 MB), EF Core ve Kestrel de geliyor.
+    Kalıcı çözüm Infrastructure'ı bölmek — ayrı bir iş.
+  - ⚠️ **Bulunan hata (CLI duman testi bunun için yazıldı, ilk çalıştırmada yakaladı):**
+    `StableUuid` hem model varsayılanında hem `DbIntrospectionService`'te
+    `Guid.NewGuid()` idi. `SchemaImpactAnalyzer` tabloları bu alanla eşleştirip
+    eşleşmeyeni "kaldırıldı + eklendi" saydığından, **aynı veritabanını iki kez çekip
+    karşılaştırmak** — MCP/CLI'ın birincil akışı — hiçbir değişiklik yokken "tüm tablolar
+    silinecek, veri kaybı, Breaking" diyordu. Adı "stable" olan alanın her çağrıda
+    değişmesi zaten çelişkiydi; introspection'ın hafızası yok, canlı bir DB'de kimlik
+    zaten isimdir. `SchemaIdentity` (Core/Analysis) eklendi: isimden türetilen,
+    büyük/küçük harf duyarsız kimlik. Açıkça uuid veren kaynaklar (canvas) kendi
+    değerlerini korur, böylece **rename tespiti bozulmadı** (rename = aynı uuid, farklı ad).
+    Web canvas'ında görünmüyordu çünkü orada uuid'ler düzenlemeler boyunca yaşıyor.
+  - Doğrulama: `SchemaIdentityTests` (aynı şema → Safe/boş; gerçek kolon silme → hâlâ
+    Breaking + `email`; rename → `RenamedFrom` ve **veri kaybı yok**), `NaminesToolsTests`
+    Faz 2 ile genişletildi. Tam paket **438 test yeşil, 0 başarısız**. npm sarmalayıcısı
+    gerçek binary ile uçtan uca JSON-RPC üzerinden kanıtlandı: `initialize → namines-mcp`,
+    5 araç listelendi, `generate_ddl` gerçek DDL döndürdü, log'lar stderr'de kaldı.
+    CI'a CLI çıkış-kodu duman testi eklendi (yerelde çalıştırıldı, geçti).
+  - ⚠️ `.gitignore`'un genel `*.md` kuralı `skills/**/SKILL.md`'yi sessizce yutuyordu
+    (CLAUDE.md'nin uyardığı tuzak, ikinci kez). `!skills/**/*.md` istisnası eklendi,
+    `git add -n` ile doğrulandı.
+
+- [x] **G22 — Prisma eject (Faz B / [12](12-CODEGEN-EJECT.md))** ✅ TAMAMLANDI
+  - `PrismaGeneratorService` + `PrismaTypeMap` + `PrismaNaming` (Infrastructure/Generators).
+    Yüzeyler: `POST /api/compile/prisma` (önizleme + uyarılar), `/api/compile/prisma/zip`,
+    `namines prisma` (CLI), `namines_generate_prisma` (MCP), `/compile` sayfasında
+    **Prisma sekmesi**.
+  - **Sessiz kayıp koruması, bu işin ana tasarım kararı:** Prisma CHECK kısıtlarını,
+    kısmi index'leri ve INCLUDE'u ifade EDEMEZ. Bunları sessizce düşürmek, üretilen
+    şemayı veritabanından daha gevşek yapar — ve kullanıcı o dosyadan `prisma db push`
+    çalıştırırsa kısıt veritabanından DÜŞER. Bu yüzden üretici dosya değil,
+    **dosya + uyarı** döndürür; uyarılar `schema.prisma`'nın BAŞINA (sonuna değil,
+    görülmeden push edilmesin diye) yorum olarak da yazılır ve UI'da kod alanının
+    üstünde, daraltılamaz biçimde gösterilir.
+  - **Oracle reddedilir.** Prisma'nın Oracle provider'ı yok; sessizce `postgresql`
+    yazmak ayrıştırılabilir ama tamamen yanlış bir dosya üretir ve kullanıcı bunu
+    ancak canlıda fark ederdi. `NotSupportedException` → API 400, CLI exit 1.
+  - **Ad eşleme:** model/alan adları PascalCase/camelCase olur ama `@@map`/`@map` ile
+    gerçek adlar korunur — eşleme yazılmasaydı `prisma db push` tabloları yeniden
+    adlandırırdı. Model adı tekilleştirilMEZ (`users` → `Users`): "address" → "addres",
+    "status" → "statu" gibi düzensiz adlarda tahmin sessizce yanlış sonuç verir.
+  - **Referans eylemleri her zaman açık yazılır.** Prisma'nın varsayılanı NoAction
+    DEĞİL (zorunlu ilişkide `Restrict`, opsiyonelde `SetNull`); boş bırakmak
+    veritabanındakinden farklı davranış üretirdi.
+  - **Native tipler korunur** (`@db.VarChar(255)`): yalnızca `String` yazılsaydı
+    MySQL'de `varchar(191)`'e düşerdi — sessiz tip değişikliği + veri kırpma riski.
+    SQLite'ta native niteleyici şemayı geçersiz kıldığı için hiç yazılmaz.
+  - **Frontend'de üretici TEKRARLANMADI.** `EfCorePreview` kendi C# kodunu istemcide
+    üretiyor ve bedeli görünür: yalnızca ilk tabloyu gösteriyor, yani önizleme ile
+    indirilen ZIP aynı şey değil. `PrismaPreview` arka uçtan çeker; `warnings` zaten
+    yalnızca oradan gelebilir.
+  - ⚠️ **Gerçek `prisma validate` iki hata buldu** (metin iddiaları yakalayamamıştı):
+    (1) `map:` argümanı parantezin DIŞINA yazılıyordu → `@@unique([x]), map: "y"`
+    Prisma'da "not a valid field or attribute definition" hatası veriyordu;
+    (2) çoğullama `posts` → `postses` üretiyordu. G5'in dersinin tekrarı: makul
+    görünen çıktı, kabul edilen çıktı değildir.
+  - Doğrulama: `PrismaGeneratorTests` **21/21** — 4'ü `RequiresPrismaTheory` ile
+    GERÇEK `prisma validate`'e karşı (PostgreSQL/MySQL/MSSQL/SQLite), ayrıca belirsiz
+    ilişki ve bileşik PK senaryoları. Docker'daki `RequiresDockerFact` ile aynı desen:
+    Prisma CLI yoksa atlanır, kırmızı olmaz. Tam paket **459 test yeşil**.
+    CI duman testine `prisma` + Oracle-reddi eklendi (yerelde koştu, geçti).
+  - ⚠️ **Doğrulanamayan tek şey:** `/compile` sayfasındaki Prisma sekmesinin canlı
+    render'ı. Sayfa backend'e (SignalR odası) bağlı, backend Postgres kontrol DB'sine,
+    o da Docker'a — bu makinede Docker Desktop bozuk durumda (API 500). Tip kontrolü
+    temiz ve component mevcut `PanelKit` desenini izliyor, ama gözle görülmedi.
+
+- [x] **G23 — Gateway: filtreleme + yazma yolu (Faz B / [08](08-GATEWAY-API.md))** ✅ TAMAMLANDI
+  - Filtreleme (08 §2.1'in alt kümesi): `eq/neq/gt/gte/lt/lte/like/in/is-null/is-not-null`,
+    ASC/DESC sıralama. **Operatör bir enum**, serbest metin değil — SQL'e yazılan
+    karşılaştırma parçası da kullanıcı girdisi olmasın diye. Değerler her zaman parametreli.
+    COUNT da AYNI filtrelerle çalışır; aksi hâlde sayfalama çubuğu filtrelenmiş listeyle
+    çelişen bir toplam gösterirdi.
+  - Yazma: `POST /api/gateway/create|update|delete`. **Üç maddelik güvenlik sözleşmesi:**
+    (1) koşulsuz UPDATE/DELETE üretmenin yolu YOK — imza pk kolon/değerini zorunlu
+    kılıyor, tek bir hata tüm tabloyu silemesin diye; (2) her yazma işlem içinde çalışır
+    ve etkilenen satır sayısı doğrulanır, **1'den fazlaysa GERİ ALINIR** ("birincil
+    anahtar" denen kolon gerçekte benzersiz değilse tek istek onlarca satırı ezerdi —
+    bunu fark etmenin tek anı işlem hâlâ açıkken); (3) kolon adları katı doğrulamadan
+    geçer. 0 satır hata değil, "kayıt yok" → 404.
+  - `INSERT ... RETURNING` yalnızca PostgreSQL/SQLite'ta. SQL Server'ın
+    `OUTPUT INSERTED.*`'ı **bilinçli kullanılmadı**: hedef tabloda trigger varsa Msg 334
+    ile patlar, yani yazma tamamen çalışmaz hâle gelirdi. Satırı geri okuyamamak,
+    yazmayı kırmaktan iyidir.
+  - ⚠️ **ÖNCEDEN VAR OLAN HATA bulundu (gerçek Postgres testi yazınca):**
+    `42883: operator does not exist: integer = text`. Gateway'in değerleri HTTP'den
+    string geliyor; Npgsql bunları `text` bildirince Postgres — diğer motorların
+    aksine — örtük dönüşüm yapmıyor ve sorguyu reddediyor. Bu yalnızca yeni yazma
+    yolunu değil, **mevcut `DetailAsync`'i de** vuruyordu: tamsayı birincil anahtarlı
+    bir tabloda gateway detay ucu hiç çalışmıyormuş. Testler yalnızca üretilen SQL
+    METNİNİ doğruladığı için görünmemişti. Çözüm `::text` cast'i değil (index'i
+    kullanılamaz hâle getirip her sorguyu tam taramaya çevirirdi) — parametre
+    "tipsiz" bildiriliyor, Postgres değeri kolonun tipine göre çözüyor.
+  - Doğrulama: `GatewayWriteTests` 28/28 (SQL metni) + `GatewayWriteExecutionTests`
+    **12/12 GERÇEK PostgreSQL'e karşı** — iki geri-alma testi dahil: yinelenen
+    anahtarlı bir tabloda UPDATE/DELETE denenince hiçbir satırın değişmediği fiilen
+    doğrulanıyor. Ayrıca SQL taşıyan bir filtre değerinin veri olarak işlendiği ve
+    tablonun hâlâ durduğu.
+  - **Kapsam dışı, bilinçli:** GraphQL, API anahtarı/RBAC modeli (08 §4), OpenAPI
+    üretimi, `expand` ile ilişki gömme, export/import, `/rpc`, `/query/nl`. Uçlar
+    bugünkü güven modelini koruyor: `[Authorize]` + rate-limit, çağıran zaten bağlantı
+    dizesine sahip. **Yazma için UI eklenmedi** — kullanıcının canlı veritabanına
+    tarayıcıdan yazmak, henüz olmayan bir onay/geri-alma akışı ister; buton koymak
+    korumaları kâğıt üstünde bırakırdı.
+
+- [x] **G24 — Branch veritabanı sağlama (Faz B / [06](06-DATA-PLANE.md) §4)** ✅ TAMAMLANDI
+  - `BranchDatabaseProvisioner` — branch başına GERÇEK, bağlanılabilir bir veritabanı.
+    `POST/GET/DELETE /api/branch/{id}/database`. PostgreSQL, MySQL, SQL Server.
+  - **`docker.sock` mount EDİLMİYOR** (CLAUDE.md kesin kuralı, 30 §5): servis host
+    sürecinde çalışıp Docker API'sine oradan konuşuyor — `BranchTestRunnerService`
+    ile aynı model.
+  - Test koşucusundan farkı ömür, ve bu üç yeni sorumluluk getiriyor:
+    (1) **Erişilebilirlik** — port yayımlanıyor ama YALNIZCA `127.0.0.1`'e; `0.0.0.0`
+    bilinen kullanıcı adıyla çalışan bir veritabanını makinenin her ağına açardı.
+    (2) **Kimlik** — test koşucusunun sabit parolası burada kabul edilemez, her branch
+    kendi rastgele parolasını alıyor (yayımlanmış portla birleşince sabit parola gerçek
+    bir açıklık). (3) **Ömür** — 8 saatlik TTL container ETİKETİNDE taşınıyor, böylece
+    süpürme sunucu yeniden başlasa bile çalışıyor; durum bellekte olsaydı restart
+    sonrası container'lar sahipsiz kalır, bulunamaz ama çalışmaya devam ederdi.
+    `DockerSweeperBackgroundService` süresi dolanları temizliyor.
+  - ⚠️ **Bulunan kararsızlık:** ilk sürüm `pg_isready` ile hazırlık kontrol ediyordu ve
+    test bazen "şema uygulanamadı" ile düşüyordu. Sebep MySQL'de bir kez öğrenilen
+    tuzağın aynısı: Postgres imajı önce yalnızca unix soketinde dinleyen GEÇİCİ bir
+    sunucu başlatıyor, `pg_isready` ona "hazır" diyor, hemen ardından gerçek sunucu
+    için yeniden başlıyor. Hazırlık kontrolü **host'tan gerçek bağlantıya** çevrildi —
+    geçici sunucular TCP'de dinlemediği için bu sınıfın tamamını çözüyor, üstelik doğru
+    soruyu soruyor: "kullanıcıya vereceğimiz bağlantı dizesi şu an çalışıyor mu?"
+  - Doğrulama: `BranchDatabaseProvisionerTests` **15/15 gerçek Docker'a karşı** —
+    sağlanan veritabanına host'tan bağlanılıyor, şemanın uygulandığı `SELECT`/`INSERT`
+    ile kanıtlanıyor, aynı branch için ikinci çağrının yeni container açmadığı ve
+    **yeni bir provisioner örneğinin durumu bulup gerçekten bağlanabildiği** (restart
+    dayanıklılığı) doğrulanıyor. Testcontainers/Docker.DotNet DLL çakışması nedeniyle
+    `Namines.Tests.RunTests` projesinde (ilk yazıldığı yerde TypeLoadException verdi —
+    G12 notundaki çakışmanın tam kendisi).
+  - `DockerTarFile` — `BranchTestRunnerService` ile paylaşılan tek kopya tar yardımcısı.
+  - **Kapsam dışı, bilinçli:** 06'nın geri kalanı dış altyapı istiyor ve bu oturumda
+    yapılmadı: Managed DB / Neon copy-on-write branch'leri (§3), MinIO/S3'e yedek (§9),
+    Namines Bridge on-prem tünel agent'ı (§6), PII maskeleme (§4), plan bazlı kotalar
+    (§10), Vault ile kimlik saklama (§5). Buradaki sağlayıcı **yerel geliştirme
+    veritabanı** üretir — prod verisi için değildir.
 
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar
 
-- [ ] `launchSettings.json` `applicationUrl`'i 5117; `Program.cs` 5000 diyor. Tek bir port belirle (5000 öneriliyor) — README ve docker-compose 5000 varsayıyor.
-- [ ] `DatabaseExecutorController.cs:33,50` — CS8625 nullable uyarısı (2 adet). Küçük ama `TreatWarningsAsErrors` açmadan önce temizlenmeli.
+- [x] `launchSettings.json` port çelişkisi — **zaten çözülmüştü** (`dfdfc49`, bu G14
+      oturumundan önceki bir commit). Checklist'in kendisi güncel değildi, madde yanlış
+      alarm; `applicationUrl` her iki profilde de `5000`, README/docker-compose'la tutarlı.
+- [x] `DatabaseExecutorController.cs:33,50` — CS8625 nullable uyarısı düzeltildi.
+      `ExecutorRequest.ConnectionString` `string` → `string?` (handler'lar kullanım
+      sonrası bilerek `null`'a çekiyor, GC/güvenlik amaçlı — artık tip bunu doğru ifade
+      ediyor). Build: 0 uyarı, 0 hata.
+- [x] `DockerBackupService.cs` — `sqlcmd` çağrılarının 4'ünde de eksik olan `-b` bayrağı
+      eklendi (G12'de `BranchTestRunnerService`'te bulunan aynı hata: `-b` olmadan
+      `sqlcmd -i script.sql` T-SQL hatalarında sessizce exit 0 dönüyordu — Docker Sandbox
+      özelliği hatalı DDL'i "başarılı" sayabiliyordu). Ayrıca aynı oturumda bulunan ikinci
+      bir hata da düzeltildi: `mysqladmin ping`, MySQL 8'in iki-aşamalı başlangıcındaki
+      geçici sunucuya karşı erken "hazır" diyordu — health check gerçek kimlik doğrulamalı
+      bir `SELECT 1` sorgusuna çevrildi. Namines.Infrastructure build: 0 uyarı, 0 hata.
 
 ---
 

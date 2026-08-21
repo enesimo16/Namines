@@ -16,6 +16,9 @@
 3. **[new-phase/CHECKLIST.md](new-phase/CHECKLIST.md)** — bugüne kadar yapılan
    her işin doğrulama kanıtıyla birlikte listesi. **"G" = görev grubu, gün değil.**
    Yeni bir işe başlamadan önce buraya bak, hangi G'de kaldığımızı gör.
+4. **[FRONTEND.md](FRONTEND.md)** — `frontend/` altında görsel/UX işi yapıyorsan
+   ÖNCE bu dosyayı oku. Sabit renk paleti, tipografi, `ui-ux-pro-max` skill
+   kullanım zorunluluğu ve kütüphane kuralları burada.
 
 ---
 
@@ -25,12 +28,22 @@ Faz 0 (G0-G7) tamamlandı: güvenlik sertleştirmesi, test altyapısı (golden-f
 Testcontainers), `ON DELETE CASCADE` hatası düzeltildi, index/unique/check desteği
 eklendi, SignalR Redis backplane + kimlik sertleştirmesi, **control DB SQLite'tan
 PostgreSQL'e tam geçiş** (gerçek Postgres'e karşı doğrulandı, health check yeşil).
-**320+ test yeşil.**
+G8-G17 de tamamlandı: `SchemaImpactAnalyzer`, migration risk sınıflandırması, sunucu-taraflı
+branch modeli, Database Change Review UI (`/review`), "Run Tests" (gerçek ephemeral
+container'a karşı DDL doğrulama — Testcontainers değil, ham `Docker.DotNet`, bkz. CHECKLIST
+G12 notu), "Affected Code" statik etki taraması, Minimal Gateway (kullanıcının canlı
+DB'sine karşı salt-okunur liste+detay REST — `DbIntrospectController` ile aynı SSRF/
+no-persistence güvenlik modeli), AI Impact Explainer (`ImpactReport`'u insan diline
+çeviren, kendi bulgu üretmeyen bir ajan), Safe risk otomatik onayı + ChangeRequest
+audit log'u (proje-bazlı opt-in, `ChangeRequestAuditLog`), ve CanvasHub'ın `roomId`'sinin
+sunucu-otoriteli branch_id'ye bağlanması (kimliği doğrulanmış + aktif projesi olan
+kullanıcılar artık rastgele oda yerine gerçek branch'lerinde buluşuyor, guest akışı
+korunuyor). **434+ test yeşil** (+ ayrı `Namines.Tests.RunTests/` projesinde 6
+gerçek-Docker testi).
 
-Sıradaki iş G8'den başlıyor: Impact Analysis Engine ([28](new-phase/28-IMPACT-ANALYSIS-ENGINE.md))
-+ Database Change Review ([29](new-phase/29-DATABASE-CHANGE-REVIEW.md)) + Server-Side
-Branching ([30](new-phase/30-SERVER-SIDE-BRANCHING.md)) — tam sıra [27 §4](new-phase/27-LIFECYCLE-PIVOT.md)'te.
-Server-side branch tabloları artık PostgreSQL'de yaşayabilir (G7'nin ön koşulu buydu).
+**G0-G17 ana yol haritası (Faz 0 + Lifecycle Pivot'un ilk 10 görevi) tamamlandı.**
+Sıradaki adımlar için [27 §4](new-phase/27-LIFECYCLE-PIVOT.md) ve CHECKLIST.md'nin
+"G-ekstra" / "Kod dışı işler" bölümlerine bak.
 
 ---
 

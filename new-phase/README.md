@@ -116,6 +116,7 @@ Faz 1'de yazılmış her özellik Faz 2'de bir katmana **terfi ediyor**:
 | 30 | [30-SERVER-SIDE-BRANCHING.md](30-SERVER-SIDE-BRANCHING.md) | Cihaz-bazlı branch'ten sunucu-otoriteli modele geçiş |
 | 31 | [31-NEW-BUSINESS-LINES.md](31-NEW-BUSINESS-LINES.md) | 5 yeni iş fikri, ticari değerlendirme + öncelik sırası |
 | 32 | [32-DEFERRED-NOT-REJECTED.md](32-DEFERRED-NOT-REJECTED.md) | "Kesinlikle yapmayacaklar" — neden şimdi değil, ne zaman evet |
+| 33 | [33-MCP-AND-SKILL.md](33-MCP-AND-SKILL.md) | MCP sunucusu + Claude Skill — geliştirme döngüsüne girmek (R4'ün uygulaması) |
 
 ---
 

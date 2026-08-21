@@ -140,5 +140,8 @@ docker-compose.local.yml
 !README.tr.md
 !frontend/README.md
 !CLAUDE.md
+!FRONTEND.md
 !new-phase/*.md
+# Claude Skill tanimi koddur, dokuman degil - genel *.md kurali bunu sessizce yutuyordu.
+!skills/**/*.md
 telemetry.config.json
