@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -51,7 +52,7 @@ public class MigrationService : IMigrationService
         return string.Equals(oldCol.Name, newCol.Name, StringComparison.OrdinalIgnoreCase);
     }
 
-    public Task<SchemaDiffResult> CalculateDiffAsync(DatabaseSchema oldSchema, DatabaseSchema newSchema)
+    public Task<SchemaDiffResult> CalculateDiffAsync(DatabaseSchema oldSchema, DatabaseSchema newSchema, DatabaseType engine = DatabaseType.PostgreSQL)
     {
         var result = new SchemaDiffResult();
 
@@ -92,7 +93,6 @@ public class MigrationService : IMigrationService
             if (!newTables.Any(n => AreTablesMatching(oldTable, n)))
             {
                 result.RemovedTables.Add(oldTable.Name);
-                result.HasBreakingChanges = true; // Table deletion is breaking
             }
         }
 
@@ -127,12 +127,6 @@ public class MigrationService : IMigrationService
                 {
                     tableDiff.AddedColumns.Add(newCol.Name);
                     tableModified = true;
-
-                    // Adding a non-nullable column without a default value is a breaking change!
-                    if (!newCol.IsNullable && string.IsNullOrEmpty(newCol.DefaultValue))
-                    {
-                        result.HasBreakingChanges = true;
-                    }
                 }
             }
 
@@ -143,7 +137,6 @@ public class MigrationService : IMigrationService
                 {
                     tableDiff.RemovedColumns.Add(oldCol.Name);
                     tableModified = true;
-                    result.HasBreakingChanges = true; // Column deletion is breaking
                 }
             }
 
@@ -163,12 +156,6 @@ public class MigrationService : IMigrationService
                 {
                     tableDiff.ModifiedColumns.Add(newCol.Name);
                     tableModified = true;
-
-                    // Breaking change conditions for modified columns
-                    if (isTypeChanged || isPkChanged || (oldCol.IsNullable && !newCol.IsNullable))
-                    {
-                        result.HasBreakingChanges = true;
-                    }
                 }
             }
 
@@ -195,9 +182,19 @@ public class MigrationService : IMigrationService
             if (!newRelations.Any(n => AreRelationsMatching(oldRel, oldSchema, n, newSchema)))
             {
                 result.RemovedRelations.Add(oldRel);
-                result.HasBreakingChanges = true; // Removing foreign keys is a breaking change
             }
         }
+
+        // ── Risk sınıflandırması — SchemaImpactAnalyzer tek doğruluk kaynağı ────
+        // Daha önce burada dağınık `HasBreakingChanges = true` atamaları vardı (tablo
+        // silindi mi, kolon silindi mi, tip değişti mi...) — her biri ayrı ayrı, birbirini
+        // görmeden karar veriyordu. G9: bunun yerine SchemaImpactAnalyzer'ın deterministik,
+        // StableUuid-farkındalı, motora özgü (Msg 1785 vb.) analizi kullanılıyor —
+        // bkz. new-phase/11-MIGRATIONS-BRANCHING.md §2 risk tablosu.
+        var impact = SchemaImpactAnalyzer.Analyze(oldSchema, newSchema, engine);
+        result.Impact = impact;
+        result.OverallRisk = impact.OverallRisk;
+        result.HasBreakingChanges = impact.BreakingChanges.Count > 0;
 
         return Task.FromResult(result);
     }

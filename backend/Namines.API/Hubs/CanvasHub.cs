@@ -12,6 +12,13 @@ namespace Namines.API.Hubs;
 // kullanıcılar da /canvas sayfasında gerçek zamanlı işbirliği yapabilmeli. Bu yüzden
 // hub'a bağlanmak JWT ZORUNLU DEĞİL.
 //
+// G17 — new-phase/30-SERVER-SIDE-BRANCHING.md §3 Adım 2: kimliği doğrulanmış bir
+// kullanıcının aktif bir projesi varsa, frontend artık roomId olarak rastgele bir
+// string yerine BranchController.GetOrCreateDefaultBranch'ten dönen gerçek branch
+// ID'sini kullanıyor (bkz. frontend hooks/useMultiplayer.ts). Bu sınıf DEĞİŞMEDİ —
+// hub, roomId'nin rastgele mi yoksa bir branch ID'si mi olduğunu bilmiyor/bilmesi
+// gerekmiyor (IPresenceStore aynı kalır, doc'un öngördüğü tam olarak bu).
+//
 // Ama kimliği doğrulanmış (giriş yapmış) bir kullanıcı bağlanıyorsa, sunum adı için
 // istemcinin gönderdiği serbest metin yerine JWT claim'inden gelen gerçek adı
 // kullanıyoruz — böylece giriş yapmış bir kullanıcının kimliğine bürünmek (başka

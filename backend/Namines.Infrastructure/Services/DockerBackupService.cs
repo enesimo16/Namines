@@ -90,8 +90,12 @@ public class DockerBackupService : IDockerService, IDisposable
             string[] checkCmd = dbType switch
             {
                 DatabaseType.PostgreSQL => new[] { "pg_isready", "-U", "postgres" },
-                DatabaseType.MySQL => new[] { "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pNamines_Secure123!" },
-                DatabaseType.MSSQL => new[] { "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C", "-Q", "SELECT 1" },
+                // mysqladmin ping, MySQL 8'in iki-aşamalı başlangıcındaki (init server -> restart ->
+                // gerçek server) GEÇİCİ sunucuya karşı da "0" dönebiliyor — gerçek kimlik doğrulamalı
+                // bir sorgu asıl sunucunun hazır olduğunu kanıtlar (bkz. BranchTestRunnerService.cs'te
+                // G12 sırasında ampirik olarak doğrulanan aynı hata).
+                DatabaseType.MySQL => new[] { "sh", "-c", "mysql -u root -p\"Namines_Secure123!\" -e 'SELECT 1;'" },
+                DatabaseType.MSSQL => new[] { "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C", "-b", "-Q", "SELECT 1" },
                 _ => new[] { "echo", "ready" }
             };
 
@@ -137,7 +141,7 @@ public class DockerBackupService : IDockerService, IDisposable
                 // Create database 'naminesdb' first if not exists
                 var createDbCmd = new[]
                 {
-                    "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C",
+                    "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C", "-b",
                     "-Q", "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'naminesdb') CREATE DATABASE naminesdb;"
                 };
                 var (dbExit, dbOut) = await ExecuteCommandAsync(containerId, createDbCmd);
@@ -149,7 +153,7 @@ public class DockerBackupService : IDockerService, IDisposable
                 // Execute the schema script inside naminesdb
                 var execSchemaCmd = new[]
                 {
-                    "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C",
+                    "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C", "-b",
                     "-d", "naminesdb", "-i", "/tmp/schema.sql"
                 };
                 var (schemaExit, schemaOut) = await ExecuteCommandAsync(containerId, execSchemaCmd);
@@ -195,7 +199,7 @@ public class DockerBackupService : IDockerService, IDisposable
                 containerBackupPath = "/var/opt/mssql/data/naminesdb.bak";
                 backupCmd = new[]
                 {
-                    "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C",
+                    "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C", "-b",
                     "-Q", $"BACKUP DATABASE naminesdb TO DISK = '{containerBackupPath}' WITH FORMAT, INIT;"
                 };
             }

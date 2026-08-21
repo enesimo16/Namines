@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
+using Namines.Core.Analysis;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Security;
@@ -25,10 +26,12 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ILogger<DbIntrospectionService> _logger;
+    private readonly IDbHostAccessPolicy _hostPolicy;
 
-    public DbIntrospectionService(ILogger<DbIntrospectionService> logger)
+    public DbIntrospectionService(ILogger<DbIntrospectionService> logger, IDbHostAccessPolicy hostPolicy)
     {
         _logger = logger;
+        _hostPolicy = hostPolicy;
     }
 
     public async Task<DatabaseSchema> IntrospectAsync(
@@ -40,8 +43,8 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         ArgumentException.ThrowIfNullOrWhiteSpace(dbType);
 
         var host = ExtractHost(connectionString, dbType);
-        if (string.IsNullOrWhiteSpace(host) || !SsrfGuard.IsHostSafe(host))
-            throw new InvalidOperationException($"Connection target '{host}' is not allowed (private/reserved address).");
+        if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
+            throw new InvalidOperationException(denyReason);
 
         return dbType.ToUpperInvariant() switch
         {
@@ -55,8 +58,10 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     }
 
     // ── SSRF: host extraction ─────────────────────────────────────────────────
+    // internal: GatewayService de SSRF guard'ından önce aynı host-çıkarma mantığına
+    // ihtiyaç duyuyor — kopyalamak yerine burayı paylaşıyor, tek bir yerde düzeltilsin.
 
-    private static string ExtractHost(string cs, string dbType)
+    internal static string ExtractHost(string cs, string dbType)
     {
         // Anahtar-değer çiftlerinden host/server/data source değerini çıkar.
         // Her sağlayıcının farklı anahtar isimleri olduğu için regex ile eşleştir.
@@ -276,7 +281,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 {
                     Id         = Guid.NewGuid().ToString(),
                     Name       = tableName,
-                    StableUuid = Guid.NewGuid().ToString(),
+                    StableUuid = SchemaIdentity.ForTable(tableName),
                 };
                 tables[tableName] = table;
             }
@@ -285,7 +290,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             {
                 Id         = Guid.NewGuid().ToString(),
                 Name       = columnName,
-                StableUuid = Guid.NewGuid().ToString(),
+                StableUuid = SchemaIdentity.ForColumn(tableName, columnName),
                 Type       = NormalizeType(dataType),
                 Length     = maxLen,
                 IsPK       = columnKey == "PRI",

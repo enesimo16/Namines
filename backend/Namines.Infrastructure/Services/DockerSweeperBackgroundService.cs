@@ -24,16 +24,19 @@ public class DockerSweeperBackgroundService : BackgroundService
 
     private readonly ILogger<DockerSweeperBackgroundService> _logger;
     private readonly ISandboxJobRegistry _jobRegistry;
+    private readonly IBranchDatabaseProvisioner _branchDatabases;
     private readonly DockerClient _client;
     private readonly bool _enabled;
 
     public DockerSweeperBackgroundService(
         ILogger<DockerSweeperBackgroundService> logger,
         ISandboxJobRegistry jobRegistry,
+        IBranchDatabaseProvisioner branchDatabases,
         IConfiguration configuration)
     {
         _logger = logger;
         _jobRegistry = jobRegistry;
+        _branchDatabases = branchDatabases;
 
         // Sandbox özelliği artık host'un docker socket'ine bağlı DEĞİL — compose'da
         // socket mount'u kaldırıldı (host'ta root eşdeğeri yetki veriyordu).
@@ -73,6 +76,15 @@ public class DockerSweeperBackgroundService : BackgroundService
             try
             {
                 await SweepZombieContainersAsync(stoppingToken);
+
+                // Branch veritabanları (06 §4) ayrı bir ömür kuralına tabi: zombi
+                // yaşına değil, container etiketindeki son kullanma zamanına bakılır.
+                // Süpürülmezlerse birikip host'u doldururlar — kimse açtığı her
+                // branch'i kapatmayı hatırlamaz.
+                var expired = await _branchDatabases.SweepExpiredAsync(stoppingToken);
+                if (expired > 0)
+                    _logger.LogInformation("{Count} süresi dolmuş branch veritabanı temizlendi.", expired);
+
                 consecutiveFailures = 0;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

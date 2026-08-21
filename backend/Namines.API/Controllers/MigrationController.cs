@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 
@@ -56,7 +57,8 @@ public class MigrationController : ControllerBase
 
         try
         {
-            var diffResult = await _migrationService.CalculateDiffAsync(request.OldSchema, request.NewSchema);
+            var engine = request.DbType ?? DatabaseType.PostgreSQL;
+            var diffResult = await _migrationService.CalculateDiffAsync(request.OldSchema, request.NewSchema, engine);
             return Ok(diffResult);
         }
         catch (Exception ex)

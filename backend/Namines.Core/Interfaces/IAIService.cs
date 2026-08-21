@@ -32,4 +32,12 @@ public interface IAIService
     /// Elle çizilmiş veritabanı şeması görselini analiz eder ve DatabaseSchema şemasına dönüştürür.
     /// </summary>
     Task<DatabaseSchema> AnalyzeImageAsync(byte[] imageBytes, string mimeType);
+
+    /// <summary>
+    /// G15 — AI Impact Explainer (new-phase/28-IMPACT-ANALYSIS-ENGINE.md §1).
+    /// SchemaImpactAnalyzer'ın ürettiği deterministik <see cref="ImpactReport"/>'u
+    /// insan diline çevirir. AI kendi başına YENİ bir bulgu üretmez — sadece verilen
+    /// yapıyı özetler/açıklar (doc'un kuralı: "motor kanıtladı, AI özetledi").
+    /// </summary>
+    Task<string> ExplainImpactAsync(ImpactReport impact);
 }

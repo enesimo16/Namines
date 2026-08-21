@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <!--
+    G12 — BranchTestRunnerService (Docker.DotNet ile ham container yönetimi) buradan test
+    edilir. AYRI bir proje: Namines.Tests, Testcontainers.* paketlerine bağımlı, ve o paket
+    ailesi kendi "Docker.DotNet.Enhanced" forkunu getiriyor — gerçek Docker.DotNet ile aynı
+    derlenmiş dosya adını (Docker.DotNet.dll) paylaşıyor. İkisi AYNI test process'inde bir
+    arada olunca .NET runtime hangi DLL'i yükleyeceğine karar veremiyor ve
+    TypeLoadException atıyor (bkz. BranchTestRunnerService.cs sınıf yorumu — derleme
+    zamanında da aynı çakışma Namines.Infrastructure'da görülmüştü).
+
+    Çözüm: bu iki test kümesini FİZİKSEL OLARAK ayrı process'lerde çalıştırmak — ayrı bir
+    .csproj, ayrı bir test binary'si. SchemaFixtures'ı Namines.Tests'ten miras almak o
+    projeye referans vermek anlamına gelir (Testcontainers'ı da beraberinde getirir), bu
+    yüzden bilinçli olarak küçük, bağımsız yardımcı şemalar bu dosyada yeniden tanımlanır.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+    <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

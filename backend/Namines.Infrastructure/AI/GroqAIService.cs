@@ -731,6 +731,44 @@ public class GroqAIService : IAIService
         return summary.Trim();
     }
 
+    public async Task<string> ExplainImpactAsync(ImpactReport impact)
+    {
+        var (systemPrompt, userPrompt) = ImpactExplainerPromptBuilder.Build(impact);
+
+        var payload = new
+        {
+            model = await ResolveModelNameAsync(null, "Documentation"),
+            messages = new[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user",   content = userPrompt }
+            },
+            temperature = 0.3, // düşük — bulgu icat etmesin, verilen yapıyı sadakatle özetlesin
+            max_tokens = 1024
+        };
+
+        using var response = await PostAsync("chat/completions", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            if (errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+                throw new Exception($"Groq rate limit exceeded. Retry after {GetRetryAfterSeconds(response, errorContent)} seconds.");
+            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+        }
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        var responseObject = JsonSerializer.Deserialize<JsonElement>(responseString);
+        var explanation = responseObject.GetProperty("choices")[0]
+                                        .GetProperty("message")
+                                        .GetProperty("content")
+                                        .GetString();
+
+        if (string.IsNullOrWhiteSpace(explanation))
+            throw new Exception("Received empty impact explanation from Groq AI.");
+
+        return explanation.Trim();
+    }
+
     public async Task<string> GenerateStreamlitAppAsync(DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType)
     {
         var systemPrompt = StreamlitPromptBuilder.BuildSystemPrompt();

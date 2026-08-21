@@ -58,7 +58,8 @@ public class DatabaseExecutorController : ControllerBase
 
 public class ExecutorRequest
 {
-    public string ConnectionString { get; set; } = string.Empty;
+    // Nullable: handler'lar kullanım sonrası bunu bilerek null'a çekiyor (GC/güvenlik amaçlı).
+    public string? ConnectionString { get; set; } = string.Empty;
     public string Script { get; set; } = string.Empty;
     public DatabaseType DbType { get; set; }
 }

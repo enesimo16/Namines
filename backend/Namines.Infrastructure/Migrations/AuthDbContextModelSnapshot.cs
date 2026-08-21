@@ -244,10 +244,199 @@ namespace Namines.Infrastructure.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.Branch", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ForkedFromVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParentBranchId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ParentBranchId");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique()
+                        .HasFilter("\"IsDefault\" = true");
+
+                    b.HasIndex("ProjectId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Branches");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequest", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BaseVersionId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("HeadVersionId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImpactReportJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RiskLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("TestRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("TestRunDurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TestRunFailedStatement")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TestRunMessage")
+                        .HasColumnType("text");
+
+                    b.Property<bool?>("TestRunSuccess")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("TestRunSupported")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BaseVersionId");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("HeadVersionId");
+
+                    b.HasIndex("ProjectId", "CreatedAt");
+
+                    b.ToTable("ChangeRequests");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequestApproval", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ChangeRequestId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Comment")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Decision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ChangeRequestId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("ChangeRequestApprovals");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequestAuditLog", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ActorUserId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ChangeRequestId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("ChangeRequestId", "CreatedAt");
+
+                    b.ToTable("ChangeRequestAuditLogs");
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.CloudProject", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
+
+                    b.Property<bool>("AutoApproveSafeChanges")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -262,6 +451,9 @@ namespace Namines.Infrastructure.Migrations
 
                     b.Property<string>("NodePositionsJson")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OrganizationId")
                         .HasColumnType("text");
 
                     b.Property<string>("SchemaJson")
@@ -279,6 +471,8 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
 
                     b.HasIndex("UserId");
 
@@ -305,6 +499,101 @@ namespace Namines.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("GlobalAiUsages");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.Organization", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsPersonal")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.ToTable("Organizations");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.OrganizationMember", b =>
+                {
+                    b.Property<string>("OrganizationId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.HasKey("OrganizationId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("OrganizationMembers");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.SchemaVersion", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AuthorUserId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BranchId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Checksum")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SchemaJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<short>("TableCount")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("BranchId", "Version")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "CreatedAt");
+
+                    b.ToTable("SchemaVersions");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.UserAIPolicy", b =>
@@ -444,15 +733,183 @@ namespace Namines.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.Branch", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.Branch", "ParentBranch")
+                        .WithMany()
+                        .HasForeignKey("ParentBranchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("ParentBranch");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequest", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.SchemaVersion", "BaseVersion")
+                        .WithMany()
+                        .HasForeignKey("BaseVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Namines.Core.Models.Auth.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.SchemaVersion", "HeadVersion")
+                        .WithMany()
+                        .HasForeignKey("HeadVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BaseVersion");
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("HeadVersion");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequestApproval", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ChangeRequest", "ChangeRequest")
+                        .WithMany("Approvals")
+                        .HasForeignKey("ChangeRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ChangeRequest");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequestAuditLog", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Namines.Core.Models.Auth.ChangeRequest", "ChangeRequest")
+                        .WithMany()
+                        .HasForeignKey("ChangeRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("ChangeRequest");
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.CloudProject", b =>
                 {
+                    b.HasOne("Namines.Core.Models.Auth.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Organization");
+
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.Organization", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.OrganizationMember", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.Organization", "Organization")
+                        .WithMany("Members")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.SchemaVersion", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.UserAIPolicy", b =>
@@ -475,6 +932,16 @@ namespace Namines.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequest", b =>
+                {
+                    b.Navigation("Approvals");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.Organization", b =>
+                {
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

@@ -6,6 +6,7 @@ using Namines.Infrastructure;
 using Namines.Infrastructure.AI;
 using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Infrastructure.Generators.EfCoreGenerator;
+using Namines.Infrastructure.Generators.PrismaGenerator;
 using Namines.Infrastructure.Generators.DocumentationGenerator;
 using Namines.Infrastructure.Realtime;
 using Namines.Infrastructure.Services;
@@ -45,6 +46,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILinterService, LinterService>();
         services.AddScoped<IDdlGeneratorFactory, DdlGeneratorFactory>();
         services.AddScoped<IEfCoreGenerator, EfCoreGeneratorService>();
+        services.AddScoped<IPrismaGenerator, PrismaGeneratorService>();
+        // Singleton: tek bir DockerClient tutar ve durumu container etiketlerinde
+        // yaşar, bellekte değil — süreç yeniden başlasa bile branch veritabanları
+        // bulunabilir kalır.
+        services.AddSingleton<IBranchDatabaseProvisioner, BranchDatabaseProvisioner>();
         services.AddScoped<IDocumentationGenerator, DocumentationGeneratorService>();
         
         services.AddSingleton<DockerJobManager>();
@@ -63,6 +69,10 @@ public static class ServiceCollectionExtensions
 
         // AI Migration Engine (Zaman Makinesi) registration
         services.AddScoped<IMigrationService, MigrationService>();
+        services.AddScoped<IBranchTestRunner, BranchTestRunnerService>();
+        services.AddScoped<IGatewayService, GatewayService>();
+        // SSRF politikası — üretimde daima sıkı; yalnızca Development + açık bayrakla gevşer.
+        services.AddSingleton<Namines.Core.Security.IDbHostAccessPolicy, Namines.Infrastructure.Security.DbHostAccessPolicy>();
 
         // Arka Plan Docker Sweeper (Sunucu Kilitlenmesi Önleyici)
         services.AddHostedService<DockerSweeperBackgroundService>();

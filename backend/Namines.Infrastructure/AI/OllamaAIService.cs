@@ -246,6 +246,41 @@ public class OllamaAIService : IAIService
         return summary.Trim();
     }
 
+    public async Task<string> ExplainImpactAsync(ImpactReport impact)
+    {
+        var (systemPrompt, userPrompt) = ImpactExplainerPromptBuilder.Build(impact);
+
+        var payload = new
+        {
+            model = "qwen2.5-coder",
+            messages = new[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user",   content = userPrompt }
+            },
+            stream = false,
+            options = new { temperature = 0.3 }
+        };
+
+        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        using var response = await _httpClient.PostAsync("chat", content);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Ollama API Error ({response.StatusCode}): {errorContent}");
+        }
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        var responseObject = JsonSerializer.Deserialize<JsonElement>(responseString);
+        var explanation = responseObject.GetProperty("message").GetProperty("content").GetString();
+
+        if (string.IsNullOrWhiteSpace(explanation))
+            throw new Exception("Received empty impact explanation from Ollama.");
+
+        return explanation.Trim();
+    }
+
     public async Task<string> GenerateStreamlitAppAsync(DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType)
     {
         var systemPrompt = StreamlitPromptBuilder.BuildSystemPrompt();

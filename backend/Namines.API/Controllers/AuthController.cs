@@ -249,7 +249,8 @@ namespace Namines.API.Controllers
                     p.SchemaJson,
                     p.NodePositionsJson,
                     p.CreatedAt,
-                    p.UpdatedAt
+                    p.UpdatedAt,
+                    p.AutoApproveSafeChanges
                 })
                 .ToListAsync();
 
