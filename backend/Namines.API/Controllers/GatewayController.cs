@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Namines.Infrastructure.Data;
+using Namines.Infrastructure.Observability;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -148,12 +149,17 @@ public class GatewayController : ControllerBase
         if (!await _context.IsTableAllowedAsync(key, tableName, forWrite, ct))
             // 403 ve 404 arasında bilinçli tercih: anahtar geçerli, tablo yok demek
             // hangi tabloların var olduğunu sızdırırdı; erişim reddi doğru mesaj.
+        {
+            // Reddedilenler hatadan AYRI sayılıyor: birleştirilseydi, izin
+            // yapılandırması eksik olan bir kurulum "sistem bozuk" gibi görünürdü.
+            NaminesMetrics.GatewayRequest(forWrite ? "write" : "read", "denied");
             return (false, StatusCode(403, new
             {
                 message = forWrite
                     ? $"This API key is not allowed to write to '{tableName}'."
                     : $"This API key is not allowed to read '{tableName}'.",
             }), null);
+        }
 
         // Kullanılmayan anahtarları fark edip kapatabilmek için. Her istekte yazmak
         // gereksiz yük olurdu; dakikada birden sık güncellenmez.
@@ -163,6 +169,7 @@ public class GatewayController : ControllerBase
             await _context.SaveChangesAsync(ct);
         }
 
+        NaminesMetrics.GatewayRequest(forWrite ? "write" : "read", "ok");
         return (true, null, key);
     }
 

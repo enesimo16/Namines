@@ -18,6 +18,7 @@ using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Infrastructure.Generators.DdlGenerator;
+using Namines.Infrastructure.Observability;
 
 namespace Namines.Infrastructure.Services;
 
@@ -128,6 +129,10 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
         var existing = await GetAsync(branchId, cancellationToken);
         if (existing is not null) return existing;
 
+        // Süre, MEVCUT veritabanı döndürülen durumda ölçülmüyor: o yol container
+        // açmıyor ve ortalamayı yapay olarak aşağı çekerdi.
+        var stopwatch = Stopwatch.StartNew();
+
         var password = GeneratePassword();
         var expiresAt = DateTime.UtcNow.Add(DefaultTtl);
         var profile = BuildProfile(engine, password);
@@ -188,10 +193,18 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
                 "Branch database provisioned for {BranchId} ({Engine}) on port {Port}, expires {ExpiresAt:O}.",
                 branchId, engine, port, expiresAt);
 
+            NaminesMetrics.DatabaseProvisioned(
+                provider: "docker", engine.ToString(), mode: "branch", success: true, stopwatch.Elapsed);
+
             return database;
         }
         catch
         {
+            // Başarısızlık da sayılıyor: yalnızca başarıları ölçmek, sağlama
+            // oranı düştüğünde grafiğin sessizce düzleşmesi demek olurdu.
+            NaminesMetrics.DatabaseProvisioned(
+                provider: "docker", engine.ToString(), mode: "branch", success: false, stopwatch.Elapsed);
+
             // Yarım kalmış container host'ta kalmasın: hazır olamayan ya da şeması
             // uygulanamayan bir veritabanı kullanıcıya hiçbir işe yaramaz, ama
             // belleği tutmaya devam eder.

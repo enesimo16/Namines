@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Namines.Core.Analysis;
 using System.Linq;
 using Namines.Infrastructure.Generators.Eject;
+using Namines.Infrastructure.Observability;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Infrastructure.Generators.DdlGenerator;
@@ -170,13 +172,18 @@ public class CompileController : ControllerBase
     {
         if (request.Schema == null) return BadRequest("Schema is required.");
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             var result = _eject.Get(target).Generate(request.Schema, request.DbType);
+            NaminesMetrics.SchemaCompiled(request.DbType.ToString(), target, success: true, stopwatch.Elapsed);
             return Ok(new { files = result.Files, warnings = result.Warnings });
         }
         catch (NotSupportedException ex)
         {
+            // Desteklenmeyen motor da bir sonuç: "hangi hedef hangi motorda
+            // isteniyor ama çalışmıyor" sorusunu ancak bu sayaç cevaplar.
+            NaminesMetrics.SchemaCompiled(request.DbType.ToString(), target, success: false, stopwatch.Elapsed);
             // Hedefin bu motoru desteklememesi de (ör. Drizzle + Oracle) buraya düşer;
             // uydurma bir çıktı üretmektense reddetmek doğru.
             return BadRequest(new { error = ex.Message });

@@ -9,6 +9,7 @@ using Namines.API.Extensions;
 using Namines.API.Middleware;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+using Namines.Infrastructure.Observability;
 using Serilog;
 using Serilog.Events;
 using System.Text;
@@ -44,6 +45,10 @@ var bootstrapConfig = new LoggerConfiguration()
     .Enrich.FromLogContext()
     .Enrich.WithMachineName()
     .Enrich.WithThreadId()
+    // 21 §2: gizli bilgi log'a DÜŞMEDEN önceki son kapı. "Connection string'i
+    // loglamayın" bir kural olarak uygulanamaz — bir istisna mesajı ya da üçüncü
+    // taraf bir kütüphane onu her an düşürebilir, ve log'lar uygulamadan uzun yaşar.
+    .Enrich.With<PiiRedactionEnricher>()
     .WriteTo.Console(outputTemplate: ConsoleTemplate);
 
 if (FileLoggingEnabled())
@@ -91,6 +96,9 @@ try
             .Enrich.FromLogContext()
             .Enrich.WithMachineName()
             .Enrich.WithThreadId()
+            // Bootstrap logger'daki ile aynı kapı; ikisinde de olmalı, çünkü
+            // başlangıç hataları da bağlantı dizesi taşıyabilir.
+            .Enrich.With<PiiRedactionEnricher>()
             .WriteTo.Console(outputTemplate: ConsoleTemplate);
 
         if (FileLoggingEnabled(ctx.Configuration))
@@ -211,6 +219,10 @@ try
     // Rate limiting: pahalı/tehlikeli uçlar (Docker sandbox, DB execute) için istismarı sınırla.
     // KRİTİK: partition'sız bir limiter TÜM kullanıcılar için ortak sayaç tutar; tek kullanıcı
     // limiti doldurunca herkes 429 alır. Bu yüzden kullanıcı kimliği (yoksa IP) ile bölünür.
+    // 21 §1/§3 — metrik enstrümantasyonu. İz (trace) henüz yok, gerekçesi
+    // ObservabilityExtensions'ta yazılı.
+    builder.Services.AddNaminesObservability(builder.Configuration, builder.Environment);
+
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -471,6 +483,7 @@ try
     app.UseMiddleware<BYOKMiddleware>();
     app.UseMiddleware<AIQuotaMiddleware>();
 
+    app.UseNaminesObservability();
     app.MapControllers();
     app.MapHub<Namines.API.Hubs.CanvasHub>("/hubs/canvas");
 

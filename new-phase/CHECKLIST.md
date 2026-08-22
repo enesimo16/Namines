@@ -1053,6 +1053,44 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     **0 hata** verdi; bileşik anahtarlı tablonun yalnızca `list`/`export` aldığı
     çıktıda görüldü. `EjectGeneratorTests` **86/86**, tam paket **742 test yeşil**.
 
+- [x] **G33 — Observability: PII redaksiyonu ve metrikler ([21](21-OBSERVABILITY.md) §1-3)** ✅ TAMAMLANDI
+  - `PiiRedactionEnricher` (Serilog) — parola/token/API anahtarı, JWT, bağlantı
+    dizesi ve e-posta log'a DÜŞMEDEN maskeleniyor. **Neden zorunlu bir enricher:**
+    "connection string'i loglamayın" bir kural olarak uygulanamaz; bir istisna
+    mesajı ya da üçüncü taraf bir kütüphane onu her an düşürebilir, ve log'lar
+    uygulamadan uzun yaşayıp daha çok kişi tarafından görülür. Tek güvenilir yer
+    log'un yazıldığı andaki son kapı.
+  - Bağlantı dizesi **tamamen** maskeleniyor, yalnızca parola değil: host ve
+    kullanıcı adı da müşteri altyapısını ele verir.
+  - İç içe yapılar da taranıyor — yalnızca üst seviyeye bakmak, nesne içindeki bir
+    token'ı kaçırırdı. Regex'lerde zaman aşımı var: yakalanmamış bir geri izleme
+    patlaması log yazan her isteği kilitler. Zaman aşımında metin **tamamen**
+    maskeleniyor; kısmen taranmış bir metni yayımlamak daha kötü.
+  - `NaminesMetrics` + OpenTelemetry: RED metrikleri çerçeveden hazır geliyor
+    (elle yazmak aynı seriyi ikinci kez, farklı etiketlerle üretmek olurdu), iş
+    metrikleri (`namines_schema_compilations_total`, `namines_databases_provisioned_total`,
+    `namines_gateway_requests_total`) çağrı noktalarına bağlandı. Başarısızlıklar
+    da sayılıyor — yalnızca başarıyı ölçmek, oran düştüğünde grafiğin sessizce
+    düzleşmesi demek olurdu. Gateway'de **reddedilenler hatadan ayrı**: birleşseydi
+    izin yapılandırması eksik bir kurulum "sistem bozuk" gibi görünürdü.
+  - ⚠️ **İz (trace) ve OTLP dışa aktarımı YAPILMADI.**
+    `OpenTelemetry.Exporter.OpenTelemetryProtocol`'ün denenen tüm sürümleri
+    (1.9 → 1.12) NU1902 ile bilinen bir güvenlik açığı bildiriyor. Projede henüz
+    OTel Collector yok, yani paketin bugün somut faydası da yok — 0 uyarılı bir
+    derlemeye açıklı bağımlılık sokmak net bir gerileme olurdu. İz enstrümantasyonu
+    da dışa aktarıcısız kaydedilmedi: hiçbir yere gitmeyen veri için CPU harcamak
+    olurdu. Collector kurulunca ikisi birlikte eklenir.
+  - ⚠️ `/metrics` ucunda **kimlik doğrulaması yok** — Prometheus'un desteği sınırlı,
+    uç altyapı seviyesinde (ingress/firewall) korunmalı. Dağıtım dokümanında
+    belirtilmeli; dışarı açık kalırsa istek hacmi ve hata oranları görünür olur.
+  - **Kapsam dışı:** Loki/Tempo/Grafana/Sentry/PostHog/ClickHouse (dış servis,
+    kod değil yapılandırma), §5 alert kuralları, §6 dashboard'lar, §7 SLO'lar.
+  - Doğrulama: `PiiRedactionTests` **16/16** (gerçek Serilog boru hattı dahil).
+    Canlı API'de `/metrics` **200** döndü, RED metrikleri aktı ve iş metriği hem
+    başarı hem başarısızlık etiketiyle görüldü:
+    `namines_schema_compilations_total{engine="Oracle",result="failure",target="orm.drizzle"} 1`.
+    Tam paket **758 test yeşil**.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar
