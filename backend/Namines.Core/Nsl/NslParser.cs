@@ -1,4 +1,5 @@
 using System;
+using Namines.Core.Analysis;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -71,11 +72,18 @@ public static class NslParser
 
             if (line.StartsWith("table ", StringComparison.Ordinal))
             {
-                var name = line[6..].Replace("{", string.Empty).Trim();
+                var name = Unquote(line[6..].Replace("{", string.Empty).Trim());
                 current = new SchemaTable
                 {
                     Id = Guid.NewGuid().ToString(),
-                    Name = Unquote(name),
+                    Name = name,
+                    // Kimlik ADDAN türetiliyor, rastgele DEĞİL. Rastgele olsaydı aynı
+                    // dosyanın iki ayrıştırması birbirinden farklı görünür ve iki sürümü
+                    // karşılaştıran her araç "her şey silinip yeniden yaratıldı" derdi.
+                    // Bu, SchemaIdentity'de introspection için düzeltilen hatanın birebir
+                    // aynısı; @uuid varsa (ParseTableMember'da) o geçerli olur ve yeniden
+                    // adlandırma yine ayırt edilebilir.
+                    StableUuid = SchemaIdentity.ForTable(name),
                 };
                 schema.Tables.Add(current);
                 continue;
@@ -86,6 +94,14 @@ public static class NslParser
 
             ParseTableMember(schema, current, line, lineNumber, pendingRelations);
         }
+
+        // Kapanmayan blok, dosyanın YARIM olduğu anlamına gelir (kesilmiş bir
+        // kopyala-yapıştır, eksik indirme). Sessizce kabul etmek, eksik bir şemayı
+        // tam sanmak demek — ve iki sürümü karşılaştıran bir araç bunu "kalan her
+        // şey silinmiş" diye raporlar.
+        if (current is not null)
+            throw new NslParseException(lineNumber,
+                $"Table '{current.Name}' was never closed with '}}'. The file looks truncated.");
 
         ResolveRelations(schema, pendingRelations);
         return schema;
@@ -167,10 +183,10 @@ public static class NslParser
         }
 
         // Buraya düşen her satır bir kolon bildirimi olmalı.
-        table.Columns.Add(ParseColumn(line, lineNumber));
+        table.Columns.Add(ParseColumn(table.Name, line, lineNumber));
     }
 
-    private static SchemaColumn ParseColumn(string line, int lineNumber)
+    private static SchemaColumn ParseColumn(string tableName, string line, int lineNumber)
     {
         var uuid = line.Contains("@uuid(", StringComparison.Ordinal) ? ReadQuoted(line, lineNumber, "@uuid(") : null;
         var defaultValue = ReadDefault(line);
@@ -219,7 +235,7 @@ public static class NslParser
             IsNullable = !isPk && !ContainsKeyword(head, "not null"),
             DefaultValue = defaultValue,
             Identity = identity,
-            StableUuid = uuid ?? Guid.NewGuid().ToString(),
+            StableUuid = uuid ?? SchemaIdentity.ForColumn(tableName, name),
         };
     }
 

@@ -1401,6 +1401,56 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     üretimi, bağımlılık sırası (enum tipi tablodan önce yaratılmalı) ve drop
     davranışı ister. Ayrıca Migration IR (§7) ve WASM derlemesi (§10).
 
+- [x] **G43 — Bot artık GitHub'a YAZIYOR ([11](11-MIGRATIONS-BRANCHING.md) §7)** ✅ TAMAMLANDI
+  - `IGithubClient` + `GithubClient` (App JWT → kurulum token'ı → REST),
+    `GithubAppJwt`, `GithubBotService` ve webhook ucunun bota devredilmesi.
+    G36'daki "kabul ediyor ama yazmıyor" notu artık geçerli değil.
+  - **Kimlik iki adımlı ve bu bilinçli:** App'in özel anahtarıyla kısa ömürlü bir
+    JWT üretiliyor, onunla kuruluma özel bir token alınıyor, depoya yalnızca o
+    token'la dokunuluyor. Özel anahtarın tek bir sızıntısı bütün kurulumları
+    açardı; kurulum token'ı bir saatte ölür ve tek kuruluma bakar. Token
+    önbelleğe alınıyor — her istekte yenisini istemek GitHub'ın hız sınırını
+    boşa harcardı.
+  - JWT elle üretiliyor: GitHub'ın istediği üç alanlı minik bir RS256 token ve
+    bunun için bir kütüphane eklemek, tek bir imza uğruna yeni bir bağımlılık ve
+    yeni bir güvenlik yüzeyi katardı. `iat` 60 saniye geriye alınıyor — sunucu
+    saati birkaç saniye ileriyse token "gelecekte üretilmiş" sayılıp reddedilir
+    ve bu, yalnızca bazı makinelerde görülen, sebebi anlaşılmayan bir arıza olurdu.
+  - **Kimlik bilgisi yoksa yazma DENENMEZ**, olay kabul edilir ve yanıtta
+    yazılmadığı söylenir. Canlı doğrulandı: geçerli imza → **202** + "needs the
+    Namines GitHub App credentials", yanlış imza → **401**, ping → **pong**.
+  - Bot yeni bulgu üretmiyor: PR'daki `.nsl` dosyasının taban ve baş hâlini okuyup
+    farkı `SchemaImpactAnalyzer`'a veriyor. Taban ref'te dosya yoksa şema ilk kez
+    ekleniyor demektir ve **boş şemaya karşı karşılaştırılıyor** — atlamak, en çok
+    incelenmesi gereken PR'ı incelemeden geçirmek olurdu. Baş ref'te yoksa
+    sessizce geçiliyor: her PR'a "şema bulunamadı" yazan bir bot gürültüye döner.
+  - Webhook hatası **500 DÖNDÜRMÜYOR**: GitHub başarısız webhook'u yeniden dener
+    ve bir ayrıştırma hatası saatlerce tekrarlanırdı. Olay kabul edilip sorun
+    log'a yazılıyor.
+  - **Yol boyunca iki gerçek hata bulundu:**
+    1. **NSL ayrıştırıcısı her seferinde rastgele kimlik üretiyordu.** `@uuid`
+       taşımayan bir dosyanın iki ayrıştırması birbirinden farklı görünüyordu;
+       yani bot'un taban↔baş karşılaştırması **her PR'da "her şey silindi"**
+       diyecekti. Bu, G-öncesi `SchemaIdentity` hatasının birebir metin
+       karşılığı. Kimlik artık addan türetiliyor (`@uuid` varsa o kazanır, yani
+       yeniden adlandırma hâlâ ayırt edilebiliyor). Hata, gerçek bir PR akışını
+       test ederken ortaya çıktı — round-trip testleri göremiyordu, çünkü onlar
+       tek bir ayrıştırmaya bakıyor.
+    2. **Kapanmayan blok sessizce kabul ediliyordu.** Kesilmiş bir `.nsl` dosyası
+       geçerli ama eksik bir şema olarak okunuyordu; bot bunu "kalan her şey
+       silinmiş" diye raporlardı. Artık dosyanın yarım olduğu söyleniyor.
+  - Doğrulama: `GithubClientTests` **12/12** (sahte `HttpMessageHandler` ile URL,
+    metot, başlık ve gövde; App JWT gerçek RSA ile imzalanıp doğrulandı),
+    `GithubBotServiceTests` **11/11**, `BotTests` **27/27**, tam paket
+    **926 test yeşil**, ve webhook ucu canlı denendi.
+  - **Kapsam dışı:** PR açılınca önizleme veritabanı provision etme, `.nsl`
+    senkron PR'ı, tip senkronu. Ayrıca `/namines plan|preview|approve` komutları
+    tanınıyor ama "henüz yok" cevabı veriyor — sessiz kalmak, komutu yazanı
+    cevap beklerken bırakırdı.
+  - ⚠️ **Hâlâ senin GitHub App'ini bekliyor.** Kod tamam ve test edilmiş; eksik
+    olan `Github:AppId` ve `Github:PrivateKey`
+    (bkz. [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md)).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

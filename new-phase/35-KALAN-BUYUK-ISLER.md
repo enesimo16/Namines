@@ -8,8 +8,7 @@
 > Senin bir hesap/karar vermen gereken işler burada değil —
 > onlar [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md)'de.
 >
-> Son güncelleme: G40 (869 test yeşil; console yazma ekranları gerçek bir
-> veritabanına karşı tarayıcıdan doğrulandı).
+> Son güncelleme: G43 (926 test yeşil).
 
 ---
 
@@ -20,7 +19,7 @@
 | ~~1~~ | ~~**§1 Console yazma ekranları**~~ | ✅ **G40'ta yapıldı** — form/düzenleme/silme ekranları gerçek bir veritabanına karşı doğrulandı. §1'de yalnızca RBAC, denetim kaydı, dashboard, NL sorgu ve özelleştirme katmanı kaldı. |
 | ~~1~~ | ~~**§2 Gateway'in kalan sorgu yüzeyi**~~ | ✅ `import`, `/rpc`, `/query` **G41'de yapıldı**. GraphQL, `/query/nl` ve metadata cache kaldı. |
 | 2 | **§3 NSL'in kalanı** | Diğer her şeyin dayandığı model burada genişliyor — geç yapılırsa daha pahalı. |
-| 3 | **§5 Bot'un GitHub'a yazması** | Senin GitHub App'ini bekliyor, o gelene kadar sıraya giremez. |
+| ~~3~~ | ~~**§5 Bot'un GitHub'a yazması**~~ | ✅ Yazma tarafı **G43'te yapıldı**; çalışması için GitHub App kimlik bilgilerin gerekiyor. |
 | 4 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
 
 ---
@@ -75,6 +74,9 @@ Kalanlar:
 Bugün var: metin biçimi, ayrıştırıcı, doğrulayıcı (25 kuralın modelde karşılığı
 olan 15'i), çift yönlü `nsl` eject hedefi.
 
+**G42'de eklendi:** `identity` — anahtarı veritabanı mı atıyor, kullanıcı mı.
+Altı motorda ve NSL'de karşılığıyla birlikte.
+
 - **Kanonik JSON IR** (§3) — ⚠️ **En büyük ve en riskli madde.** Doküman;
   enum, şema (`public`), `identity`, `generated`, `collation`, `@ui`, `@tag`,
   kısmi/kapsayıcı index gibi bugünkü `DatabaseSchema`'da **hiç bulunmayan**
@@ -116,13 +118,19 @@ hazırlık kontrolü.
 Bugün var: HMAC-SHA256 imza doğrulama, `/namines` komut ayrıştırıcı, PR yorumu
 ve status check metni üreten `PullRequestReviewComposer` — hepsi test edilmiş.
 
-**Eksik olan tek şey bir HTTP çağrısı** — ve onun için senin GitHub App
-kimlik bilgilerin gerekiyor.
+**G43'te yazma tarafı tamamlandı:** App kimlik doğrulaması, yorum yazma, status
+check oluşturma, `.nsl` okuma ve kırılma analizinin PR'a bağlanması. Sahte bir
+HTTP katmanına karşı uçtan uca test edilmiş durumda.
 
-- PR'a yorum yazma + status check oluşturma.
+⚠️ **Çalışması için `Github:AppId` ve `Github:PrivateKey` gerekiyor**
+(bkz. [34](34-SENDEN-BEKLENENLER.md)). Kimlik bilgisi yoksa bot yazmayı denemez.
+
+Kalanlar:
+
 - PR açılınca **önizleme veritabanı** provision etme.
 - `.nsl` senkron PR'ı, tip senkronu.
-- Kırılma analizinin PR'a bağlanması.
+- `/namines plan|preview|approve` komutlarının gerçekten çalışması (şu an
+  tanınıyor ve "henüz yok" cevabı veriyor).
 
 > Sahte bir istemciyle "yazıyormuş gibi" yapılmadı: çalıştığı sanılan ama
 > hiçbir şey yapmayan bir özellik, hiç olmayandan kötüdür.

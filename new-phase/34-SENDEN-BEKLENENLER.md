@@ -135,5 +135,9 @@ sabit zamanlı.
       `automated-recruitment-pipeline` görünüyor ve bu depoyla ilgisi yok.
 - [ ] Ödeme altyapısı araştırması (Stripe TR sınırlı → Paddle / LemonSqueezy).
 - [ ] `namines.com` alan adı + marka taraması.
-- [ ] GitHub App oluşturma — Namines Bot'un PR'lara **yazabilmesi** için
-      (bkz. [35-KALAN-BUYUK-ISLER.md](35-KALAN-BUYUK-ISLER.md) §5).
+- [ ] **GitHub App oluşturma** — Namines Bot'un PR'lara **yazabilmesi** için.
+      Kod tarafı G43'te tamamlandı ve test edildi; eksik olan yalnızca üç değer:
+      `Github:AppId`, `Github:PrivateKey` (App'in indirdiğin `.pem` dosyası) ve
+      `Github:WebhookSecret`. App'e gereken izinler: Pull requests (read/write),
+      Contents (read), Checks (write); abone olunacak olaylar: `pull_request`,
+      `issue_comment`. Anahtarı sohbete yapıştırma, ortam değişkenine koy.

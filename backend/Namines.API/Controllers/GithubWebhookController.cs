@@ -7,19 +7,19 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Github;
+using Namines.Infrastructure.Services;
 
 namespace Namines.API.Controllers;
 
 /// <summary>
 /// Namines Bot webhook ucu (new-phase/11-MIGRATIONS-BRANCHING.md §7).
 ///
-/// <b>Bu uç bugün OLAYLARI KABUL EDİYOR ama GitHub'a geri YAZMIYOR.</b> Yorum
-/// göndermek ve status check oluşturmak, kullanıcının hesabında kayıtlı bir GitHub
-/// App'in kimlik bilgilerini gerektiriyor (bkz. CHECKLIST "Kodun beklediği
-/// kararlar"). Sahte bir istemciyle "yazıyormuş gibi" yapmak, çalıştığı sanılan
-/// ama hiçbir şey yapmayan bir özellik bırakırdı. Doğrulama, komut ayrıştırma ve
-/// yorum metni üretimi burada ve test edilmiş durumda; App geldiğinde tek eksik
-/// HTTP çağrısı eklenir.
+/// Doğrulanan olay <see cref="IGithubBotService"/>'e devrediliyor; o da PR'daki
+/// şema farkını analiz edip yorumu ve status check'i yazıyor.
+///
+/// <b>App kimlik bilgileri tanımlı değilse yazma DENENMEZ</b> — olay kabul edilir
+/// ve yanıtta yazılmadığı söylenir. Sahte bir başarı raporlamak, çalıştığı sanılan
+/// ama hiçbir şey yapmayan bir özellik bırakırdı.
 /// </summary>
 [AllowAnonymous]
 [EnableRateLimiting("sensitive")]
@@ -29,11 +29,14 @@ public class GithubWebhookController : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<GithubWebhookController> _logger;
+    private readonly IGithubBotService _bot;
 
-    public GithubWebhookController(IConfiguration configuration, ILogger<GithubWebhookController> logger)
+    public GithubWebhookController(
+        IConfiguration configuration, ILogger<GithubWebhookController> logger, IGithubBotService bot)
     {
         _configuration = configuration;
         _logger = logger;
+        _bot = bot;
     }
 
     [HttpPost("webhook")]
@@ -71,10 +74,18 @@ public class GithubWebhookController : ControllerBase
 
         _logger.LogInformation("GitHub webhook received: {Event}.", eventName);
 
-        return Accepted(new
+        try
         {
-            @event = eventName,
-            note = "Accepted. Posting reviews back to GitHub needs the Namines GitHub App credentials.",
-        });
+            var result = await _bot.HandleAsync(eventName, payload, HttpContext.RequestAborted);
+            return Accepted(new { @event = eventName, note = result });
+        }
+        catch (Exception ex)
+        {
+            // GitHub başarısız bir webhook'u YENİDEN DENER. Bir ayrıştırma hatası
+            // ya da eksik izin yüzünden 500 dönmek, aynı hatayı saatlerce
+            // tekrarlatır; olay kabul edilip sorun log'a yazılıyor.
+            _logger.LogError(ex, "Namines Bot could not finish handling {Event}.", eventName);
+            return Accepted(new { @event = eventName, note = "Accepted, but the bot could not finish. See server logs." });
+        }
     }
 }

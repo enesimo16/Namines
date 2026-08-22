@@ -1,4 +1,5 @@
 using System;
+using Namines.Core.Github;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Namines.Core.Interfaces;
@@ -53,6 +54,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPrismaGenerator, PrismaGeneratorService>();
         // Singleton: üreticiler durumsuz, kayıt defteri de öyle.
         services.AddSingleton<IEjectGeneratorRegistry, EjectGeneratorRegistry>();
+
+        // Namines Bot (11 §7). HttpClient fabrikadan alınıyor: her çağrıda yeni bir
+        // HttpClient üretmek soket tükenmesine, tek bir statik örnek ise DNS
+        // değişikliklerini görmemeye yol açar.
+        services.AddHttpClient<IGithubClient, GithubClient>();
+        services.AddScoped<IGithubBotService, GithubBotService>();
         // Singleton: tek bir DockerClient tutar ve durumu container etiketlerinde
         // yaşar, bellekte değil — süreç yeniden başlasa bile branch veritabanları
         // bulunabilir kalır.
