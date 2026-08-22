@@ -1253,6 +1253,27 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
   - **Kapsam dışı:** 23 §2 Döngü 5 (Blueprint Hub — 100+ şablon, içerik işi),
     Döngü 3'ün kalanı (GitHub App bekliyor).
 
+- [x] **G39 — Uygulama başlamıyordu: yanlış yere düşmüş `[ApiController]`** ✅ TAMAMLANDI
+  - `CompileController.cs`'de `[ApiController]` + `[Route]` çiftleri, araya
+    eklenen `NslParseRequest` record'unun üstünde kalmıştı. ASP.NET record'u
+    controller sanıyor, `Deconstruct`'ı action olarak okuyor ve **uygulama hiç
+    BAŞLAMIYORDU** — 857 test yeşilken. Ayrıca `CompileController`'ın kendisi
+    rotasız kalmıştı.
+  - **Bu hata sınıfı ÜÇÜNCÜ kez çıktı** (daha önce `ProvisionBranchDatabaseRequest`).
+    `ApiControllerConventionTests` eklendi: `[ApiController]` yalnızca gerçek
+    controller'larda mı, her controller rotalanmış mı, `[ApiController]`ı unutan
+    var mı. Birim testleri bunu göremiyordu çünkü hata tip yüklemede değil, MVC'nin
+    keşif aşamasında çıkıyor. `Namines.Tests` artık `Namines.API`'ye referans veriyor.
+  - Yol boyunca ikinci bir hata: `appsettings.json`'daki varsayılan bağlantı dizesi
+    (`postgres/postgres`) docker-compose'un ürettiği kullanıcıyla (`namines`)
+    hiç uyuşmuyordu — temiz bir `clone` + `docker compose up` + `dotnet run`
+    anlaşılmaz bir kimlik doğrulama hatasıyla düşüyordu. Varsayılan compose'la
+    hizalandı.
+  - Doğrulama: uygulama gerçekten AYAĞA KALKTI — `/health` **200**, `/metrics`
+    **200**, `/api/compile/eject/targets` **200**, `namines.lock` gerçek eject
+    çıktısında göründü, `/api/share/sitemap.xml` **200**, bilinmeyen jetonla
+    `og/*.svg` **404**. Tam paket **860 test yeşil**.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

@@ -34,6 +34,10 @@
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
     <ProjectReference Include="..\Namines.Mcp\Namines.Mcp.csproj" />
+    <!-- Controller sözleşmesi testleri için (ApiControllerConventionTests): yanlış
+         yere düşmüş bir [ApiController] uygulamayı hiç BAŞLATMIYOR ve bunu ancak
+         gerçek tipleri okuyan bir test yakalayabiliyor. -->
+    <ProjectReference Include="..\Namines.API\Namines.API.csproj" />
   </ItemGroup>
 
 </Project>

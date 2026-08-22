@@ -15,10 +15,11 @@ using Namines.Infrastructure.Generators.DdlGenerator;
 
 namespace Namines.API.Controllers;
 
-[ApiController]
-[Route("api/[controller]")]
+/// <param name="Text">Ham `.nsl` metni.</param>
 public sealed record NslParseRequest(string Text, DatabaseType DbType = DatabaseType.PostgreSQL);
 
+[ApiController]
+[Route("api/[controller]")]
 public class CompileController : ControllerBase
 {
     private readonly IDdlGeneratorFactory _ddlFactory;
