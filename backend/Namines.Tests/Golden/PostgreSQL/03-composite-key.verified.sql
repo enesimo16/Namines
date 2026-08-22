@@ -9,8 +9,8 @@ CREATE TABLE "Products" (
 );
 
 CREATE TABLE "OrderProducts" (
-    "OrderId" SERIAL NOT NULL,
-    "ProductId" SERIAL NOT NULL,
+    "OrderId" integer NOT NULL,
+    "ProductId" integer NOT NULL,
     "Quantity" integer NOT NULL
     , CONSTRAINT "PK_OrderProducts" PRIMARY KEY ("OrderId", "ProductId")
 );

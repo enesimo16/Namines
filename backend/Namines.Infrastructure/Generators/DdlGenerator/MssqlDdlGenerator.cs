@@ -1,4 +1,5 @@
 using System.Text;
+using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -30,8 +31,9 @@ public class MssqlDdlGenerator : IDdlGenerator
                 // kolonu da INT ise, ikisine birden IDENTITY vermek SQL Server'ın
                 // "Multiple identity columns specified" (Msg 2744) hatasına yol açar —
                 // gerçek SQL Server'a karşı çalıştırılan bir entegrasyon testi bunu kanıtladı.
-                var identityStr = (col.IsPK && pkColumns.Count == 1 &&
-                                    (col.Type.ToUpper() == "INT" || col.Type.ToUpper() == "BIGINT"))
+                // Karar IdentityPolicy'de: aynı kural altı motorda ayrı ayrı
+                // yazılıydı ve kullanıcının "bu anahtarı ben atıyorum" deme yolu yoktu.
+                var identityStr = IdentityPolicy.IsGenerated(col, pkColumns.Count)
                     ? " IDENTITY(1,1)" : "";
 
                 sb.Append($"    [{col.Name}] {sqlType}{identityStr} {nullStr}{defaultStr}");

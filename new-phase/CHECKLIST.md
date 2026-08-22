@@ -1361,6 +1361,46 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     bağlantısı + üretilen SQL'in otomatik çalıştırılması ayrı bir güvenlik
     tasarımı ister), metadata cache (§6 — Redis kararına bağlı).
 
+- [x] **G42 — `identity`: anahtarı kim atıyor? ([04](04-NSL-SCHEMA-IR.md) §3)** ✅ TAMAMLANDI
+  - `SchemaColumn.Identity` (üç durumlu `bool?`), `IdentityPolicy`, altı DDL
+    üreticisinin bağlanması, NSL `identity` / `no identity` sözdizimi ve üretilen
+    panelin bu bilgiyi okuması.
+  - **Neden bu, 04'ün en değerli parçası:** G40'ta üretilen panel, bir anahtarın
+    veritabanınca üretilip üretilmediğini **bilemediği için** kullanıcıya "anahtarı
+    boş bırak" diye yazılı bir not göstermek zorunda kalmıştı. Model bunu
+    söyleyemiyordu.
+  - **Üç durumlu ve varsayılanı `null`.** `null` = "söylenmedi" → bugüne kadarki
+    çıkarım korunur (tek kolonlu tamsayı PK otomatik artan), yani mevcut şemalar
+    ve golden dosyalar bozulmaz. `false` = "bu kimliği ben atıyorum" — dışarıdan
+    gelen bir sipariş numarası tamsayı PK olabilir ve veritabanının onu ezmesi
+    sessiz veri kaybıdır. Bugün "hayır" demenin yolu yoktu.
+  - **Kural altı üreticide ayrı ayrı yazılıydı**, hepsi aynı şeyi söylüyordu.
+    Altı kopya, biri değiştiğinde diğerlerinin sessizce ayrışması demek; tek bir
+    `IdentityPolicy`'ye toplandı.
+  - **Bu birleştirme gerçek bir hatayı ortaya çıkardı:** PostgreSQL, bileşik
+    anahtarlı bir ara tablonun **her iki yabancı anahtarına da `SERIAL`**
+    veriyordu — diğer beş motor `pkColumns.Count == 1` ile korunuyordu, PostgreSQL
+    korunmuyordu. Yani `OrderProducts(OrderId, ProductId)` tablosunda iki bağımsız
+    dizi oluşuyor ve kolon belirtmeden eklenen satır, hiçbir yere işaret etmeyen
+    bir kimlik uyduruyordu. Golden dosya bilerek kabul edildi (`03-composite-key`,
+    PostgreSQL).
+  - NSL'de yalnızca **çıkarımdan farklı** olan yazılıyor: her tamsayı anahtara
+    "identity" eklemek dosyayı hiçbir şey söylemeyen bir kelimeyle doldururdu.
+    Ayrıştırıcıda `no identity` ÖNCE aranıyor — sıra ters olsaydı kullanıcının
+    "hayır"ı sessizce "evet"e çevrilirdi.
+  - Panel artık üretilen kolonu **yeni satır formunda hiç sormuyor**, var olan
+    satırda salt-okunur gösteriyor (hangi satırı düzenlediğini anahtarından
+    anlarsın). Canlı doğrulandı: `/users/new` formunda `id` alanı yok, satır
+    eklendi (veritabanı 16 atadı), `/users/16` formunda `id` **salt-okunur**.
+  - Doğrulama: `IdentityPolicyTests` **13/13** (altı motorun her birinde
+    "hayır"ın işlediği ayrı ayrı), NSL round-trip **18/18**, tam paket
+    **903 test yeşil**.
+  - **Kapsam dışı:** 04 §3'ün geri kalanı — enum, şema adı (`public`),
+    `generated`, `collation`, dizi tipi, kısmi/kapsayıcı index. Bunlar
+    `DatabaseSchema`'ya alan eklemekle bitmiyor; her biri altı motorda DDL
+    üretimi, bağımlılık sırası (enum tipi tablodan önce yaratılmalı) ve drop
+    davranışı ister. Ayrıca Migration IR (§7) ve WASM derlemesi (§10).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

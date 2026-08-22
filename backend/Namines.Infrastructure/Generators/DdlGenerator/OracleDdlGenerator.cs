@@ -1,4 +1,5 @@
 using Namines.Core.Enums;
+using Namines.Core.Analysis;
 using System.Text;
 using System.Linq;
 using Namines.Core.Interfaces;
@@ -39,7 +40,7 @@ public class OracleDdlGenerator : IDdlGenerator
                 // Oracle 12c+ IDENTITY (auto-increment) — yalnızca TEK KOLONLU PK için.
                 // Oracle bir tabloda yalnızca bir IDENTITY kolonuna izin verir (ORA-30673);
                 // bileşik PK'nın iki kolonuna birden vermek geçersiz DDL üretir.
-                var identityStr = (col.IsPK && pkColumns.Count == 1 && IsNumericType(col.Type))
+                var identityStr = IdentityPolicy.IsGenerated(col, pkColumns.Count)
                     ? " GENERATED ALWAYS AS IDENTITY"
                     : "";
 

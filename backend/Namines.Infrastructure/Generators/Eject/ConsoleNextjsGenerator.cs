@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -230,6 +231,10 @@ public sealed class ConsoleNextjsGenerator : IEjectGenerator
                 widget = ConsoleMetadata.Widget(c),
                 nullable = c.IsNullable,
                 isPrimaryKey = c.IsPK,
+                // Değeri veritabanı üretiyorsa kullanıcıdan istemenin anlamı yok.
+                // G40'ta bu bilgi modelde YOKTU ve form "anahtarı boş bırak"
+                // diye yazılı bir nota mecbur kalmıştı; artık form biliyor.
+                isGenerated = IdentityPolicy.IsGenerated(m.Table, c),
                 maxLength = c.Length,
             }),
         });
@@ -244,6 +249,8 @@ public sealed class ConsoleNextjsGenerator : IEjectGenerator
           widget: string;
           nullable: boolean;
           isPrimaryKey: boolean;
+          /** The database assigns this value; the form does not ask for it. */
+          isGenerated: boolean;
           maxLength: number | null;
         }
 
@@ -672,6 +679,12 @@ public sealed class ConsoleNextjsGenerator : IEjectGenerator
         }) {
           const [state, formAction, pending] = useActionState(action, { error: null });
 
+          // Yeni satırda, değerini veritabanının ürettiği kolon HİÇ sorulmuyor:
+          // boş bir kutu göstermek, kullanıcıyı ya ezilecek ya reddedilecek bir
+          // değer yazmaya davet eder. Var olan satırda gösteriliyor (salt-okunur),
+          // çünkü hangi satırı düzenlediğini anahtarından anlarsın.
+          const creating = initial === undefined;
+
           return (
             <form action={formAction} style={{ maxWidth: 520 }}>
               {state.error && (
@@ -691,7 +704,9 @@ public sealed class ConsoleNextjsGenerator : IEjectGenerator
                 </pre>
               )}
 
-              {table.columns.map((column) => (
+              {table.columns
+                .filter((column) => !(creating && column.isGenerated))
+                .map((column) => (
                 <div key={column.name} style={{ marginBottom: 14 }}>
                   <label
                     htmlFor={column.name}
@@ -931,9 +946,6 @@ public sealed class ConsoleNextjsGenerator : IEjectGenerator
           return (
             <div>
               <h1 style={{ fontSize: 20, marginTop: 0 }}>New row in {table.name}</h1>
-              <p style={{ fontSize: 13, color: "#6b7280" }}>
-                Leave the key empty if the database generates it.
-              </p>
               <RowForm
                 table={table}
                 action={createAction.bind(null, table.name)}

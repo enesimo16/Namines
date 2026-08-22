@@ -1,4 +1,5 @@
 using Namines.Core.Enums;
+using Namines.Core.Analysis;
 using System.Text;
 using System.Linq;
 using Namines.Core.Interfaces;
@@ -37,7 +38,7 @@ public class MariaDbDdlGenerator : IDdlGenerator
                 // AUTO_INCREMENT: yalnızca TEK KOLONLU INT/BIGINT PK için. MariaDB (MySQL
                 // gibi) bir tabloda yalnızca bir AUTO_INCREMENT kolonuna izin verir;
                 // bileşik PK'nın iki kolonuna birden vermek geçersiz DDL üretir.
-                var autoIncStr = (col.IsPK && pkColumns.Count == 1 && IsIntegerType(col.Type))
+                var autoIncStr = IdentityPolicy.IsGenerated(col, pkColumns.Count)
                     ? " AUTO_INCREMENT"
                     : "";
 

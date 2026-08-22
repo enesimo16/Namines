@@ -1,4 +1,5 @@
 using Namines.Core.Enums;
+using Namines.Core.Analysis;
 using System.Text;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -27,8 +28,9 @@ public class PostgresDdlGenerator : IDdlGenerator
                 // üzerinden karar verilir — böylece yalnızca gerçek PK INT/BIGINT
                 // kolonları otomatik artan olur.
                 string type;
-                if (col.IsPK && rawType == "INT") type = "SERIAL";
-                else if (col.IsPK && rawType == "BIGINT") type = "BIGSERIAL";
+                var generated = IdentityPolicy.IsGenerated(col, pkColumns.Count);
+                if (generated && rawType == "INT") type = "SERIAL";
+                else if (generated && rawType == "BIGINT") type = "BIGSERIAL";
                 else type = TypeSql.Map(col.Type, col.Length, DatabaseType.PostgreSQL);
 
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";

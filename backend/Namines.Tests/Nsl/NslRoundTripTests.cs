@@ -291,4 +291,65 @@ public class NslRoundTripTests
         Assert.Equal("order items", parsed.Tables.Single().Name);
         Assert.Equal("line-no", parsed.Tables.Single().Columns.Single().Name);
     }
+
+    // ── identity (04 §3) ─────────────────────────────────────────────────────
+
+    private static DatabaseSchema OneKey(bool? identity)
+    {
+        var schema = new DatabaseSchema { Name = "shop" };
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t1", Name = "orders",
+            Columns =
+            {
+                new SchemaColumn { Id = "c1", Name = "id", Type = "INT", IsPK = true, Identity = identity },
+            },
+        });
+        return schema;
+    }
+
+    [Fact]
+    public void Saying_the_database_does_not_assign_the_key_survives_a_round_trip()
+    {
+        // Kaybolursa veritabanı, kullanıcının kendi atadığı kimliği ezer — sessiz
+        // veri kaybı, ve ancak veriler bozulunca fark edilir.
+        var text = NslWriter.Write(OneKey(identity: false));
+
+        Assert.Contains("no identity", text);
+        Assert.False(NslParser.Parse(text).Tables[0].Columns[0].Identity);
+    }
+
+    [Fact]
+    public void Forcing_a_generated_value_survives_a_round_trip()
+    {
+        var schema = new DatabaseSchema { Name = "shop" };
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t1", Name = "events",
+            Columns = { new SchemaColumn { Id = "c1", Name = "seq", Type = "BIGINT", Identity = true } },
+        });
+
+        var text = NslWriter.Write(schema);
+
+        Assert.Contains("identity", text);
+        Assert.True(NslParser.Parse(text).Tables[0].Columns[0].Identity);
+    }
+
+    [Fact]
+    public void The_inferred_case_is_not_written_out()
+    {
+        // Her tamsayı anahtara "identity" eklemek, dosyayı hiçbir şey söylemeyen
+        // bir kelimeyle doldururdu; asıl bilgi çıkarımın BOZULDUĞU yerdedir.
+        Assert.DoesNotContain("identity", NslWriter.Write(OneKey(identity: null)));
+    }
+
+    [Fact]
+    public void No_identity_is_not_read_as_identity()
+    {
+        // "identity" araması "no identity"ye de eşleşir; sıra ters olsaydı
+        // kullanıcının "hayır"ı sessizce "evet"e çevrilirdi.
+        var parsed = NslParser.Parse("table orders {\n  id int pk no identity\n}\n");
+
+        Assert.False(parsed.Tables[0].Columns[0].Identity);
+    }
 }

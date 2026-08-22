@@ -200,6 +200,13 @@ public static class NslParser
 
         var isPk = ContainsKeyword(head, "pk");
 
+        // "no identity" ÖNCE aranıyor: "identity" araması ona da eşleşir ve sıra
+        // ters olsaydı "no identity" sessizce "identity" olarak okunurdu — yani
+        // kullanıcının "bu anahtarı ben atıyorum" demesi tam tersine çevrilirdi.
+        bool? identity = ContainsKeyword(head, "no identity") ? false
+            : ContainsKeyword(head, "identity") ? true
+            : null;
+
         return new SchemaColumn
         {
             Id = Guid.NewGuid().ToString(),
@@ -211,6 +218,7 @@ public static class NslParser
             // PK'yı her zaman NOT NULL saymalı, yoksa round-trip bozulur.
             IsNullable = !isPk && !ContainsKeyword(head, "not null"),
             DefaultValue = defaultValue,
+            Identity = identity,
             StableUuid = uuid ?? Guid.NewGuid().ToString(),
         };
     }

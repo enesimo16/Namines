@@ -1,4 +1,5 @@
 using Namines.Core.Enums;
+using Namines.Core.Analysis;
 using System.Text;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -29,8 +30,7 @@ public class MySqlDdlGenerator : IDdlGenerator
                 // AUTO_INCREMENT yalnızca TEK KOLONLU PK'da uygulanır. MySQL bir tabloda
                 // yalnızca bir AUTO_INCREMENT kolonuna izin verir; bileşik PK'nın her iki
                 // kolonu da INT ise ikisine birden vermek geçersiz DDL üretir.
-                var aiStr = (col.IsPK && pkColumns.Count == 1 &&
-                             (col.Type.ToUpper() == "INT" || col.Type.ToUpper() == "BIGINT"))
+                var aiStr = IdentityPolicy.IsGenerated(col, pkColumns.Count)
                     ? " AUTO_INCREMENT" : "";
 
                 sb.Append($"    `{col.Name}` {sqlType} {nullStr}{defaultStr}{aiStr}");

@@ -1,4 +1,5 @@
 using Namines.Core.Enums;
+using Namines.Core.Analysis;
 using System.Text;
 using System.Linq;
 using Namines.Core.Interfaces;
@@ -28,7 +29,7 @@ public class SqliteDdlGenerator : IDdlGenerator
 
             var pkColumns = table.Columns.Where(c => c.IsPK).ToList();
             bool singleIntPk = pkColumns.Count == 1 &&
-                               IsIntegerType(pkColumns[0].Type);
+                               IdentityPolicy.IsGenerated(pkColumns[0], pkColumns.Count);
 
             var lines = new List<string>();
 

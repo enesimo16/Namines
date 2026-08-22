@@ -1,4 +1,5 @@
 using System;
+using Namines.Core.Analysis;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -61,8 +62,10 @@ public static class NslWriter
         if (!string.IsNullOrWhiteSpace(table.StableUuid))
             sb.AppendLine($"  @uuid({Quote(table.StableUuid)})");
 
+        var pkCount = table.Columns.Count(c => c.IsPK);
+
         foreach (var column in table.Columns)
-            sb.AppendLine("  " + ColumnLine(column));
+            sb.AppendLine("  " + ColumnLine(column, pkCount));
 
         var pks = table.Columns.Where(c => c.IsPK).ToList();
         // Bileşik anahtar ayrı satırda: kolon başına "pk" yazmak, hangi kolonların
@@ -113,11 +116,21 @@ public static class NslWriter
         sb.AppendLine("}");
     }
 
-    private static string ColumnLine(SchemaColumn column)
+    private static string ColumnLine(SchemaColumn column, int primaryKeyCount)
     {
         var sb = new StringBuilder($"{Identifier(column.Name)} {TypeText(column)}");
 
         if (column.IsPK) sb.Append(" pk");
+
+        // Yalnızca ÇIKARIMDAN FARKLI olduğunda yazılıyor. Her tamsayı anahtara
+        // "identity" eklemek dosyayı, hiçbir şey söylemeyen bir kelimeyle
+        // doldururdu; asıl bilgi, kullanıcının çıkarımı BOZDUĞU yerdedir.
+        var inferred = IdentityPolicy.IsGenerated(
+            new SchemaColumn { Name = column.Name, Type = column.Type, IsPK = column.IsPK },
+            primaryKeyCount);
+
+        if (column.Identity == true && !inferred) sb.Append(" identity");
+        else if (column.Identity == false && inferred) sb.Append(" no identity");
         // PK zaten NOT NULL'dır; ayrıca yazmak gürültü ve okuyanı "acaba
         // nullable bir PK mı var" diye düşündürür.
         if (!column.IsNullable && !column.IsPK) sb.Append(" not null");

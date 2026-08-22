@@ -556,6 +556,19 @@ public class EjectGeneratorTests
         Assert.Contains("return result ? result.values : null;", gateway);
     }
 
+    [Fact]
+    public void The_form_does_not_ask_for_a_value_the_database_assigns()
+    {
+        // G40'ta bu bilgi modelde YOKTU ve form kullanıcıya "anahtarı boş bırak"
+        // diye yazılı bir not göstermek zorundaydı. Artık kolon hiç sorulmuyor:
+        // veritabanının dolduracağı bir kutu, ya ezilecek ya reddedilecek bir
+        // değer yazmaya davettir.
+        var files = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL).Files;
+
+        Assert.Contains("\"isGenerated\": true", files["lib/schema.ts"]);
+        Assert.Contains("!(creating && column.isGenerated)", files["components/RowForm.tsx"]);
+    }
+
     // ── TypeScript SDK (12 §7) ───────────────────────────────────────────────
 
     [Fact]

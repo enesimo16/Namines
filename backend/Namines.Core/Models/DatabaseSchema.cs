@@ -45,6 +45,24 @@ public class SchemaColumn
     public bool IsFK { get; set; }
     public bool IsNullable { get; set; }
     public string? DefaultValue { get; set; }
+
+    /// <summary>
+    /// Değeri veritabanı mı üretiyor? (04 §3 <c>identity</c>)
+    ///
+    /// <b>Üç durumlu ve varsayılanı <c>null</c>.</b> <c>null</c> = "söylenmedi",
+    /// yani bugüne kadarki davranış korunur: tek kolonlu tamsayı birincil anahtar
+    /// otomatik artan sayılır. <c>true</c> = kesinlikle otomatik, <c>false</c> =
+    /// kesinlikle değil.
+    ///
+    /// <b>Neden <c>false</c>'a ihtiyaç var:</b> dışarıdan atanan bir kimlik
+    /// (başka bir sistemden gelen sipariş numarası gibi) tamsayı birincil anahtar
+    /// olabilir ve veritabanının onu ezmesi veri kaybıdır. Bugün bunu "hayır"
+    /// diyebilmenin yolu yoktu; çıkarım her zaman "evet" diyordu.
+    ///
+    /// Bu alan üretilen panelde de okunuyor: anahtarı veritabanı üretiyorsa
+    /// kullanıcıdan istemenin anlamı yok (bkz. G40).
+    /// </summary>
+    public bool? Identity { get; set; }
 }
 
 public class SchemaRelation
