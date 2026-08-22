@@ -1058,3 +1058,27 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
 - [ ] `C:\Users\Enes Yel` dizinindeki yanlış git deposunu düzelt (remote'u `automated-recruitment-pipeline`)
 - [ ] Ödeme altyapısı araştırması (Stripe TR sınırlı → Paddle / LemonSqueezy)
 - [ ] `namines.com` alan adı + marka taraması
+
+### Kodun beklediği kararlar/erişimler
+
+Aşağıdakiler olmadan ilgili iş TAMAMLANAMAZ — kod tarafı hazır, eksik olan senin
+vereceğin bilgi ya da hesap. Hiçbiri diğer işleri bloke etmiyor.
+
+- [ ] **Neon hesabı + `NEON_API_KEY`** (06 §3). `neon.tech` → kayıt → proje → API key.
+      Anahtarı sohbete yapıştırma, ortam değişkenine koy. Geldiğinde
+      `IBranchDatabaseProvisioner`'ın ikinci implementasyonu olarak takılır.
+- [ ] **npm + GitHub yayını.** MCP paketi, npm sarmalayıcısı ve release workflow
+      hazır ama `npm publish` ve `git tag v0.1.0` atılmadı — hesap gerekiyor.
+- [ ] **Gateway'in public alan adı** (`api.namines.com`?). OpenAPI'deki `servers`
+      bloğu ve üretilen SDK'nın taban URL'i buna bağlı. Şimdilik göreli yol.
+- [ ] **Plan başına rate limit sayıları** (08 §5: 600-10.000 rpm aralığı veriliyor).
+- [ ] **Redis** kararı. Çok instance'lı rate limit (şu an bellek içi, instance
+      başına) ve metadata cache (08 §6) buna bağlı.
+- [ ] **Dokümandan iki sapmanın onayı:** (1) `Authorization: Bearer` yerine
+      `X-Namines-Key` — aynı uçlarda JWT de var, tek başlıkta taşımak "hangi kimlik?"
+      belirsizliği yaratıyordu. (2) argon2id yerine SHA-256 — argon2 düşük entropili
+      PAROLALAR için; anahtar 256-bit rastgele, argon2'nin yavaşlığı hiçbir şey
+      kazandırmaz, her isteğe gecikme ekler.
+- [ ] **Stripe fiyat/plan eşlemesi** (22). Kod `SubscriptionStatus`'tan yalnızca
+      Free/Pro çıkarabiliyor; Team/Enterprise ayrımı için plan alanı ve Stripe
+      price id'leri gerekiyor.
