@@ -1167,6 +1167,39 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     `TypeSql`/`CanonicalType` bu işi zaten yapıyor), Migration IR (§7),
     WASM derlemesi (§1 hedef #7).
 
+- [x] **G36 — Namines Bot: webhook, PR incelemesi ve komutlar ([11](11-MIGRATIONS-BRANCHING.md) §7, §9)** ✅ TAMAMLANDI
+  - `GithubWebhook` (HMAC-SHA256 imza doğrulama), `BotCommandParser`
+    (`/namines` komutları), `PullRequestReviewComposer` (etki raporu → PR yorumu +
+    status check), `POST /api/github/webhook`, CLI'a `namines validate`.
+  - ⚠️ **Bot bugün olayları KABUL EDİYOR ama GitHub'a geri YAZMIYOR.** Yorum
+    göndermek ve check oluşturmak, sizin hesabınızda kayıtlı bir GitHub App'in
+    kimlik bilgilerini gerektiriyor. Sahte bir istemciyle "yazıyormuş gibi" yapmak,
+    çalıştığı sanılan ama hiçbir şey yapmayan bir özellik bırakırdı. Doğrulama,
+    komut ayrıştırma ve yorum metni üretimi hazır ve test edilmiş; App geldiğinde
+    tek eksik HTTP çağrısı.
+  - **İmza doğrulaması olmadan bir webhook ucu herkesin çağırabildiği bir uçtur:**
+    sahte "PR açıldı" olayı önizleme veritabanı açtırabilir ya da sahte bir
+    "onaylandı" yorumu attırabilir. Karşılaştırma sabit zamanlı. **Sır tanımlı
+    değilse doğrulama BAŞARISIZ** — "sır yoksa atla" davranışı, yapılandırmayı
+    unutan bir kurulumda ucu tamamen açık bırakırdı. Ret sebebi çağırana
+    söylenmiyor (kurulum bilgisi sızdırmamak için), log'a gidiyor.
+  - Gövde HAM okunuyor: imza baytların üzerinden hesaplanıyor, model bağlaması
+    JSON'u yeniden serileştirseydi tek bir boşluk farkı imzayı geçersiz kılardı.
+  - **Bilinmeyen komut tahmin edilmiyor:** `/namines aprove` → `approve` çevirisi,
+    yıkıcı bir değişikliğin yazım hatasıyla onaylanması demek olurdu. Komut satırın
+    BAŞINDA olmalı — alıntı yapan bir yorum kazara komut tetiklememeli.
+  - **Destructive/Breaking → check `failure`.** "neutral" seçmek merge'ü engellemez
+    ve check'i süse çevirir; özelliğin tüm amacı bu. Veri kaybı yorumda kolon kolon
+    adlandırılıyor: "3 risk var" bir incelemeciye karar verdirmez.
+  - Rozet metin, emoji değil — emoji her temada aynı okunmuyor ve ekran okuyucuda
+    anlamsız bir ad olarak seslendiriliyor.
+  - `namines validate` (§9) hem JSON hem `.nsl` kabul ediyor ve doğrulama hatası
+    için AYRI çıkış kodu (4) veriyor: CI'da "doğrulama başarısız" ile "araç patladı"
+    aynı şey değil. Canlı denendi — sorunlu şemada NSL016/013/014/008 bulundu, exit 4.
+  - Doğrulama: `BotTests` **27/27**, tam paket **843 test yeşil**.
+  - **Kapsam dışı:** GitHub'a yazma (App bekliyor), PR açılınca önizleme DB
+    provision, `.nsl` senkron PR'ı, tip senkronu, kırılma analizinin PR'a bağlanması.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

@@ -32,6 +32,7 @@ USAGE
   namines ddl    --schema <file|-> --engine <engine> [--out <file>]
   namines prove  --schema <file|-> --engine <engine>
   namines prisma --schema <file|-> --engine <engine> [--out <file>]
+  namines validate --schema <file|-> --engine <engine>
 
 ENGINES
   PostgreSQL, MSSQL, MySQL, MariaDB, Oracle, SQLite
@@ -46,8 +47,12 @@ NOTES
   'prisma' prints warnings to stderr: anything Prisma cannot express is ABSENT
   from the output (CHECK constraints, partial indexes). Oracle is not supported.
 
+  'validate' checks the schema against the NSL rules (04 §6) and prints findings.
+  It accepts both Namines JSON and .nsl text.
+
 EXIT CODES
   0 ok   1 error   2 destructive/breaking risk   3 engine rejected the DDL
+  4 validation found errors
 """;
 
 try
@@ -115,6 +120,44 @@ static async Task<int> Run(string[] args)
 
             Emit(result.Files["schema.prisma"], opts);
             return 0;
+        }
+
+        case "validate":
+        {
+            var text = ReadInput(Required(opts, "schema"));
+            var engine = Required(opts, "engine");
+
+            // Hem JSON hem .nsl kabul ediliyor: kullanıcı şemasını hangi biçimde
+            // tutuyorsa onu vermeli, biçim dönüştürmek için ayrı bir adım
+            // gerekmemeli. Ayırt etmek için ilk anlamlı karakter yeterli.
+            var schema = text.TrimStart().StartsWith("{")
+                ? System.Text.Json.JsonSerializer.Deserialize<Namines.Core.Models.DatabaseSchema>(
+                      text, new System.Text.Json.JsonSerializerOptions
+                      {
+                          PropertyNameCaseInsensitive = true,
+                          Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+                      }) ?? new Namines.Core.Models.DatabaseSchema()
+                : Namines.Core.Nsl.NslParser.Parse(text);
+
+            var findings = Namines.Core.Nsl.NslValidator.Validate(
+                schema, Enum.Parse<Namines.Core.Enums.DatabaseType>(engine, ignoreCase: true));
+
+            foreach (var finding in findings)
+            {
+                var where = finding.Table is null ? string.Empty
+                    : finding.Column is null ? $"{finding.Table}: "
+                    : $"{finding.Table}.{finding.Column}: ";
+                Console.WriteLine($"{finding.Code} [{finding.Severity}] {where}{finding.Message}");
+            }
+
+            var errors = findings.Count(f => f.Severity == "error");
+            Console.Error.WriteLine(
+                $"{errors} error(s), {findings.Count(f => f.Severity == "warning")} warning(s), " +
+                $"{findings.Count(f => f.Severity == "info")} info.");
+
+            // Hataya ayrı bir çıkış kodu: CI'da "doğrulama başarısız" ile
+            // "aracın kendisi patladı" aynı şey değil.
+            return errors > 0 ? 4 : 0;
         }
 
         case "prove":
