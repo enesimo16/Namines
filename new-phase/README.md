@@ -117,6 +117,8 @@ Faz 1'de yazılmış her özellik Faz 2'de bir katmana **terfi ediyor**:
 | 31 | [31-NEW-BUSINESS-LINES.md](31-NEW-BUSINESS-LINES.md) | 5 yeni iş fikri, ticari değerlendirme + öncelik sırası |
 | 32 | [32-DEFERRED-NOT-REJECTED.md](32-DEFERRED-NOT-REJECTED.md) | "Kesinlikle yapmayacaklar" — neden şimdi değil, ne zaman evet |
 | 33 | [33-MCP-AND-SKILL.md](33-MCP-AND-SKILL.md) | MCP sunucusu + Claude Skill — geliştirme döngüsüne girmek (R4'ün uygulaması) |
+| 34 | [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md) | Kodun hazır olduğu ama bir hesap/karar beklediği işler — basit dille |
+| 35 | [35-KALAN-BUYUK-ISLER.md](35-KALAN-BUYUK-ISLER.md) | Sıradaki büyük başlıklar + önerilen sıra ("eksik" değil, "sonraki") |
 
 ---
 

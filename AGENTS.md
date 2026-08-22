@@ -45,6 +45,11 @@ gerçek-Docker testi).
 Sıradaki adımlar için [27 §4](new-phase/27-LIFECYCLE-PIVOT.md) ve CHECKLIST.md'nin
 "G-ekstra" / "Kod dışı işler" bölümlerine bak.
 
+Kalan işler iki dosyada toplu hâlde duruyor:
+[34-SENDEN-BEKLENENLER.md](new-phase/34-SENDEN-BEKLENENLER.md) (kod hazır, bir
+hesap/karar bekliyor) ve [35-KALAN-BUYUK-ISLER.md](new-phase/35-KALAN-BUYUK-ISLER.md)
+(sıradaki büyük başlıklar + önerilen sıra). Yeni bir işe başlamadan önce 35'e bak.
+
 ---
 
 ## Kesin kurallar (bu oturumlarda öğrenildi, tekrar keşfetme)
