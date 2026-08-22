@@ -7,7 +7,9 @@ using Namines.Core.Analysis;
 using System.Linq;
 using Namines.Infrastructure.Generators.Eject;
 using Namines.Infrastructure.Observability;
+using Namines.Core.Enums;
 using Namines.Core.Interfaces;
+using Namines.Core.Nsl;
 using Namines.Core.Models;
 using Namines.Infrastructure.Generators.DdlGenerator;
 
@@ -15,6 +17,8 @@ namespace Namines.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+public sealed record NslParseRequest(string Text, DatabaseType DbType = DatabaseType.PostgreSQL);
+
 public class CompileController : ControllerBase
 {
     private readonly IDdlGeneratorFactory _ddlFactory;
@@ -236,5 +240,51 @@ public class CompileController : ControllerBase
         var safeTarget = target.Replace('.', '-');
         return File(memoryStream.ToArray(), "application/zip",
             $"{request.Schema.Name ?? "Schema"}_{safeTarget}.zip");
+    }
+
+    // ── NSL (04-NSL-SCHEMA-IR.md) ────────────────────────────────────────────
+
+    /// <summary>
+    /// <c>.nsl</c> metnini şemaya çevirir ve doğrular.
+    ///
+    /// Ayrıştırma hatası 400 döner ve SATIR NUMARASINI taşır — "geçersiz NSL"
+    /// tek başına kullanıcıya hiçbir şey söylemez.
+    /// </summary>
+    [HttpPost("nsl/parse")]
+    public IActionResult ParseNsl([FromBody] NslParseRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Text))
+            return BadRequest(new { error = "NSL text is required." });
+
+        try
+        {
+            var schema = NslParser.Parse(request.Text);
+            var findings = NslValidator.Validate(schema, request.DbType);
+
+            return Ok(new { schema, findings });
+        }
+        catch (NslParseException ex)
+        {
+            return BadRequest(new { error = ex.Message, line = ex.Line });
+        }
+    }
+
+    /// <summary>Şemayı doğrular; metne çevirmeden yalnızca bulguları döndürür.</summary>
+    [HttpPost("nsl/validate")]
+    public IActionResult ValidateSchema([FromBody] CompileRequest request)
+    {
+        if (request.Schema == null) return BadRequest("Schema is required.");
+
+        var findings = NslValidator.Validate(request.Schema, request.DbType);
+
+        return Ok(new
+        {
+            findings,
+            // Özet, arayüzün bulguları saymak zorunda kalmaması için: "3 hata,
+            // 5 uyarı" cümlesi listeyi açmadan karar vermeyi sağlıyor.
+            errors = findings.Count(f => f.Severity == "error"),
+            warnings = findings.Count(f => f.Severity == "warning"),
+            infos = findings.Count(f => f.Severity == "info"),
+        });
     }
 }

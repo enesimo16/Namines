@@ -1126,6 +1126,47 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     depolama/transfer ölçümünün gerçek kaynaklara bağlanması (şu an yalnızca AI
     çağrısı, API isteği ve branch veritabanı ölçülüyor).
 
+- [x] **G35 — NSL: metin biçimi, ayrıştırıcı ve doğrulayıcı ([04](04-NSL-SCHEMA-IR.md))** ✅ TAMAMLANDI
+  - `NslWriter` + `NslParser` + `NslValidator`, `nsl` eject hedefi,
+    `POST /api/compile/nsl/parse` ve `/nsl/validate`.
+  - **Mevcut modelin ÜZERİNE metin biçimi olarak kuruldu**, `DatabaseSchema`'yı
+    değiştirmeden. Doküman §10 zaten bu göçü tarif ediyor. Tasarım hedefi #3
+    (git'te diff'lenebilir) böyle karşılanıyor: JSON da diff'lenir ama okunmaz —
+    bir kolonun eklendiğini görmek için 40 satırlık blok farkı okumak gerekir,
+    NSL'de aynı değişiklik tek satır.
+  - **Round-trip kilitlendi:** yaz → oku → yaz aynı metni veriyor. Bir biçimin
+    sessizce veri düşürmesi en pahalı arıza türü — kullanıcı şemasını dosyaya
+    yazar, geri okur, bir kısıtın kaybolduğunu ancak veritabanı reddedince görür.
+    Kararlı kimlik (`@uuid`) de round-trip'te korunuyor; kaybolsaydı "yeniden
+    adlandırma" ile "sil + ekle" ayırt edilemezdi — `SchemaIdentity`'de düzeltilen
+    hatanın metin karşılığı.
+  - ⚠️ **Testin yakaladığı gerçek hata:** yazım hatası içeren bir kısıt
+    (`uniqe (id)`) sessizce **hayalet kolona** dönüşüyordu — adı "uniqe", tipi
+    "(id)". Kısıt kayboluyor, şema eksik geri geliyordu. Tip belirtecinin harfle
+    başlaması zorunlu kılındı; tanınmayan satır artık PATLIYOR, atlanmıyor.
+  - Tırnak içindeki `//` yorum sayılmıyor: bir CHECK ifadesi ya da URL varsayılanı
+    `//` içerebilir ve onu yorum sanmak ifadeyi ortadan keser.
+  - İlişkiler sonda çözülüyor → ileriye referans mümkün; kullanıcı dosyayı elle
+    sıralamak zorunda değil.
+  - **Doğrulayıcı:** 25 kuralın modelde karşılığı olan 15'i uygulandı. View
+    (NSL022), RLS (NSL021), enum (NSL017), PII etiketi (NSL020) `DatabaseSchema`'da
+    temsil edilmiyor — onlar için kural yazmak, hiç tetiklenmeyecek bir kontrolü
+    "var" göstermek olurdu. NSL006/007 **yeniden yazılmadı**: `FkCascadeAnalyzer`
+    zaten gerçek motorlara karşı doğrulanmış hâlde bu işi yapıyor, ikinci bir
+    uygulama biri güncellenip diğeri unutulduğunda çelişkili sonuç verirdi.
+  - Kurallar iki yönde de test edildi — tetiklendiği VE tetiklenmediği durum.
+    Yanlış alarm veren bir doğrulayıcı, tüm uyarıların görmezden gelinmesine yol
+    açar: her float değil yalnızca PARASAL float işaretleniyor, `INT`/`INTEGER`/
+    `BIGINT` uyumlu sayılıyor, ad uzunluğu motora göre değişiyor.
+  - `nsl` diğer eject hedeflerinden farklı: **çift yönlü**. Üretilen dosya geri
+    okunabiliyor; üretilen bir Django modelinden şemayı geri kurmanın yolu yok.
+  - Doğrulama: `NslRoundTripTests` **14/14**, `NslValidatorTests` **18/18**.
+    Tam paket **816 test yeşil**.
+  - **Kapsam dışı:** enum/view/RLS/`@ui`/`@tag` sözdizimi (model taşımıyor),
+    kanonik JSON IR + JSON Schema (§3), tip eşleme matrisi (§4.2 — mevcut
+    `TypeSql`/`CanonicalType` bu işi zaten yapıyor), Migration IR (§7),
+    WASM derlemesi (§1 hedef #7).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

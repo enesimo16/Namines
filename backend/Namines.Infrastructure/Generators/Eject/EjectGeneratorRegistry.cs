@@ -30,6 +30,9 @@ public sealed class EjectGeneratorRegistry : IEjectGeneratorRegistry
     {
         var generators = new IEjectGenerator[]
         {
+            // Şemanın kendi metin biçimi — tek ÇİFT YÖNLÜ hedef.
+            new NslGenerator(),
+
             // Tipler ve sözleşmeler
             new TypeScriptTypesGenerator(),
             new TypeScriptSdkGenerator(),
