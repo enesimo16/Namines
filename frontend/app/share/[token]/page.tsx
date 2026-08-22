@@ -18,6 +18,7 @@ import TableNode from '../../../components/canvas/nodes/TableNode';
 import { schemaToFlow } from '../../../lib/schemaToFlow';
 import { API_BASE_URL } from '../../../lib/apiConfig';
 import { DatabaseSchema } from '../../../types/schema';
+import BadgeSnippet from './BadgeSnippet';
 
 const nodeTypes = { tableNode: TableNode };
 
@@ -122,6 +123,7 @@ export default function SharePage() {
         <span className="ml-auto px-3 py-1 rounded-lg bg-surface-700 text-content-muted text-xs border border-surface-500">
           Read-only view
         </span>
+        <BadgeSnippet token={token} projectName={projectName} />
       </header>
 
       {/* Canvas */}

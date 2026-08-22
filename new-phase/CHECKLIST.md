@@ -1229,6 +1229,30 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     (23 §2 Döngü 2 — kayıtlı kullanıcı kopyalama akışı gerektiriyor), raster
     dönüşüm, `namines.com` alan adı (kod dışı iş).
 
+- [x] **G38 — Eject köken dosyası + README rozeti ([23](23-GTM.md) §2 Döngü 2 ve 4)** ✅ TAMAMLANDI
+  - `EjectLockFile` → eject edilen her pakete `namines.lock`; paylaşım sayfasına
+    kopyalanabilir README rozeti (`BadgeSnippet.tsx`).
+  - **Rozet ucu (`/api/share/badge/{token}`) çoktandır vardı ama hiçbir yerde
+    görünmüyordu** — 23 §2'nin kendi ifadesiyle "kullanılmıyordu". Kimsenin
+    bilmediği bir uç, olmayan bir özelliktir; eksik olan kod değil, hazır
+    Markdown'ı kullanıcının eline vermekti.
+  - Lock dosyasında **zaman damgası bilerek yok.** Damga koymak, şema hiç
+    değişmese bile her yeniden üretimde dosyayı değiştirir; her eject sahte bir
+    git diff'ine dönerdi ve dosyanın anlamlı olduğu tek an (şema gerçekten
+    değiştiğinde) gürültüde kaybolurdu.
+  - Parmak izi şemanın YAPISI üzerinden, sıraya duyarsız: aynı veritabanının iki
+    introspection'ı tablo sırasını farklı verebilir. Üretilen KODUN hash'i
+    alınsaydı, üretici sürümü değişince şema değişmemişken "değişti" derdi.
+    Nullable değişimi de parmak izine giriyor — üretilen tiplerin doğruluğunu
+    doğrudan etkiliyor.
+  - Lock dosyası 18 üreticinin içine değil, uçta bir kez ekleniyor: her üreticiye
+    aynı satırı yazmak, yeni hedef ekleyenin unutabileceği bir adımdı. Üretici
+    aynı adda dosya döndürdüyse ÜZERİNE YAZILMIYOR.
+  - Doğrulama: `EjectLockFileTests` **7/7**, tam paket **857 test yeşil**,
+    frontend `npm run build` başarılı (`/share/[token]` artık sunucu-render).
+  - **Kapsam dışı:** 23 §2 Döngü 5 (Blueprint Hub — 100+ şablon, içerik işi),
+    Döngü 3'ün kalanı (GitHub App bekliyor).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

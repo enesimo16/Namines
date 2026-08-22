@@ -179,7 +179,9 @@ public class CompileController : ControllerBase
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var result = _eject.Get(target).Generate(request.Schema, request.DbType);
+            var generator = _eject.Get(target);
+            var result = generator.Generate(request.Schema, request.DbType);
+            AddLockFile(result, request, target, generator);
             NaminesMetrics.SchemaCompiled(request.DbType.ToString(), target, success: true, stopwatch.Elapsed);
             return Ok(new { files = result.Files, warnings = result.Warnings });
         }
@@ -194,6 +196,25 @@ public class CompileController : ControllerBase
         }
     }
 
+
+    /// <summary>
+    /// Köken dosyasını çıktıya ekler (23 §2 Döngü 4).
+    ///
+    /// Üreticilerin İÇİNDE değil burada: 18 üreticinin her birine aynı satırı
+    /// eklemek, yeni bir hedef yazan kişinin unutabileceği bir adım demektir ve
+    /// o hedefin çıktısı sessizce kökensiz kalırdı.
+    ///
+    /// Üretici aynı adda bir dosya döndürdüyse ÜSTÜNE YAZILMIYOR — hedefe ait
+    /// gerçek bir dosyayı ezmek, üretilen paketi bozar.
+    /// </summary>
+    private static void AddLockFile(EjectResult result, CompileRequest request, string target, IEjectGenerator generator)
+    {
+        if (result.Files.ContainsKey(EjectLockFile.FileName)) return;
+
+        result.Files[EjectLockFile.FileName] =
+            EjectLockFile.Generate(request.Schema, request.DbType, target, generator.DisplayName);
+    }
+
     [HttpPost("eject/{target}/zip")]
     public IActionResult EjectZip(string target, [FromBody] CompileRequest request)
     {
@@ -205,6 +226,7 @@ public class CompileController : ControllerBase
         {
             generator = _eject.Get(target);
             result = generator.Generate(request.Schema, request.DbType);
+            AddLockFile(result, request, target, generator);
         }
         catch (NotSupportedException ex)
         {
