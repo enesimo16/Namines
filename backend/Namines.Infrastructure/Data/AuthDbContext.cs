@@ -21,6 +21,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<OrganizationMember> OrganizationMembers { get; set; } = null!;
         public DbSet<GatewayApiKey> GatewayApiKeys { get; set; } = null!;
         public DbSet<GatewayTablePermission> GatewayTablePermissions { get; set; } = null!;
+        public DbSet<GatewayAuditEntry> GatewayAuditEntries { get; set; } = null!;
         public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
         public DbSet<UserBillingSettings> UserBillingSettings { get; set; } = null!;
 

@@ -569,6 +569,65 @@ public class EjectGeneratorTests
         Assert.Contains("!(creating && column.isGenerated)", files["components/RowForm.tsx"]);
     }
 
+    // ── Console RBAC (07 §4) ─────────────────────────────────────────────────
+
+    [Fact]
+    public void Console_generates_its_own_role_model()
+    {
+        var files = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL).Files;
+
+        Assert.Contains("lib/rbac.ts", files.Keys);
+        Assert.Contains("export async function resolveRole", files["lib/rbac.ts"]);
+    }
+
+    [Fact]
+    public void The_default_role_can_only_read()
+    {
+        // Panel kimliği kendisi doğrulamıyor. Kimliği bilinmeyen bir isteğe yazma
+        // yetkisi vermek, paneli açan herkese veritabanını açmak olurdu.
+        var rbac = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["lib/rbac.ts"];
+
+        Assert.Contains("return \"viewer\";", rbac);
+        Assert.Contains("[\"read\"] as Permission[]", rbac);
+    }
+
+    [Fact]
+    public void An_unknown_role_is_denied_rather_than_defaulted()
+    {
+        // Rol adındaki bir yazım hatası birini dışarıda bırakmalı, ona
+        // beklenenden fazla yetkiyle içeri almamalı.
+        var rbac = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["lib/rbac.ts"];
+
+        Assert.Contains("if (!role) return false;", rbac);
+    }
+
+    [Fact]
+    public void Every_write_action_checks_permission_before_writing()
+    {
+        // İstemcide butonu gizlemek görünümü düzeltir, erişimi değil: form
+        // doğrudan da gönderilebilir.
+        var actions = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["app/actions.ts"];
+
+        Assert.Contains("await assertCan(table.name, \"create\");", actions);
+        Assert.Contains("await assertCan(table.name, \"update\");", actions);
+        Assert.Contains("await assertCan(table.name, \"delete\");", actions);
+    }
+
+    [Fact]
+    public void The_role_model_never_reaches_the_browser()
+    {
+        // Rol tanımları hangi tabloların var olduğunu ve kimin neye eriştiğini
+        // gösterir; tarayıcıya inmesi keşif için hazır bir harita olurdu.
+        var rbac = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["lib/rbac.ts"];
+
+        Assert.Contains("import \"server-only\";", rbac);
+        Assert.DoesNotContain("NEXT_PUBLIC_", rbac);
+    }
+
     // ── TypeScript SDK (12 §7) ───────────────────────────────────────────────
 
     [Fact]

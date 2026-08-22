@@ -121,6 +121,41 @@ public class GatewayKeyController : ControllerBase
         return Ok(keys);
     }
 
+    /// <summary>
+    /// Projenin denetim kaydı (07 §5).
+    ///
+    /// <b>Anahtar yönetimiyle aynı yetki isteniyor (Admin ve üstü).</b> Denetim
+    /// kaydı kimin neye dokunduğunu gösterir; onu okuyabilmek, projenin veri
+    /// hareketlerinin tamamını görebilmek demektir ve bu bir yönetim yetkisidir.
+    ///
+    /// Kayıt <b>yalnızca okunabilir</b> — silme ya da düzenleme ucu YOK. Silinebilen
+    /// bir denetim kaydı, tam olarak lazım olduğu anda kaybolur.
+    /// </summary>
+    [HttpGet("{projectId}/audit")]
+    public async Task<IActionResult> AuditTrail(string projectId, [FromQuery] int take = 100, CancellationToken ct = default)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        if (!await CanManageAsync(projectId, userId))
+            return NotFound(new { error = "Proje bulunamadı." });
+
+        var entries = await _context.AuditTrailAsync(projectId, take, ct);
+
+        return Ok(entries.Select(e => new
+        {
+            e.Id,
+            kind = e.Kind.ToString().ToLowerInvariant(),
+            e.TableName,
+            e.RowKey,
+            e.Columns,
+            e.AffectedRows,
+            e.Succeeded,
+            e.ApiKeyPrefix,
+            e.ActorUserId,
+            e.CreatedAt,
+        }));
+    }
+
     [HttpDelete("{projectId}/{keyId}")]
     public async Task<IActionResult> Revoke(string projectId, string keyId, CancellationToken ct)
     {

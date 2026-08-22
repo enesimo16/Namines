@@ -1547,6 +1547,52 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
   - **Kapsam dışı:** JSON Schema dosyası (doğrulayıcı bağımlılığı gerektiriyor),
     Migration IR (§7), WASM (§10), `@ui`/`@tag`/view/RLS.
 
+- [x] **G47 — Console RBAC + denetim kaydı ([07](07-CONSOLE-ADMIN-UI.md) §4, §5)** ✅ TAMAMLANDI
+  - `GatewayAuditEntry` + `GatewayAudit` + `AddGatewayAudit` migration'ı +
+    `GET /api/gateway/keys/{projectId}/audit`; üretilen panelde `lib/rbac.ts` ve
+    server action'larda zorlama.
+  - **Bu ikisi G40'ta borç hâline gelmişti:** panel yazmaya başladığı anda,
+    kimin ne yaptığını kaydetmeyen ve herkese aynı yetkiyi veren bir yazma paneli
+    üretimde kullanılamaz hâle gelir.
+  - **Denetim kaydı Gateway'de, panelde DEĞİL — ve bu bir güvenlik kararı.**
+    Panel müşterinin kendi sunucusunda çalışan, kaynağı ona ait bir uygulama;
+    oradaki bir kaydı silmek ya da hiç yazmamak tamamen mümkün. Denetim kaydının
+    değeri, kaydı tutanın kaydı yapanla aynı taraf OLMAMASINDAN gelir. Panelin
+    yazma yolu Gateway'den geçmek zorunda, dolayısıyla kayıt atlatılamaz.
+  - **Değerler saklanmıyor, yalnızca hangi satırın hangi KOLONLARINA dokunulduğu.**
+    Yazılan içerik müşterinin verisi — çoğu zaman kişisel veri — ve onu bizim
+    veritabanımıza kopyalamak, tek bir denetim özelliği uğruna yeni bir sızıntı
+    yüzeyi açmak olurdu. Model bunu bir testle de kilitliyor.
+  - **Reddedilen yazmalar da kaydediliyor.** Yalnızca başarılıları kaydetmek,
+    denetim kaydını "ne oldu"nun değil "ne işe yaradı"nın listesi yapar.
+  - **Kayıt yazılamazsa işlem geri alınmıyor** (hata yutuluyor, log'a düşüyor):
+    ikincil bir sistemin arızasını birincil işleve taşımak yanlış olurdu ve
+    yazma zaten veritabanına gitmiş, geri alınamaz.
+  - Kayıt **yalnızca okunabilir** — silme/düzenleme ucu YOK. Silinebilen bir
+    denetim kaydı, tam olarak lazım olduğu anda kaybolur. Salt-okunur ham SQL
+    kaydedilmiyor: bir raporlama panelinin her yenilenmesi, gerçek değişiklikleri
+    gürültünün içinde kaybederdi.
+  - **Panelin varsayılan rolü salt-okunur.** Panel kimliği kendisi doğrulamıyor —
+    o iş müşterinin var olan sistemine ait. Kimliği bilinmeyen bir isteğe yazma
+    yetkisi vermek, paneli açan herkese veritabanını açmak olurdu. Müşteri
+    `resolveRole`'ü kendi oturumuna bağlayana kadar panel okur, yazmaz.
+    Bilinmeyen rol adı da **reddediliyor** — yazım hatası birini dışarıda
+    bırakmalı, fazla yetkiyle içeri almamalı.
+  - Yetki kontrolü SUNUCUDA ve yazmadan önce: istemcide butonu gizlemek görünümü
+    düzeltir, erişimi değil — form doğrudan da gönderilebilir.
+  - Doğrulama: `GatewayAuditTests` **7/7 gerçek PostgreSQL'e karşı**
+    (Testcontainers), `EjectGeneratorTests` **107/107**, tam paket
+    **1003 test yeşil**. **Canlı uçtan uca:** başarılı ekleme, NOT NULL ihlaliyle
+    başarısız ekleme ve hiçbir satıra denk gelmeyen silme — üçü de kayıtta doğru
+    işaretlendi; tarayıcıda varsayılan rol yazmayı **engelledi**
+    ("Your role (\"viewer\") is not allowed to create rows in users."), rol
+    `admin`'e bağlanınca yazma geçti ve **Gateway denetim kaydında panelin kendi
+    anahtarıyla göründü**.
+  - **Kapsam dışı:** kolon maskeleme ve satır filtresinin role bağlanması
+    (Gateway'de `MaskedColumns` var ama role değil anahtara bağlı), alan bazlı
+    yazma izni (`update: ["status"]`), dashboard motoru (§6), doğal dil sorgu
+    (§7), özelleştirme katmanı (§9).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

@@ -1,4 +1,5 @@
 using System;
+using System.Security.Claims;
 using System.Data.Common;
 using System.Collections.Generic;
 using System.Threading;
@@ -353,13 +354,14 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
-        return await ExecuteAsync(async () =>
-        {
-            var result = await _gateway.CreateAsync(
-                request.ConnectionString, request.DbType, request.TableName,
-                request.Values, cancellationToken);
-            return Ok(result);
-        });
+        return await AuditedAsync(apiKey, GatewayWriteKind.Create, request.TableName, null,
+            request.Values.Keys, cancellationToken, async () =>
+            {
+                var result = await _gateway.CreateAsync(
+                    request.ConnectionString, request.DbType, request.TableName,
+                    request.Values, cancellationToken);
+                return (Ok(result), result.AffectedRows);
+            });
     }
 
     [HttpPost("update")]
@@ -375,16 +377,17 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
-        return await ExecuteAsync(async () =>
-        {
-            var result = await _gateway.UpdateAsync(
-                request.ConnectionString, request.DbType, request.TableName,
-                request.PkColumn, request.PkValue, request.Values, cancellationToken);
+        return await AuditedAsync(apiKey, GatewayWriteKind.Update, request.TableName, request.PkValue,
+            request.Values.Keys, cancellationToken, async () =>
+            {
+                var result = await _gateway.UpdateAsync(
+                    request.ConnectionString, request.DbType, request.TableName,
+                    request.PkColumn, request.PkValue, request.Values, cancellationToken);
 
-            return result.AffectedRows == 0
-                ? NotFound(new { message = "No row found for the given key." })
-                : Ok(result);
-        });
+                return (result.AffectedRows == 0
+                    ? NotFound(new { message = "No row found for the given key." })
+                    : Ok(result), result.AffectedRows);
+            });
     }
 
     [HttpPost("delete")]
@@ -397,16 +400,17 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
-        return await ExecuteAsync(async () =>
-        {
-            var result = await _gateway.DeleteAsync(
-                request.ConnectionString, request.DbType, request.TableName,
-                request.PkColumn, request.PkValue, cancellationToken);
+        return await AuditedAsync(apiKey, GatewayWriteKind.Delete, request.TableName, request.PkValue,
+            null, cancellationToken, async () =>
+            {
+                var result = await _gateway.DeleteAsync(
+                    request.ConnectionString, request.DbType, request.TableName,
+                    request.PkColumn, request.PkValue, cancellationToken);
 
-            return result.AffectedRows == 0
-                ? NotFound(new { message = "No row found for the given key." })
-                : Ok(result);
-        });
+                return (result.AffectedRows == 0
+                    ? NotFound(new { message = "No row found for the given key." })
+                    : Ok(result), result.AffectedRows);
+            });
     }
 
     /// <summary>
@@ -451,6 +455,46 @@ public class GatewayController : ControllerBase
         {
             return StatusCode(500, new { message = "Could not connect or query the database. Check credentials and network access." });
         }
+    }
+
+    /// <summary>
+    /// Yazma işlemini çalıştırır ve <b>sonucu ne olursa olsun</b> denetim kaydına
+    /// yazar (07 §5).
+    ///
+    /// Yalnızca başarılı yazmaları kaydetmek, denetim kaydını "ne oldu"nun değil
+    /// "ne işe yaradı"nın listesi yapar; reddedilen bir yazma girişimi çoğu zaman
+    /// başarılı olandan daha ilgi çekicidir.
+    ///
+    /// Kayıt <see cref="ExecuteAsync"/>'in DIŞINDA değil, sonucuna bakılarak
+    /// yazılıyor: içeride yazmak, hata yolunu atlamak demek olurdu.
+    /// </summary>
+    private async Task<IActionResult> AuditedAsync(
+        GatewayApiKey? key,
+        GatewayWriteKind kind,
+        string? tableName,
+        string? rowKey,
+        IEnumerable<string>? columns,
+        CancellationToken cancellationToken,
+        Func<Task<(IActionResult Result, int AffectedRows)>> action)
+    {
+        var affected = 0;
+        var succeeded = false;
+
+        var response = await ExecuteAsync(async () =>
+        {
+            var (result, rows) = await action();
+            affected = rows;
+            // 2xx dışındaki her şey başarısızdır: "satır bulunamadı" da bir
+            // yazma denemesidir ve kaydedilmelidir.
+            succeeded = result is ObjectResult { StatusCode: >= 200 and < 300 } or OkObjectResult;
+            return result;
+        });
+
+        await _context.RecordAsync(
+            key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+            kind, tableName, rowKey, columns, affected, succeeded, cancellationToken);
+
+        return response;
     }
 
     /// <summary>
@@ -565,18 +609,19 @@ public class GatewayController : ControllerBase
         if (request.Rows is null || request.Rows.Count == 0)
             return BadRequest(new { message = "At least one row is required." });
 
-        var (allowed, failure, _) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
-        return await ExecuteAsync(async () =>
-        {
-            var result = await _gateway.ImportAsync(
-                request.ConnectionString, request.DbType, request.TableName,
-                request.Rows.Cast<IReadOnlyDictionary<string, string?>>().ToList(),
-                cancellationToken);
+        return await AuditedAsync(apiKey, GatewayWriteKind.Import, request.TableName, null,
+            request.Rows[0].Keys, cancellationToken, async () =>
+            {
+                var result = await _gateway.ImportAsync(
+                    request.ConnectionString, request.DbType, request.TableName,
+                    request.Rows.Cast<IReadOnlyDictionary<string, string?>>().ToList(),
+                    cancellationToken);
 
-            return Ok(result);
-        });
+                return (Ok(result), result.InsertedRows);
+            });
     }
 
     /// <summary>
@@ -596,17 +641,18 @@ public class GatewayController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.Function))
             return BadRequest(new { message = "Connection string and function name are required." });
 
-        var (allowed, failure, _) = await AuthorizeAsync(request.Function, forWrite: true, cancellationToken);
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.Function, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
-        return await ExecuteAsync(async () =>
-        {
-            var result = await _gateway.RpcAsync(
-                request.ConnectionString, request.DbType, request.Function,
-                request.Arguments ?? new List<string?>(), cancellationToken);
+        return await AuditedAsync(apiKey, GatewayWriteKind.Rpc, request.Function, null,
+            null, cancellationToken, async () =>
+            {
+                var result = await _gateway.RpcAsync(
+                    request.ConnectionString, request.DbType, request.Function,
+                    request.Arguments ?? new List<string?>(), cancellationToken);
 
-            return Ok(result);
-        });
+                return (Ok(result), result.AffectedRows);
+            });
     }
 
     /// <summary>
@@ -634,13 +680,25 @@ public class GatewayController : ControllerBase
         if (!request.ReadOnly && key is not null && !key.CanWrite)
             return StatusCode(403, new { message = "This API key may run read-only SQL only." });
 
-        return await ExecuteAsync(async () =>
+        // Salt-okunur sorgular kaydedilmiyor: bir raporlama panelinin her
+        // yenilenmesini denetim kaydına yazmak, gerçek değişiklikleri gürültünün
+        // içinde kaybederdi. Yazma niyetiyle çalışan ham SQL ise kaydediliyor.
+        if (request.ReadOnly)
+        {
+            return await ExecuteAsync(async () =>
+            {
+                var result = await _gateway.QueryAsync(
+                    request.ConnectionString, request.DbType, request.Sql, true, cancellationToken);
+                return Ok(result);
+            });
+        }
+
+        return await AuditedAsync(key, GatewayWriteKind.Sql, null, null, null, cancellationToken, async () =>
         {
             var result = await _gateway.QueryAsync(
-                request.ConnectionString, request.DbType, request.Sql,
-                request.ReadOnly, cancellationToken);
+                request.ConnectionString, request.DbType, request.Sql, false, cancellationToken);
 
-            return Ok(result);
+            return (Ok(result), result.AffectedRows);
         });
     }
 
