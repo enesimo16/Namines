@@ -40,6 +40,7 @@ public static class NslParser
         var pendingRelations = new List<(SchemaTable From, string FromColumn, string ToTable, string ToColumn, string OnDelete, string OnUpdate)>();
 
         SchemaTable? current = null;
+        SchemaEnum? currentEnum = null;
         var lineNumber = 0;
 
         foreach (var raw in text.Split('\n'))
@@ -67,6 +68,29 @@ public static class NslParser
             if (line == "}")
             {
                 current = null;
+                currentEnum = null;
+                continue;
+            }
+
+            if (line.StartsWith("enum ", StringComparison.Ordinal))
+            {
+                var enumName = Unquote(line[5..].Replace("{", string.Empty).Trim());
+                currentEnum = new SchemaEnum
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = enumName,
+                    StableUuid = SchemaIdentity.ForTable("enum:" + enumName),
+                };
+                schema.Enums.Add(currentEnum);
+                continue;
+            }
+
+            if (currentEnum is not null)
+            {
+                // Enum bloğu içindeki her satır bir değerdir. Ayrıştırıcının
+                // burada kolon kuralları uygulaması, "paid" gibi bir değeri
+                // "tipi olmayan kolon" diye reddetmesine yol açardı.
+                currentEnum.Values.Add(Unquote(line.TrimEnd(',')));
                 continue;
             }
 
@@ -102,6 +126,10 @@ public static class NslParser
         if (current is not null)
             throw new NslParseException(lineNumber,
                 $"Table '{current.Name}' was never closed with '}}'. The file looks truncated.");
+
+        if (currentEnum is not null)
+            throw new NslParseException(lineNumber,
+                $"Enum '{currentEnum.Name}' was never closed with '}}'. The file looks truncated.");
 
         ResolveRelations(schema, pendingRelations);
         return schema;
@@ -193,7 +221,9 @@ public static class NslParser
 
         // Nitelikler çıkarıldıktan sonra geriye "ad tip" kalmalı.
         var head = line;
-        foreach (var marker in new[] { "@uuid(", "default(" })
+        // Yeni bir nitelik eklenip BURAYA yazılmazsa, içeriği "ad tip" olarak
+        // okunmaya çalışılır ve kolon bildirimi anlaşılmaz bir hatayla düşer.
+        foreach (var marker in new[] { "@uuid(", "default(", "generated(", "collate(" })
         {
             var index = head.IndexOf(marker, StringComparison.Ordinal);
             if (index >= 0) head = head[..index];
@@ -212,7 +242,25 @@ public static class NslParser
                 $"'{parts[0]}' is not a known statement, and '{line}' is not a valid column declaration.");
 
         var name = Unquote(parts[0]);
-        var (type, length) = ParseType(parts[1]);
+
+        var typeToken = parts[1];
+        string? enumRef = null;
+        if (typeToken.StartsWith("enum(", StringComparison.OrdinalIgnoreCase))
+        {
+            var close = typeToken.IndexOf(')');
+            if (close < 0)
+                throw new NslParseException(lineNumber, $"'{typeToken}' is missing a closing ')'.");
+
+            enumRef = Unquote(typeToken[5..close]);
+            typeToken = "text";
+        }
+
+        // Dizi eki tip çözümlemesinden ÖNCE ayrılıyor: "text[]" tipini olduğu gibi
+        // aramak, hiçbir motorda karşılığı olmayan bir tip adı üretirdi.
+        var isArray = typeToken.EndsWith("[]", StringComparison.Ordinal);
+        if (isArray) typeToken = typeToken[..^2];
+
+        var (type, length) = ParseType(typeToken);
 
         var isPk = ContainsKeyword(head, "pk");
 
@@ -235,6 +283,10 @@ public static class NslParser
             IsNullable = !isPk && !ContainsKeyword(head, "not null"),
             DefaultValue = defaultValue,
             Identity = identity,
+            EnumRef = enumRef,
+            IsArray = isArray,
+            Generated = ReadParenthesised(line, "generated"),
+            Collation = ReadParenthesised(line, "collate"),
             StableUuid = uuid ?? SchemaIdentity.ForColumn(tableName, name),
         };
     }
@@ -369,12 +421,22 @@ public static class NslParser
         return rest.StartsWith('"') ? ReadQuotedFrom(rest) : null;
     }
 
-    private static string? ReadDefault(string line)
+    private static string? ReadDefault(string line) => ReadParenthesised(line, "default");
+
+    /// <summary>
+    /// <c>keyword(...)</c> biçimindeki bir niteliğin içeriğini okur.
+    ///
+    /// İç içe parantezler sayılıyor: <c>generated(round(a * b, 2))</c> ifadesinde
+    /// ilk <c>)</c>'de durmak ifadeyi ortasından keser ve ortaya çalışmayan bir
+    /// DDL çıkarır — üstelik hata, ifade geçerli göründüğü için ancak veritabanı
+    /// reddedince anlaşılır.
+    /// </summary>
+    private static string? ReadParenthesised(string line, string keyword)
     {
-        var marker = line.IndexOf("default(", StringComparison.Ordinal);
+        var marker = line.IndexOf(keyword + "(", StringComparison.OrdinalIgnoreCase);
         if (marker < 0) return null;
 
-        var rest = line[(marker + 8)..];
+        var rest = line[(marker + keyword.Length + 1)..];
         // İç içe parantezleri say: default(now()) 'now(' değil 'now()' olmalı.
         var depth = 1;
         for (var i = 0; i < rest.Length; i++)

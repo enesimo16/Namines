@@ -39,7 +39,15 @@ public class MssqlDdlGenerator : IDdlGenerator
                 var identityStr = IdentityPolicy.IsGenerated(col, pkColumns.Count)
                     ? " IDENTITY(1,1)" : "";
 
-                sb.Append($"    [{col.Name}] {sqlType}{identityStr} {nullStr}{defaultStr}");
+                // Hesaplanan kolon tipini ifadeden alır ve NOT NULL/DEFAULT ile
+                // birleşmez; o yüzden satırın tamamı ayrı kuruluyor.
+                var generatedDef = ColumnFeatureSql.Generated(col, DatabaseType.MSSQL);
+                var collate = ColumnFeatureSql.Collate(col, DatabaseType.MSSQL);
+                sqlType = ColumnFeatureSql.ApplyArray(sqlType, col, DatabaseType.MSSQL);
+
+                sb.Append(generatedDef is not null
+                    ? $"    [{col.Name}] {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.MSSQL) ? sqlType + " " : string.Empty)}{generatedDef}"
+                    : $"    [{col.Name}] {sqlType}{identityStr}{collate} {nullStr}{defaultStr}");
                 
                 if (i < table.Columns.Count - 1)
                     sb.AppendLine(",");

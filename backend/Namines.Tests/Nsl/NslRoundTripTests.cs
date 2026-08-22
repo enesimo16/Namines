@@ -352,4 +352,83 @@ public class NslRoundTripTests
 
         Assert.False(parsed.Tables[0].Columns[0].Identity);
     }
+
+    // ── 04 §3 alanları: enum, dizi, hesaplanan, collation ────────────────────
+
+    private static DatabaseSchema Rich()
+    {
+        var schema = new DatabaseSchema { Name = "shop" };
+        schema.Enums.Add(new SchemaEnum
+        {
+            Id = "e1", Name = "order_status",
+            Values = { "pending", "paid", "can't ship" },
+        });
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t1", Name = "orders",
+            Columns =
+            {
+                new SchemaColumn { Id = "c1", Name = "id", Type = "INT", IsPK = true },
+                new SchemaColumn { Id = "c2", Name = "status", Type = "TEXT", EnumRef = "order_status" },
+                new SchemaColumn { Id = "c3", Name = "tags", Type = "TEXT", IsArray = true, IsNullable = true },
+                new SchemaColumn { Id = "c4", Name = "total", Type = "DECIMAL", Generated = "round(a * b, 2)" },
+                new SchemaColumn { Id = "c5", Name = "city", Type = "VARCHAR", Length = 80, Collation = "tr-TR-x-icu" },
+            },
+        });
+        return schema;
+    }
+
+    [Fact]
+    public void The_new_column_features_survive_a_round_trip()
+    {
+        // Bir biçimin sessizce veri düşürmesi en pahalı arıza türü: kullanıcı
+        // şemasını dosyaya yazar, geri okur ve bir kısıtın kaybolduğunu ancak
+        // veritabanı reddedince görür.
+        var parsed = NslParser.Parse(NslWriter.Write(Rich()));
+        var columns = parsed.Tables[0].Columns;
+
+        Assert.Equal("order_status", columns[1].EnumRef);
+        Assert.True(columns[2].IsArray);
+        Assert.Equal("round(a * b, 2)", columns[3].Generated);
+        Assert.Equal("tr-TR-x-icu", columns[4].Collation);
+    }
+
+    [Fact]
+    public void An_enum_and_its_values_survive_a_round_trip()
+    {
+        var parsed = NslParser.Parse(NslWriter.Write(Rich()));
+
+        Assert.Single(parsed.Enums);
+        Assert.Equal("order_status", parsed.Enums[0].Name);
+        // Sıra korunmalı: PostgreSQL enum değerlerini tanımlandıkları sırayla
+        // SIRALAR, yani sırayı değiştirmek ORDER BY sonucunu değiştirir.
+        Assert.Equal(new[] { "pending", "paid", "can't ship" }, parsed.Enums[0].Values);
+    }
+
+    [Fact]
+    public void Enums_are_written_before_the_tables_that_use_them()
+    {
+        // Dosyayı yukarıdan aşağı okuyan insan da, ayrıştırıcı da neye baktığını
+        // bilmeli.
+        var text = NslWriter.Write(Rich());
+
+        Assert.True(text.IndexOf("enum order_status", StringComparison.Ordinal) <
+                    text.IndexOf("table orders", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_nested_expression_is_not_cut_at_the_first_bracket()
+    {
+        // "generated(round(a * b, 2))" ifadesinde ilk ')' de durmak ifadeyi
+        // ortasından keser ve ortaya çalışmayan bir DDL çıkar.
+        var parsed = NslParser.Parse("table t {\n  x decimal generated(round(a * b, 2))\n}\n");
+
+        Assert.Equal("round(a * b, 2)", parsed.Tables[0].Columns[0].Generated);
+    }
+
+    [Fact]
+    public void An_unclosed_enum_block_is_reported_as_truncated()
+    {
+        Assert.Throws<NslParseException>(() => NslParser.Parse("enum s {\n  a\n"));
+    }
 }

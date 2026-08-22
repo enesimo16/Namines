@@ -36,7 +36,15 @@ public class MySqlDdlGenerator : IDdlGenerator
                 var aiStr = IdentityPolicy.IsGenerated(col, pkColumns.Count)
                     ? " AUTO_INCREMENT" : "";
 
-                sb.Append($"    `{col.Name}` {sqlType} {nullStr}{defaultStr}{aiStr}");
+                // Hesaplanan kolon tipini ifadeden alır ve NOT NULL/DEFAULT ile
+                // birleşmez; o yüzden satırın tamamı ayrı kuruluyor.
+                var generatedDef = ColumnFeatureSql.Generated(col, DatabaseType.MySQL);
+                var collate = ColumnFeatureSql.Collate(col, DatabaseType.MySQL);
+                sqlType = ColumnFeatureSql.ApplyArray(sqlType, col, DatabaseType.MySQL);
+
+                sb.Append(generatedDef is not null
+                    ? $"    `{col.Name}` {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.MySQL) ? sqlType + " " : string.Empty)}{generatedDef}"
+                    : $"    `{col.Name}` {sqlType}{collate} {nullStr}{defaultStr}{aiStr}");
                 
                 if (i < table.Columns.Count - 1)
                     sb.AppendLine(",");

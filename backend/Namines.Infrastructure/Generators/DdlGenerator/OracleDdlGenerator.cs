@@ -47,7 +47,15 @@ public class OracleDdlGenerator : IDdlGenerator
                     ? " GENERATED ALWAYS AS IDENTITY"
                     : "";
 
-                lines.Add($"    \"{col.Name}\" {oracleType}{identityStr} {nullStr}{defaultStr}");
+                // Hesaplanan kolon tipini ifadeden alır ve NOT NULL/DEFAULT ile
+                // birleşmez; o yüzden satırın tamamı ayrı kuruluyor.
+                var generatedDef = ColumnFeatureSql.Generated(col, DatabaseType.Oracle);
+                var collate = ColumnFeatureSql.Collate(col, DatabaseType.Oracle);
+                oracleType = ColumnFeatureSql.ApplyArray(oracleType, col, DatabaseType.Oracle);
+
+                lines.Add(generatedDef is not null
+                    ? $"    \"{col.Name}\" {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.Oracle) ? oracleType + " " : string.Empty)}{generatedDef}"
+                    : $"    \"{col.Name}\" {oracleType}{identityStr}{collate} {nullStr}{defaultStr}");
             }
 
             // Inline PK constraint

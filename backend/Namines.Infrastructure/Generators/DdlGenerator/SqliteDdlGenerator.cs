@@ -53,7 +53,15 @@ public class SqliteDdlGenerator : IDdlGenerator
                 }
                 else
                 {
-                    lines.Add($"    \"{col.Name}\" {sqliteType} {nullStr}{defaultStr}");
+                // Hesaplanan kolon tipini ifadeden alır ve NOT NULL/DEFAULT ile
+                // birleşmez; o yüzden satırın tamamı ayrı kuruluyor.
+                var generatedDef = ColumnFeatureSql.Generated(col, DatabaseType.SQLite);
+                var collate = ColumnFeatureSql.Collate(col, DatabaseType.SQLite);
+                sqliteType = ColumnFeatureSql.ApplyArray(sqliteType, col, DatabaseType.SQLite);
+
+                    lines.Add(generatedDef is not null
+                        ? $"    \"{col.Name}\" {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.SQLite) ? sqliteType + " " : string.Empty)}{generatedDef}"
+                        : $"    \"{col.Name}\" {sqliteType}{collate} {nullStr}{defaultStr}");
                 }
             }
 

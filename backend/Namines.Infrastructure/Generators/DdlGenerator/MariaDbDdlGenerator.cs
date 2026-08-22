@@ -45,7 +45,15 @@ public class MariaDbDdlGenerator : IDdlGenerator
                     ? " AUTO_INCREMENT"
                     : "";
 
-                lines.Add($"    `{col.Name}` {sqlType} {nullStr}{defaultStr}{autoIncStr}");
+                // Hesaplanan kolon tipini ifadeden alır ve NOT NULL/DEFAULT ile
+                // birleşmez; o yüzden satırın tamamı ayrı kuruluyor.
+                var generatedDef = ColumnFeatureSql.Generated(col, DatabaseType.MariaDB);
+                var collate = ColumnFeatureSql.Collate(col, DatabaseType.MariaDB);
+                sqlType = ColumnFeatureSql.ApplyArray(sqlType, col, DatabaseType.MariaDB);
+
+                lines.Add(generatedDef is not null
+                    ? $"    `{col.Name}` {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.MariaDB) ? sqlType + " " : string.Empty)}{generatedDef}"
+                    : $"    `{col.Name}` {sqlType}{collate} {nullStr}{defaultStr}{autoIncStr}");
             }
 
             // Primary Key

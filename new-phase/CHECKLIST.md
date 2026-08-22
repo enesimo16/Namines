@@ -1487,6 +1487,41 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
   - **Kapsam dışı:** enum'un NSL sözdizimi (bir sonraki dilim), `generated`,
     `collation`, dizi tipi, kısmi/kapsayıcı index, kanonik JSON IR.
 
+- [x] **G45 — `generated`, `collation`, dizi tipi + NSL sözdizimi ([04](04-NSL-SCHEMA-IR.md) §3)** ✅ TAMAMLANDI
+  - `SchemaColumn.Generated/Collation/IsArray`, `ColumnFeatureSql`, altı motorun
+    bağlanması, ve NSL'de `enum {...}` bloğu + `enum(...)`, `[]`,
+    `generated(...)`, `collate(...)` sözdizimi.
+  - **Dizi desteklemeyen motorda REDDEDİLİYOR, skalere düşülmüyor.** Skalere
+    düşmek DDL'i çalıştırır ama kolonun ANLAMINI değiştirir: uygulama listeye
+    yazmaya çalışır, veritabanı tek değer bekler — hata çalışma zamanına
+    ertelenir ve orada bulunması çok daha pahalıdır.
+  - **⚠️ İki hata GERÇEK MOTORDA bulundu, birim testleri ikisini de "doğru"
+    sanıyordu:**
+    1. **Hesaplanan kolonda tip yazılmıyordu.** "Nasılsa ifadeden çıkarılır"
+       varsayımıyla yazılmıştı ve test bunu doğruluyordu. Gerçek PostgreSQL
+       reddetti: `syntax error at or near "ALWAYS"`. Meğer **tek bir doğru yok**
+       — PostgreSQL/MySQL/MariaDB tipi ZORUNLU kılıyor, SQL Server ise tip
+       yazılmasına İZİN VERMİYOR. `TypePrecedesGenerated` ile motora bağlandı.
+    2. **Collation adı tırnaklanmıyordu.** Gerçek SQLite
+       `COLLATE tr-TR-x-icu` için `near "-": syntax error` verdi. PostgreSQL ve
+       SQLite tırnak ister, SQL Server ve MySQL çıplak tanımlayıcı bekler.
+       Çıplak yazılan motorlarda ad artık DOĞRULANIYOR — bozuk SQL üretip
+       veritabanının anlaşılmaz bir hatayla düşmesini beklemek yerine sorun
+       burada söyleniyor.
+  - NSL ayrıştırıcısında iç içe parantezler sayılıyor: `generated(round(a*b, 2))`
+    ifadesinde ilk `)`'de durmak ifadeyi ortasından keser ve ortaya çalışmayan
+    bir DDL çıkar — üstelik ifade geçerli göründüğü için hata ancak veritabanı
+    reddedince anlaşılır. Kapanmayan `enum` bloğu da "dosya yarım" diye
+    bildiriliyor.
+  - Doğrulama: `ColumnFeatureSqlTests` **24/24**, NSL round-trip **23/23**, tam
+    paket **975 test yeşil**. **Gerçek motorlarda:** PostgreSQL'de enum + dizi +
+    hesaplanan kolon + Türkçe collation birlikte çalıştı (3 × 10.5 = **31.5**
+    hesaplandı, `text[]` yazıldı); SQLite'ta hesaplanan kolon aynı sonucu verdi,
+    `NOCASE` collation'ı gerçekten büyük/küçük harf ayrımını kaldırdı ve
+    geçersiz enum değeri **reddedildi**.
+  - **Kapsam dışı:** kısmi/kapsayıcı index, `@ui`/`@tag`, view, RLS, şema adı
+    (`public`), kanonik JSON IR.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

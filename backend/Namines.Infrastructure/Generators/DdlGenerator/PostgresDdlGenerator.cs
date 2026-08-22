@@ -45,7 +45,15 @@ public class PostgresDdlGenerator : IDdlGenerator
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.PostgreSQL);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue) ? $" DEFAULT {defaultValue}" : "";
 
-                sb.Append($"    \"{col.Name}\" {type} {nullStr}{defaultStr}");
+                // Hesaplanan kolon tipini ifadeden alır ve NOT NULL/DEFAULT ile
+                // birleşmez; o yüzden satırın tamamı ayrı kuruluyor.
+                var generatedDef = ColumnFeatureSql.Generated(col, DatabaseType.PostgreSQL);
+                var collate = ColumnFeatureSql.Collate(col, DatabaseType.PostgreSQL);
+                type = ColumnFeatureSql.ApplyArray(type, col, DatabaseType.PostgreSQL);
+
+                sb.Append(generatedDef is not null
+                    ? $"    \"{col.Name}\" {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.PostgreSQL) ? type + " " : string.Empty)}{generatedDef}"
+                    : $"    \"{col.Name}\" {type}{collate} {nullStr}{defaultStr}");
                 
                 if (i < table.Columns.Count - 1)
                     sb.AppendLine(",");

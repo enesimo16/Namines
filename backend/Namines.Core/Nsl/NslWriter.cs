@@ -42,6 +42,18 @@ public static class NslWriter
         sb.AppendLine("}");
         sb.AppendLine();
 
+        // Enum'lar tablolardan ÖNCE: bir tablo henüz tanımlanmamış bir tipe
+        // başvuruyorsa dosyayı yukarıdan aşağı okuyan insan da, ayrıştırıcı da
+        // neye baktığını bilmez.
+        foreach (var definition in schema.Enums)
+        {
+            sb.AppendLine($"enum {Identifier(definition.Name)} {{");
+            foreach (var value in definition.Values)
+                sb.AppendLine($"  {Quote(value)}");
+            sb.AppendLine("}");
+            sb.AppendLine();
+        }
+
         foreach (var table in schema.Tables)
         {
             WriteTable(sb, schema, table);
@@ -134,6 +146,8 @@ public static class NslWriter
         // PK zaten NOT NULL'dır; ayrıca yazmak gürültü ve okuyanı "acaba
         // nullable bir PK mı var" diye düşündürür.
         if (!column.IsNullable && !column.IsPK) sb.Append(" not null");
+        if (!string.IsNullOrWhiteSpace(column.Generated)) sb.Append($" generated({column.Generated})");
+        if (!string.IsNullOrWhiteSpace(column.Collation)) sb.Append($" collate({column.Collation})");
         if (!string.IsNullOrWhiteSpace(column.DefaultValue)) sb.Append($" default({column.DefaultValue})");
         if (!string.IsNullOrWhiteSpace(column.StableUuid)) sb.Append($" @uuid({Quote(column.StableUuid)})");
 
@@ -142,8 +156,16 @@ public static class NslWriter
 
     private static string TypeText(SchemaColumn column)
     {
+        // Enum'a bağlı kolon tipini enum'dan alır. Enum ADINI doğrudan tip yerine
+        // yazmak, bir tablonun "status" adlı bir tipe mi yoksa aynı adlı bir
+        // enum'a mı baktığını belirsiz bırakırdı; sarmalayıcı bunu tekil kılıyor.
+        if (!string.IsNullOrWhiteSpace(column.EnumRef))
+            return $"enum({Identifier(column.EnumRef)})";
+
         var type = (column.Type ?? "text").Trim().ToLowerInvariant();
-        return column.Length is > 0 ? $"{type}({column.Length})" : type;
+        var text = column.Length is > 0 ? $"{type}({column.Length})" : type;
+
+        return column.IsArray ? text + "[]" : text;
     }
 
     private static List<string> ResolveColumns(SchemaTable table, IEnumerable<string> columnIds) =>

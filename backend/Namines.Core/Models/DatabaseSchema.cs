@@ -103,6 +103,35 @@ public class SchemaColumn
     /// üretip kullanıcının koruma sandığı şeyi yok etmek olurdu.
     /// </summary>
     public string? EnumRef { get; set; }
+
+    /// <summary>
+    /// Değeri başka kolonlardan hesaplanan kolonun ifadesi
+    /// (04 §3 <c>generated</c>), ör. <c>quantity * unit_price</c>.
+    ///
+    /// Doluysa kolona yazılamaz; <see cref="DefaultValue"/> ve <c>NOT NULL</c>
+    /// ile birlikte kullanılmaz — motorların çoğu bunu reddeder ve ikisini
+    /// birden üretmek çalıştırılamayan DDL demektir.
+    /// </summary>
+    public string? Generated { get; set; }
+
+    /// <summary>
+    /// Metin karşılaştırma/sıralama kuralı (04 §3 <c>collation</c>),
+    /// ör. <c>tr_TR.utf8</c> ya da <c>Turkish_CI_AS</c>.
+    ///
+    /// <b>Sessiz bir doğruluk meselesi:</b> yanlış collation'da "İstanbul" ile
+    /// "istanbul" eşit sayılmaz ya da sıralama beklenenden farklı çıkar — ve
+    /// bunu ancak kullanıcı şikâyet edince fark edersin.
+    /// </summary>
+    public string? Collation { get; set; }
+
+    /// <summary>
+    /// Kolon bir dizi mi (04 §3 <c>type.array</c>), ör. PostgreSQL <c>text[]</c>.
+    ///
+    /// <b>Desteklemeyen motorda DDL üretimi hata verir</b>, skalere düşmez:
+    /// dizi olma özelliğini sessizce atmak, kolonun ANLAMINI değiştirir ve
+    /// uygulama tek bir değer bekleyen bir kolona liste yazmaya çalışır.
+    /// </summary>
+    public bool IsArray { get; set; }
 }
 
 public class SchemaRelation
