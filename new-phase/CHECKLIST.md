@@ -1200,6 +1200,35 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
   - **Kapsam dışı:** GitHub'a yazma (App bekliyor), PR açılınca önizleme DB
     provision, `.nsl` senkron PR'ı, tip senkronu, kırılma analizinin PR'a bağlanması.
 
+- [x] **G37 — Paylaşılan şema sayfası: sosyal önizleme, sitemap, meta ([23](23-GTM.md) §2 Döngü 1, §3)** ✅ TAMAMLANDI
+  - `OgImageGenerator` (1200×630 sosyal kart), `GET /api/share/og/{token}.svg`,
+    `GET /api/share/sitemap.xml`, `GET /api/share/meta/{token}`, ve
+    `frontend/app/share/[token]/layout.tsx` (sunucu tarafı `generateMetadata`).
+  - **Meta etiketler SUNUCUDA üretiliyor.** Paylaşım sayfası `'use client'` —
+    React Flow tarayıcıda çalışıyor. Sosyal ağ tarayıcıları JavaScript
+    ÇALIŞTIRMAZ: istemcide eklenen bir `<meta>` etiketi hiç görülmez. Ayrı bir
+    sunucu `layout.tsx` bunu HTML'e gerçekten koyan tek yer; bu yüzden `meta/{token}`
+    ucu şemanın tamamını indirmeden özet döndürüyor.
+  - **PNG değil SVG.** PNG bir görüntü kütüphanesi (SkiaSharp/ImageSharp) ve font
+    dosyası gerektirir — Docker imajına onlarca megabayt ve yeni bir güvenlik
+    yüzeyi ekler. SVG deterministik ve bağımlılıksız. Twitter/LinkedIn raster
+    isterse dönüşüm bir kenar servisiyle yapılır, üretici değişmez.
+  - Görselin sessizce bozulma biçimi **geçersiz XML**: kaçırılmamış bir `&`
+    önizlemeyi hiç görsel olmamasından kötü hâle getirir (bağlantı kırık görünür).
+    Testler metin araması değil, gerçek `XDocument.Parse` — kaçış, kırpma,
+    determinizm, boş şema ve tuval taşması ayrı ayrı doğrulanıyor.
+  - Tema sabit koyu: sosyal önizleme izleyicinin tema tercihini bilmez, şeffaf
+    zemin bazı istemcilerde siyah metni siyah üstüne koyar.
+  - **Sitemap yalnızca AÇIKÇA paylaşılanları listeliyor** (`ShareToken != null`).
+    Tüm projeleri listelemek, özel şemaları arama motorlarına vermek olurdu.
+    5000 URL üst sınırı var. Paylaşımı olmayan/kaldırılmış bir jeton `noindex`
+    alıyor — tıklayan herkesi boş sayfaya götüren sonuçlar indekslenmemeli.
+  - Doğrulama: `OgImageGeneratorTests` **7/7**, tam paket **850 test yeşil**,
+    frontend `tsc --noEmit` 0 hata.
+  - **Kapsam dışı:** marketplace/şablon galerisi ve "Fork this schema" akışı
+    (23 §2 Döngü 2 — kayıtlı kullanıcı kopyalama akışı gerektiriyor), raster
+    dönüşüm, `namines.com` alan adı (kod dışı iş).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar
@@ -1226,30 +1255,6 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
 - [ ] `C:\Users\Enes Yel` dizinindeki yanlış git deposunu düzelt (remote'u `automated-recruitment-pipeline`)
 - [ ] Ödeme altyapısı araştırması (Stripe TR sınırlı → Paddle / LemonSqueezy)
 - [ ] `namines.com` alan adı + marka taraması
-
-### Kodun beklediği kararlar/erişimler
-
-Aşağıdakiler olmadan ilgili iş TAMAMLANAMAZ — kod tarafı hazır, eksik olan senin
-vereceğin bilgi ya da hesap. Hiçbiri diğer işleri bloke etmiyor.
-
-- [ ] **Neon hesabı + `NEON_API_KEY`** (06 §3). `neon.tech` → kayıt → proje → API key.
-      Anahtarı sohbete yapıştırma, ortam değişkenine koy. Geldiğinde
-      `IBranchDatabaseProvisioner`'ın ikinci implementasyonu olarak takılır.
-- [ ] **npm + GitHub yayını.** MCP paketi, npm sarmalayıcısı ve release workflow
-      hazır ama `npm publish` ve `git tag v0.1.0` atılmadı — hesap gerekiyor.
-- [ ] **Gateway'in public alan adı** (`api.namines.com`?). OpenAPI'deki `servers`
-      bloğu ve üretilen SDK'nın taban URL'i buna bağlı. Şimdilik göreli yol.
-- [ ] **Plan başına rate limit sayıları** (08 §5: 600-10.000 rpm aralığı veriliyor).
-- [ ] **Redis** kararı. Çok instance'lı rate limit (şu an bellek içi, instance
-      başına) ve metadata cache (08 §6) buna bağlı.
-- [ ] **Dokümandan iki sapmanın onayı:** (1) `Authorization: Bearer` yerine
-      `X-Namines-Key` — aynı uçlarda JWT de var, tek başlıkta taşımak "hangi kimlik?"
-      belirsizliği yaratıyordu. (2) argon2id yerine SHA-256 — argon2 düşük entropili
-      PAROLALAR için; anahtar 256-bit rastgele, argon2'nin yavaşlığı hiçbir şey
-      kazandırmaz, her isteğe gecikme ekler.
-- [ ] **Stripe fiyat/plan eşlemesi** (22). Kod `SubscriptionStatus`'tan yalnızca
-      Free/Pro çıkarabiliyor; Team/Enterprise ayrımı için plan alanı ve Stripe
-      price id'leri gerekiyor.
 
 ### Kodun beklediği kararlar/erişimler
 
