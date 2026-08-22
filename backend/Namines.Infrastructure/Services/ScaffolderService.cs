@@ -1012,8 +1012,8 @@ public class BiAnalyticsController : ControllerBase
 
             string chartType = RecommendChart(sql, data);
             var firstRow = data.FirstOrDefault();
-            var xAxisKey = firstRow?.Keys.FirstOrDefault(k => k.ToLower().Contains(""name"") || k.ToLower().Contains(""date"") || k.ToLower().Contains(""title"") || k.ToLower().Contains(""id"")) ?? firstRow?.Keys.FirstOrDefault() ?? """";
-            var yAxisKey = firstRow?.Keys.FirstOrDefault(k => !string.Equals(k, xAxisKey, StringComparison.OrdinalIgnoreCase) && (k.ToLower().Contains(""count"") || k.ToLower().Contains(""total"") || k.ToLower().Contains(""price"") || k.ToLower().Contains(""amount"") || k.ToLower().Contains(""quantity"") || k.ToLower().Contains(""id""))) ?? firstRow?.Keys.FirstOrDefault(k => !string.Equals(k, xAxisKey, StringComparison.OrdinalIgnoreCase)) ?? """";
+            var xAxisKey = firstRow?.Keys.FirstOrDefault(k => k.ToLowerInvariant().Contains(""name"") || k.ToLowerInvariant().Contains(""date"") || k.ToLowerInvariant().Contains(""title"") || k.ToLowerInvariant().Contains(""id"")) ?? firstRow?.Keys.FirstOrDefault() ?? """";
+            var yAxisKey = firstRow?.Keys.FirstOrDefault(k => !string.Equals(k, xAxisKey, StringComparison.OrdinalIgnoreCase) && (k.ToLowerInvariant().Contains(""count"") || k.ToLowerInvariant().Contains(""total"") || k.ToLowerInvariant().Contains(""price"") || k.ToLowerInvariant().Contains(""amount"") || k.ToLowerInvariant().Contains(""quantity"") || k.ToLowerInvariant().Contains(""id""))) ?? firstRow?.Keys.FirstOrDefault(k => !string.Equals(k, xAxisKey, StringComparison.OrdinalIgnoreCase)) ?? """";
 
             return Ok(new
             {

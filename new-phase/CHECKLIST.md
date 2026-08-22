@@ -1451,6 +1451,42 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     olan `Github:AppId` ve `Github:PrivateKey`
     (bkz. [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md)).
 
+- [x] **G44 — Enum tipleri + Türkçe kültür hatası ([04](04-NSL-SCHEMA-IR.md) §3)** ✅ TAMAMLANDI
+  - `SchemaEnum`, `SchemaColumn.EnumRef`, `EnumSql` ve altı DDL üreticisinin
+    bağlanması.
+  - **Kısıt hiçbir motorda KAYBOLMUYOR.** Yalnızca PostgreSQL'in adlandırılmış
+    enum tipi, MySQL/MariaDB'nin satır içi `ENUM(...)`'u var. Diğer üçünde
+    sessizce `varchar`'a düşmek, kullanıcının koruma sandığı şeyi yok etmek
+    olurdu — kolon her değeri kabul eder ve yanlış veri, bir kez yazıldıktan
+    sonra temizlenmesi gereken bir borç hâline gelir. `CHECK`'e çevriliyor:
+    `ReferentialActionSql`'deki ilkeyle aynı, desteklenmeyen istek **en
+    kısıtlayıcı** karşılığa düşer.
+  - PostgreSQL'de tip tanımları tablolardan ÖNCE yazılıyor — bir tablo henüz var
+    olmayan bir tipe başvuramaz, yanlış sırada üretilen DDL hiç çalışmaz.
+  - Metin uzunluğu en uzun değere göre; sabit 255 gereksiz yer, sabit 10 ise
+    uzun bir değeri sessizce kesmek olurdu. Tanımsız enum'a başvuru ve boş enum
+    **reddediliyor**, sessizce metne düşülmüyor.
+  - **⚠️ Yol boyunca bulunan hata bu oturumun en ciddisi: Türkçe kültür (Turkish-I).**
+    `"int".ToUpper()` Türkçe kültürde `"INT"` değil `"İNT"` üretir; `"ID".ToLower()`
+    ise `"id"` değil `"ıd"`. Kod ASCII sabitlerle karşılaştırdığı için bu
+    karşılaştırmalar **sessizce başarısız** oluyordu. Somut sonuç: küçük harfle
+    `int` yazılmış bir birincil anahtar PostgreSQL'de `SERIAL` yerine düz
+    `integer` üretiyordu — yani **otomatik artan olmuyordu**. Bu, geliştirme
+    makinesinde üretimdeydi ve testler invariant kültürde koştuğu için hiç
+    görünmemişti. **22 çağrının tamamı** `Invariant` sürümüne çevrildi
+    (DDL üretimi, EF Core üreticisi, linter, seed, şema optimizer, README/Mermaid
+    üreticileri, `AIQuotaMiddleware`'in yol kontrolü dahil).
+  - `TurkishCultureTests` kültürü AÇIKÇA `tr-TR`'ye çeviriyor: CI invariant
+    kültürde koşar ve orada bu hata hiç görünmez — "testler geçiyor" hiçbir şey
+    kanıtlamazdı.
+  - Doğrulama: `EnumSqlTests` **11/11**, `TurkishCultureTests` **9/9**, tam paket
+    **946 test yeşil**. **Gerçek motorlarda çalıştırıldı:** PostgreSQL'de
+    `CREATE TYPE` + `CREATE TABLE` geçti, `SERIAL` doğrulandı, geçerli değer
+    kabul edildi, `'bogus'` **reddedildi**; SQLite'ta CHECK yedeği aynı şekilde
+    geçersiz değeri **reddetti**.
+  - **Kapsam dışı:** enum'un NSL sözdizimi (bir sonraki dilim), `generated`,
+    `collation`, dizi tipi, kısmi/kapsayıcı index, kanonik JSON IR.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

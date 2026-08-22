@@ -67,7 +67,7 @@ public class LinterService : ILinterService
                 if (sourceCol == null || targetCol == null) continue;
 
                 // Rule: FK type matches PK type
-                if (sourceCol.Type.ToLower() != targetCol.Type.ToLower())
+                if (sourceCol.Type.ToLowerInvariant() != targetCol.Type.ToLowerInvariant())
                 {
                     result.Messages.Add(new LintMessage
                     {

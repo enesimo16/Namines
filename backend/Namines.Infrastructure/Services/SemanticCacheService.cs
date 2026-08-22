@@ -76,7 +76,7 @@ namespace Namines.Infrastructure.Services
 
             var json = JsonSerializer.Serialize(normalized);
             var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
-            return Convert.ToHexString(hashBytes).ToLower();
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
         }
 
         private string ComputeParamHash(object? additionalParams)
@@ -84,7 +84,7 @@ namespace Namines.Infrastructure.Services
             if (additionalParams == null) return "no-params";
             var json = JsonSerializer.Serialize(additionalParams);
             var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
-            return Convert.ToHexString(hashBytes).ToLower();
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
         }
     }
 }

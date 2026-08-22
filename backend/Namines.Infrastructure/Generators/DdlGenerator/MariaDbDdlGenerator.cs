@@ -28,7 +28,10 @@ public class MariaDbDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var sqlType = TypeSql.Map(col.Type, col.Length, DatabaseType.MariaDB);
+                // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
+                // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
+                var sqlType = EnumSql.ColumnType(col, schema, DatabaseType.MariaDB)
+                              ?? TypeSql.Map(col.Type, col.Length, DatabaseType.MariaDB);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.MariaDB);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue)
@@ -52,7 +55,7 @@ public class MariaDbDdlGenerator : IDdlGenerator
                 lines.Add($"    PRIMARY KEY ({pkCols})");
             }
 
-            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.MariaDB, Quote));
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.MariaDB, Quote, schema));
 
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");

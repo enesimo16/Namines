@@ -48,12 +48,25 @@ internal static class ConstraintSql
     /// CREATE TABLE gövdesine eklenecek UNIQUE ve CHECK satırlarını üretir.
     /// PK ve FK burada değildir — onları üreticiler kendi yönetir.
     /// </summary>
+    /// <param name="schema">
+    /// Enum tanımlarına erişmek için ZORUNLU. Opsiyonel olsaydı bir üretici onu
+    /// geçmeyi unutabilir ve o motorda enum kısıtı sessizce kaybolurdu —
+    /// kullanıcının koruma sandığı şey, hiç uygulanmayan bir kural olurdu.
+    /// </param>
     public static IEnumerable<string> InlineConstraints(
         SchemaTable table,
         DatabaseType engine,
-        Func<string, string> quote)
+        Func<string, string> quote,
+        DatabaseSchema schema)
     {
         var lines = new List<string>();
+
+        // Motorun kendi enum tipi yoksa kısıt CHECK'e çevriliyor; bkz. EnumSql.
+        foreach (var column in table.Columns)
+        {
+            var check = EnumSql.CheckConstraint(table, column, schema, engine);
+            if (check is not null) lines.Add("    " + check);
+        }
 
         foreach (var unique in table.Uniques)
         {

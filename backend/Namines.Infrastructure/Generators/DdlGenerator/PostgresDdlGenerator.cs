@@ -13,6 +13,10 @@ public class PostgresDdlGenerator : IDdlGenerator
     {
         var sb = new StringBuilder();
 
+        // Tip tanımları tablolardan ÖNCE: PostgreSQL'de bir tablo, henüz var
+        // olmayan bir tipe başvuramaz.
+        sb.Append(EnumSql.TypeDefinitions(schema, DatabaseType.PostgreSQL));
+
         foreach (var table in schema.Tables)
         {
             sb.AppendLine($"CREATE TABLE \"{table.Name}\" (");
@@ -22,14 +26,18 @@ public class PostgresDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var rawType = col.Type.ToUpper();
+                var rawType = col.Type.ToUpperInvariant();
 
                 // SERIAL/BIGSERIAL kısayolu tip eşlemesinden ÖNCE, ham kanonik tip
                 // üzerinden karar verilir — böylece yalnızca gerçek PK INT/BIGINT
                 // kolonları otomatik artan olur.
                 string type;
                 var generated = IdentityPolicy.IsGenerated(col, pkColumns.Count);
-                if (generated && rawType == "INT") type = "SERIAL";
+                var enumType = EnumSql.ColumnType(col, schema, DatabaseType.PostgreSQL);
+                // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
+                // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
+                if (enumType is not null) type = enumType;
+                else if (generated && rawType == "INT") type = "SERIAL";
                 else if (generated && rawType == "BIGINT") type = "BIGSERIAL";
                 else type = TypeSql.Map(col.Type, col.Length, DatabaseType.PostgreSQL);
 
@@ -50,7 +58,7 @@ public class PostgresDdlGenerator : IDdlGenerator
                 sb.AppendLine($"    , CONSTRAINT \"PK_{table.Name}\" PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => $"\"{c.Name}\""))})");
             }
 
-            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.PostgreSQL, Quote))
+            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.PostgreSQL, Quote, schema))
             {
                 sb.AppendLine($"    , {constraint.TrimStart()}");
             }

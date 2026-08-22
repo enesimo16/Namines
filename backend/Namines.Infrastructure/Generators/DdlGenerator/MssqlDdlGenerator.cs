@@ -22,7 +22,10 @@ public class MssqlDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var sqlType = TypeSql.Map(col.Type, col.Length, DatabaseType.MSSQL);
+                // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
+                // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
+                var sqlType = EnumSql.ColumnType(col, schema, DatabaseType.MSSQL)
+                              ?? TypeSql.Map(col.Type, col.Length, DatabaseType.MSSQL);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.MSSQL);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue) ? $" DEFAULT {defaultValue}" : "";
@@ -49,7 +52,7 @@ public class MssqlDdlGenerator : IDdlGenerator
                 sb.AppendLine($"    , CONSTRAINT [PK_{table.Name}] PRIMARY KEY CLUSTERED ({string.Join(", ", pkColumns.Select(c => $"[{c.Name}]"))})");
             }
 
-            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MSSQL, Quote))
+            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MSSQL, Quote, schema))
                 sb.AppendLine($"    , {constraint.TrimStart()}");
 
             sb.AppendLine(");");

@@ -36,7 +36,10 @@ public class SqliteDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var sqliteType = MapToSqliteType(col.Type);
+                // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
+                // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
+                var sqliteType = EnumSql.ColumnType(col, schema, DatabaseType.SQLite)
+                              ?? MapToSqliteType(col.Type);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.SQLite);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue)
@@ -83,7 +86,7 @@ public class SqliteDdlGenerator : IDdlGenerator
                 }
             }
 
-            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.SQLite, Quote));
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.SQLite, Quote, schema));
 
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(");");

@@ -30,7 +30,10 @@ public class OracleDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var oracleType = MapToOracleType(col.Type, col.Length);
+                // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
+                // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
+                var oracleType = EnumSql.ColumnType(col, schema, DatabaseType.Oracle)
+                              ?? MapToOracleType(col.Type, col.Length);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.Oracle);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue)
@@ -54,7 +57,7 @@ public class OracleDdlGenerator : IDdlGenerator
                 lines.Add($"    CONSTRAINT \"PK_{table.Name}\" PRIMARY KEY ({pkCols})");
             }
 
-            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.Oracle, Quote));
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.Oracle, Quote, schema));
 
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(");");

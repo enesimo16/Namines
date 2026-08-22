@@ -22,7 +22,10 @@ public class MySqlDdlGenerator : IDdlGenerator
             for (int i = 0; i < table.Columns.Count; i++)
             {
                 var col = table.Columns[i];
-                var sqlType = TypeSql.Map(col.Type, col.Length, DatabaseType.MySQL);
+                // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
+                // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
+                var sqlType = EnumSql.ColumnType(col, schema, DatabaseType.MySQL)
+                              ?? TypeSql.Map(col.Type, col.Length, DatabaseType.MySQL);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.MySQL);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue) ? $" DEFAULT {defaultValue}" : "";
@@ -46,7 +49,7 @@ public class MySqlDdlGenerator : IDdlGenerator
                 sb.AppendLine($"    , PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => $"`{c.Name}`"))})");
             }
 
-            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MySQL, Quote))
+            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MySQL, Quote, schema))
             {
                 sb.AppendLine($"    , {constraint.TrimStart()}");
             }

@@ -107,7 +107,7 @@ namespace Namines.API.Controllers
                 {
                     Username = user.UserName,
                     Email = user.Email,
-                    Type = user.Type.ToString().ToLower(),
+                    Type = user.Type.ToString().ToLowerInvariant(),
                     CompanyName = user.CompanyName
                 },
                 Quota = quotaInfo
@@ -169,7 +169,7 @@ namespace Namines.API.Controllers
                 {
                     Username = user.UserName,
                     Email = user.Email,
-                    Type = user.Type.ToString().ToLower(),
+                    Type = user.Type.ToString().ToLowerInvariant(),
                     CompanyName = user.CompanyName
                 },
                 Quota = quotaInfo
@@ -277,7 +277,7 @@ namespace Namines.API.Controllers
             {
                 username    = user.UserName,
                 email       = user.Email,
-                type        = user.Type.ToString().ToLower(),
+                type        = user.Type.ToString().ToLowerInvariant(),
                 companyName = user.CompanyName,
                 subscriptionStatus = user.SubscriptionStatus ?? "none",
                 currentPeriodEnd   = user.CurrentPeriodEnd,
@@ -373,7 +373,7 @@ namespace Namines.API.Controllers
                 new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(ClaimTypes.Name, user.UserName ?? ""),
                 new Claim(ClaimTypes.Email, user.Email ?? ""),
-                new Claim("type", user.Type.ToString().ToLower()),
+                new Claim("type", user.Type.ToString().ToLowerInvariant()),
             };
 
             if (!string.IsNullOrEmpty(user.CompanyName))

@@ -70,7 +70,7 @@ public class EfCoreGeneratorService : IEfCoreGenerator
         {
             if (col.IsPK) sb.AppendLine("    [Key]");
             if (!col.IsNullable && !col.IsPK) sb.AppendLine("    [Required]");
-            if (col.Length.HasValue && col.Type.ToUpper().Contains("CHAR")) 
+            if (col.Length.HasValue && col.Type.ToUpperInvariant().Contains("CHAR")) 
                 sb.AppendLine($"    [MaxLength({col.Length})]");
             
             var csharpType = GetCSharpType(col.Type, col.IsNullable);
@@ -134,7 +134,7 @@ public class EfCoreGeneratorService : IEfCoreGenerator
 
     private string GetCSharpType(string dbType, bool isNullable)
     {
-        var type = dbType.ToUpper();
+        var type = dbType.ToUpperInvariant();
         string csharpType = "string";
 
         if (type.Contains("INT")) csharpType = "int";

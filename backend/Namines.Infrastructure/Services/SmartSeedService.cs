@@ -124,8 +124,8 @@ public class SmartSeedService : ISmartSeedService
                     else
                     {
                         // Generate mock values based on field names and types
-                        string typeUpper = col.Type.ToUpper();
-                        string colLower = col.Name.ToLower();
+                        string typeUpper = col.Type.ToUpperInvariant();
+                        string colLower = col.Name.ToLowerInvariant();
 
                         if (typeUpper.Contains("CHAR") || typeUpper.Contains("TEXT") || typeUpper.Contains("STRING"))
                         {

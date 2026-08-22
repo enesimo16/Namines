@@ -90,7 +90,7 @@ namespace Namines.Infrastructure.Services
             {
                 foreach (var col in table.Columns)
                 {
-                    var typeLower = (col.Type ?? string.Empty).ToLower();
+                    var typeLower = (col.Type ?? string.Empty).ToLowerInvariant();
                     
                     // Check if it's a string type
                     bool isStringType = typeLower.Contains("varchar") || typeLower.Contains("char") || 
@@ -194,11 +194,11 @@ namespace Namines.Infrastructure.Services
                 foreach (var col in table.Columns)
                 {
                     if (string.IsNullOrEmpty(col.Name)) continue;
-                    string colNameLower = col.Name.ToLower();
+                    string colNameLower = col.Name.ToLowerInvariant();
                     if (sensitiveKeywords.Any(k => colNameLower.Contains(k)))
                     {
                         // Ensure password/sensitive hashes are stored in nvarchar with sufficient length
-                        var typeLower = (col.Type ?? string.Empty).ToLower();
+                        var typeLower = (col.Type ?? string.Empty).ToLowerInvariant();
                         if (typeLower.Contains("varchar") || typeLower.Contains("string") || typeLower.Contains("char"))
                         {
                             if (col.Length == null || col.Length < 128)

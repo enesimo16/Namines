@@ -39,7 +39,7 @@ public class ReverseEngineerController : ControllerBase
         }
 
         // Validate format/content type
-        var contentType = image.ContentType.ToLower();
+        var contentType = image.ContentType.ToLowerInvariant();
         if (!AllowedContentTypes.Contains(contentType))
         {
             _logger.LogWarning("ReverseEngineer: Desteklenmeyen resim formatı: {ContentType}", contentType);

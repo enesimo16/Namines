@@ -12,6 +12,36 @@ public class DatabaseSchema
     public List<SchemaRelation> Relations { get; set; } = new();
     public string? CloudProvider { get; set; } = "None";
     public bool IncludeBiModule { get; set; } = false;
+
+    /// <summary>
+    /// Adlandırılmış enum tipleri (04 §3 <c>enums</c>).
+    ///
+    /// Eski kayıtlarda bu alan yoktur → boş liste olur, yani mevcut şemalar
+    /// bozulmadan çalışmaya devam eder.
+    /// </summary>
+    public List<SchemaEnum> Enums { get; set; } = new();
+}
+
+/// <summary>
+/// Bir kolonun alabileceği sabit değer kümesi (04 §3 <c>enums</c>).
+///
+/// <b>Neden ayrı bir kavram:</b> "durum" kolonunu <c>varchar</c> yapıp değerleri
+/// uygulamada kontrol etmek, veritabanına yanlış değerin yazılmasını hiçbir
+/// zaman engellemez — ve o veri bir kez yazıldıktan sonra temizlenmesi gereken
+/// bir borçtur. Enum, kuralı verinin yanına koyar.
+/// </summary>
+public class SchemaEnum
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string StableUuid { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary>
+    /// İzin verilen değerler. <b>Sıra korunur</b> — PostgreSQL enum değerlerini
+    /// tanımlandıkları sırayla SIRALAR, yani sırayı değiştirmek
+    /// <c>ORDER BY status</c> sonucunu değiştirir.
+    /// </summary>
+    public List<string> Values { get; set; } = new();
 }
 
 public class SchemaTable
@@ -63,6 +93,16 @@ public class SchemaColumn
     /// kullanıcıdan istemenin anlamı yok (bkz. G40).
     /// </summary>
     public bool? Identity { get; set; }
+
+    /// <summary>
+    /// Doluysa kolonun tipi bu enum'dan gelir ve <see cref="Type"/> yok sayılır
+    /// (04 §3 <c>type.enumRef</c>).
+    ///
+    /// <see cref="SchemaEnum.Name"/> ile eşleşmeyen bir ad, DDL üretiminde
+    /// <b>hata verir</b> — sessizce metne düşmek, kısıtı olmayan bir kolon
+    /// üretip kullanıcının koruma sandığı şeyi yok etmek olurdu.
+    /// </summary>
+    public string? EnumRef { get; set; }
 }
 
 public class SchemaRelation

@@ -79,7 +79,7 @@ public class ReadmeGenerator
             
             foreach (var col in table.Columns)
             {
-                var typeStr = $"{col.Type.ToUpper()}{(col.Length.HasValue ? $"({col.Length})" : "")}";
+                var typeStr = $"{col.Type.ToUpperInvariant()}{(col.Length.HasValue ? $"({col.Length})" : "")}";
                 var nullStr = col.IsNullable 
                     ? (isEn ? "✅ YES" : "✅ EVET") 
                     : (isEn ? "❌ NO" : "❌ HAYIR");

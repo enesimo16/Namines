@@ -32,7 +32,7 @@ namespace Namines.API.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
-            var path = context.Request.Path.Value?.ToLower() ?? "";
+            var path = context.Request.Path.Value?.ToLowerInvariant() ?? "";
 
             // Check if path matches any of the AI prefixes
             bool isAIEndpoint = false;

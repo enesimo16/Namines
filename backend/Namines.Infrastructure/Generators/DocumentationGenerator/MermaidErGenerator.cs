@@ -41,7 +41,7 @@ public class MermaidErGenerator
 
                 if (sourceTable != "unknown" && targetTable != "unknown")
                 {
-                    string relationSymbol = rel.Type.ToLower() switch
+                    string relationSymbol = rel.Type.ToLowerInvariant() switch
                     {
                         "onetoone" => "||--||",
                         "onetomany" => "||--o{",
