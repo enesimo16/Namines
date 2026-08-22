@@ -12,23 +12,44 @@
 
 ---
 
+## Bugüne kadar kapananlar
+
+| İş | Durum |
+|----|-------|
+| §1 Console **yazma ekranları** | ✅ G40 — ekleme/düzenleme/onaylı silme, gerçek bir veritabanına karşı tarayıcıdan doğrulandı |
+| §2 `import`, `/rpc`, `/query` | ✅ G41 — ayrı `CanExecuteSql` yetkisiyle, gerçek PostgreSQL'e karşı doğrulandı |
+| §3 `identity` | ✅ G42 — altı motorda + NSL'de; anahtarı veritabanı mı atıyor, kullanıcı mı |
+| §5 Bot'un **GitHub'a yazması** | ✅ G43 — kod tamam; çalışması için senin GitHub App'in gerekiyor |
+
+Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyorlar.
+
+---
+
 ## Öneri: hangi sırayla?
 
 | Sıra | İş | Neden bu sırada |
 |------|-----|-----------------|
-| ~~1~~ | ~~**§1 Console yazma ekranları**~~ | ✅ **G40'ta yapıldı** — form/düzenleme/silme ekranları gerçek bir veritabanına karşı doğrulandı. §1'de yalnızca RBAC, denetim kaydı, dashboard, NL sorgu ve özelleştirme katmanı kaldı. |
-| ~~1~~ | ~~**§2 Gateway'in kalan sorgu yüzeyi**~~ | ✅ `import`, `/rpc`, `/query` **G41'de yapıldı**. GraphQL, `/query/nl` ve metadata cache kaldı. |
-| 2 | **§3 NSL'in kalanı** | Diğer her şeyin dayandığı model burada genişliyor — geç yapılırsa daha pahalı. |
-| ~~3~~ | ~~**§5 Bot'un GitHub'a yazması**~~ | ✅ Yazma tarafı **G43'te yapıldı**; çalışması için GitHub App kimlik bilgilerin gerekiyor. |
-| 4 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
+| 1 | **§3 Kanonik JSON IR + model genişlemesi** | En pahalıya giden madde. Enum/`generated`/`collation`/şema adı bugün modelde yok ve üstüne yazılan her yeni üretici maliyeti artırıyor. `identity` (G42) bunun ilk parçasıydı ve tek başına iki gerçek hata ortaya çıkardı. |
+| 2 | **§1 Console RBAC + denetim kaydı** | Panel artık **yazıyor**. Yazan ama kimin ne yaptığını kaydetmeyen bir panel, üretimde kullanılamaz — bu ikisi artık "güzel olur" değil, ön koşul. |
+| 3 | **§2 GraphQL** | Kendi başına bir iş (şema üretimi + resolver'lar + N+1). Model genişlemesinden SONRA yapılmalı, yoksa iki kez yazılır. |
+| 4 | **§5 Bot'un kalanı** | PR'da önizleme veritabanı + `/namines` komutlarının gerçekten çalışması. Kimlik bilgilerin geldikten sonra anlamlı. |
+| 5 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
+
+> **§2 `/query/nl` ve §1 doğal dil sorgu aynı işin iki ucu.** İkisi de "üretilen
+> SQL otomatik çalıştırılsın mı?" sorusuna cevap istiyor. Birlikte tasarlanmalı,
+> ayrı ayrı değil — yoksa aynı güvenlik kararı iki farklı yerde iki farklı
+> biçimde verilir.
 
 ---
 
 ## 1. Console: yazma ekranları ve yönetim ([07](07-CONSOLE-ADMIN-UI.md))
 
-~~Bugün üretilen Next.js konsolu **yalnızca okuyor**.~~ **Yazma ekranları
-G40'ta tamamlandı** — ekleme, düzenleme ve onaylı silme, gerçek bir PostgreSQL'e
-karşı tarayıcıdan doğrulandı. Kalanlar:
+**Yazma ekranları G40'ta tamamlandı** — ekleme, düzenleme ve onaylı silme,
+gerçek bir PostgreSQL'e karşı tarayıcıdan doğrulandı. Kalanlar:
+
+> ⚠️ **İlk ikisi artık "güzel olur" değil, ön koşul.** Panel yazıyor; kimin ne
+> yaptığını kaydetmeyen ve herkese aynı yetkiyi veren bir yazma paneli üretimde
+> kullanılamaz. Yazma eklendiği anda bu iki madde borç hâline geldi.
 
 - **Console RBAC** (§4) — son kullanıcı rolleri.
 - **Denetim kaydı** (§5) — konsoldan yapılan değişikliklerin izi.
@@ -78,11 +99,16 @@ olan 15'i), çift yönlü `nsl` eject hedefi.
 Altı motorda ve NSL'de karşılığıyla birlikte.
 
 - **Kanonik JSON IR** (§3) — ⚠️ **En büyük ve en riskli madde.** Doküman;
-  enum, şema (`public`), `identity`, `generated`, `collation`, `@ui`, `@tag`,
+  enum, şema (`public`), `generated`, `collation`, dizi tipi, `@ui`, `@tag`,
   kısmi/kapsayıcı index gibi bugünkü `DatabaseSchema`'da **hiç bulunmayan**
-  alanlar tanımlıyor. Bunu yapmak, çekirdek modeli yeniden yazmak ve
-  dalgayı 18 üretici, 6 DDL motoru, frontend ve 860 testin üstünden geçirmek
-  demek. "Kalan detay" değil, temel bir dönüşüm.
+  alanlar tanımlıyor (`identity` G42'de eklendi). Bunu yapmak, çekirdek modeli
+  genişletip dalgayı 18 üretici, 6 DDL motoru, frontend ve 900+ testin üstünden
+  geçirmek demek. "Kalan detay" değil, temel bir dönüşüm.
+  > **G42 bunun neden ertelenemeyeceğini gösterdi:** tek bir alan (`identity`)
+  > eklemek iki gerçek hata ortaya çıkardı — PostgreSQL ara tablonun iki
+  > yabancı anahtarına da `SERIAL` veriyordu, ve NSL ayrıştırıcısı her
+  > ayrıştırmada rastgele kimlik üretiyordu. Alanlar eksik olduğu sürece bu tür
+  > hatalar görünmüyor.
 - **Enum / view / RLS / `@ui` / `@tag` sözdizimi** — yukarıdaki modele bağlı;
   bugün model bunları taşımıyor, o yüzden sözdizimi yazmak hiç tetiklenmeyecek
   bir kuralı "var" göstermek olurdu.

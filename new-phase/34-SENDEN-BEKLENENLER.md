@@ -10,6 +10,22 @@
 **Genel kural:** Hiçbir API anahtarını, parolayı ya da token'ı sohbete
 yapıştırma. Hepsi ortam değişkenine girer; sen sadece "aldım" de yeter.
 
+## Tek bakışta
+
+| # | Ne | Tipi | Bunsuz ne olmuyor |
+|---|----|------|-------------------|
+| 1 | Neon hesabı + `NEON_API_KEY` | hesap | Branch veritabanı anında açılmıyor (şu an container, yavaş) |
+| 2 | npm + GitHub yayını | hesap | MCP `npx` ile kurulamıyor; kullanıcı depoyu klonlamak zorunda |
+| 3 | Gateway public alan adı | karar | Eject edilen SDK, Namines dışında nereye bağlanacağını bilmiyor |
+| 4 | Plan başına rate limit sayıları | 3 sayı | Limitler kodda hazır, okunacak sayı yok |
+| 5 | Redis: evet / hayır | karar | 2+ sunucuda rate limit anlamını kaybediyor |
+| 6 | Stripe fiyat/plan eşlemesi | hesap | Team/Enterprise ayrımı yapılamıyor |
+| 7 | İki doküman sapmasının onayı | onay | Bir şey bloke değil; itirazın varsa geri alırım |
+| 8 | **GitHub App** (`AppId`, `PrivateKey`, `WebhookSecret`) | hesap | **Bot kod olarak hazır ama tek satır yazamıyor** |
+
+En yüksek etkili ikisi: **8** (bot tamamen hazır, sadece kimlik bekliyor) ve
+**2** (MCP'nin yayılmasının önündeki tek engel).
+
 ---
 
 ## 1. Neon hesabı + `NEON_API_KEY`
@@ -72,6 +88,15 @@ veriyor (600–10.000 rpm). Kodda limitleyici hazır, okunacak sayı yok.
 haksız yere kesip şikâyet üretir ya da ücretsiz planı bedava sınırsız yapar —
 ikisi de sessizce olur.
 
+**Bilmen gereken bir düzeltme (G41):** Gateway'in tüm uçları, "pahalı uçlar"
+için konmuş **dakikada 5 istek** limitini paylaşıyordu. Bu, Gateway'i normal bir
+uygulama için kullanılamaz kılıyor ve anahtar başına ayarladığın limiti tamamen
+ölü koda çeviriyordu — o sayıya ulaşmanın yolu yoktu. Gateway'e ayrı bir
+politika verdim ve **son çare olarak dakikada 1200** seçtim. Bu bir tavan değil,
+kimliği doğrulanmamış trafiğin sunucuyu meşgul etmesini engelleyen bir siper;
+asıl sınır yukarıdaki üç sayıyla anahtar başına uygulanacak. 1200 sana yüksek
+ya da düşük geliyorsa söyle.
+
 ---
 
 ## 5. Redis kararı (evet / hayır)
@@ -129,15 +154,39 @@ sabit zamanlı.
 
 ---
 
+## 8. GitHub App (Namines Bot)
+
+**Ne yapman lazım:** GitHub → Settings → Developer settings → GitHub Apps →
+New GitHub App.
+
+- **İzinler:** Pull requests (read & write), Contents (read), Checks (write)
+- **Abone olunacak olaylar:** `pull_request`, `issue_comment`
+- **Webhook URL:** API'nin public adresi + `/api/github/webhook`
+- **Webhook secret:** kendin bir değer üret
+
+Sonra üç değeri ortam değişkenine koy: `Github__AppId`,
+`Github__PrivateKey` (App'in indirdiğin `.pem` dosyasının içeriği),
+`Github__WebhookSecret`.
+
+**Neden:** Bot'un kodu **G43'te tamamlandı ve test edildi** — App kimlik
+doğrulaması, PR yorumu, status check, `.nsl` okuma ve kırılma analizinin PR'a
+bağlanması. Ama kimlik bilgisi yokken **yazmayı hiç denemiyor**: sahte bir
+başarı raporlamak, çalıştığı sanılan ama hiçbir şey yapmayan bir özellik
+bırakırdı. Yani bugün bot bir PR'a tek satır yazamıyor.
+
+**Geldiğinde ne olur:** Hiçbir kod değişikliği gerekmiyor. Değerler tanımlandığı
+anda bot her PR'da şema farkını inceleyip yorumu ve status check'i yazmaya
+başlar; yıkıcı bir değişiklikte check `failure` döner ve merge korumaları
+devreye girer.
+
+**İlgili:** [11-MIGRATIONS-BRANCHING.md](11-MIGRATIONS-BRANCHING.md) §7
+
+---
+
 ## Kod dışı işler (bunlar da sende)
 
 - [ ] `C:\Users\Enes Yel` dizinindeki yanlış git deposunu düzelt — remote'u
       `automated-recruitment-pipeline` görünüyor ve bu depoyla ilgisi yok.
 - [ ] Ödeme altyapısı araştırması (Stripe TR sınırlı → Paddle / LemonSqueezy).
 - [ ] `namines.com` alan adı + marka taraması.
-- [ ] **GitHub App oluşturma** — Namines Bot'un PR'lara **yazabilmesi** için.
-      Kod tarafı G43'te tamamlandı ve test edildi; eksik olan yalnızca üç değer:
-      `Github:AppId`, `Github:PrivateKey` (App'in indirdiğin `.pem` dosyası) ve
-      `Github:WebhookSecret`. App'e gereken izinler: Pull requests (read/write),
-      Contents (read), Checks (write); abone olunacak olaylar: `pull_request`,
-      `issue_comment`. Anahtarı sohbete yapıştırma, ortam değişkenine koy.
+- [ ] API'nin public adresi (webhook'un ulaşabilmesi için) — §3 ve §8 ile aynı iş.
