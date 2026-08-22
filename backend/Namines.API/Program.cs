@@ -240,6 +240,41 @@ try
                 QueueLimit = 0
             });
         });
+
+        // ── Gateway veri düzlemi: AYRI politika ──────────────────────────────
+        //
+        // BULUNMA YERİ: /import, /rpc ve /query canlı denenirken beşinci istekten
+        // sonra gövdesiz 429'lar başladı. Sebep, Gateway'in "sensitive" politikayı
+        // paylaşması: dakikada 5 istek. Bu, Gateway'i normal bir uygulama için
+        // KULLANILAMAZ kılıyordu (bir sayfa açılışı bile birkaç istek eder) ve
+        // anahtar başına ayarlanan 600-10.000 rpm limitini (08 §5) tamamen ölü
+        // koda çeviriyordu — o sayıya ulaşmanın yolu yoktu.
+        //
+        // Buradaki limit bir SON ÇARE: asıl sınır, anahtarın kendi
+        // RateLimitPerMinute değeriyle GatewayRateLimiter'da uygulanıyor. Bu
+        // politika yalnızca kimliği hiç doğrulanmamış trafiğin (geçersiz anahtar
+        // deneyen bir istemci gibi) sunucuyu meşgul etmesini engelliyor.
+        options.AddPolicy("gateway", httpContext =>
+        {
+            // Anahtarın ÖN EKİ kullanılıyor, anahtarın kendisi değil: bölüm anahtarı
+            // bellekte tutulan bir sözlük anahtarıdır ve oraya bir sırrı koymak,
+            // bir bellek dökümünü anahtar listesine çevirirdi. Ön ek gizli değil.
+            var apiKey = httpContext.Request.Headers["X-Namines-Key"].ToString();
+            var keyPrefix = apiKey.Length >= 12 ? apiKey[..12] : null;
+
+            var partitionKey =
+                httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? keyPrefix
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "anonymous";
+
+            return RateLimitPartition.GetFixedWindowLimiter("gw:" + partitionKey, _ => new FixedWindowRateLimiterOptions
+            {
+                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = 1200,
+                QueueLimit = 0
+            });
+        });
     });
 
     // Reverse proxy (Nginx / Railway / Render / Fly) arkasında TLS proxy'de sonlanır ve

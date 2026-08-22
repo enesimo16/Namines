@@ -40,6 +40,50 @@ public interface IGatewayService
     /// bir istekle milyonlarca satırı belleğe alıp sunucuyu düşürebilir. 08 §5'in
     /// "max 10.000 satır" sorgu maliyeti kuralı burada uygulanır.
     /// </summary>
+    /// <summary>
+    /// Satırları toplu yazar (08 §2 <c>/import</c>).
+    ///
+    /// <b>Ya hepsi ya hiçbiri.</b> Tümü tek bir işlemde çalışır: yarım kalan bir
+    /// içe aktarım, çağıranın hangi satırların yazıldığını bilememesi ve aynı
+    /// dosyayı tekrar denediğinde yinelenen kayıt üretmesi demektir.
+    ///
+    /// <b>Tüm satırlar AYNI kolon kümesini taşımalı.</b> Satır başına farklı
+    /// kolonlara izin vermek, eksik kolonu olan satıra sessizce varsayılan
+    /// yazardı — ve bu, içe aktarımın en sık gözden kaçan hatası.
+    /// </summary>
+    Task<GatewayImportResult> ImportAsync(
+        string connectionString, string dbType, string tableName,
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Veritabanında tanımlı bir fonksiyonu/yordamı çağırır (08 §2 <c>/rpc</c>).
+    ///
+    /// Fonksiyon adı tanımlayıcı olarak DOĞRULANIR ve argümanlar parametre olarak
+    /// bağlanır; ad ya da argüman SQL'e asla birleştirilmez.
+    /// </summary>
+    Task<GatewayQueryResult> RpcAsync(
+        string connectionString, string dbType, string functionName,
+        IReadOnlyList<string?> arguments,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ham SQL çalıştırır (08 §2 <c>/query</c>).
+    ///
+    /// <b>Bu uç tablo izinlerini ATLAR</b> — bu yüzden anahtar üzerinde ayrı bir
+    /// yetki ister (<c>CanExecuteSql</c>, varsayılan kapalı). Tek ifade zorunlu:
+    /// noktalı virgülle zincirlenmiş ifadeler, incelenen sorgunun yanına ikinci
+    /// bir sorgu iliştirmenin klasik yoludur.
+    /// </summary>
+    /// <param name="readOnly">
+    /// true ise salt-okunur oturumda çalışır. Varsayılan true: yazma niyetini
+    /// çağıranın AÇIKÇA belirtmesi gerekir.
+    /// </param>
+    Task<GatewayQueryResult> QueryAsync(
+        string connectionString, string dbType, string sql,
+        bool readOnly = true,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<GatewayRow>> ExportAsync(
         string connectionString, string dbType, string tableName,
         int maxRows,

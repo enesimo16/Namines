@@ -11,13 +11,18 @@ using Namines.Infrastructure.Data;
 
 namespace Namines.API.Controllers;
 
+/// <param name="CanExecuteSql">
+/// Ham SQL (<c>/query</c>) yetkisi. <b>Tablo izinlerini atlar</b>, o yüzden
+/// <see cref="CanWrite"/>'dan ayrı ve varsayılanı kapalı.
+/// </param>
 public sealed record CreateGatewayKeyRequest(
     string Name,
     bool CanWrite = false,
     DateTime? ExpiresAt = null,
     string? AllowedOrigins = null,
     string? AllowedIps = null,
-    int? RateLimitPerMinute = null);
+    int? RateLimitPerMinute = null,
+    bool CanExecuteSql = false);
 public sealed record SetTablePermissionRequest(
     string TableName, bool CanRead, bool CanWrite, string? MaskedColumns = null);
 
@@ -67,6 +72,7 @@ public class GatewayKeyController : ControllerBase
         var (entity, rawKey) = GatewayAccess.CreateKey(
             projectId, request.Name.Trim(), userId, request.CanWrite, request.ExpiresAt);
 
+        entity.CanExecuteSql = request.CanExecuteSql;
         entity.AllowedOrigins = Normalize(request.AllowedOrigins);
         entity.AllowedIps = Normalize(request.AllowedIps);
         entity.RateLimitPerMinute = request.RateLimitPerMinute;
@@ -82,6 +88,7 @@ public class GatewayKeyController : ControllerBase
             entity.Name,
             entity.Prefix,
             entity.CanWrite,
+            entity.CanExecuteSql,
             entity.ExpiresAt,
             entity.AllowedOrigins,
             entity.AllowedIps,
@@ -105,7 +112,7 @@ public class GatewayKeyController : ControllerBase
             // KeyHash bilinçli olarak dışarıda: gösterilecek bir değer değil.
             .Select(k => new
             {
-                k.Id, k.Name, k.Prefix, k.CanWrite,
+                k.Id, k.Name, k.Prefix, k.CanWrite, k.CanExecuteSql,
                 k.AllowedOrigins, k.AllowedIps, k.RateLimitPerMinute,
                 k.CreatedAt, k.ExpiresAt, k.RevokedAt, k.LastUsedAt,
             })

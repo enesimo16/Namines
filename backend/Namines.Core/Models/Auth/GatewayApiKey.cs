@@ -37,6 +37,19 @@ public class GatewayApiKey
     public bool CanWrite { get; set; }
 
     /// <summary>
+    /// Ham SQL çalıştırma yetkisi (08 §2 <c>/query</c>, <c>sql:execute</c> scope'u).
+    ///
+    /// <b>Yazma yetkisinden AYRI, çünkü ondan daha geniş.</b> <see cref="CanWrite"/>
+    /// yalnızca izin verilen tablolarda yazmaya izin verir; ham SQL ise tablo
+    /// izinlerinin TAMAMINI atlar — anahtarın hiç görmemesi gereken bir tabloyu da
+    /// okuyabilir. İkisini tek bayrağa bağlamak, "orders'a yazabilsin" demek isteyen
+    /// birine farkında olmadan bütün veritabanını vermek olurdu.
+    ///
+    /// Varsayılan false.
+    /// </summary>
+    public bool CanExecuteSql { get; set; }
+
+    /// <summary>
     /// İzin verilen kaynaklar, virgülle ayrılmış (<c>https://app.musteri.com</c>).
     /// Boşsa kısıt yok. Doluysa <c>Origin</c> başlığı taşımayan istek de reddedilir —
     /// "origin kısıtla" diyen biri, başlığı hiç göndermeyen istemciye kapıyı açık

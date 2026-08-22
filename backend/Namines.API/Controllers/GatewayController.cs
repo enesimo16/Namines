@@ -1,4 +1,5 @@
 using System;
+using System.Data.Common;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -54,6 +55,26 @@ public sealed record GatewayDeleteRequest(
     string ConnectionString, string DbType, string TableName,
     string PkColumn, string PkValue);
 
+/// <param name="Rows">
+/// Yazılacak satırlar. Hepsi AYNI kolonları taşımalı — satır başına farklı kolon
+/// kümesine izin vermek, eksik kolonu olan satıra sessizce varsayılan yazardı.
+/// </param>
+public sealed record GatewayImportRequest(
+    string ConnectionString, string DbType, string TableName,
+    List<Dictionary<string, string?>> Rows);
+
+public sealed record GatewayRpcRequest(
+    string ConnectionString, string DbType, string Function,
+    List<string?>? Arguments = null);
+
+/// <param name="ReadOnly">
+/// Varsayılan true. Yazma niyeti AÇIKÇA belirtilmeli: bir raporlama sorgusunun
+/// yanlışlıkla veri değiştirmesi, sessizce olan ve geri alınamayan bir hatadır.
+/// </param>
+public sealed record GatewayQueryRequest(
+    string ConnectionString, string DbType, string Sql,
+    bool ReadOnly = true);
+
 /// <summary>
 /// G14 — Minimal Gateway. Şemadan otomatik salt-okunur REST (liste + detay).
 /// DatabaseExecutorController/DbIntrospectController ile aynı güvenlik modeli:
@@ -63,7 +84,10 @@ public sealed record GatewayDeleteRequest(
 // JWT taşımaz. Kimlik doğrulama her uçta AuthorizeAsync ile YAPILIR — anonim
 // erişim yoktur, yalnızca kontrol middleware'den controller'a taşınmıştır.
 [AllowAnonymous]
-[EnableRateLimiting("sensitive")]
+// "sensitive" DEĞİL: o politika dakikada 5 istekle sınırlı ve Gateway'i normal bir
+// uygulama için kullanılamaz kılıyordu. Asıl sınır anahtar başına uygulanıyor
+// (GatewayRateLimiter, 08 §5); buradaki yalnızca son çare. Bkz. Program.cs.
+[EnableRateLimiting("gateway")]
 [ApiController]
 [Route("api/gateway")]
 public class GatewayController : ControllerBase
@@ -414,10 +438,42 @@ public class GatewayController : ControllerBase
         {
             return Conflict(new { message = ex.Message });
         }
+        catch (DbException ex) when (IsCallerFault(ex))
+        {
+            // Kısıt ihlali ve sözdizimi hatası çağıranın VERİSİYLE ilgilidir, sunucu
+            // arızasıyla değil. 500 dönmek, "geçersiz e-posta gönderdin" ile
+            // "veritabanı çöktü"yü aynı kutuya koyar ve çağıran neyi düzelteceğini
+            // bilemez. Mesaj olduğu gibi geçiriliyor: bağlantı dizesi zaten
+            // çağıranın kendisinden geldi, yani veritabanı ONUN.
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception)
         {
             return StatusCode(500, new { message = "Could not connect or query the database. Check credentials and network access." });
         }
+    }
+
+    /// <summary>
+    /// Hata çağıranın verisinden mi kaynaklanıyor, altyapıdan mı?
+    ///
+    /// SQLSTATE sınıfları taşınabilir: <c>22</c> veri hatası (aralık dışı, geçersiz
+    /// biçim), <c>23</c> bütünlük ihlali (NOT NULL, UNIQUE, FOREIGN KEY),
+    /// <c>42</c> sözdizimi/erişim hatası. Bunları 400 saymak, çağıranın kendi
+    /// isteğini düzeltebilmesi demektir.
+    ///
+    /// <c>25</c> (geçersiz işlem durumu) de burada: salt-okunur bir istekte yazma
+    /// denemesi tam olarak buraya düşer ve çağıranın duyması gereken şey
+    /// "veritabanına bağlanılamadı" değil, "bu istek salt-okunur".
+    ///
+    /// Bağlantı ve yetkilendirme hataları (<c>08</c>, <c>28</c>) bilerek DIŞARIDA:
+    /// onlar kurulumla ilgilidir ve ayrıntısı çağırana bilgi sızdırır.
+    /// </summary>
+    private static bool IsCallerFault(DbException ex)
+    {
+        var state = ex.SqlState;
+        if (string.IsNullOrEmpty(state) || state.Length < 2) return false;
+
+        return state[..2] is "22" or "23" or "25" or "42";
     }
 
     // ── Dışa aktarım (08 §2) ─────────────────────────────────────────────────
@@ -493,6 +549,153 @@ public class GatewayController : ControllerBase
     /// Yalnızca ANAHTAR yolunda anlamlı: oturum yolunda kullanıcı zaten bağlantı
     /// dizesini kendisi giriyor ve tablo listesi introspection'dan geliyor.
     /// </summary>
+    /// <summary>
+    /// Toplu içe aktarım (08 §2 <c>/import</c>).
+    ///
+    /// <c>export</c>'un karşılığı. Tek işlemde çalışır: yarım kalan bir içe
+    /// aktarımdan sonra çağıran hangi satırların yazıldığını bilemez ve aynı
+    /// dosyayı tekrar denediğinde yinelenen kayıt üretir.
+    /// </summary>
+    [HttpPost("import")]
+    public async Task<IActionResult> Import([FromBody] GatewayImportRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName))
+            return BadRequest(new { message = "Connection string and table name are required." });
+
+        if (request.Rows is null || request.Rows.Count == 0)
+            return BadRequest(new { message = "At least one row is required." });
+
+        var (allowed, failure, _) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
+        if (!allowed) return failure!;
+
+        return await ExecuteAsync(async () =>
+        {
+            var result = await _gateway.ImportAsync(
+                request.ConnectionString, request.DbType, request.TableName,
+                request.Rows.Cast<IReadOnlyDictionary<string, string?>>().ToList(),
+                cancellationToken);
+
+            return Ok(result);
+        });
+    }
+
+    /// <summary>
+    /// Veritabanında tanımlı bir fonksiyonu çağırır (08 §2 <c>/rpc</c>).
+    ///
+    /// <b>Yazma izni isteniyor,</b> çünkü bir fonksiyonun ne yaptığını dışarıdan
+    /// bilemeyiz: adı <c>get_total</c> olan bir fonksiyon pekâlâ tablo
+    /// güncelleyebilir. Salt-okunur sayıp yazmasına izin vermek, izin modelinde
+    /// sessiz bir delik açardı.
+    ///
+    /// İzin, fonksiyon ADI üzerinden veriliyor: tablo izinleri tablolar içindir ve
+    /// bir fonksiyonun hangi tablolara dokunduğu şemadan görülmez.
+    /// </summary>
+    [HttpPost("rpc")]
+    public async Task<IActionResult> Rpc([FromBody] GatewayRpcRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.Function))
+            return BadRequest(new { message = "Connection string and function name are required." });
+
+        var (allowed, failure, _) = await AuthorizeAsync(request.Function, forWrite: true, cancellationToken);
+        if (!allowed) return failure!;
+
+        return await ExecuteAsync(async () =>
+        {
+            var result = await _gateway.RpcAsync(
+                request.ConnectionString, request.DbType, request.Function,
+                request.Arguments ?? new List<string?>(), cancellationToken);
+
+            return Ok(result);
+        });
+    }
+
+    /// <summary>
+    /// Ham SQL (08 §2 <c>/query</c>).
+    ///
+    /// <b>Bu uç tablo izinlerini ATLAR</b> — bu yüzden anahtarda ayrı bir yetki
+    /// (<c>CanExecuteSql</c>) arıyor ve <see cref="AuthorizeAsync"/>'ın tablo
+    /// kontrolünü kullanmıyor. Aynı bayrağı <c>CanWrite</c> ile birleştirmek,
+    /// "orders'a yazabilsin" demek isteyen birine bütün veritabanını vermek olurdu.
+    ///
+    /// Oturum yolunda (JWT) bayrak aranmaz: kullanıcı bağlantı dizesini zaten
+    /// kendisi giriyor, yani veritabanına erişimi ham SQL'den bağımsız olarak var.
+    /// </summary>
+    [HttpPost("query")]
+    public async Task<IActionResult> Query([FromBody] GatewayQueryRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.Sql))
+            return BadRequest(new { message = "Connection string and SQL are required." });
+
+        var (allowed, failure, key) = await AuthorizeForSqlAsync(cancellationToken);
+        if (!allowed) return failure!;
+
+        // Salt-okunur olmayan bir sorgu, yazma yetkisi de ister: ham SQL yetkisi
+        // "her şeyi oku" demek, "her şeyi değiştir" demek değil.
+        if (!request.ReadOnly && key is not null && !key.CanWrite)
+            return StatusCode(403, new { message = "This API key may run read-only SQL only." });
+
+        return await ExecuteAsync(async () =>
+        {
+            var result = await _gateway.QueryAsync(
+                request.ConnectionString, request.DbType, request.Sql,
+                request.ReadOnly, cancellationToken);
+
+            return Ok(result);
+        });
+    }
+
+    /// <summary>
+    /// <c>/query</c> için kimlik doğrulama — tablo kontrolü OLMADAN.
+    ///
+    /// <see cref="AuthorizeAsync"/> bir tablo adı ister ve ham SQL'in tek bir
+    /// tablosu yoktur. Uydurma bir tablo adı vermek, izin kontrolünü anlamsız bir
+    /// kayda bağlamak olurdu; bunun yerine anahtarın kendi yetkisi kontrol ediliyor.
+    /// Kaynak/IP/rate limit kısıtları aynen uygulanır.
+    /// </summary>
+    private async Task<(bool Allowed, IActionResult? Failure, GatewayApiKey? Key)> AuthorizeForSqlAsync(
+        CancellationToken ct)
+    {
+        if (!Request.Headers.TryGetValue(ApiKeyHeader, out var header) ||
+            string.IsNullOrWhiteSpace(header.ToString()))
+        {
+            return User?.Identity?.IsAuthenticated == true
+                ? (true, null, null)
+                : (false, Unauthorized(), null);
+        }
+
+        var key = await _context.AuthenticateAsync(header.ToString(), ct);
+        if (key is null)
+            return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }), null);
+
+        if (!GatewayKeyRestrictions.IsOriginAllowed(key, Request.Headers.Origin.ToString()))
+            return (false, StatusCode(403, new { message = "This key is not allowed from this origin." }), null);
+
+        if (!GatewayKeyRestrictions.IsIpAllowed(
+                key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
+            return (false, StatusCode(403, new { message = ipReason }), null);
+
+        if (!GatewayRateLimiter.TryAcquire(key))
+            return (false, StatusCode(429, new
+            {
+                message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
+            }), null);
+
+        if (!key.CanExecuteSql)
+        {
+            NaminesMetrics.GatewayRequest("sql", "denied");
+            return (false, StatusCode(403, new
+            {
+                message = "This API key is not allowed to run raw SQL. Raw SQL bypasses table " +
+                          "permissions, so it is a separate grant from write access.",
+            }), null);
+        }
+
+        NaminesMetrics.GatewayRequest("sql", "ok");
+        await _context.RecordAsync(key.CreatedByUserId, UsageResource.ApiRequest, 1, "sql", ct);
+
+        return (true, null, key);
+    }
+
     [HttpGet("tables")]
     public async Task<IActionResult> Tables(CancellationToken cancellationToken)
     {

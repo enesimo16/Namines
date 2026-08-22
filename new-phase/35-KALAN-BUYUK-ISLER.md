@@ -18,7 +18,7 @@
 | Sıra | İş | Neden bu sırada |
 |------|-----|-----------------|
 | ~~1~~ | ~~**§1 Console yazma ekranları**~~ | ✅ **G40'ta yapıldı** — form/düzenleme/silme ekranları gerçek bir veritabanına karşı doğrulandı. §1'de yalnızca RBAC, denetim kaydı, dashboard, NL sorgu ve özelleştirme katmanı kaldı. |
-| 1 | **§2 Gateway'in kalan sorgu yüzeyi** | Aynı controller, aynı güvenlik modeli. `import`, `/rpc`, `/query` ekleniyor. |
+| ~~1~~ | ~~**§2 Gateway'in kalan sorgu yüzeyi**~~ | ✅ `import`, `/rpc`, `/query` **G41'de yapıldı**. GraphQL, `/query/nl` ve metadata cache kaldı. |
 | 2 | **§3 NSL'in kalanı** | Diğer her şeyin dayandığı model burada genişliyor — geç yapılırsa daha pahalı. |
 | 3 | **§5 Bot'un GitHub'a yazması** | Senin GitHub App'ini bekliyor, o gelene kadar sıraya giremez. |
 | 4 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
@@ -49,12 +49,15 @@ Bugün var: `list`, `detail`, `create`, `update`, `delete`, `export`,
 `tables`, `openapi.json` — anahtar/izin modeli, CIDR ve origin kısıtları,
 rate limit dahil, hepsi canlı doğrulanmış.
 
+**G41'de eklendi:** `import` (tek işlem, ya hepsi ya hiçbiri), `/rpc`,
+`/query` (ayrı `CanExecuteSql` yetkisiyle) — hepsi gerçek PostgreSQL'e karşı
+doğrulandı.
+
 Kalanlar:
 
-- **`import`** — `export` var, karşılığı yok.
-- **`/rpc`** — saklı yordam / fonksiyon çağrısı.
-- **`/query`** ve **`/query/nl`** — ham ve doğal dil sorgu.
-- **GraphQL** (§3).
+- **`/query/nl`** — doğal dil sorgu. AI katmanı bağlantısı ve üretilen SQL'in
+  otomatik çalıştırılıp çalıştırılmayacağı ayrı bir güvenlik tasarımı ister.
+- **GraphQL** (§3) — şema üretimi + resolver'lar + N+1; kendi başına bir iş.
 - **`/realtime`** (§9, doküman zaten P2 diyor).
 - **Metadata cache** (§6) — **Redis kararına bağlı**, bkz. [34](34-SENDEN-BEKLENENLER.md) §5.
 - **`expand` (ilişki gömme)** — ⚠️ *bilinçli olarak reddedildi, ertelenmedi.*

@@ -250,6 +250,211 @@ public sealed class GatewayService : IGatewayService
     ///
     /// 0 satır bir hata DEĞİLDİR (kayıt yok) — commit edilir, çağıran 404 döndürür.
     /// </summary>
+    // ── Toplu yazma, fonksiyon çağrısı ve ham sorgu (08 §2) ──────────────────
+
+    internal const int MaxImportRows = 10_000;
+    internal const int MaxQueryRows = 10_000;
+    internal const int MaxRpcArguments = 32;
+
+    public async Task<GatewayImportResult> ImportAsync(
+        string connectionString, string dbType, string tableName,
+        IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateIdentifierOrThrow(tableName, nameof(tableName));
+
+        if (rows is null || rows.Count == 0)
+            throw new ArgumentException("Import needs at least one row.");
+
+        if (rows.Count > MaxImportRows)
+            throw new ArgumentException(
+                $"Import is capped at {MaxImportRows} rows per request. Split the file and send it in batches.");
+
+        // Kolon kümesi İLK satırdan alınıp diğerlerinde AYNISI aranıyor. Satır başına
+        // farklı kolonlara izin vermek, eksik kolonu olan satıra sessizce varsayılan
+        // (ya da NULL) yazardı — içe aktarımın en sık gözden kaçan hatası budur.
+        var columns = ValidateColumns(rows[0]);
+
+        for (var i = 1; i < rows.Count; i++)
+        {
+            if (rows[i].Count != columns.Count || !columns.All(rows[i].ContainsKey))
+                throw new ArgumentException(
+                    $"Row {i + 1} has a different set of columns than the first row. " +
+                    "Every row in one import must describe the same columns.");
+        }
+
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: false, cancellationToken);
+
+        // TEK işlem: yarım kalan bir içe aktarım, çağıranın hangi satırların
+        // yazıldığını bilememesi ve aynı dosyayı tekrar denediğinde yinelenen kayıt
+        // üretmesi demektir.
+        await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+
+        var inserted = 0;
+        try
+        {
+            var sql = BuildInsertSql(dbType, tableName, columns, includeReturning: false);
+
+            foreach (var row in rows)
+            {
+                await using var cmd = CreateCommand(conn, dbType);
+                cmd.Transaction = tx;
+                cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+                cmd.CommandText = sql;
+                foreach (var column in columns)
+                    AddParameter(cmd, dbType, ParameterNameFor(column), row[column]);
+
+                inserted += await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
+
+        await tx.CommitAsync(cancellationToken);
+        return new GatewayImportResult(inserted);
+    }
+
+    public async Task<GatewayQueryResult> RpcAsync(
+        string connectionString, string dbType, string functionName,
+        IReadOnlyList<string?> arguments,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateIdentifierOrThrow(functionName, nameof(functionName));
+
+        arguments ??= Array.Empty<string?>();
+        if (arguments.Count > MaxRpcArguments)
+            throw new ArgumentException($"At most {MaxRpcArguments} arguments are supported.");
+
+        var sql = BuildRpcSql(dbType, functionName, arguments.Count);
+
+        // Fonksiyon YAZABİLİR; salt-okunur oturum, geçerli bir çağrıyı anlaşılmaz bir
+        // hatayla düşürürdü. Yetki kontrolü çağıran katmanda (anahtarın yazma izni).
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: false, cancellationToken);
+
+        await using var cmd = CreateCommand(conn, dbType);
+        cmd.CommandText = sql;
+        cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+        for (var i = 0; i < arguments.Count; i++)
+            AddParameter(cmd, dbType, "a" + i.ToString(CultureInfo.InvariantCulture), arguments[i]);
+
+        return await ReadResultAsync(cmd, cancellationToken);
+    }
+
+    public async Task<GatewayQueryResult> QueryAsync(
+        string connectionString, string dbType, string sql,
+        bool readOnly = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sql))
+            throw new ArgumentException("SQL is required.");
+
+        EnsureSingleStatement(sql);
+
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly, cancellationToken);
+
+        await using var cmd = CreateCommand(conn, dbType);
+        cmd.CommandText = sql;
+        cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+
+        return await ReadResultAsync(cmd, cancellationToken);
+    }
+
+    /// <summary>
+    /// Zincirlenmiş ifadeleri reddeder.
+    ///
+    /// <c>SELECT 1; DROP TABLE users</c> tek bir istekte iki iş yapar ve incelenen
+    /// sorgunun yanına ikinci bir sorgu iliştirmenin klasik yoludur. Dize sonundaki
+    /// tek bir noktalı virgül zararsız, o yüzden yalnızca ARDINDAN kod gelen
+    /// noktalı virgül reddediliyor.
+    /// </summary>
+    internal static void EnsureSingleStatement(string sql)
+    {
+        var inSingle = false;
+        var inDouble = false;
+
+        for (var i = 0; i < sql.Length; i++)
+        {
+            var c = sql[i];
+
+            // Dize ve tanımlayıcı sınırlayıcıları atlanmalı: 'a;b' geçerli bir
+            // değerdir ve içindeki noktalı virgül ifade sonu DEĞİLDİR.
+            if (c == '\'' && !inDouble) inSingle = !inSingle;
+            else if (c == '"' && !inSingle) inDouble = !inDouble;
+            else if (c == ';' && !inSingle && !inDouble)
+            {
+                if (!string.IsNullOrWhiteSpace(sql[(i + 1)..]))
+                    throw new ArgumentException(
+                        "Only one statement is allowed per request. Send chained statements separately.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Satır döndüren ve döndürmeyen ifadeleri tek yerde okur.
+    ///
+    /// <see cref="GatewayQueryResult.AffectedRows"/> satır döndüren bir sorguda -1:
+    /// "0 satır döndü" ile "0 satır etkilendi" farklı şeylerdir ve tek bir alanda
+    /// birleştirmek bu farkı yok ederdi.
+    /// </summary>
+    private static async Task<GatewayQueryResult> ReadResultAsync(DbCommand cmd, CancellationToken ct)
+    {
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+
+        if (reader.FieldCount == 0)
+            return new GatewayQueryResult(Array.Empty<GatewayRow>(), reader.RecordsAffected, false);
+
+        var rows = new List<GatewayRow>();
+        var truncated = false;
+
+        while (await reader.ReadAsync(ct))
+        {
+            if (rows.Count >= MaxQueryRows)
+            {
+                // Sessizce kesilen bir sonuç, çağıranın eksik veriyi tam sanması
+                // demektir; kesildiği açıkça bildiriliyor.
+                truncated = true;
+                break;
+            }
+            rows.Add(ReadRow(reader));
+        }
+
+        return new GatewayQueryResult(rows, -1, truncated);
+    }
+
+    /// <summary>
+    /// Motorun fonksiyon çağırma sözdizimi.
+    ///
+    /// Desteklenmeyen motorda <b>reddediliyor</b>: yanlış sözdizimi üretip
+    /// veritabanının hata vermesini beklemek, çağırana "Namines bozuk" dedirtir.
+    /// </summary>
+    internal static string BuildRpcSql(string dbType, string functionName, int argumentCount)
+    {
+        var name = Quote(dbType, functionName);
+        var engine = dbType.ToUpperInvariant();
+
+        var placeholders = string.Join(", ",
+            Enumerable.Range(0, argumentCount).Select(i => ParameterToken(engine, "a" + i.ToString(CultureInfo.InvariantCulture))));
+
+        return engine switch
+        {
+            "POSTGRESQL" or "POSTGRES" => $"SELECT * FROM {name}({placeholders})",
+            "MYSQL" or "MARIADB" => $"CALL {name}({placeholders})",
+            "MSSQL" or "SQLSERVER" => $"EXEC {name} {placeholders}".TrimEnd(),
+            _ => throw new NotSupportedException(
+                $"Calling database functions is not supported for {dbType}. " +
+                "Supported engines: PostgreSQL, MySQL, MariaDB, SQL Server."),
+        };
+    }
+
+    private static string ParameterToken(string engine, string name) => engine switch
+    {
+        "ORACLE" => ":" + name,
+        _ => "@" + name,
+    };
+
     private static async Task<GatewayWriteResult> ExecuteGuardedWriteAsync(
         DbConnection conn, string dbType, CancellationToken ct, Action<DbCommand> configure)
     {
@@ -306,13 +511,20 @@ public sealed class GatewayService : IGatewayService
     private static bool SupportsReturning(string dbType) =>
         dbType.ToUpperInvariant() is "POSTGRESQL" or "POSTGRES" or "SQLITE";
 
-    internal static string BuildInsertSql(string dbType, string tableName, IReadOnlyList<string> columns)
+    internal static string BuildInsertSql(string dbType, string tableName, IReadOnlyList<string> columns) =>
+        BuildInsertSql(dbType, tableName, columns, includeReturning: true);
+
+    /// <param name="includeReturning">
+    /// Toplu içe aktarımda false: 10.000 satırın her biri için eklenen satırı geri
+    /// okumak, hiç kullanılmayacak veriyi ağdan geçirmek olurdu.
+    /// </param>
+    internal static string BuildInsertSql(string dbType, string tableName, IReadOnlyList<string> columns, bool includeReturning)
     {
         var prefix = dbType.Equals("ORACLE", StringComparison.OrdinalIgnoreCase) ? ":" : "@";
         var table = Quote(dbType, tableName);
         var columnList = string.Join(", ", columns.Select(c => Quote(dbType, c)));
         var valueList = string.Join(", ", columns.Select(c => prefix + ParameterNameFor(c)));
-        var returning = SupportsReturning(dbType) ? " RETURNING *" : string.Empty;
+        var returning = includeReturning && SupportsReturning(dbType) ? " RETURNING *" : string.Empty;
 
         return $"INSERT INTO {table} ({columnList}) VALUES ({valueList}){returning}";
     }

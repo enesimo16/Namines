@@ -1316,6 +1316,51 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     doğal dil sorgu (§7), özelleştirme katmanı (§9), ilişki editörü (junction),
     ağaç görünümü (tree), React+Vite/Blazor/Retool hedefleri.
 
+- [x] **G41 — Gateway: `import`, `/rpc`, `/query` ([08](08-GATEWAY-API.md) §2)** ✅ TAMAMLANDI
+  - `ImportAsync` / `RpcAsync` / `QueryAsync` + `POST /api/gateway/import|rpc|query`,
+    anahtara ayrı `CanExecuteSql` yetkisi ve `AddGatewaySqlScope` migration'ı.
+  - **`import` ya hepsi ya hiçbiri.** Tek işlem: yarım kalan bir içe aktarımdan
+    sonra çağıran hangi satırların yazıldığını bilemez ve aynı dosyayı tekrar
+    denediğinde yinelenen kayıt üretir. Canlı doğrulandı — bir satır NOT NULL'ı
+    ihlal edince **hiçbiri** yazılmadı (`psql` ile sağlam satır sayısı 3'te kaldı).
+  - **Tüm satırlar aynı kolon kümesini taşımak zorunda.** Satır başına farklı
+    kolonlara izin vermek, eksik kolonu olan satıra sessizce varsayılan yazardı —
+    içe aktarımın en sık gözden kaçan hatası.
+  - **Ham SQL yetkisi (`CanExecuteSql`) yazma yetkisinden AYRI.** `CanWrite`
+    yalnızca izinli tablolarda yazdırır; ham SQL **tablo izinlerinin tamamını
+    atlar**. İkisini tek bayrağa bağlamak, "orders'a yazabilsin" demek isteyen
+    birine farkında olmadan bütün veritabanını vermek olurdu. Canlı doğrulandı:
+    izinsiz `secrets` tablosu `/list`'te **403**, ham SQL yetkisiyle okunabildi —
+    bilinçli davranış, o yüzden yetki ayrı.
+  - **Zincirlenmiş ifade reddediliyor.** `SELECT 1; DROP TABLE users` tek istekte
+    iki iş yapar. Ayrıştırıcı dize ve tanımlayıcı sınırlayıcılarını atlıyor:
+    `'a;b'` geçerli bir değerdir ve içindeki noktalı virgül ifade sonu değildir.
+  - **`readOnly` varsayılanı true.** Bir raporlama sorgusunun yanlışlıkla veri
+    değiştirmesi sessizce olur ve geri alınamaz; yazma niyeti açıkça belirtilmeli
+    ve ayrıca anahtarın yazma izni aranır.
+  - **RPC yazma izni istiyor:** adı `get_total` olan bir fonksiyon pekâlâ tablo
+    güncelleyebilir; salt-okunur sayıp yazmasına izin vermek izin modelinde
+    sessiz bir delik açardı. Desteklenmeyen motorda **reddediliyor**, yanlış
+    sözdizimi üretilmiyor.
+  - **Yol boyunca iki gerçek hata bulundu:**
+    1. **Gateway dakikada 5 istekle sınırlıydı.** `[EnableRateLimiting("sensitive")]`
+       paylaşılıyordu; bu Gateway'i normal bir uygulama için kullanılamaz kılıyor
+       ve **anahtar başına 600-10.000 rpm limitini (08 §5) tamamen ölü koda
+       çeviriyordu** — o sayıya ulaşmanın yolu yoktu. Ayrı bir `gateway` politikası
+       eklendi (son çare 1200/dk, anahtar ÖN EKİ ya da kullanıcı ile bölünmüş —
+       bölüm anahtarına sırrın kendisi konmuyor).
+    2. **Kısıt ihlalleri 500 dönüyordu.** "Geçersiz e-posta gönderdin" ile
+       "veritabanı çöktü" aynı kutuya düşünce çağıran neyi düzelteceğini bilemez.
+       SQLSTATE sınıfı 22/23/25/42 artık 400; bağlantı ve kimlik hataları (08/28)
+       bilerek dışarıda, ayrıntıları kurulum bilgisi sızdırır.
+  - Doğrulama: `GatewayBulkTests` **16/16**, tam paket **885 test yeşil**, ve
+    gerçek PostgreSQL'e karşı 10 senaryo (import/rollback/rpc/izin/zincir/
+    salt-okunur/açık yazma) tek tek çalıştırıldı.
+  - **Kapsam dışı:** GraphQL (§3 — şema üretimi + resolver'lar + N+1, kendi
+    başına bir iş), `/realtime` (§9, doküman P2 diyor), `/query/nl` (AI katmanı
+    bağlantısı + üretilen SQL'in otomatik çalıştırılması ayrı bir güvenlik
+    tasarımı ister), metadata cache (§6 — Redis kararına bağlı).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar
