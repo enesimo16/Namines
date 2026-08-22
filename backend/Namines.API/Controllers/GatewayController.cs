@@ -170,6 +170,12 @@ public class GatewayController : ControllerBase
         }
 
         NaminesMetrics.GatewayRequest(forWrite ? "write" : "read", "ok");
+
+        // API isteği ölçümü (22 §5). Anahtarı ÜRETEN kullanıcıya yazılıyor:
+        // isteği yapan taraf anonim bir uygulama, faturayı ödeyen ise hesap sahibi.
+        await _context.RecordAsync(
+            key.CreatedByUserId, UsageResource.ApiRequest, 1, tableName, ct);
+
         return (true, null, key);
     }
 

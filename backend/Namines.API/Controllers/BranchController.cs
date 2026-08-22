@@ -364,6 +364,11 @@ public class BranchController : ControllerBase
         try
         {
             var database = await _databases.ProvisionAsync(branchId, schema, request.Engine, cancellationToken);
+
+            // Kayıt, işlem GERÇEKTEN olduktan sonra: başarısız bir sağlamayı
+            // faturalandırmak, olmamış bir şey için para almaktır.
+            await _context.RecordAsync(userId, UsageResource.BranchDatabase, 1, branchId, cancellationToken);
+
             return Ok(Describe(database));
         }
         catch (NotSupportedException ex)
@@ -470,33 +475,19 @@ public class BranchController : ControllerBase
         var existing = await _databases.GetAsync(branchId, ct);
         if (existing is not null) return null;
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        var tier = PlanQuotas.Resolve(user?.SubscriptionStatus);
-        var limits = PlanQuotas.For(tier);
+        // Kotayı ölçüm motoru veriyor (22 §5): dahil miktar içindeyse geç, aşıldıysa
+        // yalnızca aşırı kullanım AÇIKSA ve harcama tavanı dolmadıysa geç. Sabit bir
+        // sınır, ödeme yapmaya HAZIR bir kullanıcıyı da durdururdu.
+        var decision = await _context.EvaluateAsync(userId, UsageResource.BranchDatabase, 1, ct);
 
-        if (limits.BranchDatabases < 0) return null;
+        if (!decision.Allowed)
+            return StatusCode(402, new
+            {
+                error = decision.Reason,
+                overageCostUsd = decision.OverageCostUsd,
+            });
 
-        // Kullanıcının erişebildiği projelerin branch'leri.
-        var ownBranchIds = await _context.Branches
-            .Where(b => _context.CloudProjects
-                .Where(p => p.UserId == userId)
-                .Select(p => p.Id)
-                .Contains(b.ProjectId))
-            .Select(b => b.Id)
-            .ToListAsync(ct);
-
-        var open = await _databases.ListOpenBranchIdsAsync(ct);
-        var current = open.Count(id => ownBranchIds.Contains(id));
-
-        if (!PlanQuotas.IsExceeded(limits.BranchDatabases, current)) return null;
-
-        return StatusCode(402, new
-        {
-            error = PlanQuotas.LimitMessage(tier, "branch databases", limits.BranchDatabases),
-            plan = tier.ToString(),
-            limit = limits.BranchDatabases,
-            current,
-        });
+        return null;
     }
 
     /// <summary>

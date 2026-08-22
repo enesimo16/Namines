@@ -21,6 +21,8 @@ namespace Namines.Infrastructure.Data
         public DbSet<OrganizationMember> OrganizationMembers { get; set; } = null!;
         public DbSet<GatewayApiKey> GatewayApiKeys { get; set; } = null!;
         public DbSet<GatewayTablePermission> GatewayTablePermissions { get; set; } = null!;
+        public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
+        public DbSet<UserBillingSettings> UserBillingSettings { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -183,6 +185,33 @@ namespace Namines.Infrastructure.Data
                 .HasIndex(a => new { a.ChangeRequestId, a.CreatedAt });
 
             // ── 05 §6 — Organizasyon / üyelik (RBAC sınırı) ──────────────────
+            // Kullanım sorguları her zaman (kullanıcı, dönem, kaynak) üçlüsüyle
+            // filtreleniyor; index olmadan her fatura hesabı tüm tabloyu tarardı
+            // ve bu tablo en hızlı büyüyen tablo olacak.
+            builder.Entity<UsageEvent>()
+                .HasIndex(e => new { e.UserId, e.BillingPeriod, e.Resource });
+
+            builder.Entity<UsageEvent>()
+                .HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Parasal alan: double kullanmak kuruş kayıplarına yol açar.
+            builder.Entity<UsageEvent>()
+                .Property(e => e.Quantity)
+                .HasPrecision(18, 4);
+
+            builder.Entity<UserBillingSettings>()
+                .HasOne(s => s.User)
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<UserBillingSettings>()
+                .Property(s => s.MonthlyCapUsd)
+                .HasPrecision(18, 2);
+
             // Anahtar doğrulaması önce önekle aday bulur; index olmadan her istek
             // tüm anahtar tablosunu tarardı.
             builder.Entity<GatewayApiKey>()

@@ -1091,6 +1091,41 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     `namines_schema_compilations_total{engine="Oracle",result="failure",target="orm.drizzle"} 1`.
     Tam paket **758 test yeşil**.
 
+- [x] **G34 — Ölçüm motoru ve aşırı kullanım ([22](22-BUSINESS-MODEL.md) §5)** ✅ TAMAMLANDI
+  - `UsageEvent` + `UserBillingSettings` (migration `AddUsageMetering`),
+    `UsageMeter` (kayıt/toplama/karar), `OveragePricing` (dahil miktar + birim
+    fiyat), `GET /api/usage` ve `PUT /api/usage/billing`.
+  - **Olay olarak saklanıyor, sayaç olarak değil.** Tek bir "bu ay 412 çağrı" alanı
+    daha ucuz olurdu ama fatura itirazında ("bu 412 nereden geldi?") cevap verecek
+    hiçbir şey kalmazdı.
+  - **Dokümanın asıl kuralı kodda:** aşırı kullanım VARSAYILAN KAPALI. Kapalıyken
+    dahil miktar bitince hizmet durur; açıkken devam eder ve ücretlendirilir.
+    Beklenmeyen bir fatura, durmuş bir hizmetten daha kötüdür — kullanıcı isterse
+    tek tıkla açar. Ayar kaydı yokluğu da "kapalı" sayılıyor.
+  - **Harcama tavanı** aşırı kullanım açıkken bile durduruyor ve dönemin TAMAMINA
+    bakıyor, tek kaynağa değil: "sınırsız fatura" kimsenin istediği şey değil.
+  - Birim boyutu ayrı tutuluyor (`UnitSize`): API isteği "100K başına $1.50";
+    1 varsaymak aşımı 100 bin kat pahalı faturalandırırdı. Kısmi birim YUKARI
+    yuvarlanıyor — aşağı yuvarlamak, dahil miktarı bir birim aşan her kullanımı
+    ücretsiz yapardı.
+  - Karar ile kayıt **bilinçli olarak ayrı**: reddedilen isteği kaydetmek kullanımı
+    şişirir, kabul edilip sonra başarısız olan işlemi kaydetmek olmamış bir şey
+    için faturalandırır. Çağıran, işlem gerçekten olduktan sonra kaydediyor.
+  - Branch veritabanı kotası sabit sınırdan ölçüm motoruna taşındı: sabit sınır,
+    ödeme yapmaya HAZIR bir kullanıcıyı da durduruyordu. Gateway istekleri anahtarı
+    ÜRETEN kullanıcıya yazılıyor — isteği yapan anonim bir uygulama, faturayı ödeyen
+    hesap sahibi.
+  - Doğrulama: `OveragePricingTests` **12/12**, `UsageMeterTests` **11/11 gerçek
+    PostgreSQL'e karşı** (dönem sınırı, kesirli miktar, kullanıcılar arası sızıntı,
+    tavanın kaynaklar arası uygulanması). Tam paket **781 test yeşil**.
+  - ⚠️ **Fiyatlar koda gömülü.** Stripe fiyat id'leriyle eşleme yok (bkz. "Kodun
+    beklediği kararlar"). Sabit tablo ölçümün bugün doğru çalışmasını sağlıyor;
+    fiyatları gömmemek adına ölçümü ertelemek, en çok ihtiyaç duyulan şeyi —
+    kimin ne kadar kullandığını — bilmemek demekti.
+  - **Kapsam dışı:** Stripe'a fatura kalemi gönderme, ClickHouse'a taşıma,
+    depolama/transfer ölçümünün gerçek kaynaklara bağlanması (şu an yalnızca AI
+    çağrısı, API isteği ve branch veritabanı ölçülüyor).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar
