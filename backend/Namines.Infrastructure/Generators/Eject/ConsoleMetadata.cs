@@ -117,7 +117,11 @@ internal static class ConsoleMetadata
     /// </summary>
     public static string Widget(SchemaColumn column) => CanonicalType.Classify(column.Type) switch
     {
-        TypeKind.Boolean => "checkbox",
+        // "checkbox" DEĞİL: bir HTML checkbox'ın iki hâli var (işaretli/değil), oysa
+        // nullable bir boolean'ın üç hâli var (true/false/NULL). Checkbox kullanmak,
+        // NULL'ı sessizce false'a çevirirdi — "cevap verilmedi" ile "hayır" farklı
+        // şeyler. Form bunu üç seçenekli bir listeye çeviriyor.
+        TypeKind.Boolean => "boolean",
         TypeKind.Integer or TypeKind.Long or TypeKind.Decimal or TypeKind.Double => "number",
         TypeKind.Date => "date",
         TypeKind.Time => "time",

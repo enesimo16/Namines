@@ -8,7 +8,8 @@
 > Senin bir hesap/karar vermen gereken işler burada değil —
 > onlar [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md)'de.
 >
-> Son güncelleme: G39 (860 test yeşil, uygulama ayakta doğrulandı).
+> Son güncelleme: G40 (869 test yeşil; console yazma ekranları gerçek bir
+> veritabanına karşı tarayıcıdan doğrulandı).
 
 ---
 
@@ -16,24 +17,20 @@
 
 | Sıra | İş | Neden bu sırada |
 |------|-----|-----------------|
-| 1 | **§1 Console yazma ekranları** | Gateway'in yazma yolu (create/update/delete) **hazır ve test edilmiş**, ama hiçbir arayüzü yok. En çok hazır altyapının üstüne oturan iş. |
-| 2 | **§2 Gateway'in kalan sorgu yüzeyi** | Aynı controller, aynı güvenlik modeli. `import`, `/rpc`, `/query` ekleniyor. |
-| 3 | **§3 NSL'in kalanı** | Diğer her şeyin dayandığı model burada genişliyor — geç yapılırsa daha pahalı. |
-| 4 | **§5 Bot'un GitHub'a yazması** | Senin GitHub App'ini bekliyor, o gelene kadar sıraya giremez. |
-| 5 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
+| ~~1~~ | ~~**§1 Console yazma ekranları**~~ | ✅ **G40'ta yapıldı** — form/düzenleme/silme ekranları gerçek bir veritabanına karşı doğrulandı. §1'de yalnızca RBAC, denetim kaydı, dashboard, NL sorgu ve özelleştirme katmanı kaldı. |
+| 1 | **§2 Gateway'in kalan sorgu yüzeyi** | Aynı controller, aynı güvenlik modeli. `import`, `/rpc`, `/query` ekleniyor. |
+| 2 | **§3 NSL'in kalanı** | Diğer her şeyin dayandığı model burada genişliyor — geç yapılırsa daha pahalı. |
+| 3 | **§5 Bot'un GitHub'a yazması** | Senin GitHub App'ini bekliyor, o gelene kadar sıraya giremez. |
+| 4 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
 
 ---
 
 ## 1. Console: yazma ekranları ve yönetim ([07](07-CONSOLE-ADMIN-UI.md))
 
-Bugün üretilen Next.js konsolu **yalnızca okuyor** — liste + sayfalama var,
-form yok.
+~~Bugün üretilen Next.js konsolu **yalnızca okuyor**.~~ **Yazma ekranları
+G40'ta tamamlandı** — ekleme, düzenleme ve onaylı silme, gerçek bir PostgreSQL'e
+karşı tarayıcıdan doğrulandı. Kalanlar:
 
-- **Yazma/düzenleme formları.** Gateway'de `create` / `update` / `delete`
-  uçları **hazır ve canlı doğrulanmış**; eksik olan sadece arayüz.
-  > Buton bilerek konmadı: kullanıcının canlı veritabanına tarayıcıdan yazmak,
-  > henüz olmayan bir onay/geri-alma akışı ister. Butonu önce koymak, mevcut
-  > korumaları kâğıt üstünde bırakırdı.
 - **Console RBAC** (§4) — son kullanıcı rolleri.
 - **Denetim kaydı** (§5) — konsoldan yapılan değişikliklerin izi.
 - **Dashboard motoru** (§6).

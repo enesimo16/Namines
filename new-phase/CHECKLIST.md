@@ -1274,6 +1274,48 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     çıktısında göründü, `/api/share/sitemap.xml` **200**, bilinmeyen jetonla
     `og/*.svg` **404**. Tam paket **860 test yeşil**.
 
+- [x] **G40 — Console yazma ekranları ([07](07-CONSOLE-ADMIN-UI.md) §3.1, §8)** ✅ TAMAMLANDI
+  - Üretilen panel artık yalnızca okumuyor: `app/actions.ts` (Server Action'lar),
+    `app/[table]/new/page.tsx`, `app/[table]/[id]/page.tsx`, `components/RowForm.tsx`,
+    `components/DeleteButton.tsx`. Liste sayfasına "+ New row" ve satır başına
+    "edit" bağlantısı eklendi.
+  - **Yazma Server Action, API route değil.** Panelin anahtarı yalnızca sunucuda;
+    yazmayı tarayıcıdan yapmak ya anahtarı tarayıcıya indirmek ya da anahtarı
+    koruyan ikinci bir uç yazmak demekti. Server Action ikisini de gerektirmiyor.
+  - **Canlı denemede gerçek bir hata bulundu:** Gateway her satırı
+    `{ values: {...} }` olarak sarıyor, üretilen liste sayfası ise `row[kolon]`
+    okuyordu — **her hücre `null` görünüyordu.** Panel bugüne kadar yalnızca
+    `npm run build` ile doğrulanmıştı; derleniyordu ama veri göstermiyordu.
+    Sarmalayıcı artık `lib/gateway.ts`'te tek yerde açılıyor.
+  - **Boş kutu = NULL** (nullable kolonda). İkisi de `""` olsaydı bir alan bir kez
+    dolduktan sonra asla temizlenemezdi — panelin en sık kullanıldığı işlerden
+    biri bu. Ödünleşim (nullable metin kolonu panelden `""` yapılamaz) uyarı
+    olarak da veriliyor, sessiz kalmıyor.
+  - **Boş birincil anahtar hiç GÖNDERİLMİYOR.** Şema, anahtarın veritabanı
+    tarafından üretilip üretilmediğini taşımıyor; boş dize göndermek otomatik
+    anahtarlı bir tabloda anlaşılmaz bir hatayla düşerdi.
+  - **Düzenlemede anahtar salt-okunur.** Anahtar, değiştirilecek satırı buluyor;
+    aynı istekte onu da değiştirmek tek alanın iki satırı tarif etmesi olurdu.
+  - **Boolean için checkbox değil üç seçenekli liste.** Checkbox'ın iki hâli var,
+    nullable bir boolean'ın üç; checkbox NULL'ı sessizce false'a çevirirdi.
+    `ConsoleMetadata.Widget` artık `"checkbox"` yerine `"boolean"` döndürüyor.
+  - **Silme önce soruyor ve satırı adıyla söylüyor.** Canlı veritabanına konuşan
+    bir panelde tek tıkla silme geri alınamaz bir varsayılan; arkasında undo yok.
+    (Gateway zaten birden fazla satır etkilenecekse reddedip geri alıyor.)
+  - Anahtarsız tabloda form hiç gösterilmiyor — Gateway zaten reddediyor,
+    doldurulamayacak bir formu doldurtmak anlamsız.
+  - React 19'a çıkıldı: `useActionState` React 19 API'si, 18.3'te yok.
+  - **Doğrulama — gerçek uçtan uca, sadece derleme değil.** Gerçek PostgreSQL +
+    gerçek API anahtarı + tarayıcı: liste doğru veriyi gösterdi, boş anahtarla
+    satır eklendi (id veritabanınca atandı, 3 satır), düzenleme e-postayı
+    değiştirdi ve `bio`'yu temizledi (`psql` ile `bio IS NULL` = **t** doğrulandı),
+    silme onay sordu ("Delete 2 from users? This cannot be undone.") ve satırı
+    sildi, anahtarsız `logs` tablosu düzenleme sunmadı. `npm install && npm run
+    build` 5 rota, 0 tip hatası. Tam paket **869 test yeşil**.
+  - **Kapsam dışı:** Console RBAC (§4), denetim kaydı (§5), dashboard (§6),
+    doğal dil sorgu (§7), özelleştirme katmanı (§9), ilişki editörü (junction),
+    ağaç görünümü (tree), React+Vite/Blazor/Retool hedefleri.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar
