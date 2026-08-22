@@ -30,8 +30,10 @@ public sealed class EjectGeneratorRegistry : IEjectGeneratorRegistry
     {
         var generators = new IEjectGenerator[]
         {
-            // Şemanın kendi metin biçimi — tek ÇİFT YÖNLÜ hedef.
+            // Şemanın kendi biçimleri — tek ÇİFT YÖNLÜ hedefler. İkisi aynı bilgiyi
+            // taşır: biri insan için okunabilir, diğeri araçlar için kararlı.
             new NslGenerator(),
+            new CanonicalIrGenerator(),
 
             // Tipler ve sözleşmeler
             new TypeScriptTypesGenerator(),

@@ -1522,6 +1522,31 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
   - **Kapsam dışı:** kısmi/kapsayıcı index, `@ui`/`@tag`, view, RLS, şema adı
     (`public`), kanonik JSON IR.
 
+- [x] **G46 — Kanonik JSON IR ([04](04-NSL-SCHEMA-IR.md) §3)** ✅ TAMAMLANDI
+  - `CanonicalIr.Write/Read` ve `ir.json` eject hedefi. NSL metninin **makine
+    tarafı**: aynı bilgi, insan için değil araçlar için — CI'da doğrulanabilir,
+    diff'lenebilir, herhangi bir dilde okunabilir.
+  - **Sürüm alanı (`nsl`) ilk alan ve zorunlu.** Sürümsüz bir biçim, ileride
+    değiştiğinde eski dosyaları sessizce yanlış okur. Farklı sürüm **reddediliyor**.
+  - **Modelin taşımadığı alanlar dosyada YOK.** `@ui`, `@tag`, view ve RLS'i boş
+    yer tutucu olarak yazmak, okuyan araca "bu bilgi var ama boş" dedirtirdi;
+    yokluk, "henüz desteklenmiyor"un dürüst hâli.
+  - `identity` (kullanıcının söylediği) ve `identityEffective` (çıkarımın sonucu)
+    AYRI yazılıyor, ama geri okunurken yalnızca ilki alınıyor. İkincisini
+    saklamak, "söylenmedi" ile "evet dendi" arasındaki farkı yok ederdi — ve o
+    fark, kullanıcının anahtarı kendisinin atayabilmesinin tek dayanağı.
+  - `nsl` gibi **çift yönlü**: 18 eject hedefinden yalnızca bu ikisi geri
+    okunabiliyor.
+  - Determinizm testi bilerek iki ayrı iddiaya bölündü: aynı NESNEYİ iki kez
+    yazmak ve aynı KAYNAKTAN iki kez okumak. İkincisi asıl garanti ve ancak
+    kimlikler addan türetildiği için tutuyor — rastgele üretilseydi iki okuma
+    birbirinden farklı görünürdü (`SchemaIdentity`'de düzeltilen hatanın aynısı).
+  - Doğrulama: `CanonicalIrTests` **13/13** (IR ile NSL metninin aynı şemayı
+    tarif ettiği ayrıca kontrol ediliyor — iki biçim ayrışırsa hangisinin doğru
+    olduğu belirsizleşir), tam paket **991 test yeşil**.
+  - **Kapsam dışı:** JSON Schema dosyası (doğrulayıcı bağımlılığı gerektiriyor),
+    Migration IR (§7), WASM (§10), `@ui`/`@tag`/view/RLS.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar
