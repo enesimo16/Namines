@@ -1032,6 +1032,27 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     ekranları (şu an liste + sayfalama var, yazma yok); §4 Console RBAC, §5 audit
     log, §6 dashboard, §7 doğal dil sorgu, §9 özelleştirme overlay'i.
 
+- [x] **G32 — TypeScript SDK üretimi ([12](12-CODEGEN-EJECT.md) §7, P0)** ✅ TAMAMLANDI
+  - `sdk.typescript` hedefi: Gateway için tip güvenli istemci (`client.ts`,
+    `types.ts`, `index.ts`, `README.md`). 12 §P0'ın kalan yarısıydı — tipler vardı
+    ama müşteri hâlâ elle `fetch` yazıp gövdeyi doğru kurmak zorundaydı.
+  - **Tablo başına metot üretiliyor**, tek bir `list(table)` değil: jenerik imzada
+    tablo adını yanlış yazmak çalışma zamanına kalır, üretilen metotta yanlış ad
+    DERLEME hatasıdır. SDK'nın tüm değeri hatayı erkene çekmek.
+  - Tekil birincil anahtarı olmayan tabloya `get/update/delete` **üretilmiyor**:
+    Gateway anahtarsız yazmayı zaten reddediyor, metot üretmek çağıranı çalışma
+    zamanında patlayacak bir yola sokardı. Bu tablolar için yalnızca `list`/`export`
+    var ve durum uyarıyla bildiriliyor.
+  - Gateway'in ret mesajı `NaminesError` ile **olduğu gibi** aktarılıyor — hangi
+    tablo reddedildi, hangi limit doldu, yazma neden geri alındı. Genel bir
+    "request failed" bu bilgiyi çöpe atardı.
+  - README anahtarın tarayıcıya konmamasını açıkça söylüyor: anahtar bir bearer
+    kimlik bilgisi, tarayıcıya inerse her ziyaretçi anahtarın eriştiği tabloların
+    tamamına erişir.
+  - **Doğrulama:** üretilen SDK diske döküldü ve `strict` altında `tsc --noEmit`
+    **0 hata** verdi; bileşik anahtarlı tablonun yalnızca `list`/`export` aldığı
+    çıktıda görüldü. `EjectGeneratorTests` **86/86**, tam paket **742 test yeşil**.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar
@@ -1058,6 +1079,30 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
 - [ ] `C:\Users\Enes Yel` dizinindeki yanlış git deposunu düzelt (remote'u `automated-recruitment-pipeline`)
 - [ ] Ödeme altyapısı araştırması (Stripe TR sınırlı → Paddle / LemonSqueezy)
 - [ ] `namines.com` alan adı + marka taraması
+
+### Kodun beklediği kararlar/erişimler
+
+Aşağıdakiler olmadan ilgili iş TAMAMLANAMAZ — kod tarafı hazır, eksik olan senin
+vereceğin bilgi ya da hesap. Hiçbiri diğer işleri bloke etmiyor.
+
+- [ ] **Neon hesabı + `NEON_API_KEY`** (06 §3). `neon.tech` → kayıt → proje → API key.
+      Anahtarı sohbete yapıştırma, ortam değişkenine koy. Geldiğinde
+      `IBranchDatabaseProvisioner`'ın ikinci implementasyonu olarak takılır.
+- [ ] **npm + GitHub yayını.** MCP paketi, npm sarmalayıcısı ve release workflow
+      hazır ama `npm publish` ve `git tag v0.1.0` atılmadı — hesap gerekiyor.
+- [ ] **Gateway'in public alan adı** (`api.namines.com`?). OpenAPI'deki `servers`
+      bloğu ve üretilen SDK'nın taban URL'i buna bağlı. Şimdilik göreli yol.
+- [ ] **Plan başına rate limit sayıları** (08 §5: 600-10.000 rpm aralığı veriliyor).
+- [ ] **Redis** kararı. Çok instance'lı rate limit (şu an bellek içi, instance
+      başına) ve metadata cache (08 §6) buna bağlı.
+- [ ] **Dokümandan iki sapmanın onayı:** (1) `Authorization: Bearer` yerine
+      `X-Namines-Key` — aynı uçlarda JWT de var, tek başlıkta taşımak "hangi kimlik?"
+      belirsizliği yaratıyordu. (2) argon2id yerine SHA-256 — argon2 düşük entropili
+      PAROLALAR için; anahtar 256-bit rastgele, argon2'nin yavaşlığı hiçbir şey
+      kazandırmaz, her isteğe gecikme ekler.
+- [ ] **Stripe fiyat/plan eşlemesi** (22). Kod `SubscriptionStatus`'tan yalnızca
+      Free/Pro çıkarabiliyor; Team/Enterprise ayrımı için plan alanı ve Stripe
+      price id'leri gerekiyor.
 
 ### Kodun beklediği kararlar/erişimler
 

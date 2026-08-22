@@ -32,6 +32,7 @@ public sealed class EjectGeneratorRegistry : IEjectGeneratorRegistry
         {
             // Tipler ve sözleşmeler
             new TypeScriptTypesGenerator(),
+            new TypeScriptSdkGenerator(),
             new ZodSchemaGenerator(),
             new CSharpTypesGenerator(),
             new PydanticGenerator(),

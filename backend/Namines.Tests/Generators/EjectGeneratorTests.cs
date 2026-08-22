@@ -437,4 +437,80 @@ public class EjectGeneratorTests
 
         Assert.Contains("\"labelColumn\": \"email\"", metadata);
     }
+
+    // ── TypeScript SDK (12 §7) ───────────────────────────────────────────────
+
+    [Fact]
+    public void Sdk_generates_a_method_per_table()
+    {
+        // Jenerik bir list(table) imzasında tablo adını yanlış yazmak çalışma
+        // zamanına kalır; üretilen metotta yanlış ad DERLEME hatasıdır. SDK'nın
+        // tüm değeri hatayı erkene çekmek.
+        var client = Registry.Get("sdk.typescript").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["client.ts"];
+
+        Assert.Contains("readonly users = {", client);
+        Assert.Contains("readonly orders = {", client);
+    }
+
+    [Fact]
+    public void Sdk_omits_keyed_operations_for_a_table_without_a_single_key()
+    {
+        // Gateway anahtarsız yazmayı reddediyor; metot üretmek çağıranı çalışma
+        // zamanında patlayacak bir yola sokardı.
+        var schema = Schema();
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t9", Name = "line_items",
+            Columns =
+            {
+                new SchemaColumn { Id = "l1", Name = "order_id", Type = "INT", IsPK = true },
+                new SchemaColumn { Id = "l2", Name = "line_no", Type = "INT", IsPK = true },
+            },
+        });
+
+        var result = Registry.Get("sdk.typescript").Generate(schema, DatabaseType.PostgreSQL);
+        var client = result.Files["client.ts"];
+
+        var section = client[client.IndexOf("readonly line_items", StringComparison.Ordinal)..];
+        var next = section.IndexOf("  };", StringComparison.Ordinal);
+        var block = section[..next];
+
+        Assert.Contains("list:", block);
+        Assert.Contains("export:", block);
+        Assert.DoesNotContain("delete:", block);
+        Assert.Contains(result.Warnings, w => w.Contains("line_items"));
+    }
+
+    [Fact]
+    public void Sdk_never_suggests_putting_the_key_in_the_browser()
+    {
+        // Anahtar bir bearer kimlik bilgisi; tarayıcıya inerse her ziyaretçi
+        // anahtarın eriştiği tabloların tamamına erişir.
+        var readme = Registry.Get("sdk.typescript").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["README.md"];
+
+        Assert.Contains("never from client-side code", readme);
+    }
+
+    [Fact]
+    public void Sdk_carries_the_gateway_error_message_through()
+    {
+        // Gateway reddi tam olarak açıklıyor (izin, limit, origin, geri alınan
+        // yazma); genel bir "request failed" o bilgiyi çöpe atardı.
+        var client = Registry.Get("sdk.typescript").Generate(Schema(), DatabaseType.PostgreSQL)
+            .Files["client.ts"];
+
+        Assert.Contains("class NaminesError", client);
+        Assert.Contains("await response.text()", client);
+    }
+
+    [Fact]
+    public void Sdk_defaults_the_engine_it_was_generated_for()
+    {
+        var client = Registry.Get("sdk.typescript").Generate(Schema(), DatabaseType.MySQL)
+            .Files["client.ts"];
+
+        Assert.Contains("DEFAULT_DB_TYPE = \"MySQL\"", client);
+    }
 }
