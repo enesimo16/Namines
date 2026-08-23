@@ -10,6 +10,66 @@
 **Genel kural:** Hiçbir API anahtarını, parolayı ya da token'ı sohbete
 yapıştırma. Hepsi ortam değişkenine girer; sen sadece "aldım" de yeter.
 
+## Önce sade hâli (teknik bilgi gerekmez)
+
+Aşağıdakilerin **hiçbiri kod eksikliği değil.** Hepsinin kodu yazıldı ve test
+edildi; eksik olan tek şey senin bir hesap açman, bir sayı söylemen ya da bir
+karar vermen. Hiçbiri diğer işleri durdurmuyor.
+
+### Acil olan iki tanesi
+
+**A) GitHub hesabı ve GitHub App**
+Namines Bot hazır: bir arkadaşın veritabanı değişikliği içeren bir PR açtığında
+"bu değişiklik şu tabloyu siliyor, dikkat" diye yorum yazacak ve riskliyse
+merge'ü engelleyecek. **Ama şu an tek satır yazamıyor**, çünkü GitHub'a
+"ben Namines'im" diyebileceği bir kimliği yok.
+→ GitHub'da bir "App" oluşturup üç değeri bana ver. Adım adım anlatımı §8'de.
+
+**B) npm hesabı**
+MCP sunucusu paketlendi ve yayına hazır. Şu an bir kullanıcının onu kurması için
+tüm projeyi indirmesi gerekiyor. npm hesabı açıp `npm login` dersen, tek komutla
+kurulur hâle gelir.
+→ npm.com'dan ücretsiz hesap. §2.
+
+### Sırada bekleyen altı tanesi
+
+**C) Neon hesabı** — Şu an her dal için sıfırdan bir veritabanı açıyoruz;
+çalışıyor ama yavaş. Neon ücretsiz hesapla bunu anında yapıyor. §1
+
+**D) Alan adı** — `namines.com` sende mi? Bir de API için adres lazım
+(`api.namines.com` gibi). Kullanıcıların indirdiği kod, Namines'in dışında
+nereye bağlanacağını bilmiyor şu an. §3
+
+**E) Üç sayı** — Ücretsiz / Pro / Team planlarında **dakikada kaç istek** hakkı
+olsun? Sadece üç sayı söyle, gerisini ben yazarım. Uydurmadım çünkü yanlış bir
+sayı ya müşteriyi haksız yere keser ya da ücretsiz planı bedava sınırsız yapar.
+İkisi de sessizce olur. §4
+
+**F) Redis: evet mi hayır mı?** — Tek kelime yeter. Şu an istek sayacı tek
+sunucunun hafızasında; ikinci bir sunucu açarsan aynı kişi iki katı hak kazanır. §5
+
+**G) Stripe fiyatları** — Team ve Enterprise planları için Stripe'ta fiyat
+oluşturup kimliklerini ver. Şu an sistem herkesi "Ücretsiz ya da Pro" olarak
+görüyor. §6
+
+**H) İki küçük onay** — Dokümanda yazandan bilerek saptığım iki teknik nokta var.
+Kabul ediyorsan hiçbir şey yapman gerekmiyor; etmiyorsan söyle, geri alırım. §7
+
+### Bir de bunlar
+
+**I) Groq (AI) anahtarı** — "Geçen ayki siparişleri göster" gibi bir cümleyi SQL'e
+çeviren özellik yazıldı ama **bir kez bile gerçekten denenmedi**, çünkü AI
+anahtarı yok. Güvenlik kontrollerinin hepsi test edildi; test edilemeyen tek şey
+"ürettiği SQL doğru mu". §9
+
+**J) Disk** — Bilgisayarında sadece **4,8 GB** boş yer kaldı. Bu yüzden bu
+oturumda veritabanı container'ı çöktü. Yer açman lazım. §10
+
+> **Hiçbir şifreyi, anahtarı ya da token'ı sohbete yapıştırma.** Hepsi ortam
+> değişkenine girer; sen sadece "aldım" de yeter.
+
+---
+
 ## Tek bakışta
 
 | # | Ne | Tipi | Bunsuz ne olmuyor |

@@ -8,8 +8,64 @@
 > Senin bir hesap/karar vermen gereken işler burada değil —
 > onlar [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md)'de.
 >
-> Son güncelleme: G48 (1032 test yeşil; oturum sonu kod incelemesinde 8 bulgu
-> düzeltildi).
+> Son güncelleme: G49 (1052 test yeşil; iki kod inceleme geçişinde toplam
+> 11 bulgu düzeltildi).
+
+---
+
+## Önce sade hâli (teknik bilgi gerekmez)
+
+### Ürün şu an ne yapabiliyor?
+
+Bir kullanıcı Namines'e girdiğinde artık şunları yapabiliyor:
+
+1. **Şemayı tasarlıyor** — canvas'ta tablo çiziyor, ya da AI'ya tarif ediyor,
+   ya da var olan bir veritabanından çekiyor.
+2. **Altı farklı veritabanına derliyor** — PostgreSQL, SQL Server, MySQL,
+   MariaDB, Oracle, SQLite. Bir motorun desteklemediği bir şey varsa uyduruk
+   çıktı üretmiyor, "bu motorda olmaz" diyor.
+3. **Kod indiriyor** — 19 farklı hedef: TypeScript tipleri, Prisma, Drizzle,
+   Django, hazır bir yönetim paneli, hatta şemanın kendi metin biçimi.
+4. **Canlı veritabanına bağlanıyor** — API üzerinden veri okuyup yazıyor,
+   toplu veri yüklüyor, ham SQL çalıştırıyor (ayrı izinle).
+5. **Üretilen panelden veri düzenliyor** — satır ekliyor, düzenliyor, onaylı
+   siliyor. Kimin ne yaptığı kayda geçiyor.
+6. **Değişikliği inceletiyor** — "bu değişiklik veri kaybettirir mi" sorusunu
+   cevaplayan bir motor var; PR'lara yorum yazacak bot da hazır.
+
+### Peki ne kaldı?
+
+Kalanlar **eksik parça değil, sıradaki başlıklar.** Hiçbiri yarım bırakılmış bir
+iş değil; her biri kendi başına ayrı bir proje.
+
+**1. Bot'un işini bitirmesi** — Bot şu an PR'a yorum yazabiliyor. Kalan: PR
+açılınca otomatik bir *deneme veritabanı* kurup "değişikliği burada dene" demesi,
+ve `/namines plan` gibi komutların gerçekten çalışması. *Senin GitHub App'in
+geldiği an anlamlı hâle gelir.*
+
+**2. GraphQL** — Şu an API'ye REST ile bağlanılıyor. Bazı geliştiriciler GraphQL
+tercih ediyor. Ayrı bir kütüphane ve mimari karar gerektiriyor; **Redis
+kararına bağlı** (§F).
+
+**3. Şemanın kalan detayları** — View, satır seviyesi güvenlik, arayüz etiketleri
+gibi ileri seviye şey. En pahalı kısım (enum, hesaplanan kolon, collation)
+geçildi; kalanlar daha küçük.
+
+**4. Panelin kalan özellikleri** — Grafik/dashboard, doğal dil sorgu, üretilen
+paneli özelleştirme.
+
+**5. Altyapı ve içerik** — Otomatik yedekleme, hata izleme panelleri, SEO için
+100+ hazır şema. Çoğu kod değil, kurulum ve içerik işi.
+
+### Ne yapılmayacak?
+
+Üç şey **bilerek reddedildi**, ertelenmedi:
+
+- Docker soketini container'a bağlamak — bilgisayarında root yetkisi vermek demek.
+- Bot'un yanlış yazılmış bir komutu "tahmin etmesi" (`aprove` → `approve`) —
+  yıkıcı bir değişikliğin yazım hatasıyla onaylanması demek.
+- Bir motorun desteklemediği silme davranışında `CASCADE`'e düşmek — sessiz veri
+  kaybı demek.
 
 ---
 
@@ -25,7 +81,8 @@
 | §3 `generated`, `collation`, **dizi** | ✅ G45 — gerçek PostgreSQL ve SQLite'ta doğrulandı |
 | §3 **kanonik JSON IR** | ✅ G46 — sürümlü, çift yönlü, `ir.json` eject hedefi |
 | §1 **RBAC + denetim kaydı** | ✅ G47 — kayıt Gateway'de (atlatılamaz), panelin varsayılan rolü salt-okunur |
-| §2 `/query/nl` | ✅ G48 — varsayılan çalıştırmaz; `execute` verilse bile yalnızca okuma |
+| §2 `/query/nl` | ✅ G48 — varsayılan çalıştırmaz; `execute` verilse bile yalnızca okuma. ⚠️ Groq anahtarı olmadığı için **mutlu yolu hiç denenmedi** |
+| §1 Studio'nun yeni alanları görmesi | ✅ G49 — enum, identity, hesaplanan kolon, collation, dizi artık canvas'ta |
 
 Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyorlar.
 
@@ -38,7 +95,7 @@ Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyor
 | 1 | **§5 Bot'un kalanı** | PR'da önizleme veritabanı + `/namines` komutlarının gerçekten çalışması. GitHub App'in geldiği an anlamlı hâle gelir ve bot zaten yazıyor. |
 | 2 | **§2 GraphQL** | Bir GraphQL motoru bağımlılığı + proje başına şema önbelleği ister; ikincisi Redis kararına bağlı. |
 | 3 | **§3'ün kalanı** | Şema adı (`public`), `@ui`/`@tag`, view, RLS, Migration IR, WASM. Model artık enum/generated/collation/dizi taşıyor, yani en pahalı kısım geçildi. |
-| 4 | **§1'in kalanı** | Dashboard motoru, doğal dil sorgu, özelleştirme katmanı, kolon maskeleme/satır filtresinin role bağlanması. |
+| 4 | **§1'in kalanı** | Dashboard motoru, doğal dil sorgu, özelleştirme katmanı, kolon maskeleme/satır filtresinin role bağlanması. Bir de **enum'ları arayüzden tanımlama** — şu an yalnızca var olanlar seçilebiliyor. |
 | 5 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
 
 > **§2 `/query/nl` ve §1 doğal dil sorgu aynı işin iki ucu.** İkisi de "üretilen
