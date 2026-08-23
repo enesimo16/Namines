@@ -22,6 +22,8 @@ yapıştırma. Hepsi ortam değişkenine girer; sen sadece "aldım" de yeter.
 | 6 | Stripe fiyat/plan eşlemesi | hesap | Team/Enterprise ayrımı yapılamıyor |
 | 7 | İki doküman sapmasının onayı | onay | Bir şey bloke değil; itirazın varsa geri alırım |
 | 8 | **GitHub App** (`AppId`, `PrivateKey`, `WebhookSecret`) | hesap | **Bot kod olarak hazır ama tek satır yazamıyor** |
+| 9 | Groq API anahtarı | hesap | `/query/nl` bir kez bile gerçekten çalıştırılmadı |
+| 10 | Disk alanı (şu an 4,8 GB) | makine | Control DB container'ı bu yüzden düştü |
 
 En yüksek etkili ikisi: **8** (bot tamamen hazır, sadece kimlik bekliyor) ve
 **2** (MCP'nin yayılmasının önündeki tek engel).
@@ -180,6 +182,34 @@ başlar; yıkıcı bir değişiklikte check `failure` döner ve merge korumalar�
 devreye girer.
 
 **İlgili:** [11-MIGRATIONS-BRANCHING.md](11-MIGRATIONS-BRANCHING.md) §7
+
+---
+
+## 9. Groq API anahtarı (`/query/nl` için)
+
+**Ne yapman lazım:** Groq anahtarını ortam değişkenine koy (proje zaten
+`GroqAIService` kullanıyor, yeni bir şey kurman gerekmiyor).
+
+**Neden:** Doğal dil sorgusu (`/query/nl`) **bir kez bile gerçekten
+çalıştırılmadı.** Doğrulanan şeyler yalnızca kapılar: yetkisiz anahtar 403,
+bilinmeyen motor reddi, kota ölçümü, hata mesajının sızdırmaması. Ama "üretilen
+SQL doğru mu, model şemayı doğru okuyor mu" sorusunun cevabı **bilinmiyor**.
+
+**Geldiğinde ne olur:** Gerçek bir soru sorulup üretilen SQL'in çalıştığı
+doğrulanır. İstem düzeltmesi gerekirse orada görülür.
+
+---
+
+## 10. Disk alanı
+
+**Ne yapman lazım:** C: sürücüsünde yer aç. Şu an **4,8 GB** boş.
+
+**Neden:** Control DB container'ı bu yüzden 255 ile düştü (bu oturumda oldu).
+Docker'ın kendi içinden 6,9 GB geri kazandım ama WSL2'nin sanal diski
+kendiliğinden küçülmüyor — `wsl --shutdown` sonrası VHDX sıkıştırma gerekiyor.
+
+**Not:** CLAUDE.md zaten uyarıyor — "Docker/build hataları illa kod hatası
+değil, önce boş alanı kontrol et."
 
 ---
 
