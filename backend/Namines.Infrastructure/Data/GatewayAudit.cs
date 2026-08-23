@@ -26,7 +26,7 @@ public static class GatewayAudit
     /// taşımak olurdu — ve o işlem çoktan veritabanına yazıldı, geri alınamaz.
     /// Sorun log'a düşer, akış devam eder.
     /// </summary>
-    public static async Task RecordAsync(
+    public static async Task RecordAuditAsync(
         this AuthDbContext context,
         GatewayApiKey? key,
         string? actorUserId,

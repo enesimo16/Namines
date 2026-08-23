@@ -549,15 +549,15 @@ export const useSchemaStore = create<SchemaState>()(
             id: newId,
             name: t.name || `Tablo_${genId().substring(0, 4)}`,
             stableUuid: t.stableUuid || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : genId()),
+            // Alanlar TEK TEK sayılmıyor: sayılan bir liste, modele eklenen her
+            // yeni alanı (enum, identity, generated, collation, dizi) sessizce
+            // düşürür ve bunu ancak kullanıcı verisinin kaybolduğunu görünce
+            // fark edersin. Yayma (spread) bilmediğimiz alanları da taşır.
             columns: (t.columns || []).map(c => ({
+              ...c,
               id: genId(),
               name: c.name || 'Column',
               type: c.type || 'INT',
-              length: c.length,
-              isPK: c.isPK,
-              isFK: c.isFK,
-              isNullable: c.isNullable,
-              defaultValue: c.defaultValue,
               stableUuid: c.stableUuid || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : genId()),
             }))
           };

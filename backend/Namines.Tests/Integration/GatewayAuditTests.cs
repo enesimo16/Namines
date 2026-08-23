@@ -49,7 +49,7 @@ public class GatewayAuditTests : IAsyncLifetime
     {
         await using var context = Context();
 
-        await context.RecordAsync(Key(), null, GatewayWriteKind.Update, "users", "42",
+        await context.RecordAuditAsync(Key(), null, GatewayWriteKind.Update, "users", "42",
             new[] { "email", "note" }, affectedRows: 1, succeeded: true);
 
         var entry = await context.GatewayAuditEntries.SingleAsync();
@@ -71,7 +71,7 @@ public class GatewayAuditTests : IAsyncLifetime
         // çoğu zaman başarılı olandan daha ilgi çekicidir.
         await using var context = Context();
 
-        await context.RecordAsync(Key(), null, GatewayWriteKind.Delete, "users", "7",
+        await context.RecordAuditAsync(Key(), null, GatewayWriteKind.Delete, "users", "7",
             null, affectedRows: 0, succeeded: false);
 
         var entry = await context.GatewayAuditEntries.SingleAsync();
@@ -88,7 +88,7 @@ public class GatewayAuditTests : IAsyncLifetime
         // bir sızıntı yüzeyi açmak olurdu.
         await using var context = Context();
 
-        await context.RecordAsync(Key(), null, GatewayWriteKind.Create, "users", null,
+        await context.RecordAuditAsync(Key(), null, GatewayWriteKind.Create, "users", null,
             new[] { "email" }, affectedRows: 1, succeeded: true);
 
         var entry = await context.GatewayAuditEntries.SingleAsync();
@@ -105,7 +105,7 @@ public class GatewayAuditTests : IAsyncLifetime
     {
         await using var context = Context();
 
-        await context.RecordAsync(null, "user-9", GatewayWriteKind.Sql, null, null, null, 3, true);
+        await context.RecordAuditAsync(null, "user-9", GatewayWriteKind.Sql, null, null, null, 3, true);
 
         var entry = await context.GatewayAuditEntries.SingleAsync();
 

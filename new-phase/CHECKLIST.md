@@ -1680,6 +1680,47 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     şema önbelleği ister; ikincisi Redis kararına bağlı), `/realtime` (§9, doküman
     P2), metadata cache (§6, Redis kararına bağlı).
 
+- [x] **G49 — Kota tek elde, Studio yeni alanları görüyor** ✅ TAMAMLANDI
+  - `AiQuotaService`, Studio'nun `TableEditorDrawer`'ında kolon başına gelişmiş
+    alanlar, `frontend/types/schema.ts` genişlemesi, `RecordAuditAsync` adlandırması.
+  - **⚠️ Kota kopyası üç şeyi birden yanlış yapıyordu ve hiçbiri testlerde
+    görünmüyordu.** `/query/nl` kendi kota mantığını yazdığında:
+    1. Kota **token** sayıyor, çağrı değil — kopya 1 artırıyordu, yani 20.000'lik
+       tavan pratikte hiç dolmuyordu.
+    2. Paylaşılan günlük havuza (`GlobalAiUsages`) hiç dokunmuyordu.
+    3. Gün sınırı UTC'ye göreydi; middleware TR saatine (UTC+3) göre sıfırlıyor.
+       Aynı sayaç iki farklı güne bölünüyordu.
+    Kural artık `AiQuotaService`'te; hem middleware hem Gateway onu çağırıyor.
+  - **Kontrol ile harcama ayrıldı** (`CheckAsync` / `ConsumeAsync`): bütçe yalnızca
+    BAŞARIDA harcanıyor, dolayısıyla iade koduna gerek kalmadı — iadenin kendisi
+    de başarısız olabildiği için ikinci bir arıza yolu açıyordu.
+  - `ExecuteUpdate` **değişiklik izleyicisini atlıyor**: aynı kapsamda daha önce
+    okunmuş kota nesnesi eski sayacı taşımaya devam ediyordu. Harcamadan sonra
+    yeniden yükleniyor — testte yakalandı.
+  - **Studio artık yeni alanları görüyor.** `enum`, `identity`, `generated`,
+    `collation`, dizi — bunları API/NSL/`ir.json` taşıyordu ama arayüz taşımıyordu,
+    yani modelin yarısı canvas'tan erişilemezdi. Kolon satırı zaten yoğun olduğu
+    için alanlar **kapalı başlayan** bir "gelişmiş" bölümünde (aynı anda tek kolon
+    açık); günlük kullanımda gerekmeyen ayarları isteyen açar.
+  - `identity` arayüzde de **üç durumlu**: "Decide automatically / The database /
+    I assign it myself". İki durumlu yapmak, "söylenmedi" ile "hayır"ı aynı şeye
+    çevirirdi.
+  - `importFromVision` kolonları alan alan sayarak yeniden kuruyordu — modele
+    eklenen her yeni alanı sessizce düşürürdü. Yayma (spread) ile bilmediği
+    alanları da taşıyor.
+  - `GatewayAudit.RecordAsync` → `RecordAuditAsync`: `UsageMeter.RecordAsync` ile
+    aynı adı taşıyorlardı ve okuyan kişi hangisinin çağrıldığını satırdan
+    anlayamıyordu.
+  - Doğrulama: `AiQuotaServiceTests` **10/10 gerçek PostgreSQL'e karşı** (token
+    birimi, havuz, gün sınırı ve tavan ayrı ayrı kilitlendi), tam paket
+    **1052 test yeşil**, `tsc --noEmit` ve `npm run build` temiz. **Tarayıcıda:**
+    beş alan da açıldı, `identity`="I assign it myself" ve `collation`="tr-TR-x-icu"
+    girildi, kaydedilip yeniden açıldığında **değerler duruyordu**.
+  - **Kapsam dışı:** enum'ları arayüzden TANIMLAMA (şu an yalnızca var olanlar
+    seçilebiliyor; enum yazmak `.nsl` ya da API ile). `/query/nl`'in mutlu yolu
+    hâlâ **hiç çalıştırılmadı** — Groq anahtarı bekliyor
+    (bkz. [34](34-SENDEN-BEKLENENLER.md)).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

@@ -110,16 +110,28 @@ public class GatewayController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly GroqAIService _groq;
     private readonly ILogger<GatewayController> _logger;
+    private readonly AiQuotaService _quota;
+
+    /// <summary>
+    /// Bir doğal dil çevirisinin tahmini token maliyeti.
+    ///
+    /// <c>AIQuotaMiddleware</c>'deki diğer özelliklerle aynı büyüklük sırasında
+    /// (2000-6000). Şema istemin içine giriyor, yani maliyet tablo sayısıyla
+    /// birlikte artıyor; sabit bir tahmin bunu tam yakalamaz ama sayaç birimini
+    /// doğru tutmak, birimin kendisini yanlış almaktan çok daha önemli.
+    /// </summary>
+    private const int NlQueryTokenEstimate = 2500;
 
     public GatewayController(
         IGatewayService gateway, AuthDbContext context, IConfiguration configuration,
-        GroqAIService groq, ILogger<GatewayController> logger)
+        GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota)
     {
         _gateway = gateway;
         _context = context;
         _configuration = configuration;
         _groq = groq;
         _logger = logger;
+        _quota = quota;
     }
 
     /// <summary>
@@ -508,7 +520,7 @@ public class GatewayController : ControllerBase
             return result;
         });
 
-        await _context.RecordAsync(
+        await _context.RecordAuditAsync(
             key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
             kind, tableName, rowKey, columns, affected, succeeded, cancellationToken);
 
@@ -771,40 +783,21 @@ public class GatewayController : ControllerBase
         if (!Enum.TryParse<Namines.Core.Enums.DatabaseType>(request.DbType, ignoreCase: true, out var engine))
             return BadRequest(new { message = $"Unknown database engine '{request.DbType}'." });
 
-        // AI çağrısı ÖLÇÜLÜYOR. Bu uç, kota denetimi yapan AIQuotaMiddleware'in
-        // yolunda değil (o JWT bekler, buraya API anahtarıyla geliniyor) — ölçüm
-        // olmasaydı bir anahtar sahibi, hesap sahibinin AI bütçesini görünmez
-        // biçimde harcayabilirdi. Fatura anahtarı ÜRETEN kullanıcıya yazılıyor:
-        // isteği yapan taraf anonim bir uygulama, ödeyen hesap sahibi.
-        var quota = await _context.UserAIQuotas
-            .FirstOrDefaultAsync(q => q.UserId == key.CreatedByUserId, cancellationToken);
-
-        if (quota is not null)
+        // AI bütçesi, Studio'nunkiyle AYNI kaptan harcanıyor: kural
+        // AiQuotaService'te, burada tekrarlanmıyor. Kendi kopyasını yazdığında üç
+        // şey birden yanlıştı — kota token sayarken çağrı başına 1 artırılıyordu,
+        // paylaşılan havuza hiç dokunulmuyordu ve gün sınırı middleware'inkinden
+        // farklıydı. Fatura anahtarı ÜRETEN kullanıcıya yazılıyor: isteği yapan
+        // taraf anonim bir uygulama, ödeyen hesap sahibi.
+        var decision = await _quota.CheckAsync(key.CreatedByUserId, NlQueryTokenEstimate, cancellationToken);
+        if (decision != AiQuotaDecision.Allowed)
         {
-            // Gün dönünce sayaç sıfırlanır. Bu kontrol olmadan dünkü kullanım
-            // bugünü de kapatırdı.
-            if (quota.LastResetDate.Date != DateTime.UtcNow.Date)
+            return StatusCode(429, new
             {
-                quota.DailyUsageCount = 0;
-                quota.LastResetDate = DateTime.UtcNow;
-            }
-
-            if (quota.DailyUsageCount >= quota.DailyLimit)
-            {
-                return StatusCode(429, new
-                {
-                    message = "The daily AI limit for the account that owns this key has been reached.",
-                });
-            }
-
-            // Sayaç BURADA artırılıyor. Yalnızca UsageEvent yazmak, okunan sayaçla
-            // yazılan sayacın farklı olması demekti: kapı hiçbir zaman kapanmaz ve
-            // bir anahtar sahibi hesap sahibinin AI bütçesini sınırsız harcardı.
-            // Çağrıdan ÖNCE artırılıyor — sonra artırmak, eşzamanlı isteklerin
-            // hepsinin aynı anda geçmesine izin verir. Çağrı başarısız olursa
-            // aşağıda geri veriliyor.
-            quota.DailyUsageCount++;
-            await _context.SaveChangesAsync(cancellationToken);
+                message = decision == AiQuotaDecision.PoolExhausted
+                    ? "The shared daily AI budget is exhausted. Try again tomorrow."
+                    : "The daily AI limit for the account that owns this key has been reached.",
+            });
         }
 
         string sql;
@@ -814,28 +807,10 @@ public class GatewayController : ControllerBase
         }
         catch (Exception ex)
         {
-            // Hak GERİ VERİLİYOR: sağlayıcıya ulaşılamadığında kullanıcı hiçbir şey
-            // almadı. Peşin alınan hakkı iade etmemek, dış bir servisin arızasını
-            // kullanıcının günlük bütçesinden kesmek olurdu — canlı denemede tam
-            // olarak bu görüldü (Groq anahtarı yokken sayaç 1'e çıktı).
-            if (quota is not null)
-            {
-                try
-                {
-                    quota.DailyUsageCount--;
-                    await _context.SaveChangesAsync(cancellationToken);
-                }
-                catch (Exception refundFailure)
-                {
-                    // İade BAŞARISIZ olursa yanıt yine de 502 olmalı. Buradaki bir
-                    // istisnayı yakalamamak, geçici bir veritabanı sorununu temiz
-                    // bir 502'yi anlaşılmaz bir 500'e çeviren ikinci bir arızaya
-                    // dönüştürürdü — üstelik asıl sebep (modele ulaşılamadı)
-                    // tamamen kaybolurdu.
-                    _logger.LogWarning(refundFailure, "Could not refund the AI quota after a failed translation.");
-                }
-            }
-
+            // İADE KODU YOK ve gerek de yok: bütçe yalnızca BAŞARIDA harcanıyor
+            // (aşağıdaki ConsumeAsync). Peşin alıp geri vermek, iadenin kendisi de
+            // başarısız olabildiği için ikinci bir arıza yolu açıyordu.
+            //
             // Upstream'in hata GÖVDESİ geçirilmiyor: sağlayıcı mesajları uç adresi,
             // model adı ve kota ayrıntısı taşıyabiliyor ve bunlar çağıranın işine
             // yaramaz, saldırganın işine yarar. Ayrıntı log'a gidiyor.
@@ -843,6 +818,8 @@ public class GatewayController : ControllerBase
             return StatusCode(502, new { message = "The language model could not be reached." });
         }
 
+        // Model gerçekten cevap verdi: hem AI bütçesi hem faturalama ölçümü işleniyor.
+        await _quota.ConsumeAsync(key.CreatedByUserId, NlQueryTokenEstimate, cancellationToken);
         await _context.RecordAsync(key.CreatedByUserId, UsageResource.AiCall, 1, "query/nl", cancellationToken);
 
         // Model "cevaplayamıyorum" diyebilmeli: uyduran bir sorgu, boş dönenden

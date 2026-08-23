@@ -129,37 +129,11 @@ namespace Namines.API.Middleware
             // Kayıtlı kullanıcı sayısına BÖLÜNMEZ (dormant hesaba token israf edilmez):
             // tüketim talep üzerine havuzdan düşülür; tek kullanıcı tavanı havuzu drenlemesini önler.
             // İleride config'ten havuzu büyütmek yeterli (100k → 1M).
-            var config = context.RequestServices.GetService(typeof(IConfiguration)) as IConfiguration;
-            long dailyPool = long.TryParse(config?["AiPool:DailyTokenPool"], out var dp) ? dp : 100_000;
-            int perUserCap = int.TryParse(config?["AiPool:PerUserDailyTokens"], out var pu) ? pu : 20_000;
-
-            // ── Kullanıcı kotası (token bazlı) ──
-            var quota = await db.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == userId);
-            if (quota == null)
-            {
-                quota = new UserAIQuota
-                {
-                    UserId = userId,
-                    DailyLimit = perUserCap,
-                    DailyUsageCount = 0,
-                    LastResetDate = DateTime.UtcNow
-                };
-                await db.UserAIQuotas.AddAsync(quota);
-                await db.SaveChangesAsync();
-            }
-            else
-            {
-                // Eski yüzde-tabanlı satırları token tavanına normalize et.
-                if (quota.DailyLimit != perUserCap) quota.DailyLimit = perUserCap;
-                // Günlük reset (TR saati UTC+3)
-                if (quota.LastResetDate.AddHours(3).Date < DateTime.UtcNow.AddHours(3).Date)
-                {
-                    quota.DailyUsageCount = 0;
-                    quota.LastResetDate = DateTime.UtcNow;
-                }
-                db.UserAIQuotas.Update(quota);
-                await db.SaveChangesAsync();
-            }
+            // Kota kuralının TEK sahibi AiQuotaService. Havuz/tavan okuma, gün
+            // sıfırlama ve tavan normalizasyonu orada; burada tekrarlanmıyor ki
+            // Gateway'in /query/nl ucuyla ayrışmasın (bkz. AiQuotaService).
+            var quotaService = context.RequestServices.GetRequiredService<AiQuotaService>();
+            var quota = await quotaService.EnsureQuotaAsync(userId);
 
             // ── Özellik başına tahmini token maliyeti + kullanıcı politikası ──
             AIMode selectedMode = AIMode.Medium; // policy yoksa varsayılan
@@ -184,45 +158,23 @@ namespace Namines.API.Middleware
                 return;
             }
 
-            // ── Global günlük havuz satırı (gün değişince yeni satır) ──
-            var today = DateTime.UtcNow.Date;
-            var global = await db.GlobalAiUsages.FirstOrDefaultAsync(g => g.Date == today);
-            if (global == null)
-            {
-                global = new GlobalAiUsage { Date = today, TokensUsed = 0 };
-                await db.GlobalAiUsages.AddAsync(global);
-                try { await db.SaveChangesAsync(); }
-                catch { global = await db.GlobalAiUsages.FirstOrDefaultAsync(g => g.Date == today); } // yarış: başka istek oluşturdu
-            }
-            long globalUsed = global?.TokensUsed ?? 0;
-
             // ── Havuz VEYA kullanıcı tavanı dolarsa → minimum AI'ya düş (BLOKLAMA YOK) ──
-            bool poolExhausted = globalUsed + estTokens > dailyPool;
-            bool userExhausted = quota.DailyUsageCount + estTokens > quota.DailyLimit;
-            if (poolExhausted || userExhausted)
+            var decision = await quotaService.CheckAsync(userId, estTokens);
+            if (decision != AiQuotaDecision.Allowed)
             {
                 context.Items["FallbackToLocal"] = true;
-                context.Response.Headers["X-AI-Fallback"] = poolExhausted ? "pool-exhausted" : "quota-exhausted";
+                context.Response.Headers["X-AI-Fallback"] =
+                    decision == AiQuotaDecision.PoolExhausted ? "pool-exhausted" : "quota-exhausted";
                 await _next(context);
                 return;
             }
 
             await _next(context);
 
-            // Başarılıysa hem kullanıcı hem global sayacı ATOMİK artır (yarış-güvenli).
+            // Yalnızca BAŞARILI istek harcanmış sayılır: hata dönen bir çağrı
+            // kullanıcıya hiçbir şey vermedi, bütçesinden de düşmemeli.
             if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
-            {
-                int cap = quota.DailyLimit;
-                int cost = estTokens;
-                await db.UserAIQuotas
-                    .Where(q => q.UserId == userId)
-                    .ExecuteUpdateAsync(s => s.SetProperty(
-                        q => q.DailyUsageCount,
-                        q => q.DailyUsageCount + cost > cap ? cap : q.DailyUsageCount + cost));
-                await db.GlobalAiUsages
-                    .Where(g => g.Date == today)
-                    .ExecuteUpdateAsync(s => s.SetProperty(g => g.TokensUsed, g => g.TokensUsed + cost));
-            }
+                await quotaService.ConsumeAsync(userId, estTokens);
         }
     }
 }

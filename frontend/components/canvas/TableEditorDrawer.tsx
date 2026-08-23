@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Plus, Trash2, Key, Link as LinkIcon, AlertTriangle, Check } from 'lucide-react';
+import { X, Plus, Trash2, Key, Link as LinkIcon, AlertTriangle, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { SchemaTable, SchemaColumn, SchemaIndex } from '../../types/schema';
@@ -35,6 +35,10 @@ export default function TableEditorDrawer() {
   const originalTable = schema?.tables.find((t: SchemaTable) => t.id === selectedTableForEdit) ?? null;
 
   const [draft, setDraft] = useState<SchemaTable | null>(null);
+
+  // Aynı anda tek kolonun gelişmiş bölümü açık. Hepsini birden açık tutmak,
+  // uzun bir tabloda listeyi taranamaz hâle getirirdi.
+  const [expandedColumnId, setExpandedColumnId] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(originalTable ? JSON.parse(JSON.stringify(originalTable)) : null);
@@ -306,7 +310,23 @@ export default function TableEditorDrawer() {
 
                 <div className="flex flex-col gap-1.5">
                   {draft.columns.map((col) => (
-                    <div key={col.id} className="group flex items-center gap-1.5 p-2 bg-surface-700 border border-content-primary/8 rounded-lg hover:border-content-primary/15 transition-all">
+                    <div key={col.id} className="flex flex-col">
+                    <div className="group flex items-center gap-1.5 p-2 bg-surface-700 border border-content-primary/8 rounded-lg hover:border-content-primary/15 transition-all">
+                      {/* Gelişmiş alanlar KAPALI başlıyor. Beş alanı daha satır içine
+                          koymak, kolon listesini taranamaz hâle getirirdi; günlük
+                          kullanımda gerekmeyen ayarları isteyen açar. */}
+                      <button
+                        onClick={() => setExpandedColumnId(expandedColumnId === col.id ? null : col.id)}
+                        aria-expanded={expandedColumnId === col.id}
+                        aria-label={expandedColumnId === col.id ? 'Hide advanced options' : 'Show advanced options'}
+                        title="Advanced"
+                        className="flex-shrink-0 p-0.5 text-content-subtle hover:text-content-primary transition-colors"
+                      >
+                        {expandedColumnId === col.id
+                          ? <ChevronDown className="w-3.5 h-3.5" />
+                          : <ChevronRight className="w-3.5 h-3.5" />}
+                      </button>
+
                       <div className="flex-shrink-0 w-4 flex justify-center">
                         {col.isPK && <Key className="w-3.5 h-3.5 text-content-primary" />}
                         {col.isFK && !col.isPK && <LinkIcon className="w-3.5 h-3.5 text-content-muted" />}
@@ -373,6 +393,110 @@ export default function TableEditorDrawer() {
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                    </div>
+
+                    {expandedColumnId === col.id && (
+                      <div className="mt-1 ml-6 p-2.5 bg-surface-800 border border-content-primary/8 rounded-lg flex flex-col gap-2.5">
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div className="flex flex-col gap-1">
+                            <label htmlFor={`identity-${col.id}`} className="text-[9px] font-bold tracking-wider text-content-subtle uppercase">
+                              Value assigned by
+                            </label>
+                            {/* Üç durumlu: "söylenmedi" ile "hayır" farklı şeyler.
+                                Dışarıdan gelen bir sipariş numarası tamsayı anahtar
+                                olabilir ve veritabanının onu ezmesi veri kaybıdır. */}
+                            <select
+                              id={`identity-${col.id}`}
+                              value={col.identity === true ? 'db' : col.identity === false ? 'me' : 'auto'}
+                              onChange={e => handleColumnChange(
+                                col.id, 'identity',
+                                e.target.value === 'auto' ? null : e.target.value === 'db')}
+                              className={`${inputClass} px-2 py-1 text-[11px]`}
+                            >
+                              <option value="auto">Decide automatically</option>
+                              <option value="db">The database</option>
+                              <option value="me">I assign it myself</option>
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <label htmlFor={`enum-${col.id}`} className="text-[9px] font-bold tracking-wider text-content-subtle uppercase">
+                              Enum type
+                            </label>
+                            <select
+                              id={`enum-${col.id}`}
+                              value={col.enumRef ?? ''}
+                              onChange={e => handleColumnChange(col.id, 'enumRef', e.target.value || null)}
+                              disabled={(schema?.enums?.length ?? 0) === 0}
+                              aria-describedby={(schema?.enums?.length ?? 0) === 0 ? `enum-help-${col.id}` : undefined}
+                              className={`${inputClass} px-2 py-1 text-[11px] disabled:opacity-50`}
+                            >
+                              <option value="">None</option>
+                              {(schema?.enums ?? []).map(e => (
+                                <option key={e.id} value={e.name}>{e.name}</option>
+                              ))}
+                            </select>
+                            {(schema?.enums?.length ?? 0) === 0 && (
+                              <p id={`enum-help-${col.id}`} className="text-[9px] text-content-subtle leading-snug">
+                                No enums in this schema yet. Define them in the .nsl file or through the API.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label htmlFor={`generated-${col.id}`} className="text-[9px] font-bold tracking-wider text-content-subtle uppercase">
+                            Computed from
+                          </label>
+                          <input
+                            id={`generated-${col.id}`}
+                            value={col.generated ?? ''}
+                            onChange={e => handleColumnChange(col.id, 'generated', e.target.value || null)}
+                            placeholder="quantity * unit_price"
+                            className={`${inputClass} px-2 py-1 text-[11px] font-mono`}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5 items-end">
+                          <div className="flex flex-col gap-1">
+                            <label htmlFor={`collation-${col.id}`} className="text-[9px] font-bold tracking-wider text-content-subtle uppercase">
+                              Collation
+                            </label>
+                            <input
+                              id={`collation-${col.id}`}
+                              value={col.collation ?? ''}
+                              onChange={e => handleColumnChange(col.id, 'collation', e.target.value || null)}
+                              placeholder="tr-TR-x-icu"
+                              className={`${inputClass} px-2 py-1 text-[11px] font-mono`}
+                            />
+                          </div>
+
+                          <label className="flex items-center gap-1.5 cursor-pointer group/chk pb-1">
+                            <div className="relative flex items-center justify-center">
+                              <input
+                                type="checkbox"
+                                checked={col.isArray ?? false}
+                                onChange={e => handleColumnChange(col.id, 'isArray', e.target.checked)}
+                                className="peer sr-only"
+                              />
+                              <div className="w-3 h-3 border border-content-primary/15 rounded-sm bg-surface-600 peer-checked:bg-accent-hover peer-checked:border-white/25 transition-colors" />
+                              <svg className="absolute w-2 h-2 text-content-primary opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M5 13l4 4L19 7"/></svg>
+                            </div>
+                            <span className="text-[10px] font-medium text-content-subtle group-hover/chk:text-content-primary">
+                              Array (PostgreSQL only)
+                            </span>
+                          </label>
+                        </div>
+
+                        {/* Renk TEK BAŞINA anlam taşımıyor: ikon ve metinle birlikte. */}
+                        {col.isArray && (
+                          <p className="flex items-start gap-1.5 text-[10px] text-content-secondary leading-snug">
+                            <AlertTriangle className="w-3 h-3 mt-px shrink-0" aria-hidden="true" />
+                            <span>Compiling to any engine other than PostgreSQL will be refused — dropping the array would change what the column means.</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
                     </div>
                   ))}
 

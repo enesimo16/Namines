@@ -1,4 +1,5 @@
 using System;
+using Namines.Infrastructure.Data;
 using Namines.Core.Github;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,6 +62,11 @@ public static class ServiceCollectionExtensions
         // Token deposu SINGLETON, istemci transient: AddHttpClient her çözümlemede
         // yeni bir istemci verir ve önbellek onun içinde olsaydı hiç çalışmazdı.
         services.AddSingleton<GithubInstallationTokenCache>();
+
+        // AI bütçesinin tek sahibi. İki yer harcıyor (Studio middleware'i ve
+        // Gateway'in /query/nl ucu); kural iki yerde yazıldığında üç şey birden
+        // yanlış olmuştu — bkz. AiQuotaService.
+        services.AddScoped<AiQuotaService>();
         services.AddHttpClient<IGithubClient, GithubClient>();
         services.AddScoped<IGithubBotService, GithubBotService>();
         // Singleton: tek bir DockerClient tutar ve durumu container etiketlerinde
