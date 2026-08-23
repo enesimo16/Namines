@@ -91,4 +91,53 @@ public class IdentityPolicyTests
         Assert.Contains(marker, Ddl(engine, identity: null));
         Assert.DoesNotContain(marker, Ddl(engine, identity: false));
     }
+
+    // ── Hesaplanan kolon ile çakışma ─────────────────────────────────────────
+
+    [Fact]
+    public void A_generated_column_is_never_also_auto_increment()
+    {
+        // İkisi de "bu değeri kim koyuyor" sorusuna cevap veriyor ve iki cevap
+        // birden olamaz. PostgreSQL bunu `SERIAL GENERATED ALWAYS AS (...)` ile
+        // reddediyordu; SQLite ise sessizce ifadeyi düşürüp kolonu boş bırakıyordu.
+        var column = Column("id", "INT", isPk: true);
+        column.Generated = "a + b";
+
+        Assert.False(IdentityPolicy.IsGenerated(column, 1));
+    }
+
+    [Theory]
+    [InlineData(DatabaseType.PostgreSQL, "SERIAL")]
+    [InlineData(DatabaseType.MSSQL, "IDENTITY(1,1)")]
+    [InlineData(DatabaseType.MySQL, "AUTO_INCREMENT")]
+    [InlineData(DatabaseType.MariaDB, "AUTO_INCREMENT")]
+    [InlineData(DatabaseType.Oracle, "GENERATED ALWAYS AS IDENTITY")]
+    public void No_engine_pairs_an_expression_with_auto_increment(DatabaseType engine, string marker)
+    {
+        var schema = Schema(identity: null);
+        schema.Tables[0].Columns[0].Generated = "a + b";
+
+        var ddl = Ddl(engine, identity: null);
+        var generatedDdl = new DdlGeneratorFactory().GetGenerator(engine).Generate(schema);
+
+        Assert.Contains(marker, ddl);
+        Assert.DoesNotContain(marker, generatedDdl);
+        // İfade DÜŞMEMELİ de: SQLite'ta olan buydu ve hata ancak veriler
+        // yazıldıktan sonra görünüyordu.
+        Assert.Contains("a + b", generatedDdl);
+    }
+
+    [Fact]
+    public void Sqlite_refuses_the_combination_outright()
+    {
+        // SQLite listede DEĞİL çünkü hesaplanan bir kolonun birincil anahtar
+        // olmasına hiç izin vermiyor ("generated columns cannot be part of the
+        // PRIMARY KEY" — gerçek motorda ölçüldü). Diğer beş motorda çıktı
+        // üretiliyor, burada reddediliyor; ikisi de doğru davranış.
+        var schema = Schema(identity: null);
+        schema.Tables[0].Columns[0].Generated = "a + b";
+
+        Assert.Throws<NotSupportedException>(
+            () => new DdlGeneratorFactory().GetGenerator(DatabaseType.SQLite).Generate(schema));
+    }
 }

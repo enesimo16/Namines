@@ -165,4 +165,33 @@ public class ColumnFeatureSqlTests
         Assert.DoesNotContain("COLLATE", ddl);
         Assert.DoesNotContain("[]", ddl);
     }
+
+    [Fact]
+    public void Sqlite_refuses_a_generated_primary_key()
+    {
+        // BULUNMA YERİ: gerçek SQLite "generated columns cannot be part of the
+        // PRIMARY KEY" dedi. Aynı şema PostgreSQL'de sorunsuz çalışıyor, yani
+        // kullanıcı farkı bilmeli — motorun reddetmesini beklemek yerine sebebi
+        // burada söyleniyor.
+        var schema = Schema(c => { });
+        schema.Tables[0].Columns[0].Generated = "a + b";
+
+        var error = Assert.Throws<NotSupportedException>(() => Ddl(DatabaseType.SQLite, schema));
+
+        Assert.Contains("primary key", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Postgres_accepts_a_generated_primary_key()
+    {
+        // Gerçek PostgreSQL'de CREATE TABLE geçti; SQLite'ta geçmediği için ikisi
+        // farklı davranıyor ve bu fark bilerek korunuyor.
+        var schema = Schema(c => { });
+        schema.Tables[0].Columns[0].Generated = "a + b";
+
+        var ddl = Ddl(DatabaseType.PostgreSQL, schema);
+
+        Assert.Contains("GENERATED ALWAYS AS (a + b) STORED", ddl);
+        Assert.DoesNotContain("SERIAL", ddl);
+    }
 }

@@ -97,6 +97,17 @@ internal static class ColumnFeatureSql
 
         var expression = column.Generated.Trim();
 
+        // SQLite hesaplanan bir kolonun birincil anahtar olmasına İZİN VERMİYOR
+        // ("generated columns cannot be part of the PRIMARY KEY"). Bu tahmin değil,
+        // ölçüm: gerçek SQLite'a karşı çalıştırınca çıktı. Üretip motorun
+        // reddetmesini beklemek yerine, sebebini burada söylüyoruz — aynı şema
+        // PostgreSQL'de sorunsuz çalıştığı için kullanıcı farkı bilmeli.
+        if (engine == DatabaseType.SQLite && column.IsPK)
+            throw new NotSupportedException(
+                $"Column '{column.Name}' is both generated and part of the primary key, " +
+                "which SQLite does not allow. PostgreSQL accepts this; for SQLite, give the " +
+                "table a separate key column.");
+
         return engine switch
         {
             // STORED: sanal kolon her okumada yeniden hesaplanır ve index'lenemez.

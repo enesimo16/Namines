@@ -431,4 +431,28 @@ public class NslRoundTripTests
     {
         Assert.Throws<NslParseException>(() => NslParser.Parse("enum s {\n  a\n"));
     }
+
+    [Fact]
+    public void A_generated_key_column_gets_no_spurious_identity_marker()
+    {
+        // Yazıcı, çıkarımı DDL üreticileriyle aynı kuraldan hesaplamalı. Kopya
+        // Generated'i taşımazsa üretici "otomatik değil" derken yazıcı "otomatik"
+        // sanar ve gereksiz bir "no identity" yazar — aynı kuralın iki yerde
+        // farklı cevap vermesi, onu tek noktaya toplamanın sebebiydi.
+        var schema = new DatabaseSchema { Name = "shop" };
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t1", Name = "t",
+            Columns =
+            {
+                new SchemaColumn
+                {
+                    Id = "c1", Name = "id", Type = "INT", IsPK = true,
+                    Identity = false, Generated = "a + b",
+                },
+            },
+        });
+
+        Assert.DoesNotContain("no identity", NslWriter.Write(schema));
+    }
 }

@@ -820,8 +820,20 @@ public class GatewayController : ControllerBase
             // olarak bu görüldü (Groq anahtarı yokken sayaç 1'e çıktı).
             if (quota is not null)
             {
-                quota.DailyUsageCount--;
-                await _context.SaveChangesAsync(cancellationToken);
+                try
+                {
+                    quota.DailyUsageCount--;
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                catch (Exception refundFailure)
+                {
+                    // İade BAŞARISIZ olursa yanıt yine de 502 olmalı. Buradaki bir
+                    // istisnayı yakalamamak, geçici bir veritabanı sorununu temiz
+                    // bir 502'yi anlaşılmaz bir 500'e çeviren ikinci bir arızaya
+                    // dönüştürürdü — üstelik asıl sebep (modele ulaşılamadı)
+                    // tamamen kaybolurdu.
+                    _logger.LogWarning(refundFailure, "Could not refund the AI quota after a failed translation.");
+                }
             }
 
             // Upstream'in hata GÖVDESİ geçirilmiyor: sağlayıcı mesajları uç adresi,

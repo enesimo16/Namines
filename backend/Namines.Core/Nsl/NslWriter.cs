@@ -137,8 +137,20 @@ public static class NslWriter
         // Yalnızca ÇIKARIMDAN FARKLI olduğunda yazılıyor. Her tamsayı anahtara
         // "identity" eklemek dosyayı, hiçbir şey söylemeyen bir kelimeyle
         // doldururdu; asıl bilgi, kullanıcının çıkarımı BOZDUĞU yerdedir.
+        // Kopya, kullanıcının SÖYLEDİĞİ (Identity) dışındaki her şeyi taşımalı —
+        // Generated dahil. Taşımazsa buradaki çıkarım ile DDL üreticilerinin
+        // kullandığı çıkarım ayrışır: hesaplanan bir anahtar kolonu üretici
+        // "otomatik değil" sayarken yazıcı "otomatik" sanır ve gereksiz bir
+        // "no identity" yazar. Aynı kuralın iki yerde farklı cevap vermesi, bu
+        // kuralı tek noktaya toplamanın sebebiydi.
         var inferred = IdentityPolicy.IsGenerated(
-            new SchemaColumn { Name = column.Name, Type = column.Type, IsPK = column.IsPK },
+            new SchemaColumn
+            {
+                Name = column.Name,
+                Type = column.Type,
+                IsPK = column.IsPK,
+                Generated = column.Generated,
+            },
             primaryKeyCount);
 
         if (column.Identity == true && !inferred) sb.Append(" identity");

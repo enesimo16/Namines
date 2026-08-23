@@ -1652,6 +1652,30 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     denetim kaydında üç işlem, webhook `pong` / yanlış imza **401**, sitemap 200 /
     bilinmeyen jeton 404. Kısıtlı bir rolle tarayıcıda: `audit_log` menüden
     gizlendi, doğrudan URL **engellendi**, `create` reddedildi, `update` geçti.
+  ### İkinci inceleme geçişi — 3 bulgu daha
+
+  Düzeltmelerin kendisi yeniden okundu ve gerçek motorlarda denendi:
+
+  9. **Kota iadesi birincil yanıtı bozabiliyordu.** İade `catch` bloğunun içinde
+     `SaveChangesAsync` çağırıyordu; oradaki geçici bir veritabanı hatası temiz
+     bir 502'yi anlaşılmaz bir 500'e çevirir ve asıl sebep (modele ulaşılamadı)
+     tamamen kaybolurdu. İade artık kendi `try`'ında.
+  10. **`NslWriter` çıkarımı DDL üreticilerinden ayrışmıştı.** Yazıcı, çıkarımı
+      hesaplarken kullandığı kopyaya `Generated` alanını taşımıyordu; 2. bulgu
+      düzeltildikten sonra üretici "otomatik değil" derken yazıcı "otomatik"
+      sanıyor ve gereksiz bir `no identity` yazıyordu. Aynı kuralın iki yerde
+      farklı cevap vermesi, onu tek noktaya toplamanın sebebiydi.
+  11. **SQLite hesaplanan bir kolonun birincil anahtar olmasına hiç izin
+      vermiyor** (`generated columns cannot be part of the PRIMARY KEY`) —
+      bu, 3. bulgu düzeltilip ifade artık düşürülmediği için ortaya çıktı ve
+      yalnızca gerçek motorda görüldü. Aynı şema PostgreSQL'de sorunsuz çalışıyor,
+      dolayısıyla fark kullanıcıya söyleniyor: SQLite'ta üretim reddediliyor,
+      PostgreSQL'de `integer GENERATED ALWAYS AS (a + b) STORED` üretilip
+      **gerçek veritabanında çalıştırıldı**.
+
+  - Doğrulama (ikinci geçiş): tam paket **1042 test yeşil**, `dotnet build`
+    0 uyarı/0 hata, canlı analizin sekiz başlığı yeniden koşturuldu.
+
   - **Kapsam dışı:** GraphQL (§3 — bir GraphQL motoru bağımlılığı ve proje başına
     şema önbelleği ister; ikincisi Redis kararına bağlı), `/realtime` (§9, doküman
     P2), metadata cache (§6, Redis kararına bağlı).
