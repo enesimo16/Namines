@@ -23,7 +23,25 @@ public enum PlanTier
 /// <param name="BranchDatabases">Aynı anda açık tutulabilen branch veritabanı sayısı. -1 = sınırsız.</param>
 /// <param name="EphemeralRunsPerDay">Günlük ephemeral test çalıştırması. -1 = sınırsız.</param>
 /// <param name="ByodbConnections">Kayıtlı BYODB bağlantısı. -1 = sınırsız.</param>
-public sealed record PlanLimits(int BranchDatabases, int EphemeralRunsPerDay, int ByodbConnections);
+/// <param name="DailyAiTokens">
+/// Günlük AI token bütçesi.
+///
+/// <b>Eskiden plana bağlı DEĞİLDİ:</b> yapılandırmadan okunan tek bir sayıydı ve
+/// ücretli kullanıcı da ücretsiz kullanıcı da aynı 20.000 token'ı alıyordu.
+/// Abonelik bilgisi veritabanında duruyordu ama hiçbir sınırı etkilemiyordu —
+/// yani para ödeyen karşılığını almıyor, ödemeyen de kısıtlanmıyordu.
+/// </param>
+/// <param name="GatewayRequestsPerMinute">
+/// Gateway API anahtarı başına dakikalık istek hakkı (08 §5). Anahtar
+/// oluşturulurken tavan olarak uygulanıyor: kullanıcı daha düşüğünü seçebilir,
+/// planının üstüne çıkamaz.
+/// </param>
+public sealed record PlanLimits(
+    int BranchDatabases,
+    int EphemeralRunsPerDay,
+    int ByodbConnections,
+    int DailyAiTokens = 20_000,
+    int GatewayRequestsPerMinute = 60);
 
 /// <summary>
 /// Plan başına kaynak sınırları.
@@ -39,10 +57,25 @@ public static class PlanQuotas
     {
         // Free'de branch veritabanı yok: her biri host'ta kalıcı bir container ve
         // bellek tutuyor, ücretsiz katmanda sınırsız açılması sunucuyu düşürür.
-        PlanTier.Free => new PlanLimits(BranchDatabases: 0, EphemeralRunsPerDay: 3, ByodbConnections: 1),
-        PlanTier.Pro => new PlanLimits(2, 20, 3),
-        PlanTier.Team => new PlanLimits(20, -1, 20),
-        PlanTier.Enterprise => new PlanLimits(-1, -1, -1),
+        //
+        // ⚠️ AI token ve rpm sayıları GEÇİCİ VARSAYILAN. Gerçek rakamlar ürün
+        // kararıdır ve 34-SENDEN-BEKLENENLER.md §4'te bekliyor. Free bilerek
+        // "kullanılabilir ama dar": sıfır vermek ürünü denenemez kılar, cömert
+        // vermek ücretliye geçme sebebini yok eder.
+        PlanTier.Free => new PlanLimits(
+            BranchDatabases: 0, EphemeralRunsPerDay: 3, ByodbConnections: 1,
+            DailyAiTokens: 20_000, GatewayRequestsPerMinute: 60),
+
+        PlanTier.Pro => new PlanLimits(2, 20, 3,
+            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600),
+
+        PlanTier.Team => new PlanLimits(20, -1, 20,
+            DailyAiTokens: 1_000_000, GatewayRequestsPerMinute: 3_000),
+
+        // Enterprise sözleşmeyle belirlenir; bu değerler tavan değil, sözleşme
+        // yapılandırılana kadar geçerli bir başlangıç.
+        PlanTier.Enterprise => new PlanLimits(-1, -1, -1,
+            DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000),
         _ => For(PlanTier.Free),
     };
 

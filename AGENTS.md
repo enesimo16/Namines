@@ -38,12 +38,23 @@ no-persistence güvenlik modeli), AI Impact Explainer (`ImpactReport`'u insan di
 audit log'u (proje-bazlı opt-in, `ChangeRequestAuditLog`), ve CanvasHub'ın `roomId`'sinin
 sunucu-otoriteli branch_id'ye bağlanması (kimliği doğrulanmış + aktif projesi olan
 kullanıcılar artık rastgele oda yerine gerçek branch'lerinde buluşuyor, guest akışı
-korunuyor). **434+ test yeşil** (+ ayrı `Namines.Tests.RunTests/` projesinde 6
+korunuyor).
+
+**G18-G49 de tamamlandı** — özet: MCP sunucusu + CLI + Claude Skill, 19 eject
+hedefi (TypeScript SDK ve çalışan bir Next.js yönetim paneli dahil), Gateway'in
+tam yazma yüzeyi (`create/update/delete/import/rpc/query/query-nl`) + API anahtarı
+izin modeli + denetim kaydı, üretilen panelde yazma ekranları ve rol modeli,
+şema modelinin genişlemesi (`identity`, enum, `generated`, `collation`, dizi),
+kanonik JSON IR (`ir.json`), Namines Bot'un GitHub'a yazması, sosyal önizleme
+sayfaları ve gözlemlenebilirlik/faturalama ölçümü.
+**1052 test yeşil** (+ ayrı `Namines.Tests.RunTests/` projesinde 6
 gerçek-Docker testi).
 
-**G0-G17 ana yol haritası (Faz 0 + Lifecycle Pivot'un ilk 10 görevi) tamamlandı.**
-Sıradaki adımlar için [27 §4](new-phase/27-LIFECYCLE-PIVOT.md) ve CHECKLIST.md'nin
-"G-ekstra" / "Kod dışı işler" bölümlerine bak.
+> **Bu oturumlarda öğrenilen en pahalı ders:** "testler geçiyor" hiçbir şey
+> kanıtlamıyor. G39'da 857 test yeşilken **uygulama hiç başlamıyordu**; G44'te
+> Türkçe kültür hatası geliştirme makinesinde üretimdeydi; G45'te iki hata
+> yalnızca gerçek PostgreSQL/SQLite'a karşı çalıştırınca çıktı. Yeni bir DDL
+> ya da uç eklerken **gerçek motorda çalıştır ve uygulamayı ayağa kaldır**.
 
 Kalan işler iki dosyada toplu hâlde duruyor:
 [34-SENDEN-BEKLENENLER.md](new-phase/34-SENDEN-BEKLENENLER.md) (kod hazır, bir

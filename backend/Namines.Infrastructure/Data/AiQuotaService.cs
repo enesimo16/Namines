@@ -1,8 +1,10 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
 
 namespace Namines.Infrastructure.Data;
@@ -52,9 +54,43 @@ public sealed class AiQuotaService
     public long DailyPool =>
         long.TryParse(_configuration["AiPool:DailyTokenPool"], out var value) ? value : 100_000;
 
-    /// <summary>Kullanıcı başına günlük token tavanı.</summary>
-    public int PerUserCap =>
-        int.TryParse(_configuration["AiPool:PerUserDailyTokens"], out var value) ? value : 20_000;
+    /// <summary>
+    /// Kullanıcının PLANINA göre günlük token tavanı.
+    ///
+    /// <b>Eskiden yapılandırmadan tek bir sayıydı</b> — yani ücretli kullanıcı da
+    /// ücretsiz kullanıcı da aynı bütçeyi alıyordu. Abonelik bilgisi veritabanında
+    /// duruyor ama hiçbir sınırı etkilemiyordu: para ödeyen karşılığını almıyor,
+    /// ödemeyen de kısıtlanmıyordu.
+    ///
+    /// Yapılandırmadaki değer artık yalnızca <see cref="PlanTier.Free"/> için bir
+    /// override; diğer planlar <see cref="PlanCatalog"/>'dan geliyor ki sayılar
+    /// tek yerde dursun.
+    /// </summary>
+    public async Task<int> PerUserCapAsync(string userId, CancellationToken ct = default)
+    {
+        var tier = await TierAsync(userId, ct);
+
+        if (tier == PlanTier.Free &&
+            int.TryParse(_configuration["AiPool:PerUserDailyTokens"], out var configured))
+            return configured;
+
+        return PlanQuotas.For(tier).DailyAiTokens;
+    }
+
+    /// <summary>
+    /// Kullanıcının planı. Kullanıcı bulunamazsa <see cref="PlanTier.Free"/> —
+    /// bilinmeyen bir kimliğe ücretli hak vermek, faturalama tarafında sessizce
+    /// para kaybı demektir.
+    /// </summary>
+    public async Task<PlanTier> TierAsync(string userId, CancellationToken ct = default)
+    {
+        var status = await _context.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.SubscriptionStatus)
+            .FirstOrDefaultAsync(ct);
+
+        return PlanQuotas.Resolve(status);
+    }
 
     /// <summary>
     /// Gün sınırı <b>TR saatine (UTC+3)</b> göre.
@@ -70,6 +106,7 @@ public sealed class AiQuotaService
     /// </summary>
     public async Task<UserAIQuota> EnsureQuotaAsync(string userId, CancellationToken ct = default)
     {
+        var cap = await PerUserCapAsync(userId, ct);
         var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == userId, ct);
 
         if (quota is null)
@@ -77,7 +114,7 @@ public sealed class AiQuotaService
             quota = new UserAIQuota
             {
                 UserId = userId,
-                DailyLimit = PerUserCap,
+                DailyLimit = cap,
                 DailyUsageCount = 0,
                 LastResetDate = DateTime.UtcNow,
             };
@@ -88,10 +125,12 @@ public sealed class AiQuotaService
 
         var changed = false;
 
-        // Eski yüzde-tabanlı satırları token tavanına normalize et.
-        if (quota.DailyLimit != PerUserCap)
+        // Tavan, PLANIN güncel hakkına çekiliyor. Plan değişince (yükseltme ya da
+        // iptal) kullanıcının satırı kendiliğinden doğru sınıra gelir; ayrı bir
+        // "planı senkronla" işi gerekmiyor ve unutulamıyor.
+        if (quota.DailyLimit != cap)
         {
-            quota.DailyLimit = PerUserCap;
+            quota.DailyLimit = cap;
             changed = true;
         }
 

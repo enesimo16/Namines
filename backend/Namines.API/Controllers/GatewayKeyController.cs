@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Namines.Core.Analysis;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
@@ -69,13 +70,32 @@ public class GatewayKeyController : ControllerBase
         if (request.RateLimitPerMinute is <= 0)
             return BadRequest(new { error = "Rate limit must be greater than zero." });
 
+        // İstek hakkı PLANIN tavanını aşamaz. Aksi hâlde ücretsiz bir hesap kendine
+        // 100.000 rpm'lik bir anahtar üretip planı anlamsız kılardı — ve bunu
+        // fark etmenin tek yolu faturaya bakmak olurdu.
+        var subscription = await _context.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.SubscriptionStatus)
+            .FirstOrDefaultAsync(ct);
+
+        var tier = PlanQuotas.Resolve(subscription);
+        var planCeiling = PlanQuotas.For(tier).GatewayRequestsPerMinute;
+
+        if (request.RateLimitPerMinute > planCeiling)
+            return BadRequest(new
+            {
+                error = $"The {tier} plan allows at most {planCeiling} requests per minute per key.",
+            });
+
         var (entity, rawKey) = GatewayAccess.CreateKey(
             projectId, request.Name.Trim(), userId, request.CanWrite, request.ExpiresAt);
 
         entity.CanExecuteSql = request.CanExecuteSql;
         entity.AllowedOrigins = Normalize(request.AllowedOrigins);
         entity.AllowedIps = Normalize(request.AllowedIps);
-        entity.RateLimitPerMinute = request.RateLimitPerMinute;
+        // Belirtilmemişse planın hakkı: kullanıcıyı bir sayı uydurmaya zorlamak,
+        // çoğu kişinin ya çok düşük ya çok yüksek seçmesi demek.
+        entity.RateLimitPerMinute = request.RateLimitPerMinute ?? planCeiling;
 
         _context.GatewayApiKeys.Add(entity);
         await _context.SaveChangesAsync(ct);

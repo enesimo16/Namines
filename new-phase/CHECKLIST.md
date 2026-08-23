@@ -1721,6 +1721,40 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     hâlâ **hiç çalıştırılmadı** — Groq anahtarı bekliyor
     (bkz. [34](34-SENDEN-BEKLENENLER.md)).
 
+- [x] **G50 — Plan bazlı kota + şema ajan hattı ([36](36-KOTA-VE-AJAN.md))** ✅ TAMAMLANDI
+  - `PlanQuotas` genişletildi (AI token + Gateway rpm), `AiQuotaService` limiti
+    plandan alıyor, `/api/quota/status` plan-farkında, Gateway anahtarı planın
+    tavanını aşamıyor. `SchemaAgentPipeline` + `ISchemaDraftSource` +
+    `GroqSchemaDraftSource`, `POST /api/schema/generate`e bağlandı.
+  - **⚠️ Plan hiçbir sınırı etkilemiyordu.** Abonelik bilgisi veritabanında
+    duruyordu ama günlük AI bütçesi yapılandırmadan tek bir sayıydı — **ücretli
+    kullanıcı da ücretsiz kullanıcı da aynı 20.000 token'ı alıyordu.** Para ödeyen
+    karşılığını almıyor, ödemeyen de kısıtlanmıyordu.
+  - **⚠️ Şema üretimi tek bir LLM çağrısıydı.** Model ne döndürdüyse kullanıcıya o
+    gidiyordu; oysa kod tabanının her yerinde geçerli kural *"AI bulgu üretmez,
+    kural motoru üretir"*. Şema üretimi bu kuralın dışında kalmış tek yerdi.
+  - Hat: taslak → **deterministik kapı** (linter + GERÇEK DDL üreticileri) →
+    düzeltme → tekrar denetim. Kapı ikinci bir model DEĞİL: modele kendi çıktısını
+    kontrol ettirmek aynı yanılgıyı iki kez üretir.
+  - **Başka motorun kısıtı bulgu değil, not.** Kullanıcı PostgreSQL istediyse
+    Oracle'ın diziyi desteklememesi için tur harcamak, istenmemiş bir uyum uğruna
+    bütçe yakmak olurdu — ama `PortabilityNotes` olarak raporlanıyor.
+  - **Sonuç gizlenmiyor:** tur sınırına gelindiğinde şema yine dönüyor ama
+    `Clean=false` ve kalan bulgular listeleniyor. İyileşme yoksa erken duruyor.
+  - **Kaç tur harcanacağını bütçe söylüyor.** Bütçe bir tura bile yetmiyorsa hat
+    hiç başlamıyor ve **429** dönüyor (arıza değil, sınır).
+  - **Yol boyunca bir hata:** ilk yazımda "diğer motorlar kadar sert değil" yorumu
+    varken kod hepsini aynı listeye koyup düzeltme turu harcatıyordu — yorumun
+    tarif ettiği şeyi kod yapmıyordu. Ayrıldı. Ayrıca `_quota` opsiyonel bir
+    bağımlılıkken kontrolsüz dereference ediliyordu.
+  - Doğrulama: `PlanQuotaTests` **17/17**, `SchemaAgentPipelineTests` **10/10**,
+    tam paket **1064 test yeşil**. **Canlı:** Free hesap 20.000 token / 60 rpm
+    gördü ve 100.000 rpm'lik anahtar **reddedildi**; abonelik `active` yapılınca
+    aynı hesap 200.000 token / 600 rpm gördü ve 600 rpm'lik anahtar **kabul edildi**.
+  - **Kapsam dışı:** belirsiz prompt'ta kullanıcıya soru sorma (çok adımlı oturum
+    ister), üretilen DDL'i gerçek veritabanında çalıştırma (her üretimde container
+    açmak ücretsiz planda sunucuyu düşürür), istemin kendisinin iyileştirilmesi.
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

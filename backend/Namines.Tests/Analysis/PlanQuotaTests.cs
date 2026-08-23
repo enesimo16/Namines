@@ -3,89 +3,101 @@ using Namines.Core.Analysis;
 namespace Namines.Tests.Analysis;
 
 /// <summary>
-/// Plan kotaları (new-phase/06-DATA-PLANE.md §10).
+/// Plan → hak eşlemesi (22 §2, 08 §5).
 ///
-/// Kotanın iki yönü de yanlış olabilir ve ikisi de kötü: fazla gevşek olması
-/// sunucuyu düşürür, fazla katı olması ödeme yapan kullanıcıyı engeller. Testler
-/// sınırların dokümandaki tabloyla aynı olduğunu ve "sınırsız" ile "sıfır"ın
-/// birbirine karışmadığını kilitliyor.
+/// <b>Bu testler, planın hiçbir sınırı etkilemediğinin fark edilmesinden sonra
+/// yazıldı.</b> Abonelik bilgisi veritabanında duruyordu ama günlük AI bütçesi
+/// yapılandırmadan tek bir sayı olarak okunuyordu — yani <b>ücretli kullanıcı da
+/// ücretsiz kullanıcı da aynı 20.000 token'ı alıyordu</b>: para ödeyen
+/// karşılığını almıyor, ödemeyen de kısıtlanmıyordu.
 /// </summary>
 public class PlanQuotaTests
 {
+    // ── Planlar birbirinden ayrışıyor mu ─────────────────────────────────────
+
     [Fact]
-    public void Free_cannot_open_a_branch_database()
+    public void A_paid_plan_gets_more_ai_budget_than_the_free_one()
     {
-        // Her branch veritabanı host'ta kalıcı bir container; ücretsiz katmanda
-        // sınırsız açılması sunucuyu düşürür.
-        Assert.Equal(0, PlanQuotas.For(PlanTier.Free).BranchDatabases);
+        // Ödeyen kullanıcının karşılığını alması, planın var olma sebebi.
+        Assert.True(PlanQuotas.For(PlanTier.Pro).DailyAiTokens >
+                    PlanQuotas.For(PlanTier.Free).DailyAiTokens);
     }
 
     [Theory]
-    [InlineData(PlanTier.Pro, 2)]
-    [InlineData(PlanTier.Team, 20)]
-    public void Paid_tiers_match_the_documented_table(PlanTier tier, int expected)
+    [InlineData(PlanTier.Free, PlanTier.Pro)]
+    [InlineData(PlanTier.Pro, PlanTier.Team)]
+    [InlineData(PlanTier.Team, PlanTier.Enterprise)]
+    public void Every_step_up_is_a_real_step_up(PlanTier lower, PlanTier higher)
     {
-        Assert.Equal(expected, PlanQuotas.For(tier).BranchDatabases);
+        // Bir üst plan, alttakiyle aynı hakları veriyorsa kullanıcı neden
+        // yükseltsin? Eşitlik de bir hatadır.
+        var below = PlanQuotas.For(lower);
+        var above = PlanQuotas.For(higher);
+
+        Assert.True(above.DailyAiTokens > below.DailyAiTokens);
+        Assert.True(above.GatewayRequestsPerMinute > below.GatewayRequestsPerMinute);
     }
 
     [Fact]
-    public void Enterprise_is_unlimited_not_zero()
+    public void The_free_plan_is_usable_but_narrow()
     {
-        // -1 "sınırsız" demek. 0 ile karıştırılırsa en pahalı plan hiçbir şey
-        // açamaz hâle gelir — sessiz ve utanç verici bir hata.
-        var limits = PlanQuotas.For(PlanTier.Enterprise);
+        // Sıfır vermek ürünü denenemez kılar; cömert vermek ücretliye geçme
+        // sebebini yok eder.
+        var free = PlanQuotas.For(PlanTier.Free);
 
-        Assert.Equal(-1, limits.BranchDatabases);
-        Assert.False(PlanQuotas.IsExceeded(limits.BranchDatabases, 1000));
+        Assert.True(free.DailyAiTokens > 0);
+        Assert.True(free.GatewayRequestsPerMinute > 0);
     }
 
-    [Fact]
-    public void A_zero_limit_is_exceeded_by_the_very_first_request()
-    {
-        Assert.True(PlanQuotas.IsExceeded(0, 0));
-    }
+    // ── Abonelik durumundan plan çıkarımı ────────────────────────────────────
 
-    [Fact]
-    public void A_limit_is_reached_at_the_limit_not_after_it()
+    [Theory]
+    [InlineData("active")]
+    [InlineData("trialing")]
+    [InlineData("ACTIVE")]
+    public void A_live_subscription_is_a_paid_plan(string status)
     {
-        // 2 sınırında 2 açıkken üçüncü istek reddedilmeli; ">" kullanılsaydı
-        // kullanıcı her zaman bir fazla açardı.
-        Assert.False(PlanQuotas.IsExceeded(2, 1));
-        Assert.True(PlanQuotas.IsExceeded(2, 2));
-        Assert.True(PlanQuotas.IsExceeded(2, 3));
+        Assert.Equal(PlanTier.Pro, PlanQuotas.Resolve(status));
     }
 
     [Theory]
-    [InlineData("active", PlanTier.Pro)]
-    [InlineData("trialing", PlanTier.Pro)]
-    [InlineData("ACTIVE", PlanTier.Pro)]
-    public void An_active_subscription_is_pro(string status, PlanTier expected)
-    {
-        Assert.Equal(expected, PlanQuotas.Resolve(status));
-    }
-
-    [Theory]
-    [InlineData("past_due")]
-    [InlineData("canceled")]
-    [InlineData("unpaid")]
     [InlineData(null)]
     [InlineData("")]
-    public void A_lapsed_or_missing_subscription_is_free(string? status)
+    [InlineData("canceled")]
+    [InlineData("unpaid")]
+    [InlineData("past_due")]
+    [InlineData("something_new_stripe_invented")]
+    public void Anything_else_falls_to_free(string? status)
     {
-        // Ödemesi aksayan bir hesabın ücretli kaynak açmaya devam etmesi, faturayı
-        // büyütmekten başka işe yaramaz.
+        // Ters yönde düşmek — bilinmeyen bir durumu ücretli saymak — ödeme
+        // yapmamış birine ücretli kaynak açtırırdı ve bu, faturayı büyütmekten
+        // başka işe yaramaz.
         Assert.Equal(PlanTier.Free, PlanQuotas.Resolve(status));
     }
 
-    [Fact]
-    public void The_limit_message_tells_the_user_what_to_do()
-    {
-        var unavailable = PlanQuotas.LimitMessage(PlanTier.Free, "branch databases", 0);
-        Assert.Contains("not available", unavailable);
-        Assert.Contains("Upgrade", unavailable);
+    // ── Sınır kontrolü ───────────────────────────────────────────────────────
 
-        var reached = PlanQuotas.LimitMessage(PlanTier.Pro, "branch databases", 2);
-        Assert.Contains("2", reached);
-        Assert.Contains("Close one", reached);
+    [Fact]
+    public void Unlimited_is_never_reported_as_exceeded()
+    {
+        // -1 "sınırsız" demek. Onu bir sayı gibi karşılaştırmak, sınırsız planı
+        // en kısıtlı plan hâline getirirdi.
+        Assert.False(PlanQuotas.IsExceeded(-1, 1_000_000));
+    }
+
+    [Fact]
+    public void A_zero_limit_means_the_feature_is_off()
+    {
+        Assert.True(PlanQuotas.IsExceeded(0, 0));
+        Assert.Contains("not available", PlanQuotas.LimitMessage(PlanTier.Free, "branch databases", 0));
+    }
+
+    [Fact]
+    public void The_limit_message_says_what_to_do_next()
+    {
+        // "Limit aşıldı" demek yetmez; kullanıcı ne yapacağını bilmeli.
+        var message = PlanQuotas.LimitMessage(PlanTier.Pro, "branch databases", 2);
+
+        Assert.Contains("upgrade", message, StringComparison.OrdinalIgnoreCase);
     }
 }

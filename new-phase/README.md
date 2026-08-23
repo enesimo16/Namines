@@ -119,6 +119,7 @@ Faz 1'de yazılmış her özellik Faz 2'de bir katmana **terfi ediyor**:
 | 33 | [33-MCP-AND-SKILL.md](33-MCP-AND-SKILL.md) | MCP sunucusu + Claude Skill — geliştirme döngüsüne girmek (R4'ün uygulaması) |
 | 34 | [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md) | Kodun hazır olduğu ama bir hesap/karar beklediği işler — basit dille |
 | 35 | [35-KALAN-BUYUK-ISLER.md](35-KALAN-BUYUK-ISLER.md) | Sıradaki büyük başlıklar + önerilen sıra ("eksik" değil, "sonraki") |
+| 36 | [36-KOTA-VE-AJAN.md](36-KOTA-VE-AJAN.md) | Plan bazlı kotalandırma + şema üretiminin ajan hattı (üret → denetle → düzelt) |
 
 ---
 

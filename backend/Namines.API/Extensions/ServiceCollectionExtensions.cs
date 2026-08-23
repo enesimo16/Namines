@@ -67,6 +67,12 @@ public static class ServiceCollectionExtensions
         // Gateway'in /query/nl ucu); kural iki yerde yazıldığında üç şey birden
         // yanlış olmuştu — bkz. AiQuotaService.
         services.AddScoped<AiQuotaService>();
+
+        // Şema üretimi artık tek bir LLM çağrısı değil: taslak → deterministik
+        // denetim → düzeltme. Kapının kendisi (linter + DDL üreticileri) zaten
+        // kayıtlı; hat onları AI döngüsüne sokuyor.
+        services.AddScoped<ISchemaDraftSource, GroqSchemaDraftSource>();
+        services.AddScoped<SchemaAgentPipeline>();
         services.AddHttpClient<IGithubClient, GithubClient>();
         services.AddScoped<IGithubBotService, GithubBotService>();
         // Singleton: tek bir DockerClient tutar ve durumu container etiketlerinde

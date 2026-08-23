@@ -1,4 +1,7 @@
 using System;
+using System.Security.Claims;
+using Namines.Infrastructure.Data;
+using Namines.Infrastructure.Services;
 using System.Net.Http;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
@@ -15,11 +18,19 @@ public class SchemaController : ControllerBase
 {
     private readonly IAIFactory _aiFactory;
     private readonly ISmartSeedService _smartSeedService;
+    private readonly SchemaAgentPipeline? _agent;
+    private readonly AiQuotaService? _quota;
 
-    public SchemaController(IAIFactory aiFactory, ISmartSeedService smartSeedService)
+    public SchemaController(
+        IAIFactory aiFactory,
+        ISmartSeedService smartSeedService,
+        SchemaAgentPipeline? agent = null,
+        AiQuotaService? quota = null)
     {
         _aiFactory = aiFactory;
         _smartSeedService = smartSeedService;
+        _agent = agent;
+        _quota = quota;
     }
 
     [HttpPost("generate")]
@@ -60,8 +71,77 @@ public class SchemaController : ControllerBase
         }
 
         var aiService = _aiFactory.GetService(request.AIProvider);
-        var schema = await aiService.GenerateSchemaAsync(request);
-        return Ok(schema);
+
+        // Groq dışındaki sağlayıcılarda (Ollama, yerel) eski tek-çağrı yolu
+        // korunuyor: ajan hattı Groq'a bağlı ve olmayan bir yolu varmış gibi
+        // davranmak, o sağlayıcıyı sessizce bozardı.
+        if (_agent is null || !string.Equals(request.AIProvider, "Groq", StringComparison.OrdinalIgnoreCase))
+            return Ok(await aiService.GenerateSchemaAsync(request));
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        // Kaç tur harcayabileceğimizi BÜTÇE söylüyor, hat değil. Bir kullanıcının
+        // günlük hakkı bitmişken üç tur çalıştırmak, ona hiçbir şey vermeden
+        // parasını harcamak olurdu.
+        var budgetRounds = await AffordableRoundsAsync(userId);
+
+        try
+        {
+            var result = await _agent.RunAsync(request.Prompt, request.DbType, budgetRounds, HttpContext.RequestAborted);
+
+            // Harcanan TUR sayısı kadar ölçüm: bir tur da üç tur da aynı maliyete
+            // sayılırsa, düzeltme döngüsü bedava görünür ve bütçe anlamını yitirir.
+            // _quota null olabilir (opsiyonel bağımlılık); kontrol etmeden
+            // çağırmak, ölçüm servisi kayıtlı değilse üretimi tamamen çökertirdi.
+            if (_quota is not null && !string.IsNullOrEmpty(userId))
+                await _quota.ConsumeAsync(userId, result.Rounds * SchemaRoundTokenEstimate, HttpContext.RequestAborted);
+
+            // Bulgular GİZLENMİYOR. "Çalışıyor gibi görünen" bir şema vermek, hiç
+            // vermemekten kötüdür: kullanıcı onu kullanmaya kalkar ve hata
+            // veritabanında patlar.
+            return Ok(new
+            {
+                schema = result.Schema,
+                agent = new
+                {
+                    result.Rounds,
+                    result.Clean,
+                    result.PortableEverywhere,
+                    findings = result.RemainingFindings,
+                    portability = result.PortabilityNotes,
+                },
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Bütçe yetmiyor — 500 değil 429: bu bir arıza değil, bir sınır.
+            return StatusCode(429, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Bir şema üretim turunun tahmini token maliyeti.</summary>
+    private const int SchemaRoundTokenEstimate = 2500;
+
+    /// <summary>
+    /// Kullanıcının bütçesinin kaç tura yettiği.
+    ///
+    /// Kimliği olmayan istekte varsayılan tur sayısı kullanılıyor: bu uç
+    /// <c>AIQuotaMiddleware</c>'in arkasında ve orası zaten kimlik istiyor, yani
+    /// buraya kimliksiz gelinmiyor. Yine de null'a karşı savunmasız bırakmıyoruz.
+    /// </summary>
+    private async Task<int> AffordableRoundsAsync(string? userId)
+    {
+        if (_quota is null || string.IsNullOrEmpty(userId))
+            return SchemaAgentPipeline.DefaultRepairRounds + 1;
+
+        var quota = await _quota.EnsureQuotaAsync(userId, HttpContext.RequestAborted);
+        var remaining = Math.Max(0, quota.DailyLimit - quota.DailyUsageCount);
+
+        var affordable = remaining / SchemaRoundTokenEstimate;
+
+        // Tavan var: bütçesi çok olan bir kullanıcı için sınırsız tur açmak,
+        // modelin çözemediği bir bulguda bütçeyi tek istekte yakardı.
+        return Math.Min(affordable, SchemaAgentPipeline.DefaultRepairRounds + 1);
     }
 
     [HttpPost("revise")]
