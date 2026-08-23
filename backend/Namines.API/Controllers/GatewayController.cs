@@ -1,4 +1,6 @@
 using System;
+using Microsoft.Extensions.Logging;
+using Namines.Infrastructure.AI;
 using System.Security.Claims;
 using System.Data.Common;
 using System.Collections.Generic;
@@ -76,6 +78,16 @@ public sealed record GatewayQueryRequest(
     string ConnectionString, string DbType, string Sql,
     bool ReadOnly = true);
 
+/// <param name="Execute">
+/// Üretilen SQL çalıştırılsın mı? Varsayılan <b>false</b>: doğal dilden üretilen
+/// bir sorguyu görmeden çalıştırmak, "geçen ayki siparişleri göster" diyen birinin
+/// isteğinin başka bir şeye dönüşme ihtimalini kabul etmek olur. true verilse bile
+/// yalnızca OKUMA sorguları çalışır.
+/// </param>
+public sealed record GatewayNlQueryRequest(
+    string ConnectionString, string DbType, string Question,
+    bool Execute = false);
+
 /// <summary>
 /// G14 — Minimal Gateway. Şemadan otomatik salt-okunur REST (liste + detay).
 /// DatabaseExecutorController/DbIntrospectController ile aynı güvenlik modeli:
@@ -96,12 +108,18 @@ public class GatewayController : ControllerBase
     private readonly IGatewayService _gateway;
     private readonly AuthDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly GroqAIService _groq;
+    private readonly ILogger<GatewayController> _logger;
 
-    public GatewayController(IGatewayService gateway, AuthDbContext context, IConfiguration configuration)
+    public GatewayController(
+        IGatewayService gateway, AuthDbContext context, IConfiguration configuration,
+        GroqAIService groq, ILogger<GatewayController> logger)
     {
         _gateway = gateway;
         _context = context;
         _configuration = configuration;
+        _groq = groq;
+        _logger = logger;
     }
 
     /// <summary>
@@ -699,6 +717,158 @@ public class GatewayController : ControllerBase
                 request.ConnectionString, request.DbType, request.Sql, false, cancellationToken);
 
             return (Ok(result), result.AffectedRows);
+        });
+    }
+
+    /// <summary>
+    /// Doğal dil sorgusu (08 §2 <c>/query/nl</c>).
+    ///
+    /// <b>Varsayılan olarak SQL'i döndürür, ÇALIŞTIRMAZ.</b> Bir dil modelinin
+    /// ürettiği sorguyu görmeden çalıştırmak, sonucun doğruluğunu kullanıcının
+    /// kontrol edemeyeceği bir yere taşır. <c>execute: true</c> verildiğinde bile
+    /// yalnızca OKUMA sorguları çalışır — sınıflandırmayı geçemeyen her şey
+    /// çalıştırılmadan geri döner.
+    ///
+    /// Şema, anahtarın projesinden okunuyor: modelin var olmayan tablo adları
+    /// uydurmasının önündeki tek engel, ona gerçek şemayı vermek.
+    /// </summary>
+    [HttpPost("query/nl")]
+    public async Task<IActionResult> NaturalLanguageQuery(
+        [FromBody] GatewayNlQueryRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.Question))
+            return BadRequest(new { message = "Connection string and question are required." });
+
+        var (allowed, failure, key) = await AuthorizeForSqlAsync(cancellationToken);
+        if (!allowed) return failure!;
+
+        // Oturum yolunda proje bilinmiyor; şema olmadan model tablo adı uydurur.
+        if (key is null)
+            return BadRequest(new { message = "Natural language queries need an API key, because the schema is read from the key's project." });
+
+        var project = await _context.CloudProjects
+            .AsNoTracking()
+            .Where(p => p.Id == key.ProjectId)
+            .Select(p => p.SchemaJson)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(project))
+            return BadRequest(new { message = "This project has no saved schema, so there is nothing to translate the question against." });
+
+        DatabaseSchema schema;
+        try
+        {
+            schema = JsonSerializer.Deserialize<DatabaseSchema>(project, SchemaJsonOptions) ?? new DatabaseSchema();
+        }
+        catch (JsonException)
+        {
+            return BadRequest(new { message = "The saved schema could not be read." });
+        }
+
+        // Tanınmayan motorda SESSİZCE PostgreSQL'e düşmek, modele yanlış lehçeyi
+        // söylemek ve o motorda hiç çalışmayacak bir SQL üretmek olurdu — üstelik
+        // hata, kullanıcı sorguyu çalıştırana kadar görünmezdi.
+        if (!Enum.TryParse<Namines.Core.Enums.DatabaseType>(request.DbType, ignoreCase: true, out var engine))
+            return BadRequest(new { message = $"Unknown database engine '{request.DbType}'." });
+
+        // AI çağrısı ÖLÇÜLÜYOR. Bu uç, kota denetimi yapan AIQuotaMiddleware'in
+        // yolunda değil (o JWT bekler, buraya API anahtarıyla geliniyor) — ölçüm
+        // olmasaydı bir anahtar sahibi, hesap sahibinin AI bütçesini görünmez
+        // biçimde harcayabilirdi. Fatura anahtarı ÜRETEN kullanıcıya yazılıyor:
+        // isteği yapan taraf anonim bir uygulama, ödeyen hesap sahibi.
+        var quota = await _context.UserAIQuotas
+            .FirstOrDefaultAsync(q => q.UserId == key.CreatedByUserId, cancellationToken);
+
+        if (quota is not null)
+        {
+            // Gün dönünce sayaç sıfırlanır. Bu kontrol olmadan dünkü kullanım
+            // bugünü de kapatırdı.
+            if (quota.LastResetDate.Date != DateTime.UtcNow.Date)
+            {
+                quota.DailyUsageCount = 0;
+                quota.LastResetDate = DateTime.UtcNow;
+            }
+
+            if (quota.DailyUsageCount >= quota.DailyLimit)
+            {
+                return StatusCode(429, new
+                {
+                    message = "The daily AI limit for the account that owns this key has been reached.",
+                });
+            }
+
+            // Sayaç BURADA artırılıyor. Yalnızca UsageEvent yazmak, okunan sayaçla
+            // yazılan sayacın farklı olması demekti: kapı hiçbir zaman kapanmaz ve
+            // bir anahtar sahibi hesap sahibinin AI bütçesini sınırsız harcardı.
+            // Çağrıdan ÖNCE artırılıyor — sonra artırmak, eşzamanlı isteklerin
+            // hepsinin aynı anda geçmesine izin verir. Çağrı başarısız olursa
+            // aşağıda geri veriliyor.
+            quota.DailyUsageCount++;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        string sql;
+        try
+        {
+            sql = await _groq.GenerateSqlFromQuestionAsync(schema, engine, request.Question);
+        }
+        catch (Exception ex)
+        {
+            // Hak GERİ VERİLİYOR: sağlayıcıya ulaşılamadığında kullanıcı hiçbir şey
+            // almadı. Peşin alınan hakkı iade etmemek, dış bir servisin arızasını
+            // kullanıcının günlük bütçesinden kesmek olurdu — canlı denemede tam
+            // olarak bu görüldü (Groq anahtarı yokken sayaç 1'e çıktı).
+            if (quota is not null)
+            {
+                quota.DailyUsageCount--;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            // Upstream'in hata GÖVDESİ geçirilmiyor: sağlayıcı mesajları uç adresi,
+            // model adı ve kota ayrıntısı taşıyabiliyor ve bunlar çağıranın işine
+            // yaramaz, saldırganın işine yarar. Ayrıntı log'a gidiyor.
+            _logger.LogWarning(ex, "Natural language query could not be translated.");
+            return StatusCode(502, new { message = "The language model could not be reached." });
+        }
+
+        await _context.RecordAsync(key.CreatedByUserId, UsageResource.AiCall, 1, "query/nl", cancellationToken);
+
+        // Model "cevaplayamıyorum" diyebilmeli: uyduran bir sorgu, boş dönenden
+        // çok daha kötüdür çünkü kullanıcı sonucun doğru olduğunu sanır.
+        if (string.IsNullOrWhiteSpace(sql) || sql.Trim().Equals("UNANSWERABLE", StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(new
+            {
+                sql = (string?)null,
+                executed = false,
+                message = "The question could not be answered from this project's schema.",
+            });
+        }
+
+        var kind = SqlStatementKind.Classify(sql);
+
+        if (!request.Execute)
+            return Ok(new { sql, kind = kind.ToString().ToLowerInvariant(), executed = false });
+
+        if (kind != SqlKind.Read)
+        {
+            // Sınıflandırma bir güvenlik kapısı: modelin talimata uyacağına
+            // güvenmek bir güvenlik kararı olamaz.
+            return Ok(new
+            {
+                sql,
+                kind = kind.ToString().ToLowerInvariant(),
+                executed = false,
+                message = "This statement is not read-only, so it was not run. Review it and send it to /query if you meant it.",
+            });
+        }
+
+        return await ExecuteAsync(async () =>
+        {
+            var result = await _gateway.QueryAsync(
+                request.ConnectionString, request.DbType, sql, readOnly: true, cancellationToken);
+
+            return Ok(new { sql, kind = "read", executed = true, result.Rows, result.Truncated });
         });
     }
 

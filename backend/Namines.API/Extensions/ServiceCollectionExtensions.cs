@@ -58,6 +58,9 @@ public static class ServiceCollectionExtensions
         // Namines Bot (11 §7). HttpClient fabrikadan alınıyor: her çağrıda yeni bir
         // HttpClient üretmek soket tükenmesine, tek bir statik örnek ise DNS
         // değişikliklerini görmemeye yol açar.
+        // Token deposu SINGLETON, istemci transient: AddHttpClient her çözümlemede
+        // yeni bir istemci verir ve önbellek onun içinde olsaydı hiç çalışmazdı.
+        services.AddSingleton<GithubInstallationTokenCache>();
         services.AddHttpClient<IGithubClient, GithubClient>();
         services.AddScoped<IGithubBotService, GithubBotService>();
         // Singleton: tek bir DockerClient tutar ve durumu container etiketlerinde

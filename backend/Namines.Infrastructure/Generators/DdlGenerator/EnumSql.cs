@@ -89,9 +89,10 @@ internal static class EnumSql
 
         var values = string.Join(", ", definition.Values.Select(Literal));
 
-        // Nullable kolonda NULL de kabul edilmeli: CHECK'te NULL zaten "bilinmiyor"
-        // olarak geçer ve kısıtı ihlal etmez, ama açıkça yazmak okuyanı
-        // "nullable ama enum, hangisi geçerli?" sorusundan kurtarıyor.
+        // Nullable kolonda ayrıca "OR col IS NULL" YAZILMIYOR ve buna gerek yok:
+        // SQL'de NULL bir CHECK'i ihlal etmez, çünkü karşılaştırma true değil
+        // UNKNOWN döner. Fazladan yazmak, okuyanı "demek ki gerekiyormuş" diye
+        // düşündürüp aynı kalıbı gereksiz yere çoğaltırdı.
         var quoted = Quote(engine, column.Name);
         return $"CONSTRAINT {Quote(engine, "CK_" + table.Name + "_" + column.Name)} CHECK ({quoted} IN ({values}))";
     }

@@ -628,6 +628,28 @@ public class EjectGeneratorTests
         Assert.DoesNotContain("NEXT_PUBLIC_", rbac);
     }
 
+    [Fact]
+    public void Reading_is_gated_by_the_role_too()
+    {
+        // Yalnızca yazmayı korumak, rol modelinin "read" alanını süse çevirirdi:
+        // operatör tablonun gizlendiğini sanırken her satır sunulmaya devam ederdi.
+        var files = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL).Files;
+
+        Assert.Contains("await assertCan(table.name, \"read\");", files["app/[table]/page.tsx"]);
+        Assert.Contains("await assertCan(table.name, \"read\");", files["app/[table]/[id]/page.tsx"]);
+    }
+
+    [Fact]
+    public void Navigation_only_lists_tables_the_role_can_read()
+    {
+        // Erişilemeyen bir tabloyu listelemek, kullanıcıyı hata sayfasına gönderen
+        // bir bağlantı üretir ve hangi tabloların var olduğunu da söyler.
+        var files = Registry.Get("console.nextjs").Generate(Schema(), DatabaseType.PostgreSQL).Files;
+
+        Assert.Contains("readableTables()", files["app/layout.tsx"]);
+        Assert.Contains("readableTables()", files["app/page.tsx"]);
+    }
+
     // ── TypeScript SDK (12 §7) ───────────────────────────────────────────────
 
     [Fact]

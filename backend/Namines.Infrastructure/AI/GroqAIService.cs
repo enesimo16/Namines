@@ -769,6 +769,49 @@ public class GroqAIService : IAIService
         return explanation.Trim();
     }
 
+    /// <summary>
+    /// Doğal dil sorusundan SQL üretir (08 §2 <c>/query/nl</c>).
+    ///
+    /// <c>temperature</c> ÇOK düşük: burada yaratıcılık istenmiyor. Aynı soruya
+    /// her seferinde farklı bir sorgu üretmek, kullanıcının sonucu doğrulamasını
+    /// imkânsız kılar.
+    /// </summary>
+    public async Task<string> GenerateSqlFromQuestionAsync(
+        DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType, string question)
+    {
+        var (systemPrompt, userPrompt) = NlQueryPromptBuilder.Build(schema, dbType, question);
+
+        var payload = new
+        {
+            model = await ResolveModelNameAsync(null, "Documentation"),
+            messages = new[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user",   content = userPrompt }
+            },
+            temperature = 0.0,
+            max_tokens = 800
+        };
+
+        using var response = await PostAsync("chat/completions", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            if (errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+                throw new Exception($"Groq rate limit exceeded. Retry after {GetRetryAfterSeconds(response, errorContent)} seconds.");
+            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+        }
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        var responseObject = JsonSerializer.Deserialize<JsonElement>(responseString);
+        var sql = responseObject.GetProperty("choices")[0]
+                                .GetProperty("message")
+                                .GetProperty("content")
+                                .GetString();
+
+        return NlQueryPromptBuilder.StripFences(sql);
+    }
+
     public async Task<string> GenerateStreamlitAppAsync(DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType)
     {
         var systemPrompt = StreamlitPromptBuilder.BuildSystemPrompt();

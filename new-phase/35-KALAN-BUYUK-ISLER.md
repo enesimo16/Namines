@@ -8,7 +8,8 @@
 > Senin bir hesap/karar vermen gereken işler burada değil —
 > onlar [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md)'de.
 >
-> Son güncelleme: G43 (926 test yeşil).
+> Son güncelleme: G48 (1032 test yeşil; oturum sonu kod incelemesinde 8 bulgu
+> düzeltildi).
 
 ---
 
@@ -20,6 +21,11 @@
 | §2 `import`, `/rpc`, `/query` | ✅ G41 — ayrı `CanExecuteSql` yetkisiyle, gerçek PostgreSQL'e karşı doğrulandı |
 | §3 `identity` | ✅ G42 — altı motorda + NSL'de; anahtarı veritabanı mı atıyor, kullanıcı mı |
 | §5 Bot'un **GitHub'a yazması** | ✅ G43 — kod tamam; çalışması için senin GitHub App'in gerekiyor |
+| §3 **enum** | ✅ G44 — altı motorda; karşılığı olmayan motorda CHECK'e düşüyor, kısıt kaybolmuyor |
+| §3 `generated`, `collation`, **dizi** | ✅ G45 — gerçek PostgreSQL ve SQLite'ta doğrulandı |
+| §3 **kanonik JSON IR** | ✅ G46 — sürümlü, çift yönlü, `ir.json` eject hedefi |
+| §1 **RBAC + denetim kaydı** | ✅ G47 — kayıt Gateway'de (atlatılamaz), panelin varsayılan rolü salt-okunur |
+| §2 `/query/nl` | ✅ G48 — varsayılan çalıştırmaz; `execute` verilse bile yalnızca okuma |
 
 Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyorlar.
 
@@ -29,10 +35,10 @@ Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyor
 
 | Sıra | İş | Neden bu sırada |
 |------|-----|-----------------|
-| 1 | **§3 Kanonik JSON IR + model genişlemesi** | En pahalıya giden madde. Enum/`generated`/`collation`/şema adı bugün modelde yok ve üstüne yazılan her yeni üretici maliyeti artırıyor. `identity` (G42) bunun ilk parçasıydı ve tek başına iki gerçek hata ortaya çıkardı. |
-| 2 | **§1 Console RBAC + denetim kaydı** | Panel artık **yazıyor**. Yazan ama kimin ne yaptığını kaydetmeyen bir panel, üretimde kullanılamaz — bu ikisi artık "güzel olur" değil, ön koşul. |
-| 3 | **§2 GraphQL** | Kendi başına bir iş (şema üretimi + resolver'lar + N+1). Model genişlemesinden SONRA yapılmalı, yoksa iki kez yazılır. |
-| 4 | **§5 Bot'un kalanı** | PR'da önizleme veritabanı + `/namines` komutlarının gerçekten çalışması. Kimlik bilgilerin geldikten sonra anlamlı. |
+| 1 | **§5 Bot'un kalanı** | PR'da önizleme veritabanı + `/namines` komutlarının gerçekten çalışması. GitHub App'in geldiği an anlamlı hâle gelir ve bot zaten yazıyor. |
+| 2 | **§2 GraphQL** | Bir GraphQL motoru bağımlılığı + proje başına şema önbelleği ister; ikincisi Redis kararına bağlı. |
+| 3 | **§3'ün kalanı** | Şema adı (`public`), `@ui`/`@tag`, view, RLS, Migration IR, WASM. Model artık enum/generated/collation/dizi taşıyor, yani en pahalı kısım geçildi. |
+| 4 | **§1'in kalanı** | Dashboard motoru, doğal dil sorgu, özelleştirme katmanı, kolon maskeleme/satır filtresinin role bağlanması. |
 | 5 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
 
 > **§2 `/query/nl` ve §1 doğal dil sorgu aynı işin iki ucu.** İkisi de "üretilen
@@ -47,12 +53,10 @@ Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyor
 **Yazma ekranları G40'ta tamamlandı** — ekleme, düzenleme ve onaylı silme,
 gerçek bir PostgreSQL'e karşı tarayıcıdan doğrulandı. Kalanlar:
 
-> ⚠️ **İlk ikisi artık "güzel olur" değil, ön koşul.** Panel yazıyor; kimin ne
-> yaptığını kaydetmeyen ve herkese aynı yetkiyi veren bir yazma paneli üretimde
-> kullanılamaz. Yazma eklendiği anda bu iki madde borç hâline geldi.
+**G47'de tamamlandı:** Console RBAC (§4) ve denetim kaydı (§5). Kayıt Gateway'de
+tutuluyor, yani panelden atlatılamaz; panelin varsayılan rolü salt-okunur.
 
-- **Console RBAC** (§4) — son kullanıcı rolleri.
-- **Denetim kaydı** (§5) — konsoldan yapılan değişikliklerin izi.
+Kalanlar:
 - **Dashboard motoru** (§6).
 - **Doğal dilde sorgu** (§7).
 - **Özelleştirme katmanı** (§9) — üretilen konsolun üzerine yazmadan
@@ -75,9 +79,12 @@ doğrulandı.
 
 Kalanlar:
 
-- **`/query/nl`** — doğal dil sorgu. AI katmanı bağlantısı ve üretilen SQL'in
-  otomatik çalıştırılıp çalıştırılmayacağı ayrı bir güvenlik tasarımı ister.
+**G48'de eklendi:** `/query/nl` — varsayılan olarak SQL'i döndürür, çalıştırmaz;
+`execute: true` verilse bile yalnızca okuma sorguları çalışır.
+
 - **GraphQL** (§3) — şema üretimi + resolver'lar + N+1; kendi başına bir iş.
+  ⚠️ Bir GraphQL motoru bağımlılığı ve **proje başına şema önbelleği** ister;
+  ikincisi [34](34-SENDEN-BEKLENENLER.md) §5'teki Redis kararına bağlı.
 - **`/realtime`** (§9, doküman zaten P2 diyor).
 - **Metadata cache** (§6) — **Redis kararına bağlı**, bkz. [34](34-SENDEN-BEKLENENLER.md) §5.
 - **`expand` (ilişki gömme)** — ⚠️ *bilinçli olarak reddedildi, ertelenmedi.*
@@ -95,20 +102,17 @@ Kalanlar:
 Bugün var: metin biçimi, ayrıştırıcı, doğrulayıcı (25 kuralın modelde karşılığı
 olan 15'i), çift yönlü `nsl` eject hedefi.
 
-**G42'de eklendi:** `identity` — anahtarı veritabanı mı atıyor, kullanıcı mı.
-Altı motorda ve NSL'de karşılığıyla birlikte.
+**G42-G46'da eklendi:** `identity`, enum, `generated`, `collation`, dizi tipi ve
+kanonik JSON IR — hepsi altı motorda, NSL sözdiziminde ve `ir.json` hedefinde.
+Gerçek PostgreSQL ve SQLite'a karşı doğrulandı.
 
-- **Kanonik JSON IR** (§3) — ⚠️ **En büyük ve en riskli madde.** Doküman;
-  enum, şema (`public`), `generated`, `collation`, dizi tipi, `@ui`, `@tag`,
-  kısmi/kapsayıcı index gibi bugünkü `DatabaseSchema`'da **hiç bulunmayan**
-  alanlar tanımlıyor (`identity` G42'de eklendi). Bunu yapmak, çekirdek modeli
-  genişletip dalgayı 18 üretici, 6 DDL motoru, frontend ve 900+ testin üstünden
-  geçirmek demek. "Kalan detay" değil, temel bir dönüşüm.
-  > **G42 bunun neden ertelenemeyeceğini gösterdi:** tek bir alan (`identity`)
-  > eklemek iki gerçek hata ortaya çıkardı — PostgreSQL ara tablonun iki
-  > yabancı anahtarına da `SERIAL` veriyordu, ve NSL ayrıştırıcısı her
-  > ayrıştırmada rastgele kimlik üretiyordu. Alanlar eksik olduğu sürece bu tür
-  > hatalar görünmüyor.
+- **Şema adı (`public`), `@ui`, `@tag`, kısmi/kapsayıcı index** — modelde hâlâ yok.
+  > **Bu genişlemenin neden ertelenemeyeceği ölçüldü:** eklenen her alan gerçek
+  > bir hata ortaya çıkardı — `identity` PostgreSQL'in ara tablonun iki yabancı
+  > anahtarına da `SERIAL` verdiğini ve NSL ayrıştırıcısının her ayrıştırmada
+  > rastgele kimlik ürettiğini; enum Türkçe kültürdeki `ToUpper` hatasını;
+  > `generated` PostgreSQL'in tipi zorunlu kıldığını. Alanlar eksik olduğu sürece
+  > bu tür hatalar görünmüyor.
 - **Enum / view / RLS / `@ui` / `@tag` sözdizimi** — yukarıdaki modele bağlı;
   bugün model bunları taşımıyor, o yüzden sözdizimi yazmak hiç tetiklenmeyecek
   bir kuralı "var" göstermek olurdu.

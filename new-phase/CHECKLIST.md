@@ -1593,6 +1593,69 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     yazma izni (`update: ["status"]`), dashboard motoru (§6), doğal dil sorgu
     (§7), özelleştirme katmanı (§9).
 
+- [x] **G48 — `/query/nl` + oturum kod incelemesi ([08](08-GATEWAY-API.md) §2)** ✅ TAMAMLANDI
+  - `SqlStatementKind`, `NlQueryPromptBuilder`, `GroqAIService.GenerateSqlFromQuestionAsync`,
+    `POST /api/gateway/query/nl`.
+  - **Varsayılan olarak SQL'i DÖNDÜRÜR, çalıştırmaz.** Bir dil modelinin ürettiği
+    sorguyu görmeden çalıştırmak, sonucun doğruluğunu kullanıcının kontrol
+    edemeyeceği bir yere taşır. `execute: true` verilse bile yalnızca OKUMA
+    sorguları çalışır.
+  - **Sınıflandırma bir güvenlik kapısı, kolaylık değil.** İstemde "yalnızca
+    SELECT üret" yazmak yeterli olamaz; modelin talimata uyacağına güvenmek bir
+    güvenlik kararı değildir. Beyaz liste kullanılıyor: yalnızca okuduğundan EMİN
+    olunan fiiller okuma sayılır, gerisi `Unknown` ve çalıştırılmaz. `WITH ... INSERT`
+    kalıbı ve baştaki yorumlarla gizleme ayrıca test edildi.
+  - Model **"cevaplayamıyorum" diyebiliyor** (`UNANSWERABLE`): uyduran bir sorgu,
+    boş dönenden çok daha kötüdür çünkü kullanıcı sonucun doğru olduğunu sanır.
+
+  ### Oturum sonu kod incelemesi — 8 bulgu, hepsi düzeltildi
+
+  Bu oturumda yazılan kodun tamamı yeniden okundu. Bulunanlar:
+
+  1. **Kota kapısı hiç kapanmıyordu.** `/query/nl`, `UserAIQuota.DailyUsageCount`
+     değerini OKUYOR ama yalnızca `UsageEvent` YAZIYORDU — iki farklı sayaç.
+     Anahtar sahibi, hesap sahibinin AI bütçesini sınırsız harcayabilirdi. Sayaç
+     artık çağrıdan önce artırılıyor (eşzamanlı isteklerin hepsinin birden
+     geçmesini engellemek için) ve **çağrı başarısız olursa geri veriliyor** —
+     canlı denemede sağlayıcıya ulaşılamadığında sayacın 1'e çıktığı görüldü;
+     dış bir servisin arızasını kullanıcının bütçesinden kesmek yanlış olurdu.
+  2. **PostgreSQL'de `SERIAL GENERATED ALWAYS AS (...)`** üretiliyordu — geçersiz
+     DDL. Hesaplanan kolon aynı anda otomatik artan olamaz; ikisi de "bu değeri
+     kim koyuyor" sorusuna cevap veriyor. `IdentityPolicy` artık ifadesi olan
+     kolonu otomatik artan saymıyor.
+  3. **SQLite aynı durumda ifadeyi SESSİZCE düşürüyordu** — daha kötüsü, çünkü
+     hata veriler yazılana kadar görünmüyordu. Aynı düzeltme kapatıyor.
+  4. **Panelin `read` yetkisi tanımlıydı ama hiç uygulanmıyordu.** Rol modeli
+     "bu tablo gizli" diyor, liste ve detay sayfaları her satırı sunmaya devam
+     ediyordu — hiç model olmamasından kötü, çünkü operatör korunduğunu sanıyor.
+     Okuma da artık sunucuda kontrol ediliyor; gezinme ve ana sayfa yalnızca
+     okunabilir tabloları listeliyor.
+  5. **Rol derleme anında donuyordu.** Next, `/` ve layout'u statik üretiyordu
+     (canlı derlemede `○` olarak görüldü); müşteri kendi auth'unu bağladığında
+     menü, derlemeyi yapanın rolüyle donar ve herkese aynı görünürdü. Kimliğe
+     bağlı sayfalar `force-dynamic` yapıldı — tüm rotalar artık `ƒ`.
+  6. **GitHub token önbelleği hiç çalışmıyordu.** `AddHttpClient` istemciyi
+     transient kaydediyor, önbellek ise örnek alanıydı; her webhook yeniden token
+     isterdi. Statik alan testler arasında sızacağı için DI ile **singleton bir
+     token deposu** yapıldı.
+  7. Upstream hata GÖVDESİ çağırana geçiyordu (uç adresi, model adı, kota
+     ayrıntısı sızdırabilir). Artık log'a gidiyor.
+  8. Tanınmayan motor adı sessizce PostgreSQL'e düşüyordu — modele yanlış lehçe
+     söylenip o motorda hiç çalışmayacak SQL üretilirdi. Artık reddediliyor.
+
+  - Doğrulama: `SqlStatementKindTests` **27/27**, tam paket **1032 test yeşil**,
+    `tsc --noEmit` ve `npm run build` temiz. **Canlı analiz** (8 başlık):
+    `/health` ve `/metrics` 200, 19 eject hedefi, enum+dizi+hesaplanan
+    kolon+Türkçe collation birlikte GERÇEK PostgreSQL'de `CREATE TABLE`, `ir.json`
+    sürüm alanı ve identity ayrımı, `import` 3 satır, ham SQL yetkisiz **403** /
+    yetkili **200**, zincirlenmiş ifade **400**, bilinmeyen motor reddedildi,
+    denetim kaydında üç işlem, webhook `pong` / yanlış imza **401**, sitemap 200 /
+    bilinmeyen jeton 404. Kısıtlı bir rolle tarayıcıda: `audit_log` menüden
+    gizlendi, doğrudan URL **engellendi**, `create` reddedildi, `update` geçti.
+  - **Kapsam dışı:** GraphQL (§3 — bir GraphQL motoru bağımlılığı ve proje başına
+    şema önbelleği ister; ikincisi Redis kararına bağlı), `/realtime` (§9, doküman
+    P2), metadata cache (§6, Redis kararına bağlı).
+
 ---
 
 ## G-ekstra — Yol boyunca bulunanlar

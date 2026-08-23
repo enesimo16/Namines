@@ -76,7 +76,10 @@ public class GithubClientTests
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
-        return (new GithubClient(http, configuration, NullLogger<GithubClient>.Instance), handler);
+        // Her test kendi önbelleğiyle çalışıyor: paylaşılan bir depo, testleri
+        // çalışma sırasına bağlı hâle getirirdi.
+        return (new GithubClient(http, configuration, NullLogger<GithubClient>.Instance,
+            new GithubInstallationTokenCache()), handler);
     }
 
     private static GithubRepository Repo => new("acme", "shop");

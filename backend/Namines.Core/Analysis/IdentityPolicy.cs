@@ -26,6 +26,13 @@ public static class IdentityPolicy
     /// </param>
     public static bool IsGenerated(SchemaColumn column, int primaryKeyCount)
     {
+        // Değeri bir İFADEDEN gelen kolon aynı anda otomatik artan OLAMAZ: ikisi
+        // de "bu değeri kim koyuyor" sorusuna cevap veriyor ve iki cevap birden
+        // olamaz. PostgreSQL bunu `SERIAL GENERATED ALWAYS AS (...)` ile
+        // reddediyor; SQLite ise sessizce ifadeyi düşürüp kolonu boş bırakıyordu —
+        // ikincisi daha kötü, çünkü hata veriler yazılana kadar görünmüyor.
+        if (!string.IsNullOrWhiteSpace(column.Generated)) return false;
+
         if (column.Identity == true) return true;
         if (column.Identity == false) return false;
 

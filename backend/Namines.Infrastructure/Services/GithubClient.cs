@@ -32,14 +32,15 @@ public sealed class GithubClient : IGithubClient
     private readonly string? _appId;
     private readonly string? _privateKey;
 
-    // Kurulum token'ı bir saat yaşar; her istekte yenisini istemek hem gereksiz
-    // gecikme hem de GitHub'ın kendi hız sınırını boşa harcamak olurdu.
-    private readonly ConcurrentDictionary<long, (string Token, DateTimeOffset ExpiresAt)> _tokens = new();
+    private readonly GithubInstallationTokenCache _tokens;
 
-    public GithubClient(HttpClient http, IConfiguration configuration, ILogger<GithubClient> logger)
+    public GithubClient(
+        HttpClient http, IConfiguration configuration, ILogger<GithubClient> logger,
+        GithubInstallationTokenCache tokens)
     {
         _http = http;
         _logger = logger;
+        _tokens = tokens;
 
         _appId = configuration["Github:AppId"] ?? Environment.GetEnvironmentVariable("GITHUB_APP_ID");
         _privateKey = configuration["Github:PrivateKey"] ?? Environment.GetEnvironmentVariable("GITHUB_APP_PRIVATE_KEY");
@@ -159,11 +160,7 @@ public sealed class GithubClient : IGithubClient
 
         // Bir dakika erken yenileniyor: tam sona erme anında kullanılan bir token,
         // yolda geçen sürede geçersizleşip anlaşılmaz bir 401 üretir.
-        if (_tokens.TryGetValue(installationId, out var cached) &&
-            cached.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(1))
-        {
-            return cached.Token;
-        }
+        if (_tokens.TryGet(installationId, out var cached)) return cached!;
 
         var jwt = GithubAppJwt.Create(_appId!, _privateKey!);
 
@@ -182,7 +179,42 @@ public sealed class GithubClient : IGithubClient
             ? DateTimeOffset.Parse(exp.GetString()!)
             : DateTimeOffset.UtcNow.AddMinutes(50);
 
-        _tokens[installationId] = (token, expiresAt);
+        _tokens.Set(installationId, token, expiresAt);
         return token;
     }
+}
+
+/// <summary>
+/// Kurulum token'ları için paylaşılan depo.
+///
+/// <b>Ayrı bir sınıf, çünkü <see cref="GithubClient"/> transient.</b>
+/// <c>AddHttpClient</c> her çözümlemede yeni bir istemci verir; önbellek onun
+/// örnek alanı olsaydı her webhook yeniden token isterdi — yani önbellek hiç
+/// çalışmazdı. Statik bir alan da olabilirdi ama o, testler arasında sızan ve
+/// çalışma sırasına göre farklı davranan bir durum bırakırdı; DI ile
+/// singleton vermek aynı ömrü, yalıtımı bozmadan sağlıyor.
+/// </summary>
+public sealed class GithubInstallationTokenCache
+{
+    private readonly ConcurrentDictionary<long, (string Token, DateTimeOffset ExpiresAt)> _entries = new();
+
+    /// <summary>
+    /// Geçerli token varsa true.
+    ///
+    /// Bir dakika erken "süresi doldu" sayılıyor: tam sona erme anında kullanılan
+    /// bir token, yolda geçen sürede geçersizleşip anlaşılmaz bir 401 üretir.
+    /// </summary>
+    public bool TryGet(long installationId, out string? token)
+    {
+        token = null;
+
+        if (!_entries.TryGetValue(installationId, out var entry)) return false;
+        if (entry.ExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1)) return false;
+
+        token = entry.Token;
+        return true;
+    }
+
+    public void Set(long installationId, string token, DateTimeOffset expiresAt) =>
+        _entries[installationId] = (token, expiresAt);
 }
