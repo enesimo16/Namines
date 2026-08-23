@@ -63,7 +63,7 @@ public sealed class AiQuotaService
     /// ödemeyen de kısıtlanmıyordu.
     ///
     /// Yapılandırmadaki değer artık yalnızca <see cref="PlanTier.Free"/> için bir
-    /// override; diğer planlar <see cref="PlanCatalog"/>'dan geliyor ki sayılar
+    /// override; diğer planlar <see cref="PlanQuotas"/>'dan geliyor ki sayılar
     /// tek yerde dursun.
     /// </summary>
     public async Task<int> PerUserCapAsync(string userId, CancellationToken ct = default)
