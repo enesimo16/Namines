@@ -130,9 +130,19 @@ public class SchemaController : ControllerBase
         var context = ClarifyingQuestions.ToPromptContext(
             archetype, ClarifyingQuestions.For(archetype), ParseAnswers(request.Answers));
 
-        var enrichedPrompt = string.IsNullOrWhiteSpace(context)
-            ? request.Prompt
-            : request.Prompt + "\n\n--- Requirements gathered from the user ---\n" + context;
+        // Ture ozel uzmanlik rolu de ekleniyor: "iyi bir sema tasarla" her alanda
+        // ayni sonucu getiriyordu, oysa parayi kayan noktali sayida tutmamak ya
+        // da envanter tablosunu dar birakmak o alanda calisan birinin bildigi
+        // seyler. Rol secmek icin ikinci bir modele danismak, kullanici hicbir
+        // sey gormeden bir tur harcamak olurdu -- tur zaten anahtar kelimeden
+        // cikarildi.
+        var role = ArchetypeRoles.For(archetype);
+
+        var enrichedPrompt = request.Prompt;
+        if (!string.IsNullOrWhiteSpace(role))
+            enrichedPrompt += "\n\n--- Domain guidance ---\n" + role;
+        if (!string.IsNullOrWhiteSpace(context))
+            enrichedPrompt += "\n\n--- Requirements gathered from the user ---\n" + context;
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 

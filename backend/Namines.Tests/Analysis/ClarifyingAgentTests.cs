@@ -140,6 +140,54 @@ public class ClarifyingAgentTests
         Assert.Equal(questions.Count + 1, context.Split('\n').Length); // +1: "Project type" satırı
     }
 
+    // ── Alan rolleri ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Every_recognised_project_gets_a_domain_role()
+    {
+        // Tür tanındığı hâlde rol yoksa, o kullanıcı "iyi bir şema tasarla"dan
+        // fazlasını almıyor demektir — tanımanın hiçbir karşılığı olmaz.
+        foreach (ProjectArchetype archetype in Enum.GetValues<ProjectArchetype>())
+        {
+            if (archetype == ProjectArchetype.Generic) continue;
+
+            Assert.False(string.IsNullOrWhiteSpace(ArchetypeRoles.For(archetype)),
+                $"{archetype} has no domain role.");
+        }
+    }
+
+    [Fact]
+    public void An_unrecognised_project_gets_no_role_text_at_all()
+    {
+        // Genel bir "iyi bir şema tasarla" metni eklemek, taslak prompt'unda
+        // zaten yazan şeyi tekrarlamak ve her istekte boşuna token harcamak olurdu.
+        Assert.Equal(string.Empty, ArchetypeRoles.For(ProjectArchetype.Generic));
+    }
+
+    [Fact]
+    public void The_finance_role_forbids_floating_point_money()
+    {
+        // Bu tam olarak modelin sorulmadıkça yaptığı hata: parayı float'ta
+        // tutmak, kuruşların sessizce kaybolması demek.
+        var role = ArchetypeRoles.For(ProjectArchetype.Fintech);
+
+        Assert.Contains("NEVER a floating point", role);
+    }
+
+    [Fact]
+    public void Roles_are_concrete_enough_to_change_the_schema()
+    {
+        // "Dikkatli ol" gibi bir metin hiçbir şeyi değiştirmez; rolün somut bir
+        // tablo/kolon kararına dönüşmesi gerekiyor. Kısa metin bunu yapamıyor.
+        foreach (ProjectArchetype archetype in Enum.GetValues<ProjectArchetype>())
+        {
+            if (archetype == ProjectArchetype.Generic) continue;
+
+            Assert.True(ArchetypeRoles.For(archetype).Length > 120,
+                $"{archetype} role is too vague to change anything.");
+        }
+    }
+
     // ── NAI model kataloğu ───────────────────────────────────────────────────
 
     [Fact]

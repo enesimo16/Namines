@@ -202,6 +202,29 @@ isterse `nai`ye düşürülüyor: kullanıcı bir şema üretmek istiyor, model 
 onun asıl derdi değil. Eski sekiz seçenekli `AIMode` değerleri de bu üçüne
 eşleniyor — kayıtlı tercihler atılmıyor, karşılığına çevriliyor.
 
+### Alan rolleri
+
+Tür tanındığında taslak prompt'una o alanın **somut** kuralları ekleniyor:
+fintech'te para asla kayan noktalı sayı değil ve bakiye ekle-only bir defterden
+türetiliyor, oyunda envanter tablosu dar tutuluyor, SaaS'ta tenant kimliği
+indekslerin parçası, IoT'de ölçüm tablosu cihaz+zamana göre anahtarlanıyor.
+
+**Neden:** "iyi bir şema tasarla" her alanda aynı şeyi getiriyordu — kullanıcılar,
+bir ana tablo, birkaç yabancı anahtar. Yukarıdakiler o alanda çalışan birinin
+bildiği, modelin ise sorulmadıkça getirmediği şeyler.
+
+**Rol seçmek için AI kullanılmıyor.** İkinci bir modele "bu hangi alan" diye
+sormak, kullanıcı daha hiçbir şey görmeden bir tur harcamak olurdu; tür zaten
+anahtar kelimeden çıkmış durumda. Rolün maliyeti bir tur değil, birkaç yüz token.
+
+**Tanınmayan türe rol metni HİÇ eklenmiyor.** Genel bir "dikkatli tasarla" metni,
+taslak prompt'unda zaten yazan şeyi tekrarlamak ve her istekte boşuna token
+harcamak olurdu.
+
+Rol bir dayatma değil: şemayı yine deterministik kapı (linter + gerçek DDL
+üreticisi) denetliyor. Tür yanlış tespit edilirse maliyeti düşük — birkaç
+alakasız tavsiye, hatalı bir şema değil.
+
 ### Yol boyunca bulunanlar
 
 - **Ücretsiz hesap en pahalı modeli kullanıyordu.** `ClampToPlan` yazılmıştı ama
