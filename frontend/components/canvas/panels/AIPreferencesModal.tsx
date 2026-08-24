@@ -765,7 +765,15 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   <div className="space-y-6">
                     {(() => {
                       const remainingPercent = Math.round((remaining / dailyLimit) * 100);
-                      const isFreeUser = user?.type !== 'corporate';
+                      // Gerçek plan quota/status'ten geliyor (Free/Pro/Team/Dev).
+                      // user.type yalnızca "corporate mi bireysel mi" diyen eski
+                      // ikili alan — Dev hesabı hep "individual" kalıyor, o yüzden
+                      // rozet her zaman "Free" gösteriyordu.
+                      const isFreeUser = planTier !== 'Pro' && planTier !== 'Team' && planTier !== 'Dev';
+                      const planLabel = planTier === 'Dev' ? 'Dev — Unlimited'
+                        : planTier === 'Team' ? 'Team Member'
+                        : planTier === 'Pro' ? 'Pro Member'
+                        : 'Free Member';
 
                       return (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -776,7 +784,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                             </div>
                             <div className="mt-4">
                               <span className="inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider bg-white/[0.08] text-content-secondary">
-                                {user?.type === 'corporate' ? 'Pro Member' : 'Free Member'}
+                                {planLabel}
                               </span>
                             </div>
                           </div>

@@ -50,7 +50,10 @@ public static class DevAccountSeeder
                 UserName = email,
                 Email = email,
                 EmailConfirmed = true,
-                Type = UserType.Individual,
+                // Corporate: arayuzdeki eski ikili rozet (Header.tsx, "FREE/PRO
+                // MEMBER") hala bu alana bakiyor, planTier'a degil. Individual
+                // birakilirsa dev hesabi her yerde "Free" gorunurdu.
+                Type = UserType.Corporate,
                 IsDev = true,
                 CreatedAt = DateTime.UtcNow,
             };
@@ -85,10 +88,11 @@ public static class DevAccountSeeder
                     string.Join("; ", reset.Errors.Select(e => e.Description)));
         }
 
-        if (!user.IsDev || !user.EmailConfirmed)
+        if (!user.IsDev || !user.EmailConfirmed || user.Type != UserType.Corporate)
         {
             user.IsDev = true;
             user.EmailConfirmed = true;
+            user.Type = UserType.Corporate;
             await users.UpdateAsync(user);
             logger.LogWarning("Var olan hesap dev olarak işaretlendi: {Email}", email);
         }
