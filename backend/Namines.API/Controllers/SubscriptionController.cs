@@ -25,24 +25,36 @@ public class SubscriptionController : ControllerBase
         StripeConfiguration.ApiKey = config["Stripe:SecretKey"];
     }
 
-    // POST /api/subscription/checkout
-    // Creates a Stripe Hosted Checkout session for the $5/mo Pro plan.
+    // POST /api/subscription/checkout?plan=pro|team
+    // Creates a Stripe Hosted Checkout session for the requested plan.
     // Returns { url } — the frontend redirects the user there.
     // Card data NEVER touches our server. Stripe handles PCI-DSS.
     [HttpPost("checkout")]
-    public async Task<IActionResult> CreateCheckoutSession()
+    public async Task<IActionResult> CreateCheckoutSession([FromQuery] string plan = "pro")
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var user = await _userManager.FindByIdAsync(userId!);
         if (user == null) return Unauthorized();
 
-        // If user already has an active subscription, redirect to portal instead
+        // If user already has an active subscription, redirect to portal instead —
+        // Checkout üzerinden ikinci bir abonelik açmak, aynı kullanıcıya iki kez
+        // fatura kesmek olurdu. Plan değişikliği (Pro↔Team) portal üzerinden.
         if (user.SubscriptionStatus == "active" && !string.IsNullOrEmpty(user.StripeCustomerId))
             return Ok(new { redirect = "portal" });
 
-        var priceId = _config["Stripe:ProPriceId"];
+        // Bilinmeyen bir plan adı sessizce Pro'ya düşmüyor: kullanıcı Team'e
+        // tıklayıp yanlışlıkla Pro'ya abone olurdu ve bunu ancak faturada fark ederdi.
+        var normalizedPlan = plan?.Trim().ToLowerInvariant();
+        var priceId = normalizedPlan switch
+        {
+            "team" => _config["Stripe:TeamPriceId"],
+            "pro" => _config["Stripe:ProPriceId"],
+            _ => null,
+        };
+        if (priceId is null)
+            return BadRequest(new { error = $"Unknown plan '{plan}'. Use 'pro' or 'team'." });
         if (string.IsNullOrWhiteSpace(priceId))
-            return StatusCode(500, new { error = "Stripe price ID is not configured." });
+            return StatusCode(500, new { error = $"Stripe price ID for '{normalizedPlan}' is not configured." });
 
         var frontendUrl = _config["App:FrontendUrl"] ?? "http://localhost:3000";
 

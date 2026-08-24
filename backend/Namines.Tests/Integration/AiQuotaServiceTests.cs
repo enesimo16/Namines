@@ -34,6 +34,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await using var context = new AuthDbContext(_options);
         await context.Database.MigrateAsync();
         context.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
+        context.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", IsDev = true });
         await context.SaveChangesAsync();
     }
 
@@ -224,5 +225,54 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await service.ConsumeAsync("u1", 900);
 
         Assert.Equal(1000, (await context.UserAIQuotas.SingleAsync(q => q.UserId == "u1")).DailyUsageCount);
+    }
+
+    // ── Sahip hesabı ─────────────────────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task The_owner_passes_even_when_the_shared_pool_is_empty()
+    {
+        // Havuz "ücretsiz kullanıcılar toplamda şu kadar harcasın" demek;
+        // geliştiricinin kendi ürününü deneyemez hâle gelmesi değil. Sıradan
+        // kullanıcı aynı anda reddediliyor — bu, kontrolün gerçekten çalıştığını
+        // ve testin boş yere geçmediğini gösteriyor.
+        await ResetAsync();
+        var (context, service) = Service(pool: 1000);
+        await using var _ = context;
+
+        await service.ConsumeAsync("u1", 5000);
+
+        Assert.Equal(AiQuotaDecision.PoolExhausted, await service.CheckAsync("u1", 10));
+        Assert.Equal(AiQuotaDecision.Allowed, await service.CheckAsync("owner", 10));
+    }
+
+    [RequiresDockerFact]
+    public async Task The_owner_passes_even_after_spending_more_than_any_plan_allows()
+    {
+        await ResetAsync();
+        var (context, service) = Service();
+        await using var _ = context;
+
+        await service.EnsureQuotaAsync("owner");
+        await service.ConsumeAsync("owner", 5_000_000);
+
+        Assert.Equal(AiQuotaDecision.Allowed, await service.CheckAsync("owner", 1_000_000));
+    }
+
+    [RequiresDockerFact]
+    public async Task The_owner_spending_is_still_recorded()
+    {
+        // Sınırsız olmak, maliyetin görünmez olması anlamına gelmemeli —
+        // ölçülemeyen bir harcama, faturayı görene kadar fark edilmez.
+        await ResetAsync();
+        var (context, service) = Service();
+        await using var _ = context;
+
+        await service.EnsureQuotaAsync("owner");
+        await service.ConsumeAsync("owner", 4321);
+
+        var today = DateTime.UtcNow.Date;
+        Assert.Equal(4321, await context.GlobalAiUsages
+            .Where(g => g.Date == today).Select(g => g.TokensUsed).SingleAsync());
     }
 }

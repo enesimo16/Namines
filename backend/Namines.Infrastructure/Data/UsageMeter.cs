@@ -98,7 +98,7 @@ public static class UsageMeter
         decimal requested = 1, CancellationToken ct = default)
     {
         var user = await context.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        var tier = PlanQuotas.Resolve(user?.SubscriptionStatus);
+        var tier = PlanQuotas.Resolve(user?.SubscriptionStatus, user?.PlanCode, user?.IsDev ?? false);
 
         var settings = await context.UserBillingSettings
             .FirstOrDefaultAsync(s => s.UserId == userId, ct);

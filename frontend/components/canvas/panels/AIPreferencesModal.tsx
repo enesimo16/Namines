@@ -5,7 +5,7 @@ import { useByokStore } from '../../../store/useByokStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useQuotaStore } from '../../../store/useQuotaStore';
-import { authService } from '../../../services/api';
+import api, { authService } from '../../../services/api';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 
 interface AIPreferencesModalProps {
@@ -203,6 +203,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   const [showAdvancedScreen, setShowAdvancedScreen] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [planTier, setPlanTier] = useState<string | null>(null);
 
   // Developer Profile Identity States
   const [fullName, setFullName] = useState('');
@@ -316,15 +317,21 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
         authService.getSubscriptionStatus()
           .then(data => { if (data) setSubscriptionStatus(data.status); })
           .catch(() => {});
+        // Pro/Team ayrımı subscription/status'te yok (yalnızca active/inactive
+        // diyor); hangi kart "You are on this plan" göstersin, quota/status'teki
+        // Plan alanından geliyor.
+        api.get('/quota/status')
+          .then(res => setPlanTier(res.data?.plan ?? null))
+          .catch(() => {});
       }
     }
   }, [isOpen, apiKey, provider, isAuthenticated, fetchPolicy, fetchQuota]);
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (plan: 'pro' | 'team' = 'pro') => {
     setIsUpgrading(true);
     try {
       if (!isAuthenticated) { showToast('Please log in to upgrade.', 'warning'); return; }
-      const data = await authService.createCheckoutSession();
+      const data = await authService.createCheckoutSession(plan);
       if (data.redirect === 'portal') {
         await handleManageSubscription();
       } else if (data.url) {
@@ -1277,7 +1284,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
             {/* 5. Pricing Tab */}
             {activeTab === 'pricing' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Free Plan Card */}
                 <div className={`${cardClass} p-5 flex flex-col justify-between`}>
                   <div className="space-y-4">
@@ -1310,7 +1317,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <h4 className="text-sm font-bold text-content-primary">Pro Member</h4>
                       <p className="text-[10px] text-content-subtle leading-normal font-medium">For engineering teams and professionals.</p>
                     </div>
-                    <div className="text-2xl font-bold text-content-primary">$5 <span className="text-xs font-normal text-content-subtle">/ month</span></div>
+                    <div className="text-2xl font-bold text-content-primary">$7.5 <span className="text-xs font-normal text-content-subtle">/ month</span></div>
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
                       {['Unlimited AI requests', 'nai pro model tier', 'SignalR multiplayer team collaboration', 'Full cloud database backups & history sync', 'Priority support & Slack channel access'].map(f => (
@@ -1322,7 +1329,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </ul>
                   </div>
                   <div className="mt-5 flex flex-col gap-2">
-                    {subscriptionStatus === 'active' ? (
+                    {subscriptionStatus === 'active' && planTier !== 'Team' ? (
                       <>
                         <div className="flex items-center gap-2 text-[11px] text-success-text font-semibold bg-success-text/10 rounded-lg px-4 py-2.5">
                           <Check className="w-4 h-4" />
@@ -1341,11 +1348,61 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     ) : (
                       <button
                         type="button"
-                        onClick={handleUpgrade}
+                        onClick={() => handleUpgrade('pro')}
                         disabled={isUpgrading}
                         className={`w-full flex items-center justify-center gap-2 text-[11px] rounded-lg px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-wait cursor-pointer ${primaryBtnClass}`}
                       >
-                        {isUpgrading ? 'Redirecting to Stripe...' : 'Upgrade to Pro — $5/mo'}
+                        {isUpgrading ? 'Redirecting to Stripe...' : 'Upgrade to Pro — $7.5/mo'}
+                      </button>
+                    )}
+                    <p className="text-center text-[10px] text-content-subtle font-medium">Secured by Stripe · Cancel anytime · PCI-DSS compliant</p>
+                  </div>
+                </div>
+
+                {/* Team Plan Card */}
+                <div className={`${cardClass} p-5 flex flex-col justify-between`}>
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase font-semibold text-content-subtle tracking-wider">Plan</span>
+                      <h4 className="text-sm font-bold text-content-primary">Team</h4>
+                      <p className="text-[10px] text-content-subtle leading-normal font-medium">For teams that need higher limits and shared branch databases.</p>
+                    </div>
+                    <div className="text-2xl font-bold text-content-primary">$20 <span className="text-xs font-normal text-content-subtle">/ month</span></div>
+                    <div className="h-px bg-content-primary/10" />
+                    <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
+                      {['Everything in Pro', '5x the daily AI budget', '20 branch databases', 'Unlimited ephemeral test runs', 'Higher gateway rate limits'].map(f => (
+                        <li key={f} className="flex items-center gap-2">
+                          <Sparkles className="w-3.5 h-3.5 text-accent-text shrink-0" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="mt-5 flex flex-col gap-2">
+                    {planTier === 'Team' ? (
+                      <>
+                        <div className="flex items-center gap-2 text-[11px] text-success-text font-semibold bg-success-text/10 rounded-lg px-4 py-2.5">
+                          <Check className="w-4 h-4" />
+                          You are on the Team plan
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleManageSubscription}
+                          disabled={isUpgrading}
+                          className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-lg px-4 py-2.5 transition-all disabled:opacity-50 cursor-pointer"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          {isUpgrading ? 'Opening portal...' : 'Manage Subscription'}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleUpgrade('team')}
+                        disabled={isUpgrading}
+                        className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-lg px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-wait cursor-pointer"
+                      >
+                        {isUpgrading ? 'Redirecting to Stripe...' : 'Upgrade to Team — $20/mo'}
                       </button>
                     )}
                     <p className="text-center text-[10px] text-content-subtle font-medium">Secured by Stripe · Cancel anytime · PCI-DSS compliant</p>

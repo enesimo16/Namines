@@ -432,8 +432,8 @@ export const authService = {
     return response.data;
   },
 
-  createCheckoutSession: async (): Promise<{ url?: string; redirect?: string }> => {
-    const response = await api.post('/subscription/checkout');
+  createCheckoutSession: async (plan: 'pro' | 'team' = 'pro'): Promise<{ url?: string; redirect?: string }> => {
+    const response = await api.post(`/subscription/checkout?plan=${plan}`);
     return response.data;
   },
 

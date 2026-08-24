@@ -40,7 +40,7 @@ public class UsageController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        var tier = PlanQuotas.Resolve(user?.SubscriptionStatus);
+        var tier = PlanQuotas.Resolve(user?.SubscriptionStatus, user?.PlanCode, user?.IsDev ?? false);
 
         var summary = await _context.PeriodSummaryAsync(userId, ct);
         var settings = await _context.UserBillingSettings.FirstOrDefaultAsync(s => s.UserId == userId, ct);

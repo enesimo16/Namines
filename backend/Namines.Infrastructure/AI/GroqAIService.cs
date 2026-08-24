@@ -127,10 +127,13 @@ public class GroqAIService : IAIService
         try
         {
             var db = httpContext.RequestServices.GetRequiredService<Namines.Infrastructure.Data.AuthDbContext>();
-            var status = await db.Users.AsNoTracking()
-                .Where(u => u.Id == userId).Select(u => u.SubscriptionStatus).FirstOrDefaultAsync();
+            var account = await db.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
+                .FirstOrDefaultAsync();
 
-            return UpstreamModel(NaiCatalog.ClampToPlan(requested, PlanQuotas.Resolve(status)));
+            return UpstreamModel(NaiCatalog.ClampToPlan(
+                requested, PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false)));
         }
         catch
         {

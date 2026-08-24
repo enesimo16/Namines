@@ -494,6 +494,27 @@ try
         return 0;
     }
 
+    // Sahip/geliştirici hesabı .env'den tohumlanıyor. Migration'dan SONRA olmalı:
+    // IsDev kolonu henüz yokken kullanıcı yazmaya çalışmak açılışı kırardı.
+    //
+    // Hata FIRLATMIYOR: sahip hesabı bir kolaylık, uygulamanın çalışma şartı
+    // değil — tohumlama takılırsa uygulamanın tamamen açılmaması orantısız olurdu.
+    using (var ownerScope = app.Services.CreateScope())
+    {
+        try
+        {
+            await Namines.API.Services.DevAccountSeeder.SeedAsync(
+                ownerScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                app.Configuration,
+                ownerScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger(nameof(Namines.API.Services.DevAccountSeeder)));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Sahip hesabı tohumlanamadı; uygulama sahip hesabı olmadan devam ediyor.");
+        }
+    }
+
     // X-Forwarded-* header'larını en başta işle: sonraki tüm middleware'ler (cookie Secure
     // bayrağı, rate limit partition'ı, redirect URL'leri) doğru şema/IP görsün.
     app.UseForwardedHeaders();

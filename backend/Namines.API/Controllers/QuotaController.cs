@@ -46,12 +46,14 @@ namespace Namines.API.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var status = string.IsNullOrEmpty(userId)
+            var account = string.IsNullOrEmpty(userId)
                 ? null
                 : await _context.Users.AsNoTracking()
-                    .Where(u => u.Id == userId).Select(u => u.SubscriptionStatus).FirstOrDefaultAsync();
+                    .Where(u => u.Id == userId)
+                    .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
+                    .FirstOrDefaultAsync();
 
-            var tier = PlanQuotas.Resolve(status);
+            var tier = PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false);
             var max = NaiCatalog.MaxFor(tier);
 
             return Ok(NaiCatalog.All.Select(m =>
@@ -85,9 +87,11 @@ namespace Namines.API.Controllers
             // Sınır PLANDAN geliyor. Yapılandırmadaki tek sayı, ücretli kullanıcıya
             // ücretsizle aynı bütçeyi gösteriyordu — kullanıcı ödediği şeyin
             // karşılığını ekranda göremiyordu.
-            var status = await _context.Users.AsNoTracking()
-                .Where(u => u.Id == userId).Select(u => u.SubscriptionStatus).FirstOrDefaultAsync();
-            var tier = PlanQuotas.Resolve(status);
+            var account = await _context.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
+                .FirstOrDefaultAsync();
+            var tier = PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false);
             var limits = PlanQuotas.For(tier);
 
             int dailyLimit = tier == PlanTier.Free &&

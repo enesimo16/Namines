@@ -73,12 +73,12 @@ public class GatewayKeyController : ControllerBase
         // İstek hakkı PLANIN tavanını aşamaz. Aksi hâlde ücretsiz bir hesap kendine
         // 100.000 rpm'lik bir anahtar üretip planı anlamsız kılardı — ve bunu
         // fark etmenin tek yolu faturaya bakmak olurdu.
-        var subscription = await _context.Users
+        var account = await _context.Users
             .Where(u => u.Id == userId)
-            .Select(u => u.SubscriptionStatus)
+            .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
             .FirstOrDefaultAsync(ct);
 
-        var tier = PlanQuotas.Resolve(subscription);
+        var tier = PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false);
         var planCeiling = PlanQuotas.For(tier).GatewayRequestsPerMinute;
 
         if (request.RateLimitPerMinute > planCeiling)

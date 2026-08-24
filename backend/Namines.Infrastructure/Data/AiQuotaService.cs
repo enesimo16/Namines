@@ -84,12 +84,12 @@ public sealed class AiQuotaService
     /// </summary>
     public async Task<PlanTier> TierAsync(string userId, CancellationToken ct = default)
     {
-        var status = await _context.Users
+        var row = await _context.Users
             .Where(u => u.Id == userId)
-            .Select(u => u.SubscriptionStatus)
+            .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
             .FirstOrDefaultAsync(ct);
 
-        return PlanQuotas.Resolve(status);
+        return PlanQuotas.Resolve(row?.SubscriptionStatus, row?.PlanCode, row?.IsDev ?? false);
     }
 
     /// <summary>
@@ -155,6 +155,15 @@ public sealed class AiQuotaService
     /// </summary>
     public async Task<AiQuotaDecision> CheckAsync(string userId, int estimatedTokens, CancellationToken ct = default)
     {
+        // Sahip hesabı hiçbir kapıya takılmıyor — ne kendi tavanına, ne paylaşılan
+        // havuza. Havuz kontrolünün de atlanması bilinçli: havuz "ücretsiz
+        // kullanıcılar toplamda şu kadar harcasın" demek, geliştiricinin kendi
+        // ürününü deneyemez hâle gelmesi değil.
+        //
+        // Harcama YİNE DE kaydediliyor (bkz. ConsumeAsync): sınırsız olmak,
+        // maliyetin görünmez olması anlamına gelmemeli.
+        if (await TierAsync(userId, ct) == PlanTier.Dev) return AiQuotaDecision.Allowed;
+
         var quota = await EnsureQuotaAsync(userId, ct);
 
         var today = DateTime.UtcNow.Date;

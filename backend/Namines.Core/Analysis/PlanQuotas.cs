@@ -18,6 +18,17 @@ public enum PlanTier
     Pro = 1,
     Team = 2,
     Enterprise = 3,
+
+    /// <summary>
+    /// Geliştirici/sahip hesabı — hiçbir sınır uygulanmaz.
+    ///
+    /// <b>Satılabilir bir plan DEĞİL.</b> Stripe'tan asla çıkmaz; yalnızca
+    /// <c>ApplicationUser.IsDev</c> bayrağıyla gelir ve o bayrağı da yalnızca
+    /// açılışta .env'den okunan tohumlama servisi set eder. Enum'un en sonunda
+    /// duruyor ki <c>ClampToPlan</c> gibi "daha büyük plan daha çok hak" varsayan
+    /// karşılaştırmalar doğru çalışsın.
+    /// </summary>
+    Dev = 99,
 }
 
 /// <param name="BranchDatabases">Aynı anda açık tutulabilen branch veritabanı sayısı. -1 = sınırsız.</param>
@@ -76,6 +87,15 @@ public static class PlanQuotas
         // yapılandırılana kadar geçerli bir başlangıç.
         PlanTier.Enterprise => new PlanLimits(-1, -1, -1,
             DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000),
+
+        // Sahip hesabında sınır yok. Token tavanı -1 DEĞİL, int.MaxValue:
+        // -1 "sınırsız" anlamına gelen sayaç alanları için doğru ama günlük
+        // token bütçesi bir ARİTMETİK sınır (kullanılan + istenen > tavan);
+        // oraya -1 koymak her isteği "tavanı aştın" saydırırdı — yani sınırsız
+        // hesap hiçbir şey yapamazdı.
+        PlanTier.Dev => new PlanLimits(-1, -1, -1,
+            DailyAiTokens: int.MaxValue, GatewayRequestsPerMinute: int.MaxValue),
+
         _ => For(PlanTier.Free),
     };
 
@@ -87,11 +107,48 @@ public static class PlanQuotas
     /// ücretli kaynak açmaya devam etmesi, faturayı büyütmekten başka işe yaramaz.
     /// </summary>
     public static PlanTier Resolve(string? subscriptionStatus) =>
-        subscriptionStatus?.Trim().ToLowerInvariant() switch
+        Resolve(subscriptionStatus, planCode: null, isDev: false);
+
+    /// <summary>
+    /// Dev bayrağını da hesaba katan çözümleme, plan kodu olmadan.
+    ///
+    /// Geriye dönük uyumluluk için: bazı çağıranlar henüz PlanCode'u seçmiyor.
+    /// Kod olmadan Pro/Team ayrımı yapılamaz, aktif abonelik varsayılan olarak
+    /// Pro sayılır — yanlış yönde ucuz hata etmek (Team'i Pro göstermek),
+    /// ters yönden (Pro'yu Team göstermek) daha güvenli.
+    /// </summary>
+    public static PlanTier Resolve(string? subscriptionStatus, bool isDev) =>
+        Resolve(subscriptionStatus, planCode: null, isDev);
+
+    /// <summary>
+    /// Tam çözümleme: sahiplik, plan kodu (Pro/Team) ve abonelik durumu birlikte.
+    ///
+    /// <b>Sahiplik her şeyi EZER ve önce bakılır.</b> Dev hesabının Stripe'ta
+    /// bir kaydı yok, yani <c>SubscriptionStatus</c>'ü boş; önce aboneliğe
+    /// bakılsaydı kendi ürününün geliştiricisi Free katmanda kalırdı.
+    ///
+    /// <b>Abonelik aktif değilse plan kodu HİÇ okunmuyor.</b> Ödemesi aksamış
+    /// bir Team hesabının eski plan kodu veritabanında kalmaya devam eder;
+    /// onu okumak, ödemeyi durduran birine Team hakkı vermeye devam etmek olurdu.
+    /// </summary>
+    public static PlanTier Resolve(string? subscriptionStatus, string? planCode, bool isDev)
+    {
+        if (isDev) return PlanTier.Dev;
+
+        var active = subscriptionStatus?.Trim().ToLowerInvariant() switch
         {
-            "active" or "trialing" => PlanTier.Pro,
-            _ => PlanTier.Free,
+            "active" or "trialing" => true,
+            _ => false,
         };
+
+        if (!active) return PlanTier.Free;
+
+        return planCode?.Trim().ToLowerInvariant() switch
+        {
+            "team" => PlanTier.Team,
+            _ => PlanTier.Pro,
+        };
+    }
 
     /// <summary>Sınıra ulaşıldı mı? -1 sınırsız demektir.</summary>
     public static bool IsExceeded(int limit, int current) => limit >= 0 && current >= limit;

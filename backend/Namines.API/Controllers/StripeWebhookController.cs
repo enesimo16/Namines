@@ -129,8 +129,10 @@ public class StripeWebhookController : ControllerBase
             return;
         }
 
-        // Retrieve the subscription to get period end date
+        // Retrieve the subscription to get period end date AND which price was
+        // bought — Checkout only tells us a session happened, not which plan.
         DateTime? periodEnd = null;
+        string? planCode = null;
         if (!string.IsNullOrEmpty(session.SubscriptionId))
         {
             try
@@ -138,6 +140,7 @@ public class StripeWebhookController : ControllerBase
                 var subService = new SubscriptionService();
                 var subscription = await subService.GetAsync(session.SubscriptionId);
                 periodEnd = subscription.CurrentPeriodEnd;
+                planCode = ResolvePlanCode(subscription.Items?.Data?.FirstOrDefault()?.Price?.Id);
             }
             catch (Exception ex)
             {
@@ -145,12 +148,13 @@ public class StripeWebhookController : ControllerBase
             }
         }
 
-        // Update user entity — elevate to Pro Member
+        // Update user entity — elevate to paid plan
         user.StripeCustomerId     = session.CustomerId;
         user.StripeSubscriptionId = session.SubscriptionId;
         user.SubscriptionStatus   = "active";
         user.CurrentPeriodEnd     = periodEnd;
-        user.Type                 = UserType.Corporate; // Elevate to Pro
+        user.PlanCode             = planCode;
+        user.Type                 = UserType.Corporate; // Elevate to paid
 
         var result = await _userManager.UpdateAsync(user);
         if (result.Succeeded)
@@ -178,6 +182,7 @@ public class StripeWebhookController : ControllerBase
         user.SubscriptionStatus   = "canceled";
         user.StripeSubscriptionId = null;
         user.CurrentPeriodEnd     = null;
+        user.PlanCode             = null;
         user.Type                 = UserType.Individual; // Downgrade to Free
 
         var result = await _userManager.UpdateAsync(user);
@@ -199,8 +204,11 @@ public class StripeWebhookController : ControllerBase
 
         user.SubscriptionStatus = subscription.Status; // active | past_due | canceled | etc.
         user.CurrentPeriodEnd   = subscription.CurrentPeriodEnd;
+        // Plan değişebilir (Pro→Team upgrade portal üzerinden): her güncellemede
+        // fiyattan yeniden okunuyor, yalnızca ilk abonelikte değil.
+        user.PlanCode           = ResolvePlanCode(subscription.Items?.Data?.FirstOrDefault()?.Price?.Id);
 
-        // Restore Pro if payment recovered
+        // Restore paid access if payment recovered
         if (subscription.Status == "active")
             user.Type = UserType.Corporate;
         // Soft downgrade on past_due — keep access for now, will hard downgrade on deletion
@@ -209,5 +217,26 @@ public class StripeWebhookController : ControllerBase
 
         await _userManager.UpdateAsync(user);
         _logger.LogInformation("[STRIPE WEBHOOK] 🔄 Subscription updated for user {UserId}: {Status}", user.Id, subscription.Status);
+    }
+
+    /// <summary>
+    /// Stripe fiyat ID'sinden plan kodunu ("pro" | "team") çıkarır.
+    ///
+    /// <b>Eşleşmeyen ya da eksik fiyat "pro" sayılır, null DEĞİL.</b> Webhook
+    /// zaten aboneliği "active" işaretlemiş durumda; kullanıcıyı ödemesiz Free'ye
+    /// düşürmek yerine daha ucuz plana (Pro) yerleştirmek, ödeyen birine hizmet
+    /// vermeme riskini azaltıyor. Yapılandırma hatası varsa loglanıyor.
+    /// </summary>
+    private string ResolvePlanCode(string? priceId)
+    {
+        var teamPriceId = _config["Stripe:TeamPriceId"];
+
+        if (!string.IsNullOrWhiteSpace(priceId) && !string.IsNullOrWhiteSpace(teamPriceId) && priceId == teamPriceId)
+            return "team";
+
+        if (string.IsNullOrWhiteSpace(priceId))
+            _logger.LogWarning("[STRIPE WEBHOOK] Subscription has no price line item; defaulting PlanCode to 'pro'.");
+
+        return "pro";
     }
 }
