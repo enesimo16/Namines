@@ -1757,6 +1757,45 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
 
 ---
 
+## G51 — Netleştirme ajanı + tek elden NAI modeli ✅ TAMAMLANDI
+
+Tasarım ve gerekçeler: [36 §3](36-KOTA-VE-AJAN.md).
+
+- [x] **İş türü tespiti sıfır AI ile** (`ArchetypeDetector`). 14 tür, TR+EN anahtar
+      kelime. Berabere kalırsa `Generic` — iki tür aynı puanı aldıysa hangisi olduğunu
+      bilmiyoruz, tahmin etmek yanlış soruyu güvenle sormaktan kötü.
+- [x] **Soru bankası** (`ClarifyingQuestions`). Türe özel sorular ÖNCE, en fazla beş,
+      her birinin gerekçesi ve varsayılanı var. `POST /api/schema/clarify` bedava ve
+      kimlik istemiyor. Doğrulama: e-ticaret prompt'u → `Ecommerce` + 5 soru,
+      oyun prompt'u → `Game` + oyuna özel sorular, ikisi de 0 token.
+- [x] **Alan rolleri** (`ArchetypeRoles`). Tür tanınırsa taslak prompt'una o alanın
+      somut kuralları ekleniyor (fintech'te para float değil, IoT'de ölçüm tablosu
+      dar). Tanınmayan türe hiç metin eklenmiyor.
+- [x] **NAI model kataloğu** (`NaiCatalog`). Sekiz sağlayıcı modeli → `nai-flash`
+      (×0,5) / `nai` (×1,0) / `nai-pro` (×2,0). Sağlayıcı adı kullanıcıya hiç
+      gösterilmiyor. Plana kapalı model reddedilmiyor, indiriliyor.
+- [x] **Arayüz**: landing dropdown'ı ve ayarlardaki sekiz kademeli `AIMode` seçici
+      üçe indi, liste `GET /api/quota/models`'ten geliyor. Netleştirme diyaloğu
+      gerçek tarayıcıda doğrulandı (Game tanındı, sayaç 3/5, buton "Skip &
+      generate"den "Generate Schema"ya döndü, 401'de prompt korundu).
+- [x] **429 artık gerçekten 429.** 12 çağrı noktasının 6'sında rate-limit kontrolü
+      yoktu; hepsi `ThrowForFailure`'a bağlandı, `AiRateLimitException` →
+      HTTP 429 + `Retry-After`. Gerçek Groq limitine karşı doğrulandı.
+
+> **Bu G'de bulunan iki gerçek hata:** (1) `ClampToPlan` yazılmış ama çözümleme
+> yoluna hiç bağlanmamıştı — ücretsiz hesaplar en pahalı modeli kullanıyor,
+> paylaşılan havuzu en hızlı hiç ödemeyen kullanıcılar tüketiyordu. (2) Sağlayıcının
+> geçici rate limit'i kullanıcıya kalıcı bir arıza (500) gibi görünüyordu.
+>
+> **Doğrulanamayan tek şey:** cevapların modele ulaştığı uçtan uca *canlı* koşu.
+> Groq deneme anahtarının günlük token bütçesi doğrulama koşuları sırasında
+> tükendi (Retry-After ~20 dk). Prompt zenginleştirmesi birim testleriyle kapalı
+> ve istek AI çağrısına kadar ulaşıyor — yani ayrıştırma çalışıyor.
+
+1103 test yeşil, `next build` temiz.
+
+---
+
 ## G-ekstra — Yol boyunca bulunanlar
 
 - [x] `launchSettings.json` port çelişkisi — **zaten çözülmüştü** (`dfdfc49`, bu G14
