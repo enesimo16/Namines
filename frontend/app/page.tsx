@@ -8,6 +8,8 @@ import { useSchemaStore } from '../store/useSchemaStore';
 import { useToastStore } from '../store/useToastStore';
 import { useAuthModalStore } from '../store/useAuthModalStore';
 import VoiceRecorder from '../components/landing/VoiceRecorder';
+import ClarifyDialog from '../components/landing/ClarifyDialog';
+import { ClarifyResponse, NaiModelOption } from '../types/nai';
 
 export default function LandingPage() {
   const [prompt, setPrompt] = useState('');
@@ -21,17 +23,21 @@ export default function LandingPage() {
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [dbDropdownOpen, setDbDropdownOpen] = useState(false);
 
+  // Netleştirme adımı: doluysa sorular gösteriliyor, üretim henüz başlamadı.
+  const [clarify, setClarify] = useState<ClarifyResponse | null>(null);
+  const [isClarifying, setIsClarifying] = useState(false);
+  const [models, setModels] = useState<NaiModelOption[]>([]);
+
   const router = useRouter();
   // V2: dbType artık global store'dan geliyor
   const { 
     setIsGenerating, 
     loadFromSchema, 
     isGenerating, 
-    aiProvider, 
-    modelName, 
+    naiModel,
     dbType, 
     setDbType,
-    setProviderAndModel 
+    setNaiModel 
   } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
 
@@ -66,19 +72,20 @@ export default function LandingPage() {
     };
   }, []);
 
-  // Unified model list: Groq Cloud + Gemini + Ollama Local
-  const allModels = [
-    // ── Groq Cloud ────────────────────────────────────────
-    { id: 'llama-3.1-8b-instant',      label: 'Llama 3.1 (8B)',         provider: 'Groq',   group: 'Groq Cloud' },
-    { id: 'llama-3.3-70b-versatile',   label: 'Llama 3.3 (70B)',        provider: 'Groq',   group: 'Groq Cloud' },
-    { id: 'mixtral-8x7b-32768',        label: 'Mixtral 8x7B',           provider: 'Groq',   group: 'Groq Cloud' },
-    { id: 'openai/gpt-oss-120b',       label: 'GPT-OSS 120B (Ultra)',   provider: 'Groq',   group: 'Groq Cloud' },
-    // ── Google Gemini ─────────────────────────────────────
-    { id: 'gemini-1.5-flash',          label: 'Gemini 2.5 Flash',       provider: 'Gemini', group: 'Google Gemini' },
-    { id: 'gemini-1.5-pro',            label: 'Gemini 2.5 Pro',         provider: 'Gemini', group: 'Google Gemini' },
-    // ── Local (Ollama / qwen fixed) ─────────────────────
-    { id: 'qwen2.5-coder:7b',          label: 'Qwen 2.5 Coder 7B',     provider: 'Ollama', group: 'Local Engine' },
-  ];
+  // Model listesi SUNUCUDAN geliyor: hangi modelin hangi plana açık olduğunu
+  // istemcide tekrar yazmak, iki kaynağın ayrışması demekti. Liste alınamazsa
+  // seçici gizleniyor ve varsayılan model kullanılıyor — model seçememek şema
+  // üretimini engellememeli.
+  useEffect(() => {
+    let cancelled = false;
+    schemaService.naiModels()
+      .then(list => { if (!cancelled) setModels(list); })
+      .catch(() => { /* sessiz: seçici olmadan da üretim çalışıyor */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const selectedModel = models.find(m => m.id === naiModel);
+
 
   useEffect(() => {
     const container = document.getElementById('stars-container');
@@ -146,13 +153,35 @@ export default function LandingPage() {
     }
   };
 
+  /**
+   * Üretim ARTIK doğrudan başlamıyor: önce bedava netleştirme adımı geliyor.
+   *
+   * Tek bir cümleden şema üretmek, modelin boşlukları kendi başına doldurması
+   * demekti — kullanıcı sonucu ancak ekranda yanlış tabloları görünce fark
+   * ediyordu. Sorular sunucuda anahtar kelimeden çıkıyor, bu istek AI
+   * kullanmıyor ve kotayı hiç etkilemiyor.
+   */
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim()) return;
 
+    setIsClarifying(true);
+    try {
+      setClarify(await schemaService.clarify(prompt));
+    } catch (error) {
+      // Netleştirme bir iyileştirme, zorunluluk değil: bu adım düşerse
+      // kullanıcının asıl isteği (şema üretmek) düşmemeli.
+      console.error('Clarify step failed, generating directly:', error);
+      await runGeneration({});
+    } finally {
+      setIsClarifying(false);
+    }
+  };
+
+  const runGeneration = async (answers: Record<string, string>) => {
     try {
       setIsGenerating(true);
-      const schema = await schemaService.generateSchema(prompt, dbType, aiProvider, modelName, image, referenceUrl);
+      const schema = await schemaService.generateSchema(prompt, dbType, naiModel, image, referenceUrl, answers);
       loadFromSchema(schema);
       router.push('/canvas');
     } catch (error: any) {
@@ -161,10 +190,20 @@ export default function LandingPage() {
         // Guest: AI şema üretimi giriş gerektiriyor → net mesaj + login modalı.
         showToast('Please log in to generate a schema.', 'warning');
         useAuthModalStore.getState().open();
+      } else if (error?.response?.status === 429) {
+        // Bu bir arıza değil, bir sınır — "bir hata oluştu" demek yanıltıcı olurdu.
+        const retryAfter = error?.response?.headers?.['retry-after'];
+        showToast(
+          retryAfter
+            ? `AI is busy right now. Try again in ${retryAfter} seconds.`
+            : 'Your daily AI budget is used up. It resets tomorrow.',
+          'warning'
+        );
       } else {
         showToast('An error occurred while generating the schema. Please try again.', 'error');
       }
       setIsGenerating(false);
+      setClarify(null);
     }
   };
 
@@ -281,7 +320,13 @@ export default function LandingPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
               <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto shrink-0">
 
-                {/* Unified AI Model Select */}
+                {/* Namines AI model seçici (new-phase/36 §3).
+                    Sağlayıcı adları (Groq/Gemini/Ollama) ve model kimlikleri
+                    ARTIK GÖSTERİLMİYOR: kullanıcının "llama-3.3-70b" ile
+                    "mixtral" arasında seçim yapması gereken bir karar değildi,
+                    ve sağlayıcı o modeli kaldırdığında ürün bozulmuş
+                    görünüyordu. */}
+                {models.length > 0 && (
                 <div className="relative flex-1 min-w-[120px] sm:flex-initial sm:w-[205px]" ref={modelDropdownRef}>
                   <button
                     type="button"
@@ -290,32 +335,44 @@ export default function LandingPage() {
                     className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
                   >
                     <span className="truncate">
-                      {allModels.find(m => m.id === modelName)?.label || modelName}
+                      {selectedModel?.displayName || 'Namines AI'}
                     </span>
                     <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {modelDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(0,0,0,0.4)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
-                      {allModels.map(m => {
-                        const isSelected = m.id === modelName;
+                    <div className="absolute left-0 bottom-full mb-2 w-[260px] rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(0,0,0,0.4)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
+                      {models.map(m => {
+                        const isSelected = m.id === naiModel;
                         return (
                           <button
                             key={m.id}
                             type="button"
+                            disabled={!m.available}
                             onClick={() => {
-                              setProviderAndModel(m.provider as 'Groq' | 'Ollama' | 'Gemini', m.id);
+                              setNaiModel(m.id);
                               setModelDropdownOpen(false);
                             }}
-                            className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all text-left ${
-                              isSelected
+                            className={`flex items-start justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-left ${
+                              !m.available
+                                ? 'opacity-40 cursor-not-allowed text-content-muted'
+                                : isSelected
                                 ? 'bg-white/[0.08] text-content-primary border-l-2 border-white/40 pl-2'
                                 : 'text-content-muted hover:bg-white/[0.04] hover:text-content-primary'
                             }`}
                           >
-                            <span>{m.label}</span>
-                            {isSelected && (
-                                <Check className="w-3 h-3 text-content-primary" />
+                            <span className="min-w-0">
+                              <span className="block text-xs font-medium">{m.displayName}</span>
+                              <span className="block text-[10px] opacity-70 leading-snug">{m.description}</span>
+                              {/* Maliyet çarpanı gösteriliyor: kullanıcı bütçesini
+                                  daha hızlı tükettiğini faturayı görünce değil,
+                                  seçerken bilmeli. */}
+                              <span className="block text-[10px] opacity-50 mt-0.5">
+                                {m.available ? `Uses ${m.costMultiplier}× budget` : 'Available on paid plans'}
+                              </span>
+                            </span>
+                            {isSelected && m.available && (
+                              <Check className="w-3 h-3 text-content-primary shrink-0 mt-0.5" />
                             )}
                           </button>
                         );
@@ -323,6 +380,7 @@ export default function LandingPage() {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Database Select */}
                 <div className="relative flex-1 min-w-[140px] sm:flex-initial sm:w-[215px]" ref={dbDropdownRef}>
@@ -391,13 +449,13 @@ export default function LandingPage() {
               {/* Generate Button */}
               <button
                 type="submit"
-                disabled={isGenerating || !prompt.trim()}
+                disabled={isGenerating || isClarifying || !prompt.trim()}
                 className="w-full md:w-auto bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
-                {isGenerating ? (
+                {isGenerating || isClarifying ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Generating...</span>
+                    <span>{isClarifying ? 'Thinking...' : 'Generating...'}</span>
                   </>
                 ) : (
                   <>
@@ -410,6 +468,15 @@ export default function LandingPage() {
           </form>
         </div>
       </main>
+
+      {clarify && (
+        <ClarifyDialog
+          data={clarify}
+          isGenerating={isGenerating}
+          onCancel={() => setClarify(null)}
+          onSubmit={runGeneration}
+        />
+      )}
     </div>
   );
 }

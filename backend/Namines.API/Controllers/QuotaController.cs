@@ -37,6 +37,10 @@ namespace Namines.API.Controllers
         /// Planın izin vermediği model listede ama <c>available:false</c>: gizlemek
         /// yerine göstermek, yükseltme sebebini de göstermek demek.
         /// </summary>
+        // Misafir de gorebilmeli: landing sayfasindaki secici, kullanici giris
+        // yapmadan once de doluyor. Kimlik yoksa plan Free varsayiliyor, yani
+        // misafire yalnizca ucretsiz planin modelleri "available" gorunuyor.
+        [AllowAnonymous]
         [HttpGet("models")]
         public async Task<IActionResult> Models()
         {

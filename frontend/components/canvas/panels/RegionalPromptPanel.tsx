@@ -15,7 +15,7 @@ import { flowToSchema } from '../../../lib/flowToSchema';
  */
 export default function RegionalPromptPanel() {
   const { getNodes, getEdges } = useReactFlow();
-  const { schema, applyRevision, aiProvider, modelName, dbType, loadFromSchema } = useSchemaStore();
+  const { schema, applyRevision, naiModel, dbType, loadFromSchema } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
   const { checkAccess } = useAIGateway();
   const [prompt, setPrompt] = useState('');
@@ -53,7 +53,7 @@ export default function RegionalPromptPanel() {
         selectedTableIds.includes(r.sourceTableId) || selectedTableIds.includes(r.targetTableId)
       );
 
-      const partialSchema = await schemaService.reviseSchema(selectedTables, existingRelations, prompt, aiProvider, modelName);
+      const partialSchema = await schemaService.reviseSchema(selectedTables, existingRelations, prompt, naiModel);
 
       applyRevision(partialSchema);
       setPrompt('');
@@ -78,7 +78,7 @@ export default function RegionalPromptPanel() {
 
       try {
         setIsRevising(true);
-        const generated = await schemaService.generateSchema(prompt, dbType, aiProvider, modelName);
+        const generated = await schemaService.generateSchema(prompt, dbType, naiModel);
         loadFromSchema(generated);
         setPrompt('');
         showToast("Database schema successfully generated!", "success");

@@ -36,7 +36,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
   const selectedTableFilter = useDbaStore(state => state.selectedTableFilter);
   const setSelectedTableFilter = useDbaStore(state => state.setSelectedTableFilter);
 
-  const { schema, loadFromSchema, aiProvider, modelName } = useSchemaStore();
+  const { schema, loadFromSchema, naiModel } = useSchemaStore();
   const { activeProjectId } = useProjectHistoryStore();
   const [isFixing, setIsFixing] = useState(false);
   const [isAnalyzingLocal, setIsAnalyzingLocal] = useState(false);
@@ -114,8 +114,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         schema.tables,
         schema.relations || [],
         prompt,
-        aiProvider,
-        modelName
+        naiModel
       );
 
       loadFromSchema(revisedSchema, undefined, true);

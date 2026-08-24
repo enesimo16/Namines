@@ -64,8 +64,15 @@ interface SchemaState {
 
   // ── Hafif UI state (persist edilir) ──
   isGenerating: boolean;
-  aiProvider: 'Groq' | 'Ollama' | 'Gemini';
-  modelName: string;
+  /**
+   * Kullanicinin sectigi Namines AI modeli: 'nai-flash' | 'nai' | 'nai-pro'.
+   *
+   * Saglayici adi (Groq/Gemini/Ollama) ARTIK TUTULMUYOR. Kullanicinin hangi
+   * saglayicinin hangi modelini kullandigini bilmesi gerekmiyor ve bilmesi
+   * zararliydi: yapilandirmadaki bir Groq modeli bir gun kaldirildi, secili
+   * kalan kullanicilarin sema uretimi tamamen durdu. Esleme artik sunucuda.
+   */
+  naiModel: string;
   projectName: string;
   dbType: DbType;
 
@@ -75,7 +82,7 @@ interface SchemaState {
 
   // ── Actions ──
   setIsGenerating: (isGenerating: boolean) => void;
-  setProviderAndModel: (provider: 'Groq' | 'Ollama' | 'Gemini', model: string) => void;
+  setNaiModel: (model: string) => void;
   setProjectName: (name: string) => void;
   setDbType: (dbType: DbType) => void;
   loadFromSchema: (schema: DatabaseSchema, nodePositions?: Record<string, { x: number; y: number }>, preserveProjectName?: boolean) => void;
@@ -117,8 +124,7 @@ export const useSchemaStore = create<SchemaState>()(
 
       // Hafif state — persist edilir
       isGenerating: false,
-      aiProvider: 'Groq',
-      modelName: 'llama-3.3-70b-versatile',
+      naiModel: 'nai',
       projectName: 'Yeni Proje',
       dbType: 'MSSQL',
 
@@ -132,7 +138,7 @@ export const useSchemaStore = create<SchemaState>()(
 
       // ── Temel actions ─────────────────────────────────────────────────────
       setIsGenerating: (isGenerating) => set({ isGenerating }),
-      setProviderAndModel: (provider, model) => set({ aiProvider: provider, modelName: model }),
+      setNaiModel: (model) => set({ naiModel: model }),
       setProjectName: (name) => set({ projectName: name }),
       setDbType: (dbType) => set({ dbType }),
 
@@ -721,8 +727,7 @@ export const useSchemaStore = create<SchemaState>()(
         // Sayfa yenilendiğinde schema, activeProjectId üzerinden loadProject() ile restore edilir.
         projectName: state.projectName,
         dbType: state.dbType,
-        aiProvider: state.aiProvider,
-        modelName: state.modelName,
+        naiModel: state.naiModel,
       }),
     }
   )

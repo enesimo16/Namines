@@ -5,6 +5,7 @@ import { ChangeRequestSummary, ChangeRequestDetail, ApprovalDecision, ChangeRequ
 import { GatewayListResult, GatewayRow } from '../types/gateway';
 import { ProjectMember, OrgRole } from '../types/member';
 import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
+import { ClarifyResponse, NaiModelOption } from '../types/nai';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 import { useSchemaStore } from '../store/useSchemaStore';
@@ -22,14 +23,35 @@ const api = axios.create({
 });
 
 export const schemaService = {
-  generateSchema: async (prompt: string, dbType: string, aiProvider: string, modelName: string, image?: File | null, referenceUrl?: string): Promise<DatabaseSchema> => {
+  /**
+   * Netlestirici sorular. AI KULLANMIYOR, kotayi hic etkilemiyor ve kimlik
+   * istemiyor -- kullanici sorulari gormeden tek token harcanmamali.
+   */
+  clarify: async (prompt: string): Promise<ClarifyResponse> => {
+    const response = await api.post<ClarifyResponse>('/schema/clarify', { prompt });
+    return response.data;
+  },
+
+  /** Plana gore kullanilabilir Namines AI modelleri. */
+  naiModels: async (): Promise<NaiModelOption[]> => {
+    const response = await api.get<NaiModelOption[]>('/quota/models');
+    return response.data;
+  },
+
+  generateSchema: async (prompt: string, dbType: string, naiModel: string, image?: File | null, referenceUrl?: string, answers?: Record<string, string>): Promise<DatabaseSchema> => {
     const formData = new FormData();
     formData.append('Prompt', prompt);
     formData.append('DbType', dbType);
-    formData.append('AIProvider', aiProvider);
-    formData.append('ModelName', modelName);
+    // Saglayici artik sunucuda cozuluyor; 'Groq' burada yalnizca eski
+    // sozlesmeyi karsilamak icin duruyor, model adi ('nai', 'nai-pro') ise
+    // NaiCatalog tarafindan gercek ustteki modele eslenıyor.
+    formData.append('AIProvider', 'Groq');
+    formData.append('ModelName', naiModel);
     if (image) formData.append('Image', image);
     if (referenceUrl) formData.append('ReferenceUrl', referenceUrl);
+    // Cevaplanmayan sorular sunucuda VARSAYILANIYLA dolduruluyor, bos
+    // gonderilmeleri isteği düşürmüyor.
+    if (answers && Object.keys(answers).length > 0) formData.append('Answers', JSON.stringify(answers));
 
     const response = await api.post<DatabaseSchema>('/schema/generate', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -37,13 +59,13 @@ export const schemaService = {
     return response.data;
   },
 
-  reviseSchema: async (selectedTables: any[], existingRelations: any[], prompt: string, aiProvider: string, modelName: string): Promise<DatabaseSchema> => {
+  reviseSchema: async (selectedTables: any[], existingRelations: any[], prompt: string, naiModel: string): Promise<DatabaseSchema> => {
     const response = await api.post<DatabaseSchema>('/schema/revise', {
       revisionPrompt: prompt,
       selectedTables,
       existingRelations,
-      aiProvider,
-      modelName
+      aiProvider: 'Groq',
+      modelName: naiModel
     });
     return response.data;
   },
@@ -450,15 +472,6 @@ api.interceptors.request.use(
         console.error('BYOK header injection error', e);
       }
 
-      // Inject AI Provider Header (Ollama local / Gemini / Groq)
-      try {
-        const aiProvider = useSchemaStore.getState().aiProvider;
-        if (aiProvider) {
-          config.headers['X-AI-Provider'] = aiProvider;
-        }
-      } catch (e) {
-        console.error('AI provider header injection error', e);
-      }
     }
     return config;
   },

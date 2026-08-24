@@ -101,16 +101,20 @@ function CustomSelect<T extends string | number>({
   );
 }
 
+// Üç Namines AI modeli (new-phase/36 §3). Sekiz sağlayıcı modeli yerine üç
+// kendi adımız duruyor.
+//
+// Bunun sebebi kozmetik değil: yapılandırmadaki bir Groq modeli bir gün
+// kaldırıldı ve o modeli seçmiş kullanıcıların şema üretimi tamamen durdu.
+// Ad bizim olunca üstteki değişiklik sunucuda tek satırda kapanıyor.
+//
+// Sayılar eski AIMode değerleri: sunucu bunları üç modele indirgiyor
+// (Low→flash, Medium→standard, Ultra→pro). Kayıtlı eski tercihler
+// atılmıyor, karşılığına çevriliyor.
 const policyOptions = [
-  { value: 0, label: 'Default (Namines)' },
-  { value: 1, label: 'Low · Llama 3.2 3B' },
-  { value: 2, label: 'Medium · Llama 3.1 8B' },
-  { value: 3, label: 'High · Llama 3.3 70B' },
-  { value: 6, label: 'High+ · Mixtral 8x7B' },
-  { value: 7, label: 'High+ · Gemini 2.5 Flash' },
-  { value: 4, label: 'Ultra · GPT-OSS 120B' },
-  { value: 8, label: 'Ultra · Gemini 2.5 Pro' },
-  { value: 5, label: 'Custom' }
+  { value: 1, label: 'nai flash · fast, light' },
+  { value: 2, label: 'nai · balanced (default)' },
+  { value: 4, label: 'nai pro · deepest reasoning' }
 ];
 
 const seedDomainOptions = [
@@ -520,15 +524,9 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-content-primary/8 text-content-secondary">
-                  <tr><td className="py-1.5 px-3 font-medium">Default (Namines) / Local Fallback</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">0x (0%)</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">Low — Llama 3.2 3B</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">1x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">Medium — Llama 3.1 8B</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">2x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">High — Llama 3.3 70B</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">4x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">High+ — Mixtral 8x7B</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">5x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">High+ — Gemini 2.5 Flash</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">5x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">Ultra — GPT-OSS 120B (via Groq)</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">6x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">Ultra — Gemini 2.5 Pro</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">6x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">Custom</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">0x (0%)</td></tr>
+                  <tr><td className="py-1.5 px-3 font-medium">nai flash</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">0.5x</td></tr>
+                  <tr><td className="py-1.5 px-3 font-medium">nai</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">1x</td></tr>
+                  <tr><td className="py-1.5 px-3 font-medium">nai pro <span className="opacity-60">(paid plans)</span></td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">2x</td></tr>
                 </tbody>
               </table>
             </div>
@@ -963,9 +961,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           <p className="font-semibold text-content-secondary uppercase tracking-wider">AI Cost Multiplier Legend</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                             {[
-                              ['Default', '0% (Local)'], ['Low', '1x · Llama 3.2'], ['Medium', '2x · Llama 3.1'],
-                              ['High', '4x · Llama 3.3'], ['High+', '5x · Mixtral'], ['High+ G', '5x · Flash'],
-                              ['Ultra', '6x · GPT-OSS'], ['Ultra G', '6x · Gem Pro'], ['Custom', '0% (Custom)'],
+                              ['nai flash', '0.5x'], ['nai', '1x'], ['nai pro', '2x'],
                             ].map(([label, val]) => (
                               <div key={label} className="p-1.5 bg-surface-800 rounded text-center">
                                 <span className="block font-bold text-content-secondary">{label}</span>
@@ -1193,14 +1189,14 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </div>
                     <div className="w-full h-5 rounded-lg overflow-hidden flex bg-surface-600">
                       <div className="h-full bg-white/[0.15]" style={{ width: '55%' }} title="Local Engine: 55%" />
-                      <div className="h-full bg-white/[0.25]" style={{ width: '25%' }} title="Llama 8B: 25%" />
-                      <div className="h-full bg-white/[0.4]" style={{ width: '15%' }} title="Llama 70B: 15%" />
+                      <div className="h-full bg-white/[0.25]" style={{ width: '25%' }} title="nai: 25%" />
+                      <div className="h-full bg-white/[0.4]" style={{ width: '15%' }} title="nai pro: 15%" />
                       <div className="h-full bg-white/[0.6]" style={{ width: '5%' }} title="Custom: 5%" />
                     </div>
                     <div className="flex flex-wrap gap-x-6 gap-y-2 text-[10px] font-semibold text-content-muted uppercase tracking-wide">
                       <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.15]" /><span>Local (55%)</span></div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.25]" /><span>Llama 8B (25%)</span></div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.4]" /><span>Llama 70B (15%)</span></div>
+                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.25]" /><span>nai (25%)</span></div>
+                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.4]" /><span>nai pro (15%)</span></div>
                       <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.6]" /><span>Custom (5%)</span></div>
                     </div>
                   </div>
@@ -1293,7 +1289,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <div className="text-2xl font-bold text-content-primary">$0 <span className="text-xs font-normal text-content-subtle">/ forever</span></div>
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
-                      {['100% daily cloud credits bar', 'Access to Medium (Llama 8B) models', 'Local SQLite (WASM) compiler', 'Basic DBA linting & diagnostics'].map(f => (
+                      {['100% daily cloud credits bar', 'nai and nai flash models', 'Local SQLite (WASM) compiler', 'Basic DBA linting & diagnostics'].map(f => (
                         <li key={f} className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-success-text shrink-0" />
                           <span>{f}</span>
@@ -1317,7 +1313,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <div className="text-2xl font-bold text-content-primary">$5 <span className="text-xs font-normal text-content-subtle">/ month</span></div>
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
-                      {['Unlimited AI requests', 'High (Llama 70B) & Ultra (BYOK) model tiers', 'SignalR multiplayer team collaboration', 'Full cloud database backups & history sync', 'Priority support & Slack channel access'].map(f => (
+                      {['Unlimited AI requests', 'nai pro model tier', 'SignalR multiplayer team collaboration', 'Full cloud database backups & history sync', 'Priority support & Slack channel access'].map(f => (
                         <li key={f} className="flex items-center gap-2">
                           <Sparkles className="w-3.5 h-3.5 text-accent-text shrink-0" />
                           <span>{f}</span>
