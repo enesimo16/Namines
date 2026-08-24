@@ -1,4 +1,9 @@
 using System;
+using Microsoft.AspNetCore.Authorization;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using Namines.Core.Analysis;
 using System.Security.Claims;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
@@ -31,6 +36,46 @@ public class SchemaController : ControllerBase
         _smartSeedService = smartSeedService;
         _agent = agent;
         _quota = quota;
+    }
+
+    /// <summary>
+    /// Kullanıcının cümlesine göre netleştirici sorular (36 §2).
+    ///
+    /// <b>HİÇ AI kullanmıyor ve bu bilinçli.</b> İş türü anahtar kelimelerden
+    /// çıkarılıyor, sorular sabit bir bankadan geliyor. Soruları modele
+    /// ürettirmek daha "akıllı" görünürdü ama üç bedeli vardı: kullanıcı daha
+    /// hiçbir şey görmeden token harcanırdı, aynı isteğe her seferinde farklı
+    /// sorular sorulurdu (kararsız bir ürün), ve model cevaplanamaz soru
+    /// üretebilirdi.
+    ///
+    /// Sonuç: bu uç <b>bedava</b> ve kotayı hiç etkilemiyor.
+    /// </summary>
+    [HttpPost("clarify")]
+    [AllowAnonymous]
+    public IActionResult Clarify([FromBody] ClarifyRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.Prompt))
+            return BadRequest(new { message = "Prompt cannot be empty." });
+
+        var archetype = ArchetypeDetector.Detect(request.Prompt);
+        var questions = ClarifyingQuestions.For(archetype);
+
+        return Ok(new
+        {
+            archetype = archetype.ToString(),
+            // Kullanıcı tanınmadığını görebilmeli: "Generic" dönerse sorular
+            // geneldir ve bunu gizlemek, alakasız görünen soruları açıklamasız
+            // bırakır.
+            recognised = archetype != ProjectArchetype.Generic,
+            questions = questions.Select(q => new
+            {
+                q.Id,
+                q.Text,
+                q.Options,
+                q.Why,
+                q.DefaultOption,
+            }),
+        });
     }
 
     [HttpPost("generate")]
@@ -78,6 +123,17 @@ public class SchemaController : ControllerBase
         if (_agent is null || !string.Equals(request.AIProvider, "Groq", StringComparison.OrdinalIgnoreCase))
             return Ok(await aiService.GenerateSchemaAsync(request));
 
+        // Netleştirme cevapları prompt'a ekleniyor. Cevaplanmamış sorular
+        // VARSAYILANIYLA yazılıyor: atlamak, modelin o boşluğu yine kendi
+        // doldurması demek olurdu ve sormanın amacı tam olarak buydu.
+        var archetype = ArchetypeDetector.Detect(request.Prompt);
+        var context = ClarifyingQuestions.ToPromptContext(
+            archetype, ClarifyingQuestions.For(archetype), ParseAnswers(request.Answers));
+
+        var enrichedPrompt = string.IsNullOrWhiteSpace(context)
+            ? request.Prompt
+            : request.Prompt + "\n\n--- Requirements gathered from the user ---\n" + context;
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         // Kaç tur harcayabileceğimizi BÜTÇE söylüyor, hat değil. Bir kullanıcının
@@ -87,7 +143,7 @@ public class SchemaController : ControllerBase
 
         try
         {
-            var result = await _agent.RunAsync(request.Prompt, request.DbType, budgetRounds, HttpContext.RequestAborted);
+            var result = await _agent.RunAsync(enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted);
 
             // Harcanan TUR sayısı kadar ölçüm: bir tur da üç tur da aynı maliyete
             // sayılırsa, düzeltme döngüsü bedava görünür ve bütçe anlamını yitirir.
@@ -104,6 +160,7 @@ public class SchemaController : ControllerBase
                 schema = result.Schema,
                 agent = new
                 {
+                    archetype = archetype.ToString(),
                     result.Rounds,
                     result.Clean,
                     result.PortableEverywhere,
@@ -116,6 +173,35 @@ public class SchemaController : ControllerBase
         {
             // Bütçe yetmiyor — 500 değil 429: bu bir arıza değil, bir sınır.
             return StatusCode(429, new { message = ex.Message });
+        }
+        catch (AiRateLimitException ex)
+        {
+            // Sağlayıcının geçici sınırı da 429. Canlı denemede bu 500 olarak
+            // dönüyordu ve kullanıcı "ürün bozuldu" sanıyordu; oysa doğru cevap
+            // "birazdan tekrar dene" ve süresi de belli.
+            Response.Headers.RetryAfter = ex.RetryAfterSeconds;
+            return StatusCode(429, new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
+        }
+    }
+
+    /// <summary>
+    /// Cevap sözlüğünü JSON'dan okur.
+    ///
+    /// Bozuk JSON isteği REDDETTİRMİYOR: cevaplar bir iyileştirme, zorunluluk
+    /// değil. Kullanıcının şema üretme isteği, formun bir alanı bozuk diye
+    /// tamamen düşmemeli.
+    /// </summary>
+    private static Dictionary<string, string>? ParseAnswers(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Interfaces;
+using Namines.Core.Analysis;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Enums;
@@ -48,6 +49,7 @@ public class GroqAIService : IAIService
     private readonly HttpClient _httpClient;
     private readonly string _modelName;
     private readonly string _groqApiKey;   // Per-request inject edilir — DefaultRequestHeaders'a yazılmaz
+    private readonly IConfiguration _configuration;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IMemoryCache _cache;
@@ -72,7 +74,9 @@ public class GroqAIService : IAIService
         // DefaultRequestHeaders.Authorization KULLANILMAZ: thread pool'daki parallel Gemini/OpenAI
         // isteklerinde header mutation race condition riski ve debug/log sızıntısı yaratirdı.
         _groqApiKey = apiKey;
-        _modelName = configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
+        _configuration = configuration;
+        // Varsayılan model NaiCatalog'dan; yapılandırma yalnızca override.
+        _modelName = configuration["Groq:Model"] ?? NaiCatalog.Get(NaiModel.Standard).UpstreamModel;
 
         _httpClient.BaseAddress = new Uri("https://api.groq.com/openai/v1/");
         // DefaultRequestHeaders.Authorization kasitlı olarak KALDIRILDI.
@@ -89,36 +93,88 @@ public class GroqAIService : IAIService
     /// Önceki implementasyon synchronous FirstOrDefault kullanıyordu; yüksek traffic'te
     /// thread pool blocking'e yol açıyordu. FirstOrDefaultAsync + IMemoryCache ile giderildi.
     /// </summary>
+    /// <summary>
+    /// İstenen NAI modelini sağlayıcıdaki gerçek model kimliğine çevirir.
+    ///
+    /// <b>Model kimlikleri artık burada YAZILI DEĞİL</b> — hepsi
+    /// <see cref="NaiCatalog"/>'da. BULUNMA YERİ: burada gömülü olan
+    /// <c>llama-3.3-70b-versatile</c> bir gün sağlayıcıda kaldırıldı ve şema
+    /// üretimi tamamen durdu ("model does not exist"). Kimlik tek yerde olursa
+    /// aynı olay tek satırla, hatta yalnızca ortam değişkeniyle kapanır.
+    /// </summary>
+    private string UpstreamModel(NaiModel model)
+    {
+        // Yapılandırma override'ı: sağlayıcı bir modeli kaldırdığında yeni sürüm
+        // beklemeden geçilebilsin.
+        var configured = _configuration[$"Nai:{model}"];
+        return string.IsNullOrWhiteSpace(configured) ? NaiCatalog.Get(model).UpstreamModel : configured;
+    }
+
+    /// <summary>
+    /// Modeli kullanıcının PLANINA indirger ve sağlayıcı kimliğine çevirir.
+    ///
+    /// BULUNMA YERİ: canlı denemede ücretsiz bir hesabın en pahalı modeli
+    /// (<c>nai-pro</c>) kullandığı görüldü — <c>ClampToPlan</c> yazılmıştı ama
+    /// çözümleme yoluna bağlanmamıştı. Sonuç: paylaşılan havuzun en hızlı
+    /// tükendiği yer, hiç ödemeyen kullanıcılar oluyordu.
+    /// </summary>
+    private async Task<string> UpstreamModelForUserAsync(NaiModel requested, HttpContext? httpContext)
+    {
+        var userId = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId) || httpContext is null)
+            return UpstreamModel(requested);
+
+        try
+        {
+            var db = httpContext.RequestServices.GetRequiredService<Namines.Infrastructure.Data.AuthDbContext>();
+            var status = await db.Users.AsNoTracking()
+                .Where(u => u.Id == userId).Select(u => u.SubscriptionStatus).FirstOrDefaultAsync();
+
+            return UpstreamModel(NaiCatalog.ClampToPlan(requested, PlanQuotas.Resolve(status)));
+        }
+        catch
+        {
+            // Plan okunamadıysa EN UCUZ modele düşülüyor. Ters yönde düşmek —
+            // okunamayan bir planı ücretli saymak — kimliği belirsiz bir isteğe
+            // en pahalı modeli vermek olurdu.
+            return UpstreamModel(NaiModel.Flash);
+        }
+    }
+
+    /// <summary>
+    /// Başarısız bir sağlayıcı yanıtını doğru istisnaya çevirir.
+    ///
+    /// <b>Tek yerde, çünkü 12 çağrı noktasının yalnızca 6'sında rate-limit
+    /// kontrolü vardı</b> — kalan yarısında geçici bir sınır, kullanıcıya
+    /// "sunucu hatası" olarak dönüyordu. Hangi çağrının kontrol ettiğini
+    /// hatırlamak zorunda kalmak, tam olarak bu tür bir boşluk üretir.
+    /// </summary>
+    private void ThrowForFailure(HttpResponseMessage response, string errorContent)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+            errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+            throw new AiRateLimitException(GetRetryAfterSeconds(response, errorContent), errorContent);
+
+        throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+    }
+
     private async Task<string> ResolveModelNameAsync(string? requestedModel = null, string? featureName = null)
     {
-        if (!string.IsNullOrWhiteSpace(requestedModel))
-        {
-            if (string.Equals(requestedModel, "mixtral-8x7b-32768", StringComparison.OrdinalIgnoreCase))
-                return "llama-3.3-70b-versatile";
-            if (string.Equals(requestedModel, "llama-3.2-3b-preview", StringComparison.OrdinalIgnoreCase))
-                return "llama-3.1-8b-instant";
-            if (string.Equals(requestedModel, "gemini-1.5-flash", StringComparison.OrdinalIgnoreCase))
-                return "gemini-2.5-flash";
-            if (string.Equals(requestedModel, "gemini-1.5-pro", StringComparison.OrdinalIgnoreCase))
-                return "gemini-2.5-pro";
-            return requestedModel;
-        }
-
         var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext == null)
-            return "llama-3.1-8b-instant"; // Safe background thread fallback
 
-        var byokProvider = httpContext.Items["ByokProvider"] as string;
+        if (!string.IsNullOrWhiteSpace(requestedModel))
+            return await UpstreamModelForUserAsync(NaiCatalog.Resolve(requestedModel), httpContext);
+
+        // Arka plan iş parçacığında istek bağlamı yok; en ucuz model güvenli
+        // varsayılan — orada kimse sonucu beklemiyor.
+        if (httpContext == null)
+            return UpstreamModel(NaiModel.Flash);
+
         bool isByok = httpContext.Items.ContainsKey("IsByok") == true;
 
-        if (isByok)
-        {
-            if (string.Equals(byokProvider, "openai", StringComparison.OrdinalIgnoreCase))
-                return "gpt-4o";
-            if (string.Equals(byokProvider, "gemini", StringComparison.OrdinalIgnoreCase))
-                return "gemini-2.5-pro";
-            return "llama-3.3-70b-versatile";
-        }
+        // BYOK'ta kullanıcı kendi anahtarını getiriyor, yani maliyeti o
+        // üstleniyor: en yetenekli modeli vermemek için sebep yok.
+        if (isByok) return UpstreamModel(NaiModel.Pro);
 
         var userId = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (!string.IsNullOrEmpty(userId))
@@ -147,18 +203,15 @@ public class GroqAIService : IAIService
                         else if (featureName == "Migration") mode = policy.Migration;
                         else if (featureName == "Voice") mode = policy.Voice;
 
-                        string resolvedModel = mode switch
+                        // Eski AIMode değerleri üç NAI modeline indirgeniyor.
+                        // Kullanıcıya artık sekiz seçenek gösterilmiyor; kayıtlı
+                        // eski tercihleri de atmıyoruz, karşılığına çeviriyoruz.
+                        string resolvedModel = await UpstreamModelForUserAsync(mode switch
                         {
-                            AIMode.Low            => "llama-3.1-8b-instant",
-                            AIMode.Medium         => "llama-3.1-8b-instant",
-                            AIMode.DefaultNamines => "llama-3.1-8b-instant",
-                            AIMode.High           => "llama-3.3-70b-versatile",
-                            AIMode.HighMixtral    => "llama-3.3-70b-versatile",
-                            AIMode.GeminiFlash    => "gemini-2.5-flash",
-                            AIMode.Ultra          => "openai/gpt-oss-120b",
-                            AIMode.GeminiPro      => "gemini-2.5-pro",
-                            _                     => "llama-3.1-8b-instant"
-                        };
+                            AIMode.Low or AIMode.DefaultNamines => NaiModel.Flash,
+                            AIMode.High or AIMode.HighMixtral or AIMode.Ultra or AIMode.GeminiPro => NaiModel.Pro,
+                            _ => NaiModel.Standard,
+                        }, httpContext);
 
                         _cache.Set(cacheKey, resolvedModel, new MemoryCacheEntryOptions
                         {
@@ -174,10 +227,10 @@ public class GroqAIService : IAIService
             }
         }
 
-        var userType = httpContext.User?.FindFirst("type")?.Value;
-        if (userType == "corporate") return "llama-3.3-70b-versatile";
-
-        return "llama-3.1-8b-instant";
+        // Politika yoksa dengeli varsayılan. Kurumsal hesaba otomatik olarak en
+        // pahalı modeli vermek, kotayı hesap tipine göre sessizce ikiye katlardı;
+        // model seçimi artık PLANIN işi (bkz. NaiCatalog.ClampToPlan).
+        return await UpstreamModelForUserAsync(NaiModel.Standard, httpContext);
     }
 
     private async Task<HttpResponseMessage> PostAsync(string relativeUri, object payload)
@@ -266,7 +319,7 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -321,7 +374,7 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -369,7 +422,7 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -418,7 +471,7 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -496,7 +549,7 @@ public class GroqAIService : IAIService
                     {
                         throw new Exception("Groq API Anahtarı eksik veya hatalı. Lütfen User Secrets veya appsettings.json dosyasını kontrol edin.");
                     }
-                    throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+                    ThrowForFailure(response, errorContent);
                 }
 
                 var responseString = await response.Content.ReadAsStringAsync();
@@ -573,7 +626,7 @@ public class GroqAIService : IAIService
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+                    ThrowForFailure(response, errorContent);
                 }
 
                 var responseString = await response.Content.ReadAsStringAsync();
@@ -641,11 +694,12 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            if (errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
             {
-                throw new Exception($"Groq rate limit exceeded. Retry after {GetRetryAfterSeconds(response, errorContent)} seconds.");
+                throw new AiRateLimitException(GetRetryAfterSeconds(response, errorContent), errorContent);
             }
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -711,11 +765,12 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            if (errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
             {
-                throw new Exception($"Groq rate limit exceeded. Retry after {GetRetryAfterSeconds(response, errorContent)} seconds.");
+                throw new AiRateLimitException(GetRetryAfterSeconds(response, errorContent), errorContent);
             }
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -751,9 +806,7 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            if (errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
-                throw new Exception($"Groq rate limit exceeded. Retry after {GetRetryAfterSeconds(response, errorContent)} seconds.");
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -797,9 +850,7 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            if (errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
-                throw new Exception($"Groq rate limit exceeded. Retry after {GetRetryAfterSeconds(response, errorContent)} seconds.");
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -835,11 +886,12 @@ public class GroqAIService : IAIService
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            if (errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
             {
-                throw new Exception($"Groq rate limit exceeded. Retry after {GetRetryAfterSeconds(response, errorContent)} seconds.");
+                throw new AiRateLimitException(GetRetryAfterSeconds(response, errorContent), errorContent);
             }
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
@@ -908,11 +960,12 @@ Code:
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
-            if (errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
             {
-                throw new Exception($"Groq rate limit exceeded. Retry after {GetRetryAfterSeconds(response, errorContent)} seconds.");
+                throw new AiRateLimitException(GetRetryAfterSeconds(response, errorContent), errorContent);
             }
-            throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
+            ThrowForFailure(response, errorContent);
         }
 
         var responseString = await response.Content.ReadAsStringAsync();

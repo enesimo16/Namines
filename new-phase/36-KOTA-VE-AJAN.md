@@ -148,6 +148,71 @@ sayılsaydı düzeltme döngüsü bedava görünür ve bütçe anlamını yitiri
 
 ---
 
+---
+
+## 3. Netleştirme ajanı ve NAI modelleri
+
+### Soru sorma — sıfır token
+
+Kullanıcı cümlesini yazdığında **AI'ya hiç gitmeden** iş türü çıkarılıyor
+(anahtar kelime, Türkçe+İngilizce) ve o türe ait sorular sabit bir bankadan
+geliyor. `POST /api/schema/clarify` **bedava** ve kimlik bile istemiyor.
+
+**Neden soruları da modele ürettirmedik:**
+- Kullanıcı daha hiçbir şey görmeden token harcanırdı.
+- Sorular her seferinde değişirdi — aynı isteğe aynı soruları sormayan bir ürün
+  kararsız hissettirir.
+- Model alakasız ya da cevaplanamaz soru üretebilir; sabit bankada her sorunun
+  neden sorulduğu bilinir.
+
+**En fazla beş soru.** Daha fazlası bir form; kullanıcı yarıda bırakır ve elde
+hiçbir şey kalmaz. Türe özel sorular ÖNCE geliyor — kullanıcı ilk gördüğü
+sorunun kendi işiyle ilgili olduğunu anlarsa formu ciddiye alıyor.
+
+**Her sorunun bir varsayılanı var.** Cevaplanmayan soru varsayılanıyla prompt'a
+yazılıyor, atlanmıyor: atlamak, modelin o boşluğu yine kendi doldurması demek
+olurdu ve sormanın amacı tam olarak buydu.
+
+14 iş türü tanınıyor: e-ticaret, pazaryeri, SaaS, ERP, CRM, oyun, sosyal, CMS,
+fintech, sağlık, eğitim, lojistik, IoT, rezervasyon. Tanınmayan ya da **berabere
+kalan** durum `Generic` — iki tür aynı puanı aldıysa hangisi olduğunu gerçekten
+bilmiyoruz ve tahmin etmek, yanlış soruyu güvenle sormaktan kötüdür.
+
+### NAI modelleri
+
+Sağlayıcı model adları kullanıcıya **hiç gösterilmiyor**. Üç seçenek var:
+
+| Ad | Ne zaman | Kota çarpanı | Free'de |
+|----|----------|--------------|---------|
+| `nai-flash` | Kısa işler, öneriler | ×0,5 | ✅ |
+| `nai` | Günlük varsayılan | ×1,0 | ✅ |
+| `nai-pro` | Şema tasarımı, derin analiz | ×2,0 | ❌ |
+
+**Neden kendi adlarımız:**
+1. Kullanıcı `llama-3.3-70b-versatile` ile `llama-3.1-8b-instant` arasında seçim
+   yapmak zorunda kalmamalı — bu bizim işimiz.
+2. **Sağlayıcı modelleri ölüyor.** Bu tam olarak yaşandı: yapılandırmadaki model
+   bir gün `does not exist` demeye başladı ve şema üretimi tamamen durdu. Ad bizim
+   olunca üstteki değişiklik tek satırda, hatta yalnızca ortam değişkeniyle kapanır.
+3. Kota ancak maliyet biliniyorsa doğru işler; kullanıcı serbestçe model
+   seçebiliyorsa bütçe tahmin edilemez.
+
+**Model plana göre indirgeniyor, reddedilmiyor.** Free bir hesap `nai-pro`
+isterse `nai`ye düşürülüyor: kullanıcı bir şema üretmek istiyor, model seçimi
+onun asıl derdi değil. Eski sekiz seçenekli `AIMode` değerleri de bu üçüne
+eşleniyor — kayıtlı tercihler atılmıyor, karşılığına çevriliyor.
+
+### Yol boyunca bulunanlar
+
+- **Ücretsiz hesap en pahalı modeli kullanıyordu.** `ClampToPlan` yazılmıştı ama
+  çözümleme yoluna bağlanmamıştı; paylaşılan havuzun en hızlı tükendiği yer hiç
+  ödemeyen kullanıcılardı.
+- **Sağlayıcı rate limit'i kullanıcıya 500 dönüyordu.** Bu bir arıza değil,
+  geçici bir sınır. 12 çağrı noktasının yalnızca 6'sında kontrol vardı; hepsi tek
+  bir yardımcıya bağlandı ve artık `Retry-After` başlığıyla **429** dönüyor.
+
+---
+
 ## Kapsam dışı
 
 - **Belirsiz prompt'ta kullanıcıya soru sorma.** "Bir mağaza şeması yap" cümlesi

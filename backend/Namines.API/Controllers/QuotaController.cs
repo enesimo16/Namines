@@ -25,6 +25,48 @@ namespace Namines.API.Controllers
             _config = config;
         }
 
+        /// <summary>
+        /// Kullanılabilir Namines AI modelleri (36 §3).
+        ///
+        /// <b>Sağlayıcı model kimlikleri DÖNMÜYOR.</b> Kullanıcının "llama" ya da
+        /// "gpt" görmesi gerekmiyor; hangi modelin arkada olduğu bizim
+        /// yapılandırmamız ve değişebilir. Kimliği göstermek, kullanıcının ona
+        /// bağlanması ve bir gün sağlayıcı o modeli kaldırdığında ürünün
+        /// bozulmuş gibi görünmesi demekti.
+        ///
+        /// Planın izin vermediği model listede ama <c>available:false</c>: gizlemek
+        /// yerine göstermek, yükseltme sebebini de göstermek demek.
+        /// </summary>
+        [HttpGet("models")]
+        public async Task<IActionResult> Models()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var status = string.IsNullOrEmpty(userId)
+                ? null
+                : await _context.Users.AsNoTracking()
+                    .Where(u => u.Id == userId).Select(u => u.SubscriptionStatus).FirstOrDefaultAsync();
+
+            var tier = PlanQuotas.Resolve(status);
+            var max = NaiCatalog.MaxFor(tier);
+
+            return Ok(NaiCatalog.All.Select(m =>
+            {
+                var model = NaiCatalog.Resolve(m.Id);
+                return new
+                {
+                    m.Id,
+                    m.DisplayName,
+                    m.Description,
+                    // Maliyet çarpanı gösteriliyor: kullanıcı Pro'nun bütçesini
+                    // daha hızlı tükettiğini bilmeli, faturayı görünce değil.
+                    costMultiplier = m.TokenMultiplier,
+                    available = model <= max,
+                    isDefault = model == NaiModel.Standard,
+                };
+            }));
+        }
+
         [HttpGet("status")]
         public async Task<IActionResult> GetStatus()
         {
