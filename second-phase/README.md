@@ -28,6 +28,7 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 | 00 | [00-NEREDEYIZ.md](00-NEREDEYIZ.md) | Faz 1 ne teslim etti, ürün bugün ne yapıyor |
 | 01 | [01-SIRADAKI-ISLER.md](01-SIRADAKI-ISLER.md) | Ne yapacağız, hangi sırayla, neden o sırayla |
 | 02 | [02-REDIS-KARARI.md](02-REDIS-KARARI.md) | Redis: ne, ne zaman, neden şimdi değil |
+| 03 | [03-PAZAR-VE-TASARIM-ANALIZI.md](03-PAZAR-VE-TASARIM-ANALIZI.md) | Rekabet, fiyatlandırma, konumlandırma + çalışan uygulamadan ölçülmüş tasarım denetimi |
 
 Senden bekleyen hesap/karar işleri hâlâ
 [../new-phase/34-SENDEN-BEKLENENLER.md](../new-phase/34-SENDEN-BEKLENENLER.md)'de.
