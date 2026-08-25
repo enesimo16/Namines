@@ -47,12 +47,22 @@ public enum PlanTier
 /// oluşturulurken tavan olarak uygulanıyor: kullanıcı daha düşüğünü seçebilir,
 /// planının üstüne çıkamaz.
 /// </param>
+/// <param name="TeamSeats">
+/// Bir organizasyonda toplam kaç kişi olabilir — <b>satın alan kişi dahil.</b>
+///
+/// Team'de 3: sahip + davet edilebilen 2 kişi. Sayıyı "davet hakkı" olarak değil
+/// TOPLAM olarak tutmak bilinçli — davet hakkı olarak tutulsaydı, sahip ekipten
+/// çıkıp yerine başkasını alarak sınırı sessizce aşabilirdi.
+///
+/// -1 = sınırsız (yalnızca Dev).
+/// </param>
 public sealed record PlanLimits(
     int BranchDatabases,
     int EphemeralRunsPerDay,
     int ByodbConnections,
     int DailyAiTokens = 20_000,
-    int GatewayRequestsPerMinute = 60);
+    int GatewayRequestsPerMinute = 60,
+    int TeamSeats = 1);
 
 /// <summary>
 /// Plan başına kaynak sınırları.
@@ -75,18 +85,24 @@ public static class PlanQuotas
         // vermek ücretliye geçme sebebini yok eder.
         PlanTier.Free => new PlanLimits(
             BranchDatabases: 0, EphemeralRunsPerDay: 3, ByodbConnections: 1,
-            DailyAiTokens: 20_000, GatewayRequestsPerMinute: 60),
+            DailyAiTokens: 20_000, GatewayRequestsPerMinute: 60, TeamSeats: 1),
 
+        // Pro sınırsız DEĞİL: AI gerçek para harcıyor, "sınırsız" demek tek bir
+        // kullanıcının aylık ücretinin kat kat üstünde fatura üretebilmesi demek.
         PlanTier.Pro => new PlanLimits(2, 20, 3,
-            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600),
+            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600, TeamSeats: 1),
 
+        // Team'in AI bütçesi Pro ile AYNI ve bu bilinçli: Team'in sattığı şey daha
+        // çok token değil, birlikte çalışma (3 koltuk, ortak workspace, paylaşılan
+        // projeler). Token'ı da katlamak, ekip başına maliyeti üç katına çıkarıp
+        // fiyatı anlamsız kılardı.
         PlanTier.Team => new PlanLimits(20, -1, 20,
-            DailyAiTokens: 1_000_000, GatewayRequestsPerMinute: 3_000),
+            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 3_000, TeamSeats: 3),
 
         // Enterprise sözleşmeyle belirlenir; bu değerler tavan değil, sözleşme
         // yapılandırılana kadar geçerli bir başlangıç.
         PlanTier.Enterprise => new PlanLimits(-1, -1, -1,
-            DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000),
+            DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000, TeamSeats: -1),
 
         // Sahip hesabında sınır yok. Token tavanı -1 DEĞİL, int.MaxValue:
         // -1 "sınırsız" anlamına gelen sayaç alanları için doğru ama günlük
@@ -94,7 +110,7 @@ public static class PlanQuotas
         // oraya -1 koymak her isteği "tavanı aştın" saydırırdı — yani sınırsız
         // hesap hiçbir şey yapamazdı.
         PlanTier.Dev => new PlanLimits(-1, -1, -1,
-            DailyAiTokens: int.MaxValue, GatewayRequestsPerMinute: int.MaxValue),
+            DailyAiTokens: int.MaxValue, GatewayRequestsPerMinute: int.MaxValue, TeamSeats: -1),
 
         _ => For(PlanTier.Free),
     };

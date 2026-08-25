@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using System;
@@ -38,17 +39,13 @@ namespace Namines.API.Controllers
             if (policy == null)
             {
                 // Fallback / Auto-provision for pre-existing accounts
+                // Varsayilanlar UserAIPolicy'de tanimli (Flash agirlikli). Burada
+                // tekrar yazmak, iki yerin ayrismasi demekti: bir tarafi
+                // degistirip digerini unutmak, "ayarlara hic dokunmadim ama
+                // farkli davraniyor" seklinde ortaya cikardi.
                 policy = new UserAIPolicy
                 {
                     UserId = userId,
-                    SmartSeed = AIMode.HighMixtral,
-                    Documentation = AIMode.HighMixtral,
-                    Scaffolding = AIMode.HighMixtral,
-                    SchemaGeneration = AIMode.HighMixtral,
-                    SchemaRevision = AIMode.HighMixtral,
-                    DbaAnalysis = AIMode.HighMixtral,
-                    Migration = AIMode.HighMixtral,
-                    Voice = AIMode.HighMixtral,
                     UpdatedAt = DateTime.UtcNow
                 };
                 await _context.UserAIPolicies.AddAsync(policy);
@@ -64,7 +61,11 @@ namespace Namines.API.Controllers
                 SchemaRevision = (int)policy.SchemaRevision,
                 DbaAnalysis = (int)policy.DbaAnalysis,
                 Migration = (int)policy.Migration,
-                Voice = (int)policy.Voice
+                Voice = (int)policy.Voice,
+                // Kayitli deger yoksa VARSAYILANLAR donuyor, null degil: arayuz
+                // bos bir formla acilsaydi, kullanici kaydetmedigi surece hangi
+                // ayarin gecerli oldugunu goremezdi.
+                Advanced = AiAdvancedSettings.Parse(policy.AdvancedJson)
             });
         }
 
@@ -98,6 +99,10 @@ namespace Namines.API.Controllers
             policy.DbaAnalysis = (AIMode)model.DbaAnalysis;
             policy.Migration = (AIMode)model.Migration;
             policy.Voice = (AIMode)model.Voice;
+            // Advanced null ise DOKUNULMUYOR: model secimlerini kaydeden eski bir
+            // istemci, farkinda olmadan gelismis ayarlari varsayilana dondururdu.
+            if (model.Advanced is not null)
+                policy.AdvancedJson = model.Advanced.ToJson();
             policy.UpdatedAt = DateTime.UtcNow;
 
             _context.UserAIPolicies.Update(policy);
@@ -117,5 +122,8 @@ namespace Namines.API.Controllers
         public int DbaAnalysis { get; set; }
         public int Migration { get; set; }
         public int Voice { get; set; }
+
+        /// <summary>Gelismis AI tercihleri. Null ise mevcut kayit korunur.</summary>
+        public AiAdvancedSettings? Advanced { get; set; }
     }
 }

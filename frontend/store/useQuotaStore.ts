@@ -6,6 +6,7 @@ export interface QuotaStatus {
   used: number;
   remaining: number;
   resetAt: string | null;
+  plan?: string;
 }
 
 interface QuotaState {
@@ -13,6 +14,8 @@ interface QuotaState {
   used: number;
   remaining: number;
   resetAt: string | null;
+  // 'Free' | 'Pro' | 'Team' | 'Dev' | null (henuz yuklenmedi).
+  plan: string | null;
   isLoaded: boolean;
   isExhaustedModalOpen: boolean;
   
@@ -27,6 +30,7 @@ export const useQuotaStore = create<QuotaState>((set, get) => ({
   used: 0,
   remaining: 100,
   resetAt: null,
+  plan: null,
   isLoaded: false,
   isExhaustedModalOpen: false,
 
@@ -38,6 +42,7 @@ export const useQuotaStore = create<QuotaState>((set, get) => ({
         used: response.data.used,
         remaining: response.data.remaining,
         resetAt: response.data.resetAt,
+        plan: response.data.plan ?? null,
         isLoaded: true
       });
     } catch (e) {
@@ -63,6 +68,7 @@ export const useQuotaStore = create<QuotaState>((set, get) => ({
       used: 0,
       remaining: 100,
       resetAt: null,
+      plan: null,
       isLoaded: false,
       isExhaustedModalOpen: false
     });

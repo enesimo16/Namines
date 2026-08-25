@@ -67,14 +67,8 @@ namespace Namines.API.Controllers
             var defaultPolicy = new UserAIPolicy
             {
                 UserId = user.Id,
-                SmartSeed = AIMode.HighMixtral,
-                Documentation = AIMode.HighMixtral,
-                Scaffolding = AIMode.HighMixtral,
-                SchemaGeneration = AIMode.HighMixtral,
-                SchemaRevision = AIMode.HighMixtral,
-                DbaAnalysis = AIMode.HighMixtral,
-                Migration = AIMode.HighMixtral,
-                Voice = AIMode.HighMixtral,
+                // Varsayilanlar UserAIPolicy'de; burada tekrar yazilmiyor ki
+                // iki yer birbirinden ayrismasin.
                 UpdatedAt = DateTime.UtcNow
             };
             await _context.UserAIPolicies.AddAsync(defaultPolicy);
@@ -188,6 +182,16 @@ namespace Namines.API.Controllers
             if (user == null)
                 return Unauthorized();
 
+            // Yeni projeler kullanıcının kişisel organizasyonuna bağlanıyor.
+            //
+            // <b>Bu satır olmadan ortak workspace çalışmıyor:</b> OrganizationId boş
+            // kalan bir proje hiçbir ekibe ait olmuyor, dolayısıyla ekip arkadaşının
+            // listesinde hiç görünmüyordu. Canlı denemede tam olarak bu yaşandı —
+            // proje kaydediliyor, "başarılı" dönüyor ama diğer üye sıfır proje
+            // görüyordu.
+            var personalOrg = await _context.GetOrCreatePersonalOrgAsync(
+                userId, user.UserName ?? "Personal");
+
             int savedCount = 0;
             foreach (var projDto in projects)
             {
@@ -203,6 +207,10 @@ namespace Namines.API.Controllers
                     existing.SchemaJson = projDto.SchemaJson;
                     existing.NodePositionsJson = projDto.NodePositionsJson;
                     existing.UpdatedAt = DateTime.UtcNow;
+                    // Org'a hiç bağlanmamış eski satırlar burada tembel olarak
+                    // bağlanıyor; aksi hâlde kullanıcının Team'e geçmeden önce
+                    // oluşturduğu projeler ekibe hiç görünmezdi.
+                    existing.OrganizationId ??= personalOrg.Id;
                     _context.CloudProjects.Update(existing);
                 }
                 else
@@ -219,6 +227,7 @@ namespace Namines.API.Controllers
                         SchemaJson = projDto.SchemaJson,
                         NodePositionsJson = projDto.NodePositionsJson,
                         UserId = userId,
+                        OrganizationId = personalOrg.Id,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };
@@ -239,8 +248,24 @@ namespace Namines.API.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
+            // ORTAK WORKSPACE: proje listesi artık yalnızca "benim oluşturduklarım"
+            // değil, ÜYESİ OLDUĞUM organizasyonların tamamı.
+            //
+            // Önceden `p.UserId == userId` yazıyordu; bu, Team planının satın
+            // aldığı şeyi imkânsız kılıyordu — ekip arkadaşı projeye eklense bile
+            // listesinde göremiyor, yalnızca doğrudan bağlantıyla açabiliyordu.
+            //
+            // Kişisel org da bu sorguya dahil (her kullanıcının bir tane var),
+            // yani tek kişilik hesaplarda sonuç aynı kalıyor.
+            var myOrgIds = await _context.OrganizationMembers.AsNoTracking()
+                .Where(m => m.UserId == userId)
+                .Select(m => m.OrganizationId)
+                .ToListAsync();
+
             var projects = await _context.CloudProjects
-                .Where(p => p.UserId == userId)
+                .Where(p => p.UserId == userId ||
+                            (p.OrganizationId != null && myOrgIds.Contains(p.OrganizationId)))
+                .OrderByDescending(p => p.UpdatedAt)
                 .Select(p => new
                 {
                     p.Id,
@@ -250,7 +275,12 @@ namespace Namines.API.Controllers
                     p.NodePositionsJson,
                     p.CreatedAt,
                     p.UpdatedAt,
-                    p.AutoApproveSafeChanges
+                    p.AutoApproveSafeChanges,
+                    // Ekip görünümünde kimin projesi olduğu belli olmalı; aksi
+                    // hâlde ortak listede kimin ne eklediği anlaşılmaz.
+                    ownerUserId = p.UserId,
+                    ownerName = p.User.UserName,
+                    isMine = p.UserId == userId
                 })
                 .ToListAsync();
 

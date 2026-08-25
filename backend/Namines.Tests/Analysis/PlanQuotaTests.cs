@@ -27,16 +27,40 @@ public class PlanQuotaTests
     [InlineData(PlanTier.Free, PlanTier.Pro)]
     [InlineData(PlanTier.Pro, PlanTier.Team)]
     [InlineData(PlanTier.Team, PlanTier.Enterprise)]
-    public void Every_step_up_is_a_real_step_up(PlanTier lower, PlanTier higher)
+    public void A_higher_plan_is_never_worse_and_is_better_somewhere(PlanTier lower, PlanTier higher)
     {
-        // Bir üst plan, alttakiyle aynı hakları veriyorsa kullanıcı neden
-        // yükseltsin? Eşitlik de bir hatadır.
+        // Bir üst plan hiçbir konuda alttakinden GERİ olamaz — kullanıcı para
+        // verip bir şeyini kaybetmemeli.
+        //
+        // Ama HER kalemde artması da gerekmiyor: Team'in AI bütçesi Pro ile
+        // bilerek aynı (bkz. PlanQuotas). Team'in sattığı şey daha çok token
+        // değil, birlikte çalışma — koltuk, ortak workspace, paylaşılan
+        // projeler. Token'ı da katlamak ekip başına maliyeti üçe çıkarıp fiyatı
+        // anlamsız kılardı. Aranan şey "en az bir yerde gerçekten daha iyi".
         var below = PlanQuotas.For(lower);
         var above = PlanQuotas.For(higher);
 
-        Assert.True(above.DailyAiTokens > below.DailyAiTokens);
-        Assert.True(above.GatewayRequestsPerMinute > below.GatewayRequestsPerMinute);
+        Assert.True(above.DailyAiTokens >= below.DailyAiTokens);
+        Assert.True(above.GatewayRequestsPerMinute >= below.GatewayRequestsPerMinute);
+        Assert.True(Unlimited(above.BranchDatabases) >= Unlimited(below.BranchDatabases));
+        Assert.True(Unlimited(above.TeamSeats) >= Unlimited(below.TeamSeats));
+
+        var improved =
+            above.DailyAiTokens > below.DailyAiTokens ||
+            above.GatewayRequestsPerMinute > below.GatewayRequestsPerMinute ||
+            Unlimited(above.BranchDatabases) > Unlimited(below.BranchDatabases) ||
+            Unlimited(above.EphemeralRunsPerDay) > Unlimited(below.EphemeralRunsPerDay) ||
+            Unlimited(above.TeamSeats) > Unlimited(below.TeamSeats);
+
+        Assert.True(improved, $"{higher} gives nothing more than {lower} — nobody would upgrade.");
     }
+
+    /// <summary>
+    /// Sayaç alanlarında -1 "sınırsız" demek. Ham karşılaştırmada -1 en küçük
+    /// sayı olarak görünür ve sınırsız bir planı sınırlı olandan DÜŞÜK
+    /// gösterirdi — tam ters sonuç.
+    /// </summary>
+    private static long Unlimited(int value) => value < 0 ? long.MaxValue : value;
 
     [Fact]
     public void The_free_plan_is_usable_but_narrow()

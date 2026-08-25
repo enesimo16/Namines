@@ -67,22 +67,22 @@ public static class NaiCatalog
     private static readonly Dictionary<NaiModel, NaiModelInfo> Models = new()
     {
         [NaiModel.Flash] = new NaiModelInfo(
-            Id: "nai-flash",
-            DisplayName: "NAI Flash",
+            Id: "nai-v1-flash",
+            DisplayName: "NAI v1 Flash",
             Description: "Fastest. Best for short edits, suggestions and quick answers.",
             UpstreamModel: "openai/gpt-oss-20b",
             TokenMultiplier: 0.5),
 
         [NaiModel.Standard] = new NaiModelInfo(
-            Id: "nai",
-            DisplayName: "NAI",
+            Id: "nai-v1",
+            DisplayName: "NAI v1",
             Description: "Balanced. The default for everyday work.",
             UpstreamModel: "qwen/qwen3.6-27b",
             TokenMultiplier: 1.0),
 
         [NaiModel.Pro] = new NaiModelInfo(
-            Id: "nai-pro",
-            DisplayName: "NAI Pro",
+            Id: "nai-v1-pro",
+            DisplayName: "NAI v1 Pro",
             Description: "Most capable. Best for designing a schema from scratch or deep analysis.",
             UpstreamModel: "openai/gpt-oss-120b",
             TokenMultiplier: 2.0),
@@ -105,11 +105,15 @@ public static class NaiCatalog
 
         var normalized = id.Trim().ToLowerInvariant();
 
+        // Sürümsüz eski kimlikler (nai-flash / nai / nai-pro) hâlâ tanınıyor.
+        // Kullanıcıların kayıtlı tercihi tarayıcıda duruyor; v1'e geçerken onları
+        // atmak, Pro seçmiş bir kullanıcıyı sessizce Standard'a düşürürdü ve bunu
+        // ancak sonuç kalitesi düşünce fark ederdi.
         return normalized switch
         {
-            "nai-flash" or "flash" => NaiModel.Flash,
-            "nai-pro" or "pro" => NaiModel.Pro,
-            "nai" or "standard" => NaiModel.Standard,
+            "nai-v1-flash" or "nai-flash" or "flash" => NaiModel.Flash,
+            "nai-v1-pro" or "nai-pro" or "pro" => NaiModel.Pro,
+            "nai-v1" or "nai" or "standard" => NaiModel.Standard,
             _ => NaiModel.Standard,
         };
     }

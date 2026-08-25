@@ -6,6 +6,7 @@ import { GatewayListResult, GatewayRow } from '../types/gateway';
 import { ProjectMember, OrgRole } from '../types/member';
 import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
 import { ClarifyResponse, NaiModelOption } from '../types/nai';
+import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 import { useSchemaStore } from '../store/useSchemaStore';
@@ -521,6 +522,46 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Team planı: ekip, davet bağlantıları ve ortak etkinlik (backend: TeamController).
+ */
+export const teamService = {
+  status: async (): Promise<TeamStatus> => {
+    const response = await api.get<TeamStatus>('/team');
+    return response.data;
+  },
+
+  /**
+   * Tek kullanımlık davet bağlantısı üretir.
+   *
+   * Dönen `token` YALNIZCA burada bir kez görünüyor — sunucuda özeti saklanıyor,
+   * tekrar gösterilemez. Kullanıcıya hemen kopyalatmak gerekiyor.
+   */
+  createInvite: async (role = 'Editor', expiresInDays = 7): Promise<CreatedInvite> => {
+    const response = await api.post<CreatedInvite>('/team/invites', { role, expiresInDays });
+    return response.data;
+  },
+
+  revokeInvite: async (inviteId: string): Promise<void> => {
+    await api.delete(`/team/invites/${inviteId}`);
+  },
+
+  previewInvite: async (token: string): Promise<{ organization: string; role: string; expiresAt: string }> => {
+    const response = await api.get(`/team/invites/${encodeURIComponent(token)}/preview`);
+    return response.data;
+  },
+
+  acceptInvite: async (token: string): Promise<{ joined: string; role: string }> => {
+    const response = await api.post(`/team/invites/${encodeURIComponent(token)}/accept`);
+    return response.data;
+  },
+
+  activity: async (): Promise<{ projects: TeamProject[] }> => {
+    const response = await api.get<{ projects: TeamProject[] }>('/team/activity');
+    return response.data;
+  },
+};
 
 export default api;
 

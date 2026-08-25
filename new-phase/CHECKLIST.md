@@ -1796,6 +1796,64 @@ Tasarım ve gerekçeler: [36 §3](36-KOTA-VE-AJAN.md).
 
 ---
 
+## G52 — Team planı, NAI v1 ve çalışan gelişmiş ayarlar ✅ TAMAMLANDI
+
+- [x] **Varsayılan model Flash'a çekildi.** Önceden HER özellik `HighMixtral` (6)
+      idi ve o seçenek artık kullanıcıya gösterilmiyordu bile: hiçbir ayara
+      dokunmamış bir kullanıcı en ucuz işi bile en pahalı modelde çalıştırıyor,
+      günlük bütçesini iki kat hızlı tüketiyordu. Migration var olan satırları da
+      taşıyor — yeni varsayılanı yalnızca yeni hesaplara vermek, var olan herkesi
+      o durumda bırakırdı. Şema üretimi tek istisna (Medium): kullanıcının ürünle
+      ilk teması orası.
+- [x] **Modeller sürümlendi:** `nai-v1-flash` / `nai-v1` / `nai-v1-pro`. Sürümsüz
+      eski kimlikler hâlâ çözülüyor — atmak, Pro seçmiş bir kullanıcıyı sessizce
+      Standard'a düşürürdü.
+- [x] **Gelişmiş ayarlar artık GERÇEKTEN çalışıyor.** On bir ayar yalnızca
+      `localStorage`'a yazılıyor ve hiçbir yerde okunmuyordu — hepsi süstü.
+      Şimdi `UserAIPolicy.AdvancedJson` içinde sunucuda duruyor ve şema
+      üretiminde sistem prompt'una + `temperature`/`max_tokens` parametrelerine
+      uygulanıyor. `fkAction` varsayılanı CASCADE'den **RESTRICT**'e çekildi
+      (varsayılan asla veri kaybına doğru düşmemeli).
+- [x] **Ayarlar ekranı büyütüldü** (`max-w-4xl` → `max-w-6xl`, yükseklik
+      viewport'a bağlandı). 1280×720'de 1152×656 — sığıyor.
+- [x] **Team planı: 3 koltuk** (satın alan + 2 davet). Koltuk "davet hakkı"
+      olarak değil TOPLAM olarak tutuluyor; davet hakkı olsaydı sahip ekipten
+      çıkıp yerine başkasını alarak sınırı sessizce aşabilirdi.
+- [x] **Tek kullanımlık davet bağlantısı** (`TeamInvite`). Ham token saklanmıyor,
+      SHA-256 özeti duruyor; bağlantı yalnızca üretildiği anda bir kez
+      gösteriliyor. Katılım anında tükeniyor — çok kullanımlı olsaydı dolaşıma
+      giren tek bir link koltuk sınırını sınırsız yapardı. Bekleyen davet de
+      koltuk tutuyor.
+- [x] **Ortak workspace.** `/api/auth/projects` artık yalnızca "benim
+      oluşturduklarım" değil, üyesi olduğum organizasyonların tamamı.
+- [x] **Ekip ikonu** Workspace'in yanında; panel üyeleri, koltuk durumunu,
+      bekleyen davetleri ve ortak projeleri (kim, ne zaman) gösteriyor.
+- [x] **Plan özellik listeleri gerçek yeteneklere göre yazıldı.** Pro artık
+      "Unlimited AI requests" DEMİYOR — sınırsız değil (200K/gün) ve öyle yazmak
+      kullanıcıya yalan söylemekti.
+
+> **Canlı doğrulamada bulunan dört gerçek hata:**
+> 1. **Davet önizlemesi giriş istiyordu.** Davet edilen kişinin çoğu zaman hesabı
+>    yok; bağlantı 401 dönüyor, arayüz bunu "geçersiz bağlantı" diye gösteriyordu.
+>    → `[AllowAnonymous]`.
+> 2. **Davetle katılan kişi ekibi göremiyordu.** `GetTeam` her zaman çağıranın
+>    KİŞİSEL org'unu döndürüyordu; katılan üye ekip ekranını açıyor ve kendisinden
+>    başka kimseyi göremiyordu. → `ActiveOrgAsync` + org'un planına bakan
+>    `OrgTierAsync` (üyenin kendi planı Free olabilir, koltuğu o satın almadı).
+> 3. **Editor olarak katılan biri davet üretebiliyordu** — koltukları sahibin
+>    haberi olmadan doldurabilirdi. → Admin/Owner kontrolü.
+> 4. **Yeni projeler hiçbir org'a bağlanmıyordu.** Ortak workspace bu yüzden
+>    çalışmıyordu: proje kaydediliyor, "başarılı" dönüyor ama diğer üye sıfır
+>    proje görüyordu.
+>
+> Ayrıca bozuk şemalı tek bir proje kaydı (`tables` alanı olmayan) TÜM sayfayı
+> çökertiyordu — `ProjectSidebar`'daki `schema.tables.length` korumasızdı.
+
+1136 test yeşil, `next build` temiz, tam akış gerçek Postgres + tarayıcıda
+uçtan uca doğrulandı (davet üret → katıl → link tükendi → ortak proje göründü).
+
+---
+
 ## G-ekstra — Yol boyunca bulunanlar
 
 - [x] `launchSettings.json` port çelişkisi — **zaten çözülmüştü** (`dfdfc49`, bu G14

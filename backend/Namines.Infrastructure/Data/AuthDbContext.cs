@@ -24,6 +24,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<GatewayAuditEntry> GatewayAuditEntries { get; set; } = null!;
         public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
         public DbSet<UserBillingSettings> UserBillingSettings { get; set; } = null!;
+        public DbSet<TeamInvite> TeamInvites { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -276,6 +277,22 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<CloudProject>()
                 .HasIndex(p => p.OrganizationId);
+
+            // ── Team davetleri ──────────────────────────────────────────────
+            builder.Entity<TeamInvite>()
+                .HasOne(i => i.Organization)
+                .WithMany()
+                .HasForeignKey(i => i.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Token özeti UNIQUE: aynı özetten iki davet, hangisinin tüketildiği
+            // belirsiz kalırdı ve tek-kullanımlık garantisi çökerdi.
+            builder.Entity<TeamInvite>()
+                .HasIndex(i => i.TokenHash)
+                .IsUnique();
+
+            builder.Entity<TeamInvite>()
+                .HasIndex(i => i.OrganizationId);
         }
     }
 }

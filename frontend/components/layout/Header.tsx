@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Database, Pencil, Check, ExternalLink, Sparkles, FolderOpen, Cloud, LogOut, Info, CheckCircle2, XCircle, AlertTriangle, X, Settings } from 'lucide-react';
+import { Database, Pencil, Check, ExternalLink, Sparkles, FolderOpen, Cloud, LogOut, Info, CheckCircle2, XCircle, AlertTriangle, X, Settings, Users } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
@@ -11,6 +11,7 @@ import { useAIPolicyStore } from '../../store/useAIPolicyStore';
 import { useQuotaStore } from '../../store/useQuotaStore';
 import AuthModal from '../canvas/panels/AuthModal';
 import AIPreferencesModal from '../canvas/panels/AIPreferencesModal';
+import TeamModal from './TeamModal';
 import QuotaExhaustedModal from '../canvas/panels/QuotaExhaustedModal';
 import ProjectSidebar from './ProjectSidebar';
 import Logo from './Logo';
@@ -29,13 +30,20 @@ export default function Header() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { isOpen: isAuthModalOpen, open: openAuthModal, close: closeAuthModal } = useAuthModalStore();
   const [isAIPreferencesOpen, setIsAIPreferencesOpen] = useState(false);
+  const [isTeamOpen, setIsTeamOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { isAuthenticated, user, logout } = useAuthStore();
   const showToast = useToastStore(state => state.showToast);
   const syncWithCloud = useProjectHistoryStore(s => s.syncWithCloud);
   const fetchPolicy = useAIPolicyStore(s => s.fetchPolicy);
-  const { dailyLimit, remaining } = useQuotaStore();
+  const { dailyLimit, remaining, plan } = useQuotaStore();
+  // Dev hesabi digerlerine gorunmuyor: rozet DEV yaziyor ama bu yalnizca o
+  // hesabin kendi ekraninda goruluyor, baska kullaniciya asla gitmiyor.
+  const planLabel = plan === 'Dev' ? 'DEV'
+    : plan === 'Team' ? 'TEAM MEMBER'
+    : plan === 'Pro' ? 'PRO MEMBER'
+    : 'FREE MEMBER';
   const remainingPercent = dailyLimit > 0 ? Math.min(100, Math.max(0, Math.round((remaining / dailyLimit) * 100))) : 100;
 
   // Sync projects, fetch AI Policy, and fetch quota when authenticated
@@ -111,6 +119,25 @@ export default function Header() {
             <span className="hidden sm:inline">Workspace</span>
           </button>
 
+          {/* Ekip — yalnızca giriş yapmış kullanıcıda. Team planı olmayanlarda da
+              görünüyor ama panel "bu plan tek kişilik" diyor: özelliği tamamen
+              gizlemek, Team'in ne sattığını görünmez kılardı. */}
+          {isAuthenticated && (
+            <button
+              onClick={() => setIsTeamOpen(true)}
+              className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0 ${
+                isTeamOpen
+                  ? 'bg-white/[0.08] text-content-primary'
+                  : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
+              }`}
+              title="Team members and shared projects"
+              aria-label="Team"
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden lg:inline">Team</span>
+            </button>
+          )}
+
           <div className="h-4 w-px bg-surface-500 shrink-0 hidden sm:block" />
 
           {/* Project Name Editor moved to left — dar ekranda gizli, yer kaplamasın */}
@@ -176,7 +203,7 @@ export default function Header() {
                   {user?.username}
                 </span>
                 <span className="text-[8px] text-content-primary font-bold leading-none uppercase tracking-widest mt-0.5">
-                  {user?.type === 'corporate' ? 'PRO MEMBER' : 'FREE MEMBER'}
+                  {planLabel}
                 </span>
               </div>
               <button
@@ -218,6 +245,8 @@ export default function Header() {
       />
 
       {/* AI Preferences Modal */}
+      <TeamModal isOpen={isTeamOpen} onClose={() => setIsTeamOpen(false)} />
+
       <AIPreferencesModal
         isOpen={isAIPreferencesOpen}
         onClose={() => setIsAIPreferencesOpen(false)}

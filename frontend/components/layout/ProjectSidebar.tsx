@@ -169,8 +169,12 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                  {/* Bulut'tan gelen bir şema bozuk/eksik olabilir (ör. tables
+                      alanı hiç yok). Optional chaining olmadan bu satır TÜM
+                      sayfayı çökertiyordu: tek bir hatalı proje kaydı yüzünden
+                      kullanıcı hiçbir projesine erişemiyordu. */}
                   <span className="text-[11px] text-content-muted">
-                    {project.schema.tables.length} tables · {project.schema.relations.length} relations
+                    {project.schema?.tables?.length ?? 0} tables · {project.schema?.relations?.length ?? 0} relations
                   </span>
                 </div>
               </div>

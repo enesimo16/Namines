@@ -161,6 +161,36 @@ public class GroqAIService : IAIService
         throw new Exception($"Groq API Error ({response.StatusCode}): {errorContent}");
     }
 
+    /// <summary>
+    /// Kullanicinin "Advanced AI Tuning" tercihleri.
+    ///
+    /// Bu ayarlar arayuzde vardi ama YALNIZCA localStorage'a yaziliyor, hicbir
+    /// yerde okunmuyordu -- on bir ayarin tamami sustu. Ayar gostermek onu
+    /// uygulamak demektir; uygulanmayan ayar kullaniciya yalan soyler.
+    ///
+    /// Kimlik yoksa ya da kayit bulunamazsa varsayilanlar: tercih okunamadi diye
+    /// istegi reddetmek, kullanicinin asil isini (sema uretmek) dusururdu.
+    /// </summary>
+    private async Task<AiAdvancedSettings> AdvancedSettingsAsync()
+    {
+        var httpContext = _httpContextAccessor?.HttpContext;
+        var userId = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) return AiAdvancedSettings.Default;
+
+        try
+        {
+            var db = httpContext!.RequestServices.GetRequiredService<Namines.Infrastructure.Data.AuthDbContext>();
+            var json = await db.UserAIPolicies.AsNoTracking()
+                .Where(p => p.UserId == userId).Select(p => p.AdvancedJson).FirstOrDefaultAsync();
+
+            return AiAdvancedSettings.Parse(json);
+        }
+        catch
+        {
+            return AiAdvancedSettings.Default;
+        }
+    }
+
     private async Task<string> ResolveModelNameAsync(string? requestedModel = null, string? featureName = null)
     {
         var httpContext = _httpContextAccessor.HttpContext;
@@ -495,6 +525,14 @@ public class GroqAIService : IAIService
         var systemPrompt = SchemaPromptBuilder.BuildSystemPrompt();
         var userPrompt = SchemaPromptBuilder.BuildUserPrompt(request.Prompt, request.DbType);
 
+        // Kullanicinin gelismis tercihleri (isimlendirme, FK davranisi, index,
+        // sicaklik, token tavani) burada devreye giriyor. Onceden bu ayarlar
+        // yalnizca tarayicida duruyordu ve uretilen semayi HIC etkilemiyordu.
+        var advanced = await AdvancedSettingsAsync();
+        var advancedContext = advanced.ToSchemaPromptContext();
+        if (!string.IsNullOrWhiteSpace(advancedContext))
+            systemPrompt += "\n\n--- User preferences (follow these) ---\n" + advancedContext;
+
         while (currentAttempt <= maxRetries)
         {
             try
@@ -539,8 +577,11 @@ public class GroqAIService : IAIService
                         new { role = "system", content = systemPrompt },
                         new { role = "user", content = userContentObject }
                     },
-                    temperature = 0.1 + (currentAttempt * 0.2),
-                    max_tokens = 4096
+                    // Kullanicinin sectigi sicaklik taban aliniyor; her yeniden
+                    // denemede biraz artiyor. Ayni sicaklikla tekrar denemek,
+                    // ayni hatali cikti ile donmek demek olurdu.
+                    temperature = advanced.TemperatureValue + (currentAttempt * 0.2),
+                    max_tokens = advanced.MaxTokensValue
                 };
 
                 using var response = await PostAsync("chat/completions", payload);

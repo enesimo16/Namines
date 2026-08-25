@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Key, Save, Shield, User, CreditCard, HelpCircle, LogOut, Check, Lock, Plus, Trash2, Copy, BarChart3, ChevronDown, SlidersHorizontal, ArrowLeft, Database } from 'lucide-react';
-import { useAIPolicyStore, AIPolicy } from '../../../store/useAIPolicyStore';
+import { useAIPolicyStore, AIPolicy, AiAdvancedSettings } from '../../../store/useAIPolicyStore';
 import { useByokStore } from '../../../store/useByokStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -112,9 +112,9 @@ function CustomSelect<T extends string | number>({
 // (Low→flash, Medium→standard, Ultra→pro). Kayıtlı eski tercihler
 // atılmıyor, karşılığına çevriliyor.
 const policyOptions = [
-  { value: 1, label: 'nai flash · fast, light' },
-  { value: 2, label: 'nai · balanced (default)' },
-  { value: 4, label: 'nai pro · deepest reasoning' }
+  { value: 1, label: 'NAI v1 Flash · fast, light' },
+  { value: 2, label: 'NAI v1 · balanced' },
+  { value: 4, label: 'NAI v1 Pro · deepest reasoning' }
 ];
 
 const seedDomainOptions = [
@@ -162,10 +162,12 @@ const namingOptions = [
   { value: 'camelCase', label: 'camelCase (MongoDB / Web APIs)' }
 ];
 
+// RESTRICT varsayılan, CASCADE değil: bu kod tabanının kuralı, varsayılanın
+// asla veri kaybına doğru düşmemesi (bkz. ReferentialActionSql).
 const fkActionOptions = [
-  { value: 'cascade', label: 'ON DELETE CASCADE (Default)' },
-  { value: 'restrict', label: 'ON DELETE RESTRICT' },
-  { value: 'set_null', label: 'ON DELETE SET NULL' }
+  { value: 'restrict', label: 'ON DELETE RESTRICT (Default, safest)' },
+  { value: 'set_null', label: 'ON DELETE SET NULL' },
+  { value: 'cascade', label: 'ON DELETE CASCADE (deletes children)' }
 ];
 
 const maxTokensOptions = [
@@ -243,7 +245,12 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   useEffect(() => {
     if (isOpen) {
       fetchPolicy().then(() => {
-        setLocalPolicy({ ...useAIPolicyStore.getState().policy });
+        const fresh = useAIPolicyStore.getState().policy;
+        setLocalPolicy({ ...fresh });
+        // Sunucudaki gelişmiş tercihler forma basılıyor. Bu satır olmadan
+        // kullanıcı ayarı kaydediyor, modalı kapatıp açıyor ve eski değeri
+        // görüyordu — kaydın işe yaramadığı izlenimi veriyordu.
+        applyAdvanced(fresh.advanced);
       });
       if (isAuthenticated) {
         fetchQuota();
@@ -283,6 +290,10 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
         setWebsiteUrl(localStorage.getItem('namines-website') || '');
       }
 
+      // Gelişmiş ayarlar artık SUNUCUDAN geliyor. Eskiden yalnızca localStorage'a
+      // yazılıyor ve hiçbir yerde okunmuyorlardı — on bir ayarın tamamı süstü.
+      // localStorage yalnızca ilk açılışta bir kez göç için okunuyor; sunucudan
+      // yanıt gelince applyAdvanced() üzerine yazıyor.
       setSeedDomain(localStorage.getItem('namines-ai-seed-domain') || 'general');
       setDocLevel(localStorage.getItem('namines-ai-doc-level') || 'standard');
       setScaffoldVersion(localStorage.getItem('namines-ai-scaffold-version') || '.net8');
@@ -290,7 +301,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       setTemperature(localStorage.getItem('namines-ai-temperature') || '0.2');
       setPromptStyle(localStorage.getItem('namines-ai-prompt-style') || 'clean');
       setNamingConvention(localStorage.getItem('namines-ai-naming-convention') || 'snake_case');
-      setFkAction(localStorage.getItem('namines-ai-fk-action') || 'cascade');
+      setFkAction(localStorage.getItem('namines-ai-fk-action') || 'restrict');
       setMaxTokens(localStorage.getItem('namines-ai-max-tokens') || '4096');
       setSqlPrettyPrint(localStorage.getItem('namines-ai-sql-pretty') || 'true');
       setAutoIndex(localStorage.getItem('namines-ai-auto-index') || 'true');
@@ -415,6 +426,28 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
     showToast('Copied to clipboard.', 'success');
   };
 
+  /** Sunucudan gelen gelişmiş tercihleri forma yansıtır. */
+  const applyAdvanced = (a?: AiAdvancedSettings) => {
+    if (!a) return;
+    setSeedDomain(a.seedDomain);
+    setDocLevel(a.docLevel);
+    setScaffoldVersion(a.scaffoldVersion);
+    setDbaSeverity(a.dbaSeverity);
+    setTemperature(a.temperature);
+    setPromptStyle(a.promptStyle);
+    setNamingConvention(a.namingConvention);
+    setFkAction(a.fkAction);
+    setMaxTokens(a.maxTokens);
+    setAutoIndex(a.autoIndex);
+    setSqlPrettyPrint(a.sqlPrettyPrint);
+  };
+
+  /** Formdaki gelişmiş tercihleri sunucuya gidecek şekle çevirir. */
+  const collectAdvanced = (): AiAdvancedSettings => ({
+    seedDomain, docLevel, scaffoldVersion, dbaSeverity, temperature,
+    promptStyle, namingConvention, fkAction, maxTokens, autoIndex, sqlPrettyPrint,
+  });
+
   const handleSavePolicy = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -427,7 +460,10 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
         return;
       }
 
-      await updatePolicy(localPolicy);
+      // Gelişmiş tercihler de aynı istekte gidiyor: ayrı bir uç olsaydı biri
+      // başarılı biri başarısız olabilir ve kullanıcı yarısı kaydedilmiş bir
+      // yapılandırmayla kalırdı.
+      await updatePolicy({ ...localPolicy, advanced: collectAdvanced() });
       localStorage.setItem('namines-ai-seed-domain', seedDomain);
       localStorage.setItem('namines-ai-doc-level', docLevel);
       localStorage.setItem('namines-ai-scaffold-version', scaffoldVersion);
@@ -531,9 +567,9 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-content-primary/8 text-content-secondary">
-                  <tr><td className="py-1.5 px-3 font-medium">nai flash</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">0.5x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">nai</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">1x</td></tr>
-                  <tr><td className="py-1.5 px-3 font-medium">nai pro <span className="opacity-60">(paid plans)</span></td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">2x</td></tr>
+                  <tr><td className="py-1.5 px-3 font-medium">NAI v1 Flash</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">0.5x</td></tr>
+                  <tr><td className="py-1.5 px-3 font-medium">NAI v1</td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">1x</td></tr>
+                  <tr><td className="py-1.5 px-3 font-medium">NAI v1 Pro <span className="opacity-60">(paid plans)</span></td><td className="py-1.5 px-3 text-right font-mono text-accent-text font-bold">2x</td></tr>
                 </tbody>
               </table>
             </div>
@@ -583,7 +619,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
         onClick={onClose}
       />
 
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="ai-pref-title" className="relative w-full max-w-4xl h-[90vh] md:h-[650px] bg-surface-800 border border-content-primary/15 rounded-2xl flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 text-content-primary">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="ai-pref-title" className="relative w-full max-w-6xl h-[92vh] md:h-[calc(100vh-64px)] md:max-h-[880px] bg-surface-800 border border-content-primary/15 rounded-2xl flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 text-content-primary">
 
         {/* Left Sidebar */}
         <div className="w-full md:w-64 bg-surface-700 border-b md:border-b-0 md:border-r border-content-primary/15 p-5 flex flex-col justify-between shrink-0">
@@ -976,7 +1012,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           <p className="font-semibold text-content-secondary uppercase tracking-wider">AI Cost Multiplier Legend</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                             {[
-                              ['nai flash', '0.5x'], ['nai', '1x'], ['nai pro', '2x'],
+                              ['NAI v1 Flash', '0.5x'], ['NAI v1', '1x'], ['NAI v1 Pro', '2x'],
                             ].map(([label, val]) => (
                               <div key={label} className="p-1.5 bg-surface-800 rounded text-center">
                                 <span className="block font-bold text-content-secondary">{label}</span>
@@ -1109,8 +1145,17 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </div>
 
                     <form
-                      onSubmit={(e) => {
+                      onSubmit={async (e) => {
                         e.preventDefault();
+                        // Sunucuya da yazılıyor: bu ayarlar şema üretiminde
+                        // gerçekten okunuyor, yalnızca tarayıcıda kalırlarsa
+                        // hiçbir etkileri olmaz (eski davranış buydu).
+                        try {
+                          await updatePolicy({ ...localPolicy, advanced: collectAdvanced() });
+                        } catch {
+                          showToast('Advanced settings could not be saved to the server.', 'error');
+                          return;
+                        }
                         localStorage.setItem('namines-ai-seed-domain', seedDomain);
                         localStorage.setItem('namines-ai-doc-level', docLevel);
                         localStorage.setItem('namines-ai-scaffold-version', scaffoldVersion);
@@ -1204,14 +1249,14 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </div>
                     <div className="w-full h-5 rounded-lg overflow-hidden flex bg-surface-600">
                       <div className="h-full bg-white/[0.15]" style={{ width: '55%' }} title="Local Engine: 55%" />
-                      <div className="h-full bg-white/[0.25]" style={{ width: '25%' }} title="nai: 25%" />
-                      <div className="h-full bg-white/[0.4]" style={{ width: '15%' }} title="nai pro: 15%" />
+                      <div className="h-full bg-white/[0.25]" style={{ width: '25%' }} title="NAI v1: 25%" />
+                      <div className="h-full bg-white/[0.4]" style={{ width: '15%' }} title="NAI v1 Pro: 15%" />
                       <div className="h-full bg-white/[0.6]" style={{ width: '5%' }} title="Custom: 5%" />
                     </div>
                     <div className="flex flex-wrap gap-x-6 gap-y-2 text-[10px] font-semibold text-content-muted uppercase tracking-wide">
                       <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.15]" /><span>Local (55%)</span></div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.25]" /><span>nai (25%)</span></div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.4]" /><span>nai pro (15%)</span></div>
+                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.25]" /><span>NAI v1 (25%)</span></div>
+                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.4]" /><span>NAI v1 Pro (15%)</span></div>
                       <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.6]" /><span>Custom (5%)</span></div>
                     </div>
                   </div>
@@ -1304,7 +1349,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <div className="text-2xl font-bold text-content-primary">$0 <span className="text-xs font-normal text-content-subtle">/ forever</span></div>
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
-                      {['100% daily cloud credits bar', 'nai and nai flash models', 'Local SQLite (WASM) compiler', 'Basic DBA linting & diagnostics'].map(f => (
+                      {['20K AI tokens / day', 'NAI v1 Flash and NAI v1 models', 'All 6 database engines + SQL export', 'DBA linter & schema diagnostics', '1 external database connection', '3 ephemeral test runs / day'].map(f => (
                         <li key={f} className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-success-text shrink-0" />
                           <span>{f}</span>
@@ -1328,7 +1373,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <div className="text-2xl font-bold text-content-primary">$7.5 <span className="text-xs font-normal text-content-subtle">/ month</span></div>
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
-                      {['Unlimited AI requests', 'nai pro model tier', 'SignalR multiplayer team collaboration', 'Full cloud database backups & history sync', 'Priority support & Slack channel access'].map(f => (
+                      {['200K AI tokens / day — 10x Free', 'NAI v1 Pro model unlocked', '2 branch databases + change review', '20 ephemeral test runs / day', '3 external database connections', 'Gateway API: 600 req/min'].map(f => (
                         <li key={f} className="flex items-center gap-2">
                           <Sparkles className="w-3.5 h-3.5 text-accent-text shrink-0" />
                           <span>{f}</span>
@@ -1378,7 +1423,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <div className="text-2xl font-bold text-content-primary">$20 <span className="text-xs font-normal text-content-subtle">/ month</span></div>
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
-                      {['Everything in Pro', '5x the daily AI budget', '20 branch databases', 'Unlimited ephemeral test runs', 'Higher gateway rate limits'].map(f => (
+                      {['Everything in Pro', '3 seats — you + 2 invited members', 'Shared workspace: projects visible to all', 'Team activity feed — see who changed what', '20 branch databases, unlimited test runs', 'Gateway API: 3,000 req/min'].map(f => (
                         <li key={f} className="flex items-center gap-2">
                           <Sparkles className="w-3.5 h-3.5 text-accent-text shrink-0" />
                           <span>{f}</span>
