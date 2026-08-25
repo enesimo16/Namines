@@ -3,6 +3,10 @@
 > Ne yapacağız, hangi sırayla ve **neden o sırayla**. Bu bir dilek listesi değil;
 > her madde ya bir kullanıcı sorununu çözüyor ya da bir riski kapatıyor.
 >
+> ⚠️ **Güncel sıra artık [README](README.md)'deki tabloda** (04-13 numaralı
+> dosyalar). Aşağıdaki liste, o dosyalar yazılmadan önceki ilk taslak — teknik
+> bölümleri (§1-§8) hâlâ geçerli, ama önceliklendirme için README'ye bak.
+>
 > Sen hesap/karar bekleyen işler: [../new-phase/34-SENDEN-BEKLENENLER.md](../new-phase/34-SENDEN-BEKLENENLER.md)
 
 ---

@@ -30,6 +30,32 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 | 02 | [02-REDIS-KARARI.md](02-REDIS-KARARI.md) | Redis: ne, ne zaman, neden şimdi değil |
 | 03 | [03-PAZAR-VE-TASARIM-ANALIZI.md](03-PAZAR-VE-TASARIM-ANALIZI.md) | Rekabet, fiyatlandırma, konumlandırma + çalışan uygulamadan ölçülmüş tasarım denetimi |
 
+### Yapılacak işler — önerilen sırayla
+
+| # | Dosya | Ne | Boyut |
+|---|-------|-----|-------|
+| 04 | [Üretim ekranı](04-LOADING-EKRANI.md) | Deterministik kapıyı görünür yapar — **farkı anlatan tek ekran** | S |
+| 05 | [Plan modu](05-PLAN-MODU.md) | Konuşarak netleştir, üretmeden önce planı onayla | M |
+| 06 | [Veri kaynakları](06-VERI-KAYNAKLARI.md) | URL→API/OpenAPI, extension, localhost. **Bugün yalan söyleyen özellik burada** | M |
+| 07 | [Motor dönüşümü](07-MOTOR-DONUSUMU.md) | PostgreSQL→MariaDB, kayıp raporuyla. %70'i hazır | M |
+| 08 | [Prompt deneyimi](08-PROMPT-DENEYIMI.md) | Daha çok soru, serbest ekleme, geçmiş, kapsam | S |
+| 09 | [Şema alternatifleri](09-SEMA-ALTERNATIFLERI.md) | A/B üret, diff'te karşılaştır, birini seç | M |
+| 10 | [Çoklu DB](10-COKLU-DB.md) | Yan yana veritabanları + aralarındaki risk | L |
+| 11 | [Koddan şema](11-KODDAN-SEMA.md) | Depodaki modellerden şema çıkar, DB ile karşılaştır | M |
+| 12 | [Entegrasyonlar](12-ENTEGRASYONLAR.md) | Supabase önce. Rekabet değil, üstünde durmak | M |
+| 13 | [Dağıtım hedefleri](13-DAGITIM-HEDEFLERI.md) | Plesk/cPanel/mobil — rakiplerin bakmadığı kitle | S |
+
+### Ayrı ürünler — kayıt için, şimdi başlanmayacak
+
+| # | Dosya | Neden ayrı |
+|---|-------|-----------|
+| 14 | [Development + Hosting](14-AYRI-URUN-DEVELOPMENT-HOSTING.md) | Barındırma seni altyapı sağlayıcısına çevirir: 7/24 nöbet, kötüye kullanım, yasal sorumluluk |
+| 15 | [Flow (otomasyon)](15-AYRI-URUN-FLOW.md) | Kuyruk/teslim garantisi altyapısı ister, çekirdek farkla ilgisi yok, pazar kalabalık |
+
+> **Bilerek reddedilenler** ayrıca her dosyanın sonunda "🔴 Yapılmayacak"
+> başlığı altında duruyor. Bir şeyi yapmama kararı da bir karardır ve
+> gerekçesi kaybolursa altı ay sonra yeniden tartışılır.
+
 Senden bekleyen hesap/karar işleri hâlâ
 [../new-phase/34-SENDEN-BEKLENENLER.md](../new-phase/34-SENDEN-BEKLENENLER.md)'de.
 Orası tek liste olarak kalıyor — ikiye bölmek, birinin unutulması demek olurdu.
