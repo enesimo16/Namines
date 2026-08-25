@@ -8,8 +8,8 @@
 > Senin bir hesap/karar vermen gereken işler burada değil —
 > onlar [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md)'de.
 >
-> Son güncelleme: G49 (1052 test yeşil; iki kod inceleme geçişinde toplam
-> 11 bulgu düzeltildi).
+> Son güncelleme: **G52** (Team planı, NAI v1 modelleri, çalışan gelişmiş
+> ayarlar). **1136 test yeşil.**
 
 ---
 
@@ -45,7 +45,7 @@ geldiği an anlamlı hâle gelir.*
 
 **2. GraphQL** — Şu an API'ye REST ile bağlanılıyor. Bazı geliştiriciler GraphQL
 tercih ediyor. Ayrı bir kütüphane ve mimari karar gerektiriyor; **Redis
-kararına bağlı** (§F).
+kararına bağlı** (34 §5).
 
 **3. Şemanın kalan detayları** — View, satır seviyesi güvenlik, arayüz etiketleri
 gibi ileri seviye şey. En pahalı kısım (enum, hesaplanan kolon, collation)
@@ -54,7 +54,16 @@ geçildi; kalanlar daha küçük.
 **4. Panelin kalan özellikleri** — Grafik/dashboard, doğal dil sorgu, üretilen
 paneli özelleştirme.
 
-**5. Altyapı ve içerik** — Otomatik yedekleme, hata izleme panelleri, SEO için
+**5. Ekibin derinleşmesi** *(yeni)* — 3 koltuk, davet bağlantısı ve ortak
+workspace kuruldu. Kalan: aynı şema üzerinde **canlı birlikte düzenleme**
+(SignalR altyapısı hazır ama ekip modeline bağlanmadı), rol bazlı proje
+kısıtları ve ekip içi bildirimler.
+
+**6. Faturalamanın canlıya çıkması** *(yeni)* — Kod hazır, Stripe'ta iki fiyat
+oluşturulması bekliyor (34 §6). Sonrasında kalan: başarısız ödeme akışı,
+fatura geçmişi ekranı, plan yükseltme/düşürme kenar durumları.
+
+**7. Altyapı ve içerik** — Otomatik yedekleme, hata izleme panelleri, SEO için
 100+ hazır şema. Çoğu kod değil, kurulum ve içerik işi.
 
 ### Ne yapılmayacak?
@@ -83,6 +92,12 @@ paneli özelleştirme.
 | §1 **RBAC + denetim kaydı** | ✅ G47 — kayıt Gateway'de (atlatılamaz), panelin varsayılan rolü salt-okunur |
 | §2 `/query/nl` | ✅ G48 — varsayılan çalıştırmaz; `execute` verilse bile yalnızca okuma. ⚠️ Groq anahtarı olmadığı için **mutlu yolu hiç denenmedi** |
 | §1 Studio'nun yeni alanları görmesi | ✅ G49 — enum, identity, hesaplanan kolon, collation, dizi artık canvas'ta |
+| **Netleştirme ajanı + NAI modeli** | ✅ G51 — 14 iş türü, en fazla 5 soru (sıfır token), üç kendi modelimiz, plan bazlı indirgeme |
+| **Kota modeli gerçekten uygulanıyor** | ✅ G51 — plan başına günlük token, paylaşılan havuz, TR gün sınırı, 429 + `Retry-After` |
+| **Görünmeyen Dev hesabı** | ✅ G50 — `.env`'den açılışta kurulan, sınırsız, Stripe'ın ezemediği ayrı bayrak |
+| **Pro/Team fiyatlandırma + ödeme kodu** | ✅ G50 — 7,5$/20$, `PlanCode`, webhook plan ayrımı. ⚠️ Stripe'ta fiyat kaydı bekliyor (34 §6) |
+| **Team: koltuk, davet linki, ortak workspace** | ✅ G52 — 3 koltuk, tek kullanımlık link, ekip paneli, paylaşılan projeler |
+| **Gelişmiş AI ayarları** | ✅ G52 — 11 ayar artık gerçekten okunuyor (eskiden yalnızca localStorage'daydı, tamamı süstü) |
 
 Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyorlar.
 
@@ -90,13 +105,19 @@ Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyor
 
 ## Öneri: hangi sırayla?
 
+> **Not:** İlk iki sıra artık kod işi değil, **senin bir hesap açmana** bağlı
+> (bkz. [34](34-SENDEN-BEKLENENLER.md)). Kod tarafı her ikisinde de bitti.
+
 | Sıra | İş | Neden bu sırada |
 |------|-----|-----------------|
-| 1 | **§5 Bot'un kalanı** | PR'da önizleme veritabanı + `/namines` komutlarının gerçekten çalışması. GitHub App'in geldiği an anlamlı hâle gelir ve bot zaten yazıyor. |
-| 2 | **§2 GraphQL** | Bir GraphQL motoru bağımlılığı + proje başına şema önbelleği ister; ikincisi Redis kararına bağlı. |
-| 3 | **§3'ün kalanı** | Şema adı (`public`), `@ui`/`@tag`, view, RLS, Migration IR, WASM. Model artık enum/generated/collation/dizi taşıyor, yani en pahalı kısım geçildi. |
-| 4 | **§1'in kalanı** | Dashboard motoru, doğal dil sorgu, özelleştirme katmanı, kolon maskeleme/satır filtresinin role bağlanması. Bir de **enum'ları arayüzden tanımlama** — şu an yalnızca var olanlar seçilebiliyor. |
-| 5 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
+| 0 | **Stripe'ta iki fiyat** | Ödeme kodunun tamamı hazır ve test edildi; ürün bugün satış yapamıyor ve sebebi kod değil. En küçük iş, en büyük etki. |
+| 0 | **Disk açmak** | 3,8 GB kaldı; container'lar düşüyor ve her şeyi yavaşlatıyor. |
+| 1 | **§5 Bot'un kalanı** | PR'da önizleme veritabanı + `/namines` komutları. GitHub App'in geldiği an anlamlı hâle gelir ve bot zaten yazabiliyor. |
+| 2 | **Ekibin derinleşmesi** | Koltuk/davet/ortak workspace kuruldu; sıradaki doğal adım aynı şema üzerinde canlı birlikte düzenleme. SignalR altyapısı zaten var, ekip modeline bağlanması gerekiyor. |
+| 3 | **§2 GraphQL** | Bir GraphQL motoru bağımlılığı + proje başına şema önbelleği ister; ikincisi Redis kararına bağlı. |
+| 4 | **§3'ün kalanı** | Şema adı (`public`), `@ui`/`@tag`, view, RLS, Migration IR, WASM. En pahalı kısım (enum/generated/collation/dizi) geçildi. |
+| 5 | **§1'in kalanı** | Dashboard motoru, doğal dil sorgu, özelleştirme katmanı, kolon maskeleme/satır filtresinin role bağlanması. Bir de **enum'ları arayüzden tanımlama**. |
+| 6 | **§4, §6, §7** | Dış servis/içerik ağırlıklı; kod tarafı en hafif olanlar. |
 
 > **§2 `/query/nl` ve §1 doğal dil sorgu aynı işin iki ucu.** İkisi de "üretilen
 > SQL otomatik çalıştırılsın mı?" sorusuna cevap istiyor. Birlikte tasarlanmalı,
@@ -248,6 +269,36 @@ Serilog PII maskeleme, kullanım ölçümü (AI çağrısı, API isteği, branch
 **Bu iş çoğunlukla kod değil, içerik.** Sayfa mekanizması (paylaşım sayfası,
 sosyal önizleme, sitemap, meta etiketler) **G37'de tamamlandı**; eksik olan
 100+ şemayı yazmak ve alan adı ([34](34-SENDEN-BEKLENENLER.md) §3).
+
+---
+
+## 8. Ekibin derinleşmesi ([05](05-CONTROL-PLANE.md) §6) — *yeni başlık*
+
+**G52'de kurulan temel:** Team planı 3 koltuk (satın alan + 2 davet), tek
+kullanımlık davet bağlantısı, ortak workspace (üyeler birbirinin projelerini
+görüyor), ekip paneli ve "kim ne zaman ne değiştirdi" listesi.
+
+**Kalanlar:**
+
+- **Aynı şema üzerinde canlı birlikte düzenleme.** SignalR altyapısı G6'da
+  kuruldu ve `CanvasHub`'ın odası G17'de sunucu-otoriteli branch'e bağlandı —
+  yani teknik temel hazır. Eksik olan, ekip üyeliğinin bu odalara yetki kaynağı
+  olarak bağlanması ve imleç/seçim paylaşımı.
+- **Rol bazlı proje kısıtları.** `OrgRole` (Viewer/Editor/Admin/Owner) tanımlı
+  ve change request akışında uygulanıyor, ama Studio arayüzü henüz rolü dikkate
+  almıyor: Viewer da düzenleme araçlarını görüyor. Sunucu reddediyor, yani
+  güvenlik açığı değil — ama kullanıcıya yapamayacağı şeyi göstermek kötü.
+- **Ekip içi bildirim.** "X seni ekibe ekledi", "Y şemayı değiştirdi" gibi.
+  Bugün kullanıcı ancak paneli açarsa görüyor.
+- **Davet e-postası.** Şu an bağlantıyı kopyalayıp kendin gönderiyorsun.
+  E-posta servisi bağlandığında doğrudan gönderilebilir. *Bilerek böyle:*
+  e-posta altyapısı yokken "davet gönderildi" demek, gitmemiş bir davetin
+  gittiğini sandırırdı.
+- **Koltuk sayısını plana göre satın alma.** Bugün Team sabit 3 koltuk. Ek
+  koltuk satmak, Stripe tarafında adet (quantity) bazlı fiyatlandırma ister.
+
+**Neden şimdi mantıklı bir sıra:** Ürünün "birlikte çalışma" tarafı artık
+satılabilir durumda; canlı düzenleme, o vaadi tamamlayan tek büyük parça.
 
 ---
 

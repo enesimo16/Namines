@@ -1875,7 +1875,10 @@ uçtan uca doğrulandı (davet üret → katıl → link tükendi → ortak proj
 
 ## Kod dışı işler (sen yapacaksın)
 
-- [ ] `C:\Users\Enes Yel` dizinindeki yanlış git deposunu düzelt (remote'u `automated-recruitment-pipeline`)
+- [ ] 🔴 **Disk aç — 3,8 GB kaldı.** Container'lar bu yüzden düşüyor; bu oturumda
+      control DB'yi elle başlatmak gerekti.
+- [ ] `C:\Users\Enes Yel` dizinindeki yanlış git deposunu düzelt (remote'u
+      `automated-recruitment-pipeline`)
 - [ ] Ödeme altyapısı araştırması (Stripe TR sınırlı → Paddle / LemonSqueezy)
 - [ ] `namines.com` alan adı + marka taraması
 
@@ -1883,22 +1886,37 @@ uçtan uca doğrulandı (davet üret → katıl → link tükendi → ortak proj
 
 Aşağıdakiler olmadan ilgili iş TAMAMLANAMAZ — kod tarafı hazır, eksik olan senin
 vereceğin bilgi ya da hesap. Hiçbiri diğer işleri bloke etmiyor.
+Sade dille anlatımı: [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md).
 
-- [ ] **Neon hesabı + `NEON_API_KEY`** (06 §3). `neon.tech` → kayıt → proje → API key.
-      Anahtarı sohbete yapıştırma, ortam değişkenine koy. Geldiğinde
-      `IBranchDatabaseProvisioner`'ın ikinci implementasyonu olarak takılır.
-- [ ] **npm + GitHub yayını.** MCP paketi, npm sarmalayıcısı ve release workflow
-      hazır ama `npm publish` ve `git tag v0.1.0` atılmadı — hesap gerekiyor.
-- [ ] **Gateway'in public alan adı** (`api.namines.com`?). OpenAPI'deki `servers`
-      bloğu ve üretilen SDK'nın taban URL'i buna bağlı. Şimdilik göreli yol.
-- [ ] **Plan başına rate limit sayıları** (08 §5: 600-10.000 rpm aralığı veriliyor).
-- [ ] **Redis** kararı. Çok instance'lı rate limit (şu an bellek içi, instance
-      başına) ve metadata cache (08 §6) buna bağlı.
-- [ ] **Dokümandan iki sapmanın onayı:** (1) `Authorization: Bearer` yerine
+- [ ] 🔴 **Stripe hesabı + iki fiyat kimliği.** Pro 7,5$/ay, Team 20$/ay.
+      `Stripe__SecretKey`, `Stripe__ProPriceId`, `Stripe__TeamPriceId`,
+      `Stripe__WebhookSecret` → `.env`. **Ödeme kodunun tamamı hazır ve test
+      edildi**; ürünün para kazanmasının önündeki tek engel bu.
+- [ ] 🟡 **GitHub App** (`Github__AppId`, `Github__PrivateKey`,
+      `Github__WebhookSecret`). Bot kod olarak hazır ama PR'a tek satır yazamıyor.
+- [ ] 🟡 **npm + GitHub yayını.** MCP paketi, npm sarmalayıcısı ve release
+      workflow hazır ama `npm publish` ve `git tag v0.1.0` atılmadı.
+- [ ] 🟡 **Gateway'in public alan adı** (`api.namines.com`?). OpenAPI'deki
+      `servers` bloğu, üretilen SDK'nın taban URL'i ve GitHub webhook adresi
+      buna bağlı. Şimdilik göreli yol.
+- [ ] 🟡 **Kalıcı Groq anahtarı.** Mevcut anahtar 1 günlük denemeydi; süresi
+      dolduğunda tüm AI özellikleri 401 döner.
+- [ ] 🟢 **Rate limit sayılarının onayı.** Artık varsayılan var (Free 60 /
+      Pro 600 / Team 3.000 / Enterprise 10.000 rpm) — sadece onayın bekleniyor.
+- [ ] 🟢 **Redis** kararı. Çok instance'lı rate limit (şu an bellek içi,
+      instance başına) ve metadata cache (08 §6) buna bağlı. Tek sunucuda sorun yok.
+- [ ] 🟢 **Dokümandan iki sapmanın onayı:** (1) `Authorization: Bearer` yerine
       `X-Namines-Key` — aynı uçlarda JWT de var, tek başlıkta taşımak "hangi kimlik?"
       belirsizliği yaratıyordu. (2) argon2id yerine SHA-256 — argon2 düşük entropili
       PAROLALAR için; anahtar 256-bit rastgele, argon2'nin yavaşlığı hiçbir şey
       kazandırmaz, her isteğe gecikme ekler.
-- [ ] **Stripe fiyat/plan eşlemesi** (22). Kod `SubscriptionStatus`'tan yalnızca
-      Free/Pro çıkarabiliyor; Team/Enterprise ayrımı için plan alanı ve Stripe
-      price id'leri gerekiyor.
+- [ ] 🟢 **Neon hesabı + `NEON_API_KEY`** (06 §3). Branch DB'ler şu an container
+      ile açılıyor — çalışıyor ama yavaş. Tamamen isteğe bağlı.
+
+#### Kapananlar
+
+- [x] ~~Groq API anahtarı~~ — bağlandı; şema üretimi, netleştirme ajanı ve
+      `/query/nl` gerçek modele karşı doğrulandı. (Kalıcı anahtar hâlâ gerekli.)
+- [x] ~~Plan başına rate limit sayıları~~ — `PlanQuotas`'ta varsayılan olarak var.
+- [x] ~~Stripe fiyat/plan eşlemesi (kod tarafı)~~ — `PlanCode` alanı + webhook'ta
+      fiyattan plan çıkarımı; Pro/Team ayrımı artık yapılabiliyor.

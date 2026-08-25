@@ -6,87 +6,98 @@
 >
 > Kaynak: `CHECKLIST.md` → "Kodun beklediği kararlar/erişimler". Burası aynı
 > listenin basit dille yazılmış ve tek başına okunabilir hâli.
+>
+> **Son güncelleme:** G52 (Team planı, NAI v1, gelişmiş ayarlar). 1136 test yeşil.
 
 **Genel kural:** Hiçbir API anahtarını, parolayı ya da token'ı sohbete
-yapıştırma. Hepsi ortam değişkenine girer; sen sadece "aldım" de yeter.
+yapıştırma. Hepsi ortam değişkenine (`.env`) girer; sen sadece "aldım" de yeter.
+`.env` `.gitignore`'da, depoya hiç girmiyor.
 
 ## Önce sade hâli (teknik bilgi gerekmez)
 
 Aşağıdakilerin **hiçbiri kod eksikliği değil.** Hepsinin kodu yazıldı ve test
 edildi; eksik olan tek şey senin bir hesap açman, bir sayı söylemen ya da bir
-karar vermen. Hiçbiri diğer işleri durdurmuyor.
+karar vermen.
 
-### Acil olan iki tanesi
+### 🔴 Bu ikisi ürünü şu an tutuyor
 
-**A) GitHub hesabı ve GitHub App**
-Namines Bot hazır: bir arkadaşın veritabanı değişikliği içeren bir PR açtığında
-"bu değişiklik şu tabloyu siliyor, dikkat" diye yorum yazacak ve riskliyse
-merge'ü engelleyecek. **Ama şu an tek satır yazamıyor**, çünkü GitHub'a
-"ben Namines'im" diyebileceği bir kimliği yok.
-→ GitHub'da bir "App" oluşturup üç değeri bana ver. Adım adım anlatımı §8'de.
+**A) Disk alanı — 3,8 GB kaldı**
+Geçen sefer 4,8 GB'tı, **daha da azaldı.** Bu oturumda veritabanı container'ı
+yine düştü ve elle başlatmam gerekti. Bu, kod yazmayı da yavaşlatıyor.
+→ En acil madde bu. §10
 
-**B) npm hesabı**
-MCP sunucusu paketlendi ve yayına hazır. Şu an bir kullanıcının onu kurması için
-tüm projeyi indirmesi gerekiyor. npm hesabı açıp `npm login` dersen, tek komutla
-kurulur hâle gelir.
-→ npm.com'dan ücretsiz hesap. §2.
+**B) Stripe hesabı ve iki fiyat**
+Ödeme kodu tamamen hazır: Pro 7,5$/ay ve Team 20$/ay, checkout, webhook,
+plan ayrımı, iptal, portal — hepsi yazıldı ve test edildi. **Ama tek kuruş
+tahsil edemez**, çünkü Stripe'ta bu iki fiyatın karşılığı yok.
+→ Stripe'ta iki fiyat oluştur, iki `price_...` kimliğini `.env`'e koy. §6
 
-### Sırada bekleyen altı tanesi
+### 🟡 Sırada bekleyen dördü
 
-**C) Neon hesabı** — Şu an her dal için sıfırdan bir veritabanı açıyoruz;
-çalışıyor ama yavaş. Neon ücretsiz hesapla bunu anında yapıyor. §1
+**C) GitHub App** — Namines Bot hazır: PR'da "bu değişiklik şu tabloyu siliyor"
+diye yorum yazacak ve riskliyse merge'ü engelleyecek. Şu an tek satır yazamıyor,
+çünkü GitHub'a "ben Namines'im" diyebileceği kimliği yok. §8
 
-**D) Alan adı** — `namines.com` sende mi? Bir de API için adres lazım
-(`api.namines.com` gibi). Kullanıcıların indirdiği kod, Namines'in dışında
-nereye bağlanacağını bilmiyor şu an. §3
+**D) npm hesabı** — MCP sunucusu paketlendi, yayına hazır. Şu an kullanıcının
+onu kurması için tüm projeyi indirmesi gerekiyor. §2
 
-**E) Üç sayı** — Ücretsiz / Pro / Team planlarında **dakikada kaç istek** hakkı
-olsun? Sadece üç sayı söyle, gerisini ben yazarım. Uydurmadım çünkü yanlış bir
-sayı ya müşteriyi haksız yere keser ya da ücretsiz planı bedava sınırsız yapar.
-İkisi de sessizce olur. §4
+**E) Alan adı** — `namines.com` sende mi? Bir de API için adres lazım
+(`api.namines.com` gibi). Kullanıcının indirdiği kod, Namines'in dışında
+nereye bağlanacağını bilmiyor. Bu aynı zamanda C'nin de ön koşulu — GitHub'ın
+webhook'u gönderebileceği bir adres gerekiyor. §3
 
-**F) Redis: evet mi hayır mı?** — Tek kelime yeter. Şu an istek sayacı tek
-sunucunun hafızasında; ikinci bir sunucu açarsan aynı kişi iki katı hak kazanır. §5
+**F) Kalıcı Groq anahtarı** — Verdiğin anahtar **1 günlük denemeydi.** Şu an
+`.env`'de duruyor ve çalışıyor ama süresi dolduğunda şema üretimi 401 verecek.
+Kalıcı bir anahtar lazım. §9
 
-**G) Stripe fiyatları** — Team ve Enterprise planları için Stripe'ta fiyat
-oluşturup kimliklerini ver. Şu an sistem herkesi "Ücretsiz ya da Pro" olarak
-görüyor. §6
+### 🟢 Bunlar sadece "onaylıyor musun?"
 
-**H) İki küçük onay** — Dokümanda yazandan bilerek saptığım iki teknik nokta var.
-Kabul ediyorsan hiçbir şey yapman gerekmiyor; etmiyorsan söyle, geri alırım. §7
+**G) Üç rate limit sayısı** — Artık **boş değil**, ben makul varsayılanlar
+koydum: Free 60, Pro 600, Team 3.000 istek/dakika. Sana yüksek ya da düşük
+geliyorsa söyle, tek satır. §4
 
-### Bir de bunlar
+**H) Redis: evet mi hayır mı?** — Tek kelime yeter. Şu an istek sayacı tek
+sunucunun hafızasında; ikinci bir sunucu açarsan aynı kişi iki katı hak
+kazanır. Tek sunucuda çalıştığın sürece sorun değil. §5
 
-**I) Groq (AI) anahtarı** — "Geçen ayki siparişleri göster" gibi bir cümleyi SQL'e
-çeviren özellik yazıldı ama **bir kez bile gerçekten denenmedi**, çünkü AI
-anahtarı yok. Güvenlik kontrollerinin hepsi test edildi; test edilemeyen tek şey
-"ürettiği SQL doğru mu". §9
+**I) İki küçük teknik onay** — Dokümandan bilerek saptığım iki nokta. Kabul
+ediyorsan hiçbir şey yapman gerekmiyor. §7
 
-**J) Disk** — Bilgisayarında sadece **4,8 GB** boş yer kaldı. Bu yüzden bu
-oturumda veritabanı container'ı çöktü. Yer açman lazım. §10
+**J) Neon hesabı** — Branch veritabanları şu an container ile açılıyor;
+çalışıyor ama yavaş. Neon anında yapıyor. Tamamen isteğe bağlı. §1
 
-> **Hiçbir şifreyi, anahtarı ya da token'ı sohbete yapıştırma.** Hepsi ortam
-> değişkenine girer; sen sadece "aldım" de yeter.
+---
+
+## ✅ Kapananlar (artık bir şey yapman gerekmiyor)
+
+| Ne | Nasıl kapandı |
+|----|---------------|
+| **Groq anahtarı yokluğu** | Anahtar `.env`'de; şema üretimi ve netleştirme ajanı gerçek bir modele karşı uçtan uca doğrulandı. ⚠️ Ama anahtar 1 günlük — bkz. F |
+| **`/query/nl` hiç denenmemişti** | Groq bağlandı, gerçek üretim yapıldı |
+| **Plan başına rate limit sayısı yoktu** | Varsayılanlar kondu (60/600/3.000/10.000); artık kararın değil onayın bekleniyor |
+| **Team/Enterprise ayrımı yapılamıyordu** | `PlanCode` alanı eklendi; webhook Stripe fiyatından planı okuyor. Kalan tek şey fiyat kimlikleri |
+| **Fiyatlar belirsizdi** | Karar verildi: Free 0$, Pro 7,5$/ay, Team 20$/ay (3 koltuk) |
+| **Geliştirici hesabı sürekli unutuluyordu** | `.env`'den açılışta kendiliğinden kurulan, sınırsız, görünmeyen Dev hesabı |
 
 ---
 
 ## Tek bakışta
 
-| # | Ne | Tipi | Bunsuz ne olmuyor |
-|---|----|------|-------------------|
-| 1 | Neon hesabı + `NEON_API_KEY` | hesap | Branch veritabanı anında açılmıyor (şu an container, yavaş) |
-| 2 | npm + GitHub yayını | hesap | MCP `npx` ile kurulamıyor; kullanıcı depoyu klonlamak zorunda |
-| 3 | Gateway public alan adı | karar | Eject edilen SDK, Namines dışında nereye bağlanacağını bilmiyor |
-| 4 | Plan başına rate limit sayıları | 3 sayı | Limitler kodda hazır, okunacak sayı yok |
-| 5 | Redis: evet / hayır | karar | 2+ sunucuda rate limit anlamını kaybediyor |
-| 6 | Stripe fiyat/plan eşlemesi | hesap | Team/Enterprise ayrımı yapılamıyor |
-| 7 | İki doküman sapmasının onayı | onay | Bir şey bloke değil; itirazın varsa geri alırım |
-| 8 | **GitHub App** (`AppId`, `PrivateKey`, `WebhookSecret`) | hesap | **Bot kod olarak hazır ama tek satır yazamıyor** |
-| 9 | Groq API anahtarı | hesap | `/query/nl` bir kez bile gerçekten çalıştırılmadı |
-| 10 | Disk alanı (şu an 4,8 GB) | makine | Control DB container'ı bu yüzden düştü |
+| # | Ne | Tipi | Aciliyet | Bunsuz ne olmuyor |
+|---|----|------|----------|-------------------|
+| 10 | **Disk alanı** (şu an 3,8 GB) | makine | 🔴 | Container'lar düşüyor, geliştirme yavaşlıyor |
+| 6 | **Stripe hesabı + 2 fiyat kimliği** | hesap | 🔴 | **Ödeme kodu hazır ama tek kuruş tahsil edemiyor** |
+| 8 | GitHub App (`AppId`, `PrivateKey`, `WebhookSecret`) | hesap | 🟡 | Bot hazır ama PR'a tek satır yazamıyor |
+| 2 | npm yayını | hesap | 🟡 | MCP `npx` ile kurulamıyor; kullanıcı depoyu klonlamak zorunda |
+| 3 | Public alan adı (`api.namines.com`?) | karar | 🟡 | Eject edilen SDK nereye bağlanacağını bilmiyor; webhook adresi de buna bağlı |
+| 9 | **Kalıcı** Groq anahtarı | hesap | 🟡 | Mevcut anahtar 1 günlük deneme — dolunca AI tamamen durur |
+| 4 | Rate limit sayıları | onay | 🟢 | Varsayılan kondu; sadece onayın/itirazın bekleniyor |
+| 5 | Redis: evet / hayır | karar | 🟢 | Tek sunucuda sorun yok; 2+ sunucuda limit anlamını kaybediyor |
+| 7 | İki doküman sapmasının onayı | onay | 🟢 | Hiçbir şey bloke değil; itirazın varsa geri alırım |
+| 1 | Neon hesabı | hesap | 🟢 | Branch DB'ler yavaş açılıyor (ama açılıyor) |
 
-En yüksek etkili ikisi: **8** (bot tamamen hazır, sadece kimlik bekliyor) ve
-**2** (MCP'nin yayılmasının önündeki tek engel).
+**En yüksek etkili ikisi:** **10** (disk — her şeyi yavaşlatıyor) ve **6**
+(Stripe — ürünün para kazanmasının önündeki tek engel).
 
 ---
 
@@ -138,26 +149,31 @@ bağlanacağını bilmiyor.
 
 ---
 
-## 4. Plan başına rate limit sayıları
+## 4. Plan başına rate limit sayıları — 🟢 artık sadece onay
 
-**Ne yapman lazım:** Üç sayı söyle — Free / Pro / Team planlarında **dakikada
-kaç istek**.
+**Durum değişti:** Eskiden kodda okunacak sayı yoktu. Artık
+[`PlanQuotas`](../backend/Namines.Core/Analysis/PlanQuotas.cs)'ta duruyorlar:
 
-**Neden:** [08-GATEWAY-API.md](08-GATEWAY-API.md) §5 yalnızca bir aralık
-veriyor (600–10.000 rpm). Kodda limitleyici hazır, okunacak sayı yok.
+| Plan | Gateway istek/dakika | Günlük AI token |
+|------|---------------------|-----------------|
+| Free | 60 | 20.000 |
+| Pro | 600 | 200.000 |
+| Team | 3.000 | 200.000 (Pro ile aynı — bilerek) |
+| Enterprise | 10.000 | 10.000.000 |
 
-**Not:** Bir sayı uydurup koymadım. Yanlış bir varsayılan, ya kullanıcıları
-haksız yere kesip şikâyet üretir ya da ücretsiz planı bedava sınırsız yapar —
-ikisi de sessizce olur.
+**Ne yapman lazım:** Sadece bak ve "olur" ya da "şu şöyle olsun" de. Değiştirmek
+tek satır ve tek yerde — sayılar tek bir dosyada duruyor.
+
+**Team'in AI bütçesi neden Pro ile aynı:** Team'in sattığı şey daha çok token
+değil, birlikte çalışma (3 koltuk, ortak workspace, paylaşılan projeler).
+Token'ı da katlamak, ekip başına maliyeti üç katına çıkarıp 20$ fiyatı anlamsız
+kılardı. İtiraz edersen değiştiririm.
 
 **Bilmen gereken bir düzeltme (G41):** Gateway'in tüm uçları, "pahalı uçlar"
 için konmuş **dakikada 5 istek** limitini paylaşıyordu. Bu, Gateway'i normal bir
-uygulama için kullanılamaz kılıyor ve anahtar başına ayarladığın limiti tamamen
-ölü koda çeviriyordu — o sayıya ulaşmanın yolu yoktu. Gateway'e ayrı bir
-politika verdim ve **son çare olarak dakikada 1200** seçtim. Bu bir tavan değil,
-kimliği doğrulanmamış trafiğin sunucuyu meşgul etmesini engelleyen bir siper;
-asıl sınır yukarıdaki üç sayıyla anahtar başına uygulanacak. 1200 sana yüksek
-ya da düşük geliyorsa söyle.
+uygulama için kullanılamaz kılıyordu. Gateway'e ayrı bir politika verdim ve son
+çare olarak **dakikada 1200** seçtim — bu bir tavan değil, kimliği doğrulanmamış
+trafiğin sunucuyu meşgul etmesini engelleyen bir siper.
 
 ---
 
@@ -174,17 +190,34 @@ tamamen yabancı değil.
 
 ---
 
-## 6. Stripe fiyat/plan eşlemesi
+## 6. Stripe hesabı + iki fiyat kimliği — 🔴 ACİL
 
-**Ne yapman lazım:** Stripe'ta Team ve Enterprise için fiyat (price) kayıtları
-oluştur, `price_...` kimliklerini ver.
+**Ne yapman lazım:**
+1. Stripe hesabı aç (yoksa).
+2. İki **fiyat (price)** oluştur:
+   - **Pro** — aylık **7,50 $**
+   - **Team** — aylık **20,00 $**
+3. Üç değeri `.env`'e koy:
+   ```
+   Stripe__SecretKey=sk_...
+   Stripe__ProPriceId=price_...
+   Stripe__TeamPriceId=price_...
+   ```
+   Ayrıca webhook için `Stripe__WebhookSecret=whsec_...`
 
-**Neden:** Kod bugün `SubscriptionStatus`'tan yalnızca **Free/Pro** ayrımını
-çıkarabiliyor. Team/Enterprise için ne bir plan alanı ne de Stripe tarafında
-karşılığı var.
+**Neden acil:** Ödeme tarafının **kodu tamamen bitti** — checkout iki planı da
+biliyor (`?plan=pro|team`), webhook hangi fiyatın ödendiğini okuyup kullanıcının
+planını yazıyor (`PlanCode`), iptal Free'ye düşürüyor, portal çalışıyor,
+kullanıcı ayarlarda üç plan kartını görüyor. **Tek eksik, Stripe tarafında bu
+fiyatların var olmaması.** Yani ürün bugün satış yapamıyor ve bunun sebebi kod
+değil.
+
+**Fiyatı kodda tutmuyoruz, yalnızca kimliğini:** fiyatı değiştirmek
+istediğinde Stripe panelinden değiştirirsin, yeniden dağıtım gerekmez.
 
 **Ayrıca:** Stripe Türkiye'de sınırlı — Paddle / LemonSqueezy araştırması hâlâ
-açık bir madde (aşağıdaki "kod dışı işler"e bak).
+açık bir madde (aşağıdaki "kod dışı işler"e bak). Kod tarafı Stripe'a yazıldı;
+başka bir sağlayıcıya geçersen webhook ve checkout değişir, plan modeli aynı kalır.
 
 **İlgili:** [22-BUSINESS-MODEL.md](22-BUSINESS-MODEL.md)
 
@@ -245,31 +278,48 @@ devreye girer.
 
 ---
 
-## 9. Groq API anahtarı (`/query/nl` için)
+## 9. Kalıcı Groq API anahtarı — 🟡
 
-**Ne yapman lazım:** Groq anahtarını ortam değişkenine koy (proje zaten
-`GroqAIService` kullanıyor, yeni bir şey kurman gerekmiyor).
+**Durum:** Bir anahtar verdin ve `.env`'de duruyor; **AI şu an gerçekten
+çalışıyor.** Şema üretimi, netleştirme ajanı ve `/query/nl` gerçek bir modele
+karşı uçtan uca doğrulandı.
 
-**Neden:** Doğal dil sorgusu (`/query/nl`) **bir kez bile gerçekten
-çalıştırılmadı.** Doğrulanan şeyler yalnızca kapılar: yetkisiz anahtar 403,
-bilinmeyen motor reddi, kota ölçümü, hata mesajının sızdırmaması. Ama "üretilen
-SQL doğru mu, model şemayı doğru okuyor mu" sorusunun cevabı **bilinmiyor**.
+**Sorun:** O anahtar **1 günlük bir denemeydi.** Süresi dolduğunda her AI
+isteği 401 döner ve kullanıcı "şema üretilemedi" hatası alır — bu oturumda tam
+olarak bu yaşandı ve teşhis etmek zaman aldı.
 
-**Geldiğinde ne olur:** Gerçek bir soru sorulup üretilen SQL'in çalıştığı
-doğrulanır. İstem düzeltmesi gerekirse orada görülür.
+**Ne yapman lazım:** [console.groq.com/keys](https://console.groq.com/keys)
+üzerinden kalıcı bir anahtar üret ve `.env`'deki `Groq__ApiKey=` satırını
+güncelle. Sohbete yapıştırma gerekmez, doğrudan dosyaya yaz.
+
+**Not:** Ücretsiz katmanın dakikalık token sınırı var. Sınıra takıldığında
+sistem artık düzgün davranıyor — 500 değil, `Retry-After` başlığıyla **429**
+dönüyor ve kullanıcıya "AI şu an meşgul, 24 saniye sonra dene" diyor.
 
 ---
 
-## 10. Disk alanı
+## 10. Disk alanı — 🔴 EN ACİL
 
-**Ne yapman lazım:** C: sürücüsünde yer aç. Şu an **4,8 GB** boş.
+**Durum kötüleşti:** Geçen sefer 4,8 GB'tı, şu an **3,8 GB**.
 
-**Neden:** Control DB container'ı bu yüzden 255 ile düştü (bu oturumda oldu).
-Docker'ın kendi içinden 6,9 GB geri kazandım ama WSL2'nin sanal diski
-kendiliğinden küçülmüyor — `wsl --shutdown` sonrası VHDX sıkıştırma gerekiyor.
+**Ne yapman lazım:** C: sürücüsünde yer aç. En hızlı kazanç sırasıyla:
 
-**Not:** CLAUDE.md zaten uyarıyor — "Docker/build hataları illa kod hatası
-değil, önce boş alanı kontrol et."
+1. **WSL2 sanal diski sıkıştır** — Docker sildiğin şeyi geri veriyor ama VHDX
+   kendiliğinden küçülmüyor. PowerShell'de (yönetici):
+   ```
+   wsl --shutdown
+   Optimize-VHD -Path "$env:LOCALAPPDATA\Docker\wsl\disk\docker_data.vhdx" -Mode Full
+   ```
+   (`Optimize-VHD` yoksa Hyper-V modülü kurulu değildir; `diskpart` ile
+   `compact vdisk` de aynı işi yapar.)
+2. **Kullanılmayan Docker imajları** — `docker system prune -a --volumes` ⚠️
+   `--volumes` control DB'yi de siler; onsuz çalıştır.
+3. **Eski `bin/` ve `obj/` klasörleri** — `dotnet clean` ya da elle silme.
+
+**Neden acil:** Bu oturumda control DB container'ı yine düştü ve elle
+başlatmam gerekti. CLAUDE.md zaten uyarıyor: *"Docker/build hataları illa kod
+hatası değil — önce boş alanı kontrol et."* Bu, hem ürünü hem geliştirmeyi
+yavaşlatıyor.
 
 ---
 
