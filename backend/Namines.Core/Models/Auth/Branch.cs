@@ -16,7 +16,7 @@ namespace Namines.Core.Models.Auth
     /// <c>projects</c>/<c>users</c> Faz 2'nin ayrı ULID tabanlı çok-kiracılı şemasına
     /// referans veriyor. Faz 0'da bu tablolar yok — bunun yerine mevcut
     /// <see cref="CloudProject"/>/<see cref="ApplicationUser"/> modeline bağlanıyoruz
-    /// (CLAUDE.md: "sıfırdan rewrite etme" prensibi — mevcut modelin yanına eklenir,
+    /// (AGENTS.md: "sıfırdan rewrite etme" prensibi — mevcut modelin yanına eklenir,
     /// onu değiştirmez).
     /// </summary>
     public class Branch

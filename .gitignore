@@ -139,10 +139,15 @@ docker-compose.local.yml
 !README.md
 !README.tr.md
 !frontend/README.md
-!CLAUDE.md
+!AGENTS.md
 !FRONTEND.md
 !new-phase/*.md
 !second-phase/*.md
+
+# Ajan araci yapilandirmasi -- gelistiricinin kendi makinesine ait, urune ait
+# degil. Depoda durmasi, kullanilan araci herkese duyurmaktan baska bir sey
+# yapmiyordu. Yerelde kaliyor, sadece takip edilmiyor.
+.claude/
 # Claude Skill tanimi koddur, dokuman degil - genel *.md kurali bunu sessizce yutuyordu.
 !skills/**/*.md
 telemetry.config.json

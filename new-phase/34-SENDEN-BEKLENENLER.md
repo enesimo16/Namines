@@ -317,7 +317,7 @@ dönüyor ve kullanıcıya "AI şu an meşgul, 24 saniye sonra dene" diyor.
 3. **Eski `bin/` ve `obj/` klasörleri** — `dotnet clean` ya da elle silme.
 
 **Neden acil:** Bu oturumda control DB container'ı yine düştü ve elle
-başlatmam gerekti. CLAUDE.md zaten uyarıyor: *"Docker/build hataları illa kod
+başlatmam gerekti. AGENTS.md zaten uyarıyor: *"Docker/build hataları illa kod
 hatası değil — önce boş alanı kontrol et."* Bu, hem ürünü hem geliştirmeyi
 yavaşlatıyor.
 

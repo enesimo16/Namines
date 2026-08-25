@@ -9,7 +9,7 @@ namespace Namines.Core.Interfaces;
 /// "Run Tests" — G5'in Testcontainers altyapısının runtime (ürün içi) versiyonu.
 /// new-phase/30-SERVER-SIDE-BRANCHING.md §3 Adım 3 ve §5'teki güvenlik notuna tabidir:
 /// implementasyon worker'ın KENDİ host'unda (container İÇİNDEN değil) Testcontainers
-/// çalıştırmalı — docker.sock hiçbir container'a mount edilmez (G1 kuralı, bkz. CLAUDE.md).
+/// çalıştırmalı — docker.sock hiçbir container'a mount edilmez (G1 kuralı, bkz. AGENTS.md).
 /// </summary>
 public interface IBranchTestRunner
 {

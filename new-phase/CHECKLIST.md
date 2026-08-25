@@ -348,7 +348,7 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
   - **Not — ara kesinti ve kurtarma:** enum-deserialization hatası düzeltildikten
     sonra backend'i yeniden başlatırken makine 0 bayt boş disk alanına düştü
     (`C:` sürücüsü 233 GB'lık) ve Docker Desktop/WSL2 yanıt vermez oldu
-    (`namines-control-db` container'ına erişilemedi) — CLAUDE.md'nin önceden bildiği
+    (`namines-control-db` container'ına erişilemedi) — AGENTS.md'nin önceden bildiği
     kırılganlık ("disk alanı kritik olabilir", "Docker Desktop bu makinede kırılgan").
     Kullanıcı disk alanını temizledikten sonra `wsl --shutdown` + Docker Desktop
     process'lerini öldürüp yeniden başlatarak toparlandı; `namines-control-db`
@@ -546,7 +546,7 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     (`namines-schema-diff.yml`) bir PR yorumcusuydu ve dayandığı `namines-schema.json`
     repoda olmadığı için **hiç tetiklenmiyordu**. Yani her değişiklik doğrulanmamış gidiyordu.
   - 4 iş: **backend** (Release build + her iki test projesi, Docker'lı integration
-    testleri dahil, CLAUDE.md'nin kuralı gereği sıralı), **frontend** (`npm ci` +
+    testleri dahil, AGENTS.md'nin kuralı gereği sıralı), **frontend** (`npm ci` +
     `tsc --noEmit` + `build`), **design-tokens** (FRONTEND.md §4/§2 bekçisi: ham hex,
     saf beyaz/siyah, indigo/mor).
   - Doğrulama: bekçilerin geçtiği DEĞİL, **yakaladığı** kanıtlandı — kasıtlı ihlal
@@ -682,7 +682,7 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
     5 araç listelendi, `generate_ddl` gerçek DDL döndürdü, log'lar stderr'de kaldı.
     CI'a CLI çıkış-kodu duman testi eklendi (yerelde çalıştırıldı, geçti).
   - ⚠️ `.gitignore`'un genel `*.md` kuralı `skills/**/SKILL.md`'yi sessizce yutuyordu
-    (CLAUDE.md'nin uyardığı tuzak, ikinci kez). `!skills/**/*.md` istisnası eklendi,
+    (AGENTS.md'nin uyardığı tuzak, ikinci kez). `!skills/**/*.md` istisnası eklendi,
     `git add -n` ile doğrulandı.
 
 - [x] **G22 — Prisma eject (Faz B / [12](12-CODEGEN-EJECT.md))** ✅ TAMAMLANDI
@@ -770,7 +770,7 @@ için ampirik doğrulama yapılamadı — G5'te (Testcontainers) yapılacak.
 - [x] **G24 — Branch veritabanı sağlama (Faz B / [06](06-DATA-PLANE.md) §4)** ✅ TAMAMLANDI
   - `BranchDatabaseProvisioner` — branch başına GERÇEK, bağlanılabilir bir veritabanı.
     `POST/GET/DELETE /api/branch/{id}/database`. PostgreSQL, MySQL, SQL Server.
-  - **`docker.sock` mount EDİLMİYOR** (CLAUDE.md kesin kuralı, 30 §5): servis host
+  - **`docker.sock` mount EDİLMİYOR** (AGENTS.md kesin kuralı, 30 §5): servis host
     sürecinde çalışıp Docker API'sine oradan konuşuyor — `BranchTestRunnerService`
     ile aynı model.
   - Test koşucusundan farkı ömür, ve bu üç yeni sorumluluk getiriyor:

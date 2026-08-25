@@ -48,7 +48,7 @@ jobs:
       - name: Docker hazır mı
         run: docker info --format '{{.ServerVersion}}'
 
-      # Integration testleri gerçek DB container'ları açıyor. CLAUDE.md'nin kuralı:
+      # Integration testleri gerçek DB container'ları açıyor. AGENTS.md'nin kuralı:
       # paralel çalıştırmak Docker'ı boğabiliyor — sıralı koş.
       - name: Test — Namines.Tests
         run: >

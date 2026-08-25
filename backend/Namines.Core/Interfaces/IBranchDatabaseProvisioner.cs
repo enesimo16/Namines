@@ -15,7 +15,7 @@ namespace Namines.Core.Interfaces;
 /// veritabanı branch kapanana ya da süresi dolana kadar YAŞAR ve bağlanılabilir —
 /// geliştirici gerçekten sorgu çalıştırabilir.
 ///
-/// <b>docker.sock ASLA bir container'a mount EDİLMEZ</b> (CLAUDE.md kesin kuralı:
+/// <b>docker.sock ASLA bir container'a mount EDİLMEZ</b> (AGENTS.md kesin kuralı:
 /// host'ta root eşdeğeri yetki verir). <see cref="IBranchTestRunner"/> ile aynı
 /// model geçerli: bu servis host süreci içinde çalışır ve Docker API'sine oradan
 /// konuşur, container içinden değil (bkz. 30 §5).

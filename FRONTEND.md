@@ -1,8 +1,8 @@
 # Namines — Frontend Tasarım Talimatları
 
 > Bu dosya `frontend/` altında **görsel/UX** işi yaparken okunur. Backend/mimari
-> işi için [CLAUDE.md](CLAUDE.md)'ye bak. İkisi birbirini geçersiz kılmaz —
-> CLAUDE.md genel proje kuralları, bu dosya sadece frontend/tasarım kuralları.
+> işi için [AGENTS.md](AGENTS.md)'ye bak. İkisi birbirini geçersiz kılmaz —
+> AGENTS.md genel proje kuralları, bu dosya sadece frontend/tasarım kuralları.
 
 ---
 

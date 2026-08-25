@@ -26,7 +26,7 @@ namespace Namines.Infrastructure.Services;
 /// Branch başına canlı veritabanı (new-phase/06-DATA-PLANE.md §4).
 ///
 /// <b>docker.sock mount EDİLMEZ.</b> Bu servis host sürecinde çalışır ve Docker
-/// API'sine oradan konuşur — CLAUDE.md'nin kesin kuralı ve 30 §5'in "worker kendi
+/// API'sine oradan konuşur — AGENTS.md'nin kesin kuralı ve 30 §5'in "worker kendi
 /// host'unda çalıştırır" köprüsü. <see cref="BranchTestRunnerService"/> ile aynı
 /// model; oradaki Docker.DotNet/Testcontainers çakışma notu burada da geçerli.
 ///

@@ -151,7 +151,7 @@ ilkesi ve `ReferentialActionSql`'deki aynı disiplin burada da geçerli.
 - MCP sunucusu kullanıcının makinesinde çalıştığı için connection string ağdan
   geçmez — barındırılan üründeki "asla saklama" kuralından daha güçlü bir konum.
 - `run_tests` kullanıcının Docker'ını kullanır; `docker.sock` **hiçbir container'a
-  mount edilmez** (G1 kuralı, bkz. [CLAUDE.md](../CLAUDE.md)).
+  mount edilmez** (G1 kuralı, bkz. [AGENTS.md](../AGENTS.md)).
 
 ---
 

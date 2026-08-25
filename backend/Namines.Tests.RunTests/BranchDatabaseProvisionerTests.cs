@@ -21,7 +21,7 @@ namespace Namines.Tests.RunTests;
 /// uygulanmadığı. İkisi de yalnızca gerçek bir bağlantıyla kanıtlanır.
 ///
 /// Testler yalnızca PostgreSQL'i kullanıyor: MSSQL/MySQL aynı kod yolundan geçiyor
-/// ve CLAUDE.md'nin uyarısı gereği bu makinede ağır container'ları çoğaltmak
+/// ve AGENTS.md'nin uyarısı gereği bu makinede ağır container'ları çoğaltmak
 /// Docker'ı boğabiliyor.
 ///
 /// NEDEN BU PROJEDE: Namines.Tests, Testcontainers'a bağımlı ve o paket ailesi kendi

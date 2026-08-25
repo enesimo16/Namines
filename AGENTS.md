@@ -1,7 +1,7 @@
-# Namines — Claude Code Talimatları
+# Namines — Ajan Talimatları
 
-> Bu dosya her oturumda otomatik yüklenir. Amacı: yeni bir Claude oturumunun bu
-> projeye "sıfırdan" değil, **nerede olduğumuzu bilerek** başlaması.
+> Bu dosya her oturumda otomatik yüklenir. Amacı: yeni bir oturumun bu projeye
+> "sıfırdan" değil, **nerede olduğumuzu bilerek** başlaması.
 
 ---
 
@@ -97,7 +97,7 @@ hesap/karar bekliyor) ve [35-KALAN-BUYUK-ISLER.md](new-phase/35-KALAN-BUYUK-ISLE
   `Microsoft.Data.Sqlite` paketi hâlâ duruyor ve duracak — `DatabaseExecutorService`/
   `ScaffolderService`'te kullanıcının hedef motor olarak SQLite seçebilmesi (6 motordan
   biri) için gerekli, control DB ile ilgisi yok. İkisini karıştırma.
-- **`.gitignore`'da genel bir `*.md` kuralı var**, `!README.md`/`!CLAUDE.md`/
+- **`.gitignore`'da genel bir `*.md` kuralı var**, `!README.md`/`!AGENTS.md`/
   `!new-phase/*.md`/`!second-phase/*.md` istisnalarıyla. Yeni bir kök-dizin veya alt-dizin markdown
   dosyası eklersen (new-phase dışında) `git status`'ta gerçekten göründüğünü
   doğrula — sessizce yutulabilir (bir kere oldu, `49bc637` bunu düzeltti).
