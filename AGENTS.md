@@ -16,7 +16,10 @@
 3. **[new-phase/CHECKLIST.md](new-phase/CHECKLIST.md)** — bugüne kadar yapılan
    her işin doğrulama kanıtıyla birlikte listesi. **"G" = görev grubu, gün değil.**
    Yeni bir işe başlamadan önce buraya bak, hangi G'de kaldığımızı gör.
-4. **[FRONTEND.md](FRONTEND.md)** — `frontend/` altında görsel/UX işi yapıyorsan
+4. **[second-phase/README.md](second-phase/README.md)** — Faz 1 bitti; bundan
+   sonrası burada. `00-NEREDEYIZ.md` ürünün bugünkü hâli, `01-SIRADAKI-ISLER.md`
+   sıradaki işler ve sırası. **Yeni bir işe başlamadan önce 01'e bak.**
+5. **[FRONTEND.md](FRONTEND.md)** — `frontend/` altında görsel/UX işi yapıyorsan
    ÖNCE bu dosyayı oku. Sabit renk paleti, tipografi, `ui-ux-pro-max` skill
    kullanım zorunluluğu ve kütüphane kuralları burada.
 
@@ -95,7 +98,7 @@ hesap/karar bekliyor) ve [35-KALAN-BUYUK-ISLER.md](new-phase/35-KALAN-BUYUK-ISLE
   `ScaffolderService`'te kullanıcının hedef motor olarak SQLite seçebilmesi (6 motordan
   biri) için gerekli, control DB ile ilgisi yok. İkisini karıştırma.
 - **`.gitignore`'da genel bir `*.md` kuralı var**, `!README.md`/`!CLAUDE.md`/
-  `!new-phase/*.md` istisnalarıyla. Yeni bir kök-dizin veya alt-dizin markdown
+  `!new-phase/*.md`/`!second-phase/*.md` istisnalarıyla. Yeni bir kök-dizin veya alt-dizin markdown
   dosyası eklersen (new-phase dışında) `git status`'ta gerçekten göründüğünü
   doğrula — sessizce yutulabilir (bir kere oldu, `49bc637` bunu düzeltti).
 - **`C:\Users\Enes Yel` kendisi ayrı, ilgisiz bir git deposu** (remote:
