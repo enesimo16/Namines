@@ -120,7 +120,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-white/[0.06]"
+            className="tap-44 p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-white/[0.06]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -185,7 +185,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="p-2 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] transition-colors"
+                    className="tap-44 p-2 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] transition-colors"
                     aria-label="Copy invite link"
                   >
                     {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -246,7 +246,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
                       <button
                         type="button"
                         onClick={() => handleRevoke(i.id)}
-                        className="p-1.5 rounded-lg text-content-muted hover:text-danger hover:bg-white/[0.06] transition-colors"
+                        className="tap-44 p-1.5 rounded-lg text-content-muted hover:text-danger hover:bg-white/[0.06] transition-colors"
                         aria-label="Revoke invite"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

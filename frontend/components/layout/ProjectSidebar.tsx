@@ -105,7 +105,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
             </span>
             <button
               onClick={onClose}
-              className="p-1 text-content-muted hover:text-content-primary rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+              className="tap-44 p-1 text-content-muted hover:text-content-primary rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
               aria-label="Close workspace"
             >
               <X className="w-4 h-4" />
@@ -163,7 +163,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                 <div className="pt-2 border-t border-content-primary/10 flex items-center justify-between">
                   <button
                     onClick={(e) => handleDeleteProject(e, project.id)}
-                    className="p-1 -ml-1 rounded-md text-content-muted hover:text-danger hover:bg-danger-subtle transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                    className="tap-44 p-1 -ml-1 rounded-md text-content-muted hover:text-danger hover:bg-danger-subtle transition-colors opacity-0 group-hover:opacity-100 shrink-0"
                     title="Delete project"
                     aria-label="Delete project"
                   >

@@ -20,6 +20,15 @@ public enum AiQuotaDecision
 
     /// <summary>Kullanıcının günlük tavanı doldu.</summary>
     UserExhausted,
+
+    /// <summary>
+    /// Ekibin (organizasyonun) günlük ortak havuzu doldu.
+    ///
+    /// Kullanıcının kendi tavanından ayrı: kişi hakkını bitirmemiş olabilir ama
+    /// ekip arkadaşları havuzu tüketmiş olabilir. Ayrı bir durum olması şart —
+    /// "kendi hakkın dolu" demek yanlış olurdu ve kullanıcı sebebi anlamazdı.
+    /// </summary>
+    TeamExhausted,
 }
 
 /// <summary>
@@ -74,7 +83,43 @@ public sealed class AiQuotaService
             int.TryParse(_configuration["AiPool:PerUserDailyTokens"], out var configured))
             return configured;
 
-        return PlanQuotas.For(tier).DailyAiTokens;
+        var perSeat = PlanQuotas.For(tier).DailyAiTokens;
+
+        // Team'de üye başına tavan, payından YÜKSEK ama havuzun tamamından DÜŞÜK.
+        //
+        // Tam payına (200K) eşitlemek, ortak havuzu bölünmüş kotaya çevirir ve
+        // boşta duran üyenin payını çöpe atardı. Havuzun tamamına (600K) açmak
+        // ise bir üyenin hepsini tüketip diğerlerine hiçbir şey bırakmamasına
+        // izin verirdi. İkiye katlamak ortası: yoğun çalışan biri payının iki
+        // katını kullanabiliyor, ekibe her hâlükârda bir pay kalıyor.
+        return tier == PlanTier.Team ? perSeat * 2 : perSeat;
+    }
+
+    /// <summary>
+    /// Kullanıcının ekip havuzu — Team planında organizasyonun günlük toplam hakkı.
+    /// Team değilse <c>null</c> (ekip havuzu kontrolü hiç yapılmıyor).
+    /// </summary>
+    private async Task<(string OrgId, long Limit)?> TeamPoolAsync(string userId, CancellationToken ct)
+    {
+        if (await TierAsync(userId, ct) != PlanTier.Team) return null;
+
+        // Kullanıcının üyesi olduğu, kişisel OLMAYAN organizasyon; yoksa kendi
+        // kişisel org'u. TeamController'daki ActiveOrgAsync ile aynı kural —
+        // ikisi ayrışırsa kullanıcı bir yerde ekipte, başka yerde tek başına
+        // görünürdü.
+        var org = await _context.OrganizationMembers.AsNoTracking()
+            .Where(m => m.UserId == userId)
+            .OrderBy(m => m.Organization.IsPersonal ? 1 : 0)
+            .ThenBy(m => m.JoinedAt)
+            .Select(m => new { m.OrganizationId, m.Organization.CreatedByUserId })
+            .FirstOrDefaultAsync(ct);
+
+        if (org is null) return null;
+
+        var seats = PlanQuotas.For(PlanTier.Team).TeamSeats;
+        var perSeat = PlanQuotas.For(PlanTier.Team).DailyAiTokens;
+
+        return (org.OrganizationId, (long)perSeat * seats);
     }
 
     /// <summary>
@@ -172,8 +217,34 @@ public sealed class AiQuotaService
             .Select(g => (long?)g.TokensUsed)
             .FirstOrDefaultAsync(ct) ?? 0;
 
-        if (used + estimatedTokens > DailyPool) return AiQuotaDecision.PoolExhausted;
+        // Paylaşılan havuz YALNIZCA ücretsiz kullanıcıları bağlıyor.
+        //
+        // Önceden herkesi bağlıyordu ve bu, planların vaadini sessizce yalanlıyordu:
+        // havuz 100.000/gün, oysa Pro'ya 200.000, bir Team'e 600.000 satılıyor.
+        // Yani parasını ödemiş bir müşteri, ücretsiz kullanıcıların tükettiği bir
+        // tavana takılıp aldığı hakkı hiç kullanamıyordu. Havuzun varlık sebebi
+        // "bedava kullanımın maliyetini sınırlamak"; ücretli kullanım zaten
+        // gelirle karşılanıyor, onu aynı tavana sokmak ters.
+        var tier = await TierAsync(userId, ct);
+        if (tier == PlanTier.Free && used + estimatedTokens > DailyPool)
+            return AiQuotaDecision.PoolExhausted;
+
         if (quota.DailyUsageCount + estimatedTokens > quota.DailyLimit) return AiQuotaDecision.UserExhausted;
+
+        // Ekip havuzu: Team'de organizasyonun TOPLAM günlük hakkı. Kullanıcının
+        // kendi tavanı dolmamış olsa bile ekibin hakkı bitmiş olabilir — o zaman
+        // reddediliyor, aksi hâlde üç kişi ayrı ayrı tavanına kadar harcayıp
+        // ekibin toplam bütçesini ikiye katlardı.
+        var team = await TeamPoolAsync(userId, ct);
+        if (team is not null)
+        {
+            var teamUsed = await _context.OrgAiUsages.AsNoTracking()
+                .Where(o => o.OrganizationId == team.Value.OrgId && o.Date == today)
+                .Select(o => (long?)o.TokensUsed)
+                .FirstOrDefaultAsync(ct) ?? 0;
+
+            if (teamUsed + estimatedTokens > team.Value.Limit) return AiQuotaDecision.TeamExhausted;
+        }
 
         return AiQuotaDecision.Allowed;
     }
@@ -219,6 +290,36 @@ public sealed class AiQuotaService
                 await _context.GlobalAiUsages
                     .Where(g => g.Date == today)
                     .ExecuteUpdateAsync(s => s.SetProperty(g => g.TokensUsed, g => g.TokensUsed + estimatedTokens), ct);
+            }
+        }
+
+        // Ekip sayacı da artıyor. Aynı yarış-güvenli desen: önce güncelle, satır
+        // yoksa ekle, ekleme çakışırsa güncellemeye dön.
+        var team = await TeamPoolAsync(userId, ct);
+        if (team is not null)
+        {
+            var orgRows = await _context.OrgAiUsages
+                .Where(o => o.OrganizationId == team.Value.OrgId && o.Date == today)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.TokensUsed, o => o.TokensUsed + estimatedTokens), ct);
+
+            if (orgRows == 0)
+            {
+                try
+                {
+                    await _context.OrgAiUsages.AddAsync(new OrgAiUsage
+                    {
+                        OrganizationId = team.Value.OrgId,
+                        Date = today,
+                        TokensUsed = estimatedTokens,
+                    }, ct);
+                    await _context.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException)
+                {
+                    await _context.OrgAiUsages
+                        .Where(o => o.OrganizationId == team.Value.OrgId && o.Date == today)
+                        .ExecuteUpdateAsync(s => s.SetProperty(o => o.TokensUsed, o => o.TokensUsed + estimatedTokens), ct);
+                }
             }
         }
 

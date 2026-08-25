@@ -794,9 +794,18 @@ public class GatewayController : ControllerBase
         {
             return StatusCode(429, new
             {
-                message = decision == AiQuotaDecision.PoolExhausted
-                    ? "The shared daily AI budget is exhausted. Try again tomorrow."
-                    : "The daily AI limit for the account that owns this key has been reached.",
+                // Uc sebep uc ayri mesaj: kullanici hangisinin doldugunu bilmeden
+                // ne yapacagini (yarin dene / ekip arkadasina sor / plani yukselt)
+                // secemiyor.
+                message = decision switch
+                {
+                    AiQuotaDecision.PoolExhausted =>
+                        "The shared daily AI budget is exhausted. Try again tomorrow.",
+                    AiQuotaDecision.TeamExhausted =>
+                        "Your team's shared daily AI budget is used up. It resets tomorrow.",
+                    _ =>
+                        "The daily AI limit for the account that owns this key has been reached.",
+                },
             });
         }
 

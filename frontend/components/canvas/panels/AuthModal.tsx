@@ -197,7 +197,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary text-sm font-medium transition-all cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path fill="#7a8194" d="M21.35 11.1H12v2.9h5.35c-.23 1.4-1.6 4.1-5.35 4.1-3.22 0-5.85-2.66-5.85-5.95S8.78 6.2 12 6.2c1.84 0 3.07.78 3.77 1.45l2.57-2.48C16.7 3.66 14.55 2.7 12 2.7 6.98 2.7 2.9 6.78 2.9 11.8s4.08 9.1 9.1 9.1c5.25 0 8.74-3.69 8.74-8.89 0-.6-.07-1.05-.14-1.51z"/>
+              <path fill="var(--color-content-subtle)" d="M21.35 11.1H12v2.9h5.35c-.23 1.4-1.6 4.1-5.35 4.1-3.22 0-5.85-2.66-5.85-5.95S8.78 6.2 12 6.2c1.84 0 3.07.78 3.77 1.45l2.57-2.48C16.7 3.66 14.55 2.7 12 2.7 6.98 2.7 2.9 6.78 2.9 11.8s4.08 9.1 9.1 9.1c5.25 0 8.74-3.69 8.74-8.89 0-.6-.07-1.05-.14-1.51z"/>
             </svg>
             <span>Continue with Google</span>
           </button>
@@ -206,7 +206,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             onClick={() => handleOAuthPlaceholder('GitHub')}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary text-sm font-medium transition-all cursor-pointer"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#7a8194">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="var(--color-content-subtle)">
               <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.5 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.9 1.57 2.36 1.12 2.93.86.09-.67.35-1.12.64-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.72 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 2.5-.35c.85 0 1.7.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .28.18.61.69.5A9.99 9.99 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/>
             </svg>
             <span>Continue with GitHub</span>

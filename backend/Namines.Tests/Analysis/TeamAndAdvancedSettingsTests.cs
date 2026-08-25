@@ -43,13 +43,40 @@ public class TeamAndAdvancedSettingsTests
     }
 
     [Fact]
-    public void Team_does_not_buy_a_bigger_ai_budget_than_pro()
+    public void A_team_seat_is_worth_exactly_one_pro_account()
     {
-        // Team'in sattığı şey daha çok token değil, birlikte çalışma. Token'ı da
-        // katlamak, ekip başına maliyeti üçe katlayıp fiyatı anlamsız kılardı.
+        // DailyAiTokens Team'de KOLTUK BAŞINA pay. Bir koltuğun bir Pro hesabıyla
+        // aynı hakkı taşıması bilinçli: ekip olmak kimseyi kısıtlamamalı.
         Assert.Equal(
             PlanQuotas.For(PlanTier.Pro).DailyAiTokens,
             PlanQuotas.For(PlanTier.Team).DailyAiTokens);
+    }
+
+    [Fact]
+    public void The_team_pool_is_the_seat_share_times_the_seats()
+    {
+        // 3 koltuk × 200.000 = 600.000 günlük ekip havuzu.
+        var team = PlanQuotas.For(PlanTier.Team);
+
+        Assert.Equal(600_000L, (long)team.DailyAiTokens * team.TeamSeats);
+    }
+
+    [Fact]
+    public void A_team_is_never_worse_off_than_the_same_people_on_pro()
+    {
+        // Bu testin varlık sebebi: fiyatlandırma incelemesinde Team'in küçük
+        // ekipler için MATEMATİKSEL OLARAK kötü bir anlaşma olduğu çıktı —
+        // 3 koltuk 200K paylaşıyordu, yani 3 Pro'nun (600K) üçte biri.
+        // Ekip kurmanın cezası olamaz.
+        var pro = PlanQuotas.For(PlanTier.Pro);
+        var team = PlanQuotas.For(PlanTier.Team);
+
+        var teamTotal = (long)team.DailyAiTokens * team.TeamSeats;
+        var samePeopleOnPro = (long)pro.DailyAiTokens * team.TeamSeats;
+
+        Assert.True(teamTotal >= samePeopleOnPro,
+            $"Team {team.TeamSeats} koltukta {teamTotal} token veriyor; " +
+            $"aynı kişiler Pro'da {samePeopleOnPro} alırdı. Ekip olmak kayıp olamaz.");
     }
 
     [Fact]

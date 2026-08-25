@@ -6,6 +6,7 @@ import { X, Plus, Trash2, Key, Link as LinkIcon, AlertTriangle, Check, ChevronDo
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { SchemaTable, SchemaColumn, SchemaIndex } from '../../types/schema';
+import { token, TABLE_SWATCHES } from '../../lib/designTokens';
 
 const COLUMN_TYPES = [
   'INT', 'BIGINT', 'SMALLINT', 'TINYINT',
@@ -19,7 +20,7 @@ const COLUMN_TYPES = [
 ];
 
 // Tablo rengi seçenekleri — desatüre, paletle uyumlu. Saf/parlak tonlar yok.
-const TABLE_COLORS = [undefined, '#4c5c82', '#7a6a9e', '#a56b8a', '#a6534f', '#5a6b7a', '#4b8a6f', '#4a7f96', '#7a8194'];
+const TABLE_COLORS = TABLE_SWATCHES;
 
 const genId = (): string =>
   typeof crypto !== 'undefined' && crypto.randomUUID
@@ -287,7 +288,7 @@ export default function TableEditorDrawer() {
                       className={`w-6 h-6 rounded-full border transition-all cursor-pointer flex items-center justify-center ${
                         draft.color === color ? 'border-content-primary' : 'border-transparent hover:border-content-primary/40'
                       }`}
-                      style={{ backgroundColor: color ?? '#2b3241' }}
+                      style={{ backgroundColor: color ?? token('--color-line-solid-strong') }}
                     >
                       {draft.color === color && <Check className="w-3 h-3 text-content-primary" />}
                     </button>

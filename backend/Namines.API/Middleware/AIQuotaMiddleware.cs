@@ -163,8 +163,12 @@ namespace Namines.API.Middleware
             if (decision != AiQuotaDecision.Allowed)
             {
                 context.Items["FallbackToLocal"] = true;
-                context.Response.Headers["X-AI-Fallback"] =
-                    decision == AiQuotaDecision.PoolExhausted ? "pool-exhausted" : "quota-exhausted";
+                context.Response.Headers["X-AI-Fallback"] = decision switch
+                {
+                    AiQuotaDecision.PoolExhausted => "pool-exhausted",
+                    AiQuotaDecision.TeamExhausted => "team-exhausted",
+                    _ => "quota-exhausted",
+                };
                 await _next(context);
                 return;
             }

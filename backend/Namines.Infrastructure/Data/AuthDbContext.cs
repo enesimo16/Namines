@@ -12,6 +12,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<UserAIQuota> UserAIQuotas { get; set; } = null!;
         public DbSet<Feedback> Feedbacks { get; set; } = null!;
         public DbSet<GlobalAiUsage> GlobalAiUsages { get; set; } = null!;
+        public DbSet<OrgAiUsage> OrgAiUsages { get; set; } = null!;
         public DbSet<Branch> Branches { get; set; } = null!;
         public DbSet<SchemaVersion> SchemaVersions { get; set; } = null!;
         public DbSet<ChangeRequest> ChangeRequests { get; set; } = null!;
@@ -59,6 +60,13 @@ namespace Namines.Infrastructure.Data
             // Global token havuzu: gün başına tek satır (yarışta ikinci insert unique index ile düşer).
             builder.Entity<GlobalAiUsage>()
                 .HasIndex(g => g.Date)
+                .IsUnique();
+
+            // Ekip havuzu: organizasyon + gün başına tek satır. Aynı yarış-güvenli
+            // desen — bileşik unique index, eşzamanlı iki isteğin ikinci insert'ini
+            // düşürüyor ve çağıran güncellemeye dönüyor.
+            builder.Entity<OrgAiUsage>()
+                .HasIndex(o => new { o.OrganizationId, o.Date })
                 .IsUnique();
 
             // ── G10 — Branch / SchemaVersion (new-phase/30-SERVER-SIDE-BRANCHING.md §3 Adım 1) ──

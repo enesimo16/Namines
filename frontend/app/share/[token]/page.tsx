@@ -19,6 +19,9 @@ import { schemaToFlow } from '../../../lib/schemaToFlow';
 import { API_BASE_URL } from '../../../lib/apiConfig';
 import { DatabaseSchema } from '../../../types/schema';
 import BadgeSnippet from './BadgeSnippet';
+// Bu sayfada `token` zaten paylaşım anahtarının adı; tasarım token okuyucusu
+// takma adla alınıyor ki route parametresini gölgelemesin.
+import { token as designToken } from '../../../lib/designTokens';
 
 const nodeTypes = { tableNode: TableNode };
 
@@ -142,12 +145,12 @@ export default function SharePage() {
           fitViewOptions={{ padding: 0.15 }}
           proOptions={{ hideAttribution: false }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#2a3750" />
+          <Background variant={BackgroundVariant.Dots} gap={24} size={1} color={designToken('--color-line-solid-strong')} />
           <Controls showInteractive={false} />
           <MiniMap
-            nodeColor="#2a3750"
+            nodeColor={designToken('--color-line-solid-strong')}
             maskColor="rgba(9,17,31,0.7)"
-            style={{ background: '#0d182a', border: '1px solid #2a3750' }}
+            style={{ background: designToken('--color-surface-700'), border: `1px solid ${designToken('--color-line-solid-strong')}` }}
           />
         </ReactFlow>
       </div>

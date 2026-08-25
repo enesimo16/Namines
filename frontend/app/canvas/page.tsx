@@ -51,6 +51,7 @@ import SchemaTextualSummary from '../../components/canvas/SchemaTextualSummary';
 import MultiplayerCursors from '../../components/canvas/MultiplayerCursors';
 import EmptyCanvasState from '../../components/canvas/EmptyCanvasState';
 import TourOverlay from '../../components/tour/TourOverlay';
+import { token } from '../../lib/designTokens';
 
 export default function CanvasPage() {
   const router = useRouter();
@@ -414,7 +415,7 @@ export default function CanvasPage() {
             proOptions={{ hideAttribution: true }}
           >
             <Background
-              color={isEditMode ? '#4c5c82' : '#1e2430'}
+              color={isEditMode ? token('--color-accent-hover') : token('--color-line-solid')}
               variant={BackgroundVariant.Dots}
               gap={20}
               size={1}
@@ -424,7 +425,7 @@ export default function CanvasPage() {
               nodeColor={(node) => {
                 const tableColor = (node.data as any)?.table?.color;
                 if (tableColor) return tableColor;
-                return isEditMode ? '#4c5c82' : '#1e2430';
+                return isEditMode ? token('--color-accent-hover') : token('--color-line-solid');
               }}
               maskColor="rgba(0, 0, 0, 0.7)"
               className="bg-surface-700 border border-content-primary/12 rounded-2xl overflow-hidden shadow-lg"

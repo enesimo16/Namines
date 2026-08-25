@@ -92,10 +92,14 @@ public static class PlanQuotas
         PlanTier.Pro => new PlanLimits(2, 20, 3,
             DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600, TeamSeats: 1),
 
-        // Team'in AI bütçesi Pro ile AYNI ve bu bilinçli: Team'in sattığı şey daha
-        // çok token değil, birlikte çalışma (3 koltuk, ortak workspace, paylaşılan
-        // projeler). Token'ı da katlamak, ekip başına maliyeti üç katına çıkarıp
-        // fiyatı anlamsız kılardı.
+        // Team'de DailyAiTokens KOLTUK BAŞINA pay: 3 koltuk × 200.000 = 600.000
+        // günlük ekip havuzu. Pro ile aynı sayı olması bilinçli — bir Team koltuğu
+        // bir Pro hesabıyla aynı hakkı taşıyor, ekip olmak kimseyi kısıtlamıyor.
+        //
+        // Havuz ORTAK, üyeye bölünmüş değil: bölseydik kullanıcının kotası birini
+        // davet ettiği anda düşerdi (600K → 300K) ve bu, planın teşvik etmesi
+        // gereken tek davranışı cezalandırırdı. Açlığa karşı üye başına ayrı bir
+        // tavan var (bkz. AiQuotaService).
         PlanTier.Team => new PlanLimits(20, -1, 20,
             DailyAiTokens: 200_000, GatewayRequestsPerMinute: 3_000, TeamSeats: 3),
 

@@ -32,6 +32,7 @@ import VisionUploadModal from './VisionUploadModal';
 import { parseSqlDdl } from '../../../lib/sqlImportParser';
 import { toPrismaSchema } from '../../../lib/prismaExporter';
 import { useToastStore } from '../../../store/useToastStore';
+import { token } from '../../../lib/designTokens';
 
 /** Floating toolbar — sol alt köşe. Export + Edit Mode toggle + DBA drawer toggle. */
 export default function CanvasExportToolbar() {
@@ -109,7 +110,7 @@ export default function CanvasExportToolbar() {
     setIsLocalExporting(true);
     try {
       const dataUrl = await htmlToImage.toSvg(viewport, {
-        backgroundColor: '#09090b',
+        backgroundColor: token('--color-bg-base'),
         style: { borderRadius: '0' },
         skipFonts: true,
         fontEmbedCSS: '',

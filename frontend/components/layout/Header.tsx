@@ -108,7 +108,7 @@ export default function Header() {
           <button
             id="header-workspace-btn"
             onClick={() => setIsSidebarOpen(true)}
-            className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0 ${
+            className={`tap-44 flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0 ${
               isSidebarOpen
                 ? 'bg-white/[0.08] text-content-primary'
                 : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
@@ -125,7 +125,7 @@ export default function Header() {
           {isAuthenticated && (
             <button
               onClick={() => setIsTeamOpen(true)}
-              className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0 ${
+              className={`tap-44 flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0 ${
                 isTeamOpen
                   ? 'bg-white/[0.08] text-content-primary'
                   : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
@@ -212,7 +212,7 @@ export default function Header() {
                   logout();
                   showToast('Logged out successfully.', 'info');
                 }}
-                className="p-1.5 text-content-muted hover:text-danger hover:bg-danger-subtle rounded-full transition-all duration-200 cursor-pointer ml-0 sm:ml-1.5 active:scale-95 shrink-0"
+                className="tap-44 p-1.5 text-content-muted hover:text-danger hover:bg-danger-subtle rounded-full transition-all duration-200 cursor-pointer ml-0 sm:ml-1.5 active:scale-95 shrink-0"
                 title="Log Out"
                 aria-label="Log Out"
               >

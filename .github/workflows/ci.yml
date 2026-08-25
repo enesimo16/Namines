@@ -160,13 +160,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Tailwind arbitrary hex kullanımı var mı
-        run: |
-          if grep -rn "[a-z-]\+-\[#[0-9a-fA-F]\{6\}\]" frontend/app frontend/components; then
-            echo "::error::Ham hex bulundu. FRONTEND.md §4: token kullan (ör. bg-surface-700), arbitrary hex yazma."
-            exit 1
-          fi
-          echo "Temiz: ham hex yok."
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Bu kontrol ONCEDEN yalnizca Tailwind arbitrary kalibini (bg-[#123456])
+      # ariyordu ve JS DEGERLERINDEKI hex'i kaciriyordu: color="#2a3750",
+      # fill="#7a8194", backgroundColor: '#09090b' gibi. Sonuc: FRONTEND.md
+      # "ham hex 0" derken gercek sayi 29'a cikmisti ve CI bunu hic gormedi.
+      # Betik her iki bicimi de yakaliyor ve yorumlari haric tutuyor.
+      - name: Tasarım kuralları (ham hex + Tailwind zorunluluğu)
+        working-directory: frontend
+        run: node scripts/check-design-rules.mjs
 
       - name: Yasaklı renkler (saf beyaz/siyah, indigo/mor)
         run: |

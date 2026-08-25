@@ -11,12 +11,12 @@ import { useToastStore, Toast, ToastType } from '../../store/useToastStore';
 
 /** Sol kenar çubuğu rengi */
 const ACCENT: Record<ToastType, string> = {
-  success: '#4b8a6f',
-  error:   '#b8544b',
-  warning: '#e7e9ee',
-  info:    '#e7e9ee',
-  loading: '#e7e9ee',
-  ai:      '#e7e9ee',
+  success: 'var(--color-success)',
+  error:   'var(--color-danger)',
+  warning: 'var(--color-content-primary)',
+  info:    'var(--color-content-primary)',
+  loading: 'var(--color-content-primary)',
+  ai:      'var(--color-content-primary)',
 };
 
 /** Arka plan sınıfları */

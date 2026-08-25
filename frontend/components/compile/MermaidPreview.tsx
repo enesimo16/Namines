@@ -31,7 +31,7 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
         setSvgContent(svg);
       } catch (error) {
         console.error("Mermaid rendering failed", error);
-        setSvgContent('<div class="p-4 text-[13px]" style="color:#e08787">An error occurred while generating the Mermaid diagram.</div>');
+        setSvgContent('<div class="p-4 text-[13px]" style="color:var(--color-danger-text)">An error occurred while generating the Mermaid diagram.</div>');
       } finally {
         setIsRendering(false);
       }

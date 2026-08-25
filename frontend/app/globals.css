@@ -1,5 +1,36 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────────────
+   @utility tap-44 — dokunma hedefini 44x44'e cikarir, GORSEL boyutu degistirmeden
+
+   FRONTEND.md §6 her interaktif elemandan en az 44x44px istiyor ve bu kurali
+   "pazarlik edilemez" basligi altina koyuyor. Denetimde 18 elemanin 15'i bu
+   kurali ihlal ediyordu; en kotusu 22x22px'lik "Delete project" -- yikici bir
+   eylem, gereken alanin dortte birinde.
+
+   Neden padding ile buyutmuyoruz: header ve arac cubuklarindaki ikon
+   butonlarini 44px'e sismek satir yuksekligini ve hizalamayi bozuyordu.
+   Bunun yerine gorunmez bir ::after katmani elemanin uzerine ortalanip
+   tiklama alanini genisletiyor -- yerlesim hic degismiyor, hedef buyuyor.
+
+   Kullanim: <button className="tap-44 ..."> (ikon butonlarinda)
+   ───────────────────────────────────────────────────────────────────────── */
+@utility tap-44 {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    /* Yalnizca isaretci hedefi -- gorunmez ve odak halkasini etkilemiyor. */
+    pointer-events: auto;
+  }
+}
+
 :root {
   --background: #05070c;
   --foreground: #e7e9ee;
@@ -25,6 +56,15 @@
      "koyu beyaz" bacağını öne çıkarıyor. */
   --color-line: rgba(231, 233, 238, 0.08);
   --color-line-strong: rgba(231, 233, 238, 0.16);
+
+  /* FRONTEND.md §2'deki --color-border / --color-border-strong'un SOMUT karşılığı.
+     Yukarıdaki iki token alfa tabanlı ve normal DOM'da doğru davranıyor; ama
+     canvas (React Flow nokta ızgarası, minimap) ve PNG/SVG export alfayı saydam
+     bir zemin üstünde hesapladığı için orada görünmez oluyorlardı. Bu yüzden
+     aynı rengin opak hâli ayrı bir token olarak duruyor — component'e ham hex
+     yazmanın tek alternatifi buydu. */
+  --color-line-solid: #1e2430;
+  --color-line-solid-strong: #2b3241;
 
   --color-ink: #e7e9ee;
   --color-ink-secondary: #c2c7d1;

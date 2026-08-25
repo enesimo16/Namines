@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Testcontainers.PostgreSql;
@@ -35,6 +36,15 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await context.Database.MigrateAsync();
         context.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
         context.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", IsDev = true });
+        // Team plani: aktif abonelik + PlanCode "team".
+        context.Users.Add(new ApplicationUser
+        {
+            Id = "t1", UserName = "t1", SubscriptionStatus = "active", PlanCode = "team",
+        });
+        context.Users.Add(new ApplicationUser
+        {
+            Id = "t2", UserName = "t2", SubscriptionStatus = "active", PlanCode = "team",
+        });
         await context.SaveChangesAsync();
     }
 
@@ -257,6 +267,95 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await service.ConsumeAsync("owner", 5_000_000);
 
         Assert.Equal(AiQuotaDecision.Allowed, await service.CheckAsync("owner", 1_000_000));
+    }
+
+    // ── Team: ortak havuz ────────────────────────────────────────────────────
+
+    /// <summary>Iki Team uyesini ayni organizasyona koyar.</summary>
+    private async Task<string> SeedTeamAsync()
+    {
+        await using var seed = new AuthDbContext(_options);
+        var org = await seed.GetOrCreatePersonalOrgAsync("t1", "t1");
+        var already = await seed.OrganizationMembers
+            .AnyAsync(m => m.OrganizationId == org.Id && m.UserId == "t2");
+        if (!already)
+        {
+            seed.OrganizationMembers.Add(new OrganizationMember
+            {
+                OrganizationId = org.Id, UserId = "t2", Role = OrgRole.Editor,
+            });
+            await seed.SaveChangesAsync();
+        }
+        return org.Id;
+    }
+
+    [RequiresDockerFact]
+    public async Task One_teammate_spending_reduces_what_the_other_can_use()
+    {
+        // Ortak havuzun tanimi bu. Ayri ayri saysaydi uc kisi ayri ayri tavanina
+        // kadar harcayip ekibin toplam butcesini katlardi.
+        await ResetAsync();
+        await SeedTeamAsync();
+        var (context, service) = Service();
+        await using var _ = context;
+
+        await service.EnsureQuotaAsync("t1");
+        await service.ConsumeAsync("t1", 600_000);   // havuzun tamami
+
+        Assert.Equal(AiQuotaDecision.TeamExhausted, await service.CheckAsync("t2", 1_000));
+    }
+
+    [RequiresDockerFact]
+    public async Task A_teammate_can_use_more_than_one_share_when_others_are_idle()
+    {
+        // Havuzu uyeye bolmemenin tek sebebi bu: bosta duran uyenin payi
+        // cope gitmemeli. Uye basi tavan payin iki kati (400K).
+        await ResetAsync();
+        await SeedTeamAsync();
+        var (context, service) = Service();
+        await using var _ = context;
+
+        Assert.Equal(400_000, await service.PerUserCapAsync("t1"));
+
+        await service.EnsureQuotaAsync("t1");
+        // Tek payindan (200K) fazlasi -- havuzda yer oldugu icin gecmeli.
+        Assert.Equal(AiQuotaDecision.Allowed, await service.CheckAsync("t1", 300_000));
+    }
+
+    [RequiresDockerFact]
+    public async Task No_single_teammate_can_drain_the_whole_pool()
+    {
+        // Ortak havuzun bilinen zayifligi aclik. Uye basi tavan bunu kesiyor:
+        // havuzda yer olsa bile bir kisi hepsini alamiyor.
+        await ResetAsync();
+        await SeedTeamAsync();
+        var (context, service) = Service();
+        await using var _ = context;
+
+        await service.EnsureQuotaAsync("t1");
+
+        Assert.Equal(AiQuotaDecision.UserExhausted, await service.CheckAsync("t1", 600_000));
+    }
+
+    [RequiresDockerFact]
+    public async Task A_paying_customer_is_not_blocked_by_the_free_tier_pool()
+    {
+        // Bu testin varlik sebebi: paylasilan havuz 100.000/gun idi ve HERKESI
+        // bagliyordu. Pro'ya 200.000, bir Team'e 600.000 satiliyordu -- yani
+        // parasini odemis musteri, ucretsiz kullanicilarin tukettigi bir tavana
+        // takilip aldigi hakki hic kullanamiyordu.
+        await ResetAsync();
+        await SeedTeamAsync();
+        var (context, service) = Service(pool: 1_000);   // havuz bilerek minicik
+        await using var _ = context;
+
+        await service.EnsureQuotaAsync("u1");
+        await service.ConsumeAsync("u1", 5_000);          // havuz tasti
+
+        // Ucretsiz kullanici durdu...
+        Assert.Equal(AiQuotaDecision.PoolExhausted, await service.CheckAsync("u1", 10));
+        // ...ama odeyen musteri etkilenmedi.
+        Assert.Equal(AiQuotaDecision.Allowed, await service.CheckAsync("t1", 10));
     }
 
     [RequiresDockerFact]
