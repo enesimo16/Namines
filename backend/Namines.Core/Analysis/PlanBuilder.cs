@@ -158,7 +158,12 @@ public static class PlanBuilder
         {
             var extra = new List<PlannedTable>();
             if (a.GetValueOrDefault("variants", "").Contains("varyantlı"))
-                extra.Add(new PlannedTable("product_variants", "Beden/renk gibi varyantlar — stok burada tutulur, üründe değil."));
+            {
+                extra.Add(new PlannedTable("product_variants",
+                    a.GetValueOrDefault("variants.followup", "").Contains("paylaşırlar")
+                        ? "Beden/renk gibi varyantlar — stok burada tutulur, fiyat üründen paylaşılır."
+                        : "Beden/renk gibi varyantlar — stok, fiyat ve SKU burada tutulur, üründe değil."));
+            }
             var payment = a.GetValueOrDefault("payment", "");
             if (payment.Contains("Ödeme"))
                 extra.Add(new PlannedTable("payments", "Ödeme kaydı — siparişten AYRI, bir siparişin birden çok ödemesi olabilir."));
@@ -207,6 +212,17 @@ public static class PlanBuilder
                 extra.Add(new PlannedTable("quest_progress", "Oyuncunun görev ilerlemesi."));
             return extra;
         },
+        [ProjectArchetype.Erp] = a =>
+        {
+            var extra = new List<PlannedTable>();
+            if (a.GetValueOrDefault("companies", "").Contains("Çoklu"))
+            {
+                extra.Add(a.GetValueOrDefault("companies.followup", "").Contains("ayrı")
+                    ? new PlannedTable("warehouses", "Şirket başına ayrı depo — stok_movements buradan anahtarlanır.")
+                    : new PlannedTable("warehouses", "Tüm şirketlerin paylaştığı ortak depo havuzu."));
+            }
+            return extra;
+        },
     };
 
     /// <summary>
@@ -236,6 +252,12 @@ public static class PlanBuilder
                 new[] { "Yalnızca durum (hazırlanıyor/kargoda/teslim edildi)", "Kargo firması API'siyle entegre (takip no, firma)" },
                 "Firma entegrasyonu takip numarası ve firma adı için ayrı bir tablo gerektiriyor; yalnızca durum tek bir kolonla çözülür.",
                 "Yalnızca durum (hazırlanıyor/kargoda/teslim edildi)")),
+            ("variants", "varyantlı", new ClarifyingQuestion(
+                "variants.followup",
+                "Varyantların kendi fiyatı/SKU'su olacak mı?",
+                new[] { "Evet, kendi SKU ve fiyatları var", "Hayır, ürünün fiyatını paylaşırlar" },
+                "Kendi fiyatı olan varyant product_variants'a price/SKU kolonu ekliyor; paylaşılan fiyatta bu kolonlar üründe kalır.",
+                "Evet, kendi SKU ve fiyatları var")),
         },
         [ProjectArchetype.Saas] = new[]
         {
@@ -245,6 +267,15 @@ public static class PlanBuilder
                 new[] { "Tenant başına (tek fatura, tüm kullanıcılar dahil)", "Kullanıcı başına (koltuk bazlı)" },
                 "İkisi farklı bir invoices şeması gerektiriyor — biri tenant'a, diğeri kullanıcıya bağlanıyor.",
                 "Tenant başına (tek fatura, tüm kullanıcılar dahil)")),
+        },
+        [ProjectArchetype.Erp] = new[]
+        {
+            ("companies", "Çoklu", new ClarifyingQuestion(
+                "companies.followup",
+                "Stok tüm şirketler arasında ortak mı, şirket başına ayrı mı?",
+                new[] { "Ortak stok havuzu", "Şirket başına ayrı stok" },
+                "Ortak havuzda tek bir depo tüm şirketleri besler; ayrı stokta her şirketin kendi deposu ve stock_movements anahtarı olur — sonradan ayırmak mevcut hareketleri şirkete göre bölmeyi gerektirir.",
+                "Şirket başına ayrı stok")),
         },
     };
 

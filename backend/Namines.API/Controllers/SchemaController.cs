@@ -10,6 +10,7 @@ using Namines.Infrastructure.Services;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Security;
@@ -25,17 +26,26 @@ public class SchemaController : ControllerBase
     private readonly SchemaAgentPipeline? _agent;
     private readonly AiQuotaService? _quota;
     private readonly Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory _ddlFactory;
+    private readonly JsonSerializerOptions _jsonOptions;
 
     public SchemaController(
         IAIFactory aiFactory,
         ISmartSeedService smartSeedService,
         Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory ddlFactory,
+        IOptions<Microsoft.AspNetCore.Mvc.JsonOptions> jsonOptions,
         SchemaAgentPipeline? agent = null,
         AiQuotaService? quota = null)
     {
         _aiFactory = aiFactory;
         _smartSeedService = smartSeedService;
         _ddlFactory = ddlFactory;
+        // SSE olayları normal Ok(...) yanıtları gibi MVC'nin JSON pipeline'ından
+        // GEÇMİYOR — Response.Body'ye elle yazılıyor. Program.cs'teki camelCase
+        // ilkesini burada da almazsak (bkz. WriteEventAsync) .NET'in varsayılanı
+        // devreye girer: PascalCase. Ön yüz "kind"/"message"/"schema" bekliyor,
+        // "Kind"/"Message"/"Schema" ile karşılaşınca `undefined` okur — bu da
+        // ProductionScreen'in ikon seçimini ve canvas'ın şema yüklemesini kırar.
+        _jsonOptions = jsonOptions.Value.JsonSerializerOptions;
         _agent = agent;
         _quota = quota;
     }
@@ -268,8 +278,9 @@ public class SchemaController : ControllerBase
         // VARSAYILANIYLA yazılıyor: atlamak, modelin o boşluğu yine kendi
         // doldurması demek olurdu ve sormanın amacı tam olarak buydu.
         var archetype = ArchetypeDetector.Detect(request.Prompt);
+        var parsedAnswers = ParseAnswers(request.Answers);
         var context = ClarifyingQuestions.ToPromptContext(
-            archetype, ClarifyingQuestions.For(archetype), ParseAnswers(request.Answers));
+            archetype, ClarifyingQuestions.For(archetype), parsedAnswers);
 
         // Ture ozel uzmanlik rolu de ekleniyor: "iyi bir sema tasarla" her alanda
         // ayni sonucu getiriyordu, oysa parayi kayan noktali sayida tutmamak ya
@@ -285,6 +296,22 @@ public class SchemaController : ControllerBase
         if (!string.IsNullOrWhiteSpace(context))
             enrichedPrompt += "\n\n--- Requirements gathered from the user ---\n" + context;
 
+        // "Eklemek istedikleriniz" serbest metin kutusu — second-phase/08-PROMPT-DENEYIMI.md
+        // §8.2. Sabit soru bankası her şeyi kapsayamaz; bu alan kapsanmayanı
+        // yakalıyor. Ayrı, AÇIKÇA ETİKETLİ bir blok olarak ekleniyor — sorulardan
+        // gelen cevaplarla karışırsa hangisinin kullanıcının serbest yazdığı,
+        // hangisinin bir soruya tıklanan cevap olduğu belirsizleşir.
+        // Uzunluk sınırı ZORUNLU — 06'daki eski "sayfa metnini kazı" hatasının
+        // küçük bir kopyası olmasın diye (sınırsız metin → sınırsız token).
+        if (parsedAnswers is not null &&
+            parsedAnswers.TryGetValue("_freeText", out var freeText) &&
+            !string.IsNullOrWhiteSpace(freeText))
+        {
+            const int freeTextLimit = 500;
+            var trimmed = freeText.Length > freeTextLimit ? freeText[..freeTextLimit] : freeText;
+            enrichedPrompt += "\n\n--- Additional notes from the user (verify these fit the rest of the schema) ---\n" + trimmed;
+        }
+
         // Kullanıcı Plan modundan geldiyse (bkz. /schema/plan) aynı cevaplar
         // burada da elde — deterministik tablo listesi YENİDEN hesaplanıp
         // prompt'a ekleniyor. Round yüksek veriliyor (takip sorusu hiç
@@ -292,7 +319,6 @@ public class SchemaController : ControllerBase
         // olan cevaplarla en iyi planı çıkar. Model bu listeyi İCAT ETMİYOR,
         // GERÇEKLEŞTİRİYOR — kullanıcının onayladığı plan buysa üretilen şema
         // ondan sapmamalı.
-        var parsedAnswers = ParseAnswers(request.Answers);
         if (parsedAnswers is { Count: > 0 })
         {
             var plan = PlanBuilder.Build(archetype, parsedAnswers, round: int.MaxValue);
@@ -349,7 +375,7 @@ public class SchemaController : ControllerBase
 
         async Task WriteEventAsync(string eventName, object data)
         {
-            var json = JsonSerializer.Serialize(data);
+            var json = JsonSerializer.Serialize(data, _jsonOptions);
             await Response.WriteAsync($"event: {eventName}\ndata: {json}\n\n", HttpContext.RequestAborted);
             await Response.Body.FlushAsync(HttpContext.RequestAborted);
         }

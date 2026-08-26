@@ -211,4 +211,67 @@ public class PlanBuilderTests
         var names = plan.Tables.Select(t => t.Name).ToList();
         Assert.Equal(names.Count, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
+
+    // ── second-phase/08-PROMPT-DENEYIMI.md §8.1: ikinci seviye sorular ────────
+
+    [Fact]
+    public void Variant_pricing_ambiguity_is_asked_when_variants_are_chosen_and_shapes_the_reason()
+    {
+        var plan = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string> { ["variants"] = "Evet, varyantlı" }, round: 1);
+
+        Assert.NotNull(plan.FollowUp);
+        Assert.Equal("variants.followup", plan.FollowUp!.Id);
+    }
+
+    [Fact]
+    public void Shared_variant_pricing_answer_keeps_price_off_the_variants_table()
+    {
+        var answers = new Dictionary<string, string>
+        {
+            ["variants"] = "Evet, varyantlı",
+            ["variants.followup"] = "Hayır, ürünün fiyatını paylaşırlar",
+        };
+
+        var plan = PlanBuilder.Build(ProjectArchetype.Ecommerce, answers, round: 2);
+
+        Assert.Null(plan.FollowUp);
+        var variants = plan.Tables.Single(t => t.Name == "product_variants");
+        Assert.Contains("paylaşılır", variants.Reason);
+    }
+
+    [Fact]
+    public void Erp_multi_company_answer_triggers_a_warehouse_scoping_question()
+    {
+        var plan = PlanBuilder.Build(ProjectArchetype.Erp,
+            new Dictionary<string, string> { ["companies"] = "Çoklu şirket" }, round: 1);
+
+        Assert.NotNull(plan.FollowUp);
+        Assert.Equal("companies.followup", plan.FollowUp!.Id);
+    }
+
+    [Fact]
+    public void Separate_warehouse_answer_adds_a_warehouses_table_for_erp()
+    {
+        var answers = new Dictionary<string, string>
+        {
+            ["companies"] = "Çoklu şirket",
+            ["companies.followup"] = "Şirket başına ayrı stok",
+        };
+
+        var plan = PlanBuilder.Build(ProjectArchetype.Erp, answers, round: 2);
+
+        Assert.Null(plan.FollowUp);
+        Assert.Contains(plan.Tables, t => t.Name == "warehouses");
+    }
+
+    [Fact]
+    public void Single_company_erp_never_asks_the_warehouse_question()
+    {
+        var plan = PlanBuilder.Build(ProjectArchetype.Erp,
+            new Dictionary<string, string> { ["companies"] = "Tek şirket" }, round: 1);
+
+        Assert.Null(plan.FollowUp);
+        Assert.DoesNotContain(plan.Tables, t => t.Name == "warehouses");
+    }
 }

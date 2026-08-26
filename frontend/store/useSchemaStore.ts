@@ -75,6 +75,14 @@ interface SchemaState {
   naiModel: string;
   projectName: string;
   dbType: DbType;
+  /**
+   * Canvas'ta daha önce gönderilen prompt'lar — en yeni önce, en fazla 15.
+   * second-phase/08-PROMPT-DENEYIMI.md §8.3.
+   *
+   * Kullanıcıya AİT ve yalnızca istemcide (bkz. §8.2 not) — sunucuda kalıcı
+   * bir "sohbet oturumu" değil, sadece kolaylık.
+   */
+  promptHistory: string[];
 
   // ── Faz 3: Düzenleme modu ──
   isEditMode: boolean;
@@ -85,6 +93,7 @@ interface SchemaState {
   setNaiModel: (model: string) => void;
   setProjectName: (name: string) => void;
   setDbType: (dbType: DbType) => void;
+  addPromptToHistory: (prompt: string) => void;
   loadFromSchema: (schema: DatabaseSchema, nodePositions?: Record<string, { x: number; y: number }>, preserveProjectName?: boolean) => void;
   applyRevision: (partialSchema: DatabaseSchema) => void;
   resetProject: () => void;
@@ -127,6 +136,7 @@ export const useSchemaStore = create<SchemaState>()(
       naiModel: 'nai',
       projectName: 'Yeni Proje',
       dbType: 'MSSQL',
+      promptHistory: [],
 
       // Faz 3
       isEditMode: false,
@@ -141,6 +151,14 @@ export const useSchemaStore = create<SchemaState>()(
       setNaiModel: (model) => set({ naiModel: model }),
       setProjectName: (name) => set({ projectName: name }),
       setDbType: (dbType) => set({ dbType }),
+
+      addPromptToHistory: (prompt) => set((state) => {
+        const trimmed = prompt.trim();
+        if (!trimmed) return {};
+        // Aynı prompt tekrar gönderilirse listenin başına taşınır, ikiletilmez.
+        const deduped = state.promptHistory.filter(p => p !== trimmed);
+        return { promptHistory: [trimmed, ...deduped].slice(0, 15) };
+      }),
 
       resetProject: () => set({
         schema: null,
@@ -728,6 +746,7 @@ export const useSchemaStore = create<SchemaState>()(
         projectName: state.projectName,
         dbType: state.dbType,
         naiModel: state.naiModel,
+        promptHistory: state.promptHistory,
       }),
     }
   )

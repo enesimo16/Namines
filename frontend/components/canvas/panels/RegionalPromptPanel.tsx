@@ -4,7 +4,7 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useAIGateway } from '../../../hooks/useAIGateway';
 import { schemaService } from '../../../services/api';
-import { Loader2, ArrowUp } from 'lucide-react';
+import { Loader2, ArrowUp, History } from 'lucide-react';
 import { flowToSchema } from '../../../lib/flowToSchema';
 
 /**
@@ -15,13 +15,25 @@ import { flowToSchema } from '../../../lib/flowToSchema';
  */
 export default function RegionalPromptPanel() {
   const { getNodes, getEdges } = useReactFlow();
-  const { schema, applyRevision, naiModel, dbType, loadFromSchema } = useSchemaStore();
+  const { schema, applyRevision, naiModel, dbType, loadFromSchema, promptHistory, addPromptToHistory } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
   const { checkAccess } = useAIGateway();
   const [prompt, setPrompt] = useState('');
   const [isRevising, setIsRevising] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const historyRef = useRef<HTMLDivElement>(null);
+
+  // Geçmiş menüsü dışına tıklanınca kapan — second-phase/08-PROMPT-DENEYIMI.md §8.3.
+  useEffect(() => {
+    if (!isHistoryOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) setIsHistoryOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isHistoryOpen]);
 
   useEffect(() => {
     const handleOpen = () => {
@@ -56,6 +68,7 @@ export default function RegionalPromptPanel() {
       const partialSchema = await schemaService.reviseSchema(selectedTables, existingRelations, prompt, naiModel);
 
       applyRevision(partialSchema);
+      addPromptToHistory(prompt);
       setPrompt('');
     } catch (error: any) {
       if (error?.response?.status === 429) {
@@ -80,6 +93,7 @@ export default function RegionalPromptPanel() {
         setIsRevising(true);
         const generated = await schemaService.generateSchema(prompt, dbType, naiModel);
         loadFromSchema(generated);
+        addPromptToHistory(prompt);
         setPrompt('');
         showToast("Database schema successfully generated!", "success");
       } catch (error: any) {
@@ -104,6 +118,15 @@ export default function RegionalPromptPanel() {
       ? 'Ask AI to modify the selected tables…'
       : 'Select a table, or click here to ask AI…';
 
+  // Kapsam görünür olmalı — bkz. second-phase/08-PROMPT-DENEYIMI.md §8.4.
+  // Seçili tablo çipleri zaten vardı ama neyin DEĞİŞECEĞİNİ açıkça söylemiyordu;
+  // kullanıcı göndermeden önce bunu bilmeli, "beklenmedik değişiklik" güveni kırar.
+  const scopeLabel = isInitialGeneration
+    ? null
+    : selectedNodes.length > 0
+      ? `${selectedNodes.length} table${selectedNodes.length > 1 ? 's' : ''} selected — only ${selectedNodes.length > 1 ? 'these' : 'this one'} will change`
+      : 'No table selected — the whole schema may change';
+
   return (
     <div
       className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] transition-opacity duration-300 ${
@@ -112,10 +135,55 @@ export default function RegionalPromptPanel() {
       onMouseEnter={() => setIsFocused(true)}
       onMouseLeave={() => { if (document.activeElement !== inputRef.current) setIsFocused(false); }}
     >
+      {scopeLabel && isActive && (
+        <p className="text-center text-[10px] text-content-muted mb-1.5 select-none">
+          {scopeLabel}
+        </p>
+      )}
+
+      {/* Prompt geçmişi — daha önce ne istendiğini gösterir, tekrar çalıştırılabilir.
+          second-phase/08-PROMPT-DENEYIMI.md §8.3. */}
+      {promptHistory.length > 0 && isHistoryOpen && (
+        <div
+          ref={historyRef}
+          className="mb-2 w-[560px] max-w-[88vw] max-h-56 overflow-y-auto bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-2xl p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-0.5"
+        >
+          {promptHistory.map((p, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                setPrompt(p);
+                setIsHistoryOpen(false);
+                inputRef.current?.focus();
+              }}
+              className="text-left text-xs text-content-muted hover:text-content-primary hover:bg-white/[0.05] rounded-lg px-2.5 py-1.5 truncate transition-colors"
+              title={p}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
+
       <form
         onSubmit={handleAction}
         className="flex items-center gap-2 w-[560px] max-w-[88vw] bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-full pl-3 pr-1.5 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
       >
+        {promptHistory.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(v => !v)}
+            aria-label="Prompt history"
+            title="Prompt history"
+            className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
+              isHistoryOpen ? 'text-content-primary bg-white/[0.08]' : 'text-content-muted hover:text-content-primary hover:bg-white/[0.05]'
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+          </button>
+        )}
+
         {/* Seçili tablo referans çipleri */}
         {selectedNodes.length > 0 && (
           <div className="flex items-center gap-1 shrink-0 max-w-[40%] overflow-x-auto">

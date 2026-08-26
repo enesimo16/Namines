@@ -21,10 +21,24 @@ interface Props {
  * dolduruluyor — zorunlu kılmak, hızlı bir taslak isteyen kullanıcıyı forma
  * mahkûm etmek olurdu ve o kullanıcı formu kapatıp hiçbir şey almadan gider.
  */
+// second-phase/08-PROMPT-DENEYIMI.md §8.2: sabit soru bankası her şeyi
+// kapsayamaz. Sınır ZORUNLU — sınırsız serbest metin, 06'daki eski
+// "sayfa metnini kazı" hatasının küçük bir kopyası olurdu.
+const FREE_TEXT_LIMIT = 500;
+const FREE_TEXT_KEY = '_freeText';
+
 export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }: Props) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [freeText, setFreeText] = useState('');
 
+  // "_freeText" makine tarafı bir anahtar, kullanıcının cevapladığı bir soru
+  // değil — sayaçta ayrı sayılmamalı, yoksa "1/3 answered" kafa karıştırır.
   const answeredCount = Object.keys(answers).length;
+
+  const handleSubmit = () => {
+    const trimmed = freeText.trim();
+    onSubmit(trimmed ? { ...answers, [FREE_TEXT_KEY]: trimmed } : answers);
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
@@ -86,7 +100,27 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
           ))}
         </div>
 
-        <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-white/10">
+        {/* Sabit sorular her şeyi kapsayamaz — bu kutu kapsanmayanı yakalıyor. */}
+        <div className="mt-4">
+          <label htmlFor="clarify-free-text" className="text-sm text-content-primary font-medium mb-1 block">
+            Anything else to add?
+          </label>
+          <textarea
+            id="clarify-free-text"
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value.slice(0, FREE_TEXT_LIMIT))}
+            disabled={isGenerating}
+            placeholder="e.g. also add a return/refund process…"
+            maxLength={FREE_TEXT_LIMIT}
+            rows={2}
+            className="w-full p-2.5 rounded-xl glass-input resize-none placeholder-content-muted text-xs leading-relaxed disabled:opacity-50"
+          />
+          <span className="text-[10px] text-content-muted mt-1 block text-right">
+            {freeText.length}/{FREE_TEXT_LIMIT}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 mt-2 pt-4 border-t border-white/10">
           <button
             type="button"
             disabled={isGenerating}
@@ -103,7 +137,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
             <button
               type="button"
               disabled={isGenerating}
-              onClick={() => onSubmit(answers)}
+              onClick={handleSubmit}
               className="bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {isGenerating ? (
