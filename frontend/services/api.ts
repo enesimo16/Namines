@@ -39,7 +39,12 @@ export const schemaService = {
     return response.data;
   },
 
-  generateSchema: async (prompt: string, dbType: string, naiModel: string, image?: File | null, referenceUrl?: string, answers?: Record<string, string>): Promise<DatabaseSchema> => {
+  /**
+   * Akış (streaming) yolu ve eski tek-seferlik yol AYNI form alanlarını
+   * kullanıyor; tekrarı önlemek için ayrı bir dosyaya taşındı, aşağıdaki
+   * generateSchema de bunu çağırıyor.
+   */
+  buildGenerateFormData: (prompt: string, dbType: string, naiModel: string, image?: File | null, referenceUrl?: string, answers?: Record<string, string>): FormData => {
     const formData = new FormData();
     formData.append('Prompt', prompt);
     formData.append('DbType', dbType);
@@ -53,7 +58,11 @@ export const schemaService = {
     // Cevaplanmayan sorular sunucuda VARSAYILANIYLA dolduruluyor, bos
     // gonderilmeleri isteği düşürmüyor.
     if (answers && Object.keys(answers).length > 0) formData.append('Answers', JSON.stringify(answers));
+    return formData;
+  },
 
+  generateSchema: async (prompt: string, dbType: string, naiModel: string, image?: File | null, referenceUrl?: string, answers?: Record<string, string>): Promise<DatabaseSchema> => {
+    const formData = schemaService.buildGenerateFormData(prompt, dbType, naiModel, image, referenceUrl, answers);
     const response = await api.post<DatabaseSchema>('/schema/generate', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });

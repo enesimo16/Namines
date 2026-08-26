@@ -100,11 +100,18 @@ public sealed class SchemaAgentPipeline
     /// Kullanıcının bütçesinin izin verdiği AI turu sayısı. Çağıran bunu kotadan
     /// hesaplar; hat kendi başına bütçe harcamaya karar veremez.
     /// </param>
+    /// <param name="progress">
+    /// Adım bildirimi — üretim ekranına akış hâlinde gönderilir
+    /// (bkz. second-phase/04-LOADING-EKRANI.md). <c>null</c> olabilir: akış
+    /// istemeyen çağıranlar (ör. RegionalPromptPanel'in kullandığı revizyon
+    /// yolu) hiçbir şey vermez, hat sessizce çalışır.
+    /// </param>
     public async Task<SchemaAgentResult> RunAsync(
         string prompt,
         DatabaseType engine,
         int budgetRounds = DefaultRepairRounds + 1,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<AgentStep>? progress = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
 
@@ -113,9 +120,13 @@ public sealed class SchemaAgentPipeline
         if (budgetRounds < 1)
             throw new InvalidOperationException("There is not enough AI budget left to generate a schema.");
 
+        progress?.Report(AgentStep.Draft("Taslak üretiliyor..."));
         var schema = await _source.DraftAsync(prompt, engine, cancellationToken);
         var rounds = 1;
+        progress?.Report(AgentStep.Draft(
+            $"Taslak üretildi — {schema.Tables.Count} tablo, {schema.Relations.Count} ilişki"));
 
+        progress?.Report(AgentStep.Inspect($"{engine} üzerinde derleniyor..."));
         var findings = Inspect(schema, engine);
 
         while (findings.Count > 0 && rounds < budgetRounds)
@@ -123,9 +134,14 @@ public sealed class SchemaAgentPipeline
             _logger.LogInformation(
                 "Schema agent round {Round}: {Count} finding(s) to repair.", rounds, findings.Count);
 
+            foreach (var finding in findings)
+                progress?.Report(AgentStep.Finding(finding));
+
+            progress?.Report(AgentStep.Repair($"Düzeltiliyor (tur {rounds}/{budgetRounds - 1})..."));
             var repaired = await _source.RepairAsync(schema, findings, engine, cancellationToken);
             rounds++;
 
+            progress?.Report(AgentStep.Inspect($"{engine} üzerinde yeniden derleniyor..."));
             var afterRepair = Inspect(repaired, engine);
 
             // İyileşme YOKSA dur. Model aynı bulgularla dönüyorsa bir tur daha
@@ -143,6 +159,9 @@ public sealed class SchemaAgentPipeline
             schema = repaired;
             findings = afterRepair;
         }
+
+        if (findings.Count == 0)
+            progress?.Report(AgentStep.Clean($"{engine} üzerinde temiz — bulgu kalmadı"));
 
         return new SchemaAgentResult(schema, findings, Portability(schema, engine), rounds);
     }

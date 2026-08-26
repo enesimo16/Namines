@@ -9,6 +9,8 @@ import { useToastStore } from '../store/useToastStore';
 import { useAuthModalStore } from '../store/useAuthModalStore';
 import VoiceRecorder from '../components/landing/VoiceRecorder';
 import ClarifyDialog from '../components/landing/ClarifyDialog';
+import ProductionScreen from '../components/landing/ProductionScreen';
+import { streamSchemaGeneration, AgentStepEvent } from '../lib/sseSchemaStream';
 import { ClarifyResponse, NaiModelOption } from '../types/nai';
 
 export default function LandingPage() {
@@ -26,6 +28,9 @@ export default function LandingPage() {
   // Netleştirme adımı: doluysa sorular gösteriliyor, üretim henüz başlamadı.
   const [clarify, setClarify] = useState<ClarifyResponse | null>(null);
   const [isClarifying, setIsClarifying] = useState(false);
+  // Üretim ekranı: hattın canlı adımları. bkz. second-phase/04-LOADING-EKRANI.md
+  const [productionSteps, setProductionSteps] = useState<AgentStepEvent[]>([]);
+  const [showProduction, setShowProduction] = useState(false);
   const [models, setModels] = useState<NaiModelOption[]>([]);
 
   const router = useRouter();
@@ -179,32 +184,51 @@ export default function LandingPage() {
   };
 
   const runGeneration = async (answers: Record<string, string>) => {
-    try {
-      setIsGenerating(true);
-      const schema = await schemaService.generateSchema(prompt, dbType, naiModel, image, referenceUrl, answers);
-      loadFromSchema(schema);
-      router.push('/canvas');
-    } catch (error: any) {
-      console.error('Failed to generate schema:', error);
-      if (error?.response?.status === 401) {
-        // Guest: AI şema üretimi giriş gerektiriyor → net mesaj + login modalı.
-        showToast('Please log in to generate a schema.', 'warning');
-        useAuthModalStore.getState().open();
-      } else if (error?.response?.status === 429) {
-        // Bu bir arıza değil, bir sınır — "bir hata oluştu" demek yanıltıcı olurdu.
-        const retryAfter = error?.response?.headers?.['retry-after'];
-        showToast(
-          retryAfter
-            ? `AI is busy right now. Try again in ${retryAfter} seconds.`
-            : 'Your daily AI budget is used up. It resets tomorrow.',
-          'warning'
-        );
-      } else {
-        showToast('An error occurred while generating the schema. Please try again.', 'error');
-      }
-      setIsGenerating(false);
-      setClarify(null);
-    }
+    setIsGenerating(true);
+    setClarify(null);
+    setProductionSteps([]);
+    setShowProduction(true);
+
+    const formData = schemaService.buildGenerateFormData(prompt, dbType, naiModel, image, referenceUrl, answers);
+
+    await streamSchemaGeneration(formData, {
+      onStep: (step) => setProductionSteps(prev => [...prev, step]),
+
+      onResult: (result) => {
+        loadFromSchema(result.schema as any);
+        setIsGenerating(false);
+        // Üretim ekranı "Devam et" ile kapanana kadar açık kalır — kullanıcı
+        // ne olduğunu okuyabilsin diye canvas'a hemen atlanmıyor. Kapanınca
+        // yönlendiriliyor (bkz. ProductionScreen onClose).
+      },
+
+      onError: (error) => {
+        console.error('Failed to generate schema:', error);
+        setShowProduction(false);
+        setIsGenerating(false);
+
+        if (error.httpStatus === 401) {
+          // Guest: AI şema üretimi giriş gerektiriyor → net mesaj + login modalı.
+          showToast('Please log in to generate a schema.', 'warning');
+          useAuthModalStore.getState().open();
+        } else if (error.httpStatus === 429 || error.retryAfterSeconds) {
+          // Bu bir arıza değil, bir sınır — "bir hata oluştu" demek yanıltıcı olurdu.
+          showToast(
+            error.retryAfterSeconds
+              ? `AI is busy right now. Try again in ${error.retryAfterSeconds} seconds.`
+              : 'Your daily AI budget is used up. It resets tomorrow.',
+            'warning'
+          );
+        } else {
+          showToast('An error occurred while generating the schema. Please try again.', 'error');
+        }
+      },
+    });
+  };
+
+  const closeProduction = () => {
+    setShowProduction(false);
+    if (!isGenerating) router.push('/canvas');
   };
 
   return (
@@ -475,6 +499,14 @@ export default function LandingPage() {
           isGenerating={isGenerating}
           onCancel={() => setClarify(null)}
           onSubmit={runGeneration}
+        />
+      )}
+
+      {showProduction && (
+        <ProductionScreen
+          steps={productionSteps}
+          isRunning={isGenerating}
+          onClose={closeProduction}
         />
       )}
     </div>

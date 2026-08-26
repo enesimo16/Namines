@@ -151,48 +151,93 @@ public class SchemaController : ControllerBase
         // parasını harcamak olurdu.
         var budgetRounds = await AffordableRoundsAsync(userId);
 
+        // Akış isteniyor mu? EventSource yalnızca GET destekler, bu uç POST
+        // olduğu için istemci fetch + ReadableStream kullanıyor ve isteği bu
+        // başlıkla işaretliyor (bkz. second-phase/04-LOADING-EKRANI.md).
+        // İstenmezse eski tek-seferlik yanıt AYNEN korunuyor — RegionalPromptPanel
+        // gibi akışı hiç bilmeyen çağıranlar hiçbir şey değiştirmeden çalışmaya
+        // devam ediyor.
+        var wantsStream = Request.Headers.Accept.Any(a =>
+            a is not null && a.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase));
+
+        if (!wantsStream)
+        {
+            try
+            {
+                var result = await _agent.RunAsync(enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted);
+                if (_quota is not null && !string.IsNullOrEmpty(userId))
+                    await _quota.ConsumeAsync(userId, result.Rounds * SchemaRoundTokenEstimate, HttpContext.RequestAborted);
+
+                return Ok(BuildResultPayload(archetype, result));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(429, new { message = ex.Message });
+            }
+            catch (AiRateLimitException ex)
+            {
+                Response.Headers.RetryAfter = ex.RetryAfterSeconds;
+                return StatusCode(429, new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
+            }
+        }
+
+        // ── Akış yolu ────────────────────────────────────────────────────────
+        // Başlıklar YAZILDIKTAN sonra HTTP durum kodu değiştirilemez, bu yüzden
+        // hata durumları da 429/500 yerine bir "error" olayı olarak akıyor.
+        // İstemci bunu kendi tarafında yorumlayıp aynı 429 davranışını (toast,
+        // Retry-After) uyguluyor.
+        Response.Headers.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers["X-Accel-Buffering"] = "no"; // ters proxy'lerin arabelleğe almasını engelle
+
+        async Task WriteEventAsync(string eventName, object data)
+        {
+            var json = JsonSerializer.Serialize(data);
+            await Response.WriteAsync($"event: {eventName}\ndata: {json}\n\n", HttpContext.RequestAborted);
+            await Response.Body.FlushAsync(HttpContext.RequestAborted);
+        }
+
+        var progress = new AsyncProgress<AgentStep>(step => WriteEventAsync("step", step));
+
         try
         {
-            var result = await _agent.RunAsync(enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted);
+            var result = await _agent.RunAsync(
+                enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted, progress);
 
-            // Harcanan TUR sayısı kadar ölçüm: bir tur da üç tur da aynı maliyete
-            // sayılırsa, düzeltme döngüsü bedava görünür ve bütçe anlamını yitirir.
-            // _quota null olabilir (opsiyonel bağımlılık); kontrol etmeden
-            // çağırmak, ölçüm servisi kayıtlı değilse üretimi tamamen çökertirdi.
             if (_quota is not null && !string.IsNullOrEmpty(userId))
                 await _quota.ConsumeAsync(userId, result.Rounds * SchemaRoundTokenEstimate, HttpContext.RequestAborted);
 
-            // Bulgular GİZLENMİYOR. "Çalışıyor gibi görünen" bir şema vermek, hiç
-            // vermemekten kötüdür: kullanıcı onu kullanmaya kalkar ve hata
-            // veritabanında patlar.
-            return Ok(new
-            {
-                schema = result.Schema,
-                agent = new
-                {
-                    archetype = archetype.ToString(),
-                    result.Rounds,
-                    result.Clean,
-                    result.PortableEverywhere,
-                    findings = result.RemainingFindings,
-                    portability = result.PortabilityNotes,
-                },
-            });
+            await WriteEventAsync("result", BuildResultPayload(archetype, result));
         }
         catch (InvalidOperationException ex)
         {
-            // Bütçe yetmiyor — 500 değil 429: bu bir arıza değil, bir sınır.
-            return StatusCode(429, new { message = ex.Message });
+            await WriteEventAsync("error", new { message = ex.Message });
         }
         catch (AiRateLimitException ex)
         {
-            // Sağlayıcının geçici sınırı da 429. Canlı denemede bu 500 olarak
-            // dönüyordu ve kullanıcı "ürün bozuldu" sanıyordu; oysa doğru cevap
-            // "birazdan tekrar dene" ve süresi de belli.
-            Response.Headers.RetryAfter = ex.RetryAfterSeconds;
-            return StatusCode(429, new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
+            await WriteEventAsync("error", new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
         }
+
+        return new EmptyResult();
     }
+
+    private static object BuildResultPayload(ProjectArchetype archetype, SchemaAgentResult result) =>
+        // Bulgular GİZLENMİYOR. "Çalışıyor gibi görünen" bir şema vermek, hiç
+        // vermemekten kötüdür: kullanıcı onu kullanmaya kalkar ve hata
+        // veritabanında patlar.
+        new
+        {
+            schema = result.Schema,
+            agent = new
+            {
+                archetype = archetype.ToString(),
+                result.Rounds,
+                result.Clean,
+                result.PortableEverywhere,
+                findings = result.RemainingFindings,
+                portability = result.PortabilityNotes,
+            },
+        };
 
     /// <summary>
     /// Cevap sözlüğünü JSON'dan okur.
