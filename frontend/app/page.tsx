@@ -17,7 +17,7 @@ import { ClarifyResponse, NaiModelOption } from '../types/nai';
 export default function LandingPage() {
   const [prompt, setPrompt] = useState('');
   const [image, setImage] = useState<File | null>(null);
-  const [referenceUrl, setReferenceUrl] = useState('');
+  const [apiSpecUrl, setApiSpecUrl] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -193,7 +193,7 @@ export default function LandingPage() {
     setProductionSteps([]);
     setShowProduction(true);
 
-    const formData = schemaService.buildGenerateFormData(prompt, dbType, naiModel, image, referenceUrl, answers);
+    const formData = schemaService.buildGenerateFormData(prompt, dbType, naiModel, image, apiSpecUrl, answers);
 
     await streamSchemaGeneration(formData, {
       onStep: (step) => setProductionSteps(prev => [...prev, step]),
@@ -274,8 +274,8 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setShowUrlInput(!showUrlInput)}
-                  className={`w-7 h-7 rounded-lg glass-button flex items-center justify-center transition-all ${showUrlInput || referenceUrl ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
-                  title="Add Link"
+                  className={`w-7 h-7 rounded-lg glass-button flex items-center justify-center transition-all ${showUrlInput || apiSpecUrl ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
+                  title="Infer from a GraphQL or OpenAPI/Swagger URL"
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
                 </button>
@@ -309,21 +309,29 @@ export default function LandingPage() {
             {(showUrlInput || image) && (
               <div className="flex flex-col gap-3 p-3 bg-surface-800/80 rounded-xl border border-white/[0.04] mb-6">
                 {showUrlInput && (
-                  <div className="flex items-center gap-2">
-                    <LinkIcon className="w-3.5 h-3.5 text-content-muted" />
-                    <input
-                      type="url"
-                      value={referenceUrl}
-                      onChange={(e) => setReferenceUrl(e.target.value)}
-                      placeholder="https://example.com/schema-docs"
-                      className="flex-1 bg-transparent text-sm text-content-primary placeholder:text-content-muted focus:outline-none"
-                      disabled={isGenerating}
-                    />
-                    {referenceUrl && (
-                      <button type="button" onClick={() => setReferenceUrl('')} className="text-content-muted hover:text-content-primary">
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <LinkIcon className="w-3.5 h-3.5 text-content-muted shrink-0" />
+                      <input
+                        type="url"
+                        value={apiSpecUrl}
+                        onChange={(e) => setApiSpecUrl(e.target.value)}
+                        placeholder="https://api.example.com/openapi.json or /graphql"
+                        className="flex-1 bg-transparent text-sm text-content-primary placeholder:text-content-muted focus:outline-none"
+                        disabled={isGenerating}
+                      />
+                      {apiSpecUrl && (
+                        <button type="button" onClick={() => setApiSpecUrl('')} className="text-content-muted hover:text-content-primary">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {/* Bir sitenin GERÇEK veritabanını dışarıdan okumak mümkün
+                        değil — çıkarılan şey API'nin dışa açtığı bir tahmin.
+                        second-phase/06-VERI-KAYNAKLARI.md */}
+                    <p className="text-[10px] text-content-muted pl-5">
+                      We read the API&apos;s schema (GraphQL or OpenAPI), not the actual database — it&apos;s a guess to start from.
+                    </p>
                   </div>
                 )}
 

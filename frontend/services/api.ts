@@ -53,7 +53,7 @@ export const schemaService = {
    * kullanıyor; tekrarı önlemek için ayrı bir dosyaya taşındı, aşağıdaki
    * generateSchema de bunu çağırıyor.
    */
-  buildGenerateFormData: (prompt: string, dbType: string, naiModel: string, image?: File | null, referenceUrl?: string, answers?: Record<string, string>): FormData => {
+  buildGenerateFormData: (prompt: string, dbType: string, naiModel: string, image?: File | null, apiSpecUrl?: string, answers?: Record<string, string>): FormData => {
     const formData = new FormData();
     formData.append('Prompt', prompt);
     formData.append('DbType', dbType);
@@ -63,15 +63,15 @@ export const schemaService = {
     formData.append('AIProvider', 'Groq');
     formData.append('ModelName', naiModel);
     if (image) formData.append('Image', image);
-    if (referenceUrl) formData.append('ReferenceUrl', referenceUrl);
+    if (apiSpecUrl) formData.append('ApiSpecUrl', apiSpecUrl);
     // Cevaplanmayan sorular sunucuda VARSAYILANIYLA dolduruluyor, bos
     // gonderilmeleri isteği düşürmüyor.
     if (answers && Object.keys(answers).length > 0) formData.append('Answers', JSON.stringify(answers));
     return formData;
   },
 
-  generateSchema: async (prompt: string, dbType: string, naiModel: string, image?: File | null, referenceUrl?: string, answers?: Record<string, string>): Promise<DatabaseSchema> => {
-    const formData = schemaService.buildGenerateFormData(prompt, dbType, naiModel, image, referenceUrl, answers);
+  generateSchema: async (prompt: string, dbType: string, naiModel: string, image?: File | null, apiSpecUrl?: string, answers?: Record<string, string>): Promise<DatabaseSchema> => {
+    const formData = schemaService.buildGenerateFormData(prompt, dbType, naiModel, image, apiSpecUrl, answers);
     const response = await api.post<DatabaseSchema>('/schema/generate', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });

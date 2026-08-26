@@ -9,7 +9,6 @@ using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using System.Net.Http;
 using System.Threading.Tasks;
-using HtmlAgilityPack;
 using Microsoft.AspNetCore.Mvc;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -156,33 +155,26 @@ public class SchemaController : ControllerBase
             return BadRequest("Prompt cannot be empty.");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.ReferenceUrl))
+        // Eski davranış (sayfanın GÖRÜNEN METNİNİ kazımak) tamamen kaldırıldı —
+        // second-phase/06-VERI-KAYNAKLARI.md. Üç yerden kırıktı: uzunluk sınırı
+        // yoktu, bir sitenin pazarlama metni şema hakkında neredeyse hiçbir şey
+        // söylemiyordu, JS ile render olan sitelerde sunucu boş bir kabuk
+        // indiriyordu. Yerine YAPILANDIRILMIŞ kaynaklara (GraphQL introspection,
+        // OpenAPI/Swagger) bakan ApiSpecExtractor geldi; hiçbiri yoksa DÜRÜSTÇE
+        // hata dönüyor, sayfa metnine düşmüyor.
+        if (!string.IsNullOrWhiteSpace(request.ApiSpecUrl))
         {
-            // SSRF koruması: yalnızca dışa dönük http(s) hedeflerine izin ver; iç ağ/loopback/metadata reddedilir.
-            if (!SsrfGuard.IsUrlSafe(request.ReferenceUrl))
-            {
-                return BadRequest("Reference URL is not allowed.");
-            }
+            var extraction = await ApiSpecExtractor.ExtractAsync(request.ApiSpecUrl, HttpContext.RequestAborted);
+            if (!extraction.Success)
+                return BadRequest(new { message = extraction.FailureReason });
 
-            try
-            {
-                // Otomatik yönlendirmeyi kapat (redirect ile SSRF filtresini atlamayı engelle).
-                using var handler = new HttpClientHandler { AllowAutoRedirect = false };
-                using var httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
-                var html = await httpClient.GetStringAsync(request.ReferenceUrl);
-                var htmlDoc = new HtmlDocument();
-                htmlDoc.LoadHtml(html);
-                var text = htmlDoc.DocumentNode.InnerText;
-                // Basic cleanup
-                text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
-
-                request.Prompt += $"\n\nReferans alınan web sitesi içeriği: {text}";
-            }
-            catch (System.Exception)
-            {
-                // İç detayı sızdırma.
-                return BadRequest("Failed to scrape Reference URL.");
-            }
+            // "Tahmin" etiketi bilinçli: çıkarılan şey sitenin GERÇEK veritabanı
+            // değil, API'sinin dışa açtığı görünüm — iç tablolar, hesaplanan
+            // alanlar burada görünmez. Bunu gizlemek eski özelliğin yalanının
+            // yerine yenisini koymak olurdu.
+            request.Prompt += "\n\n--- Inferred data model from " + extraction.SourceKind + " at " +
+                extraction.SourceUrl + " (a guess, not the real database) ---\n" +
+                string.Join('\n', extraction.Tables.Select(t => $"- {t.Name}: {t.Reason}"));
         }
 
         var aiService = _aiFactory.GetService(request.AIProvider);

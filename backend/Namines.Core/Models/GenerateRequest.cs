@@ -11,7 +11,16 @@ public class GenerateRequest
     public string AIProvider { get; set; } = "Groq";
     public string ModelName { get; set; } = string.Empty;
     public IFormFile? Image { get; set; }
-    public string? ReferenceUrl { get; set; }
+    /// <summary>
+    /// Bir GraphQL uç noktası ya da OpenAPI/Swagger doküman adresi.
+    ///
+    /// <b>Eski adı "ReferenceUrl" idi ve sayfanın metnini kazıyordu.</b> Bu,
+    /// üç yerden kırıktı ve second-phase/06-VERI-KAYNAKLARI.md'de tamamen
+    /// kaldırıldı — bkz. <see cref="Namines.Infrastructure.Services.ApiSpecExtractor"/>.
+    /// Alan adı değişti çünkü artık düz bir web sayfası DEĞİL, yapılandırılmış
+    /// bir API tanımı bekleniyor.
+    /// </summary>
+    public string? ApiSpecUrl { get; set; }
 
     /// <summary>
     /// Netleştirme sorularının cevapları, JSON sözlük olarak
