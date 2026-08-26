@@ -5,7 +5,7 @@ import { ChangeRequestSummary, ChangeRequestDetail, ApprovalDecision, ChangeRequ
 import { GatewayListResult, GatewayRow } from '../types/gateway';
 import { ProjectMember, OrgRole } from '../types/member';
 import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
-import { ClarifyResponse, NaiModelOption } from '../types/nai';
+import { ClarifyResponse, NaiModelOption, SchemaPlan } from '../types/nai';
 import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
@@ -30,6 +30,15 @@ export const schemaService = {
    */
   clarify: async (prompt: string): Promise<ClarifyResponse> => {
     const response = await api.post<ClarifyResponse>('/schema/clarify', { prompt });
+    return response.data;
+  },
+
+  /**
+   * Plan modu (second-phase/05-PLAN-MODU.md). Bu da bedava, /clarify gibi —
+   * tablo listesi sunucuda cevaplardan kural tabanlı çıkıyor, AI'ya gidilmiyor.
+   */
+  plan: async (prompt: string, answers: Record<string, string>, round: number): Promise<SchemaPlan> => {
+    const response = await api.post<SchemaPlan>('/schema/plan', { prompt, answers, round });
     return response.data;
   },
 

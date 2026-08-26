@@ -78,6 +78,76 @@ public class SchemaController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Cevaplardan deterministik bir plan üretir — second-phase/05-PLAN-MODU.md.
+    ///
+    /// <b>Bu da bedava, /clarify gibi.</b> Tablo listesi <see cref="PlanBuilder"/>'da
+    /// kural tabanlı çıkıyor; AI'ya hiç gidilmiyor. Kullanıcı planı görüp
+    /// reddedebiliyor ya da bir takip sorusuna cevap verip yeniden isteyebiliyor
+    /// — hiçbiri üretim turunu tüketmiyor.
+    ///
+    /// <b>Dönen `followUp` doluysa plan henüz KESİN değil.</b> İstemci bu soruyu
+    /// gösterip cevabı `Answers`'a ekleyerek uçu tekrar çağırmalı. Üç turdan
+    /// sonra (bkz. <see cref="PlanBuilder"/>) hiç soru dönmez.
+    /// </summary>
+    [HttpPost("plan")]
+    [AllowAnonymous]
+    public IActionResult Plan([FromBody] PlanRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.Prompt))
+            return BadRequest(new { message = "Prompt cannot be empty." });
+
+        var archetype = ArchetypeDetector.Detect(request.Prompt);
+        var answers = request.Answers ?? new Dictionary<string, string>();
+        var plan = PlanBuilder.Build(archetype, answers, Math.Max(1, request.Round));
+
+        return Ok(new
+        {
+            archetype = plan.Archetype.ToString(),
+            tables = plan.Tables.Select(t => new { t.Name, t.Reason }),
+            assumptions = plan.Assumptions,
+            followUp = plan.FollowUp is null ? null : new
+            {
+                plan.FollowUp.Id,
+                plan.FollowUp.Text,
+                plan.FollowUp.Options,
+                plan.FollowUp.Why,
+                plan.FollowUp.DefaultOption,
+            },
+            round = plan.Round,
+            // İstemci onayladığında bu metni prompt'a ekleyip /generate'i
+            // çağırıyor — plan ile üretim arasındaki tek köprü bu metin,
+            // ikinci bir "planı hatırla" durumu sunucuda tutulmuyor.
+            planSummary = BuildPlanSummaryText(plan),
+        });
+    }
+
+    /// <summary>
+    /// Planı, üretim prompt'una eklenecek tek bir metne çevirir.
+    ///
+    /// Sunucu turlar arasında hiçbir şey saklamıyor (bkz. Plan uç notu) —
+    /// bu metin kullanıcının onayladığı planın YERİNE geçiyor ve prompt'a
+    /// eklendiğinde modelin planı YENİDEN İCAT ETMESİ değil, gerçekleştirmesi
+    /// bekleniyor.
+    /// </summary>
+    private static string BuildPlanSummaryText(SchemaPlan plan)
+    {
+        var lines = new List<string>
+        {
+            $"Planned tables ({plan.Tables.Count}):",
+        };
+        lines.AddRange(plan.Tables.Select(t => $"- {t.Name}: {t.Reason}"));
+
+        if (plan.Assumptions.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("Assumptions used (user did not answer these):");
+            lines.AddRange(plan.Assumptions.Select(a => $"- {a}"));
+        }
+
+        return string.Join('\n', lines);
+    }
+
     [HttpPost("generate")]
     public async Task<IActionResult> GenerateSchema([FromForm] GenerateRequest request)
     {
@@ -143,6 +213,22 @@ public class SchemaController : ControllerBase
             enrichedPrompt += "\n\n--- Domain guidance ---\n" + role;
         if (!string.IsNullOrWhiteSpace(context))
             enrichedPrompt += "\n\n--- Requirements gathered from the user ---\n" + context;
+
+        // Kullanıcı Plan modundan geldiyse (bkz. /schema/plan) aynı cevaplar
+        // burada da elde — deterministik tablo listesi YENİDEN hesaplanıp
+        // prompt'a ekleniyor. Round yüksek veriliyor (takip sorusu hiç
+        // istenmesin diye): üretim anında artık soru sorma turu yok, elde
+        // olan cevaplarla en iyi planı çıkar. Model bu listeyi İCAT ETMİYOR,
+        // GERÇEKLEŞTİRİYOR — kullanıcının onayladığı plan buysa üretilen şema
+        // ondan sapmamalı.
+        var parsedAnswers = ParseAnswers(request.Answers);
+        if (parsedAnswers is { Count: > 0 })
+        {
+            var plan = PlanBuilder.Build(archetype, parsedAnswers, round: int.MaxValue);
+            if (plan.Tables.Count > 0)
+                enrichedPrompt += "\n\n--- Planned tables (build exactly these, plus obvious join/lookup tables) ---\n" +
+                    string.Join('\n', plan.Tables.Select(t => $"- {t.Name}: {t.Reason}"));
+        }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 

@@ -27,6 +27,27 @@ export interface ClarifyResponse {
   questions: ClarifyingQuestion[];
 }
 
+/**
+ * Plan modu (second-phase/05-PLAN-MODU.md): cevaplardan çıkan deterministik
+ * tablo listesi. Model uydurmuyor — bkz. backend/Namines.Core/Analysis/PlanBuilder.cs.
+ */
+export interface PlannedTable {
+  name: string;
+  reason: string;
+}
+
+export interface SchemaPlan {
+  archetype: string;
+  tables: PlannedTable[];
+  /** Cevaplanmamış sorular için kullanılan varsayımlar — sessiz kalmıyor. */
+  assumptions: string[];
+  /** Doluysa plan henüz kesin değil; bu soru cevaplanıp plan yeniden istenmeli. */
+  followUp: ClarifyingQuestion | null;
+  round: number;
+  /** Onaylandığında üretim prompt'una eklenecek hazır metin. */
+  planSummary: string;
+}
+
 /** Plana göre kullanılabilirliğiyle birlikte bir NAI modeli. */
 export interface NaiModelOption {
   id: string;

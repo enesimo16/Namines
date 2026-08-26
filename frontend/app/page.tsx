@@ -10,6 +10,7 @@ import { useAuthModalStore } from '../store/useAuthModalStore';
 import VoiceRecorder from '../components/landing/VoiceRecorder';
 import ClarifyDialog from '../components/landing/ClarifyDialog';
 import ProductionScreen from '../components/landing/ProductionScreen';
+import PlanScreen from '../components/landing/PlanScreen';
 import { streamSchemaGeneration, AgentStepEvent } from '../lib/sseSchemaStream';
 import { ClarifyResponse, NaiModelOption } from '../types/nai';
 
@@ -28,6 +29,8 @@ export default function LandingPage() {
   // Netleştirme adımı: doluysa sorular gösteriliyor, üretim henüz başlamadı.
   const [clarify, setClarify] = useState<ClarifyResponse | null>(null);
   const [isClarifying, setIsClarifying] = useState(false);
+  // Plan modu: netleştirme cevaplarından sonra, üretimden önceki son adım.
+  const [planAnswers, setPlanAnswers] = useState<Record<string, string> | null>(null);
   // Üretim ekranı: hattın canlı adımları. bkz. second-phase/04-LOADING-EKRANI.md
   const [productionSteps, setProductionSteps] = useState<AgentStepEvent[]>([]);
   const [showProduction, setShowProduction] = useState(false);
@@ -186,6 +189,7 @@ export default function LandingPage() {
   const runGeneration = async (answers: Record<string, string>) => {
     setIsGenerating(true);
     setClarify(null);
+    setPlanAnswers(null);
     setProductionSteps([]);
     setShowProduction(true);
 
@@ -493,12 +497,28 @@ export default function LandingPage() {
         </div>
       </main>
 
-      {clarify && (
+      {clarify && !planAnswers && (
         <ClarifyDialog
           data={clarify}
           isGenerating={isGenerating}
           onCancel={() => setClarify(null)}
-          onSubmit={runGeneration}
+          // Doğrudan üretmiyor — cevapları Plan ekranına devrediyor. Plan modu
+          // bir iyileştirme olduğu için burada çökerse (bkz. handleGenerate'in
+          // catch'i) o yol zaten runGeneration'ı doğrudan çağırıyor.
+          onSubmit={(answers) => setPlanAnswers(answers)}
+        />
+      )}
+
+      {planAnswers && (
+        <PlanScreen
+          prompt={prompt}
+          initialAnswers={planAnswers}
+          isGenerating={isGenerating}
+          onCancel={() => setPlanAnswers(null)}
+          onApprove={(answers) => {
+            setClarify(null);
+            runGeneration(answers);
+          }}
         />
       )}
 
