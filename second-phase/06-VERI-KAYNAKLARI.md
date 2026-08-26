@@ -2,6 +2,17 @@
 
 > **Sıra: 3.** Bugün burada **yalan söyleyen** bir özellik var; önce o
 > düzeltilmeli.
+>
+> ✅ **Kademe 1-2 yapıldı** (GraphQL introspection + OpenAPI/Swagger).
+> `ApiSpecExtractor` sayfa metni kazımanın yerini aldı; `ReferenceUrl` →
+> `ApiSpecUrl` olarak yeniden adlandırıldı, `HtmlAgilityPack` bağımlılığı
+> kaldırıldı. Gerçek harici bir dokümana (Swagger Petstore) karşı doğrulandı.
+> 23 yeni test + 1182 toplam yeşil.
+>
+> ⏸ **Kademe 3-4 (extension'ın pasif JSON gözlemi ve DOM form okuma)
+> yapılmadı** — bunlar bir tarayıcı extension'ı gerektiriyor, ayrı bir dağıtım
+> yüzeyi ve ayrı bir iş. Bu oturumda yalnızca sunucu tarafında yapılabilecek
+> kısım (kademe 1-2) tamamlandı.
 
 ---
 
