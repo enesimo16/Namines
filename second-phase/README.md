@@ -35,7 +35,7 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 | # | Dosya | Ne | Boyut |
 |---|-------|-----|-------|
 | 04 | [Üretim ekranı](04-LOADING-EKRANI.md) ✅ | Deterministik kapıyı görünür yapar — **farkı anlatan tek ekran** | S |
-| 05 | [Plan modu](05-PLAN-MODU.md) | Konuşarak netleştir, üretmeden önce planı onayla | M |
+| 05 | [Plan modu](05-PLAN-MODU.md) ✅ | Konuşarak netleştir, üretmeden önce planı onayla | M |
 | 06 | [Veri kaynakları](06-VERI-KAYNAKLARI.md) | URL→API/OpenAPI, extension, localhost. **Bugün yalan söyleyen özellik burada** | M |
 | 07 | [Motor dönüşümü](07-MOTOR-DONUSUMU.md) | PostgreSQL→MariaDB, kayıp raporuyla. %70'i hazır | M |
 | 08 | [Prompt deneyimi](08-PROMPT-DENEYIMI.md) | Daha çok soru, serbest ekleme, geçmiş, kapsam | S |

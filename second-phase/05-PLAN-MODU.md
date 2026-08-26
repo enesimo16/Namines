@@ -2,6 +2,13 @@
 
 > **Sıra: 2.** Netleştirme ajanının doğal üst hali. İlk temasta özgünlüğü
 > hissettiren yer.
+>
+> ✅ **Yapıldı.** `PlanBuilder.cs` cevaplardan kural tabanlı bir `SchemaPlan`
+> çıkarıyor (14 arketipin hepsi için), `POST /api/schema/plan` bedava ve
+> kimlik istemiyor, `PlanScreen.tsx` tabloları + varsayımları gösterip onay
+> istiyor. Belirsizlik tespiti çalışıyor (ör. Game'de "lonca/takım"), en fazla
+> bir ek soru dönüyor, 3 turdan sonra susuyor. 17 test + 1159 toplam yeşil,
+> `/schema/plan` gerçek API'ye karşı curl ile doğrulandı.
 
 ---
 
