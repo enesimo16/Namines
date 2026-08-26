@@ -105,6 +105,15 @@ export const schemaService = {
   },
 
   /**
+   * second-phase/13-DAGITIM-HEDEFLERI.md — Plesk/cPanel/mobil paketi (zip: SQL/.db
+   * + README). dbType yalnızca MySQL/MariaDB (phpMyAdmin) veya SQLite (mobil) olabilir.
+   */
+  exportSharedHosting: async (schema: DatabaseSchema, dbType: string): Promise<Blob> => {
+    const response = await api.post('/compile/shared-hosting', { schema, dbType }, { responseType: 'blob' });
+    return response.data;
+  },
+
+  /**
    * Prisma şeması. Önizleme arka uçtan çekilir, istemcide YENİDEN ÜRETİLMEZ:
    * üretici 21 testle (4'ü gerçek `prisma validate`) doğrulanmış tek kopyadır ve
    * `warnings` ancak oradan gelir. İstemcide ikinci bir üretici, gösterilen şema
@@ -416,6 +425,39 @@ export const authService = {
   getCloudProjects: async (): Promise<any[]> => {
     const response = await api.get('/auth/projects');
     return response.data;
+  },
+
+  /**
+   * second-phase/10-COKLU-DB.md — iki proje arasındaki mantıksal (gerçek FK
+   * OLMAYAN) ilişkiler. Hepsi backend'de yetki kontrolünden geçiyor (bkz.
+   * CrossDatabaseController) — iki tarafı da görebilen kullanıcı.
+   */
+  crossDatabase: {
+    listRelations: async (projectId: string): Promise<{
+      id: string; direction: 'outgoing' | 'incoming'; localColumn: string;
+      otherProjectId: string; otherProjectName: string; otherColumn: string;
+      note: string | null; createdAt: string;
+    }[]> => {
+      const response = await api.get('/crossdatabase/relations', { params: { projectId } });
+      return response.data;
+    },
+    createRelation: async (body: {
+      sourceProjectId: string; sourceTableId: string; sourceColumnId: string;
+      targetProjectId: string; targetTableId: string; targetColumnId: string; note?: string;
+    }): Promise<{ id: string }> => {
+      const response = await api.post('/crossdatabase/relations', body);
+      return response.data;
+    },
+    deleteRelation: async (id: string): Promise<void> => {
+      await api.delete(`/crossdatabase/relations/${id}`);
+    },
+    impact: async (projectId: string, tableId: string, columnId?: string): Promise<{
+      relationId: string; direction: 'outgoing' | 'incoming';
+      otherProjectId: string; otherProjectName: string; note: string | null;
+    }[]> => {
+      const response = await api.get('/crossdatabase/impact', { params: { projectId, tableId, columnId } });
+      return response.data;
+    },
   },
 
   createShareLink: async (projectId: string): Promise<{ token: string }> => {

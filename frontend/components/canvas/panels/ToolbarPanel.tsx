@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, History, Users, Terminal, Settings, Link2, Loader2, Database, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Table } from 'lucide-react';
+import { ArrowRight, History, Users, Terminal, Settings, Link2, Loader2, Database, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Table, Sparkles, Network } from 'lucide-react';
 import MarkdownLite from '../../common/MarkdownLite';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useReactFlow } from '@xyflow/react';
@@ -13,9 +13,13 @@ import { useToastStore } from '../../../store/useToastStore';
 import { useByokStore } from '../../../store/useByokStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useAIGateway } from '../../../hooks/useAIGateway';
 import { authService, schemaService, changeRequestService } from '../../../services/api';
 import DbConnectionPanel from './DbConnectionPanel';
 import GatewayExplorerPanel from './GatewayExplorerPanel';
+import AlternativeCompareModal from './AlternativeCompareModal';
+import CrossDatabasePanel from './CrossDatabasePanel';
+import { DatabaseSchema } from '../../../types/schema';
 
 // İkon-buton — tüm toolbar bunu kullanır: tek renk aile (off-white/lacivert),
 // aktif durum dışında renkli vurgu yok (bkz. FRONTEND.md §2).
@@ -30,7 +34,15 @@ export default function ToolbarPanel() {
   const router = useRouter();
   const schema = useSchemaStore(s => s.schema);
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
+  const dbType = useSchemaStore(s => s.dbType);
+  const naiModel = useSchemaStore(s => s.naiModel);
+  const lastGenerationPrompt = useSchemaStore(s => s.lastGenerationPrompt);
+  const lastGenerationAnswers = useSchemaStore(s => s.lastGenerationAnswers);
+  const { checkAccess } = useAIGateway();
   const { getNodes, getEdges } = useReactFlow();
+  const [isGeneratingAlternative, setIsGeneratingAlternative] = useState(false);
+  const [alternativeSchema, setAlternativeSchema] = useState<DatabaseSchema | null>(null);
+  const [isCrossDbOpen, setIsCrossDbOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
   const [isDbConnectOpen, setIsDbConnectOpen] = useState(false);
   const [isGatewayOpen, setIsGatewayOpen] = useState(false);
@@ -162,6 +174,29 @@ export default function ToolbarPanel() {
     }
   };
 
+  // second-phase/09-SEMA-ALTERNATIFLERI.md — aynı prompt+cevaplarla ikinci bir
+  // tur çalıştırır, sonucu doğrudan uygulamaz: kullanıcı A/B karşılaştırmasında
+  // seçim yapana kadar canvas değişmez.
+  const handleGenerateAlternative = async () => {
+    if (!lastGenerationPrompt) {
+      showToast('Generate a schema from a prompt first — alternatives replay that same prompt.', 'warning');
+      return;
+    }
+    if (!checkAccess('Generate Alternative')) return;
+
+    setIsGeneratingAlternative(true);
+    try {
+      const alt = await schemaService.generateSchema(
+        lastGenerationPrompt, dbType, naiModel, undefined, undefined, lastGenerationAnswers ?? undefined
+      );
+      setAlternativeSchema(alt);
+    } catch {
+      showToast('Failed to generate an alternative. Please try again.', 'error');
+    } finally {
+      setIsGeneratingAlternative(false);
+    }
+  };
+
   const shareRoomLink = () => {
     if (!roomId) return;
     const shareUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + '?roomId=' + roomId;
@@ -286,6 +321,29 @@ export default function ToolbarPanel() {
           <History className="w-4 h-4" />
         </button>
 
+        {/* Cross-database relations — second-phase/10-COKLU-DB.md */}
+        <button
+          onClick={() => setIsCrossDbOpen(true)}
+          className={`${iconBtnBase} ${iconBtnIdle}`}
+          title="Cross-database relations (links to other projects)"
+          aria-label="Cross-database relations"
+        >
+          <Network className="w-4 h-4" />
+        </button>
+
+        {/* Generate Alternative — second-phase/09-SEMA-ALTERNATIFLERI.md.
+            Maliyet buton metninde açık: bu ikinci bir üretim turu. */}
+        <button
+          onClick={handleGenerateAlternative}
+          disabled={isGeneratingAlternative || !lastGenerationPrompt}
+          className={`${iconBtnBase} w-auto px-3 gap-1.5 ${iconBtnIdle}`}
+          title={lastGenerationPrompt ? 'Generate an alternative schema (~1 round)' : 'Generate a schema from a prompt first'}
+          aria-label="Generate an alternative schema"
+        >
+          {isGeneratingAlternative ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          <span className="text-xs font-semibold">Alternative (~1 round)</span>
+        </button>
+
         {/* Request Review — "Database PR" akışını başlatır (bkz. new-phase/29) */}
         <button
           onClick={handleRequestReview}
@@ -329,6 +387,24 @@ export default function ToolbarPanel() {
         isOpen={isGatewayOpen}
         onClose={() => setIsGatewayOpen(false)}
       />
+
+      {/* Cross-database relations — second-phase/10-COKLU-DB.md */}
+      <CrossDatabasePanel isOpen={isCrossDbOpen} onClose={() => setIsCrossDbOpen(false)} />
+
+      {/* Alternative compare — second-phase/09-SEMA-ALTERNATIFLERI.md */}
+      {alternativeSchema && schema && (
+        <AlternativeCompareModal
+          current={flowToSchema(schema, getNodes(), getEdges()) || schema}
+          alternative={alternativeSchema}
+          onClose={() => setAlternativeSchema(null)}
+          onKeepCurrent={() => setAlternativeSchema(null)}
+          onKeepAlternative={() => {
+            loadFromSchema(alternativeSchema, undefined, true);
+            setAlternativeSchema(null);
+            showToast('Switched to the alternative schema.', 'success');
+          }}
+        />
+      )}
 
       {/* AI Schema Explanation Modal — ham markdown yerine gerçek render (bkz. MarkdownLite) */}
       {explanation !== null && (

@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Namines.Core.Analysis;
 using System.Linq;
@@ -12,6 +14,8 @@ using Namines.Core.Interfaces;
 using Namines.Core.Nsl;
 using Namines.Core.Models;
 using Namines.Infrastructure.Generators.DdlGenerator;
+using Namines.Infrastructure.Services;
+using System.Threading.Tasks;
 
 namespace Namines.API.Controllers;
 
@@ -68,6 +72,46 @@ public class CompileController : ControllerBase
             .ToList();
 
         return Ok(new { sql, diagnostics });
+    }
+
+    /// <summary>
+    /// second-phase/13-DAGITIM-HEDEFLERI.md — Plesk/cPanel/DirectAdmin (MySQL/MariaDB)
+    /// ya da mobil (SQLite) için komut satırı/Docker gerektirmeyen bir paket.
+    ///
+    /// <b>Bedava ve AI kullanmıyor</b> — var olan DDL üreticisinin çıktısını
+    /// biçimlendiriyor (bkz. <see cref="SharedHostingExporter"/>).
+    /// </summary>
+    [HttpPost("shared-hosting")]
+    [AllowAnonymous]
+    public async Task<IActionResult> CompileSharedHosting([FromBody] CompileRequest request)
+    {
+        if (request.Schema == null) return BadRequest(new { message = "Schema is required." });
+        if (request.DbType is not (DatabaseType.MySQL or DatabaseType.MariaDB or DatabaseType.SQLite))
+            return BadRequest(new { message = "Shared hosting export only supports MySQL, MariaDB, or SQLite." });
+
+        IReadOnlyList<SharedHostingExporter.ExportedFile> files;
+        try
+        {
+            files = await SharedHostingExporter.ExportAsync(request.Schema, request.DbType, _ddlFactory, HttpContext.RequestAborted);
+        }
+        catch (NotSupportedException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+
+        using var memoryStream = new MemoryStream();
+        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true))
+        {
+            foreach (var file in files)
+            {
+                var entry = archive.CreateEntry(file.Name);
+                using var entryStream = entry.Open();
+                await entryStream.WriteAsync(file.Content, HttpContext.RequestAborted);
+            }
+        }
+
+        memoryStream.Position = 0;
+        return File(memoryStream.ToArray(), "application/zip", $"{request.Schema.Name ?? "schema"}_shared_hosting.zip");
     }
 
     [HttpPost("efcore")]

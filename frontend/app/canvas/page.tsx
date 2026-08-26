@@ -26,6 +26,7 @@ import { calculateSchemaDiff } from '../../utils/schemaDiff';
 import { useToastStore } from '../../store/useToastStore';
 import { useMultiplayerStore } from '../../store/useMultiplayerStore';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
+import { authService } from '../../services/api';
 import {
   Activity, AlertTriangle, Eye, FileImage, LayoutTemplate, Loader2,
   Pencil, Plus, Redo2, Search, Sparkles, Undo2, Upload,
@@ -257,7 +258,27 @@ export default function CanvasPage() {
   // ilk loadFromSchema/applyRevision çağrısında geri gelir. Silmeyi şemaya da uygula.
   const handleNodesDelete = useCallback((deleted: { id: string }[]) => {
     deleted.forEach(node => deleteTable(node.id));
-  }, [deleteTable]);
+
+    // second-phase/10-COKLU-DB.md — silinen tablonun BAŞKA bir veritabanına
+    // kaydedilmiş mantıksal bir ilişkisi varsa kullanıcıyı uyar. React Flow
+    // silmeyi zaten uyguladığı için bu ENGELLEYİCİ değil, bilgilendirici —
+    // gerçek bir kısıt olmadığı için zaten durduramayız (bkz. panelin
+    // "not enforced" notu).
+    if (activeProjectId) {
+      deleted.forEach(node => {
+        authService.crossDatabase.impact(activeProjectId, node.id)
+          .then((impacts) => {
+            if (impacts.length === 0) return;
+            const names = [...new Set(impacts.map(i => i.otherProjectName))].join(', ');
+            showToast(
+              `Deleted table had ${impacts.length} cross-database relation(s) pointing to ${names} — review them in the Cross-Database panel.`,
+              'warning'
+            );
+          })
+          .catch(() => { /* uyarı bir iyileştirme, sessizce düşer */ });
+      });
+    }
+  }, [deleteTable, activeProjectId, showToast]);
 
   // Aynı sorun edge'ler için: edge silmek ilişkiyi şemadan düşürmeli.
   const handleEdgesDelete = useCallback((deleted: { id: string }[]) => {

@@ -200,6 +200,9 @@ export default function LandingPage() {
 
       onResult: (result) => {
         loadFromSchema(result.schema as any);
+        // second-phase/09-SEMA-ALTERNATIFLERI.md — canvas'taki "Alternatif üret"
+        // bu prompt+cevapları tekrar kullanacak, o yüzden burada saklanıyor.
+        useSchemaStore.getState().recordGenerationSource(prompt, answers);
         setIsGenerating(false);
         // Üretim ekranı "Devam et" ile kapanana kadar açık kalır — kullanıcı
         // ne olduğunu okuyabilsin diye canvas'a hemen atlanmıyor. Kapanınca

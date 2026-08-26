@@ -62,6 +62,14 @@ interface SchemaState {
   _past: HistorySnapshot[];
   _future: HistorySnapshot[];
 
+  /**
+   * Mevcut şemayı üreten prompt + netleştirme cevapları — second-phase/09-SEMA-ALTERNATIFLERI.md.
+   * "Alternatif üret" bunu tekrar çalıştırır. Persist EDİLMEZ: schema/nodes gibi
+   * ağır ve oturuma özel, sayfa yenilenince zaten projeden geri yüklenmiyor.
+   */
+  lastGenerationPrompt: string | null;
+  lastGenerationAnswers: Record<string, string> | null;
+
   // ── Hafif UI state (persist edilir) ──
   isGenerating: boolean;
   /**
@@ -94,6 +102,7 @@ interface SchemaState {
   setProjectName: (name: string) => void;
   setDbType: (dbType: DbType) => void;
   addPromptToHistory: (prompt: string) => void;
+  recordGenerationSource: (prompt: string, answers: Record<string, string> | null) => void;
   loadFromSchema: (schema: DatabaseSchema, nodePositions?: Record<string, { x: number; y: number }>, preserveProjectName?: boolean) => void;
   applyRevision: (partialSchema: DatabaseSchema) => void;
   resetProject: () => void;
@@ -130,6 +139,8 @@ export const useSchemaStore = create<SchemaState>()(
       edges: [],
       _past: [],
       _future: [],
+      lastGenerationPrompt: null,
+      lastGenerationAnswers: null,
 
       // Hafif state — persist edilir
       isGenerating: false,
@@ -160,6 +171,8 @@ export const useSchemaStore = create<SchemaState>()(
         return { promptHistory: [trimmed, ...deduped].slice(0, 15) };
       }),
 
+      recordGenerationSource: (prompt, answers) => set({ lastGenerationPrompt: prompt, lastGenerationAnswers: answers }),
+
       resetProject: () => set({
         schema: null,
         nodes: [],
@@ -169,6 +182,8 @@ export const useSchemaStore = create<SchemaState>()(
         isGenerating: false,
         isEditMode: false,
         selectedTableForEdit: null,
+        lastGenerationPrompt: null,
+        lastGenerationAnswers: null,
       }),
 
       // ── Undo / Redo ──────────────────────────────────────────────────────────

@@ -17,7 +17,8 @@ import {
   FileText,
   Archive,
   GitBranch,
-  X
+  X,
+  Server
 } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useCanvasExport } from '../../../hooks/useCanvasExport';
@@ -50,6 +51,7 @@ export default function CanvasExportToolbar() {
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
   const [isLocalExporting, setIsLocalExporting] = useState(false);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const [isSharedHostingModalOpen, setIsSharedHostingModalOpen] = useState(false);
   const [includeBiModule, setIncludeBiModule] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
 
@@ -229,6 +231,33 @@ export default function CanvasExportToolbar() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('PDF export hatası:', err);
+    } finally {
+      setIsLocalExporting(false);
+    }
+  };
+
+  // second-phase/13-DAGITIM-HEDEFLERI.md — Plesk/cPanel (phpMyAdmin) ya da mobil
+  // (SQLite) için komut satırı/Docker gerektirmeyen bir paket.
+  const exportSharedHosting = async (target: 'MySQL' | 'MariaDB' | 'SQLite') => {
+    setIsLocalExporting(true);
+    try {
+      const currentSchema: DatabaseSchema = schema || {
+        schemaId: '',
+        name: projectName,
+        tables: [],
+        relations: []
+      };
+      const zipBlob = await schemaService.exportSharedHosting(currentSchema, target);
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${slug}-shared-hosting.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setIsSharedHostingModalOpen(false);
+    } catch (err) {
+      console.error('Shared hosting export error:', err);
+      showToast('Failed to build the shared hosting package.', 'error');
     } finally {
       setIsLocalExporting(false);
     }
@@ -506,6 +535,18 @@ export default function CanvasExportToolbar() {
                       <span>Full-Stack Project (.zip)</span>
                     </button>
 
+                    <button
+                      onClick={() => {
+                        setIsSharedHostingModalOpen(true);
+                        setIsExportDropdownOpen(false);
+                      }}
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-zinc-300 hover:text-content-primary hover:bg-content-primary/[0.06] rounded-lg transition-colors text-left border border-transparent hover:border-content-primary/12"
+                      title="Plesk/cPanel (phpMyAdmin) or mobile (SQLite) — no CLI, no Docker"
+                    >
+                      <Server className="w-3.5 h-3.5 text-content-primary" />
+                      <span>Shared Hosting / Mobile (.zip)</span>
+                    </button>
+
                     <div className="h-px bg-content-primary/[0.06] my-1" />
 
                     <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-zinc-500 uppercase tracking-wider select-none">
@@ -651,6 +692,70 @@ export default function CanvasExportToolbar() {
             {/* Note */}
             <div className="text-[10px] text-zinc-500 text-center font-semibold mt-1">
               Terraform codes are structured according to AWS/Azure security and cost best practices.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shared Hosting / Mobile Selector Modal — second-phase/13-DAGITIM-HEDEFLERI.md */}
+      {isSharedHostingModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-[420px] p-6 rounded-2xl bg-gradient-to-b from-zinc-900/95 to-zinc-950/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Server className="w-5 h-5 text-content-primary" />
+                <h3 className="text-md font-extrabold text-white tracking-wide">Shared Hosting / Mobile</h3>
+              </div>
+              <button
+                onClick={() => setIsSharedHostingModalOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+              No CLI, no Docker. A .sql file (or a pre-built .db for mobile) plus a
+              step-by-step README — Namines only produces the file, you upload it
+              yourself via phpMyAdmin or bundle it into your app.
+            </p>
+
+            <div className="flex flex-col gap-2.5">
+              <button
+                onClick={() => exportSharedHosting('MySQL')}
+                disabled={isCurrentlyExporting}
+                className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-900/40 hover:bg-zinc-800/40 border border-zinc-800 hover:border-zinc-700 transition-all text-left group cursor-pointer disabled:opacity-50"
+              >
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">MySQL (Plesk / cPanel / DirectAdmin)</h4>
+                  <p className="text-[10px] text-zinc-500 font-semibold">phpMyAdmin-ready SQL, utf8mb4, FOREIGN_KEY_CHECKS handled</p>
+                </div>
+                <span className="text-[10px] font-bold text-zinc-500 group-hover:text-zinc-300">Build ➔</span>
+              </button>
+
+              <button
+                onClick={() => exportSharedHosting('MariaDB')}
+                disabled={isCurrentlyExporting}
+                className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-900/40 hover:bg-zinc-800/40 border border-zinc-800 hover:border-zinc-700 transition-all text-left group cursor-pointer disabled:opacity-50"
+              >
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">MariaDB</h4>
+                  <p className="text-[10px] text-zinc-500 font-semibold">Same package, MariaDB dialect</p>
+                </div>
+                <span className="text-[10px] font-bold text-zinc-500 group-hover:text-zinc-300">Build ➔</span>
+              </button>
+
+              <button
+                onClick={() => exportSharedHosting('SQLite')}
+                disabled={isCurrentlyExporting}
+                className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-900/40 hover:bg-zinc-800/40 border border-zinc-800 hover:border-zinc-700 transition-all text-left group cursor-pointer disabled:opacity-50"
+              >
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-200">Mobile (SQLite)</h4>
+                  <p className="text-[10px] text-zinc-500 font-semibold">A real, pre-built .db file to embed in your app</p>
+                </div>
+                <span className="text-[10px] font-bold text-zinc-500 group-hover:text-zinc-300">Build ➔</span>
+              </button>
             </div>
           </div>
         </div>

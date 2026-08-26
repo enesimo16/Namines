@@ -26,6 +26,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
         public DbSet<UserBillingSettings> UserBillingSettings { get; set; } = null!;
         public DbSet<TeamInvite> TeamInvites { get; set; } = null!;
+        public DbSet<CrossDatabaseRelation> CrossDatabaseRelations { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -301,6 +302,36 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<TeamInvite>()
                 .HasIndex(i => i.OrganizationId);
+
+            // ── second-phase/10-COKLU-DB.md — veritabanları arası mantıksal ilişki ──
+            // İki proje sınırını aşan bir kayıt olduğu için Restrict: bir projeyi
+            // silmek (CloudProject zaten Cascade ile projeyi siler), o projeye bağlı
+            // ilişkileri sessizce yetim BIRAKMAMALI — önce ilişkiler temizlenmeli.
+            // İki yön (Source/Target) aynı CloudProject'e FK verdiği için EF'in
+            // "birden fazla cascade yolu" hatasını önlemek için ikisi de Restrict.
+            builder.Entity<CrossDatabaseRelation>()
+                .HasOne(r => r.SourceProject)
+                .WithMany()
+                .HasForeignKey(r => r.SourceProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<CrossDatabaseRelation>()
+                .HasOne(r => r.TargetProject)
+                .WithMany()
+                .HasForeignKey(r => r.TargetProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<CrossDatabaseRelation>()
+                .HasOne(r => r.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(r => r.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<CrossDatabaseRelation>()
+                .HasIndex(r => r.SourceProjectId);
+
+            builder.Entity<CrossDatabaseRelation>()
+                .HasIndex(r => r.TargetProjectId);
         }
     }
 }
