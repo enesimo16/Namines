@@ -1,6 +1,16 @@
 # 04 — Üretim Ekranı (loading değil, kanıt akışı)
 
 > **Sıra: 1.** En ucuz iş, en yüksek etki. Diğer her şeyden önce bu.
+>
+> ✅ **Yapıldı.** `SchemaAgentPipeline` → `AgentStep` ile adım bildiriyor,
+> `SchemaController` `Accept: text/event-stream` gören istekleri SSE'ye
+> çeviriyor (görmeyenler eski tek-seferlik yanıtı aynen alıyor — geriye dönük
+> uyum kırılmadı), `ProductionScreen.tsx` bunu canlı listeliyor. 1142 test
+> yeşil, SSE akışı gerçek API'ye karşı curl ile doğrulandı (adım + hata
+> olayları byte-byte doğru geldi). Tam bir başarı turu, deneme Groq
+> anahtarının dakikalık token sınırına takıldığı için bugün gözlenemedi —
+> bu dış bir sınır, kod hatası değil (34-SENDEN-BEKLENENLER'deki kalıcı
+> anahtar ihtiyacıyla aynı sorun).
 
 ---
 
