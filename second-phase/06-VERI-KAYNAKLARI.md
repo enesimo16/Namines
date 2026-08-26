@@ -17,56 +17,74 @@ metni** alıyor, boşlukları sıkıştırıyor ve **tamamını** prompt'a ekliy
    söylemiyor. Pazarlama metninden tablo çıkarılıyor
 3. Modern siteler JS ile render oluyor → sunucu boş bir kabuk indiriyor
 
-**Bir sitenin veritabanını dışarıdan okumak mümkün değil.** Extension da
-okuyamaz — DOM ve ağ trafiği görür, veritabanını görmez. Bu yüzden "sitenin
-DB'sini birebir çıkar" vaadi **hiçbir teknikle** karşılanamaz.
+**Bu yöntem tamamen kaldırılıyor.** Yerine gelen şey aşağıdaki kademeli
+zincir.
 
-## Gerçekten mümkün olan: veri modelini ÇIKARIM ile bulmak
+**Ayrıca netleşen sınır:** bir sitenin **gerçek veritabanını** dışarıdan okumak
+mümkün değil — extension da okuyamaz, o yalnızca DOM ve ağ trafiğini görür.
+Bu yüzden hedef "sitenin DB'sini kopyala" değil, **"sitenin dışa açtığı veri
+modelini çıkarım yoluyla tahmin et"** olarak yeniden tanımlandı.
 
-Extension'ın göreceği şeyler, güçlüden zayıfa:
+## Kademeli çıkarım zinciri
 
-| Kaynak | Ne verir | Güç |
-|--------|----------|-----|
-| **GraphQL introspection** (`__schema`) | Tam tip grafiği: tipler, alanlar, ilişkiler | 🟢🟢 Neredeyse şemanın kendisi |
-| **OpenAPI / Swagger** (`/openapi.json`, `/swagger.json`) | Şemalar, alan tipleri, zorunluluklar | 🟢🟢 Çok güçlü |
-| **Ağ trafiği** (kullanıcı gezinirken) | Uç noktalar (`/api/orders`), JSON gövde şekilleri, `user_id` gibi ilişki ipuçları | 🟢 Gerçek alan adları |
-| **Formlar ve tablolar** (DOM) | Alan adları, tipleri, zorunlu alanlar | 🟡 Zayıf ama gerçek |
-| Sayfa metni | — | 🔴 Bugünkü yol. Değersiz |
+Tek bir yönteme güvenmek yerine, güçlüden zayıfa düşen bir zincir. Her
+kaynak başarısız olursa bir alttakine düşülür; hiçbiri çalışmazsa **boş
+dönülür, uydurulmaz.**
 
-Yani doğru çerçeve: **"sitenin DB'sini kopyala" değil, "sitenin API'sinden
-veri modelini çıkar."** Bu hem mümkün hem dürüst hem daha faydalı — çıkan
-şey pazarlama metni değil, gerçek alan adları.
+| Sıra | Kaynak | Ne verir | Güvenilirlik | Ne kadar yaygın |
+|------|--------|----------|---------------|-------------------|
+| 1 | **GraphQL introspection** (`__schema`) | Tam tip grafiği | 🟢🟢 Yüksek | Nadir — çoğu üretim sitesi kapatır |
+| 2 | **OpenAPI/Swagger dokümanı** | Alan tipleri, zorunluluklar | 🟢🟢 Yüksek | Az sayıda site yayınlar |
+| 3 | **Gözlemlenen JSON trafiğinin şekli** | Tekrar eden alanlardan (`id`, `user_id`, `created_at`) varlık/ilişki çıkarımı | 🟡 Orta | **Asıl geniş kapsayan katman — çoğu modern sitede JSON API vardır** |
+| 4 | **DOM form/tablo alanları** | Alan adları, tipleri, zorunlu işaretleri | 🟡 Zayıf | JS'siz eski sitelerde bile çalışır |
+| — | *(hiçbiri yoksa)* | — | — | **"Veri modeli çıkarılamadı" — boş dönülür** |
 
-## Nasıl (aşamalı)
+**1 ve 2 bir garanti değil, bir bonus.** Asıl kapsamı sağlayan katman 3 —
+GraphQL/OpenAPI olmayan sitelerde bile JSON API neredeyse her zaman vardır,
+sadece dokümante edilmemiştir.
 
-1. **Adım 1 — sunucu tarafı:** `ReferenceUrl` yerine `ApiSpecUrl`.
-   OpenAPI/GraphQL adresi verilir, şema oradan çıkarılır. Extension gerekmez.
-2. **Adım 2 — extension:** kullanıcı siteyi gezerken **kendi tarayıcısının**
-   yaptığı istekleri gözlemler, JSON şekillerinden varlık çıkarır, "Namines'e
-   gönder" der.
-3. **Adım 3 — localhost:** sunucu kullanıcının iç ağına ulaşamaz ve
-   ulaşmamalı (bkz. aşağıda). Yerel veritabanı için **CLI** kullanılır:
-   `namines connect` makinede çalışır, şemayı okur, gönderir. CLI zaten var.
+**Çıkarılan her şema "tahmin" etiketiyle gelmeli.** Üretilen şema "sitenin
+veritabanı" değil, "API'sinden çıkarılan veri modeli". Gerçek DB
+denormalize olabilir, iç tabloları olabilir. Bunu gizlemek, kaldırdığımız
+yalanın yerine yenisini koymak olur.
+
+## Toplama biçimi — pasif varsayılan, aktif yalnızca izinle
+
+| Yaklaşım | Ne yapıyor | Durum |
+|----------|-----------|-------|
+| **Pasif, kısa pencere** | Kullanıcı geziniyor, extension yalnızca gözlemliyor | 🟢 Varsayılan |
+| **Pasif, uzun pencere** (ör. 10 dk) | Aynısı, yalnızca süre uzun | 🟢 Hâlâ pasif, sorun yok |
+| **Kullanıcı onaylı aktif tarama** | "Bu sitede daha fazla veri olabilir, taramamı ister misin?" — kullanıcı evet derse `robots.txt`'e uyarak birkaç ek istek | 🟡 Yalnızca açık rızayla |
+| Gizli / algılama-atlatmalı tarama | İstekleri yapay yavaşlatma, insan taklidi, vb. | 🔴 **Tasarlanmayacak** |
+
+**Neden gizli tarama çizgi dışı:** sorun hız değil, izin. Bir sitenin bot
+korumasını bilerek atlatmak, "ben insanım" yalanı söylemek demek — bu
+hızdan bağımsız olarak sorunlu. Yavaşlatmak sunucu yükünü azaltır, izin
+almanızı sağlamaz. Doğru çözüm gizlilik değil **rıza**: kullanıcıya sorup
+onay almak.
+
+## Localhost — sunucudan asla, yalnızca yerel ajandan
+
+Sunucu kullanıcının iç ağına **hiçbir zaman** ulaşmamalı. `SsrfGuard`
+loopback ve özel IP aralıklarını bilerek kapatıyor — bu bir eksik değil,
+güvenlik kararı. Yerel veritabanına erişim yalnızca **kullanıcının kendi
+makinesinde çalışan CLI** üzerinden olur (`namines connect`), zaten var.
 
 ## ⚠️ Dikkat
 
-- **Çıkarım olduğu SÖYLENMELİ.** Üretilen şema "sitenin veritabanı" değil,
-  "API'sinden çıkarılan veri modeli". Gerçek DB denormalize olabilir, iç
-  tabloları vardır. Bunu gizlemek, bugünkü yalanın yerine yenisini koymak olur.
-- **Uzunluk sınırı zorunlu.** Hangi kaynaktan gelirse gelsin, prompt'a eklenen
-  içerik kırpılmalı — bugünkü sınırsız hâl kotayı tek istekte yakabilir.
-- **Localhost'u sunucuya açma.** `SsrfGuard` loopback ve özel IP aralıklarını
-  bilerek kapatıyor; bu bir eksik değil, güvenlik kararı. Sunucunun kullanıcının
-  iç ağına uzanması ciddi bir açıktır. Yerel erişim **yalnızca kullanıcının
-  makinesinde çalışan ajandan** geçer.
-- Extension yalnızca **kullanıcının zaten yaptığı** istekleri gözlemlemeli.
+- **Çıkarım olduğu her ekranda söylenmeli**, tek seferlik bir uyarı olarak değil.
+- **Uzunluk sınırı zorunlu** — hangi kaynaktan gelirse gelsin.
+- Extension yalnızca **kullanıcının zaten yaptığı** istekleri gözlemlemeli
+  (pasif mod) ya da **açıkça onay verdiği** ek istekleri atmalı (aktif mod).
+- Kimlik doğrulama başlıkları, çerezler, token'lar **asla** Namines'e
+  gönderilmez — extension şekil çıkarır, veri ya da kimlik değil.
 
 ## 🔴 Yapılmayacak
 
-- **Uç nokta taraması / crawl.** Extension bir sitenin API'sini kendiliğinden
-  taramamalı — bu, kullanıcı adına izinsiz tarama olur ve hem etik hem yasal
-  sorundur. Yalnızca kullanıcının tarayıcısının zaten yaptığı istekler.
-- Kimlik doğrulama başlıklarını, çerezleri ya da token'ları Namines'e göndermek.
-  Extension **şekil** çıkarır, veri ya da kimlik değil.
-- "Sitenin veritabanını çıkardık" ifadesi — hiçbir yerde. Çıkarılan şey bir
-  modeldir; öyle adlandırılmalı.
+- **Gizli/algılama-atlatmalı tarama.** Ne kadar yavaş olursa olsun.
+- **Rızasız aktif tarama.** Pasif gözlem her zaman varsayılan; aktife geçiş
+  her seferinde kullanıcıya sorulur, arka planda otomatik açılmaz.
+- "Sitenin veritabanını çıkardık" ifadesi — hiçbir yerde. Çıkarılan şey
+  bir modeldir; öyle adlandırılmalı.
+- Hiçbir kaynak çalışmadığında **sayfa metnine düşmek.** Boş sonuç, yanlış
+  sonuçtan iyidir.
