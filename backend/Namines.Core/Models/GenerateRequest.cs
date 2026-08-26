@@ -44,3 +44,15 @@ public sealed record ClarifyRequest(string Prompt);
 /// </param>
 /// <param name="Round">Kaçıncı netleştirme turu — en fazla 3 ek soru üretilir.</param>
 public sealed record PlanRequest(string Prompt, Dictionary<string, string>? Answers, int Round = 1);
+
+/// <summary>second-phase/07-MOTOR-DONUSUMU.md — kayıp raporu isteği.</summary>
+/// <param name="Schema">Kaynak motordaki mevcut şema.</param>
+/// <param name="Source">Şemanın şu an yazıldığı motor.</param>
+/// <param name="Target">Dönüştürülmek istenen motor.</param>
+public sealed record ConvertAnalyzeRequest(DatabaseSchema Schema, DatabaseType Source, DatabaseType Target);
+
+/// <summary>Kayıp raporundaki bulgular için kullanıcının seçtiği çözümler.</summary>
+/// <param name="Schema">Kaynak şema (analiz uçuna verilenle aynı olmalı).</param>
+/// <param name="Target">Dönüştürülecek motor.</param>
+/// <param name="Resolutions">Bulgu id'si → seçilen seçenek key'i (ör. <c>"child_table"</c>).</param>
+public sealed record ConvertApplyRequest(DatabaseSchema Schema, DatabaseType Source, DatabaseType Target, Dictionary<string, string> Resolutions);

@@ -24,15 +24,18 @@ public class SchemaController : ControllerBase
     private readonly ISmartSeedService _smartSeedService;
     private readonly SchemaAgentPipeline? _agent;
     private readonly AiQuotaService? _quota;
+    private readonly Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory _ddlFactory;
 
     public SchemaController(
         IAIFactory aiFactory,
         ISmartSeedService smartSeedService,
+        Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory ddlFactory,
         SchemaAgentPipeline? agent = null,
         AiQuotaService? quota = null)
     {
         _aiFactory = aiFactory;
         _smartSeedService = smartSeedService;
+        _ddlFactory = ddlFactory;
         _agent = agent;
         _quota = quota;
     }
@@ -145,6 +148,82 @@ public class SchemaController : ControllerBase
         }
 
         return string.Join('\n', lines);
+    }
+
+    /// <summary>
+    /// İki motor arasında kayıp raporu — second-phase/07-MOTOR-DONUSUMU.md.
+    ///
+    /// <b>Bedava, /clarify ve /plan gibi.</b> <see cref="EngineConversionAnalyzer"/>
+    /// tamamen deterministik, AI'ya hiç gidilmiyor.
+    /// </summary>
+    [HttpPost("convert/analyze")]
+    [AllowAnonymous]
+    public IActionResult ConvertAnalyze([FromBody] ConvertAnalyzeRequest request)
+    {
+        if (request?.Schema is null)
+            return BadRequest(new { message = "Schema cannot be empty." });
+
+        var report = EngineConversionAnalyzer.Analyze(request.Schema, request.Source, request.Target);
+
+        return Ok(new
+        {
+            source = report.Source.ToString(),
+            target = report.Target.ToString(),
+            hasFindings = report.HasFindings,
+            findings = report.Findings.Select(f => new
+            {
+                f.Id,
+                category = f.Category.ToString(),
+                f.TableName,
+                f.ColumnName,
+                f.Description,
+                options = f.Options.Select(o => new { o.Key, o.Label, o.DataLossRisk }),
+            }),
+        });
+    }
+
+    /// <summary>
+    /// Kullanıcının kararlarını uygular, dönüştürülmüş şema + hedef motorun DDL'ini
+    /// döner — second-phase/07-MOTOR-DONUSUMU.md.
+    ///
+    /// <b>Yalnızca şema; veri taşımaz.</b> "manual" seçilen ya da hiç
+    /// çözülmeyen bulgular şemayı DEĞİŞTİRMEZ — o kolon için DDL üretimi hâlâ
+    /// hata verebilir, bu kasıtlı (bkz. <see cref="SchemaConverter"/>).
+    /// </summary>
+    [HttpPost("convert/apply")]
+    [AllowAnonymous]
+    public IActionResult ConvertApply([FromBody] ConvertApplyRequest request)
+    {
+        if (request?.Schema is null)
+            return BadRequest(new { message = "Schema cannot be empty." });
+
+        var report = EngineConversionAnalyzer.Analyze(request.Schema, request.Source, request.Target);
+        var resolutions = request.Resolutions ?? new Dictionary<string, string>();
+        var converted = SchemaConverter.Apply(request.Schema, request.Target, report.Findings, resolutions);
+
+        string? ddl = null;
+        string? ddlError = null;
+        try
+        {
+            ddl = _ddlFactory.GetGenerator(request.Target).Generate(converted);
+        }
+        catch (Exception ex)
+        {
+            // Kullanıcı bir bulguyu "elle çözeceğim" dediyse ya da hiç
+            // çözmediyse DDL üretimi burada hata verebilir — bu bir sunucu
+            // hatası değil, henüz çözülmemiş bir karar var demek.
+            ddlError = ex.Message;
+        }
+
+        var unresolved = report.Findings.Count(f => !resolutions.ContainsKey(f.Id) || resolutions[f.Id] == "manual");
+
+        return Ok(new
+        {
+            schema = converted,
+            ddl,
+            ddlError,
+            unresolvedFindings = unresolved,
+        });
     }
 
     [HttpPost("generate")]
