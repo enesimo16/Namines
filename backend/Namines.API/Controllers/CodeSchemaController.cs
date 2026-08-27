@@ -8,6 +8,9 @@ using Namines.Core.Models;
 
 namespace Namines.API.Controllers;
 
+/// <param name="Responses">Gözlemlenen JSON yanıtları — yalnızca uç nokta yolu ve gövde.</param>
+public sealed record InferShapesRequest(List<ObservedResponse> Responses);
+
 /// <param name="Files">Dosya adı → içerik. İstemci hangi dosyaları göndereceğini seçer.</param>
 /// <param name="CompareWith">
 /// Doluysa çıkarılan şema BUNA karşı karşılaştırılır — "kodun şunu diyor,
@@ -33,6 +36,46 @@ public sealed record ExtractCodeSchemaRequest(
 [Route("api/[controller]")]
 public class CodeSchemaController : ControllerBase
 {
+    /// <summary>
+    /// second-phase/06-VERI-KAYNAKLARI.md kademe 3 — gözlemlenen JSON
+    /// yanıtlarının ŞEKLİNDEN veri modeli çıkarımı.
+    ///
+    /// <b>Sonuç bir TASLAKTIR, şema değil.</b> Doc'un kuralı: kullanıcı
+    /// varlığı kabul eder, yeniden adlandırır ya da reddeder — otomatik onay
+    /// yok. Bu yüzden uç bir <c>DatabaseSchema</c> DÖNDÜRMÜYOR; güven puanı ve
+    /// "belirsiz" işaretleriyle birlikte aday listesi döndürüyor.
+    ///
+    /// <b>Değerler saklanmıyor</b> — çıkarım yalnızca alan adı ve tip üretir
+    /// (bkz. <see cref="JsonShapeInferencer"/>).
+    ///
+    /// Bir tarayıcı extension'ı bu uca <c>ObservedResponse</c> gönderir; ama
+    /// extension olmadan da (örnek JSON yapıştırılarak) çalışır.
+    /// </summary>
+    [HttpPost("infer-shapes")]
+    [AllowAnonymous]
+    public IActionResult InferShapes([FromBody] InferShapesRequest request)
+    {
+        if (request?.Responses is null || request.Responses.Count == 0)
+            return BadRequest(new { message = "At least one observed response is required." });
+
+        var result = JsonShapeInferencer.Infer(request.Responses);
+
+        return Ok(new
+        {
+            // "Çıkarılan her şey tahmin" — doc'un açık şartı, yanıtın içinde taşınıyor.
+            isGuess = true,
+            entities = result.Entities.Select(e => new
+            {
+                e.Name,
+                e.SampleCount,
+                e.EndpointCount,
+                e.Confidence,
+                fields = e.Fields.Select(f => new { f.Name, f.Type, f.SeenCount, f.IsUncertain }),
+            }),
+            relations = result.Relations.Select(r => new { r.FromEntity, r.FromField, r.ToEntity }),
+        });
+    }
+
     [HttpPost("extract")]
     [AllowAnonymous]
     public IActionResult Extract([FromBody] ExtractCodeSchemaRequest request)

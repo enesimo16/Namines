@@ -9,10 +9,25 @@
 > kaldırıldı. Gerçek harici bir dokümana (Swagger Petstore) karşı doğrulandı.
 > 23 yeni test + 1182 toplam yeşil.
 >
-> ⏸ **Kademe 3-4 (extension'ın pasif JSON gözlemi ve DOM form okuma)
-> yapılmadı** — bunlar bir tarayıcı extension'ı gerektiriyor, ayrı bir dağıtım
-> yüzeyi ve ayrı bir iş. Bu oturumda yalnızca sunucu tarafında yapılabilecek
-> kısım (kademe 1-2) tamamlandı.
+> ✅ **Kademe 3'ün ÇIKARIM MOTORU yapıldı** — `JsonShapeInferencer` +
+> `POST /api/codeschema/infer-shapes`. Kümeleme, `xxx_id`/`xxxId` ilişki
+> çıkarımı, uç nokta/tekrar sayısına dayalı güven puanı ve "belirsiz" alan
+> işaretleme, aşağıdaki 5 adımın tarif ettiği gibi çalışıyor. 17 test.
+>
+> **Gizlilik kuralı canlı doğrulandı:** gerçek e-posta/isim/maaş içeren bir
+> yanıt gönderildi, dönen sonuçta değerlerin hiçbiri yok — yalnızca alan adı
+> ve tip. Yanıt ayrıca `isGuess: true` taşıyor.
+>
+> **Neden extension olmadan yapıldı:** kademe 3'ün asıl içeriği bu çıkarımdır;
+> tarayıcı extension'ı yalnızca *taşıyıcıdır*. Motoru sunucuda ve saf tutmak
+> üç şey kazandırdı — (a) gerçekten test edilebilir, (b) extension yazıldığında
+> ona yalnızca `ObservedResponse` POST etmek kalıyor, (c) extension olmadan da
+> çalışıyor (kullanıcı örnek JSON yapıştırabilir).
+>
+> ⏸ **Extension'ın kendisi ve kademe 4 (DOM form okuma) yapılmadı** — tarayıcı
+> extension'ı ayrı bir dağıtım yüzeyi (paketleme, mağaza incelemesi, sürüm
+> yönetimi) ve bu oturumun kapsamına girmedi. Bu uç için **ön yüz de yok**;
+> şu an yalnızca API olarak var.
 
 ---
 

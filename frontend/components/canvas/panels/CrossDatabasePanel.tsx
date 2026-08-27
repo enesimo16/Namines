@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Network, X, Plus, Trash2, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Network, X, Plus, Trash2, Loader2, ArrowRight, ArrowLeft, Map } from 'lucide-react';
+import CrossDatabaseMapView, { MapLink } from './CrossDatabaseMapView';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useToastStore } from '../../../store/useToastStore';
@@ -55,6 +56,10 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [otherProjects, setOtherProjects] = useState<CloudProjectLite[]>([]);
+  // Harita görünümü: hangi karşı projeyle açıldığı. Null = kapalı.
+  const [mapForProjectId, setMapForProjectId] = useState<string | null>(null);
+  const [mapSchema, setMapSchema] = useState<DatabaseSchema | null>(null);
+  const projectName = useSchemaStore(s => s.projectName);
   const [otherProjectId, setOtherProjectId] = useState('');
   const [localTableId, setLocalTableId] = useState('');
   const [localColumnId, setLocalColumnId] = useState('');
@@ -133,6 +138,24 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
     }
   };
 
+  /**
+   * Haritayı açar. Karşı projenin şeması ihtiyaç ANINDA çekiliyor — paneli her
+   * açışta tüm projelerin şemasını indirmek, yalnızca liste görmek isteyen
+   * kullanıcıya gereksiz bir maliyet olurdu.
+   */
+  const openMap = async (otherProjectId: string) => {
+    setMapForProjectId(otherProjectId);
+    setMapSchema(null);
+    try {
+      const all = await authService.getCloudProjects();
+      const target = all.find((p: any) => p.id === otherProjectId);
+      setMapSchema(target ? JSON.parse(target.schemaJson) : null);
+    } catch {
+      showToast('Could not load the other database.', 'error');
+      setMapForProjectId(null);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await authService.crossDatabase.deleteRelation(id);
@@ -191,9 +214,19 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
                     </div>
                     {r.note && <p className="text-[10px] text-content-subtle mt-1 truncate">{r.note}</p>}
                   </div>
-                  <button onClick={() => handleDelete(r.id)} className="shrink-0 p-1.5 text-content-subtle hover:text-danger-text hover:bg-danger-subtle rounded-lg transition-colors" aria-label="Delete relation">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() => openMap(r.otherProjectId)}
+                      className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-colors"
+                      aria-label="See both databases side by side"
+                      title="See both databases side by side"
+                    >
+                      <Map className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => handleDelete(r.id)} className="p-1.5 text-content-subtle hover:text-danger-text hover:bg-danger-subtle rounded-lg transition-colors" aria-label="Delete relation">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
 
@@ -265,6 +298,26 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
           )}
         </div>
       </div>
+
+      {/* Yan yana harita — second-phase/10-COKLU-DB.md */}
+      {mapForProjectId && schema && (
+        <CrossDatabaseMapView
+          isOpen
+          onClose={() => { setMapForProjectId(null); setMapSchema(null); }}
+          localName={projectName}
+          localSchema={schema}
+          otherName={relations.find(r => r.otherProjectId === mapForProjectId)?.otherProjectName ?? 'other database'}
+          otherSchema={mapSchema}
+          links={relations
+            .filter(r => r.otherProjectId === mapForProjectId)
+            .map<MapLink>(r => ({
+              id: r.id,
+              localColumn: r.localColumn,
+              otherColumn: r.otherColumn,
+              note: r.note,
+            }))}
+        />
+      )}
     </div>
   );
 }

@@ -21,14 +21,20 @@
 > kuruldu; `auth-db.users` "siliniyor" sorgusu doğru şekilde
 > `{otomatik: orders-db etkilenir}` döndürdü — doc'un kendi örneği birebir.
 >
-> **Ertelenen kısım:** doc'un tam tarifi olan "yan yana iki canlı React Flow
-> canvas'ı, aynı ekranda" — bu, kendi başına ayrı bir UI katmanı (çoklu
-> canvas render/senkron/performans) ve bu oturumun kapsamına sığmadı. Onun
-> yerine ürünün asıl iddiasını taşıyan kısım önceliklendirildi: ilişkiyi
-> KAYDETMEK ve kırılmayı ÖNCEDEN GÖSTERMEK — doc'un kendi "neden değerli"
-> bölümünün tam olarak söylediği şey. Şu an her proje kendi canvas'ında
-> açılıyor; CrossDatabasePanel üzerinden karşı projenin şemasına (salt-okunur,
-> tablo/kolon seçimi için) erişiliyor ama ikisi aynı ekranda render edilmiyor.
+> ✅ **Yan yana görünüm de eklendi** — `CrossDatabaseMapView`: iki veritabanının
+> tabloları yan yana, aralarındaki mantıksal bağlar **kesik çizgiyle**
+> çiziliyor (doc'un açık şartı). Varsayılan olarak yalnızca bağa dahil olan
+> tablolar gösteriliyor, "Show all tables" ile hepsi açılıyor — kırk alakasız
+> tablo, önemli olan ikisini gömer.
+>
+> **İki React Flow canvas'ı DEĞİL, bilerek.** İki gerekçe: (a) doc'un kendi
+> performans uyarısı ("üç canvas aynı anda React Flow demek"), (b) `TableNode`
+> düzenleme/silme için şema store'una bağlı — onu karşı projenin tabloları
+> için kullanmak, yalnızca *görüntülediğin* bir projeden tablo silebilmen
+> demek olurdu. Bu görünüm salt-okunur olarak inşa edildi.
+>
+> Tarayıcıda gerçek veriyle doğrulandı: `orders-db ↔ auth-db`, kesik çizgi
+> gerçek koordinatlarla çizildi, filtre toggle'ı çalışıyor.
 
 ---
 
@@ -57,7 +63,8 @@ kadar.
    ilişkilerden türetiliyor (`CrossDatabaseImpactAnalyzer.LinkedProjectIds`).
    Organizasyon zaten yetki sınırı olduğu için ayrı bir üst katmana gerek
    çıkmadı.
-2. 🔶 Yan yana canvas — **yapılmadı**, aşağıda gerekçesi var.
+2. ✅ Yan yana görünüm — `CrossDatabaseMapView` (canvas değil, salt-okunur
+   harita; gerekçe yukarıda)
 3. ✅ **Mantıksal ilişki** tanımı — `CrossDatabaseRelation` tablosu, tam da
    burada tarif edildiği gibi: veritabanı zorlamıyor, biz kaydediyor ve
    kontrol ediyoruz.
@@ -69,9 +76,8 @@ kadar.
 
 - **Mantıksal ilişki, gerçek FK değil.** ✅ Ele alındı: her ilişki arayüzde
   kesikli çerçeve + "Not enforced" etiketiyle gösteriliyor.
-- **Performans:** üç canvas aynı anda React Flow demek. ⏸ Henüz gündemde
-  değil — yan yana canvas yapılmadığı için bu risk şu an yok; o iş
-  başladığında yeniden değerlendirilmeli.
+- **Performans:** üç canvas aynı anda React Flow demek. ✅ Bu risk hiç
+  alınmadı — yan yana görünüm React Flow kullanmıyor, basit kartlar + SVG.
 - Bu iş, kota ve plan tarafını da etkiler — kaç DB, hangi planda? ⏸ Cevaplanmadı,
   fiyatlandırma bu oturumun kapsamı dışında.
 - Önce **iki** DB ile başla. ✅ Uygulama da bunu izledi: canlı doğrulama iki

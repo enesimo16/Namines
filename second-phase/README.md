@@ -36,11 +36,11 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 |---|-------|-----|-------|
 | 04 | [Üretim ekranı](04-LOADING-EKRANI.md) ✅ | Deterministik kapıyı görünür yapar — **farkı anlatan tek ekran** | S |
 | 05 | [Plan modu](05-PLAN-MODU.md) ✅ | Konuşarak netleştir, üretmeden önce planı onayla | M |
-| 06 | [Veri kaynakları](06-VERI-KAYNAKLARI.md) ✅ kademe 1-2 | URL→API/OpenAPI, extension, localhost. **Bugün yalan söyleyen özellik burada** | M |
+| 06 | [Veri kaynakları](06-VERI-KAYNAKLARI.md) ✅ kademe 1-3 · ⏸ extension | URL→API/OpenAPI, extension, localhost. **Bugün yalan söyleyen özellik burada** | M |
 | 07 | [Motor dönüşümü](07-MOTOR-DONUSUMU.md) ✅ | PostgreSQL→MariaDB, kayıp raporuyla. %70'i hazır | M |
 | 08 | [Prompt deneyimi](08-PROMPT-DENEYIMI.md) ✅ | Daha çok soru, serbest ekleme, geçmiş, kapsam | S |
 | 09 | [Şema alternatifleri](09-SEMA-ALTERNATIFLERI.md) ✅ | A/B üret, diff'te karşılaştır, birini seç | M |
-| 10 | [Çoklu DB](10-COKLU-DB.md) ✅ çekirdek, 🔶 yan yana canvas ertelendi | Yan yana veritabanları + aralarındaki risk | L |
+| 10 | [Çoklu DB](10-COKLU-DB.md) ✅ | Yan yana veritabanları + aralarındaki risk | L |
 | 11 | [Koddan şema](11-KODDAN-SEMA.md) ✅ | Depodaki modellerden şema çıkar, DB ile karşılaştır | M |
 | 12 | [Entegrasyonlar](12-ENTEGRASYONLAR.md) ✅ Supabase | Supabase önce. Rekabet değil, üstünde durmak | M |
 | 13 | [Dağıtım hedefleri](13-DAGITIM-HEDEFLERI.md) ✅ | Plesk/cPanel/mobil — rakiplerin bakmadığı kitle | S |
