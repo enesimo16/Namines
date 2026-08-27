@@ -68,10 +68,27 @@ public static class JsonShapeInferencer
     /// <summary>Bir şeklin "varlık" sayılması için gereken en az alan sayısı — tek alanlı bir sarmalayıcı varlık değildir.</summary>
     private const int MinFieldsForEntity = 2;
 
+    /// <summary>
+    /// <b>Kümeleme adı temel alır, tam alan setini DEĞİL.</b>
+    ///
+    /// İlk hâli doc'un 2. adımını harfiyen uygulayıp imzaya (alan adı+tip seti)
+    /// göre kümeliyordu. İki sonucu vardı, ikisi de yanlıştı:
+    /// <list type="number">
+    /// <item>Aynı kaynağın liste ve detay uçları (<c>{id,email}</c> ve
+    /// <c>{id,email,bio}</c>) AYRI varlıklar oluyordu — <c>users</c> ve
+    /// <c>users_2</c> gibi anlamsız bir çıktı.</item>
+    /// <item>Bir kümedeki her örnek tanım gereği aynı alanları taşıdığı için
+    /// "bu alan kaç örnekte görüldü" sayısı her zaman örnek sayısına eşitti ve
+    /// doc'un 4. adımındaki <b>"belirsiz"</b> işareti hiçbir zaman
+    /// tetiklenemiyordu (ölü kod).</item>
+    /// </list>
+    /// Ada göre kümeleyince ikisi de düzeliyor: liste+detay tek varlıkta
+    /// birleşiyor ve yalnızca bazı örneklerde görünen alan (<c>bio</c>) gerçekten
+    /// belirsiz olarak işaretlenebiliyor — doc'un 4. adımının kastettiği şey bu.
+    /// </summary>
     public static ShapeInferenceResult Infer(IReadOnlyList<ObservedResponse> responses)
     {
-        // Şekil imzası → (alan adı → tip), örnek sayısı, uç noktalar, ad adayları
-        var clusters = new Dictionary<string, Cluster>(StringComparer.Ordinal);
+        var clusters = new Dictionary<string, Cluster>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var response in responses)
         {
@@ -79,20 +96,28 @@ public static class JsonShapeInferencer
             {
                 if (shape.Count < MinFieldsForEntity) continue;
 
-                var signature = string.Join("|", shape.OrderBy(f => f.Key, StringComparer.Ordinal).Select(f => $"{f.Key}:{f.Value}"));
+                var name = string.IsNullOrEmpty(nameHint) ? "unknown" : nameHint;
 
-                if (!clusters.TryGetValue(signature, out var cluster))
+                if (!clusters.TryGetValue(name, out var cluster))
                 {
-                    cluster = new Cluster(shape);
-                    clusters[signature] = cluster;
+                    cluster = new Cluster(name);
+                    clusters[name] = cluster;
                 }
 
                 cluster.SampleCount++;
                 cluster.Endpoints.Add(response.Endpoint);
-                if (!string.IsNullOrEmpty(nameHint)) cluster.NameHints.Add(nameHint);
 
                 foreach (var field in shape)
+                {
                     cluster.FieldSeen[field.Key] = cluster.FieldSeen.GetValueOrDefault(field.Key) + 1;
+
+                    if (!cluster.FieldTypes.TryGetValue(field.Key, out var histogram))
+                    {
+                        histogram = new Dictionary<string, int>(StringComparer.Ordinal);
+                        cluster.FieldTypes[field.Key] = histogram;
+                    }
+                    histogram[field.Value] = histogram.GetValueOrDefault(field.Value) + 1;
+                }
             }
         }
 
@@ -101,45 +126,53 @@ public static class JsonShapeInferencer
             .OrderByDescending(e => e.SampleCount)
             .ToList();
 
-        // Aynı ada düşen iki farklı şekil olabilir (ör. liste ve detay uçları
-        // farklı alanlar döndürür). Adı tekilleştir — aksi hâlde ilişki
-        // çözümlemesi hangisine bağlanacağını bilemez.
-        entities = Deduplicate(entities);
-
         return new ShapeInferenceResult(entities, InferRelations(entities));
     }
 
     private sealed class Cluster
     {
-        public Cluster(Dictionary<string, string> shape) => Shape = shape;
-        public Dictionary<string, string> Shape { get; }
+        public Cluster(string name) => Name = name;
+        public string Name { get; }
         public int SampleCount;
         public HashSet<string> Endpoints { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public List<string> NameHints { get; } = new();
+        /// <summary>Alan adı → o alanın kaç örnekte görüldüğü.</summary>
         public Dictionary<string, int> FieldSeen { get; } = new(StringComparer.Ordinal);
+        /// <summary>Alan adı → (tip → kaç kez). Aynı alan farklı örneklerde farklı tip gelebilir.</summary>
+        public Dictionary<string, Dictionary<string, int>> FieldTypes { get; } = new(StringComparer.Ordinal);
     }
 
     private static InferredEntity ToEntity(Cluster c)
     {
-        var name = c.NameHints
-            .GroupBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(g => g.Count())
-            .Select(g => g.Key)
-            .FirstOrDefault() ?? "unknown";
-
-        var fields = c.Shape
+        var fields = c.FieldSeen
             .Select(f => new InferredField(
                 f.Key,
+                DominantType(c.FieldTypes[f.Key]),
                 f.Value,
-                c.FieldSeen.GetValueOrDefault(f.Key),
-                // Tek örnekte görülen alan belirsiz — ama şeklin KENDİSİ tek
-                // kez görüldüyse hepsi aynı durumda demektir ve o zaman
-                // "belirsiz" etiketi bilgi taşımaz; güven puanı zaten düşük.
-                c.SampleCount > 1 && c.FieldSeen.GetValueOrDefault(f.Key) <= 1))
+                // Doc adım 4: "Tek yanıtta görülen bir alan belirsiz işaretlenir."
+                // İki durum belirsizdir: (a) alan her örnekte YOK — opsiyonel mi
+                // yoksa tesadüf mü ayırt edilemez, (b) varlığın kendisi tek kez
+                // görülmüş — hiçbir alanı doğrulanmamış.
+                f.Value < c.SampleCount || c.SampleCount == 1))
             .OrderBy(f => f.Name, StringComparer.Ordinal)
             .ToList();
 
-        return new InferredEntity(name, fields, c.SampleCount, c.Endpoints.Count, Score(c.SampleCount, c.Endpoints.Count));
+        return new InferredEntity(c.Name, fields, c.SampleCount, c.Endpoints.Count, Score(c.SampleCount, c.Endpoints.Count));
+    }
+
+    /// <summary>
+    /// Bir alanın en sık görülen tipi. <c>UNKNOWN</c> (null değerden gelir)
+    /// gerçek bir tipe karşı KAYBEDER — bir örnekte null, diğerinde metin olan
+    /// bir alan metindir; null yalnızca "bu örnekte doluydu değil" demektir.
+    /// </summary>
+    private static string DominantType(Dictionary<string, int> histogram)
+    {
+        var real = histogram.Where(t => t.Key != "UNKNOWN").ToList();
+        var pool = real.Count > 0 ? real : histogram.ToList();
+
+        return pool
+            .OrderByDescending(t => t.Value)
+            .ThenBy(t => t.Key, StringComparer.Ordinal)
+            .First().Key;
     }
 
     /// <summary>Doc: "kaç farklı uç noktada, kaç kez görüldüyse güveni o kadar yüksek".</summary>
@@ -147,27 +180,6 @@ public static class JsonShapeInferencer
         endpoints >= 2 && samples >= 3 ? "high"
         : samples >= 2 ? "medium"
         : "low";
-
-    private static List<InferredEntity> Deduplicate(List<InferredEntity> entities)
-    {
-        var result = new List<InferredEntity>();
-        var used = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var e in entities)
-        {
-            if (!used.TryGetValue(e.Name, out var n))
-            {
-                used[e.Name] = 1;
-                result.Add(e);
-                continue;
-            }
-
-            used[e.Name] = n + 1;
-            result.Add(e with { Name = $"{e.Name}_{n + 1}" });
-        }
-
-        return result;
-    }
 
     /// <summary>
     /// Doc kademe 3 adım 3: <c>xxx_id</c> / <c>xxxId</c> deseni taşıyan bir
@@ -180,7 +192,19 @@ public static class JsonShapeInferencer
     private static List<InferredRelation> InferRelations(IReadOnlyList<InferredEntity> entities)
     {
         var relations = new List<InferredRelation>();
-        var byName = entities.ToDictionary(e => Singularise(e.Name), e => e, StringComparer.OrdinalIgnoreCase);
+
+        // TryAdd, ToDictionary DEĞİL: iki farklı varlık adı aynı tekil hâle
+        // düşebilir (ör. "/api/users" ve "/api/user" ikisi de "user" olur) ve
+        // ToDictionary orada ArgumentException fırlatıp tüm çıkarımı 500'e
+        // çeviriyordu. Böyle bir çakışmada ilk (en çok örneği olan) varlık
+        // kazanıyor — çıkarım bir tahmin, çakışmada durmak yerine daha iyi
+        // desteklenen adayı seçmek doğru.
+        var byName = new Dictionary<string, InferredEntity>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in entities)
+        {
+            byName.TryAdd(e.Name, e);
+            byName.TryAdd(Singularise(e.Name), e);
+        }
 
         foreach (var entity in entities)
         {

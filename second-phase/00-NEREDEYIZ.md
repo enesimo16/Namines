@@ -5,7 +5,8 @@
 > bir sisteme karşı doğrulandı.
 >
 > Kanıt: [../new-phase/CHECKLIST.md](../new-phase/CHECKLIST.md) — G0'dan G52'ye
-> her adımın doğrulama kaydı. **1136 test yeşil.**
+> her adımın doğrulama kaydı. Faz 1 biterken **1136 test** yeşildi; second-phase
+> işleri (04-13) tamamlandıktan sonra bu sayı **1300'ün üzerinde.**
 
 ---
 

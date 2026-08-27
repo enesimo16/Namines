@@ -160,18 +160,68 @@ public class JsonShapeInferencerTests
     }
 
     [Fact]
-    public void A_field_seen_in_only_one_sample_of_a_repeated_shape_is_flagged_uncertain()
+    public void A_field_missing_from_some_samples_is_flagged_uncertain_while_the_stable_ones_are_not()
     {
         // Doc: "Tek yanıtta görülen bir alan belirsiz işaretlenir."
+        // Bu testin ilk hâli tautolojikti — "IsUncertain is false || ..." diye
+        // yazılmıştı ve tam da yakalaması gereken bozuk davranışta geçiyordu.
         var result = JsonShapeInferencer.Infer(new[]
         {
             R("/api/users", """[{"id":1,"email":"a"},{"id":2,"email":"b"},{"id":3,"email":"c"}]"""),
             R("/api/users", """{"id":4,"email":"d","nickname":"nick"}"""),
         });
 
-        var withNickname = result.Entities.Single(e => e.Fields.Any(f => f.Name == "nickname"));
-        Assert.True(withNickname.Fields.Single(f => f.Name == "nickname").IsUncertain is false
-                    || withNickname.SampleCount == 1);
+        var users = Assert.Single(result.Entities);
+        Assert.Equal(4, users.SampleCount);
+
+        // 4 örneğin yalnızca 1'inde görüldü → belirsiz.
+        var nickname = users.Fields.Single(f => f.Name == "nickname");
+        Assert.Equal(1, nickname.SeenCount);
+        Assert.True(nickname.IsUncertain);
+
+        // Her örnekte var → belirsiz DEĞİL.
+        var email = users.Fields.Single(f => f.Name == "email");
+        Assert.Equal(4, email.SeenCount);
+        Assert.False(email.IsUncertain);
+    }
+
+    [Fact]
+    public void An_entity_seen_only_once_has_every_field_marked_uncertain()
+    {
+        // Hiçbir alanı ikinci bir örnekle doğrulanmadı.
+        var result = JsonShapeInferencer.Infer(new[]
+        {
+            R("/api/coupons", """{"id":1,"code":"X"}"""),
+        });
+
+        Assert.All(result.Entities.Single().Fields, f => Assert.True(f.IsUncertain));
+    }
+
+    [Fact]
+    public void Two_endpoint_names_that_share_a_singular_form_do_not_crash_the_inference()
+    {
+        // "/api/users" ve "/api/user" ikisi de "user"a tekilleşiyor; eskiden
+        // ToDictionary burada ArgumentException fırlatıp uca 500 döndürüyordu.
+        var result = JsonShapeInferencer.Infer(new[]
+        {
+            R("/api/users", """[{"id":1,"email":"a"}]"""),
+            R("/api/user", """{"id":2,"name":"b","age":3}"""),
+        });
+
+        Assert.Equal(2, result.Entities.Count);
+    }
+
+    [Fact]
+    public void A_field_that_is_null_in_one_sample_takes_the_real_type_from_the_others()
+    {
+        // null bir TİP değil — "bu örnekte doluydu değil" demek. Gerçek tipin
+        // önüne geçerse kolon UNKNOWN olarak üretilirdi.
+        var result = JsonShapeInferencer.Infer(new[]
+        {
+            R("/api/users", """[{"id":1,"bio":null},{"id":2,"bio":"hello"},{"id":3,"bio":"hi"}]"""),
+        });
+
+        Assert.Equal("VARCHAR", result.Entities.Single().Fields.Single(f => f.Name == "bio").Type);
     }
 
     [Fact]
@@ -186,18 +236,21 @@ public class JsonShapeInferencerTests
     }
 
     [Fact]
-    public void Two_different_shapes_from_the_same_endpoint_get_distinct_names()
+    public void List_and_detail_shapes_of_the_same_resource_merge_into_one_entity()
     {
-        // Liste ve detay uçları farklı alanlar döndürür; ikisi de "users"
-        // adını alırsa ilişki çözümlemesi hangisine bağlanacağını bilemez.
+        // Ayrı varlıklar üretmek ("users" ve "users_2") kullanıcıya aynı şeyin
+        // iki kopyasını gösterirdi. Doğru sonuç: tek varlık, detayda gelen ek
+        // alanlar "belirsiz" işaretli.
         var result = JsonShapeInferencer.Infer(new[]
         {
             R("/api/users", """{"id":1,"email":"a"}"""),
             R("/api/users", """{"id":1,"email":"a","bio":"x","avatar":"y"}"""),
         });
 
-        Assert.Equal(2, result.Entities.Count);
-        Assert.Equal(result.Entities.Count, result.Entities.Select(e => e.Name).Distinct().Count());
+        var users = Assert.Single(result.Entities);
+        Assert.Equal(4, users.Fields.Count);
+        Assert.True(users.Fields.Single(f => f.Name == "bio").IsUncertain);
+        Assert.False(users.Fields.Single(f => f.Name == "id").IsUncertain);
     }
 
     [Fact]

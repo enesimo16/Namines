@@ -68,16 +68,29 @@ public static class SharedHostingExporter
         }
         header.AppendLine();
 
-        // FOREIGN_KEY_CHECKS: normal Docker/CLI akışında gerekmiyor çünkü tablolar
-        // zaten bağımlılık sırasına göre üretiliyor. phpMyAdmin gibi araçlar
-        // dosyayı tek seferde çalıştırır ve döngüsel/ileri referanslı FK'lerde
-        // "tablo henüz yok" hatası verebilir — kapatıp en sonda açmak bunu önler.
-        var wrapped = "SET FOREIGN_KEY_CHECKS=0;\n\n" + header + ddl + "\nSET FOREIGN_KEY_CHECKS=1;\n";
+        // Satır sonlarını normalize et: hedef panellerin çoğu Linux ve karışık
+        // CRLF/LF bir dosya bazı içe aktarma araçlarını şaşırtıyor. Ayrıca
+        // bölmenin ölçtüğü boyutla yazılan boyut birebir aynı kalıyor.
+        var body = (header + ddl).Replace("\r\n", "\n");
 
-        var parts = SqlFileSplitter.Split(wrapped, MaxFileBytes);
-        var files = parts.Count == 1
-            ? new List<ExportedFile> { new("schema.sql", Encoding.UTF8.GetBytes(parts[0])) }
-            : parts.Select((p, i) => new ExportedFile($"schema_part{i + 1}_of_{parts.Count}.sql", Encoding.UTF8.GetBytes(p))).ToList();
+        // Her parçaya AYRI AYRI sarmalanıyor, tek bir kez başa değil:
+        // FOREIGN_KEY_CHECKS MySQL'de OTURUM kapsamlıdır ve README kullanıcıya
+        // dosyaları tek tek içe aktarmasını söylüyor — her içe aktarma yeni bir
+        // oturum. Yalnızca ilk parçaya yazılırsa 2. ve sonraki parçalar
+        // kontroller AÇIK yüklenir ve sarmalayıcının var olma sebebi olan
+        // döngüsel/ileri referanslı FK durumu yine patlar.
+        const string prologue = "SET FOREIGN_KEY_CHECKS=0;\n\n";
+        const string epilogue = "\nSET FOREIGN_KEY_CHECKS=1;\n";
+        var overhead = Encoding.UTF8.GetByteCount(prologue) + Encoding.UTF8.GetByteCount(epilogue);
+
+        // Bütçeden sarmalayıcı payı düşülüyor; aksi hâlde sarmalanmış parça
+        // sınırı aşar ve panel yine reddeder.
+        var parts = SqlFileSplitter.Split(body, MaxFileBytes - overhead);
+        var wrapped = parts.Select(p => prologue + p + epilogue).ToList();
+
+        var files = wrapped.Count == 1
+            ? new List<ExportedFile> { new("schema.sql", Encoding.UTF8.GetBytes(wrapped[0])) }
+            : wrapped.Select((p, i) => new ExportedFile($"schema_part{i + 1}_of_{wrapped.Count}.sql", Encoding.UTF8.GetBytes(p))).ToList();
 
         files.Add(new ExportedFile("README.txt", Encoding.UTF8.GetBytes(MySqlInstructions(target, files.Count > 1))));
         return files;

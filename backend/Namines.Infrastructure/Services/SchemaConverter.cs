@@ -67,6 +67,19 @@ public static class SchemaConverter
                 break;
 
             case "child_table":
+                // Alt tablo, ebeveyne bir yabancı anahtarla bağlanacak — bunun
+                // için ebeveynin bir birincil anahtarı OLMAK ZORUNDA. Eskiden
+                // burada doğrudan First(c => c.IsPK) çağrılıyordu ve PK'siz bir
+                // tabloda InvalidOperationException fırlatıp uca 500 döndürüyordu.
+                // Şimdi çağıranın yakalayıp kullanıcıya anlatabileceği, ne
+                // yapması gerektiğini söyleyen bir hata veriliyor.
+                var parentKey = table.Columns.FirstOrDefault(c => c.IsPK);
+                if (parentKey is null)
+                    throw new NotSupportedException(
+                        $"'{table.Name}' has no primary key, so '{column.Name}' cannot be moved into a child table " +
+                        "(the child row would have nothing to point back to). Give the table a primary key first, " +
+                        "or choose the JSON column option instead.");
+
                 var elementType = column.Type;
                 table.Columns.Remove(column);
 
@@ -100,7 +113,7 @@ public static class SchemaConverter
                     SourceTableId = childTable.Id,
                     SourceColumnId = fkCol.Id,
                     TargetTableId = table.Id,
-                    TargetColumnId = table.Columns.First(c => c.IsPK).Id,
+                    TargetColumnId = parentKey.Id,
                     OnDelete = ReferentialAction.Cascade,
                 });
                 break;

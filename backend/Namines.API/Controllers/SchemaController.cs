@@ -209,7 +209,20 @@ public class SchemaController : ControllerBase
 
         var report = EngineConversionAnalyzer.Analyze(request.Schema, request.Source, request.Target);
         var resolutions = request.Resolutions ?? new Dictionary<string, string>();
-        var converted = SchemaConverter.Apply(request.Schema, request.Target, report.Findings, resolutions);
+
+        DatabaseSchema converted;
+        try
+        {
+            converted = SchemaConverter.Apply(request.Schema, request.Target, report.Findings, resolutions);
+        }
+        catch (NotSupportedException ex)
+        {
+            // Seçilen çözüm bu şemaya uygulanamıyor (ör. "child_table" ama
+            // ebeveyn tablonun birincil anahtarı yok). Bu bir sunucu hatası
+            // değil, kullanıcının düzeltebileceği bir durum — mesaj ne
+            // yapılacağını söylüyor.
+            return BadRequest(new { message = ex.Message });
+        }
 
         string? ddl = null;
         string? ddlError = null;

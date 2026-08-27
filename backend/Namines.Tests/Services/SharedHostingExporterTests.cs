@@ -115,6 +115,79 @@ public class SharedHostingExporterTests
         Assert.Equal("SQLite format 3\0", Encoding.ASCII.GetString(dbBytes, 0, 16));
     }
 
+    /// <summary>
+    /// Şemayı GERÇEK üretici çıktısı 1 MB'ı aşacak kadar büyütür.
+    ///
+    /// Fixture'ı elle kurmak yerine üreticiden geçirmek şart: splitter'ın ilk
+    /// hâli <c>";\n"</c> arıyordu ama üreticiler <c>AppendLine</c> ile
+    /// <c>";\r\n"</c> yazıyor. Elle <c>"\n"</c> ile kurulan bir fixture bu
+    /// hatayı GÖREMİYORDU — test yeşildi, gerçek çıktı bölünmüyordu.
+    /// </summary>
+    private static DatabaseSchema OversizedSchema()
+    {
+        var schema = new DatabaseSchema { Name = "big" };
+        for (var i = 0; i < 2000; i++)
+        {
+            var table = new SchemaTable { Id = $"t{i}", Name = $"table_{i}" };
+            table.Columns.Add(new SchemaColumn { Id = $"c{i}_0", Name = "id", Type = "INT", IsPK = true });
+            for (var c = 1; c < 12; c++)
+                table.Columns.Add(new SchemaColumn { Id = $"c{i}_{c}", Name = $"column_number_{c}", Type = "VARCHAR", Length = 255 });
+            schema.Tables.Add(table);
+        }
+        return schema;
+    }
+
+    [Fact]
+    public async Task A_schema_larger_than_the_limit_is_actually_split_into_several_files()
+    {
+        var files = await SharedHostingExporter.ExportAsync(OversizedSchema(), DatabaseType.MySQL, Ddl);
+
+        var sqlFiles = files.Where(f => f.Name.EndsWith(".sql")).ToList();
+        Assert.True(sqlFiles.Count > 1, $"expected a split, got {sqlFiles.Count} file(s)");
+    }
+
+    [Fact]
+    public async Task Every_split_file_stays_under_the_upload_limit()
+    {
+        // Asıl amaç bu: panelin yükleme sınırını aşmamak. Bölünmüş ama hâlâ
+        // 1,3 MB olan bir dosya, hiç bölünmemiş kadar işe yaramaz.
+        var files = await SharedHostingExporter.ExportAsync(OversizedSchema(), DatabaseType.MySQL, Ddl);
+
+        foreach (var file in files.Where(f => f.Name.EndsWith(".sql")))
+            Assert.True(file.Content.Length <= 1_000_000, $"{file.Name} is {file.Content.Length} bytes");
+    }
+
+    [Fact]
+    public async Task Every_split_file_carries_its_own_foreign_key_check_wrapper()
+    {
+        // FOREIGN_KEY_CHECKS MySQL'de OTURUM kapsamlı ve README dosyaları tek
+        // tek içe aktarmayı söylüyor — yalnızca ilk parçaya yazmak, sonraki
+        // parçaları kontroller açık bırakır.
+        var files = await SharedHostingExporter.ExportAsync(OversizedSchema(), DatabaseType.MySQL, Ddl);
+
+        foreach (var file in files.Where(f => f.Name.EndsWith(".sql")))
+        {
+            var sql = Encoding.UTF8.GetString(file.Content);
+            Assert.StartsWith("SET FOREIGN_KEY_CHECKS=0;", sql);
+            Assert.EndsWith("SET FOREIGN_KEY_CHECKS=1;", sql.TrimEnd());
+        }
+    }
+
+    [Fact]
+    public async Task Splitting_never_cuts_a_statement_in_half()
+    {
+        var files = await SharedHostingExporter.ExportAsync(OversizedSchema(), DatabaseType.MySQL, Ddl);
+
+        foreach (var file in files.Where(f => f.Name.EndsWith(".sql")))
+        {
+            var sql = Encoding.UTF8.GetString(file.Content);
+            // Her CREATE TABLE'ın kapanışı da aynı dosyada olmalı.
+            var opens = System.Text.RegularExpressions.Regex.Matches(sql, @"CREATE TABLE").Count;
+            var closes = System.Text.RegularExpressions.Regex.Matches(sql, @"\) ENGINE=InnoDB").Count;
+            Assert.Equal(opens, closes);
+        }
+    }
+
     [Fact]
     public async Task Postgres_target_is_rejected_with_a_clear_message()
     {

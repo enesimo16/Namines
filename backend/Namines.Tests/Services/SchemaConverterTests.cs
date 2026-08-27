@@ -109,6 +109,40 @@ public class SchemaConverterTests
     }
 
     [Fact]
+    public void Child_table_on_a_table_without_a_primary_key_fails_with_an_actionable_message()
+    {
+        // Eskiden burada First(c => c.IsPK) doğrudan çağrılıyordu ve
+        // InvalidOperationException("Sequence contains no matching element")
+        // fırlatıp uca 500 döndürüyordu — kullanıcıya hiçbir şey anlatmadan.
+        var schema = new DatabaseSchema
+        {
+            Name = "s",
+            Tables =
+            {
+                new SchemaTable
+                {
+                    Id = "t1", Name = "tags_bag",
+                    Columns =
+                    {
+                        new SchemaColumn { Id = "c1", Name = "label", Type = "TEXT" },
+                        new SchemaColumn { Id = "c2", Name = "tags", Type = "TEXT", IsArray = true },
+                    },
+                },
+            },
+        };
+
+        var report = EngineConversionAnalyzer.Analyze(schema, DatabaseType.PostgreSQL, DatabaseType.MySQL);
+        var resolutions = new Dictionary<string, string> { [report.Findings[0].Id] = "child_table" };
+
+        var ex = Assert.Throws<System.NotSupportedException>(
+            () => SchemaConverter.Apply(schema, DatabaseType.MySQL, report.Findings, resolutions));
+
+        Assert.Contains("no primary key", ex.Message);
+        // Ne yapacağını söylüyor — sadece "olmadı" demiyor.
+        Assert.Contains("JSON column", ex.Message);
+    }
+
+    [Fact]
     public void Collation_drop_resolution_removes_the_collation_and_ddl_compiles()
     {
         var schema = new DatabaseSchema
