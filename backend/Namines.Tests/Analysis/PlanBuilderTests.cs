@@ -37,13 +37,22 @@ public class PlanBuilderTests
     }
 
     [Fact]
-    public void An_unrecognised_project_does_not_crash_with_an_empty_plan()
+    public void An_unrecognised_project_plans_only_what_the_core_defaults_imply()
     {
-        // Generic'in BaseTables'ta karşılığı yok -- bu bir hata değil, "hiçbir
-        // tür tanınmadı" durumunun doğal sonucu. Boş tablo listesiyle dönmeli,
-        // istisna fırlatmamalı.
+        // Generic'in BaseTables'ta karşılığı yok — bu bir hata değil, "hiçbir
+        // tür tanınmadı" durumunun doğal sonucu. İstisna fırlatmamalı.
+        //
+        // Ama tablo listesi BOŞ da olmamalı: çekirdek sorular (auth, environment)
+        // Generic'te de soruluyor ve varsayılanları var. Plan ekranı
+        // "varsayılan: Evet, basit (e-posta + şifre)" derken users tablosunu
+        // planlamamak, planın kendi varsayımıyla çelişmesi olurdu — testin ilk
+        // hâli tam olarak o tutarsızlığı kilitliyordu.
         var plan = PlanBuilder.Build(ProjectArchetype.Generic, NoAnswers, round: 1);
-        Assert.Empty(plan.Tables);
+
+        Assert.Contains(plan.Tables, t => t.Name == "users");        // auth varsayılanı
+        Assert.Contains(plan.Tables, t => t.Name == "audit_logs");   // environment varsayılanı
+        // Türe özel hiçbir tablo yok — tanınmayan tür için uydurulmuyor.
+        Assert.DoesNotContain(plan.Tables, t => t.Name is "products" or "orders");
     }
 
     [Fact]
@@ -210,6 +219,57 @@ public class PlanBuilderTests
 
         var names = plan.Tables.Select(t => t.Name).ToList();
         Assert.Equal(names.Count, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    // ── Plan, kendi yazdığı varsayımlarla tutarlı olmalı ─────────────────────
+
+    [Fact]
+    public void Unanswered_questions_apply_their_defaults_to_the_table_list()
+    {
+        // Ekranda "varsayılan: Ödeme kayıtları da olsun" yazarken tablo
+        // listesinde payments'ın OLMAMASI, planın kendi kendisiyle çelişmesiydi.
+        var plan = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string>(), round: 1);
+
+        Assert.Contains(plan.Tables, t => t.Name == "payments");     // payment varsayılanı
+        Assert.Contains(plan.Tables, t => t.Name == "audit_logs");   // environment = Üretim
+        Assert.Contains(plan.Tables, t => t.Name == "users");        // auth = Evet, basit
+    }
+
+    [Fact]
+    public void Every_stated_assumption_is_actually_reflected_in_the_plan()
+    {
+        var plan = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string>(), round: 1);
+
+        // "Kullanıcı girişi olacak mı — varsayılan: Evet, basit" deniyorsa
+        // users tablosu planda OLMALI; aksi hâlde kullanıcı onayladığı şeyden
+        // farklı bir şey alır.
+        Assert.Contains(plan.Assumptions, a => a.Contains("Kullanıcı girişi"));
+        Assert.Contains(plan.Tables, t => t.Name == "users");
+    }
+
+    [Fact]
+    public void A_real_answer_still_overrides_the_default()
+    {
+        var plan = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string> { ["auth"] = "Hayır" }, round: 1);
+
+        Assert.DoesNotContain(plan.Tables, t => t.Name == "users");
+        // Cevaplandığı için varsayım listesinde de yer almamalı.
+        Assert.DoesNotContain(plan.Assumptions, a => a.Contains("Kullanıcı girişi"));
+    }
+
+    [Fact]
+    public void A_default_never_triggers_a_follow_up_for_a_question_the_user_skipped()
+    {
+        // "variants" varsayılanı "Evet, varyantlı" ve bu bir belirsizlik
+        // kuralını tetikliyor. Ama kullanıcı ana soruyu ATLADI — alt sorusunu
+        // sormak, atlamayı görmezden gelmek olur.
+        var plan = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string>(), round: 1);
+
+        Assert.Null(plan.FollowUp);
     }
 
     // ── second-phase/08-PROMPT-DENEYIMI.md §8.1: ikinci seviye sorular ────────

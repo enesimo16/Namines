@@ -55,5 +55,19 @@ export interface ProjectSnapshot {
    */
   currentBranch?: string;
   migrationBaseline?: DatabaseSchema | null;
+  /**
+   * Bu şemayı üreten prompt ve netleştirme cevapları —
+   * second-phase/09-SEMA-ALTERNATIFLERI.md.
+   *
+   * Projeyle birlikte saklanıyor çünkü "Alternatif üret" aynı prompt'u tekrar
+   * çalıştırıyor. Yalnızca oturum belleğinde tutulduğunda buton, sayfa
+   * yenilendiği ya da proje workspace'ten açıldığı anda kalıcı olarak ölüyordu
+   * — yani pratikte kullanıcıların çoğu özelliği hiç çalışır görmüyordu.
+   *
+   * Projeye BAĞLI olması şart: tek bir global değer tutmak, A projesinde
+   * B projesinin prompt'uyla "alternatif" üretmek olurdu.
+   */
+  generationPrompt?: string | null;
+  generationAnswers?: Record<string, string> | null;
 }
 

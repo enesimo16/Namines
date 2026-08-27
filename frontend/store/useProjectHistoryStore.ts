@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import localforage from 'localforage';
 import { ProjectSnapshot, ActiveSandbox, Branch } from '../types/project';
 import { DatabaseSchema } from '../types/schema';
-import { DbType } from './useSchemaStore';
+import { DbType, useSchemaStore } from './useSchemaStore';
 import { Node } from '@xyflow/react';
 import { useAuthStore } from './useAuthStore';
 import { authService } from '../services/api';
@@ -132,6 +132,17 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           nodePositions[n.id] = { x: n.position.x, y: n.position.y };
         });
 
+        // Şemayı üreten prompt — "Alternatif üret" bunu tekrar çalıştırıyor
+        // (second-phase/09). Oturum belleğinden okunuyor ve projeyle birlikte
+        // saklanıyor; yoksa projede zaten kayıtlı olan korunuyor (bir düzenleme
+        // sonrası otomatik kaydetme, üretim kaynağını SİLMEMELİ).
+        // BOŞ string "kaynak yok" demek (proje prompt'suz açıldığında oturum
+        // belleği böyle sıfırlanıyor) — `??` yalnızca null/undefined'ı elediği
+        // için burada `||` kullanılıyor. Aksi hâlde prompt'suz bir projeye
+        // geçmek, projede KAYITLI olan prompt'u boş stringle ezebilirdi.
+        const genPrompt = useSchemaStore.getState().lastGenerationPrompt || null;
+        const genAnswers = useSchemaStore.getState().lastGenerationAnswers;
+
         const existingIdx = activeProjectId
           ? projects.findIndex(p => p.id === activeProjectId)
           : -1;
@@ -187,7 +198,9 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
                   nodePositions, 
                   updatedAt: now,
                   branches: currentBranches,
-                  currentBranch: currentBranchName
+                  currentBranch: currentBranchName,
+                  generationPrompt: genPrompt ?? p.generationPrompt ?? null,
+                  generationAnswers: genAnswers ?? p.generationAnswers ?? null,
                 }
               : p
           );
@@ -224,6 +237,8 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
             schema,
             nodePositions,
             activeSandbox: null,
+            generationPrompt: genPrompt,
+            generationAnswers: genAnswers,
             branches: [defaultBranch],
             currentBranch: 'main',
           };

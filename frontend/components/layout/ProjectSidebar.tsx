@@ -36,7 +36,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const { projects, loadProject, deleteProject, setActiveProjectId } = useProjectHistoryStore();
-  const { loadFromSchema, setDbType, resetProject } = useSchemaStore();
+  const { loadFromSchema, setDbType, resetProject, recordGenerationSource } = useSchemaStore();
 
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
 
@@ -59,6 +59,9 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
       project.schema.name = project.name;
     }
     loadFromSchema(project.schema, project.nodePositions, false);
+    // Üretim kaynağını da geri yükle — "Alternatif üret" (second-phase/09) buna
+    // bağlı. Yüklenmezse buton, workspace'ten açılan HER projede ölü kalır.
+    recordGenerationSource(project.generationPrompt ?? '', project.generationAnswers ?? null);
     onClose();
     router.push('/canvas');
   };

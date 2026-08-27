@@ -292,15 +292,24 @@ public static class PlanBuilder
         IReadOnlyDictionary<string, string> answers,
         int round)
     {
+        // Cevaplanmayan sorular VARSAYILANIYLA dolduruluyor. Eskiden tablo
+        // listesi ham cevapları okuyordu ve plan kendi yazdığı varsayımla
+        // ÇELİŞİYORDU: ekranda "varsayılan: Ödeme kayıtları da olsun" yazarken
+        // tablo listesinde `payments` yoktu. Aynı çelişki üretim prompt'una da
+        // taşınıyordu — `ClarifyingQuestions.ToPromptContext` varsayılanları
+        // dolduruyor, plan doldurmuyordu, yani prompt'un iki yarısı birbirini
+        // yalanlıyordu.
+        var effective = WithDefaults(archetype, answers);
+
         var tables = new List<PlannedTable>();
 
         if (BaseTables.TryGetValue(archetype, out var baseTables))
             tables.AddRange(baseTables);
 
-        ApplyCoreAnswers(tables, answers);
+        ApplyCoreAnswers(tables, effective);
 
         if (ConditionalTables.TryGetValue(archetype, out var conditional))
-            tables.AddRange(conditional(answers));
+            tables.AddRange(conditional(effective));
 
         // Aynı ada iki kez düşülebilir (ör. Ecommerce hem base'de hem
         // koşulda "orders" gibi bir şey eklerse) — tekilleştir, ilk gerekçe kalır.
@@ -338,6 +347,36 @@ public static class PlanBuilder
     /// varsayıldığını görmeli — sessiz varsayım, "planı onayladım ama
     /// çıkan şema beklediğim gibi değildi" hissi yaratır.
     /// </summary>
+    /// <summary>
+    /// Cevaplanmayan her soruyu varsayılanıyla dolduran bir kopya.
+    ///
+    /// <b>Yalnızca TABLO kurmak için kullanılıyor, belirsizlik tespiti için
+    /// DEĞİL.</b> Belirsizlik (takip sorusu) kullanıcının GERÇEKTEN verdiği
+    /// cevaplara bakmalı: ana soruyu atlayan birine onun alt sorusunu sormak,
+    /// atlamayı görmezden gelmek olur — ör. "varyant olacak mı"yı hiç
+    /// cevaplamayan kullanıcıya "varyantların kendi fiyatı var mı" diye
+    /// sormak.
+    /// </summary>
+    private static Dictionary<string, string> WithDefaults(
+        ProjectArchetype archetype, IReadOnlyDictionary<string, string> answers)
+    {
+        var effective = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var q in ClarifyingQuestions.For(archetype))
+        {
+            if (!string.IsNullOrWhiteSpace(q.DefaultOption))
+                effective[q.Id] = q.DefaultOption;
+        }
+
+        // Gerçek cevaplar varsayılanı EZER (takip cevapları da dahil).
+        foreach (var (key, value) in answers)
+        {
+            if (!string.IsNullOrWhiteSpace(value)) effective[key] = value;
+        }
+
+        return effective;
+    }
+
     private static List<string> BuildAssumptions(ProjectArchetype archetype, IReadOnlyDictionary<string, string> answers)
     {
         var notes = new List<string>();

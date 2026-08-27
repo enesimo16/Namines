@@ -15,7 +15,7 @@ import { flowToSchema } from '../../../lib/flowToSchema';
  */
 export default function RegionalPromptPanel() {
   const { getNodes, getEdges } = useReactFlow();
-  const { schema, applyRevision, naiModel, dbType, loadFromSchema, promptHistory, addPromptToHistory } = useSchemaStore();
+  const { schema, applyRevision, naiModel, dbType, loadFromSchema, promptHistory, addPromptToHistory, recordGenerationSource } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
   const { checkAccess } = useAIGateway();
   const [prompt, setPrompt] = useState('');
@@ -94,6 +94,12 @@ export default function RegionalPromptPanel() {
         const generated = await schemaService.generateSchema(prompt, dbType, naiModel);
         loadFromSchema(generated);
         addPromptToHistory(prompt);
+        // İlk üretim buradan da yapılabiliyor (boş canvas'taki prompt çubuğu).
+        // Kaydetmezsek "Alternatif üret" (second-phase/09) bu yoldan gelen
+        // kullanıcı için ölü kalır — aynı özelliğin iki girişi olup yalnızca
+        // birinin kaynağı kaydetmesi tutarsızlık olurdu. Netleştirme soruları
+        // bu yolda sorulmuyor, o yüzden cevap yok.
+        recordGenerationSource(prompt, null);
         setPrompt('');
         showToast("Database schema successfully generated!", "success");
       } catch (error: any) {

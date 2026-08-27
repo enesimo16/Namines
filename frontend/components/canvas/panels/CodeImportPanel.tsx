@@ -82,7 +82,7 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
             </div>
             <div>
               <h2 className="text-sm font-bold text-content-primary">Schema from Code</h2>
-              <p className="text-[11px] text-content-muted">Prisma or EF Core files — read only, never modified.</p>
+              <p className="text-[11px] text-content-muted">Prisma, EF Core or SQL migrations — read only, never executed.</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-white/[0.06] rounded-lg text-content-subtle hover:text-content-primary transition-colors" aria-label="Close">
@@ -95,7 +95,11 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".prisma,.cs"
+            // .sql da kabul ediliyor: ham CREATE TABLE ayrıştırıcısı var
+            // (second-phase/11) ve Supabase migration akışı (12) buna dayanıyor.
+            // Filtre eksik kaldığında ayrıştırıcı çalışıyordu ama kullanıcı
+            // dosyayı seçicide GÖREMİYORDU — yani o yol arayüzden erişilemezdi.
+            accept=".prisma,.cs,.sql"
             className="hidden"
             onChange={e => handleFiles(e.target.files)}
           />
@@ -108,7 +112,7 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
               <span className="text-xs font-semibold">
-                {isLoading ? 'Reading…' : 'Select schema.prisma or your .cs entity files'}
+                {isLoading ? 'Reading…' : 'Select schema.prisma, .cs entity files, or .sql migrations'}
               </span>
               <span className="text-[10px]">Nothing is executed — the files are only read as text.</span>
             </button>
