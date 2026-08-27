@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, History, Users, Terminal, Settings, Link2, Loader2, Database, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Table, Sparkles, Network } from 'lucide-react';
+import { ArrowRight, History, Users, Terminal, Settings, Link2, Loader2, Database, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Table, Sparkles, Network, FileCode2 } from 'lucide-react';
 import MarkdownLite from '../../common/MarkdownLite';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useReactFlow } from '@xyflow/react';
@@ -19,6 +19,7 @@ import DbConnectionPanel from './DbConnectionPanel';
 import GatewayExplorerPanel from './GatewayExplorerPanel';
 import AlternativeCompareModal from './AlternativeCompareModal';
 import CrossDatabasePanel from './CrossDatabasePanel';
+import CodeImportPanel from './CodeImportPanel';
 import { DatabaseSchema } from '../../../types/schema';
 
 // İkon-buton — tüm toolbar bunu kullanır: tek renk aile (off-white/lacivert),
@@ -43,6 +44,7 @@ export default function ToolbarPanel() {
   const [isGeneratingAlternative, setIsGeneratingAlternative] = useState(false);
   const [alternativeSchema, setAlternativeSchema] = useState<DatabaseSchema | null>(null);
   const [isCrossDbOpen, setIsCrossDbOpen] = useState(false);
+  const [isCodeImportOpen, setIsCodeImportOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
   const [isDbConnectOpen, setIsDbConnectOpen] = useState(false);
   const [isGatewayOpen, setIsGatewayOpen] = useState(false);
@@ -331,6 +333,16 @@ export default function ToolbarPanel() {
           <Network className="w-4 h-4" />
         </button>
 
+        {/* Schema from code — second-phase/11-KODDAN-SEMA.md */}
+        <button
+          onClick={() => setIsCodeImportOpen(true)}
+          className={`${iconBtnBase} ${iconBtnIdle}`}
+          title="Extract schema from Prisma / EF Core code"
+          aria-label="Extract schema from code"
+        >
+          <FileCode2 className="w-4 h-4" />
+        </button>
+
         {/* Generate Alternative — second-phase/09-SEMA-ALTERNATIFLERI.md.
             Maliyet buton metninde açık: bu ikinci bir üretim turu. */}
         <button
@@ -390,6 +402,9 @@ export default function ToolbarPanel() {
 
       {/* Cross-database relations — second-phase/10-COKLU-DB.md */}
       <CrossDatabasePanel isOpen={isCrossDbOpen} onClose={() => setIsCrossDbOpen(false)} />
+
+      {/* Schema from code — second-phase/11-KODDAN-SEMA.md */}
+      <CodeImportPanel isOpen={isCodeImportOpen} onClose={() => setIsCodeImportOpen(false)} />
 
       {/* Alternative compare — second-phase/09-SEMA-ALTERNATIFLERI.md */}
       {alternativeSchema && schema && (

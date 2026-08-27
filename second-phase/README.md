@@ -41,8 +41,8 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 | 08 | [Prompt deneyimi](08-PROMPT-DENEYIMI.md) ✅ | Daha çok soru, serbest ekleme, geçmiş, kapsam | S |
 | 09 | [Şema alternatifleri](09-SEMA-ALTERNATIFLERI.md) ✅ | A/B üret, diff'te karşılaştır, birini seç | M |
 | 10 | [Çoklu DB](10-COKLU-DB.md) ✅ çekirdek, 🔶 yan yana canvas ertelendi | Yan yana veritabanları + aralarındaki risk | L |
-| 11 | [Koddan şema](11-KODDAN-SEMA.md) | Depodaki modellerden şema çıkar, DB ile karşılaştır | M |
-| 12 | [Entegrasyonlar](12-ENTEGRASYONLAR.md) | Supabase önce. Rekabet değil, üstünde durmak | M |
+| 11 | [Koddan şema](11-KODDAN-SEMA.md) ✅ | Depodaki modellerden şema çıkar, DB ile karşılaştır | M |
+| 12 | [Entegrasyonlar](12-ENTEGRASYONLAR.md) ✅ Supabase | Supabase önce. Rekabet değil, üstünde durmak | M |
 | 13 | [Dağıtım hedefleri](13-DAGITIM-HEDEFLERI.md) ✅ | Plesk/cPanel/mobil — rakiplerin bakmadığı kitle | S |
 
 ### Ayrı ürünler — kayıt için, şimdi başlanmayacak

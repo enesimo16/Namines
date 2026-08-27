@@ -2,6 +2,31 @@
 
 > **Sıra: 9.** Doğru içgüdü: bu araçlarla **rekabet etmek değil, üstlerinde
 > durmak.**
+>
+> ✅ **Supabase akışı uçtan uca çalışıyor — ve yeni bir "entegrasyon" YAZILMADAN.**
+>
+> Araştırmada ortaya çıkan şey: doc'un 4 adımının 3'ü zaten vardı.
+> Supabase *Postgres'tir*, dolayısıyla mevcut `DbIntrospectionService`
+> herhangi bir Supabase bağlantı dizesiyle çalışıyor ve `table_schema =
+> 'public'` filtresi Supabase'in `auth.*`/`storage.*` şemalarını zaten
+> dışarıda bırakıyor. Diff + risk ekranı da (`SchemaImpactAnalyzer`, Change
+> Review) hazırdı.
+>
+> **Eksik olan tek halka adım 2'ydi:** "yerel migration dosyalarını oku".
+> Supabase migration'ları ham `.sql` dosyaları ve backend'de SQL ayrıştırıcı
+> yoktu. `SqlDdlSchemaParser` (bkz. 11 numara) bunu kapattı ve zincir
+> tamamlandı — ayrı bir Supabase API entegrasyonu, ayrı bir uç, ayrı bir
+> bakım yükü olmadan.
+>
+> **Canlı doğrulandı:** iki dosyalık bir `supabase/migrations/` klasörü
+> (`auth.users` dahil) yüklendi → `auth.users` iç şema olarak dışlanıp
+> DÜRÜSTÇE "atlandı" diye bildirildi, `CREATE POLICY` yok sayıldı,
+> `character varying(200)` doğru ayrıştırıldı, ve canlı şemada olup
+> migration'larda olmayan `avatar_url` kolonu drift olarak raporlandı.
+>
+> **Bytebase ve Atlas: bilerek yapılmadı.** Doc'un kendi kuralı —
+> "ikiden fazlasıyla aynı anda başlamamalı", "Bytebase ile entegre olunmaz,
+> farklılaşılır".
 
 ---
 
@@ -27,20 +52,24 @@ göndermeden önce kanıtla" tek cümlede anlaşılıyor.
 
 ## Nasıl (Supabase örneği)
 
-1. Supabase projesine salt-okunur bağlan (bağlantı dizesiyle — introspection
-   zaten var)
-2. Yerel migration dosyalarını oku (11 numaradaki ayrıştırıcı)
-3. Farkı ve riski göster — bu tam olarak bugünkü Change Review ekranı
-4. "Uygula" Supabase'in kendi aracına bırakılır
+1. ✅ Supabase projesine salt-okunur bağlan — `POST /api/dbintrospect`
+   (Supabase Postgres olduğu için zaten çalışıyordu; yeni kod gerekmedi)
+2. ✅ Yerel migration dosyalarını oku — `SqlDdlSchemaParser`
+   (**bu oturumda eklendi**, zincirin eksik halkasıydı)
+3. ✅ Farkı ve riski göster — `SchemaImpactAnalyzer` üzerinden
+   `POST /api/codeschema/extract` (`compareWith`)
+4. ✅ "Uygula" Supabase'in kendi aracına bırakılır — Namines hiçbir
+   şey yazmıyor
 
 ## ⚠️ Dikkat
 
-- **Entegrasyon = bağımlılık.** Karşı taraf API'sini değiştirdiğinde bizim
-  özelliğimiz kırılır. Her entegrasyon bir bakım yükü; ikiden fazlasıyla
-  aynı anda başlamamalı.
-- Salt-okunur başla. Yazma erişimi istemek hem güven hem güvenlik açısından
-  çok daha yüksek bir eşik.
-- Bytebase ile **entegre olunmaz, farklılaşılır** — aynı işi yapıyorlar.
+- **Entegrasyon = bağımlılık.** ✅ Bu risk fiilen ALINMADI: Supabase'in
+  API'sine hiç bağlanılmıyor. Kullanılan tek şey standart Postgres
+  protokolü ve düz `.sql` dosyaları — Supabase yarın API'sini değiştirse
+  bu akış etkilenmez.
+- **Salt-okunur başla.** ✅ Uyuldu — introspection okur, ayrıştırıcı metin
+  okur; yazma yolu hiç açılmadı.
+- Bytebase ile **entegre olunmaz, farklılaşılır.** ✅ Uyuldu — dokunulmadı.
 
 ## 🔴 Yapılmayacak
 

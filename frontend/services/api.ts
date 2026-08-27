@@ -6,6 +6,7 @@ import { GatewayListResult, GatewayRow } from '../types/gateway';
 import { ProjectMember, OrgRole } from '../types/member';
 import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
 import { ClarifyResponse, NaiModelOption, SchemaPlan } from '../types/nai';
+import { CodeExtractionResponse } from '../types/codeSchema';
 import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
@@ -110,6 +111,20 @@ export const schemaService = {
    */
   exportSharedHosting: async (schema: DatabaseSchema, dbType: string): Promise<Blob> => {
     const response = await api.post('/compile/shared-hosting', { schema, dbType }, { responseType: 'blob' });
+    return response.data;
+  },
+
+  /**
+   * second-phase/11-KODDAN-SEMA.md — Prisma/EF Core dosyalarından şema çıkarır.
+   * `compareWith` verilirse ayrıca drift raporu döner ("kodun şunu diyor,
+   * veritabanında şu var"). Bedava — ayrıştırıcılar deterministik, AI yok.
+   */
+  extractFromCode: async (
+    files: Record<string, string>,
+    compareWith?: DatabaseSchema,
+    dbType?: string,
+  ): Promise<CodeExtractionResponse> => {
+    const response = await api.post('/codeschema/extract', { files, compareWith, dbType });
     return response.data;
   },
 
