@@ -56,13 +56,23 @@ public enum PlanTier
 ///
 /// -1 = sınırsız (yalnızca Dev).
 /// </param>
+/// <param name="CrossDatabaseRelations">
+/// second-phase/10-COKLU-DB.md'nin açık bıraktığı soru: "kaç DB, hangi planda?"
+///
+/// Sınırlanan şey veritabanı SAYISI değil, aralarındaki mantıksal ilişki
+/// sayısı — çünkü asıl değer (ve asıl maliyet) orada: her ilişki, silme
+/// öncesi çalışan bir etki analizi ve karşı projenin şemasının çözülmesi
+/// demek. Ücretsiz katmanda birkaç tanesi "gör ve anla"ya yeter; mikroservis
+/// filosunu haritalamak ödeyen kullanıcının işi.
+/// </param>
 public sealed record PlanLimits(
     int BranchDatabases,
     int EphemeralRunsPerDay,
     int ByodbConnections,
     int DailyAiTokens = 20_000,
     int GatewayRequestsPerMinute = 60,
-    int TeamSeats = 1);
+    int TeamSeats = 1,
+    int CrossDatabaseRelations = 3);
 
 /// <summary>
 /// Plan başına kaynak sınırları.
@@ -85,12 +95,14 @@ public static class PlanQuotas
         // vermek ücretliye geçme sebebini yok eder.
         PlanTier.Free => new PlanLimits(
             BranchDatabases: 0, EphemeralRunsPerDay: 3, ByodbConnections: 1,
-            DailyAiTokens: 20_000, GatewayRequestsPerMinute: 60, TeamSeats: 1),
+            DailyAiTokens: 20_000, GatewayRequestsPerMinute: 60, TeamSeats: 1,
+            CrossDatabaseRelations: 3),
 
         // Pro sınırsız DEĞİL: AI gerçek para harcıyor, "sınırsız" demek tek bir
         // kullanıcının aylık ücretinin kat kat üstünde fatura üretebilmesi demek.
         PlanTier.Pro => new PlanLimits(2, 20, 3,
-            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600, TeamSeats: 1),
+            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600, TeamSeats: 1,
+            CrossDatabaseRelations: 25),
 
         // Team'de DailyAiTokens KOLTUK BAŞINA pay: 3 koltuk × 200.000 = 600.000
         // günlük ekip havuzu. Pro ile aynı sayı olması bilinçli — bir Team koltuğu
@@ -101,12 +113,14 @@ public static class PlanQuotas
         // gereken tek davranışı cezalandırırdı. Açlığa karşı üye başına ayrı bir
         // tavan var (bkz. AiQuotaService).
         PlanTier.Team => new PlanLimits(20, -1, 20,
-            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 3_000, TeamSeats: 3),
+            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 3_000, TeamSeats: 3,
+            CrossDatabaseRelations: 100),
 
         // Enterprise sözleşmeyle belirlenir; bu değerler tavan değil, sözleşme
         // yapılandırılana kadar geçerli bir başlangıç.
         PlanTier.Enterprise => new PlanLimits(-1, -1, -1,
-            DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000, TeamSeats: -1),
+            DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000, TeamSeats: -1,
+            CrossDatabaseRelations: -1),
 
         // Sahip hesabında sınır yok. Token tavanı -1 DEĞİL, int.MaxValue:
         // -1 "sınırsız" anlamına gelen sayaç alanları için doğru ama günlük
@@ -114,7 +128,8 @@ public static class PlanQuotas
         // oraya -1 koymak her isteği "tavanı aştın" saydırırdı — yani sınırsız
         // hesap hiçbir şey yapamazdı.
         PlanTier.Dev => new PlanLimits(-1, -1, -1,
-            DailyAiTokens: int.MaxValue, GatewayRequestsPerMinute: int.MaxValue, TeamSeats: -1),
+            DailyAiTokens: int.MaxValue, GatewayRequestsPerMinute: int.MaxValue, TeamSeats: -1,
+            CrossDatabaseRelations: -1),
 
         _ => For(PlanTier.Free),
     };

@@ -35,6 +35,7 @@ public sealed record CreateCrossDatabaseRelationRequest(
 public class CrossDatabaseController : ControllerBase
 {
     private readonly AuthDbContext _context;
+    private readonly AiQuotaService _quota;
 
     private static readonly JsonSerializerOptions SchemaJsonOptions = new()
     {
@@ -42,9 +43,10 @@ public class CrossDatabaseController : ControllerBase
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public CrossDatabaseController(AuthDbContext context)
+    public CrossDatabaseController(AuthDbContext context, AiQuotaService quota)
     {
         _context = context;
+        _quota = quota;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -63,6 +65,25 @@ public class CrossDatabaseController : ControllerBase
         if (!await _context.CanViewAsync(request.SourceProjectId, userId) ||
             !await _context.CanViewAsync(request.TargetProjectId, userId))
             return NotFound(new { message = "One of the projects was not found or you don't have access to it." });
+
+        // Plan sınırı — second-phase/10-COKLU-DB.md'nin açık bıraktığı
+        // "kaç DB, hangi planda?" sorusunun cevabı. Sınırsız bırakmak, her
+        // ilişkinin silme öncesi bir etki analizi ve karşı şema çözümlemesi
+        // tetiklediği düşünülünce ücretsiz katmanda açık uçlu bir maliyetti.
+        var limit = PlanQuotas.For(await _quota.TierAsync(userId)).CrossDatabaseRelations;
+        if (limit >= 0)
+        {
+            // Kullanıcının KENDİ kurduğu ilişkiler sayılıyor, projeye gelenler
+            // değil: bir ekip arkadaşının kurduğu bağ senin hakkını yememeli.
+            var used = await _context.CrossDatabaseRelations
+                .CountAsync(r => r.CreatedByUserId == userId);
+
+            if (used >= limit)
+                return StatusCode(429, new
+                {
+                    message = $"Your plan allows {limit} cross-database relation(s). Remove one, or upgrade for more.",
+                });
+        }
 
         var relation = new CrossDatabaseRelation
         {

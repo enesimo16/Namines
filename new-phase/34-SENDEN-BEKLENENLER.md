@@ -46,11 +46,33 @@ onu kurması için tüm projeyi indirmesi gerekiyor. §2
 nereye bağlanacağını bilmiyor. Bu aynı zamanda C'nin de ön koşulu — GitHub'ın
 webhook'u gönderebileceği bir adres gerekiyor. §3
 
-**F) Kalıcı Groq anahtarı** — Verdiğin anahtar **1 günlük denemeydi.** Şu an
-`.env`'de duruyor ve çalışıyor ama süresi dolduğunda şema üretimi 401 verecek.
-Kalıcı bir anahtar lazım. §9
+**F) Kalıcı Groq anahtarı — ARTIK 🔴 ACİL, sebebi değişti** — Anahtarın süresi
+değil, **katmanı** sorun. Ücretsiz katman dakikada yalnızca ~6.000 token
+veriyor ve bu oturumda 5'ten fazla kez üretim bu duvara çarptı. Kotamız
+doluyken bile `429` alıyoruz; yani **ürünü kendi makinemizde bile uçtan uca
+deneyemiyoruz.**
+
+→ Yapılacak: Groq konsolunda **kart tanımla** (Developer katmanı). Ön ödeme
+yok, abonelik yok, sabit ücret yok — sadece kullandığın token. Karşılığında
+limit **10 katına** çıkıyor (60.000 token/dk) ve token fiyatların **%25**
+düşüyor. Küçük kullanımda tipik gider $5-20/ay.
+
+→ Bu, DeepSeek/başka sağlayıcıya geçmekten hem **daha ucuz** hem **kod
+değişikliği sıfır**. Karşılaştırma: second-phase/16-KOTA-VE-MALIYET.md. §9
 
 ### 🟢 Bunlar sadece "onaylıyor musun?"
+
+**K) Ücretsiz havuz büyüklüğü — 500.000 token/gün** *(yeni)*
+Havuz doğrudan aylık gider: 500K ≈ **$3,7/ay**, 1M ≈ $7,4, 2M ≈ $15.
+500K'dan başlıyoruz; havuz üst üste 3 gün dolarsa sistem bir üst kademeyi
+**öneriyor** ama kendiliğinden uygulamıyor — kararı sen veriyorsun
+(`GET /api/quota/pool-pressure`, sadece Dev hesabı). Sayıyı değiştirmek
+istersen tek satır. second-phase/16.
+
+**L) Çoklu DB ilişki sınırı — Free 3 / Pro 25 / Team 100** *(yeni)*
+`10-COKLU-DB.md`'nin açık bıraktığı "kaç DB, hangi planda?" sorusuna cevap.
+Sınırlanan veritabanı sayısı değil, aralarındaki mantıksal ilişki sayısı.
+Rakamlar bana makul geldi; sana gelmiyorsa söyle.
 
 **G) Üç rate limit sayısı** — Artık **boş değil**, ben makul varsayılanlar
 koydum: Free 60, Pro 600, Team 3.000 istek/dakika. Sana yüksek ya da düşük
@@ -78,6 +100,11 @@ ediyorsan hiçbir şey yapman gerekmiyor. §7
 | **Team/Enterprise ayrımı yapılamıyordu** | `PlanCode` alanı eklendi; webhook Stripe fiyatından planı okuyor. Kalan tek şey fiyat kimlikleri |
 | **Fiyatlar belirsizdi** | Karar verildi: Free 0$, Pro 7,5$/ay, Team 20$/ay (3 koltuk) |
 | **Geliştirici hesabı sürekli unutuluyordu** | `.env`'den açılışta kendiliğinden kurulan, sınırsız, görünmeyen Dev hesabı |
+| **Kota gerçek harcamayı ölçmüyordu** | Sağlayıcının `usage` bloğu okunuyor; sabit tahmin yerine gerçek token düşülüyor (second-phase/16) |
+| **Eşzamanlı isteklerle kota delinebiliyordu** | Bütçe önden rezerve ediliyor, iş bitince gerçekle mutabakat yapılıyor |
+| **Ücretsiz havuzda ilk 5 kullanıcı her şeyi tüketiyordu** | Adil pay + kullanışlı taban; havuz hedef kullanıcı sayısına bölünüyor |
+| **Model maliyet çarpanı üretimde ölü koddu** | Kota artık `ölçülen token × model çarpanı` |
+| **Çoklu DB ilişkilerinde plan sınırı yoktu** | Free 3 / Pro 25 / Team 100 (bkz. L) |
 
 ---
 
@@ -90,14 +117,17 @@ ediyorsan hiçbir şey yapman gerekmiyor. §7
 | 8 | GitHub App (`AppId`, `PrivateKey`, `WebhookSecret`) | hesap | 🟡 | Bot hazır ama PR'a tek satır yazamıyor |
 | 2 | npm yayını | hesap | 🟡 | MCP `npx` ile kurulamıyor; kullanıcı depoyu klonlamak zorunda |
 | 3 | Public alan adı (`api.namines.com`?) | karar | 🟡 | Eject edilen SDK nereye bağlanacağını bilmiyor; webhook adresi de buna bağlı |
-| 9 | **Kalıcı** Groq anahtarı | hesap | 🟡 | Mevcut anahtar 1 günlük deneme — dolunca AI tamamen durur |
+| 9 | **Groq'a kart tanımla** (Developer katmanı) | hesap | 🔴 | Ücretsiz katman dakikada ~6.000 token — ürünü kendi makinemizde bile uçtan uca deneyemiyoruz |
 | 4 | Rate limit sayıları | onay | 🟢 | Varsayılan kondu; sadece onayın/itirazın bekleniyor |
 | 5 | Redis: evet / hayır | karar | 🟢 | Tek sunucuda sorun yok; 2+ sunucuda limit anlamını kaybediyor |
 | 7 | İki doküman sapmasının onayı | onay | 🟢 | Hiçbir şey bloke değil; itirazın varsa geri alırım |
 | 1 | Neon hesabı | hesap | 🟢 | Branch DB'ler yavaş açılıyor (ama açılıyor) |
+| K | Ücretsiz havuz 500K/gün (~$3,7/ay) | onay | 🟢 | Varsayılan kondu; kademeli büyüme önerisi hazır |
+| L | Çoklu DB sınırı 3/25/100 | onay | 🟢 | Varsayılan kondu |
 
-**En yüksek etkili ikisi:** **10** (disk — her şeyi yavaşlatıyor) ve **6**
-(Stripe — ürünün para kazanmasının önündeki tek engel).
+**En yüksek etkili üçü:** **10** (disk — her şeyi yavaşlatıyor), **6**
+(Stripe — ürünün para kazanmasının önündeki tek engel) ve **9** (Groq kartı —
+bu oturumda üretimi 5+ kez test edemedim, hep TPM duvarına çarptı).
 
 ---
 
@@ -295,6 +325,35 @@ güncelle. Sohbete yapıştırma gerekmez, doğrudan dosyaya yaz.
 **Not:** Ücretsiz katmanın dakikalık token sınırı var. Sınıra takıldığında
 sistem artık düzgün davranıyor — 500 değil, `Retry-After` başlığıyla **429**
 dönüyor ve kullanıcıya "AI şu an meşgul, 24 saniye sonra dene" diyor.
+
+---
+
+### 9.1 Asıl mesele artık anahtarın süresi değil, KATMANI — 🔴
+
+Bu oturumda üretimi **beş kereden fazla** deneyemedim; her seferinde Groq'un
+ücretsiz katman duvarına çarptı. Önemli olan şu: **bizim kotamız doluydu**
+(20.000 hakkın 15.000'i duruyordu), yine de `429` geldi. Yani sorun bizim
+kodumuz ya da kotamız değil, Groq'un ücretsiz katmanı.
+
+| | Ücretsiz | Developer (kart tanımlı) |
+|---|---|---|
+| Dakikalık token | ~6.000 | **~60.000** (10×) |
+| Dakikalık istek | 30 | 300 |
+| Token fiyatı | liste fiyatı | **%25 indirimli** |
+
+**Faturalama modeli:** ön ödemeli kredi **yok**, aylık abonelik **yok**, sabit
+ücret **yok**. Sadece kullandığın token. Fatura ay sonunda ya da kümülatif
+kullanım $1/$10/$100 eşiklerini geçtikçe kesiliyor. Küçük kullanımda tipik
+gider **$5-20/ay**.
+
+**Yapılacak:** [console.groq.com](https://console.groq.com) → Billing → kart
+ekle. Kod tarafında **hiçbir değişiklik gerekmiyor.**
+
+**Neden başka sağlayıcıya geçmiyoruz:** DeepSeek'in en ucuz çıktı fiyatı
+(off-peak $0,66/M) Groq'un ücretli çıktı fiyatından ($0,45/M) zaten pahalı ve
+bizim iş yükümüz çıktı ağırlıklı. DeepSeek'in girdisi **bedava olsa bile**
+kaybediyor. Üstelik geçiş, 8 metotlu bir `IAIService` implementasyonu yazmak
+demek. Tam karşılaştırma: `second-phase/16-KOTA-VE-MALIYET.md`.
 
 ---
 
