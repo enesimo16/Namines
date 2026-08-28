@@ -9,6 +9,24 @@ using Namines.Core.Models.Auth;
 
 namespace Namines.Infrastructure.Data;
 
+/// <summary>
+/// Havuzun doluluk baskısı — büyütme kararını İNSANIN vermesi için üretilen
+/// veri (bkz. <see cref="AiQuotaService.PoolPressureAsync"/>).
+/// </summary>
+/// <param name="CurrentPool">Şu anki günlük havuz.</param>
+/// <param name="MaxPool">Otomatik büyümenin sert tavanı.</param>
+/// <param name="DaysObserved">Kaç günlük veri var.</param>
+/// <param name="DaysFull">Bu günlerin kaçında havuz %95+ doldu.</param>
+/// <param name="ShouldGrow">Eşik aşıldı mı — bir üst kademe önerilir mi.</param>
+/// <param name="SuggestedPool">Önerilen yeni havuz; büyüme gerekmiyorsa mevcut değer.</param>
+public sealed record PoolPressure(
+    long CurrentPool,
+    long MaxPool,
+    int DaysObserved,
+    int DaysFull,
+    bool ShouldGrow,
+    long SuggestedPool);
+
 /// <summary>Kota kontrolünün sonucu.</summary>
 public enum AiQuotaDecision
 {
@@ -61,7 +79,29 @@ public sealed class AiQuotaService
 
     /// <summary>Paylaşılan günlük token havuzu.</summary>
     public long DailyPool =>
-        long.TryParse(_configuration["AiPool:DailyTokenPool"], out var value) ? value : 2_000_000;
+        long.TryParse(_configuration["AiPool:DailyTokenPool"], out var value) ? value : 500_000;
+
+    /// <summary>
+    /// Havuzun çıkabileceği en yüksek değer — otomatik büyümenin SERT tavanı.
+    ///
+    /// <b>Neden ayrı bir tavan:</b> havuz doğrudan aylık gider demek. Talebe
+    /// göre kendiliğinden büyüyen bir havuz, bir kötüye kullanım dalgasında ya
+    /// da viral bir günde faturayı da kendiliğinden büyütür. Otomasyonun
+    /// faydası (elle müdahale gerekmemesi) ancak bir üst sınırla birlikte
+    /// güvenli.
+    /// </summary>
+    public long MaxDailyPool =>
+        long.TryParse(_configuration["AiPool:MaxDailyTokenPool"], out var value) ? value : 2_000_000;
+
+    /// <summary>
+    /// Havuzun kaç GÜN üst üste dolmasından sonra bir üst kademeye çıkılacağı.
+    ///
+    /// Tek bir yoğun gün büyümeyi tetiklememeli — o gün bir kampanya, bir
+    /// paylaşım ya da tek seferlik bir dalga olabilir. Üst üste dolması
+    /// "talep kalıcı" demek.
+    /// </summary>
+    public int GrowthAfterFullDays =>
+        int.TryParse(_configuration["AiPool:GrowthAfterFullDays"], out var value) && value > 0 ? value : 3;
 
     /// <summary>
     /// Havuzun günde KAÇ ücretsiz kullanıcıyı taşıyacak şekilde bölüneceği.
@@ -144,6 +184,44 @@ public sealed class AiQuotaService
     /// </summary>
     private int FreeUserCap(int planCap) =>
         CalculateFreeUserCap(planCap, DailyPool, MinDailyFreeUsers, MinUsefulDailyTokens);
+
+    /// <summary>
+    /// Havuzun son <paramref name="lookbackDays"/> gündeki doluluk baskısı ve
+    /// önerilen bir sonraki kademe.
+    ///
+    /// <b>Öneriyor, UYGULAMIYOR.</b> Havuzu büyütmek doğrudan para harcamak
+    /// demek ve bu kararı bir sayaç veremez: aynı doluluk, "ürün tutuyor,
+    /// büyüt" de olabilir "biri kötüye kullanıyor, önce ona bak" da. Karar
+    /// insanın; bu metot yalnızca kararı verecek sayıyı üretiyor.
+    ///
+    /// Kademe iki katına çıkıyor (500K → 1M → 2M) ve
+    /// <see cref="MaxDailyPool"/>'u asla aşmıyor.
+    /// </summary>
+    public async Task<PoolPressure> PoolPressureAsync(int lookbackDays = 7, CancellationToken ct = default)
+    {
+        var since = LocalDate(DateTime.UtcNow).AddDays(-lookbackDays);
+
+        var recent = await _context.GlobalAiUsages.AsNoTracking()
+            .Where(g => g.Date >= since)
+            .Select(g => g.TokensUsed)
+            .ToListAsync(ct);
+
+        // "Dolu" için %95 eşiği: havuz tam tavana değmeden de pratikte
+        // tükenmiş sayılır — son birkaç bin token kimseye bir üretim yaptırmaz.
+        var threshold = (long)(DailyPool * 0.95);
+        var fullDays = recent.Count(t => t >= threshold);
+
+        var shouldGrow = fullDays >= GrowthAfterFullDays && DailyPool < MaxDailyPool;
+        var suggested = shouldGrow ? Math.Min(DailyPool * 2, MaxDailyPool) : DailyPool;
+
+        return new PoolPressure(
+            CurrentPool: DailyPool,
+            MaxPool: MaxDailyPool,
+            DaysObserved: recent.Count,
+            DaysFull: fullDays,
+            ShouldGrow: shouldGrow,
+            SuggestedPool: suggested);
+    }
 
     /// <summary>
     /// <see cref="FreeUserCap"/>'in saf hâli — veritabanına ve yapılandırmaya

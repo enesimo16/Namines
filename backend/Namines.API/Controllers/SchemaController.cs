@@ -361,10 +361,18 @@ public class SchemaController : ControllerBase
         var wantsStream = Request.Headers.Accept.Any(a =>
             a is not null && a.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase));
 
+        // Hangi model gerçekten kullanılacak — kota maliyeti buna bağlı.
+        // Kısıtlama sağlayıcı katmanında da yapılıyor (ResolveModelNameAsync);
+        // burada tekrarlanması muhasebe için: kullanıcı Pro isteyip Free'ye
+        // düşürüldüyse Pro fiyatından ücretlendirilmemeli.
+        var effectiveModel = _quota is not null && !string.IsNullOrEmpty(userId)
+            ? NaiCatalog.ClampToPlan(NaiCatalog.Resolve(request.ModelName), await _quota.TierAsync(userId))
+            : NaiCatalog.Resolve(request.ModelName);
+
         // Bütçe ÖNCEDEN rezerve ediliyor — eskiden yalnızca iş bittikten sonra
         // düşülüyordu ve aradaki pencerede eşzamanlı N istek aynı bütçeyi
         // harcayabiliyordu (bkz. AiQuotaService.TryReserveAsync).
-        var reserved = budgetRounds * SchemaRoundTokenEstimate;
+        var reserved = NaiCatalog.CostOf(effectiveModel, budgetRounds * SchemaRoundTokenEstimate);
         if (_quota is not null && !string.IsNullOrEmpty(userId))
         {
             var decision = await _quota.TryReserveAsync(userId, reserved, HttpContext.RequestAborted);
@@ -377,18 +385,18 @@ public class SchemaController : ControllerBase
             try
             {
                 var result = await _agent.RunAsync(enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted);
-                await SettleAsync(userId, reserved, result.Rounds);
+                await SettleAsync(userId, reserved, result.Rounds, effectiveModel);
 
                 return Ok(BuildResultPayload(archetype, result));
             }
             catch (InvalidOperationException ex)
             {
-                await SettleAsync(userId, reserved, rounds: 0);
+                await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
                 return StatusCode(429, new { message = ex.Message });
             }
             catch (AiRateLimitException ex)
             {
-                await SettleAsync(userId, reserved, rounds: 0);
+                await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
                 Response.Headers.RetryAfter = ex.RetryAfterSeconds;
                 return StatusCode(429, new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
             }
@@ -417,18 +425,18 @@ public class SchemaController : ControllerBase
             var result = await _agent.RunAsync(
                 enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted, progress);
 
-            await SettleAsync(userId, reserved, result.Rounds);
+            await SettleAsync(userId, reserved, result.Rounds, effectiveModel);
 
             await WriteEventAsync("result", BuildResultPayload(archetype, result));
         }
         catch (InvalidOperationException ex)
         {
-            await SettleAsync(userId, reserved, rounds: 0);
+            await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
             await WriteEventAsync("error", new { message = ex.Message });
         }
         catch (AiRateLimitException ex)
         {
-            await SettleAsync(userId, reserved, rounds: 0);
+            await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
             await WriteEventAsync("error", new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
         }
 
@@ -449,7 +457,7 @@ public class SchemaController : ControllerBase
     /// tamamı iade ediliyor. Dış bir servisin arızasını kullanıcının günlük
     /// hakkından kesmek yanlış olurdu.
     /// </summary>
-    private async Task SettleAsync(string? userId, int reserved, int rounds)
+    private async Task SettleAsync(string? userId, int reserved, int rounds, NaiModel model)
     {
         if (_quota is null || string.IsNullOrEmpty(userId)) return;
 
@@ -460,11 +468,18 @@ public class SchemaController : ControllerBase
             return;
         }
 
-        var actual = _usage.HasMeasurement
+        var measured = _usage.HasMeasurement
             ? _usage.TotalTokens
             : rounds * SchemaRoundTokenEstimate;
 
-        await _quota.ReconcileAsync(userId, reserved, actual, HttpContext.RequestAborted);
+        // Model maliyet çarpanı UYGULANIYOR. Önceden NaiCatalog.CostOf yalnızca
+        // testlerde çağrılıyordu, yani üretimde ölü koddu: Pro modelini (token
+        // başına ~4 kat pahalı) kullanan biri, Flash kullananla AYNI kotayı
+        // ödüyordu. Kota gerçek parayı yansıtmalı; aksi hâlde en pahalı modeli
+        // seçmek kullanıcı için bedava, bizim için değil.
+        var charged = NaiCatalog.CostOf(model, measured);
+
+        await _quota.ReconcileAsync(userId, reserved, charged, HttpContext.RequestAborted);
     }
 
     /// <summary>Kota kararını kullanıcının anlayacağı bir cümleye çevirir.</summary>

@@ -18,11 +18,50 @@ namespace Namines.API.Controllers
     {
         private readonly AuthDbContext _context;
         private readonly IConfiguration _config;
+        private readonly AiQuotaService _quota;
 
-        public QuotaController(AuthDbContext context, IConfiguration config)
+        public QuotaController(AuthDbContext context, IConfiguration config, AiQuotaService quota)
         {
             _context = context;
             _config = config;
+            _quota = quota;
+        }
+
+        /// <summary>
+        /// Havuzun doluluk baskısı — havuzu büyütme kararını verecek sayı.
+        ///
+        /// <b>Yalnızca Dev hesabı.</b> Bu bir işletme metriği: kaç gün havuz
+        /// doldu, bir üst kademeye çıkmalı mıyız. Normal kullanıcıya
+        /// göstermenin bir anlamı yok ve altyapı kapasitemizi sızdırırdı.
+        ///
+        /// <b>Öneri döner, uygulamaz</b> — havuzu büyütmek para harcamaktır ve
+        /// bu kararı bir sayaç veremez (bkz. AiQuotaService.PoolPressureAsync).
+        /// </summary>
+        [Authorize]
+        [HttpGet("pool-pressure")]
+        public async Task<IActionResult> PoolPressure([FromQuery] int lookbackDays = 7)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            if (await _quota.TierAsync(userId) != PlanTier.Dev)
+                return Forbid();
+
+            var pressure = await _quota.PoolPressureAsync(Math.Clamp(lookbackDays, 1, 90));
+
+            return Ok(new
+            {
+                pressure.CurrentPool,
+                pressure.MaxPool,
+                pressure.DaysObserved,
+                pressure.DaysFull,
+                pressure.ShouldGrow,
+                pressure.SuggestedPool,
+                // Kararı verirken parayı da görsün: harmanlanmış Groq ücretli
+                // oranı ≈ $0.2475 / 1M token (girdi %60, çıktı %40).
+                estimatedMonthlyUsd = Math.Round(pressure.CurrentPool / 1_000_000.0 * 0.2475 * 30, 2),
+                suggestedMonthlyUsd = Math.Round(pressure.SuggestedPool / 1_000_000.0 * 0.2475 * 30, 2),
+            });
         }
 
         /// <summary>
@@ -92,12 +131,18 @@ namespace Namines.API.Controllers
                 .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
                 .FirstOrDefaultAsync();
             var tier = PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false);
-            var limits = PlanQuotas.For(tier);
 
-            int dailyLimit = tier == PlanTier.Free &&
-                             int.TryParse(_config["AiPool:PerUserDailyTokens"], out var pu)
-                ? pu
-                : limits.DailyAiTokens;
+            // Tavan, KOTAYI UYGULAYAN servisten okunuyor — burada yeniden
+            // hesaplanmıyor. Önceden bu uç kendi hesabını yapıyordu ve adil
+            // paylaşımdan (bkz. AiQuotaService.CalculateFreeUserCap) habersizdi:
+            // ekranda 20.000 yazarken gerçek tavan 10.000 olabiliyordu, yani
+            // kullanıcı hakkının yarısında kesiliyor ve sebebini göremiyordu.
+            // Gösterilen sayı ile uygulanan sayı aynı kaynaktan gelmeli.
+            int dailyLimit = await _quota.PerUserCapAsync(userId);
+
+            // Plan limitlerinin AI dışı kalemleri (branch DB, gateway rpm...)
+            // hâlâ katalogdan; onlar havuzdan etkilenmiyor.
+            var limits = PlanQuotas.For(tier);
 
             var lastReset = quota?.LastResetDate ?? DateTime.UtcNow;
             bool resetDue = lastReset.AddHours(3).Date < DateTime.UtcNow.AddHours(3).Date;
@@ -109,7 +154,9 @@ namespace Namines.API.Controllers
             var today = DateTime.UtcNow.Date;
             long poolUsed = await _context.GlobalAiUsages.AsNoTracking()
                 .Where(g => g.Date == today).Select(g => (long?)g.TokensUsed).FirstOrDefaultAsync() ?? 0;
-            long poolLimit = long.TryParse(_config["AiPool:DailyTokenPool"], out var dp) ? dp : 100_000;
+            // Havuz da aynı kaynaktan — varsayılanı burada tekrarlamak, iki yerin
+            // farklı sayı göstermesi demekti.
+            long poolLimit = _quota.DailyPool;
 
             return Ok(new
             {
