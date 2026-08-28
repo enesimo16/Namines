@@ -171,6 +171,29 @@ public class GroqAIService : IAIService
     /// Kimlik yoksa ya da kayit bulunamazsa varsayilanlar: tercih okunamadi diye
     /// istegi reddetmek, kullanicinin asil isini (sema uretmek) dusururdu.
     /// </summary>
+    /// <summary>
+    /// İsteği yapan kullanıcının planı. Kimlik yoksa ya da okunamazsa
+    /// <see cref="PlanTier.Free"/> — bilinmeyen bir kimliğe ücretli tavan
+    /// vermek, tam da kapatmaya çalıştığımız açığı açık bırakırdı.
+    /// </summary>
+    private async Task<PlanTier> TierAsync()
+    {
+        var httpContext = _httpContextAccessor?.HttpContext;
+        var userId = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) return PlanTier.Free;
+
+        try
+        {
+            var quota = httpContext!.RequestServices
+                .GetRequiredService<Namines.Infrastructure.Data.AiQuotaService>();
+            return await quota.TierAsync(userId);
+        }
+        catch
+        {
+            return PlanTier.Free;
+        }
+    }
+
     private async Task<AiAdvancedSettings> AdvancedSettingsAsync()
     {
         var httpContext = _httpContextAccessor?.HttpContext;
@@ -312,7 +335,51 @@ public class GroqAIService : IAIService
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groqApiKey);
         }
 
-        return await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request);
+        await RecordUsageAsync(response);
+        return response;
+    }
+
+    /// <summary>
+    /// Sağlayıcının bildirdiği GERÇEK token kullanımını istek kapsamlı
+    /// toplayıcıya yazar.
+    ///
+    /// <b>Neden burada, çağıranlarda değil:</b> bu sınıfta sekiz ayrı çağrı yeri
+    /// var ve her birine ayrı ayrı eklemek, biri unutulduğunda o yolun sessizce
+    /// ölçülmemesi demekti. <c>PostAsync</c> hepsinin geçtiği tek nokta.
+    ///
+    /// <b>Gövdeyi ikinci kez okumak güvenli:</b> <c>SendAsync</c> burada
+    /// <c>ResponseHeadersRead</c> OLMADAN çağrılıyor, yani içerik zaten belleğe
+    /// alınmış durumda; çağıranın <c>ReadAsStringAsync</c>'i etkilenmiyor.
+    ///
+    /// <b>Sessizce yutuluyor:</b> ölçüm alınamazsa istek düşmemeli — çağıran
+    /// tarafta tahmine düşülüyor (bkz. SchemaController). Kullanıcının işini
+    /// muhasebe yüzünden bozmak yanlış olurdu.
+    /// </summary>
+    private async Task RecordUsageAsync(HttpResponseMessage response)
+    {
+        if (!response.IsSuccessStatusCode) return;
+
+        var tracker = _httpContextAccessor.HttpContext?.RequestServices
+            .GetService(typeof(Namines.Core.Interfaces.IAiUsageTracker)) as Namines.Core.Interfaces.IAiUsageTracker;
+        if (tracker is null) return;
+
+        try
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+
+            if (doc.RootElement.TryGetProperty("usage", out var usage) &&
+                usage.TryGetProperty("total_tokens", out var total) &&
+                total.TryGetInt32(out var tokens))
+            {
+                tracker.Record(tokens);
+            }
+        }
+        catch
+        {
+            // Gövde JSON değil ya da usage yok — ölçüm yok, tahmine düşülür.
+        }
     }
 
     private int CalculateMaxTokens(int tableCount)
@@ -581,7 +648,9 @@ public class GroqAIService : IAIService
                     // denemede biraz artiyor. Ayni sicaklikla tekrar denemek,
                     // ayni hatali cikti ile donmek demek olurdu.
                     temperature = advanced.TemperatureValue + (currentAttempt * 0.2),
-                    max_tokens = advanced.MaxTokensValue
+                    // Plana bağlı tavan: ücretsiz bir kullanıcı 32.000 yazıp tek
+                    // çağrıda günlük hakkının tamamını yakamamalı (bkz. MaxTokensFor).
+                    max_tokens = advanced.MaxTokensFor(await TierAsync())
                 };
 
                 using var response = await PostAsync("chat/completions", payload);

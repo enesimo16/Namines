@@ -1,5 +1,6 @@
 using System;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -27,18 +28,21 @@ public class SchemaController : ControllerBase
     private readonly AiQuotaService? _quota;
     private readonly Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory _ddlFactory;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly IAiUsageTracker _usage;
 
     public SchemaController(
         IAIFactory aiFactory,
         ISmartSeedService smartSeedService,
         Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory ddlFactory,
         IOptions<Microsoft.AspNetCore.Mvc.JsonOptions> jsonOptions,
+        IAiUsageTracker usage,
         SchemaAgentPipeline? agent = null,
         AiQuotaService? quota = null)
     {
         _aiFactory = aiFactory;
         _smartSeedService = smartSeedService;
         _ddlFactory = ddlFactory;
+        _usage = usage;
         // SSE olayları normal Ok(...) yanıtları gibi MVC'nin JSON pipeline'ından
         // GEÇMİYOR — Response.Body'ye elle yazılıyor. Program.cs'teki camelCase
         // ilkesini burada da almazsak (bkz. WriteEventAsync) .NET'in varsayılanı
@@ -250,6 +254,7 @@ public class SchemaController : ControllerBase
     }
 
     [HttpPost("generate")]
+    [EnableRateLimiting("ai-generation")]
     public async Task<IActionResult> GenerateSchema([FromForm] GenerateRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Prompt))
@@ -356,22 +361,34 @@ public class SchemaController : ControllerBase
         var wantsStream = Request.Headers.Accept.Any(a =>
             a is not null && a.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase));
 
+        // Bütçe ÖNCEDEN rezerve ediliyor — eskiden yalnızca iş bittikten sonra
+        // düşülüyordu ve aradaki pencerede eşzamanlı N istek aynı bütçeyi
+        // harcayabiliyordu (bkz. AiQuotaService.TryReserveAsync).
+        var reserved = budgetRounds * SchemaRoundTokenEstimate;
+        if (_quota is not null && !string.IsNullOrEmpty(userId))
+        {
+            var decision = await _quota.TryReserveAsync(userId, reserved, HttpContext.RequestAborted);
+            if (decision != AiQuotaDecision.Allowed)
+                return StatusCode(429, new { message = QuotaMessage(decision) });
+        }
+
         if (!wantsStream)
         {
             try
             {
                 var result = await _agent.RunAsync(enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted);
-                if (_quota is not null && !string.IsNullOrEmpty(userId))
-                    await _quota.ConsumeAsync(userId, result.Rounds * SchemaRoundTokenEstimate, HttpContext.RequestAborted);
+                await SettleAsync(userId, reserved, result.Rounds);
 
                 return Ok(BuildResultPayload(archetype, result));
             }
             catch (InvalidOperationException ex)
             {
+                await SettleAsync(userId, reserved, rounds: 0);
                 return StatusCode(429, new { message = ex.Message });
             }
             catch (AiRateLimitException ex)
             {
+                await SettleAsync(userId, reserved, rounds: 0);
                 Response.Headers.RetryAfter = ex.RetryAfterSeconds;
                 return StatusCode(429, new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
             }
@@ -400,22 +417,64 @@ public class SchemaController : ControllerBase
             var result = await _agent.RunAsync(
                 enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted, progress);
 
-            if (_quota is not null && !string.IsNullOrEmpty(userId))
-                await _quota.ConsumeAsync(userId, result.Rounds * SchemaRoundTokenEstimate, HttpContext.RequestAborted);
+            await SettleAsync(userId, reserved, result.Rounds);
 
             await WriteEventAsync("result", BuildResultPayload(archetype, result));
         }
         catch (InvalidOperationException ex)
         {
+            await SettleAsync(userId, reserved, rounds: 0);
             await WriteEventAsync("error", new { message = ex.Message });
         }
         catch (AiRateLimitException ex)
         {
+            await SettleAsync(userId, reserved, rounds: 0);
             await WriteEventAsync("error", new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
         }
 
         return new EmptyResult();
     }
+
+    /// <summary>
+    /// Rezerve edilen bütçeyi GERÇEK harcamayla değiştirir.
+    ///
+    /// <b>Öncelik sırası bilinçli:</b>
+    /// <list type="number">
+    /// <item>Sağlayıcı gerçek kullanım bildirdiyse (<see cref="IAiUsageTracker"/>)
+    /// o kullanılıyor — kotanın ölçmesi gereken şey bu.</item>
+    /// <item>Bildirmediyse tur sayısı × sabit tahmine düşülüyor.</item>
+    /// </list>
+    ///
+    /// <paramref name="rounds"/> sıfırsa iş hiç yapılmadı (hata) — rezervasyonun
+    /// tamamı iade ediliyor. Dış bir servisin arızasını kullanıcının günlük
+    /// hakkından kesmek yanlış olurdu.
+    /// </summary>
+    private async Task SettleAsync(string? userId, int reserved, int rounds)
+    {
+        if (_quota is null || string.IsNullOrEmpty(userId)) return;
+
+        if (rounds == 0 && !_usage.HasMeasurement)
+        {
+            // Hiç iş yapılmadı ve ölçüm de yok → rezervasyonun tamamı iade.
+            await _quota.RefundAsync(userId, reserved, HttpContext.RequestAborted);
+            return;
+        }
+
+        var actual = _usage.HasMeasurement
+            ? _usage.TotalTokens
+            : rounds * SchemaRoundTokenEstimate;
+
+        await _quota.ReconcileAsync(userId, reserved, actual, HttpContext.RequestAborted);
+    }
+
+    /// <summary>Kota kararını kullanıcının anlayacağı bir cümleye çevirir.</summary>
+    private static string QuotaMessage(AiQuotaDecision decision) => decision switch
+    {
+        AiQuotaDecision.UserExhausted => "Your daily AI budget is used up. It resets tomorrow.",
+        AiQuotaDecision.TeamExhausted => "Your team's shared daily AI budget is used up. It resets tomorrow.",
+        AiQuotaDecision.PoolExhausted => "The free daily capacity is full for today. Upgrade for a dedicated budget, or try again tomorrow.",
+        _ => "AI budget unavailable right now.",
+    };
 
     private static object BuildResultPayload(ProjectArchetype archetype, SchemaAgentResult result) =>
         // Bulgular GİZLENMİYOR. "Çalışıyor gibi görünen" bir şema vermek, hiç

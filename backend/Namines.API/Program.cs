@@ -241,6 +241,37 @@ try
             });
         });
 
+        // ── AI üretimi: kullanıcı başına EŞZAMANLILIK sınırı ─────────────────
+        //
+        // Kota rezervasyonu (AiQuotaService.TryReserveAsync) bütçe aşımını zaten
+        // atomik olarak kapatıyor. Bu politika farklı bir şeyi koruyor:
+        // sağlayıcının dakikalık token limitini (TPM). Bir kullanıcı 50 istek
+        // birden gönderirse bütçesi yetse bile Groq'un TPM duvarına çarpar ve o
+        // duvar TÜM kullanıcıları etkiler — yani tek kişi herkesin hizmetini
+        // bozabilir.
+        //
+        // Eşzamanlılık sınırı (pencere değil) bilinçli: şema üretimi uzun süren
+        // bir iş. Sabit pencere, 10 saniyelik bir üretimden sonra kullanıcıyı
+        // gereksiz yere bekletirdi; eşzamanlılık ise "aynı anda ikiden fazla
+        // üretim yapma" diyor ve iş bitince hemen serbest bırakıyor.
+        options.AddPolicy("ai-generation", httpContext =>
+        {
+            var partitionKey =
+                httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "anonymous";
+
+            return RateLimitPartition.GetConcurrencyLimiter(partitionKey, _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = 2,
+                // Bir istek kuyrukta bekleyebilir: kullanıcı iki sekmede
+                // çalışıyorsa üçüncüsünü reddetmek yerine sıraya almak daha az
+                // sürtünme, ama kuyruk kısa tutuluyor ki yığılma olmasın.
+                QueueLimit = 1,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            });
+        });
+
         // ── Gateway veri düzlemi: AYRI politika ──────────────────────────────
         //
         // BULUNMA YERİ: /import, /rpc ve /query canlı denenirken beşinci istekten

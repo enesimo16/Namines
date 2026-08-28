@@ -216,10 +216,29 @@ public class AiQuotaServiceTests : IAsyncLifetime
             await seed.SaveChangesAsync();
         }
 
-        var (context, service) = Service(perUserCap: 20_000);
+        // Havuz, tavanı taşıyacak kadar büyük veriliyor. Aksi hâlde adil pay
+        // devreye girip tavanı düşürürdü (bkz. FreeUserFairShareTests) ve bu
+        // test, normalizasyonu değil paylaşımı ölçmüş olurdu — ikisi ayrı kural.
+        var (context, service) = Service(perUserCap: 20_000, pool: 2_000_000);
         await using var _ = context;
 
         Assert.Equal(20_000, (await service.EnsureQuotaAsync("u1")).DailyLimit);
+    }
+
+    [RequiresDockerFact]
+    public async Task A_pool_too_small_for_the_plan_cap_lowers_the_users_cap()
+    {
+        // Aynı kurulumun diğer yüzü: havuz tavanı taşımıyorsa kullanıcı
+        // tavanı DÜŞER — ilk beş kullanıcının havuzu bitirmesini engelleyen
+        // kural bu.
+        await ResetAsync();
+        var (context, service) = Service(perUserCap: 20_000, pool: 100_000);
+        await using var _ = context;
+
+        var limit = (await service.EnsureQuotaAsync("u1")).DailyLimit;
+
+        Assert.True(limit < 20_000, $"tavan havuza göre düşmeliydi, {limit} kaldı");
+        Assert.True(100_000 / limit >= 10, "havuz en az 10 kullanıcıya yetmeli");
     }
 
     [RequiresDockerFact]

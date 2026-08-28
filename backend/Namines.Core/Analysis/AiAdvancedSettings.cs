@@ -116,9 +116,36 @@ public sealed record AiAdvancedSettings
             ? t
             : 0.2;
 
-    /// <summary>Şema üretiminde izin verilen en fazla çıktı token'ı.</summary>
+    /// <summary>
+    /// Şema üretiminde izin verilen en fazla çıktı token'ı — <b>plana bağlı
+    /// tavanla kısıtlanmamış</b> ham değer.
+    ///
+    /// Doğrudan kullanmayın; <see cref="MaxTokensFor"/> tercih edilmeli.
+    /// </summary>
     public int MaxTokensValue =>
         int.TryParse(MaxTokens, out var m) && m >= 256 && m <= 32_000 ? m : 4096;
+
+    /// <summary>
+    /// Planın izin verdiği tavana çekilmiş çıktı sınırı.
+    ///
+    /// <b>Neden gerekli:</b> bu ayar kullanıcıdan geliyordu ve plana
+    /// bakılmıyordu — ücretsiz bir kullanıcı da 32.000 yazabiliyordu. Kota tur
+    /// başına sabit 2.500 düştüğü için bu, aynı kotayla gerçekte 10 kat fazla
+    /// harcamak demekti. Kota artık gerçek kullanımı ölçüyor, ama tavanı da
+    /// plana bağlamak gerekiyor: aksi hâlde ücretsiz bir kullanıcı tek çağrıda
+    /// günlük hakkının tamamını yakıp hiçbir şey bitiremez.
+    /// </summary>
+    public int MaxTokensFor(PlanTier tier)
+    {
+        var ceiling = tier switch
+        {
+            PlanTier.Free => 6_000,
+            PlanTier.Pro => 16_000,
+            _ => 32_000,
+        };
+
+        return Math.Min(MaxTokensValue, ceiling);
+    }
 
     /// <summary>
     /// Bu tercihlerin prompt'a yazılacak hâli — üretimi gerçekten etkileyen kısım.

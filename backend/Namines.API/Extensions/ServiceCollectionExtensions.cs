@@ -68,6 +68,11 @@ public static class ServiceCollectionExtensions
         // yanlış olmuştu — bkz. AiQuotaService.
         services.AddScoped<AiQuotaService>();
 
+        // İstek kapsamlı: bir isteğin tüm sağlayıcı çağrılarında biriken GERÇEK
+        // token kullanımı. Kota artık sabit tahminle değil bununla düşülüyor
+        // (bkz. IAiUsageTracker).
+        services.AddScoped<Namines.Core.Interfaces.IAiUsageTracker, Namines.Infrastructure.AI.AiUsageTracker>();
+
         // Şema üretimi artık tek bir LLM çağrısı değil: taslak → deterministik
         // denetim → düzeltme. Kapının kendisi (linter + DDL üreticileri) zaten
         // kayıtlı; hat onları AI döngüsüne sokuyor.

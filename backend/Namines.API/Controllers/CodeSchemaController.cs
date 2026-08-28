@@ -25,7 +25,9 @@ public sealed record ExtractCodeSchemaRequest(
 /// second-phase/11-KODDAN-SEMA.md — depodaki model/entity tanımlarından şema
 /// çıkarır, isteğe bağlı olarak mevcut şemayla farkını gösterir.
 ///
-/// <b>Bedava ve AI kullanmıyor</b> — ayrıştırıcılar tamamen deterministik.
+/// <b>AI kullanmıyor</b> — ayrıştırıcılar tamamen deterministik, dolayısıyla
+/// token kotasından düşmüyor. Ama giriş gerektiriyor: bkz. aşağıdaki
+/// <c>[Authorize]</c> gerekçesi.
 ///
 /// <b>Kod okunur, DEĞİŞTİRİLMEZ</b> ve hiçbir migration dosyası
 /// ÇALIŞTIRILMAZ (doc'un iki açık yasağı; ikincisi bir güvenlik kararı —
@@ -34,6 +36,12 @@ public sealed record ExtractCodeSchemaRequest(
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+// Giriş ZORUNLU. Bu uçlar AI kullanmıyor ama bedava değil: 200 dosya / 2 MB'a
+// kadar metni regex'lerle ayrıştırıyorlar. Kimliksiz bırakmak, sunucuyu
+// sınırsız dövülebilir bir CPU kaynağına çevirirdi. "Deterministik olması"
+// bedava olmasını gerektirmiyor — /clarify ve /plan saf ve ucuz fonksiyonlar
+// olduğu için anonim; bunlar öyle değil.
+[Authorize]
 public class CodeSchemaController : ControllerBase
 {
     /// <summary>
@@ -52,7 +60,7 @@ public class CodeSchemaController : ControllerBase
     /// extension olmadan da (örnek JSON yapıştırılarak) çalışır.
     /// </summary>
     [HttpPost("infer-shapes")]
-    [AllowAnonymous]
+
     public IActionResult InferShapes([FromBody] InferShapesRequest request)
     {
         if (request?.Responses is null || request.Responses.Count == 0)
@@ -77,7 +85,7 @@ public class CodeSchemaController : ControllerBase
     }
 
     [HttpPost("extract")]
-    [AllowAnonymous]
+
     public IActionResult Extract([FromBody] ExtractCodeSchemaRequest request)
     {
         if (request?.Files is null || request.Files.Count == 0)

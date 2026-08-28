@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Namines.Core.Analysis;
 using System.Linq;
@@ -78,11 +79,16 @@ public class CompileController : ControllerBase
     /// second-phase/13-DAGITIM-HEDEFLERI.md — Plesk/cPanel/DirectAdmin (MySQL/MariaDB)
     /// ya da mobil (SQLite) için komut satırı/Docker gerektirmeyen bir paket.
     ///
-    /// <b>Bedava ve AI kullanmıyor</b> — var olan DDL üreticisinin çıktısını
+    /// <b>AI kullanmıyor</b> — var olan DDL üreticisinin çıktısını
     /// biçimlendiriyor (bkz. <see cref="SharedHostingExporter"/>).
+    ///
+    /// <b>Ama giriş gerektiriyor:</b> SQLite hedefinde DİSKE gerçek bir dosya
+    /// yazılıyor ve zip'leniyor. Kimliksiz bırakmak, sunucuyu sınırsız
+    /// dövülebilir bir disk/CPU kaynağına çevirirdi.
     /// </summary>
     [HttpPost("shared-hosting")]
-    [AllowAnonymous]
+    [Authorize]
+    [EnableRateLimiting("sensitive")]
     public async Task<IActionResult> CompileSharedHosting([FromBody] CompileRequest request)
     {
         if (request.Schema == null) return BadRequest(new { message = "Schema is required." });

@@ -61,7 +61,30 @@ public sealed class AiQuotaService
 
     /// <summary>Paylaşılan günlük token havuzu.</summary>
     public long DailyPool =>
-        long.TryParse(_configuration["AiPool:DailyTokenPool"], out var value) ? value : 100_000;
+        long.TryParse(_configuration["AiPool:DailyTokenPool"], out var value) ? value : 2_000_000;
+
+    /// <summary>
+    /// Havuzun günde KAÇ ücretsiz kullanıcıyı taşıyacak şekilde bölüneceği.
+    ///
+    /// Bu sayı bir tahmin değil, bir <b>taahhüt</b>: havuz bu kadar kişiye
+    /// bölünüyor ve kimse payının iki katından fazlasını alamıyor.
+    /// </summary>
+    public int MinDailyFreeUsers =>
+        int.TryParse(_configuration["AiPool:MinDailyFreeUsers"], out var value) && value > 0 ? value : 100;
+
+    /// <summary>
+    /// Bir kullanıcıya verilmesi anlamlı olan en küçük günlük bütçe —
+    /// kabaca tek bir şema üretimi.
+    ///
+    /// <b>Neden gerekli:</b> havuzu çok fazla kişiye bölmek, herkese hiçbir işe
+    /// yaramayacak kadar küçük bir pay vermek olur. 1.000 token'la kullanıcı bir
+    /// şema üretemez; "bütçen var" deyip sonra ortasında kesmek, hiç
+    /// başlatmamaktan daha kötü bir deneyim. Bu tabanın altına düşmek yerine
+    /// daha AZ kullanıcıya düzgün hizmet veriliyor ve geri kalanına havuzun
+    /// dolduğu dürüstçe söyleniyor.
+    /// </summary>
+    public int MinUsefulDailyTokens =>
+        int.TryParse(_configuration["AiPool:MinUsefulDailyTokens"], out var value) && value > 0 ? value : 8_000;
 
     /// <summary>
     /// Kullanıcının PLANINA göre günlük token tavanı.
@@ -79,9 +102,14 @@ public sealed class AiQuotaService
     {
         var tier = await TierAsync(userId, ct);
 
-        if (tier == PlanTier.Free &&
-            int.TryParse(_configuration["AiPool:PerUserDailyTokens"], out var configured))
-            return configured;
+        if (tier == PlanTier.Free)
+        {
+            var planCap = int.TryParse(_configuration["AiPool:PerUserDailyTokens"], out var configured)
+                ? configured
+                : PlanQuotas.For(PlanTier.Free).DailyAiTokens;
+
+            return FreeUserCap(planCap);
+        }
 
         var perSeat = PlanQuotas.For(tier).DailyAiTokens;
 
@@ -93,6 +121,46 @@ public sealed class AiQuotaService
         // izin verirdi. İkiye katlamak ortası: yoğun çalışan biri payının iki
         // katını kullanabiliyor, ekibe her hâlükârda bir pay kalıyor.
         return tier == PlanTier.Team ? perSeat * 2 : perSeat;
+    }
+
+    /// <summary>
+    /// Ücretsiz bir kullanıcının günlük tavanı — planın verdiği hak ile havuzdan
+    /// düşen ADİL PAY'ın küçüğü.
+    ///
+    /// <b>Çözdüğü sorun:</b> plan tavanı 20.000, havuz 100.000'di. Yani günün
+    /// ilk BEŞ kullanıcısı havuzun tamamını tüketebiliyordu ve altıncıdan
+    /// itibaren gelen herkes, kendi hakkı hiç dolmamışken "havuz doldu" duvarına
+    /// çarpıyordu. Ücretsiz katmanın vaadi ilk gelenlere değil, gelen herkese.
+    ///
+    /// <b>Kural:</b> pay = havuz / hedef kullanıcı sayısı. Kullanıcı payının
+    /// <b>iki katına</b> kadar çıkabiliyor — Team havuzundaki ile aynı gerekçe:
+    /// tam paya kilitlemek boşta duran payı çöpe atar, tamamına açmak birinin
+    /// hepsini yemesine izin verir.
+    ///
+    /// <b>Taban:</b> pay <see cref="MinUsefulDailyTokens"/>'ın altına düşerse
+    /// tabana çekiliyor. Bu, hedeften daha az kullanıcıya hizmet vermek demek —
+    /// ama herkese işe yaramaz bir kırıntı vermektense daha az kişiye çalışan
+    /// bir ürün vermek doğru olan.
+    /// </summary>
+    private int FreeUserCap(int planCap) =>
+        CalculateFreeUserCap(planCap, DailyPool, MinDailyFreeUsers, MinUsefulDailyTokens);
+
+    /// <summary>
+    /// <see cref="FreeUserCap"/>'in saf hâli — veritabanına ve yapılandırmaya
+    /// bağlı olmayan politika hesabı.
+    ///
+    /// Ayrı durması bilinçli: bu bir <b>iş kuralı</b> ve ucuz birim testlerle
+    /// kanıtlanabilmeli. Örnek bir servis kurup sahte bir DbContext bağlamak,
+    /// aslında matematiği test eden bir teste altyapı maliyeti yüklerdi.
+    /// </summary>
+    public static int CalculateFreeUserCap(int planCap, long dailyPool, int minDailyFreeUsers, int minUsefulDailyTokens)
+    {
+        if (minDailyFreeUsers <= 0) return planCap;
+
+        var fairShare = (int)Math.Min(int.MaxValue, dailyPool / minDailyFreeUsers);
+        var burstable = Math.Max(fairShare * 2, minUsefulDailyTokens);
+
+        return Math.Min(planCap, burstable);
     }
 
     /// <summary>
@@ -247,6 +315,93 @@ public sealed class AiQuotaService
         }
 
         return AiQuotaDecision.Allowed;
+    }
+
+    /// <summary>
+    /// Bütçeyi ÖNCEDEN düşer ve izin verir; yer yoksa reddeder.
+    ///
+    /// <b>Çözdüğü sorun (yarış koşulu):</b> <see cref="CheckAsync"/> sayaçlara
+    /// dokunmuyor, <see cref="ConsumeAsync"/> ise iş BİTTİKTEN sonra düşüyordu.
+    /// Aradaki pencerede eşzamanlı gönderilen N istek kontrolü hep birlikte
+    /// geçiyor, hepsi sağlayıcıya gidiyor ve tavan tek seferde deliniyordu.
+    /// Üretim ucunda hız sınırı da olmadığı için bu teorik değil, tek satırlık
+    /// bir betikle sömürülebilir bir açıktı.
+    ///
+    /// Rezervasyon, kontrolü ve düşmeyi TEK atomik adımda yapıyor: ikinci istek
+    /// birincinin düşüşünü görüyor.
+    ///
+    /// <b>Tahmin fazlaysa iş bitince iade ediliyor</b> (bkz.
+    /// <see cref="ReconcileAsync"/>) — kullanıcı kullanmadığı bütçeyi
+    /// kaybetmemeli.
+    /// </summary>
+    public async Task<AiQuotaDecision> TryReserveAsync(string userId, int estimatedTokens, CancellationToken ct = default)
+    {
+        var decision = await CheckAsync(userId, estimatedTokens, ct);
+        if (decision != AiQuotaDecision.Allowed) return decision;
+
+        // Dev hesabı sayaçlara yazılıyor ama sınıra takılmıyor (CheckAsync'teki
+        // gerekçe): sınırsız olmak, maliyetin görünmez olması demek değil.
+        await ConsumeAsync(userId, estimatedTokens, ct);
+        return AiQuotaDecision.Allowed;
+    }
+
+    /// <summary>
+    /// Rezerve edilen tahmini, sağlayıcının bildirdiği GERÇEK kullanımla
+    /// değiştirir.
+    ///
+    /// Gerçek kullanım tahminden büyükse fark düşülür, küçükse iade edilir.
+    /// Ölçüm alınamadıysa (<paramref name="actualTokens"/> ≤ 0) hiçbir şey
+    /// yapılmaz — rezervasyon olduğu gibi kalır, yani ölçemediğimizde
+    /// kullanıcının LEHİNE değil, bütçenin lehine hata yapıyoruz.
+    /// </summary>
+    public async Task ReconcileAsync(string userId, int reservedTokens, int actualTokens, CancellationToken ct = default)
+    {
+        if (actualTokens <= 0) return;
+
+        var delta = actualTokens - reservedTokens;
+        if (delta == 0) return;
+
+        if (delta > 0)
+        {
+            await ConsumeAsync(userId, delta, ct);
+            return;
+        }
+
+        await RefundAsync(userId, -delta, ct);
+    }
+
+    /// <summary>
+    /// Kullanılmayan rezervasyonu geri verir. Sayaçlar sıfırın altına
+    /// DÜŞMÜYOR — negatif bir sayaç, ertesi günün bütçesini şişirirdi.
+    ///
+    /// Çağrı hiç iş yapmadan başarısız olduğunda (sağlayıcı hatası, hız sınırı)
+    /// rezervasyonun TAMAMI buradan iade ediliyor.
+    /// </summary>
+    public async Task RefundAsync(string userId, int tokens, CancellationToken ct = default)
+    {
+        var today = DateTime.UtcNow.Date;
+
+        await _context.UserAIQuotas
+            .Where(q => q.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(
+                q => q.DailyUsageCount,
+                q => q.DailyUsageCount - tokens < 0 ? 0 : q.DailyUsageCount - tokens), ct);
+
+        await _context.GlobalAiUsages
+            .Where(g => g.Date == today)
+            .ExecuteUpdateAsync(s => s.SetProperty(
+                g => g.TokensUsed,
+                g => g.TokensUsed - tokens < 0 ? 0 : g.TokensUsed - tokens), ct);
+
+        var team = await TeamPoolAsync(userId, ct);
+        if (team is not null)
+        {
+            await _context.OrgAiUsages
+                .Where(o => o.OrganizationId == team.Value.OrgId && o.Date == today)
+                .ExecuteUpdateAsync(s => s.SetProperty(
+                    o => o.TokensUsed,
+                    o => o.TokensUsed - tokens < 0 ? 0 : o.TokensUsed - tokens), ct);
+        }
     }
 
     /// <summary>

@@ -44,6 +44,7 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 | 11 | [Koddan şema](11-KODDAN-SEMA.md) ✅ | Depodaki modellerden şema çıkar, DB ile karşılaştır | M |
 | 12 | [Entegrasyonlar](12-ENTEGRASYONLAR.md) ✅ Supabase | Supabase önce. Rekabet değil, üstünde durmak | M |
 | 13 | [Dağıtım hedefleri](13-DAGITIM-HEDEFLERI.md) ✅ | Plesk/cPanel/mobil — rakiplerin bakmadığı kitle | S |
+| 16 | [Kota ve maliyet](16-KOTA-VE-MALIYET.md) ✅ | Deploy öncesi token kilitleri, adil paylaşım, aylık gider | M |
 
 ### Ayrı ürünler — kayıt için, şimdi başlanmayacak
 
