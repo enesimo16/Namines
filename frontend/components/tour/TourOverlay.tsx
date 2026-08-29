@@ -171,7 +171,7 @@ export default function TourOverlay() {
         <rect
           width="100%"
           height="100%"
-          fill="rgba(5, 4, 15, 0.75)"
+          fill="color-mix(in srgb, var(--color-scrim) 75%, transparent)"
           mask="url(#tour-spotlight-mask)"
           className="pointer-events-auto"
         />

@@ -24,8 +24,10 @@ import { DatabaseSchema } from '../../../types/schema';
 
 // İkon-buton — tüm toolbar bunu kullanır: tek renk aile (off-white/lacivert),
 // aktif durum dışında renkli vurgu yok (bkz. FRONTEND.md §2).
+// `shrink-0`: mobilde araç çubuğu yatay kaydırılan bir şerit; onsuz butonlar
+// sıkışıp okunmaz hâle geliyordu.
 const iconBtnBase =
-  'relative flex items-center justify-center w-9 h-9 rounded-lg border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+  'relative shrink-0 flex items-center justify-center w-9 h-9 rounded-lg border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 const iconBtnIdle =
   'bg-surface-700 border-content-primary/10 text-content-muted hover:text-content-primary hover:border-content-primary/20 hover:bg-surface-600';
 const iconBtnActive =
@@ -214,7 +216,22 @@ export default function ToolbarPanel() {
 
   return (
     <>
-      <div className="fixed top-2.5 right-6 z-[60] flex items-center gap-1.5">
+      {/*
+        Araç çubuğu MOBİLDE başlığın ALTINDA, tam genişlikte ve yatay kaydırılan
+        bir şerit.
+
+        Önceden her boyutta `fixed top-2.5 right-6` idi: 375px'te on düğme
+        başlık şeridinin (56px) üstüne biniyor, logo ve proje adı okunmaz hâle
+        geliyordu. Alta almak da olmuyor — orada AI giriş kutusu var. Başlığın
+        hemen altı, iki çakışmayı da önleyen tek yer.
+      */}
+      <div
+        className="fixed z-[60] flex items-center gap-1.5
+          top-[60px] left-2 right-2 overflow-x-auto scrollbar-none
+          rounded-xl border border-content-primary/10 bg-surface-800/95 backdrop-blur-xl p-1.5
+          md:top-2.5 md:left-auto md:right-6 md:overflow-visible
+          md:rounded-none md:border-0 md:bg-transparent md:backdrop-blur-none md:p-0"
+      >
         {/* AI Explain Schema */}
         <button
           onClick={handleExplainSchema}
@@ -368,14 +385,14 @@ export default function ToolbarPanel() {
           <span className="text-xs font-semibold">Request Review</span>
         </button>
 
-        <div className="h-5 w-px bg-content-primary/10 mx-0.5" />
+        <div className="h-5 w-px shrink-0 bg-content-primary/10 mx-0.5" />
 
         {/* Approve Diagram — tek CTA: off-white/off-black, sonraki adıma geçişi
             ok ile belirtir, dokunsal geri bildirim için active:scale. */}
         <button
           id="approve-diagram-btn"
           onClick={handleApprove}
-          className="group flex items-center justify-center gap-1.5 bg-content-primary hover:bg-content-primary-hover active:scale-[0.97] text-surface-900 pl-4 pr-3 h-9 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+          className="group shrink-0 flex items-center justify-center gap-1.5 bg-content-primary hover:bg-content-primary-hover active:scale-[0.97] text-surface-900 pl-4 pr-3 h-9 rounded-lg text-xs font-semibold transition-all cursor-pointer"
         >
           <span>Approve</span>
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />

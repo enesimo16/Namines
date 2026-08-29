@@ -214,7 +214,7 @@ export default function SharePage() {
           <Controls showInteractive={false} />
           <MiniMap
             nodeColor={designToken('--color-line-solid-strong')}
-            maskColor="rgba(9,17,31,0.7)"
+            maskColor="color-mix(in srgb, var(--color-scrim) 70%, transparent)"
             style={{ background: designToken('--color-surface-700'), border: `1px solid ${designToken('--color-line-solid-strong')}` }}
           />
         </ReactFlow>

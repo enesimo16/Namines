@@ -31,6 +31,21 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
 const ROOTS = ['components', 'app'];
+
+/**
+ * Renk merkezinin KENDİSİ — burada ham değer OLMAK ZORUNDA (ölçeğin tepesi
+ * bir yerden başlamalı). Denetim bu dosyada yalnızca `:root` bloğunun DIŞINI
+ * kontrol ediyor.
+ *
+ * <b>Neden sonradan eklendi:</b> betik yalnızca `.tsx` tarıyordu ve
+ * `globals.css` hiç denetlenmiyordu. Ölçüm yapıldığında bu tek dosyada **248
+ * ham renk** vardı — üstelik FRONTEND.md §2'nin açıkça yasakladığı indigo
+ * (#4f46e5 / #6366f1), amber (#fbbf24), cyan (#06b6d4) ve Tailwind slate
+ * grileri dahil. Header, sidebar, canvas araç çubuğu ve bağlam menüsü bu
+ * dosyadan boyanıyor; yani ekranın büyük kısmı hiçbir zaman palete
+ * bağlanmamıştı. "Rengi tek yerden değiştiremiyorum"un sebebi buydu.
+ */
+const TOKEN_CENTRE = 'app/globals.css';
 const HEX = /#[0-9a-fA-F]{3,8}\b/g;
 
 /**
@@ -56,6 +71,15 @@ const PALETTE_CLASS = new RegExp(
  * kod tabanının yerleşik yüzey deseni. Yasaklanan, bir metnin ya da zeminin
  * SAF #fff/#000 olması.
  */
+/**
+ * JSX string prop'larindaki ham renk: `maskColor="rgba(0,0,0,.7)"` gibi.
+ *
+ * Sinif adi olmadiklari icin PALETTE_CLASS ve PURE_BW bunlari kaciriyordu; HEX
+ * de yalnizca `#` biciminde olanlari goruyordu. Uc yerde React Flow minimap
+ * maskesi ve tur overlay'i bu sekilde palet disinda kalmisti.
+ */
+const RAW_FUNCTIONAL_COLOR = /rgba?\(\s*\d/g;
+
 const PURE_BW =
   /(?<![\w-])(?:text-white|bg-white|bg-black|text-black|border-white|border-black)(?![\w/-])/g;
 
@@ -73,7 +97,7 @@ function walk(dir, out = []) {
     if (entry === 'node_modules' || entry === '.next') continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
-    else if (['.tsx', '.ts'].includes(extname(entry))) out.push(full);
+    else if (['.tsx', '.ts', '.css'].includes(extname(entry))) out.push(full);
   }
   return out;
 }
@@ -94,8 +118,30 @@ const violations = [];
 for (const root of ROOTS) {
   for (const file of walk(root)) {
     const lines = readFileSync(file, 'utf8').split('\n');
+    const isTokenCentre = file.replace(/\\/g, '/').endsWith(TOKEN_CENTRE);
+
+    // ÇOK SATIRLI yorum takibi. `isComment` yalnızca satır BAŞINA bakıyordu;
+    // CSS blok yorumlarının ara satırları `*` ile başlamıyor ve "hangi renk
+    // neden kaldırıldı" notları ihlal sayılıyordu.
+    let inComment = false;
+    // Renk merkezinde ham değer OLMAK ZORUNDA — ölçeğin tepesi bir yerden
+    // başlamalı. Muafiyet yalnızca tanım bloklarına, gerisine değil.
+    let inTokenBlock = false;
 
     lines.forEach((line, i) => {
+      const trimmed = line.trim();
+
+      const wasInComment = inComment;
+      if (!inComment && trimmed.includes('/*') && !trimmed.includes('*/')) inComment = true;
+      else if (inComment && trimmed.includes('*/')) inComment = false;
+      if (wasInComment) return;
+
+      if (isTokenCentre) {
+        if (/^(:root\s*\{|@theme\b)/.test(trimmed)) inTokenBlock = true;
+        else if (inTokenBlock && trimmed === '}') { inTokenBlock = false; return; }
+        if (inTokenBlock) return;
+      }
+
       if (!isComment(line)) {
         const found = line.match(HEX);
         if (found) {
@@ -113,6 +159,15 @@ for (const root of ROOTS) {
             file, line: i + 1, kind: 'Tailwind hazır renk ailesi',
             detail: `${[...new Set(palette)].join(', ')} — FRONTEND.md §2: palet dışı aile. ` +
               'Nötrler surface-*/content-*, semantikler danger-*/success-*, vurgu accent-*.',
+          });
+        }
+
+        const rawFn = line.match(RAW_FUNCTIONAL_COLOR);
+        if (rawFn) {
+          violations.push({
+            file, line: i + 1, kind: 'ham rgb()/rgba()',
+            detail: "FRONTEND.md §4: renk token'dan gelmeli. " +
+              'Saydamlık için color-mix(in srgb, var(--color-…) N%, transparent).',
           });
         }
 

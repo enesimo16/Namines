@@ -448,24 +448,40 @@ export default function CanvasPage() {
                 if (tableColor) return tableColor;
                 return isEditMode ? token('--color-accent-hover') : token('--color-line-solid');
               }}
-              maskColor="rgba(0, 0, 0, 0.7)"
-              className="bg-surface-700 border border-content-primary/12 rounded-2xl overflow-hidden shadow-lg"
+              maskColor="color-mix(in srgb, var(--color-scrim) 70%, transparent)"
+              className="!hidden md:!block bg-surface-700 border border-content-primary/12 rounded-2xl overflow-hidden shadow-lg"
             />
 
             {/* Odadaki diğer kullanıcıların imleçleri (ReactFlow içinde: viewport'a erişir) */}
             <MultiplayerCursors />
 
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
-            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 p-4 rounded-2xl mt-4 ml-4 w-64 select-none pointer-events-auto">
-              <h2 className="text-xl font-bold bg-gradient-to-r from-content-primary to-content-primary bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
-              <div className="text-xs text-content-secondary/80 flex flex-col gap-1 font-medium">
-                <div className="flex gap-4">
+            {/* Şema bilgi paneli mobilde araç çubuğunun ALTINA iniyor ve daralıyor:
+                araç çubuğu artık başlığın hemen altında (top-60px), panel eski
+                yerinde kalsaydı ikisi üst üste binerdi. */}
+            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 px-3 py-2 md:p-4 rounded-xl md:rounded-2xl !mt-[120px] md:!mt-4 !ml-2 md:!ml-4 w-auto max-w-[calc(100vw-1rem)] md:w-64 select-none pointer-events-auto">
+              {/* `!mt-`: React Flow'un `.react-flow__panel { margin: 15px }`
+                  kuralı Tailwind sınıfıyla aynı özgüllükte ve stylesheet'i
+                  sonra yüklendiği için kazanıyordu — panel araç çubuğunun
+                  ALTINDA kalıyordu (ölçüldü: top 71px, araç çubuğu 60-112px).
+
+                  Mobilde tek satır: ad ve sayılar yan yana. Dikey yerleşim
+                  375px'te tuvalin üçte birini kaplıyordu ve kullanıcı asıl
+                  bakmak istediği şemayı göremiyordu. */}
+              <div className="flex items-baseline gap-3 md:block">
+                <h2 className="text-sm md:text-xl font-bold text-content-primary md:mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
+                <div className="text-[11px] md:text-xs text-content-secondary/80 flex gap-2 md:gap-4 font-medium shrink-0">
                   <span>{schema.tables.length} Tables</span>
                   <span>{schema.relations.length} Relations</span>
                 </div>
               </div>
-              <BranchControlPanel />
-              <TableZoomList tables={schema.tables} />
+              {/* Branch denetimi ve tablo listesi masaüstü araçları: birincisi
+                  bir açılır menü, ikincisi uzun bir liste — ikisi de 375px'te
+                  tuvali tamamen örtüyordu. */}
+              <div className="hidden md:block">
+                <BranchControlPanel />
+                <TableZoomList tables={schema.tables} />
+              </div>
             </Panel>
           </ReactFlow>
         </CanvasContextMenu>

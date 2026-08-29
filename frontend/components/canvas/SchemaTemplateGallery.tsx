@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, LayoutTemplate, Search } from 'lucide-react';
+import { X, Search } from 'lucide-react';
 import { TEMPLATES, TEMPLATE_SIZES, type TemplateSize } from '../../lib/templates';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
@@ -59,10 +59,10 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 pt-5 pb-4 border-b border-surface-600">
-          <div className="flex items-center gap-2 min-w-0">
-            <LayoutTemplate className="w-5 h-5 text-accent-text shrink-0" />
-            <span className="text-content-primary font-semibold text-base truncate">Schema Templates</span>
-          </div>
+          {/* Başlıktan ikon kaldırıldı: "Schema Templates" yazısı zaten ne
+              olduğunu söylüyor, ikon yalnızca gürültü ekliyordu. İkon, metnin
+              YERİNE geçtiğinde ya da metni ayrıştırdığında değerli. */}
+          <span className="text-content-primary font-semibold text-base truncate">Schema Templates</span>
           <button
             onClick={onClose}
             aria-label="Close template gallery"

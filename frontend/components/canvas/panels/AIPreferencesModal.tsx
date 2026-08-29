@@ -1505,7 +1505,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
                       {['200K AI tokens / day — 10x Free', 'NAI v1 Pro model unlocked', '2 branch databases + change review', '20 ephemeral test runs / day', '3 external database connections', 'Gateway API: 600 req/min'].map(f => (
                         <li key={f} className="flex items-center gap-2">
-                          <Sparkles className="w-3.5 h-3.5 text-accent-text shrink-0" />
+                          <Check className="w-3.5 h-3.5 text-accent-text shrink-0" />
                           <span>{f}</span>
                         </li>
                       ))}
@@ -1555,7 +1555,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
                       {['Everything in Pro', '3 seats — you + 2 invited members', 'Shared workspace: projects visible to all', 'Team activity feed — see who changed what', '20 branch databases, unlimited test runs', 'Gateway API: 3,000 req/min'].map(f => (
                         <li key={f} className="flex items-center gap-2">
-                          <Sparkles className="w-3.5 h-3.5 text-accent-text shrink-0" />
+                          <Check className="w-3.5 h-3.5 text-accent-text shrink-0" />
                           <span>{f}</span>
                         </li>
                       ))}

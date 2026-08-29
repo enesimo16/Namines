@@ -346,3 +346,114 @@ modal kapatma düğmesinde `min-h-11` ile karşılandı.
 çakışıyor. Bu ayrı bir iş: canvas bir masaüstü düzenleyicisi ve mobil
 yerleşimi, buradaki gibi birkaç sınıfla değil, araç çubuğunun yeniden
 kurgulanmasıyla çözülür.
+
+---
+
+## 11. Tek renk merkezi (tamamlandı)
+
+> **Sorulan iş:** "renkleri tek bir ortak merkeze topla, komple değiştir, çok
+> karanlık, en azından tek yerden değiştirebileyim."
+
+### 11.1 Neden tek merkez YOKTU — ölçüm
+
+§8 ve §9 "ham hex 0" diye kaydediyordu. İkisi de doğruydu ve ikisi de eksikti:
+denetim yalnızca **`.tsx`** dosyalarını tarıyordu.
+
+| Katman | Ham renk | Ne boyuyordu |
+|---|---|---|
+| `app/globals.css` | **248** | Header, sidebar, canvas araç çubuğu, bağlam menüsü, proje kartları, Prism teması |
+| React Flow'un kendi CSS'i | `#141414` | **Tuvalin tamamı** — uygulamanın en büyük yüzeyi |
+| JSX string prop'ları | 3 | Minimap maskesi, tur overlay'i |
+
+`globals.css` içinde FRONTEND.md §2'nin **açıkça yasakladığı** aileler duruyordu:
+indigo `#4f46e5` / `#6366f1` (42 kullanım), amber `#fbbf24`, cyan `#06b6d4`,
+Tailwind slate grileri. Yani ekranın büyük kısmı hiçbir zaman palete
+bağlanmamıştı — "rengi tek yerden değiştiremiyorum" şikâyetinin ölçülebilir
+karşılığı buydu.
+
+### 11.2 Çözüm — on sayı, OKLCH, zemine göre türetme
+
+`:root` içinde **on knob** var; başka hiçbir yerde ham renk yok:
+
+```css
+--ui-hue: 250;      --ui-chroma: 0.012;   --ui-bg-l: 34%;   --ui-bg-step: 3.6%;
+--brand-hue: 262;   --brand-chroma: 0.075; --brand-l: 48%;
+--danger-hue: 25;   --success-hue: 155;
+```
+
+**OKLCH, çünkü açıklık algısal:** L'yi %4 artırmak her tonda AYNI kadar
+aydınlanma demek. HSL'de bu doğru değil ve ton değişince yüzey basamakları
+birbirine giriyor.
+
+**Metin adımları ZEMİNE GÖRE, mutlak değil.** Önce mutlaktı (%96, %86…) ve
+knob çevrildiğinde kontrast sessizce çöküyordu: `--ui-bg-l` %26'da
+`content-subtle` **3.37:1**'e düşüyordu (AA = 4.5:1). Yani knob'un kendisi
+erişilebilirliği bozuyordu, ki bu onu işe yaramaz kılardı. Artık her metin
+adımı zeminden sabit bir L farkında; sabit L farkı ≈ sabit kontrast.
+
+**Tarayıcıda ölçüldü** (canvas ile gerçek piksel, WCAG formülü):
+
+| `--ui-bg-l` | zemin rgb | primary | secondary | muted | subtle |
+|---|---|---|---|---|---|
+| %19 | (24,29,33) | 12.17 | 8.98 | 6.63 | **5.14** |
+| %28 | (36,41,47) | 9.14 | 8.37 | 6.34 | **5.01** |
+| **%34 (varsayılan)** | **(51,57,62)** | 7.0 | 7.0 | 6.0 | **4.8** |
+| %36 | (56,62,67) | 6.49 | 6.49 | 5.78 | **4.65** |
+
+Değerler en açık yüzeye (`surface-600`) karşı, yani **en kötü durum**.
+%17-%36 aralığının tamamı AA üstünde; %36'nın üstünde `subtle` 4.5'in altına
+düşüyor, o yüzden aralık orada bitiyor.
+
+### 11.3 React Flow — üçüncü taraf stilini palete bağlama
+
+`.react-flow.dark` kendi stylesheet'inde `background-color: #141414` taşıyor.
+Knob çevrildiğinde paneller aydınlanıp **tuval karanlık kalıyordu**; ikisi
+birbirinden kopuyordu ve hiçbir denetim bunu göremezdi (değer
+`node_modules` içinde). Kütüphanenin resmî `--xy-*` tema değişkenleri
+üzerinden 26 değer token'lara bağlandı — dist CSS'ini yamalamak yerine.
+
+### 11.4 Denetim genişletildi
+
+`check:design` artık `.css` dosyalarını da tarıyor (renk merkezinin `:root`
+bloğu muaf), çok satırlı CSS yorumlarını doğru atlıyor, ve JSX string
+prop'larındaki `rgb()/rgba()` kullanımını yakalıyor. **Yakaladığı doğrulandı:**
+zinc sınıfı, `text-white`, ham hex ve `globals.css` gövdesine enjekte edilen
+bir renk — dördü de çıkış kodu 1 verdi.
+
+### 11.5 Nasıl denenir
+
+`app/globals.css` içinde tek satır:
+
+```css
+--ui-bg-l: 30%;   /* daha koyu */   →   --ui-bg-l: 36%;   /* daha aydınlık */
+```
+
+Tuval, header, sidebar, modal, tablo düğümleri, minimap — hepsi birlikte
+değişiyor (tarayıcıda %45'e çekilerek doğrulandı).
+
+## 12. Uçtan uca özellik denetimi
+
+`npm run check:e2e` — ayakta duran API'ye gerçek istek atıyor ve cevabın
+**içeriğini** kontrol ediyor; 200 dönmesi yeterli sayılmıyor. Örneğin linter
+testi PK'sız bir tablo gönderip uyarının gerçekten üretildiğini doğruluyor.
+
+Betiği yazarken üç yanlış varsayım ortaya çıktı ve düzeltildi — sözleşmeyi
+varsaymak yerine okumak gerekti: EF Core ucu **zip** döndürüyor (düz metin
+değil), `codeschema/extract` `Files` alanını **sözlük** bekliyor (dizi değil),
+`convert/analyze` `Source`/`Target` alan adlarını kullanıyor.
+
+Sonuç: **30/32 çalışıyor, 0 kırık.** Kalan ikisi kodla ilgili değil —
+Stripe fiyat kimlikleri girilmemiş, ve şema üretimi Groq ücretsiz katmanının
+TPM duvarına çarpıyor (bkz. new-phase/34 §9.1).
+
+## 13. Mobil — ikinci tur
+
+§10'da "kapsam dışı" bırakılan **canvas düzenleyicisi** de mobile taşındı:
+
+| Sorun | Çözüm |
+|---|---|
+| Araç çubuğu (`fixed top-2.5 right-6`, 10 düğme) 375px'te başlık şeridinin üstüne biniyordu | Mobilde başlığın ALTINDA, tam genişlikte, yatay kaydırılan şerit. Alta almak olmazdı — orada AI giriş kutusu var |
+| Şema bilgi paneli tuvalin üçte birini kaplıyordu | Mobilde tek satır (ad + sayılar); branch denetimi ve tablo listesi masaüstüne özel |
+| Panel araç çubuğunun altında kalıyordu | React Flow'un `.react-flow__panel { margin: 15px }` kuralı aynı özgüllükte ve sonra yüklendiği için kazanıyordu → `!mt-[120px]` |
+| Minimap alttaki AI giriş kutusunu örtüyordu | 375px'te zaten okunmuyor → `md:` altında gizli |
+| `scrollbar-none` sınıfı üç yerde kullanılıyordu ama **Tailwind çekirdeğinde yok** | `@utility scrollbar-none` eklendi |
