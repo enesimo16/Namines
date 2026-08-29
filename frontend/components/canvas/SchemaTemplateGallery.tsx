@@ -81,7 +81,6 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
               key={tpl.key}
               className="flex items-start gap-3 p-4 rounded-xl bg-surface-700 border border-surface-500 text-left transition-all"
             >
-              <span className="text-2xl shrink-0 mt-0.5">{tpl.emoji}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-content-primary font-semibold text-sm">{tpl.label}</p>
                 <p className="text-content-muted text-xs mt-0.5 leading-relaxed">{tpl.description}</p>

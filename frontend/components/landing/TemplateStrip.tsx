@@ -42,7 +42,6 @@ export default function TemplateStrip() {
             href={`/demo?template=${encodeURIComponent(tpl.key)}`}
             className="glass-panel rounded-xl p-4 flex flex-col gap-2 transition-all hover:bg-white/[0.06]"
           >
-            <span className="text-2xl leading-none">{tpl.emoji}</span>
             <span className="text-xs font-semibold text-content-primary">{tpl.label}</span>
             <span className="text-[10px] text-content-muted leading-snug line-clamp-2">
               {tpl.description}

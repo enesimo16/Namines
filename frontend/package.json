@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:design": "node scripts/check-design-rules.mjs"
+    "check:design": "node scripts/check-design-rules.mjs",
+    "check:templates": "node scripts/check-templates.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",

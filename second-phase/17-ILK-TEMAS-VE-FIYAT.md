@@ -66,6 +66,93 @@ Kartlar **demoya** gidiyor, canvas'a değil: canvas'ta şablon yüklemek mevcut
 çalışmanın üstüne yazıyor (Replace); tanımadığı bir ürüne ilk tıklamasında
 ziyaretçiyi böyle bir karara zorlamak yanlış olurdu.
 
+### 3.1 Şablonlar yeniden yazıldı — 5 küçükten 12 gerçeğe
+
+**Sorun:** eldeki 5 şablonun en büyüğü 6 tabloydu. "Bizim işimize yaramaz" —
+haklı: 4 tablolu bir şema, ürünün çözdüğü hiçbir problemi (kırılma analizi,
+motorlar arası kayıp, ilişki karmaşası) göstermiyor. Şablon galerisi, ürünün
+ne kadar ciddi bir şeyle başa çıktığını gösteremiyordu.
+
+**Şimdi:** 12 şablon, **267 tablo**, her biri 21-25 tablo.
+
+| Şablon | Tablo | İlişki |
+|---|---|---|
+| E-Commerce | 25 | 35 |
+| Healthcare / EMR | 24 | 33 |
+| SaaS Platform | 23 | 30 |
+| Warehouse & Logistics | 23 | 33 |
+| CRM & Sales | 22 | 41 |
+| Banking & Ledger | 22 | 37 |
+| HR & Payroll | 22 | 33 |
+| Social Network | 22 | 39 |
+| Publishing / CMS | 21 | 35 |
+| Learning Platform | 21 | 31 |
+| Hotel & Reservations | 21 | 28 |
+| Helpdesk & SLA | 21 | 37 |
+
+**Emoji kaldırıldı.** Tasarım sistemi zaten "ikonlar emoji değil, SVG" diyor
+(FRONTEND.md); şablon kartları bu kuralın tek istisnasıydı ve kimse fark
+etmemişti.
+
+#### Kompakt tanım dili
+
+Şablonlar önce her kolon ve her ilişki için elle kimlik yazılarak tutuluyordu.
+Beş küçük şablonda katlanılabilirdi; 267 tabloda aynı kimliği üç ayrı yerde
+doğru yazmak demek olurdu — ve **sessizce kırık ilişki** üretmenin en kolay
+yolu budur: bağıntı ekranda hiç çizilmez, kimse fark etmez.
+
+Yabancı anahtar artık kolonun kendi tanımında (`>tablo.kolon`) ve ilişkiler
+oradan türetiliyor. Hedefi olmayan bir bağıntı **açılışta hata fırlatıyor**.
+
+```
+'organization_id UUID >organizations.id'
+'manager_id INT >employees.id ?'      // ? = isteğe bağlı
+```
+
+#### Şablonlar ürünün KENDİ kural motorundan geçiyor
+
+`npm run check:templates` her şablonu çalışan API'ye gönderiyor: gerçek linter
+(`POST /api/lint`) ve **altı motorun hepsinde** gerçek DDL üreticisi. Sonuç:
+**12/12 şablon, 0 hata, 0 uyarı, 6 motorda da derleniyor.**
+
+Bu bir süs değil şart: "AI üretir, kural motoru kanıtlar" diyen bir ürünün
+kendi örnek şemalarının o motordan geçememesi, iddiayı ilk temasta çürütürdü.
+Pratikte üç kurala dönüştü — her tabloda tam bir birincil anahtar (ara
+tablolarda vekil `id`), yabancı anahtar tipi hedefiyle aynı, ve iki tablo
+birbirini işaret etmiyor (kendine dönen `parent_id`/`manager_id` güvenli).
+
+Kuralları betikte yeniden yazmak, iki ayrı doğruluk kaynağı üretmek olurdu;
+asıl soru "linter ne diyor" ve bunun tek cevabı linter'ın kendisi.
+
+**Bilgi seviyesindeki notlar kasıtlı olarak engellemiyor.** Linter tablo
+adlarının PascalCase olmasını tercih ediyor; şablonlar snake_case, çünkü
+hedeflenen motorlarda yerleşik gelenek bu. Şablonları linter'ın bir tercihine
+uydurmak, demoyu güzelleştirmek uğruna gerçekçiliği bozmak olurdu.
+
+#### Büyük şemayı göstermek için düzeltilen dört şey
+
+1. **Tuval yerleşimi 3 sütuna sabitliydi.** 25 tablo, 9 satırlık ince bir
+   şeride dönüşüyordu. Sütun sayısı artık tablo sayısının kareköküne yakın
+   (25 → 5×5) ve **satır yüksekliği o satırdaki en uzun tabloya göre**: sabit
+   300px, 12 kolonlu bir tablonun altındakinin üzerine biniyordu. Bu düzeltme
+   `schemaToFlow`'da, yani AI'ın ürettiği büyük şemalar da faydalanıyor.
+2. **`fitView` düğümler ölçülmeden çalışıyordu.** 5-6 tabloda yetişiyordu;
+   25 tabloda görünüm dönüşümü birim kalıyor ve **tuval bomboş görünüyordu** —
+   üstelik 25 düğüm de DOM'daydı. Artık `useNodesInitialized` bekleniyor.
+3. **Tam sığdırma okunaksızdı.** 25 tabloyu yan panele sığdırmak %20
+   yakınlaştırma demekti (tablolar 60px'lik lekeler). Tuval tam genişliğe
+   alındı ve `minZoom: 0.45` kondu: şemanın tamamını göstermeyi bırakıp
+   kullanıcıyı kaydırmaya bırakmak daha dürüst.
+4. **Tekerlek sayfayı değil tuvali yakınlaştırıyordu.** Tam genişlikte 560px'lik
+   bir tuvalde, sayfayı kaydırmak isteyen ziyaretçi içeride sıkışıyordu.
+
+#### Bulgular gruplandı
+
+25 tablolu bir şemada "Table 'x' should ideally be PascalCase" yirmi beş kez
+yan yana yazılıyordu — kural motoru tek bir şey söyleyen bir araç gibi
+görünüyordu. Aynı kural artık tek satırda, `×25` rozetiyle ve örnek tablo
+adlarıyla. Sayı korunuyor, tekrar korunmuyor.
+
 ## 4. "Neden biz" bölümü
 
 İniş sayfasında dört madde — hepsi koddaki **gerçek** bir yeteneğe karşılık
@@ -167,3 +254,8 @@ $3,60 yerine $0,30.
   bilinmeyen ad sessizce Pro/aylık'a düşmüyor.
 - **Paylaşım sayfasında ziyaretçinin şemasını düzenletmek.** Sayfa salt okunur;
   "kendine kopyala" demonun ve editörün işi.
+- **Şablonları linter'ı susturmak için PascalCase'e çevirmek.** Örnek şemalar
+  gerçek şemalara benzemeli; ekranı temiz göstermek için gerçekçiliği bozmak,
+  tam da ürünün karşı çıktığı şey.
+- **20 tablonun altında şablon eklemek.** `check:templates` bunu hata sayıyor:
+  küçük bir örnek, ürünün çözdüğü problemi gösteremiyor.

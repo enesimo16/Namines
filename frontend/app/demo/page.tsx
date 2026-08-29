@@ -1,26 +1,23 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  ReactFlow,
-  Background,
-  BackgroundVariant,
-  Controls,
-  type Node,
-  type Edge,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+import type { Node, Edge } from '@xyflow/react';
 import { AlertTriangle, CheckCircle2, Info, Loader2, ShieldCheck, Wand2 } from 'lucide-react';
-import TableNode from '../../components/canvas/nodes/TableNode';
 import { schemaToFlow } from '../../lib/schemaToFlow';
 import { TEMPLATES } from '../../lib/templates';
 import { schemaService } from '../../services/api';
 import { useSchemaStore } from '../../store/useSchemaStore';
-import { token as designToken } from '../../lib/designTokens';
-import { DatabaseSchema } from '../../types/schema';
 
-const nodeTypes = { tableNode: TableNode };
+// Tuval yalnızca tarayıcıda render ediliyor: ızgara rengini CSS değişkeninden
+// okuyor ve sunucuda CSS yok — sunucuda çizilirse istemcideki gerçek renkle
+// uyuşmuyor (hydration uyarısı).
+const DemoCanvas = dynamic(() => import('../../components/landing/DemoCanvas'), {
+  ssr: false,
+  loading: () => <div className="h-full w-full" />,
+});
 
 /**
  * Girişsiz canlı demo.
@@ -56,6 +53,42 @@ function severityOf(raw: number | string): 'error' | 'warning' | 'info' {
   return 'info';
 }
 
+/**
+ * Aynı kuralın farklı tablolarda tekrarını TEK satırda topla.
+ *
+ * 25 tablolu bir şemada "Table 'x' should ideally be PascalCase" yirmi beş kez
+ * yan yana yazılıyordu. Bu, kural motorunu tek bir şey söyleyen bir araç gibi
+ * gösteriyordu — oysa asıl anlatılmak istenen, hangi FARKLI kuralların
+ * çalıştığı. Sayı korunuyor, tekrar korunmuyor.
+ */
+function groupFindings(messages: LintMessage[]) {
+  const groups = new Map<string, { severity: string; message: string; count: number; subjects: string[] }>();
+
+  for (const m of messages) {
+    // Tırnak içindeki tanımlayıcılar (tablo/kolon adları) kuralın kimliğinden
+    // çıkarılıyor; geriye kuralın kendisi kalıyor.
+    const key = m.message.replace(/'[^']*'/g, "'…'");
+    const subject = m.message.match(/'([^']*)'/)?.[1] ?? '';
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count += 1;
+      if (existing.subjects.length < 6 && subject) existing.subjects.push(subject);
+    } else {
+      groups.set(key, {
+        severity: severityOf(m.severity),
+        message: m.message,
+        count: 1,
+        subjects: subject ? [subject] : [],
+      });
+    }
+  }
+
+  return [...groups.values()].sort((a, b) => {
+    const rank = { error: 0, warning: 1, info: 2 } as Record<string, number>;
+    return (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3) || b.count - a.count;
+  });
+}
+
 function DemoContent() {
   const router = useRouter();
   // Şablon adresten geliyor: iniş sayfasındaki galeriden tıklanan kart, demoyu
@@ -71,15 +104,20 @@ function DemoContent() {
   );
   const [engine, setEngine] = useState<Engine>('PostgreSQL');
 
-  const [lint, setLint] = useState<LintMessage[] | null>(null);
-  const [sql, setSql] = useState<string | null>(null);
-  const [proving, setProving] = useState(false);
-  const [failed, setFailed] = useState(false);
-  // Izgara rengi CSS değişkeninden okunuyor; sunucuda CSS yok, orada
-  // 'transparent' dönüyor ve istemcideki gerçek renkle uyuşmuyordu (hydration
-  // uyarısı). Tuval, renk okunabilir hâle geldikten SONRA çiziliyor.
-  const [gridColor, setGridColor] = useState<string | null>(null);
-  useEffect(() => setGridColor(designToken('--color-line-solid-strong')), []);
+  /**
+   * Kanıt katmanının sonucu, ANAHTARIYLA birlikte tek bir durumda.
+   *
+   * Önce dört ayrı durum (lint / sql / proving / failed) vardı ve efekt bunları
+   * senkron olarak set ediyordu — her şablon değişiminde zincirleme render.
+   * Sonucu istendiği isteğin anahtarıyla saklamak, "hâlâ çalışıyor mu"
+   * sorusunu bir durum değil TÜRETİLMİŞ bir değer yapıyor ve geç dönen eski
+   * bir cevabın yenisinin üzerine yazmasını da imkânsız kılıyor.
+   */
+  const [result, setResult] = useState<{
+    key: string;
+    lint: LintMessage[] | null;
+    sql: string | null;
+  } | null>(null);
 
   const template = useMemo(
     () => TEMPLATES.find(t => t.key === templateKey) ?? TEMPLATES[0],
@@ -104,32 +142,39 @@ function DemoContent() {
     };
   }, [template]);
 
-  // Kanıt katmanı: gerçek linter + gerçek DDL üreticisi.
-  const prove = useCallback(async (schema: DatabaseSchema, target: Engine) => {
-    setProving(true);
-    setFailed(false);
-    try {
-      const [lintResult, ddl] = await Promise.all([
-        schemaService.lintSchema(schema),
-        schemaService.compileSql(schema, target),
-      ]);
-      setLint(lintResult?.messages ?? []);
-      setSql(ddl ?? '');
-    } catch {
-      // Sunucu ulaşılamazsa uydurma bir çıktı GÖSTERİLMİYOR. Demonun tek değeri
-      // gerçek olması; sahte bir "0 hata" göstermek, ürünün en çok güvenilmesi
-      // gereken iddiasını ilk temasta yalanlamak olurdu.
-      setLint(null);
-      setSql(null);
-      setFailed(true);
-    } finally {
-      setProving(false);
-    }
-  }, []);
+  // İstek kimliği: hangi şablon + hangi motor. Sonuç bununla eşleşiyor.
+  const requestKey = `${template?.key ?? ''}|${engine}`;
 
+  // Kanıt katmanı: gerçek linter + gerçek DDL üreticisi.
+  //
+  // Durum YALNIZCA sözün içinde set ediliyor, efekt gövdesinde değil — böylece
+  // efekt senkron bir render zinciri başlatmıyor.
   useEffect(() => {
-    if (template) void prove(template.schema, engine);
-  }, [template, engine, prove]);
+    if (!template) return;
+    let cancelled = false;
+
+    void Promise.all([
+      schemaService.lintSchema(template.schema),
+      schemaService.compileSql(template.schema, engine),
+    ])
+      .then(([lintResult, ddl]) => {
+        if (!cancelled) setResult({ key: requestKey, lint: lintResult?.messages ?? [], sql: ddl ?? '' });
+      })
+      .catch(() => {
+        // Sunucu ulaşılamazsa uydurma bir çıktı GÖSTERİLMİYOR. Demonun tek
+        // değeri gerçek olması; sahte bir "0 hata" göstermek, ürünün en çok
+        // güvenilmesi gereken iddiasını ilk temasta yalanlamak olurdu.
+        if (!cancelled) setResult({ key: requestKey, lint: null, sql: null });
+      });
+
+    return () => { cancelled = true; };
+  }, [template, engine, requestKey]);
+
+  const settled = result?.key === requestKey ? result : null;
+  const proving = settled === null;
+  const failed = settled !== null && settled.lint === null;
+  const lint = settled?.lint ?? null;
+  const sql = settled?.sql ?? null;
 
   const openInEditor = () => {
     if (!template) return;
@@ -137,6 +182,8 @@ function DemoContent() {
     setDbType(engine as never);
     router.push('/canvas');
   };
+
+  const grouped = useMemo(() => groupFindings(lint ?? []), [lint]);
 
   const counts = useMemo(() => {
     const messages = lint ?? [];
@@ -164,24 +211,28 @@ function DemoContent() {
           </p>
         </header>
 
-        {/* Seciciler */}
+        {/* Seciciler — sablon ve motor AYRI satirlarda. Tek satirda 12 sablon +
+            6 motor sarilinca aradaki ayirac ekranda kayboluyor ve ikisi tek bir
+            liste gibi gorunuyordu. */}
+        <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           {TEMPLATES.map(t => (
             <button
               key={t.key}
               type="button"
               onClick={() => setTemplateKey(t.key)}
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-all cursor-pointer ${
+              className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-all cursor-pointer ${
                 t.key === templateKey
                   ? 'border-content-primary/40 bg-white/[0.08] text-content-primary'
                   : 'border-surface-500 bg-surface-800 text-content-muted hover:text-content-primary'
               }`}
             >
-              <span className="text-base leading-none">{t.emoji}</span>
               {t.label}
             </button>
           ))}
-          <span className="mx-1 h-6 w-px bg-surface-500" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-content-subtle">Engine</span>
           {ENGINES.map(e => (
             <button
               key={e}
@@ -197,35 +248,27 @@ function DemoContent() {
             </button>
           ))}
         </div>
+        </div>
 
-        <div className="grid gap-4 lg:grid-cols-5">
-
-          {/* Canvas */}
-          <div className="lg:col-span-3 h-[420px] overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
-            {/* key: şablon değişince tuval yeniden kuruluyor. `fitView` yalnızca
-                ilk kurulumda çalışıyor; anahtar olmadan yeni şemanın bir kısmı
-                eski görünüm penceresinin dışında kalıyordu. */}
-            {gridColor && (
-            <ReactFlow
-              key={template?.key}
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              nodesDraggable={false}
-              nodesConnectable={false}
-              elementsSelectable={false}
-              deleteKeyCode={null}
-              fitView
-              fitViewOptions={{ padding: 0.15 }}
-            >
-              <Background variant={BackgroundVariant.Dots} gap={24} size={1} color={gridColor} />
-              <Controls showInteractive={false} />
-            </ReactFlow>
-            )}
+        {/* Tuval TAM GENİŞLİK.
+            Yan yana yerleşimde 25 tablo, 680px'lik bir panele sığması için
+            %20 yakınlaştırmaya iniyordu: tablolar 60px genişliğinde birer
+            lekeye dönüşüyor, ekran boş görünüyordu. Gerçek boyutlu bir şema,
+            gerçek boyutlu bir alan ister. */}
+        <div>
+          <div className="h-[560px] overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
+            <DemoCanvas nodes={nodes} edges={edges} resetKey={template?.key ?? ''} />
           </div>
+          <p className="mt-2 text-[11px] text-content-subtle">
+            {template ? `${template.schema.tables.length} tables · ${template.schema.relations.length} relationships` : ''}
+            {' — drag to pan, use the controls to zoom.'}
+          </p>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
 
           {/* Kanit paneli */}
-          <div className="lg:col-span-2 flex h-[420px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
+          <div className="flex h-[420px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
             <div className="flex items-center justify-between border-b border-surface-600 px-4 py-3">
               <span className="text-sm font-semibold text-content-primary">Rule engine findings</span>
               {proving && <Loader2 className="h-4 w-4 animate-spin text-content-muted" />}
@@ -260,18 +303,29 @@ function DemoContent() {
                       <span>Every rule passed on this schema. The same checks run on yours.</span>
                     </div>
                   )}
-                  {lint.map((m, i) => {
-                    const severity = severityOf(m.severity);
-                    const Icon = severity === 'info' ? Info : AlertTriangle;
-                    const color = severity === 'error'
+                  {grouped.map((g, i) => {
+                    const Icon = g.severity === 'info' ? Info : AlertTriangle;
+                    const color = g.severity === 'error'
                       ? 'text-danger'
-                      : severity === 'warning'
+                      : g.severity === 'warning'
                       ? 'text-warning-text'
                       : 'text-content-muted';
                     return (
                       <div key={i} className="flex items-start gap-2 rounded-lg bg-surface-700 p-2.5 text-xs leading-relaxed text-content-secondary">
                         <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${color}`} />
-                        <span>{m.message}</span>
+                        <span className="min-w-0">
+                          {g.message}
+                          {g.count > 1 && (
+                            <span className="ml-1.5 rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-bold text-content-primary">
+                              ×{g.count}
+                            </span>
+                          )}
+                          {g.count > 1 && g.subjects.length > 0 && (
+                            <span className="mt-1 block text-[10px] text-content-subtle">
+                              {g.subjects.join(', ')}{g.count > g.subjects.length ? ', …' : ''}
+                            </span>
+                          )}
+                        </span>
                       </div>
                     );
                   })}
@@ -279,19 +333,19 @@ function DemoContent() {
               </>
             )}
           </div>
-        </div>
 
-        {/* Uretilen SQL */}
-        <div className="overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
-          <div className="flex items-center justify-between border-b border-surface-600 px-4 py-3">
-            <span className="text-sm font-semibold text-content-primary">Generated {engine} DDL</span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-content-subtle">
-              deterministic &middot; no model involved
-            </span>
+          {/* Uretilen SQL */}
+          <div className="flex h-[420px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
+            <div className="flex items-center justify-between border-b border-surface-600 px-4 py-3">
+              <span className="text-sm font-semibold text-content-primary">Generated {engine} DDL</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-content-subtle">
+                deterministic &middot; no model involved
+              </span>
+            </div>
+            <pre className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-content-secondary">
+              {sql ?? (proving ? 'Generating…' : '—')}
+            </pre>
           </div>
-          <pre className="max-h-72 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-content-secondary">
-            {sql ?? (proving ? 'Generating…' : '—')}
-          </pre>
         </div>
 
         {/* Donusum */}
@@ -307,13 +361,13 @@ function DemoContent() {
             >
               Open this in the editor
             </button>
-            <a
+            <Link
               href="/"
               className="flex items-center gap-2 rounded-xl bg-content-primary px-4 py-2.5 text-xs font-bold text-surface-900 transition-all hover:bg-content-secondary"
             >
               <Wand2 className="h-3.5 w-3.5" />
               Describe your own
-            </a>
+            </Link>
           </div>
         </div>
       </div>

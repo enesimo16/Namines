@@ -1,248 +1,1347 @@
 import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../types/schema';
 
-const col = (
-  id: string, name: string, type: string,
-  isPK = false, isFK = false, isNullable = true,
-): SchemaColumn => ({ id, stableUuid: id, name, type, isPK, isFK, isNullable, length: null, defaultValue: null });
+/**
+ * Şema şablonları.
+ *
+ * **Neden kompakt bir tanım dili:** şablonlar önce her kolon ve her ilişki için
+ * elle kimlik yazılarak tutuluyordu (`col('ec-p5', 'category_id', ...)` +
+ * ayrıca `rel('ec-rel1', ..., 'ec-p5', 'ec-cats', 'ec-ca1')`). Beş küçük şablonda
+ * bu katlanılabilirdi; 20-25 tabloluk gerçekçi şablonlarda aynı kimliği üç ayrı
+ * yerde doğru yazmak demek olurdu ve **sessizce kırık ilişki** üretmenin en kolay
+ * yolu budur — bağıntı ekranda hiç çizilmez, kimse de fark etmez.
+ *
+ * Artık yabancı anahtar, kolonun kendi tanımında duruyor (`>tablo.kolon`) ve
+ * ilişkiler oradan TÜRETİLİYOR. Hedefi olmayan bir bağıntı **açılışta hata
+ * fırlatıyor**: kırık bir şablonla sessizce çalışmaktansa hemen görünmesi daha
+ * iyi, çünkü şablonlar ürünün ilk temas yüzeyi (bkz. second-phase/17).
+ *
+ * ### Kolon dili
+ * ```
+ * 'ad TİP [bayraklar]'
+ *   pk            birincil anahtar (NOT NULL ima eder)
+ *   !             NOT NULL
+ *   ?             NULL kabul eder — yabancı anahtarın varsayılanını bozar
+ *   >tablo.kolon  yabancı anahtar (NOT NULL ima eder, '?' ile gevşetilir)
+ * ```
+ *
+ * ### Şablonların uyduğu kurallar
+ * Hepsi ürünün KENDİ kural motorundan hata/uyarısız geçiyor
+ * (`npm run check:templates`). Bu tesadüf değil, şart: "AI üretir, kural motoru
+ * kanıtlar" diyen bir ürünün kendi örnek şemalarının o motordan geçememesi,
+ * iddiayı ilk temasta çürütürdü. Pratikte üç kurala dönüşüyor:
+ *
+ * 1. **Her tabloda tam bir birincil anahtar** — ara tablolarda bile. Bileşik
+ *    anahtar yerine vekil `id` kullanılıyor, çünkü iki `pk` "birden çok birincil
+ *    anahtar" hatası veriyor, sıfır `pk` ise "birincil anahtar yok" uyarısı.
+ * 2. **Yabancı anahtarın tipi hedefin tipiyle aynı** — farklıysa hata.
+ * 3. **İki tablo birbirini işaret etmiyor** (A→B ve B→A döngü uyarısı verir).
+ *    Kendine dönen bağıntılar (`parent_id`, `manager_id`) güvenli ve kullanılıyor.
+ */
 
-const tbl = (id: string, name: string, columns: SchemaColumn[]): SchemaTable =>
-  ({ id, stableUuid: id, name, columns });
+// ── Kompakt tanım ────────────────────────────────────────────────────────────
 
-const rel = (
-  id: string, type: string,
-  srcT: string, srcC: string, tgtT: string, tgtC: string,
-): SchemaRelation => ({ id, type, sourceTableId: srcT, sourceColumnId: srcC, targetTableId: tgtT, targetColumnId: tgtC });
+interface TemplateSpec {
+  key: string;
+  label: string;
+  description: string;
+  /** Tablo adı → kolon tanımları. Sıra, tuvaldeki yerleşimi belirliyor. */
+  tables: Record<string, string[]>;
+}
 
-// ── Templates ─────────────────────────────────────────────────────────────────
+interface ParsedColumn {
+  name: string;
+  type: string;
+  isPK: boolean;
+  isNullable: boolean;
+  ref: { table: string; column: string } | null;
+}
+
+function parseColumn(spec: string): ParsedColumn {
+  const [name, type, ...flags] = spec.trim().split(/\s+/);
+  if (!name || !type) throw new Error(`Malformed column spec: "${spec}"`);
+
+  const refFlag = flags.find(f => f.startsWith('>'));
+  const ref = refFlag ? refFlag.slice(1) : null;
+  const [refTable, refColumn] = ref ? ref.split('.') : [null, null];
+
+  if (ref && (!refTable || !refColumn)) {
+    throw new Error(`Malformed reference in "${spec}" — expected >table.column`);
+  }
+
+  const isPK = flags.includes('pk');
+  // Yabancı anahtar varsayılan olarak zorunlu: isteğe bağlı olan istisnadır ve
+  // yazarın onu açıkça '?' ile belirtmesi, unutulduğunda sessizce gevşek bir
+  // şema üretmekten iyi.
+  const required = isPK || flags.includes('!') || (ref !== null && !flags.includes('?'));
+
+  return {
+    name,
+    type,
+    isPK,
+    isNullable: !required,
+    ref: refTable && refColumn ? { table: refTable, column: refColumn } : null,
+  };
+}
+
+function build(spec: TemplateSpec): DatabaseSchema {
+  const tableId = (t: string) => `${spec.key}-${t}`;
+  const columnId = (t: string, c: string) => `${spec.key}-${t}-${c}`;
+
+  const parsed = Object.entries(spec.tables).map(([name, columns]) => ({
+    name,
+    columns: columns.map(parseColumn),
+  }));
+
+  const byName = new Map(parsed.map(t => [t.name, t]));
+
+  const tables: SchemaTable[] = parsed.map(t => ({
+    id: tableId(t.name),
+    stableUuid: tableId(t.name),
+    name: t.name,
+    columns: t.columns.map<SchemaColumn>(c => ({
+      id: columnId(t.name, c.name),
+      stableUuid: columnId(t.name, c.name),
+      name: c.name,
+      type: c.type,
+      isPK: c.isPK,
+      isFK: c.ref !== null,
+      isNullable: c.isNullable,
+      length: null,
+      defaultValue: null,
+    })),
+  }));
+
+  const relations: SchemaRelation[] = [];
+  for (const table of parsed) {
+    for (const column of table.columns) {
+      if (!column.ref) continue;
+
+      const target = byName.get(column.ref.table);
+      const targetColumn = target?.columns.find(c => c.name === column.ref!.column);
+
+      // Hedefi olmayan bir bağıntı, tuvalde çizilmeyen ve kimsenin fark etmediği
+      // bir bağ demek. Sessizce atlamak yerine açılışta patlıyor.
+      if (!target || !targetColumn) {
+        throw new Error(
+          `Template "${spec.key}": ${table.name}.${column.name} references ` +
+          `${column.ref.table}.${column.ref.column}, which does not exist.`,
+        );
+      }
+
+      relations.push({
+        id: `${spec.key}-fk-${table.name}-${column.name}`,
+        type: 'ManyToOne',
+        sourceTableId: tableId(table.name),
+        sourceColumnId: columnId(table.name, column.name),
+        targetTableId: tableId(target.name),
+        targetColumnId: columnId(target.name, targetColumn.name),
+      });
+    }
+  }
+
+  return { schemaId: `tpl-${spec.key}`, name: spec.label, tables, relations };
+}
+
+// ── Şablon tanımları ─────────────────────────────────────────────────────────
+
+const SPECS: TemplateSpec[] = [
+  {
+    key: 'ecommerce',
+    label: 'E-Commerce',
+    description:
+      'Catalogue with variants, multi-warehouse stock, carts, orders, split shipments, payments, refunds and coupons.',
+    tables: {
+      users: [
+        'id INT pk', 'email VARCHAR !', 'password_hash VARCHAR !', 'full_name VARCHAR',
+        'phone VARCHAR', 'is_active BOOLEAN !', 'created_at TIMESTAMP !',
+      ],
+      addresses: [
+        'id INT pk', 'user_id INT >users.id', 'label VARCHAR', 'line1 VARCHAR !',
+        'line2 VARCHAR', 'city VARCHAR !', 'postal_code VARCHAR', 'country_code VARCHAR !',
+        'is_default BOOLEAN !',
+      ],
+      categories: [
+        'id INT pk', 'parent_id INT >categories.id ?', 'name VARCHAR !', 'slug VARCHAR !',
+        'position INT !',
+      ],
+      brands: ['id INT pk', 'name VARCHAR !', 'slug VARCHAR !', 'logo_url VARCHAR'],
+      products: [
+        'id INT pk', 'category_id INT >categories.id', 'brand_id INT >brands.id ?',
+        'name VARCHAR !', 'slug VARCHAR !', 'description TEXT', 'status VARCHAR !',
+        'created_at TIMESTAMP !',
+      ],
+      product_variants: [
+        'id INT pk', 'product_id INT >products.id', 'sku VARCHAR !', 'title VARCHAR !',
+        'price DECIMAL !', 'compare_at_price DECIMAL', 'weight_grams INT', 'barcode VARCHAR',
+      ],
+      product_images: [
+        'id INT pk', 'product_id INT >products.id', 'variant_id INT >product_variants.id ?',
+        'url VARCHAR !', 'alt_text VARCHAR', 'position INT !',
+      ],
+      warehouses: [
+        'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'city VARCHAR', 'country_code VARCHAR !',
+      ],
+      inventory_items: [
+        'id INT pk', 'variant_id INT >product_variants.id', 'warehouse_id INT >warehouses.id',
+        'on_hand INT !', 'reserved INT !', 'reorder_point INT',
+      ],
+      suppliers: [
+        'id INT pk', 'name VARCHAR !', 'contact_email VARCHAR', 'phone VARCHAR', 'country_code VARCHAR',
+      ],
+      purchase_orders: [
+        'id INT pk', 'supplier_id INT >suppliers.id', 'warehouse_id INT >warehouses.id',
+        'status VARCHAR !', 'ordered_at TIMESTAMP !', 'expected_at DATE', 'total DECIMAL !',
+      ],
+      carts: [
+        'id INT pk', 'user_id INT >users.id ?', 'session_token VARCHAR', 'currency VARCHAR !',
+        'created_at TIMESTAMP !', 'updated_at TIMESTAMP',
+      ],
+      cart_items: [
+        'id INT pk', 'cart_id INT >carts.id', 'variant_id INT >product_variants.id',
+        'quantity INT !', 'unit_price DECIMAL !',
+      ],
+      coupons: [
+        'id INT pk', 'code VARCHAR !', 'discount_type VARCHAR !', 'discount_value DECIMAL !',
+        'starts_at TIMESTAMP', 'ends_at TIMESTAMP', 'max_redemptions INT',
+      ],
+      orders: [
+        'id INT pk', 'user_id INT >users.id', 'shipping_address_id INT >addresses.id ?',
+        'billing_address_id INT >addresses.id ?', 'number VARCHAR !', 'status VARCHAR !',
+        'currency VARCHAR !', 'subtotal DECIMAL !', 'shipping_total DECIMAL !',
+        'discount_total DECIMAL !', 'grand_total DECIMAL !', 'placed_at TIMESTAMP !',
+      ],
+      order_items: [
+        'id INT pk', 'order_id INT >orders.id', 'variant_id INT >product_variants.id',
+        'quantity INT !', 'unit_price DECIMAL !', 'line_total DECIMAL !',
+      ],
+      coupon_redemptions: [
+        'id INT pk', 'coupon_id INT >coupons.id', 'order_id INT >orders.id',
+        'amount_off DECIMAL !', 'redeemed_at TIMESTAMP !',
+      ],
+      order_shipments: [
+        'id INT pk', 'order_id INT >orders.id', 'warehouse_id INT >warehouses.id',
+        'carrier VARCHAR', 'tracking_number VARCHAR', 'status VARCHAR !', 'shipped_at TIMESTAMP',
+      ],
+      shipment_items: [
+        'id INT pk', 'shipment_id INT >order_shipments.id', 'order_item_id INT >order_items.id',
+        'quantity INT !',
+      ],
+      payments: [
+        'id INT pk', 'order_id INT >orders.id', 'provider VARCHAR !', 'provider_reference VARCHAR',
+        'status VARCHAR !', 'amount DECIMAL !', 'currency VARCHAR !', 'captured_at TIMESTAMP',
+      ],
+      refunds: [
+        'id INT pk', 'payment_id INT >payments.id', 'amount DECIMAL !', 'reason VARCHAR',
+        'status VARCHAR !', 'created_at TIMESTAMP !',
+      ],
+      reviews: [
+        'id INT pk', 'product_id INT >products.id', 'user_id INT >users.id',
+        'order_item_id INT >order_items.id ?', 'rating INT !', 'title VARCHAR', 'body TEXT',
+        'created_at TIMESTAMP !',
+      ],
+      review_votes: [
+        'id INT pk', 'review_id INT >reviews.id', 'user_id INT >users.id', 'is_helpful BOOLEAN !',
+      ],
+      wishlists: [
+        'id INT pk', 'user_id INT >users.id', 'name VARCHAR !', 'is_public BOOLEAN !',
+      ],
+      wishlist_items: [
+        'id INT pk', 'wishlist_id INT >wishlists.id', 'variant_id INT >product_variants.id',
+        'added_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'saas',
+    label: 'SaaS Platform',
+    description:
+      'Multi-tenant workspaces with roles and permissions, metered billing, API keys, webhooks and an audit trail.',
+    tables: {
+      users: [
+        'id UUID pk', 'email VARCHAR !', 'password_hash VARCHAR', 'full_name VARCHAR',
+        'avatar_url VARCHAR', 'email_verified_at TIMESTAMP', 'created_at TIMESTAMP !',
+      ],
+      sessions: [
+        'id UUID pk', 'user_id UUID >users.id', 'token_hash VARCHAR !', 'ip_address VARCHAR',
+        'user_agent VARCHAR', 'expires_at TIMESTAMP !', 'created_at TIMESTAMP !',
+      ],
+      organizations: [
+        'id UUID pk', 'owner_id UUID >users.id', 'name VARCHAR !', 'slug VARCHAR !',
+        'logo_url VARCHAR', 'created_at TIMESTAMP !',
+      ],
+      roles: [
+        'id UUID pk', 'organization_id UUID >organizations.id ?', 'name VARCHAR !',
+        'is_system BOOLEAN !',
+      ],
+      permissions: ['id UUID pk', 'code VARCHAR !', 'description VARCHAR'],
+      role_permissions: [
+        'id UUID pk', 'role_id UUID >roles.id', 'permission_id UUID >permissions.id',
+      ],
+      memberships: [
+        'id UUID pk', 'user_id UUID >users.id', 'organization_id UUID >organizations.id',
+        'role_id UUID >roles.id', 'status VARCHAR !', 'joined_at TIMESTAMP !',
+      ],
+      invitations: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'invited_by UUID >users.id',
+        'role_id UUID >roles.id', 'email VARCHAR !', 'token_hash VARCHAR !',
+        'expires_at TIMESTAMP !', 'accepted_at TIMESTAMP',
+      ],
+      projects: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'name VARCHAR !', 'slug VARCHAR !',
+        'archived_at TIMESTAMP', 'created_at TIMESTAMP !',
+      ],
+      project_members: [
+        'id UUID pk', 'project_id UUID >projects.id', 'user_id UUID >users.id',
+        'access_level VARCHAR !',
+      ],
+      api_keys: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'created_by UUID >users.id',
+        'name VARCHAR !', 'key_hash VARCHAR !', 'last_used_at TIMESTAMP', 'expires_at TIMESTAMP',
+        'revoked_at TIMESTAMP',
+      ],
+      api_key_scopes: [
+        'id UUID pk', 'api_key_id UUID >api_keys.id', 'permission_id UUID >permissions.id',
+      ],
+      webhooks: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'target_url VARCHAR !',
+        'secret VARCHAR !', 'event_types VARCHAR !', 'is_active BOOLEAN !',
+      ],
+      webhook_deliveries: [
+        'id UUID pk', 'webhook_id UUID >webhooks.id', 'event_type VARCHAR !',
+        'response_status INT', 'attempt INT !', 'delivered_at TIMESTAMP', 'payload TEXT',
+      ],
+      plans: [
+        'id UUID pk', 'code VARCHAR !', 'name VARCHAR !', 'monthly_price DECIMAL !',
+        'yearly_price DECIMAL', 'seat_limit INT', 'is_public BOOLEAN !',
+      ],
+      subscriptions: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'plan_id UUID >plans.id',
+        'provider_reference VARCHAR', 'status VARCHAR !', 'seats INT !',
+        'current_period_start TIMESTAMP !', 'current_period_end TIMESTAMP !',
+        'cancel_at TIMESTAMP',
+      ],
+      invoices: [
+        'id UUID pk', 'subscription_id UUID >subscriptions.id', 'number VARCHAR !',
+        'status VARCHAR !', 'total DECIMAL !', 'currency VARCHAR !', 'issued_at TIMESTAMP !',
+        'paid_at TIMESTAMP',
+      ],
+      invoice_lines: [
+        'id UUID pk', 'invoice_id UUID >invoices.id', 'description VARCHAR !', 'quantity INT !',
+        'unit_price DECIMAL !', 'amount DECIMAL !',
+      ],
+      usage_records: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'metric VARCHAR !',
+        'quantity BIGINT !', 'recorded_at TIMESTAMP !',
+      ],
+      feature_flags: [
+        'id UUID pk', 'key VARCHAR !', 'description VARCHAR', 'default_enabled BOOLEAN !',
+      ],
+      feature_flag_overrides: [
+        'id UUID pk', 'feature_flag_id UUID >feature_flags.id',
+        'organization_id UUID >organizations.id', 'is_enabled BOOLEAN !',
+      ],
+      notifications: [
+        'id UUID pk', 'user_id UUID >users.id', 'type VARCHAR !', 'body TEXT',
+        'read_at TIMESTAMP', 'created_at TIMESTAMP !',
+      ],
+      audit_logs: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'actor_id UUID >users.id ?',
+        'action VARCHAR !', 'entity_type VARCHAR !', 'entity_id VARCHAR', 'ip_address VARCHAR',
+        'created_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'cms',
+    label: 'Publishing / CMS',
+    description:
+      'Multi-site publishing with revisions, editorial roles, media library, menus, redirects and moderated comments.',
+    tables: {
+      users: [
+        'id INT pk', 'email VARCHAR !', 'display_name VARCHAR !', 'password_hash VARCHAR !',
+        'bio TEXT', 'created_at TIMESTAMP !',
+      ],
+      roles: ['id INT pk', 'name VARCHAR !', 'description VARCHAR'],
+      user_roles: ['id INT pk', 'user_id INT >users.id', 'role_id INT >roles.id'],
+      sites: [
+        'id INT pk', 'name VARCHAR !', 'domain VARCHAR !', 'default_locale VARCHAR !',
+        'is_published BOOLEAN !',
+      ],
+      media_folders: [
+        'id INT pk', 'site_id INT >sites.id', 'parent_id INT >media_folders.id ?', 'name VARCHAR !',
+      ],
+      media_assets: [
+        'id INT pk', 'folder_id INT >media_folders.id ?', 'uploaded_by INT >users.id',
+        'file_name VARCHAR !', 'mime_type VARCHAR !', 'size_bytes BIGINT !', 'url VARCHAR !',
+        'alt_text VARCHAR', 'uploaded_at TIMESTAMP !',
+      ],
+      categories: [
+        'id INT pk', 'site_id INT >sites.id', 'parent_id INT >categories.id ?', 'name VARCHAR !',
+        'slug VARCHAR !',
+      ],
+      tags: ['id INT pk', 'site_id INT >sites.id', 'name VARCHAR !', 'slug VARCHAR !'],
+      posts: [
+        'id INT pk', 'site_id INT >sites.id', 'author_id INT >users.id',
+        'cover_image_id INT >media_assets.id ?', 'title VARCHAR !', 'slug VARCHAR !',
+        'excerpt TEXT', 'body TEXT', 'status VARCHAR !', 'published_at TIMESTAMP',
+        'created_at TIMESTAMP !',
+      ],
+      post_revisions: [
+        'id INT pk', 'post_id INT >posts.id', 'edited_by INT >users.id', 'title VARCHAR !',
+        'body TEXT', 'revision_number INT !', 'created_at TIMESTAMP !',
+      ],
+      post_categories: [
+        'id INT pk', 'post_id INT >posts.id', 'category_id INT >categories.id',
+      ],
+      post_tags: ['id INT pk', 'post_id INT >posts.id', 'tag_id INT >tags.id'],
+      pages: [
+        'id INT pk', 'site_id INT >sites.id', 'parent_id INT >pages.id ?',
+        'author_id INT >users.id', 'title VARCHAR !', 'slug VARCHAR !', 'body TEXT',
+        'template VARCHAR', 'status VARCHAR !', 'published_at TIMESTAMP',
+      ],
+      page_revisions: [
+        'id INT pk', 'page_id INT >pages.id', 'edited_by INT >users.id', 'body TEXT',
+        'revision_number INT !', 'created_at TIMESTAMP !',
+      ],
+      comments: [
+        'id INT pk', 'post_id INT >posts.id', 'parent_id INT >comments.id ?',
+        'author_id INT >users.id ?', 'guest_name VARCHAR', 'body TEXT !', 'status VARCHAR !',
+        'created_at TIMESTAMP !',
+      ],
+      comment_reports: [
+        'id INT pk', 'comment_id INT >comments.id', 'reported_by INT >users.id ?',
+        'reason VARCHAR !', 'resolved_at TIMESTAMP',
+      ],
+      menus: ['id INT pk', 'site_id INT >sites.id', 'name VARCHAR !', 'location VARCHAR !'],
+      menu_items: [
+        'id INT pk', 'menu_id INT >menus.id', 'parent_id INT >menu_items.id ?',
+        'page_id INT >pages.id ?', 'label VARCHAR !', 'url VARCHAR', 'position INT !',
+      ],
+      redirects: [
+        'id INT pk', 'site_id INT >sites.id', 'from_path VARCHAR !', 'to_path VARCHAR !',
+        'status_code INT !',
+      ],
+      forms: [
+        'id INT pk', 'site_id INT >sites.id', 'name VARCHAR !', 'fields_json TEXT',
+        'notify_email VARCHAR',
+      ],
+      form_submissions: [
+        'id INT pk', 'form_id INT >forms.id', 'payload TEXT', 'ip_address VARCHAR',
+        'submitted_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'crm',
+    label: 'CRM & Sales',
+    description:
+      'Accounts, contacts and leads through a staged pipeline, with quotes, activities, campaigns and territories.',
+    tables: {
+      users: [
+        'id INT pk', 'email VARCHAR !', 'full_name VARCHAR !', 'title VARCHAR',
+        'manager_id INT >users.id ?', 'is_active BOOLEAN !',
+      ],
+      territories: [
+        'id INT pk', 'parent_id INT >territories.id ?', 'name VARCHAR !', 'region_code VARCHAR',
+      ],
+      teams: ['id INT pk', 'name VARCHAR !', 'territory_id INT >territories.id ?'],
+      team_members: ['id INT pk', 'team_id INT >teams.id', 'user_id INT >users.id', 'role VARCHAR'],
+      accounts: [
+        'id INT pk', 'owner_id INT >users.id', 'territory_id INT >territories.id ?',
+        'name VARCHAR !', 'industry VARCHAR', 'website VARCHAR', 'employee_count INT',
+        'annual_revenue DECIMAL', 'created_at TIMESTAMP !',
+      ],
+      contacts: [
+        'id INT pk', 'account_id INT >accounts.id ?', 'owner_id INT >users.id',
+        'first_name VARCHAR !', 'last_name VARCHAR !', 'title VARCHAR', 'phone VARCHAR',
+        'created_at TIMESTAMP !',
+      ],
+      contact_emails: [
+        'id INT pk', 'contact_id INT >contacts.id', 'email VARCHAR !', 'is_primary BOOLEAN !',
+        'opted_out BOOLEAN !',
+      ],
+      lead_sources: ['id INT pk', 'name VARCHAR !', 'channel VARCHAR'],
+      leads: [
+        'id INT pk', 'owner_id INT >users.id', 'source_id INT >lead_sources.id ?',
+        'converted_contact_id INT >contacts.id ?', 'company VARCHAR', 'first_name VARCHAR',
+        'last_name VARCHAR !', 'email VARCHAR', 'status VARCHAR !', 'score INT',
+        'created_at TIMESTAMP !',
+      ],
+      opportunity_stages: [
+        'id INT pk', 'name VARCHAR !', 'position INT !', 'win_probability INT !',
+        'is_closed BOOLEAN !',
+      ],
+      opportunities: [
+        'id INT pk', 'account_id INT >accounts.id', 'primary_contact_id INT >contacts.id ?',
+        'owner_id INT >users.id', 'stage_id INT >opportunity_stages.id', 'name VARCHAR !',
+        'amount DECIMAL', 'currency VARCHAR !', 'expected_close DATE', 'closed_at TIMESTAMP',
+      ],
+      products: [
+        'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'list_price DECIMAL !',
+        'is_active BOOLEAN !',
+      ],
+      opportunity_products: [
+        'id INT pk', 'opportunity_id INT >opportunities.id', 'product_id INT >products.id',
+        'quantity INT !', 'unit_price DECIMAL !', 'discount_percent DECIMAL',
+      ],
+      quotes: [
+        'id INT pk', 'opportunity_id INT >opportunities.id', 'prepared_by INT >users.id',
+        'number VARCHAR !', 'status VARCHAR !', 'valid_until DATE', 'total DECIMAL !',
+      ],
+      quote_lines: [
+        'id INT pk', 'quote_id INT >quotes.id', 'product_id INT >products.id', 'quantity INT !',
+        'unit_price DECIMAL !', 'line_total DECIMAL !',
+      ],
+      activities: [
+        'id INT pk', 'user_id INT >users.id', 'account_id INT >accounts.id ?',
+        'contact_id INT >contacts.id ?', 'opportunity_id INT >opportunities.id ?',
+        'type VARCHAR !', 'subject VARCHAR !', 'occurred_at TIMESTAMP !', 'duration_minutes INT',
+      ],
+      tasks: [
+        'id INT pk', 'assigned_to INT >users.id', 'opportunity_id INT >opportunities.id ?',
+        'subject VARCHAR !', 'due_at TIMESTAMP', 'priority VARCHAR !', 'completed_at TIMESTAMP',
+      ],
+      notes: [
+        'id INT pk', 'author_id INT >users.id', 'account_id INT >accounts.id ?',
+        'contact_id INT >contacts.id ?', 'body TEXT !', 'created_at TIMESTAMP !',
+      ],
+      campaigns: [
+        'id INT pk', 'owner_id INT >users.id', 'name VARCHAR !', 'channel VARCHAR !',
+        'budget DECIMAL', 'starts_on DATE', 'ends_on DATE', 'status VARCHAR !',
+      ],
+      campaign_members: [
+        'id INT pk', 'campaign_id INT >campaigns.id', 'lead_id INT >leads.id ?',
+        'contact_id INT >contacts.id ?', 'status VARCHAR !', 'responded_at TIMESTAMP',
+      ],
+      tickets: [
+        'id INT pk', 'account_id INT >accounts.id', 'contact_id INT >contacts.id ?',
+        'assigned_to INT >users.id ?', 'subject VARCHAR !', 'priority VARCHAR !',
+        'status VARCHAR !', 'opened_at TIMESTAMP !', 'closed_at TIMESTAMP',
+      ],
+      ticket_messages: [
+        'id INT pk', 'ticket_id INT >tickets.id', 'author_id INT >users.id ?', 'body TEXT !',
+        'is_internal BOOLEAN !', 'sent_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'healthcare',
+    label: 'Healthcare / EMR',
+    description:
+      'Patient records with encounters, coded diagnoses and procedures, prescriptions, labs, vitals and insurance claims.',
+    tables: {
+      patients: [
+        'id INT pk', 'medical_record_number VARCHAR !', 'first_name VARCHAR !',
+        'last_name VARCHAR !', 'date_of_birth DATE !', 'sex_at_birth VARCHAR', 'phone VARCHAR',
+        'email VARCHAR', 'created_at TIMESTAMP !',
+      ],
+      patient_addresses: [
+        'id INT pk', 'patient_id INT >patients.id', 'line1 VARCHAR !', 'city VARCHAR !',
+        'postal_code VARCHAR', 'country_code VARCHAR !', 'is_primary BOOLEAN !',
+      ],
+      insurers: ['id INT pk', 'name VARCHAR !', 'payer_code VARCHAR !', 'phone VARCHAR'],
+      insurance_policies: [
+        'id INT pk', 'patient_id INT >patients.id', 'insurer_id INT >insurers.id',
+        'policy_number VARCHAR !', 'group_number VARCHAR', 'valid_from DATE !', 'valid_to DATE',
+      ],
+      facilities: [
+        'id INT pk', 'name VARCHAR !', 'address VARCHAR', 'city VARCHAR', 'phone VARCHAR',
+      ],
+      departments: [
+        'id INT pk', 'facility_id INT >facilities.id', 'name VARCHAR !', 'floor VARCHAR',
+      ],
+      specialties: ['id INT pk', 'code VARCHAR !', 'name VARCHAR !'],
+      practitioners: [
+        'id INT pk', 'department_id INT >departments.id ?', 'first_name VARCHAR !',
+        'last_name VARCHAR !', 'license_number VARCHAR !', 'npi VARCHAR', 'email VARCHAR',
+        'is_active BOOLEAN !',
+      ],
+      practitioner_specialties: [
+        'id INT pk', 'practitioner_id INT >practitioners.id', 'specialty_id INT >specialties.id',
+        'certified_on DATE',
+      ],
+      appointments: [
+        'id INT pk', 'patient_id INT >patients.id', 'practitioner_id INT >practitioners.id',
+        'facility_id INT >facilities.id', 'scheduled_at TIMESTAMP !', 'duration_minutes INT !',
+        'reason VARCHAR', 'status VARCHAR !',
+      ],
+      encounters: [
+        'id INT pk', 'appointment_id INT >appointments.id ?', 'patient_id INT >patients.id',
+        'practitioner_id INT >practitioners.id', 'department_id INT >departments.id ?',
+        'encounter_type VARCHAR !', 'started_at TIMESTAMP !', 'ended_at TIMESTAMP',
+        'chief_complaint TEXT',
+      ],
+      icd_codes: ['id INT pk', 'code VARCHAR !', 'description VARCHAR !', 'version VARCHAR !'],
+      diagnoses: [
+        'id INT pk', 'encounter_id INT >encounters.id', 'icd_code_id INT >icd_codes.id',
+        'is_primary BOOLEAN !', 'noted_at TIMESTAMP !', 'notes TEXT',
+      ],
+      cpt_codes: ['id INT pk', 'code VARCHAR !', 'description VARCHAR !', 'base_price DECIMAL'],
+      procedures: [
+        'id INT pk', 'encounter_id INT >encounters.id', 'cpt_code_id INT >cpt_codes.id',
+        'performed_by INT >practitioners.id', 'performed_at TIMESTAMP !', 'outcome VARCHAR',
+      ],
+      medications: [
+        'id INT pk', 'name VARCHAR !', 'form VARCHAR', 'strength VARCHAR', 'rxnorm_code VARCHAR',
+      ],
+      prescriptions: [
+        'id INT pk', 'encounter_id INT >encounters.id', 'medication_id INT >medications.id',
+        'prescribed_by INT >practitioners.id', 'dosage VARCHAR !', 'frequency VARCHAR !',
+        'duration_days INT', 'refills INT', 'prescribed_at TIMESTAMP !',
+      ],
+      allergies: [
+        'id INT pk', 'patient_id INT >patients.id', 'substance VARCHAR !', 'reaction VARCHAR',
+        'severity VARCHAR !', 'recorded_at TIMESTAMP !',
+      ],
+      immunizations: [
+        'id INT pk', 'patient_id INT >patients.id', 'vaccine VARCHAR !', 'dose_number INT',
+        'administered_at TIMESTAMP !', 'lot_number VARCHAR',
+      ],
+      vitals: [
+        'id INT pk', 'encounter_id INT >encounters.id', 'systolic INT', 'diastolic INT',
+        'heart_rate INT', 'temperature_c DECIMAL', 'weight_kg DECIMAL', 'height_cm DECIMAL',
+        'measured_at TIMESTAMP !',
+      ],
+      lab_orders: [
+        'id INT pk', 'encounter_id INT >encounters.id', 'ordered_by INT >practitioners.id',
+        'panel_name VARCHAR !', 'priority VARCHAR !', 'status VARCHAR !', 'ordered_at TIMESTAMP !',
+      ],
+      lab_results: [
+        'id INT pk', 'lab_order_id INT >lab_orders.id', 'analyte VARCHAR !', 'value VARCHAR !',
+        'unit VARCHAR', 'reference_range VARCHAR', 'is_abnormal BOOLEAN !',
+        'resulted_at TIMESTAMP !',
+      ],
+      referrals: [
+        'id INT pk', 'patient_id INT >patients.id', 'referred_by INT >practitioners.id',
+        'specialty_id INT >specialties.id', 'reason TEXT', 'status VARCHAR !',
+        'created_at TIMESTAMP !',
+      ],
+      claims: [
+        'id INT pk', 'encounter_id INT >encounters.id', 'policy_id INT >insurance_policies.id',
+        'claim_number VARCHAR !', 'status VARCHAR !', 'billed_amount DECIMAL !',
+        'paid_amount DECIMAL', 'submitted_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'lms',
+    label: 'Learning Platform',
+    description:
+      'Courses broken into modules and lessons, with enrolments, progress tracking, graded assignments, quizzes and certificates.',
+    tables: {
+      users: [
+        'id INT pk', 'email VARCHAR !', 'full_name VARCHAR !', 'password_hash VARCHAR !',
+        'avatar_url VARCHAR', 'created_at TIMESTAMP !',
+      ],
+      instructors: [
+        'id INT pk', 'user_id INT >users.id', 'headline VARCHAR', 'bio TEXT',
+        'payout_account VARCHAR', 'approved_at TIMESTAMP',
+      ],
+      students: [
+        'id INT pk', 'user_id INT >users.id', 'timezone VARCHAR', 'enrolled_since TIMESTAMP !',
+      ],
+      course_categories: [
+        'id INT pk', 'parent_id INT >course_categories.id ?', 'name VARCHAR !', 'slug VARCHAR !',
+      ],
+      courses: [
+        'id INT pk', 'instructor_id INT >instructors.id', 'category_id INT >course_categories.id',
+        'title VARCHAR !', 'slug VARCHAR !', 'summary TEXT', 'level VARCHAR !', 'price DECIMAL !',
+        'language VARCHAR !', 'status VARCHAR !', 'published_at TIMESTAMP',
+      ],
+      modules: [
+        'id INT pk', 'course_id INT >courses.id', 'title VARCHAR !', 'position INT !',
+        'is_preview BOOLEAN !',
+      ],
+      lessons: [
+        'id INT pk', 'module_id INT >modules.id', 'title VARCHAR !', 'content TEXT',
+        'video_url VARCHAR', 'duration_seconds INT', 'position INT !',
+      ],
+      lesson_resources: [
+        'id INT pk', 'lesson_id INT >lessons.id', 'title VARCHAR !', 'file_url VARCHAR !',
+        'size_bytes BIGINT',
+      ],
+      enrollments: [
+        'id INT pk', 'student_id INT >students.id', 'course_id INT >courses.id',
+        'status VARCHAR !', 'price_paid DECIMAL !', 'enrolled_at TIMESTAMP !',
+        'completed_at TIMESTAMP',
+      ],
+      lesson_progress: [
+        'id INT pk', 'enrollment_id INT >enrollments.id', 'lesson_id INT >lessons.id',
+        'seconds_watched INT !', 'is_complete BOOLEAN !', 'last_viewed_at TIMESTAMP',
+      ],
+      assignments: [
+        'id INT pk', 'module_id INT >modules.id', 'title VARCHAR !', 'instructions TEXT',
+        'max_points INT !', 'due_at TIMESTAMP',
+      ],
+      submissions: [
+        'id INT pk', 'assignment_id INT >assignments.id', 'enrollment_id INT >enrollments.id',
+        'file_url VARCHAR', 'body TEXT', 'submitted_at TIMESTAMP !', 'attempt INT !',
+      ],
+      grades: [
+        'id INT pk', 'submission_id INT >submissions.id', 'graded_by INT >instructors.id',
+        'points DECIMAL !', 'feedback TEXT', 'graded_at TIMESTAMP !',
+      ],
+      quizzes: [
+        'id INT pk', 'module_id INT >modules.id', 'title VARCHAR !', 'time_limit_minutes INT',
+        'pass_percent INT !', 'max_attempts INT',
+      ],
+      questions: [
+        'id INT pk', 'quiz_id INT >quizzes.id', 'prompt TEXT !', 'question_type VARCHAR !',
+        'points INT !', 'position INT !',
+      ],
+      answer_options: [
+        'id INT pk', 'question_id INT >questions.id', 'label VARCHAR !', 'is_correct BOOLEAN !',
+        'position INT !',
+      ],
+      quiz_attempts: [
+        'id INT pk', 'quiz_id INT >quizzes.id', 'enrollment_id INT >enrollments.id',
+        'score DECIMAL', 'started_at TIMESTAMP !', 'submitted_at TIMESTAMP',
+      ],
+      quiz_responses: [
+        'id INT pk', 'attempt_id INT >quiz_attempts.id', 'question_id INT >questions.id',
+        'selected_option_id INT >answer_options.id ?', 'free_text TEXT', 'is_correct BOOLEAN',
+      ],
+      certificates: [
+        'id INT pk', 'enrollment_id INT >enrollments.id', 'serial VARCHAR !',
+        'issued_at TIMESTAMP !', 'pdf_url VARCHAR',
+      ],
+      discussions: [
+        'id INT pk', 'course_id INT >courses.id', 'lesson_id INT >lessons.id ?',
+        'title VARCHAR !', 'created_at TIMESTAMP !',
+      ],
+      discussion_posts: [
+        'id INT pk', 'discussion_id INT >discussions.id', 'parent_id INT >discussion_posts.id ?',
+        'author_id INT >users.id', 'body TEXT !', 'created_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'banking',
+    label: 'Banking & Ledger',
+    description:
+      'Double-entry ledger behind customer accounts, cards, transfers, standing orders, loans and fraud alerts.',
+    tables: {
+      branches: [
+        'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'city VARCHAR', 'country_code VARCHAR !',
+      ],
+      employees: [
+        'id INT pk', 'branch_id INT >branches.id', 'manager_id INT >employees.id ?',
+        'full_name VARCHAR !', 'role VARCHAR !', 'email VARCHAR !', 'hired_on DATE !',
+      ],
+      currencies: ['id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'minor_units INT !'],
+      exchange_rates: [
+        'id INT pk', 'base_currency_id INT >currencies.id', 'quote_currency_id INT >currencies.id',
+        'rate DECIMAL !', 'as_of TIMESTAMP !',
+      ],
+      customers: [
+        'id INT pk', 'branch_id INT >branches.id', 'customer_number VARCHAR !',
+        'first_name VARCHAR !', 'last_name VARCHAR !', 'date_of_birth DATE !',
+        'national_id VARCHAR', 'email VARCHAR', 'risk_rating VARCHAR !', 'onboarded_at TIMESTAMP !',
+      ],
+      customer_documents: [
+        'id INT pk', 'customer_id INT >customers.id', 'document_type VARCHAR !',
+        'reference VARCHAR !', 'verified_at TIMESTAMP', 'expires_on DATE',
+      ],
+      account_types: [
+        'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'is_interest_bearing BOOLEAN !',
+        'overdraft_allowed BOOLEAN !',
+      ],
+      accounts: [
+        'id INT pk', 'account_type_id INT >account_types.id', 'branch_id INT >branches.id',
+        'currency_id INT >currencies.id', 'iban VARCHAR !', 'status VARCHAR !',
+        'balance DECIMAL !', 'available_balance DECIMAL !', 'opened_on DATE !', 'closed_on DATE',
+      ],
+      account_holders: [
+        'id INT pk', 'account_id INT >accounts.id', 'customer_id INT >customers.id',
+        'holder_role VARCHAR !', 'added_on DATE !',
+      ],
+      transaction_categories: [
+        'id INT pk', 'parent_id INT >transaction_categories.id ?', 'name VARCHAR !',
+        'mcc_range VARCHAR',
+      ],
+      transactions: [
+        'id BIGINT pk', 'account_id INT >accounts.id',
+        'category_id INT >transaction_categories.id ?', 'reference VARCHAR !',
+        'description VARCHAR', 'amount DECIMAL !', 'direction VARCHAR !', 'status VARCHAR !',
+        'booked_at TIMESTAMP !', 'value_date DATE',
+      ],
+      ledger_entries: [
+        'id BIGINT pk', 'transaction_id BIGINT >transactions.id', 'account_id INT >accounts.id',
+        'debit DECIMAL !', 'credit DECIMAL !', 'balance_after DECIMAL !', 'posted_at TIMESTAMP !',
+      ],
+      cards: [
+        'id INT pk', 'account_id INT >accounts.id', 'customer_id INT >customers.id',
+        'masked_pan VARCHAR !', 'network VARCHAR !', 'status VARCHAR !', 'expires_on DATE !',
+        'daily_limit DECIMAL',
+      ],
+      card_transactions: [
+        'id BIGINT pk', 'card_id INT >cards.id', 'transaction_id BIGINT >transactions.id ?',
+        'merchant_name VARCHAR !', 'merchant_mcc VARCHAR', 'amount DECIMAL !',
+        'authorised_at TIMESTAMP !', 'settled_at TIMESTAMP',
+      ],
+      beneficiaries: [
+        'id INT pk', 'customer_id INT >customers.id', 'display_name VARCHAR !', 'iban VARCHAR !',
+        'bank_name VARCHAR', 'currency_id INT >currencies.id', 'added_at TIMESTAMP !',
+      ],
+      transfers: [
+        'id BIGINT pk', 'source_account_id INT >accounts.id',
+        'beneficiary_id INT >beneficiaries.id ?', 'amount DECIMAL !', 'currency_id INT >currencies.id',
+        'reference VARCHAR', 'status VARCHAR !', 'requested_at TIMESTAMP !',
+        'executed_at TIMESTAMP',
+      ],
+      standing_orders: [
+        'id INT pk', 'account_id INT >accounts.id', 'beneficiary_id INT >beneficiaries.id',
+        'amount DECIMAL !', 'frequency VARCHAR !', 'next_run_on DATE !', 'ends_on DATE',
+        'is_active BOOLEAN !',
+      ],
+      interest_rates: [
+        'id INT pk', 'account_type_id INT >account_types.id', 'currency_id INT >currencies.id',
+        'annual_rate DECIMAL !', 'effective_from DATE !', 'effective_to DATE',
+      ],
+      loans: [
+        'id INT pk', 'customer_id INT >customers.id', 'account_id INT >accounts.id',
+        'approved_by INT >employees.id ?', 'principal DECIMAL !', 'annual_rate DECIMAL !',
+        'term_months INT !', 'status VARCHAR !', 'disbursed_on DATE', 'matures_on DATE',
+      ],
+      loan_payments: [
+        'id BIGINT pk', 'loan_id INT >loans.id', 'due_on DATE !', 'principal_due DECIMAL !',
+        'interest_due DECIMAL !', 'paid_amount DECIMAL', 'paid_at TIMESTAMP', 'status VARCHAR !',
+      ],
+      fraud_alerts: [
+        'id BIGINT pk', 'account_id INT >accounts.id', 'transaction_id BIGINT >transactions.id ?',
+        'rule_code VARCHAR !', 'severity VARCHAR !', 'status VARCHAR !',
+        'raised_at TIMESTAMP !', 'reviewed_by INT >employees.id ?',
+      ],
+      statements: [
+        'id INT pk', 'account_id INT >accounts.id', 'period_start DATE !', 'period_end DATE !',
+        'opening_balance DECIMAL !', 'closing_balance DECIMAL !', 'generated_at TIMESTAMP !',
+        'pdf_url VARCHAR',
+      ],
+    },
+  },
+
+  {
+    key: 'logistics',
+    label: 'Warehouse & Logistics',
+    description:
+      'Bin-level stock with movement history, inbound receiving, pick-and-pack fulfilment, carriers and route planning.',
+    tables: {
+      warehouses: [
+        'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'city VARCHAR', 'country_code VARCHAR !',
+        'timezone VARCHAR',
+      ],
+      zones: [
+        'id INT pk', 'warehouse_id INT >warehouses.id', 'code VARCHAR !', 'zone_type VARCHAR !',
+        'temperature_c DECIMAL',
+      ],
+      bins: [
+        'id INT pk', 'zone_id INT >zones.id', 'code VARCHAR !', 'aisle VARCHAR', 'rack VARCHAR',
+        'level VARCHAR', 'capacity_units INT',
+      ],
+      products: [
+        'id INT pk', 'sku VARCHAR !', 'name VARCHAR !', 'weight_grams INT', 'volume_cm3 INT',
+        'is_hazardous BOOLEAN !', 'requires_cold_chain BOOLEAN !',
+      ],
+      stock_levels: [
+        'id INT pk', 'product_id INT >products.id', 'bin_id INT >bins.id', 'quantity INT !',
+        'reserved INT !', 'counted_at TIMESTAMP',
+      ],
+      stock_movements: [
+        'id BIGINT pk', 'product_id INT >products.id', 'from_bin_id INT >bins.id ?',
+        'to_bin_id INT >bins.id ?', 'quantity INT !', 'reason VARCHAR !',
+        'occurred_at TIMESTAMP !',
+      ],
+      suppliers: [
+        'id INT pk', 'name VARCHAR !', 'contact_email VARCHAR', 'lead_time_days INT',
+        'country_code VARCHAR',
+      ],
+      purchase_orders: [
+        'id INT pk', 'supplier_id INT >suppliers.id', 'warehouse_id INT >warehouses.id',
+        'number VARCHAR !', 'status VARCHAR !', 'ordered_at TIMESTAMP !', 'expected_on DATE',
+      ],
+      purchase_order_lines: [
+        'id INT pk', 'purchase_order_id INT >purchase_orders.id', 'product_id INT >products.id',
+        'quantity_ordered INT !', 'quantity_received INT !', 'unit_cost DECIMAL !',
+      ],
+      inbound_shipments: [
+        'id INT pk', 'purchase_order_id INT >purchase_orders.id ?',
+        'warehouse_id INT >warehouses.id', 'reference VARCHAR !', 'status VARCHAR !',
+        'arrived_at TIMESTAMP',
+      ],
+      inbound_lines: [
+        'id INT pk', 'inbound_shipment_id INT >inbound_shipments.id',
+        'product_id INT >products.id', 'bin_id INT >bins.id ?', 'quantity INT !',
+        'damaged_quantity INT !',
+      ],
+      outbound_orders: [
+        'id INT pk', 'warehouse_id INT >warehouses.id', 'reference VARCHAR !',
+        'customer_name VARCHAR !', 'ship_to_city VARCHAR', 'ship_to_country VARCHAR !',
+        'priority VARCHAR !', 'status VARCHAR !', 'placed_at TIMESTAMP !',
+      ],
+      outbound_lines: [
+        'id INT pk', 'outbound_order_id INT >outbound_orders.id', 'product_id INT >products.id',
+        'quantity INT !', 'picked_quantity INT !',
+      ],
+      pick_tasks: [
+        'id INT pk', 'outbound_order_id INT >outbound_orders.id', 'bin_id INT >bins.id',
+        'product_id INT >products.id', 'quantity INT !', 'status VARCHAR !',
+        'assigned_at TIMESTAMP', 'completed_at TIMESTAMP',
+      ],
+      cartons: [
+        'id INT pk', 'outbound_order_id INT >outbound_orders.id', 'code VARCHAR !',
+        'weight_grams INT', 'length_cm INT', 'width_cm INT', 'height_cm INT',
+      ],
+      pack_tasks: [
+        'id INT pk', 'carton_id INT >cartons.id', 'outbound_line_id INT >outbound_lines.id',
+        'quantity INT !', 'packed_at TIMESTAMP',
+      ],
+      carriers: [
+        'id INT pk', 'name VARCHAR !', 'scac_code VARCHAR', 'tracking_url_template VARCHAR',
+      ],
+      carrier_services: [
+        'id INT pk', 'carrier_id INT >carriers.id', 'code VARCHAR !', 'name VARCHAR !',
+        'transit_days INT', 'max_weight_grams INT',
+      ],
+      shipments: [
+        'id INT pk', 'outbound_order_id INT >outbound_orders.id',
+        'carrier_service_id INT >carrier_services.id', 'tracking_number VARCHAR',
+        'status VARCHAR !', 'cost DECIMAL', 'dispatched_at TIMESTAMP',
+        'delivered_at TIMESTAMP',
+      ],
+      shipment_events: [
+        'id BIGINT pk', 'shipment_id INT >shipments.id', 'code VARCHAR !', 'description VARCHAR',
+        'location VARCHAR', 'occurred_at TIMESTAMP !',
+      ],
+      vehicles: [
+        'id INT pk', 'carrier_id INT >carriers.id ?', 'plate VARCHAR !', 'vehicle_type VARCHAR !',
+        'capacity_kg INT', 'is_refrigerated BOOLEAN !',
+      ],
+      drivers: [
+        'id INT pk', 'full_name VARCHAR !', 'licence_number VARCHAR !', 'phone VARCHAR',
+        'licence_expires_on DATE',
+      ],
+      routes: [
+        'id INT pk', 'vehicle_id INT >vehicles.id', 'driver_id INT >drivers.id',
+        'warehouse_id INT >warehouses.id', 'planned_for DATE !', 'stop_count INT !',
+        'distance_km DECIMAL', 'status VARCHAR !',
+      ],
+    },
+  },
+
+  {
+    key: 'hr',
+    label: 'HR & Payroll',
+    description:
+      'Org structure with contracts and salary components, payroll runs and payslips, time and leave, reviews and hiring.',
+    tables: {
+      departments: [
+        'id INT pk', 'parent_id INT >departments.id ?', 'name VARCHAR !', 'cost_centre VARCHAR',
+      ],
+      positions: [
+        'id INT pk', 'department_id INT >departments.id', 'title VARCHAR !', 'grade VARCHAR',
+        'is_management BOOLEAN !',
+      ],
+      employees: [
+        'id INT pk', 'department_id INT >departments.id', 'position_id INT >positions.id',
+        'manager_id INT >employees.id ?', 'employee_number VARCHAR !', 'first_name VARCHAR !',
+        'last_name VARCHAR !', 'work_email VARCHAR !', 'date_of_birth DATE', 'hired_on DATE !',
+        'terminated_on DATE', 'status VARCHAR !',
+      ],
+      employment_contracts: [
+        'id INT pk', 'employee_id INT >employees.id', 'contract_type VARCHAR !',
+        'weekly_hours DECIMAL !', 'starts_on DATE !', 'ends_on DATE', 'notice_days INT',
+        'signed_at TIMESTAMP',
+      ],
+      salary_components: [
+        'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'component_type VARCHAR !',
+        'is_taxable BOOLEAN !',
+      ],
+      salaries: [
+        'id INT pk', 'employee_id INT >employees.id', 'component_id INT >salary_components.id',
+        'amount DECIMAL !', 'currency VARCHAR !', 'effective_from DATE !', 'effective_to DATE',
+      ],
+      payroll_runs: [
+        'id INT pk', 'period_start DATE !', 'period_end DATE !', 'status VARCHAR !',
+        'approved_by INT >employees.id ?', 'paid_on DATE',
+      ],
+      payslips: [
+        'id INT pk', 'payroll_run_id INT >payroll_runs.id', 'employee_id INT >employees.id',
+        'gross DECIMAL !', 'net DECIMAL !', 'tax_total DECIMAL !', 'currency VARCHAR !',
+        'pdf_url VARCHAR',
+      ],
+      payslip_lines: [
+        'id INT pk', 'payslip_id INT >payslips.id', 'component_id INT >salary_components.id',
+        'amount DECIMAL !', 'quantity DECIMAL',
+      ],
+      time_entries: [
+        'id BIGINT pk', 'employee_id INT >employees.id', 'worked_on DATE !', 'hours DECIMAL !',
+        'project_code VARCHAR', 'is_billable BOOLEAN !', 'approved_by INT >employees.id ?',
+      ],
+      attendance: [
+        'id BIGINT pk', 'employee_id INT >employees.id', 'clock_in TIMESTAMP !',
+        'clock_out TIMESTAMP', 'source VARCHAR !', 'location VARCHAR',
+      ],
+      leave_types: [
+        'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'is_paid BOOLEAN !',
+        'annual_allowance_days DECIMAL',
+      ],
+      leave_requests: [
+        'id INT pk', 'employee_id INT >employees.id', 'leave_type_id INT >leave_types.id',
+        'approver_id INT >employees.id ?', 'starts_on DATE !', 'ends_on DATE !', 'days DECIMAL !',
+        'status VARCHAR !', 'reason VARCHAR',
+      ],
+      leave_balances: [
+        'id INT pk', 'employee_id INT >employees.id', 'leave_type_id INT >leave_types.id',
+        'year INT !', 'entitled_days DECIMAL !', 'taken_days DECIMAL !',
+        'carried_over_days DECIMAL !',
+      ],
+      performance_reviews: [
+        'id INT pk', 'employee_id INT >employees.id', 'reviewer_id INT >employees.id',
+        'period_start DATE !', 'period_end DATE !', 'overall_rating DECIMAL',
+        'status VARCHAR !', 'submitted_at TIMESTAMP',
+      ],
+      review_goals: [
+        'id INT pk', 'review_id INT >performance_reviews.id', 'title VARCHAR !',
+        'description TEXT', 'weight_percent INT !', 'score DECIMAL',
+      ],
+      trainings: [
+        'id INT pk', 'title VARCHAR !', 'provider VARCHAR', 'delivery_mode VARCHAR !',
+        'duration_hours DECIMAL', 'cost DECIMAL',
+      ],
+      training_enrollments: [
+        'id INT pk', 'training_id INT >trainings.id', 'employee_id INT >employees.id',
+        'status VARCHAR !', 'enrolled_on DATE !', 'completed_on DATE', 'score DECIMAL',
+      ],
+      job_openings: [
+        'id INT pk', 'department_id INT >departments.id', 'position_id INT >positions.id',
+        'hiring_manager_id INT >employees.id', 'headcount INT !', 'status VARCHAR !',
+        'opened_on DATE !', 'closed_on DATE',
+      ],
+      candidates: [
+        'id INT pk', 'first_name VARCHAR !', 'last_name VARCHAR !', 'email VARCHAR !',
+        'phone VARCHAR', 'resume_url VARCHAR', 'source VARCHAR', 'created_at TIMESTAMP !',
+      ],
+      applications: [
+        'id INT pk', 'job_opening_id INT >job_openings.id', 'candidate_id INT >candidates.id',
+        'stage VARCHAR !', 'status VARCHAR !', 'applied_at TIMESTAMP !',
+        'rejection_reason VARCHAR',
+      ],
+      interviews: [
+        'id INT pk', 'application_id INT >applications.id', 'interviewer_id INT >employees.id',
+        'round INT !', 'scheduled_at TIMESTAMP !', 'recommendation VARCHAR', 'notes TEXT',
+      ],
+    },
+  },
+
+  {
+    key: 'booking',
+    label: 'Hotel & Reservations',
+    description:
+      'Rooms and rate plans by season, reservations with per-night pricing, housekeeping, folios and channel mappings.',
+    tables: {
+      properties: [
+        'id INT pk', 'name VARCHAR !', 'address VARCHAR !', 'city VARCHAR !',
+        'country_code VARCHAR !', 'star_rating INT', 'check_in_time VARCHAR',
+        'check_out_time VARCHAR',
+      ],
+      room_types: [
+        'id INT pk', 'property_id INT >properties.id', 'code VARCHAR !', 'name VARCHAR !',
+        'max_occupancy INT !', 'base_beds INT !', 'size_m2 DECIMAL',
+      ],
+      rooms: [
+        'id INT pk', 'room_type_id INT >room_types.id', 'number VARCHAR !', 'floor INT',
+        'status VARCHAR !', 'is_accessible BOOLEAN !',
+      ],
+      amenities: ['id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'icon VARCHAR'],
+      room_amenities: [
+        'id INT pk', 'room_type_id INT >room_types.id', 'amenity_id INT >amenities.id',
+      ],
+      rate_plans: [
+        'id INT pk', 'property_id INT >properties.id', 'name VARCHAR !',
+        'includes_breakfast BOOLEAN !', 'is_refundable BOOLEAN !', 'min_nights INT !',
+      ],
+      rates: [
+        'id INT pk', 'rate_plan_id INT >rate_plans.id', 'room_type_id INT >room_types.id',
+        'stay_date DATE !', 'price DECIMAL !', 'currency VARCHAR !', 'allotment INT !',
+      ],
+      cancellation_policies: [
+        'id INT pk', 'rate_plan_id INT >rate_plans.id', 'free_until_hours INT !',
+        'penalty_percent DECIMAL !', 'description VARCHAR',
+      ],
+      availability_blocks: [
+        'id INT pk', 'room_id INT >rooms.id', 'reason VARCHAR !', 'starts_on DATE !',
+        'ends_on DATE !', 'notes VARCHAR',
+      ],
+      guests: [
+        'id INT pk', 'first_name VARCHAR !', 'last_name VARCHAR !', 'email VARCHAR',
+        'phone VARCHAR', 'nationality VARCHAR', 'loyalty_number VARCHAR',
+        'created_at TIMESTAMP !',
+      ],
+      guest_documents: [
+        'id INT pk', 'guest_id INT >guests.id', 'document_type VARCHAR !', 'number VARCHAR !',
+        'issuing_country VARCHAR', 'expires_on DATE',
+      ],
+      channel_mappings: [
+        'id INT pk', 'property_id INT >properties.id', 'room_type_id INT >room_types.id',
+        'channel VARCHAR !', 'external_id VARCHAR !', 'is_active BOOLEAN !',
+      ],
+      reservations: [
+        'id INT pk', 'property_id INT >properties.id', 'guest_id INT >guests.id',
+        'rate_plan_id INT >rate_plans.id', 'confirmation_code VARCHAR !', 'status VARCHAR !',
+        'check_in DATE !', 'check_out DATE !', 'adults INT !', 'children INT !',
+        'total_amount DECIMAL !', 'currency VARCHAR !', 'source_channel VARCHAR',
+        'booked_at TIMESTAMP !',
+      ],
+      reservation_rooms: [
+        'id INT pk', 'reservation_id INT >reservations.id', 'room_id INT >rooms.id ?',
+        'room_type_id INT >room_types.id', 'stay_date DATE !', 'nightly_rate DECIMAL !',
+      ],
+      reservation_guests: [
+        'id INT pk', 'reservation_id INT >reservations.id', 'guest_id INT >guests.id',
+        'is_primary BOOLEAN !',
+      ],
+      staff: [
+        'id INT pk', 'property_id INT >properties.id', 'full_name VARCHAR !', 'role VARCHAR !',
+        'phone VARCHAR', 'is_active BOOLEAN !',
+      ],
+      housekeeping_tasks: [
+        'id INT pk', 'room_id INT >rooms.id', 'assigned_to INT >staff.id ?', 'task_type VARCHAR !',
+        'status VARCHAR !', 'due_at TIMESTAMP', 'completed_at TIMESTAMP',
+      ],
+      invoices: [
+        'id INT pk', 'reservation_id INT >reservations.id', 'number VARCHAR !',
+        'status VARCHAR !', 'total DECIMAL !', 'tax_total DECIMAL !', 'currency VARCHAR !',
+        'issued_at TIMESTAMP !',
+      ],
+      invoice_lines: [
+        'id INT pk', 'invoice_id INT >invoices.id', 'description VARCHAR !', 'quantity INT !',
+        'unit_price DECIMAL !', 'amount DECIMAL !',
+      ],
+      payments: [
+        'id INT pk', 'invoice_id INT >invoices.id', 'method VARCHAR !', 'amount DECIMAL !',
+        'currency VARCHAR !', 'status VARCHAR !', 'captured_at TIMESTAMP',
+      ],
+      reviews: [
+        'id INT pk', 'reservation_id INT >reservations.id', 'guest_id INT >guests.id',
+        'cleanliness INT', 'location INT', 'value INT', 'overall INT !', 'body TEXT',
+        'created_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'social',
+    label: 'Social Network',
+    description:
+      'Follow graph, media posts with hashtags and mentions, threaded comments, direct messages, groups and moderation.',
+    tables: {
+      users: [
+        'id BIGINT pk', 'username VARCHAR !', 'email VARCHAR !', 'password_hash VARCHAR !',
+        'is_verified BOOLEAN !', 'created_at TIMESTAMP !',
+      ],
+      profiles: [
+        'id BIGINT pk', 'user_id BIGINT >users.id', 'display_name VARCHAR !', 'bio TEXT',
+        'avatar_url VARCHAR', 'website VARCHAR', 'location VARCHAR', 'is_private BOOLEAN !',
+      ],
+      follows: [
+        'id BIGINT pk', 'follower_id BIGINT >users.id', 'followee_id BIGINT >users.id',
+        'status VARCHAR !', 'created_at TIMESTAMP !',
+      ],
+      blocks: [
+        'id BIGINT pk', 'blocker_id BIGINT >users.id', 'blocked_id BIGINT >users.id',
+        'created_at TIMESTAMP !',
+      ],
+      posts: [
+        'id BIGINT pk', 'author_id BIGINT >users.id', 'reply_to_id BIGINT >posts.id ?',
+        'body TEXT', 'visibility VARCHAR !', 'like_count INT !', 'comment_count INT !',
+        'created_at TIMESTAMP !', 'edited_at TIMESTAMP',
+      ],
+      post_media: [
+        'id BIGINT pk', 'post_id BIGINT >posts.id', 'media_type VARCHAR !', 'url VARCHAR !',
+        'width INT', 'height INT', 'position INT !',
+      ],
+      post_likes: [
+        'id BIGINT pk', 'post_id BIGINT >posts.id', 'user_id BIGINT >users.id',
+        'created_at TIMESTAMP !',
+      ],
+      comments: [
+        'id BIGINT pk', 'post_id BIGINT >posts.id', 'author_id BIGINT >users.id',
+        'parent_id BIGINT >comments.id ?', 'body TEXT !', 'like_count INT !',
+        'created_at TIMESTAMP !',
+      ],
+      comment_likes: [
+        'id BIGINT pk', 'comment_id BIGINT >comments.id', 'user_id BIGINT >users.id',
+        'created_at TIMESTAMP !',
+      ],
+      hashtags: ['id BIGINT pk', 'tag VARCHAR !', 'post_count BIGINT !'],
+      post_hashtags: [
+        'id BIGINT pk', 'post_id BIGINT >posts.id', 'hashtag_id BIGINT >hashtags.id',
+      ],
+      mentions: [
+        'id BIGINT pk', 'post_id BIGINT >posts.id ?', 'comment_id BIGINT >comments.id ?',
+        'mentioned_user_id BIGINT >users.id', 'created_at TIMESTAMP !',
+      ],
+      stories: [
+        'id BIGINT pk', 'author_id BIGINT >users.id', 'media_url VARCHAR !', 'caption VARCHAR',
+        'expires_at TIMESTAMP !', 'view_count INT !', 'created_at TIMESTAMP !',
+      ],
+      conversations: [
+        'id BIGINT pk', 'created_by BIGINT >users.id', 'is_group BOOLEAN !', 'title VARCHAR',
+        'created_at TIMESTAMP !',
+      ],
+      conversation_participants: [
+        'id BIGINT pk', 'conversation_id BIGINT >conversations.id', 'user_id BIGINT >users.id',
+        'joined_at TIMESTAMP !', 'muted_until TIMESTAMP',
+      ],
+      messages: [
+        'id BIGINT pk', 'conversation_id BIGINT >conversations.id',
+        'sender_id BIGINT >users.id', 'body TEXT', 'media_url VARCHAR',
+        'sent_at TIMESTAMP !', 'deleted_at TIMESTAMP',
+      ],
+      message_reads: [
+        'id BIGINT pk', 'message_id BIGINT >messages.id', 'user_id BIGINT >users.id',
+        'read_at TIMESTAMP !',
+      ],
+      groups: [
+        'id BIGINT pk', 'owner_id BIGINT >users.id', 'name VARCHAR !', 'slug VARCHAR !',
+        'description TEXT', 'privacy VARCHAR !', 'member_count INT !', 'created_at TIMESTAMP !',
+      ],
+      group_members: [
+        'id BIGINT pk', 'group_id BIGINT >groups.id', 'user_id BIGINT >users.id',
+        'role VARCHAR !', 'joined_at TIMESTAMP !',
+      ],
+      group_posts: [
+        'id BIGINT pk', 'group_id BIGINT >groups.id', 'post_id BIGINT >posts.id',
+        'pinned_at TIMESTAMP',
+      ],
+      notifications: [
+        'id BIGINT pk', 'user_id BIGINT >users.id', 'actor_id BIGINT >users.id ?',
+        'type VARCHAR !', 'entity_type VARCHAR', 'entity_id BIGINT', 'read_at TIMESTAMP',
+        'created_at TIMESTAMP !',
+      ],
+      reports: [
+        'id BIGINT pk', 'reporter_id BIGINT >users.id', 'post_id BIGINT >posts.id ?',
+        'comment_id BIGINT >comments.id ?', 'reported_user_id BIGINT >users.id ?',
+        'reason VARCHAR !', 'status VARCHAR !', 'created_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'helpdesk',
+    label: 'Helpdesk & SLA',
+    description:
+      'Ticketing with routing rules, SLA targets and escalations, canned macros, a knowledge base and CSAT scoring.',
+    tables: {
+      organizations: [
+        'id UUID pk', 'name VARCHAR !', 'domain VARCHAR', 'plan VARCHAR !',
+        'created_at TIMESTAMP !',
+      ],
+      users: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'email VARCHAR !',
+        'full_name VARCHAR !', 'is_active BOOLEAN !', 'created_at TIMESTAMP !',
+      ],
+      agents: [
+        'id UUID pk', 'user_id UUID >users.id', 'signature TEXT', 'max_open_tickets INT',
+        'is_available BOOLEAN !',
+      ],
+      teams: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'name VARCHAR !',
+        'inbox_email VARCHAR',
+      ],
+      team_agents: [
+        'id UUID pk', 'team_id UUID >teams.id', 'agent_id UUID >agents.id', 'role VARCHAR !',
+      ],
+      customers: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'email VARCHAR !',
+        'full_name VARCHAR', 'phone VARCHAR', 'external_id VARCHAR', 'created_at TIMESTAMP !',
+      ],
+      priorities: ['id UUID pk', 'code VARCHAR !', 'name VARCHAR !', 'weight INT !'],
+      statuses: [
+        'id UUID pk', 'code VARCHAR !', 'name VARCHAR !', 'is_terminal BOOLEAN !',
+        'position INT !',
+      ],
+      categories: [
+        'id UUID pk', 'organization_id UUID >organizations.id',
+        'parent_id UUID >categories.id ?', 'name VARCHAR !',
+      ],
+      sla_policies: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'name VARCHAR !',
+        'business_hours_only BOOLEAN !', 'is_default BOOLEAN !',
+      ],
+      sla_targets: [
+        'id UUID pk', 'sla_policy_id UUID >sla_policies.id', 'priority_id UUID >priorities.id',
+        'first_response_minutes INT !', 'resolution_minutes INT !',
+      ],
+      tickets: [
+        'id UUID pk', 'organization_id UUID >organizations.id',
+        'customer_id UUID >customers.id', 'assigned_agent_id UUID >agents.id ?',
+        'team_id UUID >teams.id ?', 'category_id UUID >categories.id ?',
+        'priority_id UUID >priorities.id', 'status_id UUID >statuses.id',
+        'sla_policy_id UUID >sla_policies.id ?', 'number VARCHAR !', 'subject VARCHAR !',
+        'channel VARCHAR !', 'opened_at TIMESTAMP !', 'first_responded_at TIMESTAMP',
+        'resolved_at TIMESTAMP', 'due_at TIMESTAMP',
+      ],
+      ticket_messages: [
+        'id UUID pk', 'ticket_id UUID >tickets.id', 'agent_id UUID >agents.id ?',
+        'customer_id UUID >customers.id ?', 'body TEXT !', 'is_public BOOLEAN !',
+        'sent_at TIMESTAMP !',
+      ],
+      ticket_attachments: [
+        'id UUID pk', 'message_id UUID >ticket_messages.id', 'file_name VARCHAR !',
+        'mime_type VARCHAR !', 'size_bytes BIGINT !', 'url VARCHAR !',
+      ],
+      tags: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'name VARCHAR !',
+        'colour VARCHAR',
+      ],
+      ticket_tags: ['id UUID pk', 'ticket_id UUID >tickets.id', 'tag_id UUID >tags.id'],
+      escalations: [
+        'id UUID pk', 'ticket_id UUID >tickets.id', 'escalated_to UUID >agents.id ?',
+        'reason VARCHAR !', 'level INT !', 'escalated_at TIMESTAMP !',
+        'acknowledged_at TIMESTAMP',
+      ],
+      macros: [
+        'id UUID pk', 'organization_id UUID >organizations.id', 'created_by UUID >agents.id',
+        'name VARCHAR !', 'body TEXT !', 'usage_count INT !',
+      ],
+      knowledge_articles: [
+        'id UUID pk', 'organization_id UUID >organizations.id',
+        'category_id UUID >categories.id ?', 'author_id UUID >agents.id', 'title VARCHAR !',
+        'slug VARCHAR !', 'body TEXT', 'status VARCHAR !', 'view_count INT !',
+        'published_at TIMESTAMP',
+      ],
+      article_feedback: [
+        'id UUID pk', 'article_id UUID >knowledge_articles.id',
+        'customer_id UUID >customers.id ?', 'was_helpful BOOLEAN !', 'comment TEXT',
+        'created_at TIMESTAMP !',
+      ],
+      satisfaction_ratings: [
+        'id UUID pk', 'ticket_id UUID >tickets.id', 'customer_id UUID >customers.id',
+        'score INT !', 'comment TEXT', 'rated_at TIMESTAMP !',
+      ],
+    },
+  },
+];
+
+// ── Dışa açılan şablonlar ────────────────────────────────────────────────────
 
 export interface SchemaTemplate {
   key: string;
   label: string;
   description: string;
-  emoji: string;
   schema: DatabaseSchema;
 }
 
-export const TEMPLATES: SchemaTemplate[] = [
-  // ── E-Commerce ─────────────────────────────────────────────────────────────
-  {
-    key: 'ecommerce',
-    label: 'E-Commerce',
-    description: 'Users, products, categories, orders, order items, reviews',
-    emoji: '🛒',
-    schema: {
-      schemaId: 'tpl-ecommerce',
-      name: 'E-Commerce',
-      tables: [
-        tbl('ec-users', 'users', [
-          col('ec-u1', 'id', 'INT', true), col('ec-u2', 'email', 'VARCHAR', false, false, false),
-          col('ec-u3', 'name', 'VARCHAR'), col('ec-u4', 'created_at', 'TIMESTAMP'),
-        ]),
-        tbl('ec-cats', 'categories', [
-          col('ec-ca1', 'id', 'INT', true), col('ec-ca2', 'name', 'VARCHAR', false, false, false),
-          col('ec-ca3', 'parent_id', 'INT', false, true),
-        ]),
-        tbl('ec-prods', 'products', [
-          col('ec-p1', 'id', 'INT', true), col('ec-p2', 'name', 'VARCHAR', false, false, false),
-          col('ec-p3', 'price', 'DECIMAL', false, false, false), col('ec-p4', 'stock', 'INT', false, false, false),
-          col('ec-p5', 'category_id', 'INT', false, true), col('ec-p6', 'description', 'TEXT'),
-        ]),
-        tbl('ec-orders', 'orders', [
-          col('ec-o1', 'id', 'INT', true), col('ec-o2', 'user_id', 'INT', false, true, false),
-          col('ec-o3', 'status', 'VARCHAR', false, false, false), col('ec-o4', 'total', 'DECIMAL', false, false, false),
-          col('ec-o5', 'created_at', 'TIMESTAMP'),
-        ]),
-        tbl('ec-oi', 'order_items', [
-          col('ec-oi1', 'id', 'INT', true), col('ec-oi2', 'order_id', 'INT', false, true, false),
-          col('ec-oi3', 'product_id', 'INT', false, true, false), col('ec-oi4', 'quantity', 'INT', false, false, false),
-          col('ec-oi5', 'unit_price', 'DECIMAL', false, false, false),
-        ]),
-        tbl('ec-rev', 'reviews', [
-          col('ec-r1', 'id', 'INT', true), col('ec-r2', 'user_id', 'INT', false, true, false),
-          col('ec-r3', 'product_id', 'INT', false, true, false), col('ec-r4', 'rating', 'INT', false, false, false),
-          col('ec-r5', 'body', 'TEXT'),
-        ]),
-      ],
-      relations: [
-        rel('ec-rel1', 'ManyToOne', 'ec-prods', 'ec-p5', 'ec-cats', 'ec-ca1'),
-        rel('ec-rel2', 'ManyToOne', 'ec-orders', 'ec-o2', 'ec-users', 'ec-u1'),
-        rel('ec-rel3', 'ManyToOne', 'ec-oi', 'ec-oi2', 'ec-orders', 'ec-o1'),
-        rel('ec-rel4', 'ManyToOne', 'ec-oi', 'ec-oi3', 'ec-prods', 'ec-p1'),
-        rel('ec-rel5', 'ManyToOne', 'ec-rev', 'ec-r2', 'ec-users', 'ec-u1'),
-        rel('ec-rel6', 'ManyToOne', 'ec-rev', 'ec-r3', 'ec-prods', 'ec-p1'),
-      ],
-    },
-  },
-
-  // ── Blog / CMS ─────────────────────────────────────────────────────────────
-  {
-    key: 'blog',
-    label: 'Blog / CMS',
-    description: 'Users, posts, tags, comments, media',
-    emoji: '📝',
-    schema: {
-      schemaId: 'tpl-blog',
-      name: 'Blog / CMS',
-      tables: [
-        tbl('bl-users', 'users', [
-          col('bl-u1', 'id', 'INT', true), col('bl-u2', 'username', 'VARCHAR', false, false, false),
-          col('bl-u3', 'email', 'VARCHAR', false, false, false), col('bl-u4', 'role', 'VARCHAR'),
-        ]),
-        tbl('bl-posts', 'posts', [
-          col('bl-p1', 'id', 'INT', true), col('bl-p2', 'title', 'VARCHAR', false, false, false),
-          col('bl-p3', 'slug', 'VARCHAR', false, false, false), col('bl-p4', 'body', 'TEXT'),
-          col('bl-p5', 'author_id', 'INT', false, true, false), col('bl-p6', 'published_at', 'TIMESTAMP'),
-          col('bl-p7', 'status', 'VARCHAR', false, false, false),
-        ]),
-        tbl('bl-tags', 'tags', [
-          col('bl-t1', 'id', 'INT', true), col('bl-t2', 'name', 'VARCHAR', false, false, false),
-          col('bl-t3', 'slug', 'VARCHAR', false, false, false),
-        ]),
-        tbl('bl-pt', 'post_tags', [
-          col('bl-pt1', 'post_id', 'INT', false, true, false), col('bl-pt2', 'tag_id', 'INT', false, true, false),
-        ]),
-        tbl('bl-cmts', 'comments', [
-          col('bl-c1', 'id', 'INT', true), col('bl-c2', 'post_id', 'INT', false, true, false),
-          col('bl-c3', 'author_id', 'INT', false, true), col('bl-c4', 'body', 'TEXT', false, false, false),
-          col('bl-c5', 'created_at', 'TIMESTAMP'),
-        ]),
-      ],
-      relations: [
-        rel('bl-rel1', 'ManyToOne', 'bl-posts', 'bl-p5', 'bl-users', 'bl-u1'),
-        rel('bl-rel2', 'ManyToOne', 'bl-pt', 'bl-pt1', 'bl-posts', 'bl-p1'),
-        rel('bl-rel3', 'ManyToOne', 'bl-pt', 'bl-pt2', 'bl-tags', 'bl-t1'),
-        rel('bl-rel4', 'ManyToOne', 'bl-cmts', 'bl-c2', 'bl-posts', 'bl-p1'),
-        rel('bl-rel5', 'ManyToOne', 'bl-cmts', 'bl-c3', 'bl-users', 'bl-u1'),
-      ],
-    },
-  },
-
-  // ── SaaS / Multi-tenant ────────────────────────────────────────────────────
-  {
-    key: 'saas',
-    label: 'SaaS / Multi-tenant',
-    description: 'Organizations, members, subscriptions, API keys',
-    emoji: '🏢',
-    schema: {
-      schemaId: 'tpl-saas',
-      name: 'SaaS / Multi-tenant',
-      tables: [
-        tbl('sa-users', 'users', [
-          col('sa-u1', 'id', 'UUID', true), col('sa-u2', 'email', 'VARCHAR', false, false, false),
-          col('sa-u3', 'name', 'VARCHAR'), col('sa-u4', 'created_at', 'TIMESTAMP'),
-        ]),
-        tbl('sa-orgs', 'organizations', [
-          col('sa-o1', 'id', 'UUID', true), col('sa-o2', 'name', 'VARCHAR', false, false, false),
-          col('sa-o3', 'slug', 'VARCHAR', false, false, false), col('sa-o4', 'plan', 'VARCHAR', false, false, false),
-        ]),
-        tbl('sa-mem', 'memberships', [
-          col('sa-m1', 'id', 'UUID', true), col('sa-m2', 'user_id', 'UUID', false, true, false),
-          col('sa-m3', 'org_id', 'UUID', false, true, false), col('sa-m4', 'role', 'VARCHAR', false, false, false),
-          col('sa-m5', 'joined_at', 'TIMESTAMP'),
-        ]),
-        tbl('sa-subs', 'subscriptions', [
-          col('sa-s1', 'id', 'UUID', true), col('sa-s2', 'org_id', 'UUID', false, true, false),
-          col('sa-s3', 'stripe_id', 'VARCHAR'), col('sa-s4', 'status', 'VARCHAR', false, false, false),
-          col('sa-s5', 'current_period_end', 'TIMESTAMP'),
-        ]),
-        tbl('sa-keys', 'api_keys', [
-          col('sa-k1', 'id', 'UUID', true), col('sa-k2', 'org_id', 'UUID', false, true, false),
-          col('sa-k3', 'key_hash', 'VARCHAR', false, false, false), col('sa-k4', 'name', 'VARCHAR'),
-          col('sa-k5', 'expires_at', 'TIMESTAMP'), col('sa-k6', 'last_used_at', 'TIMESTAMP'),
-        ]),
-      ],
-      relations: [
-        rel('sa-rel1', 'ManyToOne', 'sa-mem', 'sa-m2', 'sa-users', 'sa-u1'),
-        rel('sa-rel2', 'ManyToOne', 'sa-mem', 'sa-m3', 'sa-orgs', 'sa-o1'),
-        rel('sa-rel3', 'ManyToOne', 'sa-subs', 'sa-s2', 'sa-orgs', 'sa-o1'),
-        rel('sa-rel4', 'ManyToOne', 'sa-keys', 'sa-k2', 'sa-orgs', 'sa-o1'),
-      ],
-    },
-  },
-
-  // ── CRM ────────────────────────────────────────────────────────────────────
-  {
-    key: 'crm',
-    label: 'CRM',
-    description: 'Contacts, companies, deals, activities, notes',
-    emoji: '📊',
-    schema: {
-      schemaId: 'tpl-crm',
-      name: 'CRM',
-      tables: [
-        tbl('crm-users', 'users', [
-          col('crm-u1', 'id', 'INT', true), col('crm-u2', 'name', 'VARCHAR', false, false, false),
-          col('crm-u3', 'email', 'VARCHAR', false, false, false),
-        ]),
-        tbl('crm-cos', 'companies', [
-          col('crm-co1', 'id', 'INT', true), col('crm-co2', 'name', 'VARCHAR', false, false, false),
-          col('crm-co3', 'industry', 'VARCHAR'), col('crm-co4', 'website', 'VARCHAR'),
-          col('crm-co5', 'owner_id', 'INT', false, true),
-        ]),
-        tbl('crm-cts', 'contacts', [
-          col('crm-ct1', 'id', 'INT', true), col('crm-ct2', 'first_name', 'VARCHAR', false, false, false),
-          col('crm-ct3', 'last_name', 'VARCHAR', false, false, false), col('crm-ct4', 'email', 'VARCHAR'),
-          col('crm-ct5', 'company_id', 'INT', false, true), col('crm-ct6', 'owner_id', 'INT', false, true),
-        ]),
-        tbl('crm-deals', 'deals', [
-          col('crm-d1', 'id', 'INT', true), col('crm-d2', 'name', 'VARCHAR', false, false, false),
-          col('crm-d3', 'value', 'DECIMAL'), col('crm-d4', 'stage', 'VARCHAR', false, false, false),
-          col('crm-d5', 'contact_id', 'INT', false, true), col('crm-d6', 'owner_id', 'INT', false, true),
-          col('crm-d7', 'close_date', 'DATE'),
-        ]),
-        tbl('crm-acts', 'activities', [
-          col('crm-a1', 'id', 'INT', true), col('crm-a2', 'type', 'VARCHAR', false, false, false),
-          col('crm-a3', 'deal_id', 'INT', false, true), col('crm-a4', 'user_id', 'INT', false, true, false),
-          col('crm-a5', 'notes', 'TEXT'), col('crm-a6', 'due_at', 'TIMESTAMP'),
-        ]),
-      ],
-      relations: [
-        rel('crm-rel1', 'ManyToOne', 'crm-cos', 'crm-co5', 'crm-users', 'crm-u1'),
-        rel('crm-rel2', 'ManyToOne', 'crm-cts', 'crm-ct5', 'crm-cos', 'crm-co1'),
-        rel('crm-rel3', 'ManyToOne', 'crm-cts', 'crm-ct6', 'crm-users', 'crm-u1'),
-        rel('crm-rel4', 'ManyToOne', 'crm-deals', 'crm-d5', 'crm-cts', 'crm-ct1'),
-        rel('crm-rel5', 'ManyToOne', 'crm-deals', 'crm-d6', 'crm-users', 'crm-u1'),
-        rel('crm-rel6', 'ManyToOne', 'crm-acts', 'crm-a3', 'crm-deals', 'crm-d1'),
-        rel('crm-rel7', 'ManyToOne', 'crm-acts', 'crm-a4', 'crm-users', 'crm-u1'),
-      ],
-    },
-  },
-
-  // ── Healthcare ─────────────────────────────────────────────────────────────
-  {
-    key: 'healthcare',
-    label: 'Healthcare',
-    description: 'Patients, doctors, appointments, prescriptions',
-    emoji: '🏥',
-    schema: {
-      schemaId: 'tpl-healthcare',
-      name: 'Healthcare',
-      tables: [
-        tbl('hc-pts', 'patients', [
-          col('hc-p1', 'id', 'INT', true), col('hc-p2', 'first_name', 'VARCHAR', false, false, false),
-          col('hc-p3', 'last_name', 'VARCHAR', false, false, false), col('hc-p4', 'date_of_birth', 'DATE'),
-          col('hc-p5', 'gender', 'VARCHAR'), col('hc-p6', 'email', 'VARCHAR'),
-        ]),
-        tbl('hc-docs', 'doctors', [
-          col('hc-d1', 'id', 'INT', true), col('hc-d2', 'name', 'VARCHAR', false, false, false),
-          col('hc-d3', 'specialty', 'VARCHAR', false, false, false), col('hc-d4', 'license_no', 'VARCHAR'),
-        ]),
-        tbl('hc-appts', 'appointments', [
-          col('hc-a1', 'id', 'INT', true), col('hc-a2', 'patient_id', 'INT', false, true, false),
-          col('hc-a3', 'doctor_id', 'INT', false, true, false), col('hc-a4', 'scheduled_at', 'TIMESTAMP', false, false, false),
-          col('hc-a5', 'status', 'VARCHAR', false, false, false), col('hc-a6', 'notes', 'TEXT'),
-        ]),
-        tbl('hc-rx', 'prescriptions', [
-          col('hc-rx1', 'id', 'INT', true), col('hc-rx2', 'appointment_id', 'INT', false, true, false),
-          col('hc-rx3', 'medication', 'VARCHAR', false, false, false), col('hc-rx4', 'dosage', 'VARCHAR'),
-          col('hc-rx5', 'duration_days', 'INT'),
-        ]),
-      ],
-      relations: [
-        rel('hc-rel1', 'ManyToOne', 'hc-appts', 'hc-a2', 'hc-pts', 'hc-p1'),
-        rel('hc-rel2', 'ManyToOne', 'hc-appts', 'hc-a3', 'hc-docs', 'hc-d1'),
-        rel('hc-rel3', 'ManyToOne', 'hc-rx', 'hc-rx2', 'hc-appts', 'hc-a1'),
-      ],
-    },
-  },
-];
+export const TEMPLATES: SchemaTemplate[] = SPECS.map(spec => ({
+  key: spec.key,
+  label: spec.label,
+  description: spec.description,
+  schema: build(spec),
+}));
