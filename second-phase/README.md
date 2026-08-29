@@ -45,7 +45,7 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 | 12 | [Entegrasyonlar](12-ENTEGRASYONLAR.md) ✅ Supabase | Supabase önce. Rekabet değil, üstünde durmak | M |
 | 13 | [Dağıtım hedefleri](13-DAGITIM-HEDEFLERI.md) ✅ | Plesk/cPanel/mobil — rakiplerin bakmadığı kitle | S |
 | 16 | [Kota ve maliyet](16-KOTA-VE-MALIYET.md) ✅ | Deploy öncesi token kilitleri, adil paylaşım, aylık gider | M |
-| 17 | [İlk temas ve fiyat](17-ILK-TEMAS-VE-FIYAT.md) ✅ | Girişsiz canlı demo, paylaşım sayfası dönüşümü, 12 gerçek şablon (267 tablo), "neden biz", Pro $15 / Team $40 + yıllık | M |
+| 17 | [İlk temas ve fiyat](17-ILK-TEMAS-VE-FIYAT.md) ✅ | Girişsiz canlı demo, paylaşım sayfası dönüşümü, 20 şablon (384 tablo, 3 ölçek), "neden biz", Pro $15 / Team $40 + yıllık | M |
 
 ### Ayrı ürünler — kayıt için, şimdi başlanmayacak
 

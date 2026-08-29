@@ -423,7 +423,7 @@ export default function ToolbarPanel() {
 
       {/* AI Schema Explanation Modal — ham markdown yerine gerçek render (bkz. MarkdownLite) */}
       {explanation !== null && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setExplanation(null)}>
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-scrim/70 backdrop-blur-sm" onClick={() => setExplanation(null)}>
           <div
             className="bg-surface-800 border border-content-primary/12 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
             style={{ maxHeight: '80vh' }}

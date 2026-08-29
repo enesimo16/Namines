@@ -180,7 +180,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-300">
       <div className="relative w-full max-w-md rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] p-5 flex flex-col max-h-[85vh] overflow-hidden">
 
         {/* Header */}
@@ -331,7 +331,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                 />
 
                 {loading && (
-                  <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3 select-none">
+                  <div className="absolute inset-0 bg-scrim/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3 select-none">
                     <RefreshCw className="w-6 h-6 text-content-primary animate-spin" />
                     <div className="text-center px-4">
                       <span className="text-content-primary text-xs font-bold block">Parsing Schema...</span>
@@ -392,7 +392,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
         {/* Overwrite warning dialog — desatüre uyarı/amber, veri kaybı riski (semantik) */}
         {showOverwriteWarning && (
-          <div className="absolute inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
+          <div className="absolute inset-0 z-[110] bg-scrim/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
             <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-2xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)] text-center space-y-4">
               <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-xl mx-auto">
                 <AlertTriangle className="w-5 h-5" />

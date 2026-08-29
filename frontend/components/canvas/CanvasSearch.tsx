@@ -96,7 +96,7 @@ export default function CanvasSearch({ isOpen, onClose }: Props) {
           </span>
         )}
         {q && matches.length === 0 && (
-          <span className="text-rose-400 text-xs shrink-0">Bulunamadı</span>
+          <span className="text-danger-text text-xs shrink-0">Bulunamadı</span>
         )}
         <button onClick={onClose} className="text-content-muted hover:text-content-primary transition-colors">
           <X className="w-4 h-4" />

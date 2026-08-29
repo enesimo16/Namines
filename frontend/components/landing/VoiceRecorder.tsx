@@ -73,7 +73,7 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
 
   if (isTranscribing) {
     return (
-      <button disabled className="p-3 bg-zinc-800 rounded-full text-zinc-400">
+      <button disabled className="p-3 bg-surface-700 rounded-full text-content-muted">
         <Loader2 className="w-5 h-5 animate-spin" />
       </button>
     );
@@ -86,8 +86,8 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
       onClick={isRecording ? stopRecording : startRecording}
       className={`p-3 rounded-full transition-all flex items-center justify-center shadow-lg ${
         isRecording 
-          ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/50 animate-pulse' 
-          : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 border border-zinc-700'
+          ? 'bg-danger/20 text-danger-text hover:bg-danger/30 border border-danger/50 animate-pulse' 
+          : 'bg-surface-700 text-content-muted hover:text-content-primary hover:bg-surface-600 border border-surface-500'
       } disabled:opacity-50 disabled:cursor-not-allowed`}
       title={isRecording ? 'Stop Recording' : 'Voice Input'}
     >

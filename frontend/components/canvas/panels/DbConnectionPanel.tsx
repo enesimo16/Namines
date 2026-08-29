@@ -73,7 +73,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 backdrop-blur-sm">
       <div className="bg-surface-800 border border-surface-500 rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 flex flex-col gap-5">
 
         {/* Header */}
@@ -140,7 +140,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
 
         {/* Error */}
         {error && (
-          <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-3 text-red-300 text-xs">
+          <div className="bg-danger-subtle/20 border border-danger/30 rounded-xl p-3 text-danger-text text-xs">
             {error}
           </div>
         )}

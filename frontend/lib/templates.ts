@@ -40,10 +40,25 @@ import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../ty
 
 // ── Kompakt tanım ────────────────────────────────────────────────────────────
 
+/**
+ * Şablonun ÖLÇEĞİ — bir etiket değil, bir vaat.
+ *
+ * Üç kategori var çünkü şablonlar iki farklı işe yarıyor ve tek bir boyut
+ * ikisini birden yapamıyor: `mini` bir şeyi hemen kurup üstüne inşa etmek
+ * için (6 tabloluk bir URL kısaltıcıya 25 tablo dayatmak, kullanıcıya
+ * silecek 19 tablo vermek demek), `large` ise ürünün gerçek ölçekte ne
+ * yaptığını göstermek için. `standard` ikisinin arası ve varsayılan.
+ *
+ * `check:templates` her kategoriye AYRI tablo aralığı uyguluyor: kategori
+ * kutuyu doldurmayan bir şablon, yanlış yerde durup yanlış beklenti kurar.
+ */
+export type TemplateSize = 'mini' | 'standard' | 'large';
+
 interface TemplateSpec {
   key: string;
   label: string;
   description: string;
+  size: TemplateSize;
   /** Tablo adı → kolon tanımları. Sıra, tuvaldeki yerleşimi belirliyor. */
   tables: Record<string, string[]>;
 }
@@ -150,6 +165,7 @@ const SPECS: TemplateSpec[] = [
     label: 'E-Commerce',
     description:
       'Catalogue with variants, multi-warehouse stock, carts, orders, split shipments, payments, refunds and coupons.',
+    size: 'standard',
     tables: {
       users: [
         'id INT pk', 'email VARCHAR !', 'password_hash VARCHAR !', 'full_name VARCHAR',
@@ -257,6 +273,7 @@ const SPECS: TemplateSpec[] = [
     label: 'SaaS Platform',
     description:
       'Multi-tenant workspaces with roles and permissions, metered billing, API keys, webhooks and an audit trail.',
+    size: 'standard',
     tables: {
       users: [
         'id UUID pk', 'email VARCHAR !', 'password_hash VARCHAR', 'full_name VARCHAR',
@@ -358,6 +375,7 @@ const SPECS: TemplateSpec[] = [
     label: 'Publishing / CMS',
     description:
       'Multi-site publishing with revisions, editorial roles, media library, menus, redirects and moderated comments.',
+    size: 'standard',
     tables: {
       users: [
         'id INT pk', 'email VARCHAR !', 'display_name VARCHAR !', 'password_hash VARCHAR !',
@@ -439,6 +457,7 @@ const SPECS: TemplateSpec[] = [
     label: 'CRM & Sales',
     description:
       'Accounts, contacts and leads through a staged pipeline, with quotes, activities, campaigns and territories.',
+    size: 'standard',
     tables: {
       users: [
         'id INT pk', 'email VARCHAR !', 'full_name VARCHAR !', 'title VARCHAR',
@@ -533,6 +552,7 @@ const SPECS: TemplateSpec[] = [
     label: 'Healthcare / EMR',
     description:
       'Patient records with encounters, coded diagnoses and procedures, prescriptions, labs, vitals and insurance claims.',
+    size: 'standard',
     tables: {
       patients: [
         'id INT pk', 'medical_record_number VARCHAR !', 'first_name VARCHAR !',
@@ -633,6 +653,7 @@ const SPECS: TemplateSpec[] = [
     label: 'Learning Platform',
     description:
       'Courses broken into modules and lessons, with enrolments, progress tracking, graded assignments, quizzes and certificates.',
+    size: 'standard',
     tables: {
       users: [
         'id INT pk', 'email VARCHAR !', 'full_name VARCHAR !', 'password_hash VARCHAR !',
@@ -726,6 +747,7 @@ const SPECS: TemplateSpec[] = [
     label: 'Banking & Ledger',
     description:
       'Double-entry ledger behind customer accounts, cards, transfers, standing orders, loans and fraud alerts.',
+    size: 'standard',
     tables: {
       branches: [
         'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'city VARCHAR', 'country_code VARCHAR !',
@@ -831,6 +853,7 @@ const SPECS: TemplateSpec[] = [
     label: 'Warehouse & Logistics',
     description:
       'Bin-level stock with movement history, inbound receiving, pick-and-pack fulfilment, carriers and route planning.',
+    size: 'standard',
     tables: {
       warehouses: [
         'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'city VARCHAR', 'country_code VARCHAR !',
@@ -939,6 +962,7 @@ const SPECS: TemplateSpec[] = [
     label: 'HR & Payroll',
     description:
       'Org structure with contracts and salary components, payroll runs and payslips, time and leave, reviews and hiring.',
+    size: 'standard',
     tables: {
       departments: [
         'id INT pk', 'parent_id INT >departments.id ?', 'name VARCHAR !', 'cost_centre VARCHAR',
@@ -1044,6 +1068,7 @@ const SPECS: TemplateSpec[] = [
     label: 'Hotel & Reservations',
     description:
       'Rooms and rate plans by season, reservations with per-night pricing, housekeeping, folios and channel mappings.',
+    size: 'standard',
     tables: {
       properties: [
         'id INT pk', 'name VARCHAR !', 'address VARCHAR !', 'city VARCHAR !',
@@ -1140,6 +1165,7 @@ const SPECS: TemplateSpec[] = [
     label: 'Social Network',
     description:
       'Follow graph, media posts with hashtags and mentions, threaded comments, direct messages, groups and moderation.',
+    size: 'standard',
     tables: {
       users: [
         'id BIGINT pk', 'username VARCHAR !', 'email VARCHAR !', 'password_hash VARCHAR !',
@@ -1238,6 +1264,7 @@ const SPECS: TemplateSpec[] = [
     label: 'Helpdesk & SLA',
     description:
       'Ticketing with routing rules, SLA targets and escalations, canned macros, a knowledge base and CSAT scoring.',
+    size: 'standard',
     tables: {
       organizations: [
         'id UUID pk', 'name VARCHAR !', 'domain VARCHAR', 'plan VARCHAR !',
@@ -1328,6 +1355,563 @@ const SPECS: TemplateSpec[] = [
       ],
     },
   },
+
+  // ── Hızlı başlangıç (mini) ─────────────────────────────────────────────
+  //
+  // Bunlar "ürün ne kadar büyük şey kaldırıyor" göstermek için değil; bir şeyi
+  // BUGÜN kurup üstüne inşa etmek için. 6 tabloluk bir URL kısaltıcıya 25
+  // tablo dayatmak, kullanıcıya silecek 19 tablo vermek olurdu.
+
+  {
+    key: 'auth',
+    label: 'Auth & Roles',
+    description: 'Sign-in, sessions, role-based permissions and password resets — the part every app rewrites.',
+    size: 'mini',
+    tables: {
+      users: [
+        'id UUID pk', 'email VARCHAR !', 'password_hash VARCHAR !', 'full_name VARCHAR',
+        'email_verified_at TIMESTAMP', 'is_active BOOLEAN !', 'created_at TIMESTAMP !',
+      ],
+      sessions: [
+        'id UUID pk', 'user_id UUID >users.id', 'token_hash VARCHAR !', 'ip_address VARCHAR',
+        'user_agent VARCHAR', 'expires_at TIMESTAMP !', 'revoked_at TIMESTAMP',
+      ],
+      roles: ['id UUID pk', 'name VARCHAR !', 'description VARCHAR', 'is_system BOOLEAN !'],
+      permissions: ['id UUID pk', 'code VARCHAR !', 'description VARCHAR'],
+      role_permissions: [
+        'id UUID pk', 'role_id UUID >roles.id', 'permission_id UUID >permissions.id',
+      ],
+      user_roles: [
+        'id UUID pk', 'user_id UUID >users.id', 'role_id UUID >roles.id',
+        'granted_at TIMESTAMP !',
+      ],
+      password_resets: [
+        'id UUID pk', 'user_id UUID >users.id', 'token_hash VARCHAR !',
+        'expires_at TIMESTAMP !', 'used_at TIMESTAMP',
+      ],
+    },
+  },
+
+  {
+    key: 'tasks',
+    label: 'Tasks & Projects',
+    description: 'Projects, assignable tasks with labels and threaded comments. A to-do list that survives a team.',
+    size: 'mini',
+    tables: {
+      users: ['id INT pk', 'email VARCHAR !', 'full_name VARCHAR !', 'avatar_url VARCHAR'],
+      projects: [
+        'id INT pk', 'owner_id INT >users.id', 'name VARCHAR !', 'key VARCHAR !',
+        'archived_at TIMESTAMP', 'created_at TIMESTAMP !',
+      ],
+      labels: ['id INT pk', 'project_id INT >projects.id', 'name VARCHAR !', 'colour VARCHAR'],
+      tasks: [
+        'id INT pk', 'project_id INT >projects.id', 'assignee_id INT >users.id ?',
+        'parent_id INT >tasks.id ?', 'title VARCHAR !', 'description TEXT', 'status VARCHAR !',
+        'priority VARCHAR !', 'due_on DATE', 'position INT !', 'created_at TIMESTAMP !',
+      ],
+      task_labels: ['id INT pk', 'task_id INT >tasks.id', 'label_id INT >labels.id'],
+      comments: [
+        'id INT pk', 'task_id INT >tasks.id', 'author_id INT >users.id', 'body TEXT !',
+        'created_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'links',
+    label: 'Link Shortener',
+    description: 'Short links on custom domains, with per-click analytics and tagging.',
+    size: 'mini',
+    tables: {
+      users: ['id INT pk', 'email VARCHAR !', 'plan VARCHAR !', 'created_at TIMESTAMP !'],
+      domains: [
+        'id INT pk', 'user_id INT >users.id', 'hostname VARCHAR !', 'verified_at TIMESTAMP',
+        'is_default BOOLEAN !',
+      ],
+      links: [
+        'id INT pk', 'user_id INT >users.id', 'domain_id INT >domains.id ?', 'slug VARCHAR !',
+        'target_url TEXT !', 'title VARCHAR', 'expires_at TIMESTAMP', 'click_count INT !',
+        'created_at TIMESTAMP !',
+      ],
+      link_clicks: [
+        'id BIGINT pk', 'link_id INT >links.id', 'referrer VARCHAR', 'country_code VARCHAR',
+        'device_type VARCHAR', 'user_agent VARCHAR', 'clicked_at TIMESTAMP !',
+      ],
+      tags: ['id INT pk', 'user_id INT >users.id', 'name VARCHAR !'],
+      link_tags: ['id INT pk', 'link_id INT >links.id', 'tag_id INT >tags.id'],
+    },
+  },
+
+  {
+    key: 'newsletter',
+    label: 'Newsletter',
+    description: 'Subscriber lists with double opt-in, campaigns built from templates, and per-send delivery state.',
+    size: 'mini',
+    tables: {
+      subscribers: [
+        'id INT pk', 'email VARCHAR !', 'full_name VARCHAR', 'status VARCHAR !',
+        'confirmed_at TIMESTAMP', 'unsubscribed_at TIMESTAMP', 'created_at TIMESTAMP !',
+      ],
+      lists: [
+        'id INT pk', 'name VARCHAR !', 'description VARCHAR', 'double_opt_in BOOLEAN !',
+      ],
+      list_subscribers: [
+        'id INT pk', 'list_id INT >lists.id', 'subscriber_id INT >subscribers.id',
+        'subscribed_at TIMESTAMP !',
+      ],
+      templates: [
+        'id INT pk', 'name VARCHAR !', 'subject VARCHAR !', 'html_body TEXT',
+        'updated_at TIMESTAMP',
+      ],
+      campaigns: [
+        'id INT pk', 'list_id INT >lists.id', 'template_id INT >templates.id ?',
+        'name VARCHAR !', 'subject VARCHAR !', 'status VARCHAR !', 'scheduled_at TIMESTAMP',
+        'sent_at TIMESTAMP',
+      ],
+      campaign_sends: [
+        'id BIGINT pk', 'campaign_id INT >campaigns.id', 'subscriber_id INT >subscribers.id',
+        'status VARCHAR !', 'opened_at TIMESTAMP', 'clicked_at TIMESTAMP',
+        'bounced_at TIMESTAMP',
+      ],
+    },
+  },
+
+  {
+    key: 'feedback',
+    label: 'Feedback Board',
+    description: 'Public roadmap: users post ideas, vote, and comment while the team moves them across statuses.',
+    size: 'mini',
+    tables: {
+      users: ['id INT pk', 'email VARCHAR !', 'display_name VARCHAR !', 'is_staff BOOLEAN !'],
+      boards: ['id INT pk', 'name VARCHAR !', 'slug VARCHAR !', 'is_public BOOLEAN !'],
+      statuses: [
+        'id INT pk', 'board_id INT >boards.id', 'name VARCHAR !', 'colour VARCHAR',
+        'position INT !', 'is_closed BOOLEAN !',
+      ],
+      tags: ['id INT pk', 'board_id INT >boards.id', 'name VARCHAR !'],
+      posts: [
+        'id INT pk', 'board_id INT >boards.id', 'author_id INT >users.id',
+        'status_id INT >statuses.id ?', 'tag_id INT >tags.id ?', 'title VARCHAR !',
+        'body TEXT', 'vote_count INT !', 'created_at TIMESTAMP !',
+      ],
+      post_votes: [
+        'id INT pk', 'post_id INT >posts.id', 'user_id INT >users.id',
+        'created_at TIMESTAMP !',
+      ],
+      post_comments: [
+        'id INT pk', 'post_id INT >posts.id', 'author_id INT >users.id',
+        'parent_id INT >post_comments.id ?', 'body TEXT !', 'is_staff_reply BOOLEAN !',
+        'created_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'bookmarks',
+    label: 'Bookmarks & Notes',
+    description: 'Saved pages in collections, tagged and highlighted — a read-it-later backend.',
+    size: 'mini',
+    tables: {
+      users: ['id INT pk', 'email VARCHAR !', 'display_name VARCHAR', 'created_at TIMESTAMP !'],
+      collections: [
+        'id INT pk', 'user_id INT >users.id', 'parent_id INT >collections.id ?',
+        'name VARCHAR !', 'is_private BOOLEAN !',
+      ],
+      bookmarks: [
+        'id INT pk', 'user_id INT >users.id', 'collection_id INT >collections.id ?',
+        'url TEXT !', 'title VARCHAR', 'excerpt TEXT', 'favicon_url VARCHAR',
+        'is_archived BOOLEAN !', 'saved_at TIMESTAMP !',
+      ],
+      tags: ['id INT pk', 'user_id INT >users.id', 'name VARCHAR !'],
+      bookmark_tags: [
+        'id INT pk', 'bookmark_id INT >bookmarks.id', 'tag_id INT >tags.id',
+      ],
+      highlights: [
+        'id INT pk', 'bookmark_id INT >bookmarks.id', 'quote TEXT !', 'note TEXT',
+        'colour VARCHAR', 'created_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  // ── Kurumsal ölçek (large) ─────────────────────────────────────────────
+  //
+  // 25 tabloda kural motorunun söyledikleri hâlâ gözle taranabilir. 40 tabloda
+  // taranamaz — ve ürünün asıl işe yaradığı yer tam olarak orası. Bu iki
+  // şablon "büyük olsun diye" büyük değil; ikisi de gerçek sistemlerde
+  // ayrılmak ZORUNDA olan kalemleri ayırıyor.
+
+  {
+    key: 'marketplace',
+    label: 'Multi-vendor Marketplace',
+    description:
+      'Many sellers on one storefront: per-vendor listings and stock, split payments, commissions, payouts and disputes.',
+    size: 'large',
+    tables: {
+      users: [
+        'id INT pk', 'email VARCHAR !', 'password_hash VARCHAR !', 'full_name VARCHAR',
+        'phone VARCHAR', 'is_active BOOLEAN !', 'created_at TIMESTAMP !',
+      ],
+      addresses: [
+        'id INT pk', 'user_id INT >users.id', 'line1 VARCHAR !', 'line2 VARCHAR',
+        'city VARCHAR !', 'postal_code VARCHAR', 'country_code VARCHAR !',
+        'is_default BOOLEAN !',
+      ],
+      vendors: [
+        'id INT pk', 'legal_name VARCHAR !', 'display_name VARCHAR !', 'slug VARCHAR !',
+        'tax_id VARCHAR', 'country_code VARCHAR !', 'status VARCHAR !',
+        'commission_percent DECIMAL !', 'onboarded_at TIMESTAMP !',
+      ],
+      vendor_users: [
+        'id INT pk', 'vendor_id INT >vendors.id', 'user_id INT >users.id', 'role VARCHAR !',
+        'invited_at TIMESTAMP', 'accepted_at TIMESTAMP',
+      ],
+      vendor_documents: [
+        'id INT pk', 'vendor_id INT >vendors.id', 'document_type VARCHAR !',
+        'file_url VARCHAR !', 'verified_at TIMESTAMP', 'expires_on DATE',
+      ],
+      categories: [
+        'id INT pk', 'parent_id INT >categories.id ?', 'name VARCHAR !', 'slug VARCHAR !',
+        'position INT !',
+      ],
+      attributes: [
+        'id INT pk', 'category_id INT >categories.id ?', 'code VARCHAR !', 'name VARCHAR !',
+        'data_type VARCHAR !', 'is_variant_axis BOOLEAN !',
+      ],
+      attribute_values: [
+        'id INT pk', 'attribute_id INT >attributes.id', 'value VARCHAR !', 'position INT !',
+      ],
+      products: [
+        'id INT pk', 'vendor_id INT >vendors.id', 'category_id INT >categories.id',
+        'name VARCHAR !', 'slug VARCHAR !', 'description TEXT', 'brand VARCHAR',
+        'status VARCHAR !', 'created_at TIMESTAMP !',
+      ],
+      product_attributes: [
+        'id INT pk', 'product_id INT >products.id', 'attribute_id INT >attributes.id',
+        'attribute_value_id INT >attribute_values.id ?', 'free_value VARCHAR',
+      ],
+      variants: [
+        'id INT pk', 'product_id INT >products.id', 'sku VARCHAR !', 'title VARCHAR !',
+        'weight_grams INT', 'barcode VARCHAR', 'is_active BOOLEAN !',
+      ],
+      variant_attribute_values: [
+        'id INT pk', 'variant_id INT >variants.id',
+        'attribute_value_id INT >attribute_values.id',
+      ],
+      media: [
+        'id INT pk', 'product_id INT >products.id', 'variant_id INT >variants.id ?',
+        'url VARCHAR !', 'media_type VARCHAR !', 'alt_text VARCHAR', 'position INT !',
+      ],
+      price_lists: [
+        'id INT pk', 'vendor_id INT >vendors.id', 'name VARCHAR !', 'currency VARCHAR !',
+        'starts_on DATE', 'ends_on DATE',
+      ],
+      prices: [
+        'id INT pk', 'price_list_id INT >price_lists.id', 'variant_id INT >variants.id',
+        'amount DECIMAL !', 'compare_at DECIMAL', 'min_quantity INT !',
+      ],
+      inventory_locations: [
+        'id INT pk', 'vendor_id INT >vendors.id', 'name VARCHAR !', 'city VARCHAR',
+        'country_code VARCHAR !', 'is_default BOOLEAN !',
+      ],
+      inventory: [
+        'id INT pk', 'variant_id INT >variants.id', 'location_id INT >inventory_locations.id',
+        'on_hand INT !', 'reserved INT !', 'restock_eta DATE',
+      ],
+      listings: [
+        'id INT pk', 'variant_id INT >variants.id', 'vendor_id INT >vendors.id',
+        'price_list_id INT >price_lists.id ?', 'condition VARCHAR !', 'handling_days INT !',
+        'is_buy_box BOOLEAN !', 'published_at TIMESTAMP',
+      ],
+      carts: [
+        'id INT pk', 'user_id INT >users.id ?', 'session_token VARCHAR', 'currency VARCHAR !',
+        'created_at TIMESTAMP !',
+      ],
+      cart_items: [
+        'id INT pk', 'cart_id INT >carts.id', 'listing_id INT >listings.id', 'quantity INT !',
+        'unit_price DECIMAL !',
+      ],
+      shipping_methods: [
+        'id INT pk', 'vendor_id INT >vendors.id', 'name VARCHAR !', 'carrier VARCHAR',
+        'transit_days INT', 'is_active BOOLEAN !',
+      ],
+      shipping_rates: [
+        'id INT pk', 'shipping_method_id INT >shipping_methods.id', 'country_code VARCHAR !',
+        'min_weight_grams INT !', 'max_weight_grams INT', 'amount DECIMAL !',
+      ],
+      tax_rates: [
+        'id INT pk', 'country_code VARCHAR !', 'region VARCHAR', 'name VARCHAR !',
+        'percent DECIMAL !', 'applies_to VARCHAR !',
+      ],
+      orders: [
+        'id INT pk', 'buyer_id INT >users.id', 'shipping_address_id INT >addresses.id ?',
+        'billing_address_id INT >addresses.id ?', 'number VARCHAR !', 'status VARCHAR !',
+        'currency VARCHAR !', 'items_total DECIMAL !', 'shipping_total DECIMAL !',
+        'tax_total DECIMAL !', 'grand_total DECIMAL !', 'placed_at TIMESTAMP !',
+      ],
+      order_lines: [
+        'id INT pk', 'order_id INT >orders.id', 'listing_id INT >listings.id',
+        'vendor_id INT >vendors.id', 'quantity INT !', 'unit_price DECIMAL !',
+        'line_total DECIMAL !', 'status VARCHAR !',
+      ],
+      tax_lines: [
+        'id INT pk', 'order_line_id INT >order_lines.id', 'tax_rate_id INT >tax_rates.id',
+        'amount DECIMAL !',
+      ],
+      fulfilments: [
+        'id INT pk', 'order_id INT >orders.id', 'vendor_id INT >vendors.id',
+        'location_id INT >inventory_locations.id ?',
+        'shipping_method_id INT >shipping_methods.id ?', 'tracking_number VARCHAR',
+        'status VARCHAR !', 'shipped_at TIMESTAMP', 'delivered_at TIMESTAMP',
+      ],
+      order_line_fulfilments: [
+        'id INT pk', 'fulfilment_id INT >fulfilments.id', 'order_line_id INT >order_lines.id',
+        'quantity INT !',
+      ],
+      payments: [
+        'id INT pk', 'order_id INT >orders.id', 'provider VARCHAR !',
+        'provider_reference VARCHAR', 'method VARCHAR !', 'status VARCHAR !',
+        'amount DECIMAL !', 'currency VARCHAR !', 'captured_at TIMESTAMP',
+      ],
+      payment_splits: [
+        'id INT pk', 'payment_id INT >payments.id', 'vendor_id INT >vendors.id',
+        'gross_amount DECIMAL !', 'commission_amount DECIMAL !', 'net_amount DECIMAL !',
+      ],
+      commissions: [
+        'id INT pk', 'order_line_id INT >order_lines.id', 'vendor_id INT >vendors.id',
+        'percent DECIMAL !', 'amount DECIMAL !', 'settled_at TIMESTAMP',
+      ],
+      refunds: [
+        'id INT pk', 'payment_id INT >payments.id', 'order_line_id INT >order_lines.id ?',
+        'amount DECIMAL !', 'reason VARCHAR', 'status VARCHAR !', 'created_at TIMESTAMP !',
+      ],
+      disputes: [
+        'id INT pk', 'order_id INT >orders.id', 'opened_by INT >users.id',
+        'vendor_id INT >vendors.id', 'reason VARCHAR !', 'status VARCHAR !',
+        'resolution VARCHAR', 'opened_at TIMESTAMP !', 'closed_at TIMESTAMP',
+      ],
+      payouts: [
+        'id INT pk', 'vendor_id INT >vendors.id', 'period_start DATE !', 'period_end DATE !',
+        'gross_amount DECIMAL !', 'commission_amount DECIMAL !', 'net_amount DECIMAL !',
+        'status VARCHAR !', 'paid_at TIMESTAMP',
+      ],
+      payout_lines: [
+        'id INT pk', 'payout_id INT >payouts.id', 'order_line_id INT >order_lines.id',
+        'amount DECIMAL !',
+      ],
+      reviews: [
+        'id INT pk', 'product_id INT >products.id', 'author_id INT >users.id',
+        'order_line_id INT >order_lines.id ?', 'rating INT !', 'title VARCHAR', 'body TEXT',
+        'is_verified BOOLEAN !', 'created_at TIMESTAMP !',
+      ],
+      review_replies: [
+        'id INT pk', 'review_id INT >reviews.id', 'vendor_id INT >vendors.id', 'body TEXT !',
+        'created_at TIMESTAMP !',
+      ],
+      message_threads: [
+        'id INT pk', 'buyer_id INT >users.id', 'vendor_id INT >vendors.id',
+        'order_id INT >orders.id ?', 'subject VARCHAR', 'status VARCHAR !',
+        'created_at TIMESTAMP !',
+      ],
+      messages: [
+        'id INT pk', 'thread_id INT >message_threads.id', 'sender_user_id INT >users.id ?',
+        'body TEXT !', 'is_from_vendor BOOLEAN !', 'sent_at TIMESTAMP !',
+      ],
+    },
+  },
+
+  {
+    key: 'erp',
+    label: 'Manufacturing ERP',
+    description:
+      'Bills of materials and routings driving production, purchasing and sales, all posting to a double-entry general ledger.',
+    size: 'large',
+    tables: {
+      companies: [
+        'id INT pk', 'legal_name VARCHAR !', 'tax_id VARCHAR', 'country_code VARCHAR !',
+        'base_currency VARCHAR !',
+      ],
+      sites: [
+        'id INT pk', 'company_id INT >companies.id', 'code VARCHAR !', 'name VARCHAR !',
+        'city VARCHAR', 'country_code VARCHAR !',
+      ],
+      warehouses: [
+        'id INT pk', 'site_id INT >sites.id', 'code VARCHAR !', 'name VARCHAR !',
+        'is_default BOOLEAN !',
+      ],
+      cost_centres: [
+        'id INT pk', 'company_id INT >companies.id', 'parent_id INT >cost_centres.id ?',
+        'code VARCHAR !', 'name VARCHAR !',
+      ],
+      currencies: ['id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'minor_units INT !'],
+      exchange_rates: [
+        'id INT pk', 'base_currency_id INT >currencies.id',
+        'quote_currency_id INT >currencies.id', 'rate DECIMAL !', 'as_of DATE !',
+      ],
+      fiscal_periods: [
+        'id INT pk', 'company_id INT >companies.id', 'name VARCHAR !', 'starts_on DATE !',
+        'ends_on DATE !', 'is_closed BOOLEAN !',
+      ],
+      gl_accounts: [
+        'id INT pk', 'company_id INT >companies.id', 'parent_id INT >gl_accounts.id ?',
+        'code VARCHAR !', 'name VARCHAR !', 'account_type VARCHAR !', 'is_postable BOOLEAN !',
+      ],
+      journals: [
+        'id INT pk', 'company_id INT >companies.id', 'fiscal_period_id INT >fiscal_periods.id',
+        'reference VARCHAR !', 'source VARCHAR !', 'posted_at TIMESTAMP', 'status VARCHAR !',
+      ],
+      journal_lines: [
+        'id BIGINT pk', 'journal_id INT >journals.id', 'gl_account_id INT >gl_accounts.id',
+        'cost_centre_id INT >cost_centres.id ?', 'debit DECIMAL !', 'credit DECIMAL !',
+        'currency_id INT >currencies.id', 'description VARCHAR',
+      ],
+      partners: [
+        'id INT pk', 'company_id INT >companies.id', 'code VARCHAR !', 'name VARCHAR !',
+        'is_customer BOOLEAN !', 'is_supplier BOOLEAN !', 'tax_id VARCHAR',
+        'payment_terms_days INT',
+      ],
+      partner_addresses: [
+        'id INT pk', 'partner_id INT >partners.id', 'address_type VARCHAR !',
+        'line1 VARCHAR !', 'city VARCHAR !', 'postal_code VARCHAR',
+        'country_code VARCHAR !',
+      ],
+      contacts: [
+        'id INT pk', 'partner_id INT >partners.id', 'full_name VARCHAR !', 'email VARCHAR',
+        'phone VARCHAR', 'job_title VARCHAR',
+      ],
+      units_of_measure: [
+        'id INT pk', 'code VARCHAR !', 'name VARCHAR !', 'category VARCHAR !',
+        'ratio_to_base DECIMAL !',
+      ],
+      item_categories: [
+        'id INT pk', 'parent_id INT >item_categories.id ?', 'code VARCHAR !', 'name VARCHAR !',
+      ],
+      items: [
+        'id INT pk', 'category_id INT >item_categories.id', 'uom_id INT >units_of_measure.id',
+        'code VARCHAR !', 'name VARCHAR !', 'item_type VARCHAR !', 'standard_cost DECIMAL',
+        'lead_time_days INT', 'is_active BOOLEAN !',
+      ],
+      boms: [
+        'id INT pk', 'item_id INT >items.id', 'version VARCHAR !', 'quantity DECIMAL !',
+        'is_active BOOLEAN !', 'effective_from DATE',
+      ],
+      bom_lines: [
+        'id INT pk', 'bom_id INT >boms.id', 'component_item_id INT >items.id',
+        'quantity DECIMAL !', 'scrap_percent DECIMAL', 'position INT !',
+      ],
+      work_centres: [
+        'id INT pk', 'site_id INT >sites.id', 'cost_centre_id INT >cost_centres.id ?',
+        'code VARCHAR !', 'name VARCHAR !', 'capacity_hours_per_day DECIMAL',
+        'hourly_rate DECIMAL',
+      ],
+      routings: [
+        'id INT pk', 'item_id INT >items.id', 'version VARCHAR !', 'is_active BOOLEAN !',
+      ],
+      routing_operations: [
+        'id INT pk', 'routing_id INT >routings.id', 'work_centre_id INT >work_centres.id',
+        'sequence INT !', 'name VARCHAR !', 'setup_minutes DECIMAL', 'run_minutes DECIMAL !',
+      ],
+      production_orders: [
+        'id INT pk', 'item_id INT >items.id', 'bom_id INT >boms.id ?',
+        'routing_id INT >routings.id ?', 'warehouse_id INT >warehouses.id',
+        'number VARCHAR !', 'quantity DECIMAL !', 'status VARCHAR !', 'due_on DATE',
+        'released_at TIMESTAMP', 'closed_at TIMESTAMP',
+      ],
+      production_order_lines: [
+        'id INT pk', 'production_order_id INT >production_orders.id',
+        'component_item_id INT >items.id', 'required_quantity DECIMAL !',
+        'issued_quantity DECIMAL !',
+      ],
+      work_orders: [
+        'id INT pk', 'production_order_id INT >production_orders.id',
+        'routing_operation_id INT >routing_operations.id ?',
+        'work_centre_id INT >work_centres.id', 'sequence INT !', 'status VARCHAR !',
+        'planned_minutes DECIMAL', 'actual_minutes DECIMAL', 'completed_at TIMESTAMP',
+      ],
+      purchase_requisitions: [
+        'id INT pk', 'site_id INT >sites.id', 'item_id INT >items.id',
+        'requested_by VARCHAR', 'quantity DECIMAL !', 'needed_on DATE', 'status VARCHAR !',
+        'created_at TIMESTAMP !',
+      ],
+      purchase_orders: [
+        'id INT pk', 'partner_id INT >partners.id', 'warehouse_id INT >warehouses.id',
+        'currency_id INT >currencies.id', 'number VARCHAR !', 'status VARCHAR !',
+        'ordered_at TIMESTAMP !', 'expected_on DATE', 'total DECIMAL !',
+      ],
+      purchase_order_lines: [
+        'id INT pk', 'purchase_order_id INT >purchase_orders.id', 'item_id INT >items.id',
+        'requisition_id INT >purchase_requisitions.id ?', 'quantity DECIMAL !',
+        'unit_price DECIMAL !', 'received_quantity DECIMAL !',
+      ],
+      goods_receipts: [
+        'id INT pk', 'purchase_order_id INT >purchase_orders.id',
+        'warehouse_id INT >warehouses.id', 'reference VARCHAR !', 'received_at TIMESTAMP !',
+        'status VARCHAR !',
+      ],
+      goods_receipt_lines: [
+        'id INT pk', 'goods_receipt_id INT >goods_receipts.id',
+        'purchase_order_line_id INT >purchase_order_lines.id', 'quantity DECIMAL !',
+        'rejected_quantity DECIMAL !',
+      ],
+      supplier_invoices: [
+        'id INT pk', 'partner_id INT >partners.id',
+        'purchase_order_id INT >purchase_orders.id ?', 'journal_id INT >journals.id ?',
+        'number VARCHAR !', 'status VARCHAR !', 'issued_on DATE !', 'due_on DATE',
+        'total DECIMAL !',
+      ],
+      supplier_invoice_lines: [
+        'id INT pk', 'supplier_invoice_id INT >supplier_invoices.id',
+        'item_id INT >items.id ?', 'gl_account_id INT >gl_accounts.id',
+        'description VARCHAR', 'quantity DECIMAL !', 'unit_price DECIMAL !',
+        'amount DECIMAL !',
+      ],
+      sales_orders: [
+        'id INT pk', 'partner_id INT >partners.id', 'warehouse_id INT >warehouses.id',
+        'currency_id INT >currencies.id', 'number VARCHAR !', 'status VARCHAR !',
+        'ordered_at TIMESTAMP !', 'promised_on DATE', 'total DECIMAL !',
+      ],
+      sales_order_lines: [
+        'id INT pk', 'sales_order_id INT >sales_orders.id', 'item_id INT >items.id',
+        'quantity DECIMAL !', 'unit_price DECIMAL !', 'delivered_quantity DECIMAL !',
+      ],
+      deliveries: [
+        'id INT pk', 'sales_order_id INT >sales_orders.id',
+        'warehouse_id INT >warehouses.id', 'reference VARCHAR !', 'status VARCHAR !',
+        'shipped_at TIMESTAMP', 'delivered_at TIMESTAMP',
+      ],
+      delivery_lines: [
+        'id INT pk', 'delivery_id INT >deliveries.id',
+        'sales_order_line_id INT >sales_order_lines.id', 'quantity DECIMAL !',
+      ],
+      customer_invoices: [
+        'id INT pk', 'partner_id INT >partners.id', 'sales_order_id INT >sales_orders.id ?',
+        'journal_id INT >journals.id ?', 'number VARCHAR !', 'status VARCHAR !',
+        'issued_on DATE !', 'due_on DATE', 'total DECIMAL !',
+      ],
+      customer_invoice_lines: [
+        'id INT pk', 'customer_invoice_id INT >customer_invoices.id',
+        'item_id INT >items.id ?', 'gl_account_id INT >gl_accounts.id',
+        'description VARCHAR', 'quantity DECIMAL !', 'unit_price DECIMAL !',
+        'amount DECIMAL !',
+      ],
+      payments: [
+        'id INT pk', 'partner_id INT >partners.id', 'journal_id INT >journals.id ?',
+        'direction VARCHAR !', 'method VARCHAR !', 'amount DECIMAL !',
+        'currency_id INT >currencies.id', 'paid_on DATE !', 'reference VARCHAR',
+      ],
+      stock_moves: [
+        'id BIGINT pk', 'item_id INT >items.id', 'from_warehouse_id INT >warehouses.id ?',
+        'to_warehouse_id INT >warehouses.id ?',
+        'production_order_id INT >production_orders.id ?',
+        'goods_receipt_id INT >goods_receipts.id ?', 'delivery_id INT >deliveries.id ?',
+        'quantity DECIMAL !', 'reason VARCHAR !', 'moved_at TIMESTAMP !',
+      ],
+      stock_valuations: [
+        'id BIGINT pk', 'item_id INT >items.id', 'warehouse_id INT >warehouses.id',
+        'stock_move_id BIGINT >stock_moves.id ?', 'quantity DECIMAL !',
+        'unit_cost DECIMAL !', 'value DECIMAL !', 'valued_at TIMESTAMP !',
+      ],
+    },
+  },
 ];
 
 // ── Dışa açılan şablonlar ────────────────────────────────────────────────────
@@ -1336,6 +1920,7 @@ export interface SchemaTemplate {
   key: string;
   label: string;
   description: string;
+  size: TemplateSize;
   schema: DatabaseSchema;
 }
 
@@ -1343,5 +1928,15 @@ export const TEMPLATES: SchemaTemplate[] = SPECS.map(spec => ({
   key: spec.key,
   label: spec.label,
   description: spec.description,
+  size: spec.size,
   schema: build(spec),
 }));
+
+/** Galeri/şerit sıralaması: büyükten küçüğe değil, ölçek gruplarına göre. */
+export const TEMPLATE_SIZES: { id: TemplateSize; label: string; blurb: string }[] = [
+  { id: 'mini', label: 'Quick start', blurb: 'Small, focused schemas to build on.' },
+  { id: 'standard', label: 'Full product', blurb: 'What a real application looks like.' },
+  { id: 'large', label: 'Enterprise', blurb: 'Scale where the checks start to matter.' },
+];
+
+export const templatesOfSize = (size: TemplateSize) => TEMPLATES.filter(t => t.size === size);

@@ -377,7 +377,7 @@ export default function CanvasPage() {
 
       {/* Connection Lost Overlay for Read-Only Mode */}
       {isOffline && (
-        <div className="absolute inset-0 z-[8000] bg-black/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-auto">
+        <div className="absolute inset-0 z-[8000] bg-scrim/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-auto">
           <div className="bg-surface-800 border border-danger/25 px-6 py-5 rounded-2xl flex flex-col items-center text-center gap-3">
             <span className="flex items-center gap-1.5 bg-danger-subtle text-danger-text border border-danger/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
               <AlertTriangle className="w-3 h-3" />
@@ -457,7 +457,7 @@ export default function CanvasPage() {
 
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
             <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 p-4 rounded-2xl mt-4 ml-4 w-64 select-none pointer-events-auto">
-              <h2 className="text-xl font-bold bg-gradient-to-r from-zinc-100 to-content-primary bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
+              <h2 className="text-xl font-bold bg-gradient-to-r from-content-primary to-content-primary bg-clip-text text-transparent mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
               <div className="text-xs text-content-secondary/80 flex flex-col gap-1 font-medium">
                 <div className="flex gap-4">
                   <span>{schema.tables.length} Tables</span>

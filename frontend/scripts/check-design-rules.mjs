@@ -7,9 +7,22 @@
  * şey onu uygulamıyordu; kod sessizce kaydı ve doküman yanlış hale geldi.
  * Uygulanmayan bir kural, kuralın olmamasından kötüdür — çünkü ona güvenilir.
  *
- * Bu betik iki şeyi kontrol ediyor:
+ * Bu betik dört şeyi kontrol ediyor:
  *   1. `components/` ve `app/` altındaki .tsx dosyalarında ham hex renk
  *   2. Tailwind'e alternatif CSS-in-JS kütüphanesi sızmış mı
+ *   3. Tailwind'in HAZIR renk aileleri (zinc/emerald/indigo/rose/orange...)
+ *   4. Saf `text-white` / `bg-black` değerleri
+ *
+ * <b>3 ve 4 neden sonradan eklendi:</b> betik yalnızca `#hex` arıyordu ve
+ * FRONTEND.md §8.3 "ham hex 0" diye kaydediyordu — doğruydu ama eksikti.
+ * İhlaller hex yazmayı bırakıp `text-zinc-500` yazmaya geçmişti: ölçüm
+ * yapıldığında **254 kullanım** vardı. Yani kural uygulanıyor sanılıyor, ihlal
+ * ise sadece yazım biçimi değiştirmiş oluyordu.
+ *
+ * Bu önemliydi çünkü hazır aileler paletin dışında: `text-zinc-500` (#71717a)
+ * koyu zeminde ~4.0:1, `text-zinc-600` (#52525b) ~2.6:1 — ikisi de WCAG AA
+ * altı. §8.1'in "göz yoruyor"un ölçülebilir kısmı dediği şey tam olarak buydu
+ * ve temizlenmiş sayılıyordu.
  *
  * Çalıştırma: `npm run check:design`
  */
@@ -19,6 +32,32 @@ import { join, extname } from 'node:path';
 
 const ROOTS = ['components', 'app'];
 const HEX = /#[0-9a-fA-F]{3,8}\b/g;
+
+/**
+ * Tailwind'in kendi renk ölçekleri — FRONTEND.md §2 paletin dışında hiçbir
+ * aileye izin vermiyor. `--color-*` token'ları hepsinin karşılığını veriyor
+ * (surface-* / content-* / accent-* / danger-* / success-*).
+ */
+const TAILWIND_PALETTE = [
+  'slate', 'gray', 'zinc', 'neutral', 'stone',
+  'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal',
+  'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose',
+];
+const PALETTE_PREFIXES =
+  'text|bg|border|from|to|via|ring|shadow|fill|stroke|divide|outline|decoration|accent|caret';
+const PALETTE_CLASS = new RegExp(
+  `(?<![\\w-])(?:${PALETTE_PREFIXES})-(?:${TAILWIND_PALETTE.join('|')})-\\d{2,3}(?![\\w-])`,
+  'g',
+);
+
+/**
+ * Saf beyaz/siyah. Alfa'lı biçimler (`bg-white/[0.06]`, `bg-scrim/70`) bilinçli
+ * olarak DIŞARIDA: onlar bir renk değil, yüzeyin üstüne konan saydam bir kat —
+ * kod tabanının yerleşik yüzey deseni. Yasaklanan, bir metnin ya da zeminin
+ * SAF #fff/#000 olması.
+ */
+const PURE_BW =
+  /(?<![\w-])(?:text-white|bg-white|bg-black|text-black|border-white|border-black)(?![\w/-])/g;
 
 /** Tailwind yerine geçmeye çalışan kütüphaneler — FRONTEND.md §5. */
 const FORBIDDEN_IMPORTS = [
@@ -67,6 +106,26 @@ for (const root of ROOTS) {
         }
       }
 
+      if (!isComment(line)) {
+        const palette = line.match(PALETTE_CLASS);
+        if (palette) {
+          violations.push({
+            file, line: i + 1, kind: 'Tailwind hazır renk ailesi',
+            detail: `${[...new Set(palette)].join(', ')} — FRONTEND.md §2: palet dışı aile. ` +
+              'Nötrler surface-*/content-*, semantikler danger-*/success-*, vurgu accent-*.',
+          });
+        }
+
+        const pure = line.match(PURE_BW);
+        if (pure) {
+          violations.push({
+            file, line: i + 1, kind: 'saf beyaz/siyah',
+            detail: `${[...new Set(pure)].join(', ')} — FRONTEND.md §2: saf #fff/#000 yok. ` +
+              'Metin için content-*, karartma için bg-scrim/<alfa>.',
+          });
+        }
+      }
+
       for (const pkg of FORBIDDEN_IMPORTS) {
         if (line.includes(`from '${pkg}'`) || line.includes(`from "${pkg}"`)) {
           violations.push({
@@ -80,7 +139,8 @@ for (const root of ROOTS) {
 }
 
 if (violations.length === 0) {
-  console.log('✓ Tasarım kuralları temiz: ham hex yok, Tailwind dışı stil kütüphanesi yok.');
+  console.log('✓ Tasarım kuralları temiz: ham hex yok, palet dışı Tailwind ailesi yok, ' +
+    'saf beyaz/siyah yok, Tailwind dışı stil kütüphanesi yok.');
   process.exit(0);
 }
 

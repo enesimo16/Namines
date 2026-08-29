@@ -96,6 +96,24 @@
      (bkz. --color-ink-secondary), ayrım ikon/etiketle sağlanır. */
   --color-warning: #c2c7d1;
   --color-warning-subtle: #161b26;
+  /* `text-warning-text` KODDA KULLANILIYORDU ama token'ı yoktu — Tailwind v4 o
+     utility'yi hiç üretmiyor ve metin sessizce miras alınan renge düşüyordu.
+     Yani demo ekranında "uyarı" bulguları "not" bulgularıyla AYNI görünüyordu:
+     ayrım renkle değil ikonla yapılıyor olsa bile, ton farkı da olmalıydı.
+     danger/success ile aynı rol ayrımı: *-text koyu zemin üstünde metin. */
+  --color-warning-text: #d6dae3;
+
+  /* `border-surface-400` / `text-surface-400` de üç yerde kullanılıyordu ve
+     token'ı yoktu — kenarlık sessizce çizilmiyordu. surface-500'den bir tık
+     belirgin: klavye tuşu rozeti gibi "çerçevesi görünmeli" öğeler için. */
+  --color-surface-400: rgba(231, 233, 238, 0.22);
+
+  /* Modal/drawer karartması. Daha önce her yerde `bg-black/70` yazıyordu — saf
+     #000, §2'nin "saf değerler HİÇBİR YERDE" kuralının ihlali. Ayrıca nötr
+     siyah, sayfanın mavimsi off-black zeminiyle yan yana durunca soğuk bir
+     leke gibi görünüyordu. Karartma artık paletin en derin zemini: aynı
+     aileden, "derin uzay" kimliğiyle uyumlu. */
+  --color-scrim: #05070c;
 
   /* Geriye dönük adlar — referanslar kırılmasın diye İSİMLER korunuyor, ama
      DEĞERLER palete çekildi. `primary-glow` daha önce #4f46e5 / #6366f1 idi;

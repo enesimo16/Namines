@@ -88,7 +88,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
       <div
         ref={overlayRef}
         onClick={handleOverlayClick}
-        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-scrim/60 backdrop-blur-sm z-[60] transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         aria-hidden={!isOpen}
       />
 
@@ -188,7 +188,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
 
       {/* Delete Confirmation Modal */}
       {projectToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-scrim/70 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/15 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col p-5">
             <div className="flex items-center justify-between pb-3 border-b border-content-primary/10">
               <div className="flex items-center gap-2 text-danger-text">
@@ -234,7 +234,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                     setProjectToDelete(null);
                   }
                 }}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-danger hover:bg-danger-text text-white font-semibold text-xs transition-all cursor-pointer"
+                className="flex-1 py-2.5 px-4 rounded-lg bg-danger hover:bg-danger-text text-content-primary font-semibold text-xs transition-all cursor-pointer"
               >
                 Delete
               </button>

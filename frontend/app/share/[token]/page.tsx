@@ -1,9 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   ReactFlow,
+  ReactFlowProvider,
+  useNodesInitialized,
+  useReactFlow,
   Background,
   Controls,
   MiniMap,
@@ -24,6 +28,25 @@ import BadgeSnippet from './BadgeSnippet';
 import { token as designToken } from '../../../lib/designTokens';
 
 const nodeTypes = { tableNode: TableNode };
+
+/**
+ * Görünümü, düğümler ÖLÇÜLDÜKTEN sonra şemaya oturtur.
+ *
+ * `fitView` bayrağı tek başına yalnızca ilk render'da ve boyutlar biliniyorsa
+ * çalışıyor; 25+ tabloluk paylaşılan bir şemada ölçüm yetişmiyor ve ziyaretçi
+ * bomboş bir tuval görüyordu. `minZoom` de okunaksızlığa kadar uzaklaşmayı
+ * engelliyor — büyük şemada kaydırmak, hiçbir şey okuyamamaktan iyi.
+ */
+function FitOnLoad({ dependency }: { dependency: number }) {
+  const initialised = useNodesInitialized();
+  const { fitView } = useReactFlow();
+
+  useEffect(() => {
+    if (initialised) void fitView({ padding: 0.15, minZoom: 0.4 });
+  }, [initialised, dependency, fitView]);
+
+  return null;
+}
 
 interface SharedProject {
   name: string;
@@ -89,7 +112,7 @@ export default function SharePage() {
 
   if (status === 'loading') {
     return (
-      <div className="flex items-center justify-center h-screen bg-surface-900 text-content-muted text-sm">
+      <div className="flex items-center justify-center h-dvh bg-surface-900 text-content-muted text-sm">
         Loading schema…
       </div>
     );
@@ -97,7 +120,7 @@ export default function SharePage() {
 
   if (status === 'error') {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-surface-900 gap-6 px-4 text-center">
+      <div className="flex flex-col items-center justify-center h-dvh bg-surface-900 gap-6 px-4 text-center">
         <div className="w-20 h-20 rounded-3xl bg-surface-800 border border-surface-600 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)]">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10 text-surface-400">
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
@@ -109,28 +132,31 @@ export default function SharePage() {
             This share link has been revoked or never existed. Ask the schema owner to generate a new link.
           </p>
         </div>
-        <a
+        <Link
           href="/"
-          className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+          className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-content-primary text-sm font-semibold transition-colors"
         >
           Go to Namines
-        </a>
+        </Link>
         <p className="text-content-muted/50 text-xs font-mono">404 · Share token invalid or expired</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-surface-900">
+    <div className="flex flex-col h-dvh bg-surface-900">
       {/* Header */}
-      <header className="flex items-center gap-3 px-5 h-[52px] border-b border-surface-600 shrink-0">
+      {/* Başlık MOBİLDE SARIYOR. Yedi öğe (marka, proje adı, motor, istatistik,
+          rozet, "salt okunur", iki eylem) 375px'lik tek bir 52px'lik satıra
+          sığmıyordu; sabit yükseklikte hepsi birbirinin üstüne biniyordu. */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-5 py-2.5 sm:h-[52px] sm:flex-nowrap sm:py-0 border-b border-surface-600 shrink-0">
         {/* Marka artık BAĞLANTI. Paylaşılan bir şemaya gelen ziyaretçi, ürünün
             adını görüyor ama gidecek bir yeri yoktu — viral döngünün son adımı
             (gelen kişinin ürünü denemesi) tıklanamayan bir metinde kırılıyordu. */}
-        <a href="/" className="text-indigo-400 font-bold text-base tracking-tight hover:text-indigo-300 transition-colors shrink-0">
-          ⚡ Namines
-        </a>
-        <span className="text-surface-500">|</span>
+        <Link href="/" className="text-accent-text font-bold text-base tracking-tight hover:text-content-primary transition-colors shrink-0">
+          Namines
+        </Link>
+        <span className="hidden sm:inline text-surface-500">|</span>
         <span className="text-content-primary font-medium text-sm truncate">{projectName}</span>
         {dbType && (
           <span className="ml-1 px-2 py-0.5 rounded-md bg-surface-700 text-content-muted text-xs font-mono shrink-0">
@@ -151,7 +177,7 @@ export default function SharePage() {
           alt="DBA score"
           className="hidden sm:block h-5 shrink-0"
         />
-        <span className="ml-auto px-3 py-1 rounded-lg bg-surface-700 text-content-muted text-xs border border-surface-500 shrink-0">
+        <span className="ml-auto hidden sm:inline px-3 py-1 rounded-lg bg-surface-700 text-content-muted text-xs border border-surface-500 shrink-0">
           Read-only view
         </span>
         <BadgeSnippet token={token} projectName={projectName} />
@@ -159,7 +185,7 @@ export default function SharePage() {
             buraya kadar hiçbir yerde "sen de yapabilirsin" demiyorduk. */}
         <a
           href="/demo"
-          className="shrink-0 px-3 py-1.5 rounded-lg bg-content-primary text-surface-900 text-xs font-bold hover:bg-content-secondary transition-colors"
+          className="ml-auto sm:ml-0 shrink-0 px-3 py-2 rounded-lg bg-content-primary text-surface-900 text-xs font-bold hover:bg-content-secondary transition-colors"
         >
           Build your own
         </a>
@@ -167,6 +193,7 @@ export default function SharePage() {
 
       {/* Canvas */}
       <div className="flex-1">
+        <ReactFlowProvider>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -177,10 +204,12 @@ export default function SharePage() {
           nodesConnectable={false}
           elementsSelectable={false}
           deleteKeyCode={null}
+          minZoom={0.1}
           fitView
-          fitViewOptions={{ padding: 0.15 }}
+          fitViewOptions={{ padding: 0.15, minZoom: 0.4 }}
           proOptions={{ hideAttribution: false }}
         >
+          <FitOnLoad dependency={nodes.length} />
           <Background variant={BackgroundVariant.Dots} gap={24} size={1} color={designToken('--color-line-solid-strong')} />
           <Controls showInteractive={false} />
           <MiniMap
@@ -189,6 +218,7 @@ export default function SharePage() {
             style={{ background: designToken('--color-surface-700'), border: `1px solid ${designToken('--color-line-solid-strong')}` }}
           />
         </ReactFlow>
+        </ReactFlowProvider>
       </div>
     </div>
   );

@@ -34,8 +34,8 @@ export default function EmptyCanvasState() {
   };
 
   return (
-    <div className="absolute inset-0 z-[40] flex items-center justify-center bg-black/75 backdrop-blur-sm pointer-events-auto">
-      <div className="relative w-full max-w-md p-8 rounded-3xl bg-surface-900/95 border border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200 font-sans">
+    <div className="absolute inset-0 z-[40] flex items-center justify-center bg-scrim/75 backdrop-blur-sm pointer-events-auto">
+      <div className="relative w-full max-w-md p-8 rounded-3xl bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Header Icon */}
         <div className="w-12 h-12 rounded-xl bg-content-primary/[0.06] border border-content-primary/12 text-accent-text flex items-center justify-center shadow-sm shrink-0">
@@ -44,85 +44,85 @@ export default function EmptyCanvasState() {
 
         {/* Title and Subtitle */}
         <div className="space-y-1.5">
-          <h2 className="text-sm font-extrabold text-zinc-100 uppercase tracking-wider">
+          <h2 className="text-sm font-extrabold text-content-primary uppercase tracking-wider">
             Create Your Database Schema
           </h2>
-          <p className="text-xs text-zinc-400 leading-relaxed max-w-xs">
+          <p className="text-xs text-content-muted leading-relaxed max-w-xs">
             Your canvas is currently empty. Initialize your project using AI, importing an existing visual sketch, or by building the design manually.
           </p>
         </div>
 
         {/* Divider */}
-        <div className="w-full h-px bg-zinc-800/80" />
+        <div className="w-full h-px bg-surface-700/80" />
 
         {/* Actions List */}
         <div className="flex flex-col gap-3 w-full">
           {/* Action 1: Generate with AI */}
           <button
             onClick={handleGenerateWithAi}
-            className="group relative flex items-center justify-between p-4 rounded-xl bg-zinc-950/40 hover:bg-zinc-950/85 border border-zinc-800/80 hover:border-zinc-700/85 transition-all text-left cursor-pointer"
+            className="group relative flex items-center justify-between p-4 rounded-xl bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-content-primary/[0.06] border border-content-primary/12 flex items-center justify-center text-accent-text">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-zinc-200">Generate with AI</h4>
-                <p className="text-[10px] text-zinc-500 font-medium mt-0.5">Describe your database structure in plain Turkish or English.</p>
+                <h4 className="text-xs font-bold text-content-primary">Generate with AI</h4>
+                <p className="text-[10px] text-content-subtle font-medium mt-0.5">Describe your database structure in plain Turkish or English.</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="w-4 h-4 text-content-subtle group-hover:text-content-muted group-hover:translate-x-0.5 transition-all" />
           </button>
 
           {/* Action 2: Import from Image */}
           <button
             onClick={handleImportFromImage}
-            className="group relative flex items-center justify-between p-4 rounded-xl bg-zinc-950/40 hover:bg-zinc-950/85 border border-zinc-800/80 hover:border-zinc-700/85 transition-all text-left cursor-pointer"
+            className="group relative flex items-center justify-between p-4 rounded-xl bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+              <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent-text">
                 <FileImage className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-zinc-200">Import from Image</h4>
-                <p className="text-[10px] text-zinc-500 font-medium mt-0.5">Extract schema tables and fields from a sketch or diagram photo.</p>
+                <h4 className="text-xs font-bold text-content-primary">Import from Image</h4>
+                <p className="text-[10px] text-content-subtle font-medium mt-0.5">Extract schema tables and fields from a sketch or diagram photo.</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="w-4 h-4 text-content-subtle group-hover:text-content-muted group-hover:translate-x-0.5 transition-all" />
           </button>
 
           {/* Action 3: Browse Templates */}
           <button
             onClick={handleBrowseTemplates}
-            className="group relative flex items-center justify-between p-4 rounded-xl bg-zinc-950/40 hover:bg-zinc-950/85 border border-zinc-800/80 hover:border-zinc-700/85 transition-all text-left cursor-pointer"
+            className="group relative flex items-center justify-between p-4 rounded-xl bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-content-primary/[0.04] border border-accent-hover/20 flex items-center justify-center text-content-muted">
                 <LayoutTemplate className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-zinc-200">Browse Templates</h4>
-                <p className="text-[10px] text-zinc-500 font-medium mt-0.5">Pick a pre-built schema: e-commerce, SaaS, CRM, healthcare, and more.</p>
+                <h4 className="text-xs font-bold text-content-primary">Browse Templates</h4>
+                <p className="text-[10px] text-content-subtle font-medium mt-0.5">Pick a pre-built schema: e-commerce, SaaS, CRM, healthcare, and more.</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="w-4 h-4 text-content-subtle group-hover:text-content-muted group-hover:translate-x-0.5 transition-all" />
           </button>
 
           {/* Action 4: Start from Scratch */}
           <button
             onClick={handleStartFromScratch}
-            className="group relative flex items-center justify-between p-4 rounded-xl bg-zinc-950/40 hover:bg-zinc-950/85 border border-zinc-800/80 hover:border-zinc-700/85 transition-all text-left cursor-pointer"
+            className="group relative flex items-center justify-between p-4 rounded-xl bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <div className="w-8 h-8 rounded-lg bg-success/10 border border-success/20 flex items-center justify-center text-success-text">
                 <Plus className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-zinc-200">Start from Scratch</h4>
-                <p className="text-[10px] text-zinc-500 font-medium mt-0.5">Manually place tables and customize fields on a clean canvas.</p>
+                <h4 className="text-xs font-bold text-content-primary">Start from Scratch</h4>
+                <p className="text-[10px] text-content-subtle font-medium mt-0.5">Manually place tables and customize fields on a clean canvas.</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="w-4 h-4 text-content-subtle group-hover:text-content-muted group-hover:translate-x-0.5 transition-all" />
           </button>
         </div>
 

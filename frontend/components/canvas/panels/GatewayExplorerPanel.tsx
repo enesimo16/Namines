@@ -114,7 +114,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
   const columns = rows.length > 0 ? Object.keys(rows[0].values) : (table?.columns.map(c => c.name) ?? []);
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-4">
       <div className="bg-surface-700 border border-surface-500 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
 
         {/* Header */}

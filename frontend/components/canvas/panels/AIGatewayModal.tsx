@@ -39,27 +39,27 @@ export default function AIGatewayModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-scrim/75 backdrop-blur-sm animate-fade-in">
       {/* Click outside to close */}
       <div className="absolute inset-0" onClick={closeGateway} />
 
       {/* Main Container - Minimalist Dark Glass Theme */}
-      <div className="relative w-full max-w-md bg-surface-900/95 border border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-3xl backdrop-blur-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
+      <div className="relative w-full max-w-md bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-3xl backdrop-blur-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Modal Header */}
-        <div className="flex justify-between items-center px-6 py-4.5 border-b border-zinc-800/80 bg-zinc-950/20">
+        <div className="flex justify-between items-center px-6 py-4.5 border-b border-surface-600/80 bg-surface-900/20">
           <div className="flex items-center gap-2.5">
             <Lock className="w-4.5 h-4.5 text-accent-text" />
             <div>
-              <h3 className="text-xs font-extrabold text-zinc-200 uppercase tracking-wider">
+              <h3 className="text-xs font-extrabold text-content-primary uppercase tracking-wider">
                 AI Authentication Required
               </h3>
-              <p className="text-[9px] text-zinc-500 font-mono tracking-wider uppercase">Secure AI Gateway</p>
+              <p className="text-[9px] text-content-subtle font-mono tracking-wider uppercase">Secure AI Gateway</p>
             </div>
           </div>
           <button
             onClick={closeGateway}
-            className="p-1 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-all cursor-pointer"
+            className="p-1 hover:bg-white/5 rounded-lg text-content-muted hover:text-content-primary transition-all cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -71,8 +71,8 @@ export default function AIGatewayModal() {
           <div className="bg-content-primary/[0.04] border border-accent-hover/15 rounded-xl p-4 flex gap-3 relative overflow-hidden">
             <ShieldAlert className="w-5 h-5 text-accent-text shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">AI Operations Restricted</h4>
-              <p className="text-[11px] text-zinc-400 leading-relaxed font-semibold">
+              <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">AI Operations Restricted</h4>
+              <p className="text-[11px] text-content-muted leading-relaxed font-semibold">
                 You are currently accessing the canvas as a <strong className="text-accent-text">Guest</strong>. The feature <span className="text-content-secondary font-mono font-bold">"{featureName || 'AI Agent'}"</span> requires enterprise credits or your own secure API token to prevent resource drainage.
               </p>
             </div>
@@ -81,10 +81,10 @@ export default function AIGatewayModal() {
           {/* Option A: Login / Sign Up */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest font-mono">
+              <span className="text-[9px] font-extrabold text-content-subtle uppercase tracking-widest font-mono">
                 Option I: Sign In to Account
               </span>
-              <div className="h-px flex-1 bg-zinc-800/60 ml-3" />
+              <div className="h-px flex-1 bg-surface-700/60 ml-3" />
             </div>
             
             <button
@@ -107,15 +107,15 @@ export default function AIGatewayModal() {
           {/* Option B: BYOK Interface */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest font-mono">
+              <span className="text-[9px] font-extrabold text-content-subtle uppercase tracking-widest font-mono">
                 Option II: Secure BYOK (Own API Key)
               </span>
-              <div className="h-px flex-1 bg-zinc-800/60 ml-3" />
+              <div className="h-px flex-1 bg-surface-700/60 ml-3" />
             </div>
 
-            <form onSubmit={handleSaveKey} className="bg-zinc-950/45 border border-zinc-800/80 p-5 rounded-2xl space-y-4">
+            <form onSubmit={handleSaveKey} className="bg-surface-900/45 border border-surface-600/80 p-5 rounded-2xl space-y-4">
               {/* Tab Selector */}
-              <div className="flex bg-zinc-950/80 p-1 rounded-xl border border-zinc-800/60">
+              <div className="flex bg-surface-900/80 p-1 rounded-xl border border-surface-600/60">
                 {(['groq', 'openai', 'anthropic', 'gemini'] as const).map((prov) => (
                   <button
                     key={prov}
@@ -126,8 +126,8 @@ export default function AIGatewayModal() {
                     disabled={isSaved}
                     className={`flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider rounded-lg transition-all duration-200 cursor-pointer ${
                       selectedProvider === prov
-                        ? 'bg-zinc-800 border-zinc-700 text-white shadow-sm'
-                        : 'bg-transparent border-transparent text-zinc-500 hover:text-zinc-300'
+                        ? 'bg-surface-700 border-surface-500 text-content-primary shadow-sm'
+                        : 'bg-transparent border-transparent text-content-subtle hover:text-content-secondary'
                     }`}
                   >
                     {prov}
@@ -136,7 +136,7 @@ export default function AIGatewayModal() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-wider block">
+                <label className="text-[10px] font-extrabold text-content-muted uppercase tracking-wider block">
                   API Key Input
                 </label>
                 <div className="relative">
@@ -146,27 +146,27 @@ export default function AIGatewayModal() {
                     onChange={(e) => setInputKey(e.target.value)}
                     disabled={isSaved}
                     placeholder={isSaved ? "••••••••••••••••••••" : `Enter your ${selectedProvider.toUpperCase()} Key`}
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-accent-hover transition-all font-mono"
+                    className="w-full px-3 py-2 bg-surface-900 border border-surface-600 rounded-xl text-xs text-content-primary placeholder-zinc-700 focus:outline-none focus:border-accent-hover transition-all font-mono"
                   />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-content-subtle">
                     <Key className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <span className="text-[9px] text-zinc-500 block mt-1 font-sans leading-normal">
+                <span className="text-[9px] text-content-subtle block mt-1 font-sans leading-normal">
                   * Your key is encrypted in local storage with an AES-based obfuscation layer against XSS attacks.
                 </span>
               </div>
 
               {isSaved ? (
                 <div className="flex gap-2">
-                  <div className="flex-1 py-2 px-3 bg-emerald-950/20 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-emerald-400 text-xs font-bold font-mono">
+                  <div className="flex-1 py-2 px-3 bg-success-subtle/20 border border-success/20 rounded-xl flex items-center gap-2 text-success-text text-xs font-bold font-mono">
                     <CheckCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>Securely Saved</span>
                   </div>
                   <button
                     type="button"
                     onClick={handleClearKey}
-                    className="px-4 bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 text-zinc-300 hover:text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                    className="px-4 bg-surface-700 hover:bg-surface-600 border border-surface-500 text-content-secondary hover:text-content-primary text-xs font-bold rounded-xl transition-all cursor-pointer"
                   >
                     Remove
                   </button>
@@ -184,7 +184,7 @@ export default function AIGatewayModal() {
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 bg-zinc-950/40 border-t border-zinc-800/80 flex justify-center items-center text-[9px] text-zinc-600 font-mono tracking-widest select-none">
+        <div className="px-6 py-4 bg-surface-900/40 border-t border-surface-600/80 flex justify-center items-center text-[9px] text-content-subtle font-mono tracking-widest select-none">
           <span>DARVELL LABS</span>
         </div>
       </div>

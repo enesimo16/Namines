@@ -269,3 +269,80 @@ kart tabanlı sekmelerde katlanma altında kalan aksiyon **yok**.
 > Bu oturumda tam olarak bu yaşandı (190 kullanımlık `text-content-subtle`
 > render edilmiyordu). Token ekledikten sonra `rm -rf .next` şart, ve sınıfın
 > gerçekten üretildiğini tarayıcıda doğrula.
+
+---
+
+## 9. Palet denetimi ikinci tur — hazır Tailwind aileleri (tamamlandı)
+
+§8.3 "`app/` + `components/` ham hex: 1753 → 0" diye kaydediyordu. Doğruydu ama
+**eksikti**: `check-design-rules.mjs` yalnızca `#hex` arıyordu, dolayısıyla
+ihlaller hex yazmayı bırakıp Tailwind'in kendi renk ailelerini yazmaya geçmişti.
+Ölçüm yapıldığında **254 kullanım** vardı.
+
+| Aile | Kullanım | Neden sorun |
+|---|---|---|
+| `zinc-*` | 194 | Paletin dışında bir nötr ölçek. `text-zinc-500` (#71717a) koyu zeminde **~4.0:1**, `text-zinc-600` (#52525b) **~2.6:1** — ikisi de WCAG AA altı |
+| `rose/red-*` | 24 | `danger` / `danger-text` zaten var |
+| `emerald-*` | 12 | `success` / `success-text` zaten var |
+| `sky/indigo-*` | 16 | §2 indigo'yu **açıkça** yasaklıyor |
+| `orange-*` | 8 | §2 amber/yellow/orange ailesinin tamamını kaldırmıştı; AWS kartında geri sızmıştı |
+
+Ayrıca **saf değerler** kullanımdaydı: 14 × `text-white`, 31 × `bg-black/<alfa>`
+(modal karartması). §2 "`#FFFFFF`/`#000000` HİÇBİR YERDE" diyor.
+
+### Yapılanlar
+
+1. **254 sınıf token'lara taşındı** — nötrler `surface-*`/`content-*`,
+   semantikler `danger-*`/`success-*`, vurgu `accent-*`.
+2. **Eksik iki token eklendi.** `text-warning-text` ve `border-surface-400`
+   **kodda kullanılıyordu ama tanımlı değildi** — Tailwind v4 o utility'leri hiç
+   üretmiyor ve stil sessizce düşüyordu. Sonuç: demo ekranında "uyarı" bulguları
+   "not" bulgularıyla aynı tonda görünüyordu (§8.4'teki tuzağın aynısı).
+3. **`--color-scrim` eklendi.** Karartma artık paletin en derin zemini
+   (`#05070c`), saf siyah değil: nötr siyah, sayfanın mavimsi off-black zemininin
+   yanında soğuk bir leke gibi duruyordu.
+4. **Betik genişletildi** ve gerçekten yakaladığı **doğrulandı** (ihlal enjekte
+   edilip çıkış kodunun 1 olduğu görüldü — geçtiğini varsaymak, kuralın
+   uygulandığını varsaymanın ta kendisiydi):
+
+```
+✓ ham hex yok · palet dışı Tailwind ailesi yok · saf beyaz/siyah yok
+```
+
+### Bulunan ek hatalar
+
+- `hover:` durumu temel durumla **aynı** olan 4 düğme (`bg-accent hover:bg-accent`)
+  — üzerine gelince hiçbir şey olmuyordu.
+- Paylaşım sayfasının markasında **emoji** (`⚡ Namines`) — §5 "emoji ikon olarak
+  KULLANILMAZ" diyor, bu tek istisnaydı.
+
+## 10. Mobil geçiş (tamamlandı)
+
+375px'te ölçülen ve düzeltilenler:
+
+| Ekran | Sorun | Çözüm |
+|---|---|---|
+| `/demo` | 20 şablon + 6 motor sarılınca **8 satır düğme**; içeriğe ulaşmadan ~700px kaydırma | Ölçek sekmesi (liste ≤12) + mobilde yatay kaydırma. Sayfa yüksekliği 2327 → 1681px |
+| `/demo` | Bulgu paneli sabit 420px — tek bulguyla **450px boşluk** | Yükseklik `lg:`den itibaren sabit, mobilde içeriğe göre |
+| `/demo` | "Generated … DDL" başlığı rozetle çakışıyordu | `flex-wrap` |
+| `/demo` | Tuval 560px sabit | `340 → 440 → 560px` |
+| İniş sayfası | 12 kart mobilde ~1300px'lik duvar; "neden biz" katlanmanın çok altında | 6 seçilmiş kart + "See all" |
+| Şablon galerisi | 20 şablon düz liste; `max-h-[80vh]` mobilde taşıyor | Ölçek süzgeci + `90dvh` |
+| Ayarlar modalı | Sekme şeridi kesiliyor, **Pricing sekmesi görünmüyordu** | `-mx-5 px-5` ile kenardan kenara kaydırma + `dvh` |
+| `/share` | 7 öğe 52px'lik tek satırda üst üste biniyordu | Mobilde sarıyor, ikincil öğeler gizli |
+| `/share` | `fitView` düğümler ölçülmeden — büyük şemada **boş tuval** | `useNodesInitialized` + `minZoom` |
+
+Dokunma hedefleri (§6, 44×44) demo seçicilerinde, galeri düğmelerinde ve
+modal kapatma düğmesinde `min-h-11` ile karşılandı.
+
+> ⚠️ Mobilde **`h-screen` yerine `h-dvh`**: `vh`, mobil tarayıcılarda adres
+> çubuğu gizlenene kadar gerçek yüksekliği vermiyor ve panelin altı ekranın
+> dışında kalıyor.
+
+### Kapsam dışı (bilinçli)
+
+**Canvas düzenleyicisinin kendisi mobilde hâlâ dar.** Üst araç çubuğu
+(`Alternative` / `Request Review` / `Approve`) 375px'te başlık şeridiyle
+çakışıyor. Bu ayrı bir iş: canvas bir masaüstü düzenleyicisi ve mobil
+yerleşimi, buradaki gibi birkaç sınıfla değil, araç çubuğunun yeniden
+kurgulanmasıyla çözülür.

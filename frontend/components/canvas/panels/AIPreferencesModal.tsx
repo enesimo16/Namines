@@ -702,7 +702,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
         onClick={onClose}
       />
 
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="ai-pref-title" className="relative w-full max-w-6xl h-[92vh] md:h-[calc(100vh-64px)] md:max-h-[880px] bg-surface-800 border border-content-primary/15 rounded-2xl flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 text-content-primary">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="ai-pref-title" className="relative w-full max-w-6xl h-[92dvh] md:h-[calc(100dvh-64px)] md:max-h-[880px] bg-surface-800 border border-content-primary/15 rounded-2xl flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 text-content-primary">
 
         {/* Left Sidebar */}
         <div className="w-full md:w-64 bg-surface-700 border-b md:border-b-0 md:border-r border-content-primary/15 p-5 flex flex-col justify-between shrink-0">
@@ -719,7 +719,11 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
               </div>
             </div>
 
-            <nav className="flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 scrollbar-none">
+            {/* Mobilde sekmeler yatay kayıyor. `-mx-5 px-5`: kaydırma kabı
+                kenardan kenara uzanıyor, yoksa son sekme panelin iç boşluğunda
+                kesiliyor ve listenin devam ettiğine dair hiçbir işaret kalmıyordu
+                — kullanıcı Pricing sekmesinin var olduğunu göremiyordu. */}
+            <nav className="flex flex-row md:flex-col gap-1 -mx-5 px-5 md:mx-0 md:px-0 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 scrollbar-none">
               {navItems.map(item => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;

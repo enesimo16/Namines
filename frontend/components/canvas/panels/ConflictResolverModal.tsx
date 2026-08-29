@@ -159,7 +159,7 @@ export default function ConflictResolverModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-300">
       <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-800 border border-content-primary/12 rounded-2xl w-[90vw] max-w-4xl h-[85vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden">
 
         {/* Header */}
@@ -246,7 +246,7 @@ export default function ConflictResolverModal() {
                       {isSourceSelected && <CheckCircle2 className="w-3.5 h-3.5 text-content-primary" />}
                     </div>
 
-                    <div className="text-xs font-mono text-content-primary bg-black/20 p-2 rounded-md min-h-[40px] flex items-center">
+                    <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-md min-h-[40px] flex items-center">
                       {item.sourceValue ? (
                         typeof item.sourceValue === 'string' ? (
                           <span>{item.sourceValue}</span>
@@ -278,7 +278,7 @@ export default function ConflictResolverModal() {
                       {isTargetSelected && <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />}
                     </div>
 
-                    <div className="text-xs font-mono text-content-primary bg-black/20 p-2 rounded-md min-h-[40px] flex items-center">
+                    <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-md min-h-[40px] flex items-center">
                       {item.targetValue ? (
                         typeof item.targetValue === 'string' ? (
                           <span>{item.targetValue}</span>

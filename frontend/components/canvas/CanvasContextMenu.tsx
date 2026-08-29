@@ -85,7 +85,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
               <>
                 <div className="px-2 py-1.5 text-xs font-semibold text-content-muted uppercase tracking-wider mb-1">Canvas</div>
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-lg cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
                   onSelect={handleAddTable}
                 >
                   <Plus className="w-4 h-4 text-accent-text" />
@@ -101,25 +101,25 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
                   Table Operations
                 </div>
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-lg cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
                   onSelect={handleEditTable}
                 >
                   <Pencil className="w-4 h-4 text-accent-text" />
                   <span>Edit</span>
                 </ContextMenu.Item>
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-sky-500/20 hover:text-sky-200 focus:bg-sky-500/20 focus:text-sky-200"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-lg cursor-pointer outline-none transition-colors hover:bg-accent/20 hover:text-accent-text focus:bg-accent/20 focus:text-accent-text"
                   onSelect={() => { if (menuState?.nodeId) { duplicateTable(menuState.nodeId); setMenuState(null); } }}
                 >
-                  <Copy className="w-4 h-4 text-sky-400" />
+                  <Copy className="w-4 h-4 text-accent-text" />
                   <span>Duplicate Table</span>
                 </ContextMenu.Item>
                 <ContextMenu.Separator className="h-px bg-content-primary/[0.06] my-1 mx-1" />
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-zinc-200 rounded-lg cursor-pointer outline-none transition-colors hover:bg-red-500/20 hover:text-red-300 focus:bg-red-500/20 focus:text-red-300 group"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-lg cursor-pointer outline-none transition-colors hover:bg-danger/20 hover:text-danger-text focus:bg-danger/20 focus:text-danger-text group"
                   onSelect={handleDeleteTable}
                 >
-                  <Trash2 className="w-4 h-4 text-red-400/80 group-hover:text-red-400" />
+                  <Trash2 className="w-4 h-4 text-danger-text/80 group-hover:text-danger-text" />
                   <span>Delete Table</span>
                 </ContextMenu.Item>
               </>

@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { Node, Edge } from '@xyflow/react';
 import { AlertTriangle, CheckCircle2, Info, Loader2, ShieldCheck, Wand2 } from 'lucide-react';
 import { schemaToFlow } from '../../lib/schemaToFlow';
-import { TEMPLATES } from '../../lib/templates';
+import { TEMPLATES, TEMPLATE_SIZES, templatesOfSize, type TemplateSize } from '../../lib/templates';
 import { schemaService } from '../../services/api';
 import { useSchemaStore } from '../../store/useSchemaStore';
 
@@ -99,9 +99,18 @@ function DemoContent() {
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
   const setDbType = useSchemaStore(s => s.setDbType);
 
-  const [templateKey, setTemplateKey] = useState(
-    TEMPLATES.some(t => t.key === requested) ? requested : (TEMPLATES[0]?.key ?? ''),
+  const initialKey = TEMPLATES.some(t => t.key === requested)
+    ? requested
+    : (TEMPLATES[0]?.key ?? '');
+  const [templateKey, setTemplateKey] = useState(initialKey);
+
+  // Ölçek sekmesi, açılıştaki şablonun kendi ölçeğinden başlıyor: bir bağlantı
+  // `?template=erp` ile geliyorsa ziyaretçi "Enterprise" sekmesinde olmalı,
+  // yoksa seçili şablonu listede göremez.
+  const [sizeTab, setSizeTab] = useState<TemplateSize>(
+    TEMPLATES.find(t => t.key === initialKey)?.size ?? 'standard',
   );
+  const visibleTemplates = templatesOfSize(sizeTab);
   const [engine, setEngine] = useState<Engine>('PostgreSQL');
 
   /**
@@ -211,43 +220,86 @@ function DemoContent() {
           </p>
         </header>
 
-        {/* Seciciler — sablon ve motor AYRI satirlarda. Tek satirda 12 sablon +
-            6 motor sarilinca aradaki ayirac ekranda kayboluyor ve ikisi tek bir
-            liste gibi gorunuyordu. */}
-        <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {TEMPLATES.map(t => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTemplateKey(t.key)}
-              className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-all cursor-pointer ${
-                t.key === templateKey
-                  ? 'border-content-primary/40 bg-white/[0.08] text-content-primary'
-                  : 'border-surface-500 bg-surface-800 text-content-muted hover:text-content-primary'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-content-subtle">Engine</span>
-          {ENGINES.map(e => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => setEngine(e)}
-              className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition-all cursor-pointer ${
-                e === engine
-                  ? 'bg-content-primary text-surface-900'
-                  : 'bg-surface-800 text-content-muted hover:text-content-primary'
-              }`}
-            >
-              {e}
-            </button>
-          ))}
-        </div>
+        {/*
+          Seçiciler üç katmanlı: ölçek → şablon → motor.
+
+          20 şablon + 6 motor tek bir sarmalayan listede, 375px'te SEKİZ SATIR
+          düğme demekti: ziyaretçi asıl içeriğe ulaşmadan ~700px kaydırıyordu.
+          Ölçek sekmesi listeyi en fazla 12'ye indiriyor, yatay kaydırma da
+          kalanı tek satırda tutuyor — mobilde sarmak yerine kaydırmak, düğme
+          duvarını tamamen ortadan kaldırıyor.
+        */}
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {TEMPLATE_SIZES.map(tier => {
+              const count = templatesOfSize(tier.id).length;
+              if (count === 0) return null;
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => {
+                    setSizeTab(tier.id);
+                    // Sekme değişince o gruptaki ilk şablona geçiliyor: aksi
+                    // hâlde listede görünmeyen bir şablon seçili kalırdı.
+                    const first = templatesOfSize(tier.id)[0];
+                    if (first) setTemplateKey(first.key);
+                  }}
+                  title={tier.blurb}
+                  className={`rounded-xl px-3.5 min-h-11 text-xs font-bold transition-all cursor-pointer ${
+                    sizeTab === tier.id
+                      ? 'bg-content-primary text-surface-900'
+                      : 'bg-surface-800 text-content-muted hover:text-content-primary'
+                  }`}
+                >
+                  {tier.label}
+                  <span className="ml-1.5 opacity-60">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mobilde yatay kaydırma, sm'den itibaren sarma. */}
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
+            <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
+              {visibleTemplates.map(t => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTemplateKey(t.key)}
+                  className={`shrink-0 rounded-xl border px-3 min-h-11 text-xs font-semibold transition-all cursor-pointer ${
+                    t.key === templateKey
+                      ? 'border-content-primary/40 bg-white/[0.08] text-content-primary'
+                      : 'border-surface-500 bg-surface-800 text-content-muted hover:text-content-primary'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
+            <div className="flex w-max items-center gap-2 sm:w-auto sm:flex-wrap">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-content-subtle">
+                Engine
+              </span>
+              {ENGINES.map(e => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => setEngine(e)}
+                  className={`shrink-0 rounded-lg px-3 min-h-11 text-[11px] font-bold transition-all cursor-pointer ${
+                    e === engine
+                      ? 'bg-content-primary text-surface-900'
+                      : 'bg-surface-800 text-content-muted hover:text-content-primary'
+                  }`}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Tuval TAM GENİŞLİK.
@@ -256,7 +308,7 @@ function DemoContent() {
             lekeye dönüşüyor, ekran boş görünüyordu. Gerçek boyutlu bir şema,
             gerçek boyutlu bir alan ister. */}
         <div>
-          <div className="h-[560px] overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
+          <div className="h-[340px] sm:h-[440px] lg:h-[560px] overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
             <DemoCanvas nodes={nodes} edges={edges} resetKey={template?.key ?? ''} />
           </div>
           <p className="mt-2 text-[11px] text-content-subtle">
@@ -268,7 +320,7 @@ function DemoContent() {
         <div className="grid gap-4 lg:grid-cols-2">
 
           {/* Kanit paneli */}
-          <div className="flex h-[420px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
+          <div className="flex max-h-[420px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800 lg:h-[420px]">
             <div className="flex items-center justify-between border-b border-surface-600 px-4 py-3">
               <span className="text-sm font-semibold text-content-primary">Rule engine findings</span>
               {proving && <Loader2 className="h-4 w-4 animate-spin text-content-muted" />}
@@ -335,8 +387,10 @@ function DemoContent() {
           </div>
 
           {/* Uretilen SQL */}
-          <div className="flex h-[420px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
-            <div className="flex items-center justify-between border-b border-surface-600 px-4 py-3">
+          <div className="flex h-[360px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800 lg:h-[420px]">
+            {/* Başlık ve rozet sarılıyor: 375px'te ikisi tek satıra sığmıyor ve
+                rozet başlığın üstüne biniyordu. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-surface-600 px-4 py-3">
               <span className="text-sm font-semibold text-content-primary">Generated {engine} DDL</span>
               <span className="text-[10px] font-semibold uppercase tracking-wide text-content-subtle">
                 deterministic &middot; no model involved

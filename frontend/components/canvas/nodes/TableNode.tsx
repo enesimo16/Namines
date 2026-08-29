@@ -123,19 +123,19 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
 
   if (diff) {
     if (diff.status === 'added') {
-      borderColorClass = 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]';
+      borderColorClass = 'border-success shadow-[0_0_20px_rgba(16,185,129,0.3)]';
       diffBadge = (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-0.5 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-success/20 text-success-text border border-success/30 flex items-center gap-0.5 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
           <Plus className="w-2.5 h-2.5" /> New
         </span>
       );
     } else if (diff.status === 'deleted') {
       // opacity-55 + zaten soluk kırmızı üst üste binince metin okunamıyordu;
       // şeffaflık kaldırıldı, ayrım çizgi ve kenarlıkla veriliyor.
-      borderColorClass = 'border-rose-900/60 pointer-events-none line-through';
+      borderColorClass = 'border-danger-subtle/60 pointer-events-none line-through';
       containerBgClass = 'bg-surface-900';
       diffBadge = (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 flex items-center gap-0.5">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-danger/10 text-danger-text border border-danger/20 flex items-center gap-0.5">
           <Minus className="w-2.5 h-2.5" /> Deleted
         </span>
       );
@@ -153,7 +153,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
   } else {
     // Normal styling
     borderColorClass = hasError || hasDbaError
-      ? 'border-red-500 shadow-red-500/20'
+      ? 'border-danger shadow-danger/20'
       : hasDbaWarning
         ? 'border-content-primary/30 shadow-none'
         : isEditMode
@@ -266,7 +266,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               onClick={handleDbaBadgeClick}
               className={`
                 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold select-none cursor-pointer
-                ${hasDbaError ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.65)]' :
+                ${hasDbaError ? 'bg-danger text-content-primary shadow-[0_0_12px_rgba(239,68,68,0.65)]' :
                   hasDbaWarning ? 'bg-content-primary text-surface-900 shadow-none' :
                   'bg-surface-600 text-content-secondary shadow-none'}
               `}
@@ -304,13 +304,13 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
           let typeLabel = `${col.type}${col.length ? `(${col.length})` : ''}`;
 
           if (diffStatus === 'added') {
-            rowClass += ' bg-emerald-950/20 border-l-2 border-emerald-500';
-            textStyle = 'font-semibold text-emerald-300';
-            statusIndicator = <Plus className="w-3 h-3 text-emerald-400" />;
+            rowClass += ' bg-success-subtle/20 border-l-2 border-success';
+            textStyle = 'font-semibold text-success-text';
+            statusIndicator = <Plus className="w-3 h-3 text-success-text" />;
           } else if (diffStatus === 'deleted') {
-            rowClass += ' bg-rose-950/10 line-through border-l-2 border-rose-500';
-            textStyle = 'text-rose-300 line-through';
-            statusIndicator = <Minus className="w-3 h-3 text-rose-400" />;
+            rowClass += ' bg-danger-subtle/10 line-through border-l-2 border-danger';
+            textStyle = 'text-danger-text line-through';
+            statusIndicator = <Minus className="w-3 h-3 text-danger-text" />;
           } else if (diffStatus === 'modified') {
             rowClass += ' bg-white/[0.04] border-l-2 border-white/30';
             textStyle = 'font-semibold text-content-primary';
@@ -344,7 +344,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               </div>
 
               <div className="text-xs flex gap-2 items-center">
-                {/* Kolon tipi her satırdaki birincil bilgi — eski text-zinc-500
+                {/* Kolon tipi her satırdaki birincil bilgi — eski text-content-subtle
                     koyu zeminde ~4.0:1 ile AA'nın altındaydı. */}
                 <span className={diffStatus === 'modified' && details?.typeChanged
                   ? 'text-content-primary font-bold bg-white/[0.06] px-1 py-0.5 rounded'

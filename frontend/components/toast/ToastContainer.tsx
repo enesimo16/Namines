@@ -165,7 +165,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
             <button
               onClick={toast.action.onClick}
               className="text-xs font-bold px-2 py-1 rounded-lg border border-white/20 text-white/80
-                         hover:bg-white/10 hover:text-white transition-colors"
+                         hover:bg-white/10 hover:text-content-primary transition-colors"
             >
               {toast.action.label}
             </button>

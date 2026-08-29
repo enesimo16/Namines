@@ -229,7 +229,7 @@ export default function SqlExplorerPanel() {
               <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
               <div>
                 <span className="text-danger-text text-xs font-bold block mb-0.5">Runtime Error</span>
-                <p className="text-danger-text text-xs font-mono mt-1 leading-relaxed bg-black/20 p-2 rounded-md">{queryError}</p>
+                <p className="text-danger-text text-xs font-mono mt-1 leading-relaxed bg-scrim/20 p-2 rounded-md">{queryError}</p>
               </div>
             </div>
           )}

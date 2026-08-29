@@ -73,7 +73,18 @@ haklı: 4 tablolu bir şema, ürünün çözdüğü hiçbir problemi (kırılma 
 motorlar arası kayıp, ilişki karmaşası) göstermiyor. Şablon galerisi, ürünün
 ne kadar ciddi bir şeyle başa çıktığını gösteremiyordu.
 
-**Şimdi:** 12 şablon, **267 tablo**, her biri 21-25 tablo.
+**Şimdi:** 20 şablon, **384 tablo**, üç ölçekte.
+
+Ölçek bir etiket değil bir vaat — ve `check:templates` o vaadi denetliyor
+(mini 4-9, standard 20-30, large 35-60 tablo). Tek bir alt sınır ("en az 20")
+yetmiyordu: 6 tabloluk bir hızlı başlangıç KASITLI olarak küçük, ama
+"kurumsal" diye etiketlenmiş 22 tabloluk bir şablon yanlış beklenti kurardı.
+
+| Ölçek | Adet | Ne için |
+|---|---|---|
+| **Quick start** (mini, 6-7 tablo) | 6 | Auth & Roles, Tasks & Projects, Link Shortener, Newsletter, Feedback Board, Bookmarks & Notes — bir şeyi bugün kurup üstüne inşa etmek için. 6 tabloluk bir URL kısaltıcıya 25 tablo dayatmak, kullanıcıya silecek 19 tablo vermek olurdu. |
+| **Full product** (standard, 21-25 tablo) | 12 | Aşağıdaki tablo |
+| **Enterprise** (large, 39-40 tablo) | 2 | Multi-vendor Marketplace (39 tablo, 68 ilişki), Manufacturing ERP (40 tablo, **83 ilişki**) — 25 tabloda kural motorunun söyledikleri hâlâ gözle taranabilir; 40 tabloda taranamaz ve ürünün asıl işe yaradığı yer tam olarak orası. |
 
 | Şablon | Tablo | İlişki |
 |---|---|---|
@@ -97,7 +108,7 @@ etmemişti.
 #### Kompakt tanım dili
 
 Şablonlar önce her kolon ve her ilişki için elle kimlik yazılarak tutuluyordu.
-Beş küçük şablonda katlanılabilirdi; 267 tabloda aynı kimliği üç ayrı yerde
+Beş küçük şablonda katlanılabilirdi; 384 tabloda aynı kimliği üç ayrı yerde
 doğru yazmak demek olurdu — ve **sessizce kırık ilişki** üretmenin en kolay
 yolu budur: bağıntı ekranda hiç çizilmez, kimse fark etmez.
 
@@ -113,7 +124,7 @@ oradan türetiliyor. Hedefi olmayan bir bağıntı **açılışta hata fırlatı
 
 `npm run check:templates` her şablonu çalışan API'ye gönderiyor: gerçek linter
 (`POST /api/lint`) ve **altı motorun hepsinde** gerçek DDL üreticisi. Sonuç:
-**12/12 şablon, 0 hata, 0 uyarı, 6 motorda da derleniyor.**
+**20/20 şablon, 0 hata, 0 uyarı, 6 motorda da derleniyor.**
 
 Bu bir süs değil şart: "AI üretir, kural motoru kanıtlar" diyen bir ürünün
 kendi örnek şemalarının o motordan geçememesi, iddiayı ilk temasta çürütürdü.

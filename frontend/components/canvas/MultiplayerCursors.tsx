@@ -37,7 +37,7 @@ export default function MultiplayerCursors() {
               style={{ color: cursor.color, fill: cursor.color }}
             />
             <span
-              className="ml-3 -mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-white whitespace-nowrap shadow-md"
+              className="ml-3 -mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-content-primary whitespace-nowrap shadow-md"
               style={{ backgroundColor: cursor.color }}
             >
               {cursor.userName}

@@ -27,6 +27,20 @@ const API = (process.env.NAMINES_API ?? 'http://localhost:5000').replace(/\/+$/,
 const ENGINES = ['PostgreSQL', 'MySQL', 'MSSQL', 'SQLite', 'Oracle', 'MariaDB'];
 
 /**
+ * Kategori başına tablo aralığı.
+ *
+ * Tek bir alt sınır ("en az 20") yetmiyordu: 6 tabloluk bir hızlı başlangıç
+ * şablonu KASITLI olarak küçük, ama kurumsal diye etiketlenmiş 22 tabloluk bir
+ * şablon da yanlış beklenti kurardı. Kategori bir etiket değil bir vaat;
+ * betik o vaadi denetliyor.
+ */
+const SIZE_RANGE = {
+  mini: { min: 4, max: 9 },
+  standard: { min: 20, max: 30 },
+  large: { min: 35, max: 60 },
+};
+
+/**
  * `lib/templates.ts` TypeScript; Node onu doğrudan içe aktaramıyor. Depoda zaten
  * devDependency olan tsc ile geçici bir dizine derleniyor — dosyanın tek
  * içe aktarımı yalnızca TİP olduğu için üretilen JS kendi kendine yetiyor.
@@ -88,7 +102,7 @@ const failures = [];
 let totalTables = 0;
 
 for (const template of TEMPLATES) {
-  const { key, label, schema } = template;
+  const { key, label, schema, size } = template;
   const tables = schema.tables.length;
   const relations = schema.relations.length;
   totalTables += tables;
@@ -123,25 +137,31 @@ for (const template of TEMPLATES) {
     }
   }
 
-  const ok = blocking.length === 0 && engineErrors.length === 0;
+  const range = SIZE_RANGE[size];
+  const sizeErrors = [];
+  if (!range) {
+    sizeErrors.push(`bilinmeyen ölçek "${size}"`);
+  } else if (tables < range.min || tables > range.max) {
+    sizeErrors.push(
+      `${tables} tablo, "${size}" için tanımlı ${range.min}-${range.max} aralığının dışında`,
+    );
+  }
+
+  const ok = blocking.length === 0 && engineErrors.length === 0 && sizeErrors.length === 0;
   const status = ok ? 'OK  ' : 'FAIL';
   console.log(
-    `  ${status} ${label.padEnd(24)} ${String(tables).padStart(2)} tables · ` +
+    `  ${status} ${size.padEnd(8)} ${label.padEnd(26)} ${String(tables).padStart(2)} tables · ` +
     `${String(relations).padStart(2)} relations · ${notes} notes`,
   );
 
-  if (!ok) {
-    failures.push({ key, blocking, engineErrors });
-  }
-
-  // 20 tablonun altındaki bir şablon, gerçek bir şemanın nasıl göründüğünü
-  // göstermiyor — ve şablonların var olma sebebi tam olarak bu.
-  if (tables < 20) {
-    failures.push({ key, blocking: [], engineErrors: [`yalnızca ${tables} tablo — en az 20 bekleniyor`] });
-  }
+  if (!ok) failures.push({ key, blocking, engineErrors: [...engineErrors, ...sizeErrors] });
 }
 
-console.log(`\n  ${TEMPLATES.length} şablon · ${totalTables} tablo`);
+const bySize = TEMPLATES.reduce((acc, t) => ({ ...acc, [t.size]: (acc[t.size] ?? 0) + 1 }), {});
+console.log(
+  `\n  ${TEMPLATES.length} şablon · ${totalTables} tablo  (` +
+  Object.entries(bySize).map(([k, v]) => `${v} ${k}`).join(' · ') + ')',
+);
 
 if (failures.length > 0) {
   console.error('\n  Başarısız:');
