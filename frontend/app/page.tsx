@@ -11,6 +11,8 @@ import VoiceRecorder from '../components/landing/VoiceRecorder';
 import ClarifyDialog from '../components/landing/ClarifyDialog';
 import ProductionScreen from '../components/landing/ProductionScreen';
 import PlanScreen from '../components/landing/PlanScreen';
+import WhyNamines from '../components/landing/WhyNamines';
+import TemplateStrip from '../components/landing/TemplateStrip';
 import { streamSchemaGeneration, AgentStepEvent } from '../lib/sseSchemaStream';
 import { ClarifyResponse, NaiModelOption } from '../types/nai';
 
@@ -239,7 +241,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="relative font-sans text-content-primary flex-1 flex flex-col items-center justify-center overflow-hidden min-h-[calc(100vh-56px)] py-8">
+    <div className="relative font-sans text-content-primary flex-1 flex flex-col items-center justify-center overflow-x-hidden min-h-[calc(100vh-56px)] py-8 pb-20">
       {/* Background Effects */}
       <div aria-hidden="true" className="ocean-wave">
         <div className="wave wave1"></div>
@@ -506,6 +508,21 @@ export default function LandingPage() {
             </div>
           </form>
         </div>
+
+        {/* Girişsiz demoya çıkış. Form'un hemen altında, çünkü AI üretimi giriş
+            istiyor: hesabı olmayan biri "Generate Schema"ya bastığında bir
+            giriş kutusuyla karşılaşıyor. Ürünü görmenin ücretsiz bir yolu
+            varken, ilk teması bir duvara çıkarmak gereksiz kayıp. */}
+        <p className="mt-4 text-xs text-content-muted">
+          Just looking around?{' '}
+          <a href="/demo" className="text-content-primary font-semibold underline underline-offset-4 hover:text-content-secondary">
+            Try the live demo
+          </a>{' '}
+          — no account, no AI, real checks.
+        </p>
+
+        <TemplateStrip />
+        <WhyNamines />
       </main>
 
       {clarify && !planAnswers && (

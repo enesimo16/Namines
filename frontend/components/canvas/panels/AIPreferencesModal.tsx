@@ -5,8 +5,61 @@ import { useByokStore } from '../../../store/useByokStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useQuotaStore } from '../../../store/useQuotaStore';
-import api, { authService } from '../../../services/api';
+import api, { authService, BillingInterval, PlanPricing } from '../../../services/api';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
+
+type PriceView = { amount: number; total: number; available: boolean } | null;
+
+/**
+ * Fiyat etiketi.
+ *
+ * <b>Liste yüklenmediyse tutar yerine "—" gösteriliyor, varsayılan bir sayı
+ * değil.</b> Yanlış bir fiyat göstermek, hiç göstermemekten kötü: kullanıcı
+ * gördüğü tutarı ödeyeceğini varsayar ve farkı ancak kart ekstresinde görür.
+ */
+function PlanPriceTag({ price, interval }: { price: PriceView; interval: BillingInterval }) {
+  if (!price) {
+    return <div className="text-2xl font-bold text-content-subtle">—</div>;
+  }
+
+  const amount = Number.isInteger(price.amount) ? price.amount : price.amount.toFixed(2);
+
+  return (
+    <div>
+      <div className="text-2xl font-bold text-content-primary">
+        ${amount} <span className="text-xs font-normal text-content-subtle">/ month</span>
+      </div>
+      {interval === 'yearly' && (
+        <p className="text-[10px] text-content-subtle font-medium mt-0.5">
+          ${price.total} billed once a year
+        </p>
+      )}
+      {!price.available && (
+        <p className="text-[10px] text-warning-text font-medium mt-0.5">
+          {interval === 'yearly'
+            ? 'Yearly billing is not set up yet.'
+            : 'Checkout is not set up yet.'}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function upgradeLabel(plan: string, price: PriceView, interval: BillingInterval) {
+  if (!price) return `Upgrade to ${plan}`;
+  // Satın alınamama sebebi DÖNEME bağlı: aylık kimliği kurulu ama yıllığı
+  // kurulmamış olabilir. Her iki durumda da "yearly coming soon" yazmak,
+  // aylık sekmedeyken yıllıktan bahseden bir düğme demekti.
+  if (!price.available) {
+    return interval === 'yearly'
+      ? `${plan} — yearly billing coming soon`
+      : `${plan} — checkout not available yet`;
+  }
+  const amount = Number.isInteger(price.amount) ? price.amount : price.amount.toFixed(2);
+  return interval === 'yearly'
+    ? `Upgrade to ${plan} — $${price.total}/yr`
+    : `Upgrade to ${plan} — $${amount}/mo`;
+}
 
 interface AIPreferencesModalProps {
   isOpen: boolean;
@@ -206,6 +259,11 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [planTier, setPlanTier] = useState<string | null>(null);
+  // Fiyatlar sunucudan; liste alınamazsa kartlar fiyatsız gösterilmiyor —
+  // tutarı bilmeden "Upgrade" düğmesine bastırmak, kullanıcıyı ne ödeyeceğini
+  // bilmediği bir ödeme akışına sokmak olurdu.
+  const [plans, setPlans] = useState<PlanPricing[] | null>(null);
+  const [interval, setInterval] = useState<BillingInterval>('monthly');
 
   // Developer Profile Identity States
   const [fullName, setFullName] = useState('');
@@ -324,6 +382,12 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       setGeneratedToken(null);
       setNewTokenName('');
 
+      // Fiyat listesi giriş gerektirmiyor — çıkış yapmış biri de ne ödeyeceğini
+      // görebilmeli.
+      authService.getPlans()
+        .then(setPlans)
+        .catch(() => setPlans(null));
+
       if (isAuthenticated) {
         authService.getSubscriptionStatus()
           .then(data => { if (data) setSubscriptionStatus(data.status); })
@@ -342,7 +406,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
     setIsUpgrading(true);
     try {
       if (!isAuthenticated) { showToast('Please log in to upgrade.', 'warning'); return; }
-      const data = await authService.createCheckoutSession(plan);
+      const data = await authService.createCheckoutSession(plan, interval);
       if (data.redirect === 'portal') {
         await handleManageSubscription();
       } else if (data.url) {
@@ -354,6 +418,25 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       setIsUpgrading(false);
     }
   };
+
+  /** Seçili döneme ait fiyat kaydı; liste yüklenmediyse null. */
+  const priceOf = (plan: 'pro' | 'team') =>
+    plans?.find(p => p.plan === plan)?.prices.find(pr => pr.interval === interval) ?? null;
+
+  /**
+   * Kart başlığındaki tutar. Yıllıkta AYA DÜŞEN tutar gösteriliyor, altında
+   * yıllık toplam: aylık $15 ile yıllık $150'yi yan yana koymak, karşılaştırmayı
+   * kullanıcıya zihinden böldürmek olurdu.
+   */
+  const priceLabel = (plan: 'pro' | 'team') => {
+    const price = priceOf(plan);
+    if (!price) return null;
+    const amount = interval === 'yearly' ? price.monthlyEquivalentUsd : price.amountUsd;
+    return { amount, total: price.amountUsd, available: price.available };
+  };
+
+  const discountOf = (plan: 'pro' | 'team') =>
+    plans?.find(p => p.plan === plan)?.yearlyDiscountPercent ?? null;
 
   const handleManageSubscription = async () => {
     setIsUpgrading(true);
@@ -1337,6 +1420,36 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
             {/* 5. Pricing Tab */}
             {activeTab === 'pricing' && (
+              <div className="space-y-4">
+              {/* Aylık / Yıllık geçişi. Yıllık, 12 ayı tek işlemde tahsil ediyor:
+                  Stripe'ın işlem başına sabit $0,30'u aylıkta her ay tekrar
+                  kesiliyordu (bkz. second-phase/16-KOTA-VE-MALIYET.md). */}
+              <div className="flex items-center justify-center gap-2">
+                <div className="inline-flex rounded-xl bg-surface-700 border border-surface-500 p-1">
+                  {(['monthly', 'yearly'] as BillingInterval[]).map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setInterval(opt)}
+                      className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        interval === opt
+                          ? 'bg-content-primary text-surface-900'
+                          : 'text-content-muted hover:text-content-primary'
+                      }`}
+                    >
+                      {opt === 'monthly' ? 'Monthly' : 'Yearly'}
+                    </button>
+                  ))}
+                </div>
+                {/* İndirim oranı da sunucudan hesaplanıyor — fiyatlardan biri
+                    değişip etiket elle güncellenmezse, ekranda gerçek olmayan
+                    bir indirim durur. */}
+                {discountOf('pro') !== null && (
+                  <span className="text-[10px] font-bold text-success-text bg-success-text/10 px-2.5 py-1 rounded-lg">
+                    Save {discountOf('pro')}% yearly
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Free Plan Card */}
                 <div className={`${cardClass} p-5 flex flex-col justify-between`}>
@@ -1349,7 +1462,20 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <div className="text-2xl font-bold text-content-primary">$0 <span className="text-xs font-normal text-content-subtle">/ forever</span></div>
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
-                      {['20K AI tokens / day', 'NAI v1 Flash and NAI v1 models', 'All 6 database engines + SQL export', 'DBA linter & schema diagnostics', '1 external database connection', '3 ephemeral test runs / day'].map(f => (
+                      {[
+                        // Ücretsiz tavan SABİT DEĞİL: paylaşılan havuz doldukça
+                        // adil pay düşüyor (bkz. AiQuotaService.CalculateFreeUserCap).
+                        // Karta "20K" yazmak, gösterilen kotanın uygulanandan
+                        // farklı olması demekti — bu hata bir kez zaten yaşandı.
+                        //
+                        // Gerçek sayı YALNIZCA kullanıcı zaten Free'deyse yazılıyor:
+                        // `dailyLimit` OTURUMU AÇAN kişinin tavanı, planın değil.
+                        // Pro bir kullanıcıya Free kartında 200K göstermek, Dev
+                        // hesabına da "2147484K" göstermek olurdu.
+                        planTier === 'Free' && dailyLimit > 0
+                          ? `${(dailyLimit / 1000).toFixed(0)}K AI tokens / day — today's fair share`
+                          : 'A daily AI budget shared fairly across free users',
+                        'NAI v1 Flash and NAI v1 models', 'All 6 database engines + SQL export', 'DBA linter & schema diagnostics', '1 external database connection', '3 ephemeral test runs / day'].map(f => (
                         <li key={f} className="flex items-center gap-2">
                           <Check className="w-3.5 h-3.5 text-success-text shrink-0" />
                           <span>{f}</span>
@@ -1370,7 +1496,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <h4 className="text-sm font-bold text-content-primary">Pro Member</h4>
                       <p className="text-[10px] text-content-subtle leading-normal font-medium">For engineering teams and professionals.</p>
                     </div>
-                    <div className="text-2xl font-bold text-content-primary">$7.5 <span className="text-xs font-normal text-content-subtle">/ month</span></div>
+                    <PlanPriceTag price={priceLabel('pro')} interval={interval} />
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
                       {['200K AI tokens / day — 10x Free', 'NAI v1 Pro model unlocked', '2 branch databases + change review', '20 ephemeral test runs / day', '3 external database connections', 'Gateway API: 600 req/min'].map(f => (
@@ -1402,10 +1528,10 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <button
                         type="button"
                         onClick={() => handleUpgrade('pro')}
-                        disabled={isUpgrading}
+                        disabled={isUpgrading || priceLabel('pro')?.available === false}
                         className={`w-full flex items-center justify-center gap-2 text-[11px] rounded-lg px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-wait cursor-pointer ${primaryBtnClass}`}
                       >
-                        {isUpgrading ? 'Redirecting to Stripe...' : 'Upgrade to Pro — $7.5/mo'}
+                        {isUpgrading ? 'Redirecting to Stripe...' : upgradeLabel('Pro', priceLabel('pro'), interval)}
                       </button>
                     )}
                     <p className="text-center text-[10px] text-content-subtle font-medium">Secured by Stripe · Cancel anytime · PCI-DSS compliant</p>
@@ -1420,7 +1546,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <h4 className="text-sm font-bold text-content-primary">Team</h4>
                       <p className="text-[10px] text-content-subtle leading-normal font-medium">For teams that need higher limits and shared branch databases.</p>
                     </div>
-                    <div className="text-2xl font-bold text-content-primary">$20 <span className="text-xs font-normal text-content-subtle">/ month</span></div>
+                    <PlanPriceTag price={priceLabel('team')} interval={interval} />
                     <div className="h-px bg-content-primary/10" />
                     <ul className="space-y-2 text-[11px] text-content-secondary font-medium">
                       {['Everything in Pro', '3 seats — you + 2 invited members', 'Shared workspace: projects visible to all', 'Team activity feed — see who changed what', '20 branch databases, unlimited test runs', 'Gateway API: 3,000 req/min'].map(f => (
@@ -1452,15 +1578,16 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <button
                         type="button"
                         onClick={() => handleUpgrade('team')}
-                        disabled={isUpgrading}
+                        disabled={isUpgrading || priceLabel('team')?.available === false}
                         className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-lg px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-wait cursor-pointer"
                       >
-                        {isUpgrading ? 'Redirecting to Stripe...' : 'Upgrade to Team — $20/mo'}
+                        {isUpgrading ? 'Redirecting to Stripe...' : upgradeLabel('Team', priceLabel('team'), interval)}
                       </button>
                     )}
                     <p className="text-center text-[10px] text-content-subtle font-medium">Secured by Stripe · Cancel anytime · PCI-DSS compliant</p>
                   </div>
                 </div>
+              </div>
               </div>
             )}
 

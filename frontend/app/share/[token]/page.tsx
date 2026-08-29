@@ -41,6 +41,10 @@ export default function SharePage() {
   const [projectName, setProjectName] = useState<string>('');
   const [dbType, setDbType] = useState<string>('');
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  // Sayfanın bir SONUÇ sayfası olması için gereken şey: ziyaretçinin baktığı
+  // şeyin ne olduğunu tek bakışta görmesi. Salt okunur bir tuvalde tabloları
+  // saymak zorunda kalmak, paylaşan kişinin göstermek istediğini gizliyordu.
+  const [stats, setStats] = useState<{ tables: number; relations: number; columns: number } | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -55,6 +59,11 @@ export default function SharePage() {
         setDbType(data.dbType);
 
         const schema: DatabaseSchema = JSON.parse(data.schemaJson);
+        setStats({
+          tables: schema.tables?.length ?? 0,
+          relations: schema.relations?.length ?? 0,
+          columns: (schema.tables ?? []).reduce((sum, t) => sum + (t.columns?.length ?? 0), 0),
+        });
         const { nodes: flowNodes, edges: flowEdges } = schemaToFlow(schema);
 
         // Apply saved node positions if present
@@ -115,18 +124,45 @@ export default function SharePage() {
     <div className="flex flex-col h-screen bg-surface-900">
       {/* Header */}
       <header className="flex items-center gap-3 px-5 h-[52px] border-b border-surface-600 shrink-0">
-        <span className="text-indigo-400 font-bold text-base tracking-tight">⚡ Namines</span>
+        {/* Marka artık BAĞLANTI. Paylaşılan bir şemaya gelen ziyaretçi, ürünün
+            adını görüyor ama gidecek bir yeri yoktu — viral döngünün son adımı
+            (gelen kişinin ürünü denemesi) tıklanamayan bir metinde kırılıyordu. */}
+        <a href="/" className="text-indigo-400 font-bold text-base tracking-tight hover:text-indigo-300 transition-colors shrink-0">
+          ⚡ Namines
+        </a>
         <span className="text-surface-500">|</span>
         <span className="text-content-primary font-medium text-sm truncate">{projectName}</span>
         {dbType && (
-          <span className="ml-1 px-2 py-0.5 rounded-md bg-surface-700 text-content-muted text-xs font-mono">
+          <span className="ml-1 px-2 py-0.5 rounded-md bg-surface-700 text-content-muted text-xs font-mono shrink-0">
             {dbType}
           </span>
         )}
-        <span className="ml-auto px-3 py-1 rounded-lg bg-surface-700 text-content-muted text-xs border border-surface-500">
+        {stats && (
+          <span className="hidden md:inline text-content-muted text-xs shrink-0">
+            {stats.tables} tables · {stats.columns} columns · {stats.relations} relations
+          </span>
+        )}
+        {/* DBA rozeti sayfanın kendisinde de gösteriliyor: paylaşılan şemanın
+            denetimden geçtiğini, README'ye rozet koymayı hiç düşünmemiş bir
+            ziyaretçinin de görmesi gerekiyor. Sunucudan gelen SVG, sayfada
+            gösterilenle README'de gösterilenin aynı olmasını garantiliyor. */}
+        <img
+          src={`${API_BASE_URL}/share/badge/${encodeURIComponent(token)}`}
+          alt="DBA score"
+          className="hidden sm:block h-5 shrink-0"
+        />
+        <span className="ml-auto px-3 py-1 rounded-lg bg-surface-700 text-content-muted text-xs border border-surface-500 shrink-0">
           Read-only view
         </span>
         <BadgeSnippet token={token} projectName={projectName} />
+        {/* Dönüşüm. Bu sayfa ürünü ilk kez gören bir kişiye açılıyor olabilir ve
+            buraya kadar hiçbir yerde "sen de yapabilirsin" demiyorduk. */}
+        <a
+          href="/demo"
+          className="shrink-0 px-3 py-1.5 rounded-lg bg-content-primary text-surface-900 text-xs font-bold hover:bg-content-secondary transition-colors"
+        >
+          Build your own
+        </a>
       </header>
 
       {/* Canvas */}

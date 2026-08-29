@@ -15,6 +15,22 @@ import { useByokStore } from '../store/useByokStore';
 import { useToastStore } from '../store/useToastStore';
 import { API_BASE_URL } from '../lib/apiConfig';
 
+export type BillingInterval = 'monthly' | 'yearly';
+
+/** /api/subscription/plans yanıtı — fiyatın tek kaynağı sunucudaki PricingCatalog. */
+export interface PlanPricing {
+  plan: 'pro' | 'team';
+  yearlyDiscountPercent: number | null;
+  prices: {
+    interval: BillingInterval;
+    amountUsd: number;
+    monthlyEquivalentUsd: number;
+    /** Stripe fiyat kimliği yapılandırılmamışsa false — düğme pasif gösterilmeli. */
+    available: boolean;
+  }[];
+}
+
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -508,8 +524,23 @@ export const authService = {
     return response.data;
   },
 
-  createCheckoutSession: async (plan: 'pro' | 'team' = 'pro'): Promise<{ url?: string; redirect?: string }> => {
-    const response = await api.post(`/subscription/checkout?plan=${plan}`);
+  /**
+   * Satılan planlar ve fiyatları — SUNUCUDAN.
+   *
+   * Fiyat daha önce fiyat kartının içinde düz metindi ("$7.5/mo"). Stripe'taki
+   * fiyat değiştiğinde ekran eski tutarı göstermeye devam ederdi ve kullanıcı
+   * farkı ancak kartından çekilen tutarda görürdü.
+   */
+  getPlans: async (): Promise<PlanPricing[]> => {
+    const response = await api.get<PlanPricing[]>('/subscription/plans');
+    return response.data;
+  },
+
+  createCheckoutSession: async (
+    plan: 'pro' | 'team' = 'pro',
+    interval: BillingInterval = 'monthly',
+  ): Promise<{ url?: string; redirect?: string }> => {
+    const response = await api.post(`/subscription/checkout?plan=${plan}&interval=${interval}`);
     return response.data;
   },
 

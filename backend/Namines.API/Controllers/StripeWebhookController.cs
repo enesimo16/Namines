@@ -3,6 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Stripe;
+using Namines.Core.Analysis;
+// Stripe SDK'sında da PlanTier var; kendi katman enum'umuzu takma adla alıyoruz.
+using PlanTier = Namines.Core.Analysis.PlanTier;
+using System.Linq;
 
 namespace Namines.API.Controllers;
 
@@ -226,17 +230,23 @@ public class StripeWebhookController : ControllerBase
     /// zaten aboneliği "active" işaretlemiş durumda; kullanıcıyı ödemesiz Free'ye
     /// düşürmek yerine daha ucuz plana (Pro) yerleştirmek, ödeyen birine hizmet
     /// vermeme riskini azaltıyor. Yapılandırma hatası varsa loglanıyor.
+    ///
+    /// <b>Team'in AYLIK ve YILLIK fiyatı ayrı iki Stripe kimliği.</b> Yalnızca
+    /// aylığa bakmak, yıllık Team alan bir müşteriyi Pro'ya düşürürdü — yani en
+    /// çok ödeyen müşteri en az hakkı alırdı.
     /// </summary>
     private string ResolvePlanCode(string? priceId)
     {
-        var teamPriceId = _config["Stripe:TeamPriceId"];
-
-        if (!string.IsNullOrWhiteSpace(priceId) && !string.IsNullOrWhiteSpace(teamPriceId) && priceId == teamPriceId)
-            return "team";
-
         if (string.IsNullOrWhiteSpace(priceId))
+        {
             _logger.LogWarning("[STRIPE WEBHOOK] Subscription has no price line item; defaulting PlanCode to 'pro'.");
+            return "pro";
+        }
 
-        return "pro";
+        var teamPriceIds = PricingCatalog.For(PlanTier.Team)
+            .Select(p => _config[p.ConfigKey])
+            .Where(id => !string.IsNullOrWhiteSpace(id));
+
+        return teamPriceIds.Any(id => id == priceId) ? "team" : "pro";
     }
 }

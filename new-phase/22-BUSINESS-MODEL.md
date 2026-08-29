@@ -8,6 +8,15 @@
 |---|---|---|---|---|
 | **Fiyat** | $0 | **$19/ay** | **$39/kullanıcı-ay** | Özel (≥$1.500/ay) |
 | Yıllık indirim | — | $190/yıl (2 ay bedava) | $390/kişi-yıl | görüşülür |
+
+> ⚠️ **Bu tablo hedef modeli anlatıyor; UYGULANAN fiyat farklı.** Bugün kodda
+> Pro **$15/ay** ($150/yıl) ve Team **$40/ay** ($400/yıl) — Team, kullanıcı
+> başına değil **3 koltuklu tek fiyat** olarak satılıyor, çünkü koltuk başına
+> faturalama henüz uygulanmadı. Tek fiyat kaynağı
+> `Namines.Core/Analysis/PricingCatalog.cs`; gerekçeler
+> [second-phase/17](../second-phase/17-ILK-TEMAS-VE-FIYAT.md)'de. Buradaki
+> tablo, koltuk başına faturalama ve Enterprise geldiğinde ulaşılacak yeri
+> tarif ediyor.
 | **Kime** | Öğrenci, hobi, deneme | Solo geliştirici, freelancer | Ürün ekibi (3-30 kişi) | Kurumsal |
 
 ### Tasarım (Design Plane)

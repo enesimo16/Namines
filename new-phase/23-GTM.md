@@ -35,6 +35,14 @@ Kullanıcı şema tasarlar
 ```
 **dbdiagram'ın büyüme motoru tam olarak budur.** Faz 1'de share vardı ama salt-okunur ve SEO'suz — viral döngü yoktu.
 
+> ✅ **Yapıldı** (second-phase/17): OG görseli, meta etiketleri ve sitemap
+> zaten vardı; eksik olan **dönüşümdü** — ziyaretçi salt okunur bir tuvale
+> düşüyor ve gidecek bir yeri olmuyordu. Sayfaya şema özeti, DBA rozeti,
+> tıklanabilir marka ve `/demo`'ya giden bir "Build your own" eklendi.
+> **"Fork this schema" hâlâ yok** ve bilinçli: ziyaretçinin şemayı kendi
+> hesabına kopyalaması, hesabı olmayan biri için bir kayıt duvarı demek —
+> demo aynı işi duvarsız yapıyor.
+
 Gerekli: OG image otomatik üretimi, `<meta>` etiketleri, embed iframe, "Fork" butonu, `namines.com/s/*` sitemap'te.
 
 ### Döngü 2: DBA rozeti (README viral)

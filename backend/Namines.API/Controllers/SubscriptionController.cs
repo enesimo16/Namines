@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Namines.Core.Analysis;
+// Stripe SDK'sında da PlanTier var; kendi katman enum'umuzu takma adla alıyoruz.
+using PlanTier = Namines.Core.Analysis.PlanTier;
 using Namines.Core.Models.Auth;
 using Stripe;
 using Stripe.Checkout;
+using System.Linq;
 using System.Security.Claims;
 
 namespace Namines.API.Controllers;
@@ -25,12 +29,45 @@ public class SubscriptionController : ControllerBase
         StripeConfiguration.ApiKey = config["Stripe:SecretKey"];
     }
 
-    // POST /api/subscription/checkout?plan=pro|team
+    // GET /api/subscription/plans
+    // Satılan planlar ve fiyatları. [AllowAnonymous]: fiyat listesi giriş
+    // yapmadan da görülebilmeli — aksi halde ürünün ne kadar tuttuğunu öğrenmek
+    // için önce hesap açmak gerekirdi.
+    //
+    // Fiyatlar ARTIK ekranda düz metin değil: React bileşenine "$7.5/mo" yazmak,
+    // Stripe'taki fiyat değiştiğinde ekranın eski tutarı göstermeye devam etmesi
+    // demekti ve kullanıcı farkı ancak kartından çekilen tutarda görürdü.
+    [AllowAnonymous]
+    [HttpGet("plans")]
+    public IActionResult GetPlans()
+    {
+        var plans = new[] { PlanTier.Pro, PlanTier.Team }.Select(tier => new
+        {
+            plan = tier.ToString().ToLowerInvariant(),
+            yearlyDiscountPercent = PricingCatalog.YearlyDiscountPercent(tier),
+            prices = PricingCatalog.For(tier).Select(p => new
+            {
+                interval = p.Interval.ToString().ToLowerInvariant(),
+                amountUsd = p.AmountUsd,
+                monthlyEquivalentUsd = p.MonthlyEquivalentUsd,
+                // Fiyat kimliği yapılandırılmamışsa o düğme ekranda çalışmaz —
+                // kullanıcıyı 500 veren bir düğmeye tıklatmak yerine önceden
+                // söylüyoruz. (Yıllık fiyatlar Stripe'ta ayrı ayrı kurulmalı.)
+                available = !string.IsNullOrWhiteSpace(_config[p.ConfigKey]),
+            }),
+        });
+
+        return Ok(plans);
+    }
+
+    // POST /api/subscription/checkout?plan=pro|team&interval=monthly|yearly
     // Creates a Stripe Hosted Checkout session for the requested plan.
     // Returns { url } — the frontend redirects the user there.
     // Card data NEVER touches our server. Stripe handles PCI-DSS.
     [HttpPost("checkout")]
-    public async Task<IActionResult> CreateCheckoutSession([FromQuery] string plan = "pro")
+    public async Task<IActionResult> CreateCheckoutSession(
+        [FromQuery] string plan = "pro",
+        [FromQuery] string interval = "monthly")
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var user = await _userManager.FindByIdAsync(userId!);
@@ -38,23 +75,28 @@ public class SubscriptionController : ControllerBase
 
         // If user already has an active subscription, redirect to portal instead —
         // Checkout üzerinden ikinci bir abonelik açmak, aynı kullanıcıya iki kez
-        // fatura kesmek olurdu. Plan değişikliği (Pro↔Team) portal üzerinden.
+        // fatura kesmek olurdu. Plan değişikliği (Pro↔Team, aylık↔yıllık) portal üzerinden.
         if (user.SubscriptionStatus == "active" && !string.IsNullOrEmpty(user.StripeCustomerId))
             return Ok(new { redirect = "portal" });
 
         // Bilinmeyen bir plan adı sessizce Pro'ya düşmüyor: kullanıcı Team'e
         // tıklayıp yanlışlıkla Pro'ya abone olurdu ve bunu ancak faturada fark ederdi.
-        var normalizedPlan = plan?.Trim().ToLowerInvariant();
-        var priceId = normalizedPlan switch
-        {
-            "team" => _config["Stripe:TeamPriceId"],
-            "pro" => _config["Stripe:ProPriceId"],
-            _ => null,
-        };
-        if (priceId is null)
+        // Aynı gerekçe dönem için de geçerli — "yearly" yazıp aylık ödemek daha da kötü.
+        var tier = PricingCatalog.ParseTier(plan);
+        if (tier is null)
             return BadRequest(new { error = $"Unknown plan '{plan}'. Use 'pro' or 'team'." });
+
+        var billing = PricingCatalog.ParseInterval(interval);
+        if (billing is null)
+            return BadRequest(new { error = $"Unknown billing interval '{interval}'. Use 'monthly' or 'yearly'." });
+
+        var price = PricingCatalog.Find(tier.Value, billing.Value);
+        if (price is null)
+            return BadRequest(new { error = $"The {plan} plan is not sold on a {interval} basis." });
+
+        var priceId = _config[price.ConfigKey];
         if (string.IsNullOrWhiteSpace(priceId))
-            return StatusCode(500, new { error = $"Stripe price ID for '{normalizedPlan}' is not configured." });
+            return StatusCode(500, new { error = $"Stripe price ID for '{plan}' ({interval}) is not configured." });
 
         var frontendUrl = _config["App:FrontendUrl"] ?? "http://localhost:3000";
 
@@ -81,7 +123,9 @@ public class SubscriptionController : ControllerBase
             Metadata = new Dictionary<string, string>
             {
                 { "namines_user_id", userId! },
-                { "namines_username", user.UserName ?? "" }
+                { "namines_username", user.UserName ?? "" },
+                { "namines_plan", plan },
+                { "namines_interval", interval }
             }
         };
 

@@ -26,11 +26,12 @@ Geçen sefer 4,8 GB'tı, **daha da azaldı.** Bu oturumda veritabanı container'
 yine düştü ve elle başlatmam gerekti. Bu, kod yazmayı da yavaşlatıyor.
 → En acil madde bu. §10
 
-**B) Stripe hesabı ve iki fiyat**
-Ödeme kodu tamamen hazır: Pro 7,5$/ay ve Team 20$/ay, checkout, webhook,
-plan ayrımı, iptal, portal — hepsi yazıldı ve test edildi. **Ama tek kuruş
-tahsil edemez**, çünkü Stripe'ta bu iki fiyatın karşılığı yok.
-→ Stripe'ta iki fiyat oluştur, iki `price_...` kimliğini `.env`'e koy. §6
+**B) Stripe hesabı ve DÖRT fiyat**
+Ödeme kodu tamamen hazır: Pro 15$/ay (150$/yıl) ve Team 40$/ay (400$/yıl),
+checkout, webhook, plan ayrımı, iptal, portal, aylık/yıllık geçişi — hepsi
+yazıldı ve çalışırken doğrulandı. **Ama tek kuruş tahsil edemez**, çünkü
+Stripe'ta bu fiyatların karşılığı yok.
+→ Stripe'ta dört fiyat oluştur, dört `price_...` kimliğini `.env`'e koy. §6
 
 ### 🟡 Sırada bekleyen dördü
 
@@ -98,13 +99,16 @@ ediyorsan hiçbir şey yapman gerekmiyor. §7
 | **`/query/nl` hiç denenmemişti** | Groq bağlandı, gerçek üretim yapıldı |
 | **Plan başına rate limit sayısı yoktu** | Varsayılanlar kondu (60/600/3.000/10.000); artık kararın değil onayın bekleniyor |
 | **Team/Enterprise ayrımı yapılamıyordu** | `PlanCode` alanı eklendi; webhook Stripe fiyatından planı okuyor. Kalan tek şey fiyat kimlikleri |
-| **Fiyatlar belirsizdi** | Karar verildi: Free 0$, Pro 7,5$/ay, Team 20$/ay (3 koltuk) |
+| **Fiyatlar belirsizdi** | Karar verildi: Free 0$, Pro 15$/ay veya 150$/yıl, Team 40$/ay veya 400$/yıl (3 koltuk) |
+| **Fiyat ekranda düz metindi** | Tek kaynak `PricingCatalog`; ekran `GET /api/subscription/plans` ile okuyor (second-phase/17) |
+| **Ürünü görmek için hesap gerekiyordu** | `/demo` — girişsiz, AI'sız, ama gerçek linter + gerçek DDL (second-phase/17) |
 | **Geliştirici hesabı sürekli unutuluyordu** | `.env`'den açılışta kendiliğinden kurulan, sınırsız, görünmeyen Dev hesabı |
 | **Kota gerçek harcamayı ölçmüyordu** | Sağlayıcının `usage` bloğu okunuyor; sabit tahmin yerine gerçek token düşülüyor (second-phase/16) |
 | **Eşzamanlı isteklerle kota delinebiliyordu** | Bütçe önden rezerve ediliyor, iş bitince gerçekle mutabakat yapılıyor |
 | **Ücretsiz havuzda ilk 5 kullanıcı her şeyi tüketiyordu** | Adil pay + kullanışlı taban; havuz hedef kullanıcı sayısına bölünüyor |
 | **Model maliyet çarpanı üretimde ölü koddu** | Kota artık `ölçülen token × model çarpanı` |
 | **Çoklu DB ilişkilerinde plan sınırı yoktu** | Free 3 / Pro 25 / Team 100 (bkz. L) |
+| **Yıllık plan yoktu** | Aylık/yıllık geçişi eklendi; %17 indirim fiyatlardan hesaplanıyor |
 
 ---
 
@@ -113,7 +117,7 @@ ediyorsan hiçbir şey yapman gerekmiyor. §7
 | # | Ne | Tipi | Aciliyet | Bunsuz ne olmuyor |
 |---|----|------|----------|-------------------|
 | 10 | **Disk alanı** (şu an 3,8 GB) | makine | 🔴 | Container'lar düşüyor, geliştirme yavaşlıyor |
-| 6 | **Stripe hesabı + 2 fiyat kimliği** | hesap | 🔴 | **Ödeme kodu hazır ama tek kuruş tahsil edemiyor** |
+| 6 | **Stripe hesabı + 4 fiyat kimliği** (aylık + yıllık) | hesap | 🔴 | **Ödeme kodu hazır ama tek kuruş tahsil edemiyor** |
 | 8 | GitHub App (`AppId`, `PrivateKey`, `WebhookSecret`) | hesap | 🟡 | Bot hazır ama PR'a tek satır yazamıyor |
 | 2 | npm yayını | hesap | 🟡 | MCP `npx` ile kurulamıyor; kullanıcı depoyu klonlamak zorunda |
 | 3 | Public alan adı (`api.namines.com`?) | karar | 🟡 | Eject edilen SDK nereye bağlanacağını bilmiyor; webhook adresi de buna bağlı |
@@ -220,20 +224,41 @@ tamamen yabancı değil.
 
 ---
 
-## 6. Stripe hesabı + iki fiyat kimliği — 🔴 ACİL
+## 6. Stripe hesabı + DÖRT fiyat kimliği — 🔴 ACİL
+
+> **Güncellendi:** fiyatlar değişti ve yıllık planlar eklendi, yani artık iki
+> değil **dört** fiyat gerekiyor. Aylık ve yıllık, Stripe'ta **ayrı ayrı fiyat**
+> olarak kurulmalı — aynı kimliği iki döneme vermek, "yıllık" düğmesinin aylık
+> abonelik açması demek ve bu ekrandan anlaşılmaz.
 
 **Ne yapman lazım:**
 1. Stripe hesabı aç (yoksa).
-2. İki **fiyat (price)** oluştur:
-   - **Pro** — aylık **7,50 $**
-   - **Team** — aylık **20,00 $**
-3. Üç değeri `.env`'e koy:
+2. Dört **fiyat (price)** oluştur:
+
+   | Plan | Dönem | Tutar |
+   |---|---|---|
+   | **Pro** | aylık | **15,00 $** |
+   | **Pro** | yıllık | **150,00 $** |
+   | **Team** | aylık | **40,00 $** |
+   | **Team** | yıllık | **400,00 $** |
+
+   Yıllıklar %17 indirimli (2 ay bedava). Bu oran ekranda **hesaplanıyor**,
+   yazılı değil — tutarları değiştirirsen rozet kendiliğinden doğrulanır.
+
+3. Değerleri `.env`'e koy:
    ```
    Stripe__SecretKey=sk_...
-   Stripe__ProPriceId=price_...
-   Stripe__TeamPriceId=price_...
+   Stripe__ProPriceId=price_...          # Pro aylık
+   Stripe__ProYearlyPriceId=price_...    # Pro yıllık
+   Stripe__TeamPriceId=price_...         # Team aylık
+   Stripe__TeamYearlyPriceId=price_...   # Team yıllık
    ```
    Ayrıca webhook için `Stripe__WebhookSecret=whsec_...`
+
+**Eksik kimlik ürünü bozmuyor:** kurulmamış bir dönemin düğmesi ekranda pasif
+görünüyor ve sebebi yazıyor ("Checkout is not set up yet") — 500 veren bir
+düğmeye tıklatmaktan iyi. Yani önce yalnızca aylıkları kurup yıllığı sonra
+eklemek de mümkün.
 
 **Neden acil:** Ödeme tarafının **kodu tamamen bitti** — checkout iki planı da
 biliyor (`?plan=pro|team`), webhook hangi fiyatın ödendiğini okuyup kullanıcının
@@ -242,8 +267,12 @@ kullanıcı ayarlarda üç plan kartını görüyor. **Tek eksik, Stripe tarafı
 fiyatların var olmaması.** Yani ürün bugün satış yapamıyor ve bunun sebebi kod
 değil.
 
-**Fiyatı kodda tutmuyoruz, yalnızca kimliğini:** fiyatı değiştirmek
-istediğinde Stripe panelinden değiştirirsin, yeniden dağıtım gerekmez.
+**Tutar kodda, KİMLİK yapılandırmada** (`Namines.Core/Analysis/PricingCatalog.cs`).
+Kimlik ortama göre değişiyor (test/canlı) ve bir sırdan çok bir adres; koda
+gömmek test anahtarıyla canlıya çıkmak demekti. Tutarın kodda olmasının sebebi
+ise ekranın onu okuyor olması: fiyat daha önce bir React bileşeninin içinde düz
+metindi ve Stripe'takiyle ayrışsa kullanıcı farkı ancak kart ekstresinde görürdü.
+**Stripe'ta tutarı değiştirirsen `PricingCatalog`'u da güncelle.**
 
 **Ayrıca:** Stripe Türkiye'de sınırlı — Paddle / LemonSqueezy araştırması hâlâ
 açık bir madde (aşağıdaki "kod dışı işler"e bak). Kod tarafı Stripe'a yazıldı;
