@@ -83,6 +83,35 @@ const RAW_FUNCTIONAL_COLOR = /rgba?\(\s*\d/g;
 const PURE_BW =
   /(?<![\w-])(?:text-white|bg-white|bg-black|text-black|border-white|border-black)(?![\w/-])/g;
 
+/**
+ * OKUNAMAYAN font boyutu — 10px'in altı.
+ *
+ * Ölçüldü: `text-[8px]`/`text-[9px]`/`text-[9.5px]` 75 kez kullanılıyordu.
+ * 11px genel kabul gören okunabilirlik tabanı; `text-micro` token'ı bunu
+ * karşılıyor (VERCEL_DESIGN_ADAPTATION.md §7).
+ *
+ * Not: 10px ve 11px keyfi kullanımları (414 adet) şimdilik geçiyor —
+ * hepsini tek adımda taşımak çok geniş bir görsel değişiklik olurdu.
+ * Bu kural en azından tabanın ALTINA inilmesini engelliyor.
+ */
+const UNREADABLE_FONT = /text-\[(?:[0-9]|[0-9]\.[0-9])px\]/g;
+
+/**
+ * TERK EDİLEN radius değerleri.
+ *
+ * Ölçüldü: sekiz radius değeri eşzamanlı kullanımdaydı ve aralarında hiçbir
+ * ilişki yoktu. Görev dokümanının yasak listesinde birebir madde:
+ * "multiple unrelated border-radius values". Vercel'de ölçülen: üç değer.
+ *
+ * Ölçek artık: --radius-control (6px) / --radius-card (10px) /
+ * --radius-modal (14px) + rounded-full (yalnızca avatar ve nokta).
+ *
+ * `rounded-lg`/`rounded-xl` HENÜZ yasak değil — 415 kullanımları var ve
+ * hepsini tek commit'te taşımak gözden geçirilemez bir diff üretirdi.
+ * Yasaklananlar, ölçekte karşılığı OLMAYAN uç değerler.
+ */
+const DEPRECATED_RADIUS = /(?<![\w-])rounded-(?:sm|3xl)(?![\w-])/g;
+
 /** Tailwind yerine geçmeye çalışan kütüphaneler — FRONTEND.md §5. */
 const FORBIDDEN_IMPORTS = [
   'styled-components',
@@ -179,6 +208,31 @@ for (const root of ROOTS) {
               'Metin için content-*, karartma için bg-scrim/<alfa>.',
           });
         }
+
+        const tiny = line.match(UNREADABLE_FONT);
+        if (tiny) {
+          violations.push({
+            file, line: i + 1, kind: 'okunamayan font boyutu',
+            detail: `${[...new Set(tiny)].join(', ')} — 10px altı okunabilirlik ` +
+              'tabanının altında. En küçük adım: text-micro (11px).',
+          });
+        }
+
+        const radius = line.match(DEPRECATED_RADIUS);
+        if (radius) {
+          violations.push({
+            file, line: i + 1, kind: 'terk edilen radius',
+            // NOT: buraya ÖRNEK BİR TAILWIND SINIFI YAZILMAZ — yorum içinde
+            // bile. Tailwind v4 kaynak dosyaları düz metin olarak tarayıp
+            // sınıf adı arıyor ve bu betik de taranan dosyalar arasında.
+            // Boru işareti içeren bir arbitrary-value örneği yazıldığında
+            // Tailwind onu gerçek bir sınıf sanıp geçersiz CSS üretti ve
+            // derlemeyi komple kırdı ("Unexpected token Delim"). Yorum
+            // yazmak kodu çalıştırmaz sanmak burada yanlış varsayımdı.
+            detail: `${[...new Set(radius)].join(', ')} — ölçekte karşılığı yok. ` +
+              'Ölçek: radius-control (6px) / radius-card (10px) / radius-modal (14px).',
+          });
+        }
       }
 
       for (const pkg of FORBIDDEN_IMPORTS) {
@@ -193,9 +247,50 @@ for (const root of ROOTS) {
   }
 }
 
+/**
+ * TANIMSIZ TOKEN denetimi — `var(--color-x)` var ama `--color-x:` yok.
+ *
+ * <b>Neden gerekti:</b> bir turda "kullanılmıyor" sanılan 15 token silindi;
+ * silme öncesi arama yalnızca `.tsx`/`.ts` dosyalarında yapıldı, renk
+ * merkezinin KENDİSİNDE yapılmadı. 5 token / 9 kullanım tanımsız kaldı ve
+ * `var()` sessizce miras alınan değere düştü — `.glass-panel` gölgesi ve
+ * kod bloklarının rengi hiçbir hata vermeden bozuldu.
+ *
+ * Tanımsız bir CSS değişkeni ASLA hata vermiyor; bu yüzden yalnızca
+ * otomatik bir kontrol yakalayabilir.
+ */
+const centreFile = ROOTS.map(r => walk(r))
+  .flat()
+  .find(f => f.replace(/\\/g, '/').endsWith(TOKEN_CENTRE));
+
+if (centreFile) {
+  const css = readFileSync(centreFile, 'utf8');
+  const defined = new Set([...css.matchAll(/^\s*(--[\w-]+)\s*:/gm)].map(m => m[1]));
+  const used = new Map();
+
+  // Font değişkenleri DIŞARIDAN geliyor: `next/font` bunları `<html>`
+  // üzerine runtime'da enjekte ediyor, CSS'te tanımlı olmaları beklenmiyor.
+  const EXTERNAL = /^--font-/;
+
+  for (const m of css.matchAll(/var\(\s*(--[\w-]+)/g)) {
+    const name = m[1];
+    if (!defined.has(name) && !EXTERNAL.test(name)) {
+      used.set(name, (used.get(name) ?? 0) + 1);
+    }
+  }
+
+  for (const [name, count] of used) {
+    violations.push({
+      file: centreFile, line: 0, kind: 'tanımsız token',
+      detail: `${name} — ${count} yerde okunuyor ama hiç tanımlanmamış. ` +
+        'Tanımsız var() sessizce miras alınan değere düşer, hata vermez.',
+    });
+  }
+}
+
 if (violations.length === 0) {
   console.log('✓ Tasarım kuralları temiz: ham hex yok, palet dışı Tailwind ailesi yok, ' +
-    'saf beyaz/siyah yok, Tailwind dışı stil kütüphanesi yok.');
+    'saf beyaz/siyah yok, tanımsız token yok, Tailwind dışı stil kütüphanesi yok.');
   process.exit(0);
 }
 

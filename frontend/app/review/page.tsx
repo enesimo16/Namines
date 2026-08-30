@@ -167,10 +167,10 @@ export default function ChangeRequestListPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${RISK_COLOR[cr.riskLevel]}`}>
+                    <span className={`text-micro font-bold uppercase tracking-wider px-2 py-1 rounded-full ${RISK_COLOR[cr.riskLevel]}`}>
                       {RISK_LABEL[cr.riskLevel]}
                     </span>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${STATUS_COLOR[cr.status] || 'text-content-subtle bg-white/[0.04]'}`}>
+                    <span className={`text-micro font-bold uppercase tracking-wider px-2 py-1 rounded-full ${STATUS_COLOR[cr.status] || 'text-content-subtle bg-white/[0.04]'}`}>
                       {STATUS_LABEL[cr.status] || cr.status}
                     </span>
                   </div>

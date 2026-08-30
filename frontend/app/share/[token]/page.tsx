@@ -121,7 +121,7 @@ export default function SharePage() {
   if (status === 'error') {
     return (
       <div className="flex flex-col items-center justify-center h-dvh bg-surface-900 gap-6 px-4 text-center">
-        <div className="w-20 h-20 rounded-3xl bg-surface-800 border border-surface-600 flex items-center justify-center shadow-[0_0_40px_color-mix(in srgb, var(--color-scrim) 40%, transparent)]">
+        <div className="w-20 h-20 rounded-[var(--radius-modal)] bg-surface-800 border border-surface-600 flex items-center justify-center shadow-[0_0_40px_color-mix(in srgb, var(--color-scrim) 40%, transparent)]">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10 text-surface-400">
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
           </svg>

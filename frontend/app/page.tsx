@@ -251,13 +251,20 @@ export default function LandingPage() {
       <div aria-hidden="true" id="stars-container"></div>
 
       {/* Main Content Container */}
-      <main className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center justify-center">
-        {/* Hero Section — minimalist, ikon kutusu kaldırıldı (bkz. FRONTEND.md) */}
+      <main className="relative z-10 w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center">
+        {/* Hero Section — minimalist, ikon kutusu kaldırıldı (bkz. FRONTEND.md)
+
+            Tipografi ölçeğe taşındı: `text-3xl sm:text-4xl font-bold` yerine
+            `text-h1 sm:text-display`. Vercel'de ölçülen ilke (§3.2): boyut
+            büyüdükçe AĞIRLIK DÜŞÜYOR (48px→400, 32px→450) ve negatif harf
+            aralığı boyutla ölçekleniyor. `font-bold` bir hero başlıkta
+            hiyerarşi kurmuyor, gürültü yapıyor — boyut zaten kuruyor.
+            Ağırlık ve tracking artık token'ın içinde. */}
         <div className="text-center mb-8 sm:mb-10">
-          <h1 className="font-mono text-3xl sm:text-4xl font-bold tracking-tight mb-3 text-content-primary">
+          <h1 className="font-mono text-h1 sm:text-display mb-3 text-content-primary">
             Namines
           </h1>
-          <p className="text-content-primary text-sm sm:text-base font-medium max-w-md mx-auto">
+          <p className="text-content-secondary text-body sm:text-body-lg max-w-[46ch] mx-auto">
             Design interactive database architectures in seconds with artificial intelligence.
           </p>
         </div>

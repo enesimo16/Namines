@@ -207,7 +207,7 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
                       <span className="truncate">{r.direction === 'outgoing' ? r.otherColumn : r.localColumn}</span>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[9px] font-bold uppercase tracking-wide text-content-subtle bg-surface-700 border border-content-primary/10 px-1.5 py-0.5 rounded">
+                      <span className="text-micro font-bold uppercase tracking-wide text-content-subtle bg-surface-700 border border-content-primary/10 px-1.5 py-0.5 rounded">
                         Not enforced
                       </span>
                       <span className="text-[10px] text-content-muted truncate">→ {r.otherProjectName}</span>

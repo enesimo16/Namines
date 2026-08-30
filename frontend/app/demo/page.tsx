@@ -205,7 +205,7 @@ function DemoContent() {
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-surface-900 px-4 py-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-[var(--w-wide)] space-y-6">
 
         {/* Baslik */}
         <header className="space-y-2">

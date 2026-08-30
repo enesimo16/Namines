@@ -233,7 +233,7 @@ export default function ChangeRequestDetailPage() {
                           )}
                         </div>
                       </div>
-                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${CHANGE_KIND_COLOR[t.kind]}`}>
+                      <span className={`text-micro font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${CHANGE_KIND_COLOR[t.kind]}`}>
                         {t.kind === 'RenamedFrom' ? 'Renamed' : t.kind}
                       </span>
                     </div>
@@ -248,7 +248,7 @@ export default function ChangeRequestDetailPage() {
                     <div key={i} className="flex items-center gap-2.5 text-xs text-content-secondary">
                       <ArrowRightLeft className="w-3.5 h-3.5 text-content-muted" />
                       <span>{r.fromTable} → {r.toTable}</span>
-                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${CHANGE_KIND_COLOR[r.kind]}`}>
+                      <span className={`text-micro font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${CHANGE_KIND_COLOR[r.kind]}`}>
                         {r.kind}
                       </span>
                     </div>
@@ -316,7 +316,7 @@ export default function ChangeRequestDetailPage() {
                       <p className="text-xs text-content-primary">{l.operation}{l.tableName ? ` — ${l.tableName}` : ''}</p>
                       {l.saferAlternative && <p className="text-[10px] text-content-subtle mt-1">{l.saferAlternative}</p>}
                     </div>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                    <span className={`text-micro font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
                       l.severity === 'Blocking' ? 'text-danger-text bg-danger-text/10' : 'text-content-subtle bg-white/[0.04]'
                     }`}>
                       {l.severity}
@@ -451,7 +451,7 @@ export default function ChangeRequestDetailPage() {
                       <div key={i} className="p-3 bg-surface-600 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[11px] font-semibold text-content-secondary">{m.fileName}:{m.lineNumber}</span>
-                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-content-secondary bg-white/[0.08]">{m.matchedIdentifier}</span>
+                          <span className="text-micro font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-content-secondary bg-white/[0.08]">{m.matchedIdentifier}</span>
                         </div>
                         <code className="text-[11px] text-content-muted font-mono">{m.lineText}</code>
                       </div>
@@ -470,7 +470,7 @@ export default function ChangeRequestDetailPage() {
               {cr.approvedCount}/{cr.requiredApprovals} approvals
               {cr.rejectedCount > 0 && <span className="text-danger-text"> · rejected</span>}
             </p>
-            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
+            <span className={`text-micro font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
               cr.status === 'Approved' ? 'text-success-text bg-success-text/10'
                 : cr.status === 'Rejected' ? 'text-danger-text bg-danger-text/10'
                 : 'text-content-secondary bg-white/[0.08]'

@@ -311,7 +311,7 @@ export default function SqlExplorerPanel() {
         <div className="w-[35%] border-l border-content-primary/10 flex flex-col p-3 gap-2.5 shrink-0">
           <div className="flex justify-between items-center select-none">
             <span className="text-[10px] font-bold text-content-subtle uppercase tracking-wider">SQL Query</span>
-            <span className="text-[9px] text-content-subtle font-mono">SQLite Wasm</span>
+            <span className="text-micro text-content-subtle font-mono">SQLite Wasm</span>
           </div>
 
           <textarea

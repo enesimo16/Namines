@@ -298,15 +298,15 @@ export default function CompilePage() {
         <div className="px-3.5 py-3 border-b border-surface-500 grid grid-cols-3 gap-2">
           <div>
             <p className="text-base font-bold text-content-primary font-mono leading-none">{schema.tables.length}</p>
-            <p className="text-[9px] text-content-muted mt-1 uppercase tracking-wide">Tables</p>
+            <p className="text-micro text-content-muted mt-1 uppercase tracking-wide">Tables</p>
           </div>
           <div>
             <p className="text-base font-bold text-content-primary font-mono leading-none">{totalColumns}</p>
-            <p className="text-[9px] text-content-muted mt-1 uppercase tracking-wide">Columns</p>
+            <p className="text-micro text-content-muted mt-1 uppercase tracking-wide">Columns</p>
           </div>
           <div>
             <p className="text-base font-bold text-content-primary font-mono leading-none">{schema.relations.length}</p>
-            <p className="text-[9px] text-content-muted mt-1 uppercase tracking-wide">Relations</p>
+            <p className="text-micro text-content-muted mt-1 uppercase tracking-wide">Relations</p>
           </div>
         </div>
         <div className="px-3.5 py-2.5 border-b border-surface-500 flex items-center justify-between">
@@ -314,7 +314,7 @@ export default function CompilePage() {
           <span className="text-[10px] font-mono font-semibold text-accent-text bg-accent-subtle px-2 py-0.5 rounded">{dbType}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
-          <p className="text-[9px] font-bold text-content-muted uppercase tracking-wider px-1.5 mb-1.5">Tables</p>
+          <p className="text-micro font-bold text-content-muted uppercase tracking-wider px-1.5 mb-1.5">Tables</p>
           <div className="space-y-0.5">
             {schema.tables.map(t => (
               <div key={t.id} className="flex items-center justify-between px-1.5 py-1 rounded text-[11px] hover:bg-white/[0.04]">

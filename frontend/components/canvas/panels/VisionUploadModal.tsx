@@ -274,7 +274,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                         <div key={key} className="flex items-center justify-between p-2 bg-surface-700 hover:bg-surface-600 border border-content-primary/8 rounded-lg transition-all">
                           <div className="flex items-center gap-1.5 text-[11px] select-none">
                             <span className="text-content-primary font-semibold truncate max-w-[100px]">{sourceName}</span>
-                            <span className="text-content-primary px-1 py-0.5 bg-white/[0.08] rounded border border-white/15 text-[9px] font-mono shrink-0">{rel.type || 'OneToMany'}</span>
+                            <span className="text-content-primary px-1 py-0.5 bg-white/[0.08] rounded border border-white/15 text-micro font-mono shrink-0">{rel.type || 'OneToMany'}</span>
                             <span className="text-content-subtle">→</span>
                             <span className="text-content-primary font-semibold truncate max-w-[100px]">{targetName}</span>
                           </div>

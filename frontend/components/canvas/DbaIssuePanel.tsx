@@ -203,7 +203,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         {/* Score row */}
         <div className="flex items-center justify-between pb-4 border-b border-content-primary/8">
           <div className="space-y-1">
-            <span className="text-[9px] text-content-subtle font-mono font-bold uppercase tracking-widest">
+            <span className="text-micro text-content-subtle font-mono font-bold uppercase tracking-widest">
               Schema Score
             </span>
             <h4 className="text-sm font-bold text-content-primary tracking-tight">Database Health</h4>
@@ -290,7 +290,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           <div className="grid grid-cols-4 gap-1 p-1 bg-surface-700 rounded-lg">
             <button
               onClick={() => setCategoryFilter('ALL')}
-              className={`py-1.5 text-[9px] font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
+              className={`py-1.5 text-micro font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
                 categoryFilter === 'ALL'
                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                   : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -300,7 +300,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             </button>
             <button
               onClick={() => setCategoryFilter('Performance')}
-              className={`py-1.5 text-[9px] font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
+              className={`py-1.5 text-micro font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
                 categoryFilter === 'Performance'
                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                   : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -310,7 +310,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             </button>
             <button
               onClick={() => setCategoryFilter('Security')}
-              className={`py-1.5 text-[9px] font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
+              className={`py-1.5 text-micro font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
                 categoryFilter === 'Security'
                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                   : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -320,7 +320,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             </button>
             <button
               onClick={() => setCategoryFilter('FinOps')}
-              className={`py-1.5 text-[9px] font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
+              className={`py-1.5 text-micro font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
                 categoryFilter === 'FinOps'
                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                   : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -432,27 +432,27 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                   {/* Badge Row */}
                   <div className="flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-2">
-                      <span className={`text-[9px] font-mono font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider ${badgeColorClass}`}>
+                      <span className={`text-micro font-mono font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider ${badgeColorClass}`}>
                         {issue.ruleId}
                       </span>
                       {categoryLower === 'security' && (
-                        <span className="text-[9px] font-extrabold text-content-secondary bg-surface-600 border border-content-primary/15 px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                        <span className="text-micro font-extrabold text-content-secondary bg-surface-600 border border-content-primary/15 px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
                           Privacy
                         </span>
                       )}
                       {categoryLower === 'finops' && (
-                        <span className="text-[9px] font-extrabold text-success-text bg-success-subtle border border-success/30 px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                        <span className="text-micro font-extrabold text-success-text bg-success-subtle border border-success/30 px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
                           FinOps
                         </span>
                       )}
                       {isHighlighted && (
-                        <span className="text-[9px] text-content-primary font-bold bg-white/[0.08] border border-white/15 px-1.5 py-0.5 rounded uppercase tracking-widest flex items-center gap-1">
+                        <span className="text-micro text-content-primary font-bold bg-white/[0.08] border border-white/15 px-1.5 py-0.5 rounded uppercase tracking-widest flex items-center gap-1">
                           <Sparkles className="w-2.5 h-2.5 text-content-primary" />
                           Selected
                         </span>
                       )}
                     </div>
-                    <span className="text-[9px] font-extrabold text-content-subtle bg-surface-700 px-2 py-0.5 rounded border border-content-primary/10 uppercase tracking-widest flex items-center gap-1">
+                    <span className="text-micro font-extrabold text-content-subtle bg-surface-700 px-2 py-0.5 rounded border border-content-primary/10 uppercase tracking-widest flex items-center gap-1">
                       {issue.source === 'AI' ? (
                         <>
                           <Cpu className="w-3 h-3 text-content-primary" />
@@ -491,7 +491,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
 
                     {issue.suggestion && (
                       <div className="bg-surface-700 border border-content-primary/10 p-3 rounded-lg flex flex-col gap-1 text-[11px]">
-                        <span className="font-extrabold text-content-muted uppercase tracking-wider text-[9px] mb-0.5">
+                        <span className="font-extrabold text-content-muted uppercase tracking-wider text-micro mb-0.5">
                           Resolution Recommendation
                         </span>
                         <p className="text-content-primary leading-relaxed font-medium">

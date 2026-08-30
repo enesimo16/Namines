@@ -50,7 +50,7 @@ const POINTS = [
 
 export default function WhyNamines() {
   return (
-    <section className="w-full max-w-4xl px-4 mt-16">
+    <section className="w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 mt-16">
       <div className="text-center mb-8">
         <h2 className="text-xl sm:text-2xl font-bold text-content-primary mb-2">
           AI generates. The rule engine proves.

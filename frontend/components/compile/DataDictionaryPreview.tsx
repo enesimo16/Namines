@@ -124,7 +124,7 @@ export default function DataDictionaryPreview({ schema, projectName }: DataDicti
         <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10">
-              <tr className="bg-surface-800 text-content-muted text-[9px] uppercase font-bold tracking-wider">
+              <tr className="bg-surface-800 text-content-muted text-micro uppercase font-bold tracking-wider">
                 <th className="py-1.5 px-3 font-semibold">{t.colName}</th>
                 <th className="py-1.5 px-3 font-semibold">{t.colType}</th>
                 <th className="py-1.5 px-3 font-semibold">{t.colConstraints}</th>
@@ -158,12 +158,12 @@ export default function DataDictionaryPreview({ schema, projectName }: DataDicti
                         <td className="py-1.5 px-3">
                           <div className="flex flex-wrap gap-1">
                             {col.isPK && (
-                              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-accent-subtle text-accent-text">
+                              <span className="inline-flex items-center gap-0.5 text-micro font-bold px-1.5 py-0.5 rounded bg-accent-subtle text-accent-text">
                                 <Key className="w-2.5 h-2.5" /> PK
                               </span>
                             )}
                             {col.isFK && (
-                              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-surface-500/30 text-content-muted">
+                              <span className="inline-flex items-center gap-0.5 text-micro font-bold px-1.5 py-0.5 rounded bg-surface-500/30 text-content-muted">
                                 <Link2 className="w-2.5 h-2.5" /> FK
                               </span>
                             )}

@@ -202,7 +202,7 @@ export default function Header() {
                 <span className="text-xs font-bold text-content-primary leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
                   {user?.username}
                 </span>
-                <span className="text-[8px] text-content-primary font-bold leading-none uppercase tracking-widest mt-0.5">
+                <span className="text-micro text-content-primary font-bold leading-none uppercase tracking-widest mt-0.5">
                   {planLabel}
                 </span>
               </div>

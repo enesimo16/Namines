@@ -198,7 +198,7 @@ export function StatStrip({ items }: { items: { label: string; value: React.Reac
       {items.map(it => (
         <div key={it.label} className="flex items-baseline gap-1.5">
           <span className="text-[11px] font-mono font-semibold text-content-primary">{it.value}</span>
-          <span className="text-[9px] uppercase tracking-wider text-content-muted">{it.label}</span>
+          <span className="text-micro uppercase tracking-wider text-content-muted">{it.label}</span>
         </div>
       ))}
     </div>
@@ -237,7 +237,7 @@ export function OptionCard({
           <div className="flex items-center gap-1.5">
             <h3 className="text-[12px] font-semibold text-content-primary truncate">{title}</h3>
             {badge && (
-              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-content-muted bg-surface-500/30 px-1.5 py-0.5 rounded">
+              <span className="shrink-0 text-micro font-bold uppercase tracking-wider text-content-muted bg-surface-500/30 px-1.5 py-0.5 rounded">
                 {badge}
               </span>
             )}

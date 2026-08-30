@@ -57,12 +57,12 @@ export default function GuestSchemaMigrationModal({
                     <span className="text-xs font-semibold text-content-secondary truncate leading-none mb-1">
                       {proj.name}
                     </span>
-                    <span className="text-[9px] text-content-subtle leading-none">
+                    <span className="text-micro text-content-subtle leading-none">
                       {proj.dbType} • {tableCount} table{tableCount !== 1 ? 's' : ''}
                     </span>
                   </div>
                 </div>
-                <span className="text-[9px] text-content-subtle shrink-0">
+                <span className="text-micro text-content-subtle shrink-0">
                   {updatedDate}
                 </span>
               </div>

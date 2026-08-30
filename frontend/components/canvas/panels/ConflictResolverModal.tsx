@@ -242,7 +242,7 @@ export default function ConflictResolverModal() {
                     }`}
                   >
                     <div className="flex justify-between items-center mb-1.5">
-                      <span className="text-[9px] font-bold text-content-muted uppercase tracking-widest">Active (Current)</span>
+                      <span className="text-micro font-bold text-content-muted uppercase tracking-widest">Active (Current)</span>
                       {isSourceSelected && <CheckCircle2 className="w-3.5 h-3.5 text-content-primary" />}
                     </div>
 
@@ -274,7 +274,7 @@ export default function ConflictResolverModal() {
                     }`}
                   >
                     <div className="flex justify-between items-center mb-1.5">
-                      <span className="text-[9px] font-bold text-success-text uppercase tracking-widest">Incoming</span>
+                      <span className="text-micro font-bold text-success-text uppercase tracking-widest">Incoming</span>
                       {isTargetSelected && <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />}
                     </div>
 

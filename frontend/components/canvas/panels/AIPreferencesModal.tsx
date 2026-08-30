@@ -658,7 +658,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
             </div>
           </div>
 
-          <div className="bg-surface-600 rounded-lg p-2.5 text-[9.5px] leading-relaxed text-content-muted">
+          <div className="bg-surface-600 rounded-lg p-2.5 text-micro leading-relaxed text-content-muted">
             <strong>Calculation Example:</strong> Running a <span className="text-content-primary font-bold">DBA Audit (8% base)</span> with the <span className="text-content-primary font-bold">Medium engine (2x)</span> will deduct <span className="text-accent-text font-bold">16%</span> from your daily quota. Running it with the Default engine costs <span className="text-accent-text font-bold">0%</span>.
           </div>
         </div>
@@ -715,7 +715,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                 <h3 className="text-xs font-extrabold text-content-primary tracking-wide uppercase">
                   Namines Hub
                 </h3>
-                <p className="text-[9px] text-content-subtle font-bold tracking-wider uppercase">Settings & Panel</p>
+                <p className="text-micro text-content-subtle font-bold tracking-wider uppercase">Settings & Panel</p>
               </div>
             </div>
 
@@ -906,7 +906,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                               <p className="text-sm font-bold text-content-primary truncate">{user?.username}</p>
                             </div>
                             <div className="mt-4">
-                              <span className="inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider bg-white/[0.08] text-content-secondary">
+                              <span className="inline-block px-2.5 py-1 rounded-full text-micro font-bold uppercase tracking-wider bg-white/[0.08] text-content-secondary">
                                 {planLabel}
                               </span>
                             </div>
@@ -918,7 +918,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                                 <span>Daily Cloud Credits</span>
                                 <div className="flex items-center gap-2">
                                   {resetAt && (
-                                    <span className="text-[9px] text-content-subtle font-medium normal-case tracking-normal">
+                                    <span className="text-micro text-content-subtle font-medium normal-case tracking-normal">
                                       (resets at {new Date(resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(resetAt).toLocaleDateString([], { month: 'short', day: 'numeric' })})
                                     </span>
                                   )}
@@ -950,23 +950,23 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">SignalR Realtime Multiplayer</span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${user?.type === 'corporate' ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.04] text-content-subtle'}`}>
+                          <span className={`text-micro font-bold px-2 py-0.5 rounded ${user?.type === 'corporate' ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.04] text-content-subtle'}`}>
                             {user?.type === 'corporate' ? 'ENABLED' : 'DISABLED'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Automated DBA Linter</span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${user?.type === 'corporate' ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.08] text-content-secondary'}`}>
+                          <span className={`text-micro font-bold px-2 py-0.5 rounded ${user?.type === 'corporate' ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.08] text-content-secondary'}`}>
                             {user?.type === 'corporate' ? 'UNLIMITED' : '100% DAILY'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Cloud Workspace Sync</span>
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-success-text/10 text-success-text">ACTIVE</span>
+                          <span className="text-micro font-bold px-2 py-0.5 rounded bg-success-text/10 text-success-text">ACTIVE</span>
                         </div>
                         <div className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">API Quota Bypass (BYOK)</span>
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-success-text/10 text-success-text">SUPPORTED</span>
+                          <span className="text-micro font-bold px-2 py-0.5 rounded bg-success-text/10 text-success-text">SUPPORTED</span>
                         </div>
                       </div>
                     </div>
@@ -1026,7 +1026,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           <div className="bg-surface-600 rounded-lg overflow-hidden">
                             <table className="w-full text-left border-collapse text-xs">
                               <thead>
-                                <tr className="border-b border-content-primary/10 text-content-subtle font-bold tracking-wider text-[9px] uppercase">
+                                <tr className="border-b border-content-primary/10 text-content-subtle font-bold tracking-wider text-micro uppercase">
                                   <th className="py-2.5 px-4">Name</th>
                                   <th className="py-2.5 px-4">Created</th>
                                   <th className="py-2.5 px-4 text-right">Action</th>
@@ -1160,7 +1160,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                               type="button"
                               onClick={() => { if (!isSavedKey) setSelectedProvider(prov); }}
                               disabled={isSavedKey}
-                              className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                              className={`flex-1 py-2 text-micro font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                                 selectedProvider === prov
                                   ? 'bg-white/[0.1] text-content-primary'
                                   : 'bg-surface-600 text-content-muted hover:text-content-secondary hover:bg-white/[0.06]'
@@ -1306,24 +1306,24 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
               <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className={`${cardClass} p-4 space-y-1`}>
-                    <span className="text-[9px] font-semibold text-content-subtle uppercase tracking-wider">Schemas Compiled</span>
+                    <span className="text-micro font-semibold text-content-subtle uppercase tracking-wider">Schemas Compiled</span>
                     <p className="text-2xl font-bold text-content-primary">{statsSchemas}</p>
-                    <div className="text-[9px] font-semibold text-content-subtle uppercase tracking-wide">Local WASM Compiler</div>
+                    <div className="text-micro font-semibold text-content-subtle uppercase tracking-wide">Local WASM Compiler</div>
                   </div>
                   <div className={`${cardClass} p-4 space-y-1`}>
-                    <span className="text-[9px] font-semibold text-content-subtle uppercase tracking-wider">AI Credits Used</span>
+                    <span className="text-micro font-semibold text-content-subtle uppercase tracking-wider">AI Credits Used</span>
                     <p className="text-2xl font-bold text-content-primary">{Math.round((used / dailyLimit) * 100)}%</p>
-                    <div className="text-[9px] font-semibold text-content-subtle uppercase tracking-wide">{Math.round((remaining / dailyLimit) * 100)}% Remaining Today</div>
+                    <div className="text-micro font-semibold text-content-subtle uppercase tracking-wide">{Math.round((remaining / dailyLimit) * 100)}% Remaining Today</div>
                   </div>
                   <div className={`${cardClass} p-4 space-y-1`}>
-                    <span className="text-[9px] font-semibold text-content-subtle uppercase tracking-wider">DBA Audits Run</span>
+                    <span className="text-micro font-semibold text-content-subtle uppercase tracking-wider">DBA Audits Run</span>
                     <p className="text-2xl font-bold text-content-primary">{statsDbaAudits}</p>
-                    <div className="text-[9px] font-semibold text-content-subtle uppercase tracking-wide">Linter Session</div>
+                    <div className="text-micro font-semibold text-content-subtle uppercase tracking-wide">Linter Session</div>
                   </div>
                   <div className={`${cardClass} p-4 space-y-1`}>
-                    <span className="text-[9px] font-semibold text-content-subtle uppercase tracking-wider">Mock Rows Seeded</span>
+                    <span className="text-micro font-semibold text-content-subtle uppercase tracking-wider">Mock Rows Seeded</span>
                     <p className="text-2xl font-bold text-content-primary">{statsMockRecords}</p>
-                    <div className="text-[9px] font-semibold text-content-subtle uppercase tracking-wide">Smart Seeding Engine</div>
+                    <div className="text-micro font-semibold text-content-subtle uppercase tracking-wide">Smart Seeding Engine</div>
                   </div>
                 </div>
 
@@ -1408,11 +1408,11 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         <>
                           <div className="flex items-center justify-between text-xs p-3 bg-surface-600 hover:bg-white/[0.04] rounded-lg transition-all">
                             <span className="font-semibold text-content-secondary">Local WASM compiler schema generation</span>
-                            <span className="text-[9px] bg-success-text/10 text-success-text px-2.5 py-0.5 rounded font-bold">SUCCESS</span>
+                            <span className="text-micro bg-success-text/10 text-success-text px-2.5 py-0.5 rounded font-bold">SUCCESS</span>
                           </div>
                           <div className="flex items-center justify-between text-xs p-3 bg-surface-600 hover:bg-white/[0.04] rounded-lg transition-all">
                             <span className="font-semibold text-content-secondary">{Math.round((used / dailyLimit) * 100)}% daily credits checked</span>
-                            <span className="text-[9px] bg-white/[0.08] text-content-secondary px-2.5 py-0.5 rounded font-bold">INFO</span>
+                            <span className="text-micro bg-white/[0.08] text-content-secondary px-2.5 py-0.5 rounded font-bold">INFO</span>
                           </div>
                         </>
                       )}
@@ -1491,7 +1491,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
                 {/* Pro Plan Card */}
                 <div className="bg-surface-600 border border-content-primary/20 rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-white/[0.1] text-content-primary text-[9px] font-bold uppercase tracking-wider px-3 py-1 rounded-bl-lg">
+                  <div className="absolute top-0 right-0 bg-white/[0.1] text-content-primary text-micro font-bold uppercase tracking-wider px-3 py-1 rounded-bl-lg">
                     Recommended
                   </div>
                   <div className="space-y-4">

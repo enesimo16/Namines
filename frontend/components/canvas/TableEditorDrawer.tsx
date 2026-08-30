@@ -365,10 +365,10 @@ export default function TableEditorDrawer() {
                               onChange={e => handleColumnChange(col.id, 'isPK', e.target.checked)}
                               className="peer sr-only disabled:cursor-not-allowed"
                             />
-                            <div className="w-3 h-3 border border-content-primary/15 rounded-sm bg-surface-600 peer-checked:bg-accent-hover peer-checked:border-white/25 transition-colors" />
+                            <div className="w-3 h-3 border border-content-primary/15 rounded-[var(--radius-control)] bg-surface-600 peer-checked:bg-accent-hover peer-checked:border-white/25 transition-colors" />
                             <svg className="absolute w-2 h-2 text-content-primary opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M5 13l4 4L19 7"/></svg>
                           </div>
-                          <span className="text-[9px] font-medium text-content-subtle group-hover/chk:text-content-primary">PK</span>
+                          <span className="text-micro font-medium text-content-subtle group-hover/chk:text-content-primary">PK</span>
                         </label>
                         <label className="flex items-center gap-1 cursor-pointer group/chk">
                           <div className="relative flex items-center justify-center">
@@ -378,10 +378,10 @@ export default function TableEditorDrawer() {
                               onChange={e => handleColumnChange(col.id, 'isNullable', e.target.checked)}
                               className="peer sr-only"
                             />
-                            <div className="w-3 h-3 border border-content-primary/15 rounded-sm bg-surface-600 peer-checked:bg-accent-hover peer-checked:border-white/25 transition-colors" />
+                            <div className="w-3 h-3 border border-content-primary/15 rounded-[var(--radius-control)] bg-surface-600 peer-checked:bg-accent-hover peer-checked:border-white/25 transition-colors" />
                             <svg className="absolute w-2 h-2 text-content-primary opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M5 13l4 4L19 7"/></svg>
                           </div>
-                          <span className="text-[9px] font-medium text-content-subtle group-hover/chk:text-content-primary">Null</span>
+                          <span className="text-micro font-medium text-content-subtle group-hover/chk:text-content-primary">Null</span>
                         </label>
                       </div>
 
@@ -400,7 +400,7 @@ export default function TableEditorDrawer() {
                       <div className="mt-1 ml-6 p-2.5 bg-surface-800 border border-content-primary/8 rounded-lg flex flex-col gap-2.5">
                         <div className="grid grid-cols-2 gap-2.5">
                           <div className="flex flex-col gap-1">
-                            <label htmlFor={`identity-${col.id}`} className="text-[9px] font-bold tracking-wider text-content-subtle uppercase">
+                            <label htmlFor={`identity-${col.id}`} className="text-micro font-bold tracking-wider text-content-subtle uppercase">
                               Value assigned by
                             </label>
                             {/* Üç durumlu: "söylenmedi" ile "hayır" farklı şeyler.
@@ -421,7 +421,7 @@ export default function TableEditorDrawer() {
                           </div>
 
                           <div className="flex flex-col gap-1">
-                            <label htmlFor={`enum-${col.id}`} className="text-[9px] font-bold tracking-wider text-content-subtle uppercase">
+                            <label htmlFor={`enum-${col.id}`} className="text-micro font-bold tracking-wider text-content-subtle uppercase">
                               Enum type
                             </label>
                             <select
@@ -438,7 +438,7 @@ export default function TableEditorDrawer() {
                               ))}
                             </select>
                             {(schema?.enums?.length ?? 0) === 0 && (
-                              <p id={`enum-help-${col.id}`} className="text-[9px] text-content-subtle leading-snug">
+                              <p id={`enum-help-${col.id}`} className="text-micro text-content-subtle leading-snug">
                                 No enums in this schema yet. Define them in the .nsl file or through the API.
                               </p>
                             )}
@@ -446,7 +446,7 @@ export default function TableEditorDrawer() {
                         </div>
 
                         <div className="flex flex-col gap-1">
-                          <label htmlFor={`generated-${col.id}`} className="text-[9px] font-bold tracking-wider text-content-subtle uppercase">
+                          <label htmlFor={`generated-${col.id}`} className="text-micro font-bold tracking-wider text-content-subtle uppercase">
                             Computed from
                           </label>
                           <input
@@ -460,7 +460,7 @@ export default function TableEditorDrawer() {
 
                         <div className="grid grid-cols-2 gap-2.5 items-end">
                           <div className="flex flex-col gap-1">
-                            <label htmlFor={`collation-${col.id}`} className="text-[9px] font-bold tracking-wider text-content-subtle uppercase">
+                            <label htmlFor={`collation-${col.id}`} className="text-micro font-bold tracking-wider text-content-subtle uppercase">
                               Collation
                             </label>
                             <input
@@ -480,7 +480,7 @@ export default function TableEditorDrawer() {
                                 onChange={e => handleColumnChange(col.id, 'isArray', e.target.checked)}
                                 className="peer sr-only"
                               />
-                              <div className="w-3 h-3 border border-content-primary/15 rounded-sm bg-surface-600 peer-checked:bg-accent-hover peer-checked:border-white/25 transition-colors" />
+                              <div className="w-3 h-3 border border-content-primary/15 rounded-[var(--radius-control)] bg-surface-600 peer-checked:bg-accent-hover peer-checked:border-white/25 transition-colors" />
                               <svg className="absolute w-2 h-2 text-content-primary opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"><path d="M5 13l4 4L19 7"/></svg>
                             </div>
                             <span className="text-[10px] font-medium text-content-subtle group-hover/chk:text-content-primary">

@@ -424,7 +424,7 @@ export default function CanvasExportToolbar() {
                 {/* Dropdown Menu (Opens upwards) */}
                 {isExportDropdownOpen && (
                   <div className="absolute bottom-full left-0 mb-2 w-52 rounded-xl bg-surface-900/95 border border-content-primary/12 flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200">
-                    <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-content-subtle uppercase tracking-wider select-none">
+                    <div className="px-2.5 py-1.5 text-micro font-extrabold text-content-subtle uppercase tracking-wider select-none">
                       Image Export
                     </div>
                     
@@ -463,7 +463,7 @@ export default function CanvasExportToolbar() {
 
                     <div className="h-px bg-content-primary/[0.06] my-1" />
 
-                    <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-content-subtle uppercase tracking-wider select-none">
+                    <div className="px-2.5 py-1.5 text-micro font-extrabold text-content-subtle uppercase tracking-wider select-none">
                       Data & Document
                     </div>
 
@@ -549,7 +549,7 @@ export default function CanvasExportToolbar() {
 
                     <div className="h-px bg-content-primary/[0.06] my-1" />
 
-                    <div className="px-2.5 py-1.5 text-[9px] font-extrabold text-content-subtle uppercase tracking-wider select-none">
+                    <div className="px-2.5 py-1.5 text-micro font-extrabold text-content-subtle uppercase tracking-wider select-none">
                       Import
                     </div>
 

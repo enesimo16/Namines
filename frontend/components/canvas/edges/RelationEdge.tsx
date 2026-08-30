@@ -115,7 +115,7 @@ export default function RelationEdge({
             <span>{label}</span>
             {badge && (
               <span
-                className={`px-1 rounded text-[9px] ${
+                className={`px-1 rounded text-micro ${
                   onDelete === 'Cascade'
                     ? 'bg-danger-subtle text-danger-text'
                     : 'bg-surface-600 text-content-muted'
@@ -150,7 +150,7 @@ export default function RelationEdge({
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono">{opt.label}</span>
                     {opt.danger && (
-                      <span className="text-[9px] text-danger-text shrink-0">veri kaybı</span>
+                      <span className="text-micro text-danger-text shrink-0">veri kaybı</span>
                     )}
                   </div>
                   <div className="text-[10px] text-content-subtle mt-0.5 leading-snug">{opt.hint}</div>

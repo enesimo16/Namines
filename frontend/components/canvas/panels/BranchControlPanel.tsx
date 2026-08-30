@@ -319,7 +319,7 @@ export default function BranchControlPanel() {
           {/* Diff comparison selector when diffing */}
           {isDiffMode && (
             <div className="mt-2 pt-2 border-t border-surface-600/80">
-              <label className="text-[9px] font-extrabold text-content-subtle block mb-1 uppercase tracking-wide">Compare Branch</label>
+              <label className="text-micro font-extrabold text-content-subtle block mb-1 uppercase tracking-wide">Compare Branch</label>
               <select
                 value={compareBranchName || ''}
                 onChange={(e) => setCompareBranchName(e.target.value || null)}

@@ -44,7 +44,7 @@ export default function AIGatewayModal() {
       <div className="absolute inset-0" onClick={closeGateway} />
 
       {/* Main Container - Minimalist Dark Glass Theme */}
-      <div className="relative w-full max-w-md bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 80%, transparent)] rounded-3xl backdrop-blur-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
+      <div className="relative w-full max-w-md bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 80%, transparent)] rounded-[var(--radius-modal)] backdrop-blur-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4.5 border-b border-surface-600/80 bg-surface-900/20">
@@ -54,7 +54,7 @@ export default function AIGatewayModal() {
               <h3 className="text-xs font-extrabold text-content-primary uppercase tracking-wider">
                 AI Authentication Required
               </h3>
-              <p className="text-[9px] text-content-subtle font-mono tracking-wider uppercase">Secure AI Gateway</p>
+              <p className="text-micro text-content-subtle font-mono tracking-wider uppercase">Secure AI Gateway</p>
             </div>
           </div>
           <button
@@ -81,7 +81,7 @@ export default function AIGatewayModal() {
           {/* Option A: Login / Sign Up */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-extrabold text-content-subtle uppercase tracking-widest font-mono">
+              <span className="text-micro font-extrabold text-content-subtle uppercase tracking-widest font-mono">
                 Option I: Sign In to Account
               </span>
               <div className="h-px flex-1 bg-surface-700/60 ml-3" />
@@ -107,7 +107,7 @@ export default function AIGatewayModal() {
           {/* Option B: BYOK Interface */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-extrabold text-content-subtle uppercase tracking-widest font-mono">
+              <span className="text-micro font-extrabold text-content-subtle uppercase tracking-widest font-mono">
                 Option II: Secure BYOK (Own API Key)
               </span>
               <div className="h-px flex-1 bg-surface-700/60 ml-3" />
@@ -152,7 +152,7 @@ export default function AIGatewayModal() {
                     <Key className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <span className="text-[9px] text-content-subtle block mt-1 font-sans leading-normal">
+                <span className="text-micro text-content-subtle block mt-1 font-sans leading-normal">
                   * Your key is encrypted in local storage with an AES-based obfuscation layer against XSS attacks.
                 </span>
               </div>
@@ -184,7 +184,7 @@ export default function AIGatewayModal() {
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 bg-surface-900/40 border-t border-surface-600/80 flex justify-center items-center text-[9px] text-content-subtle font-mono tracking-widest select-none">
+        <div className="px-6 py-4 bg-surface-900/40 border-t border-surface-600/80 flex justify-center items-center text-micro text-content-subtle font-mono tracking-widest select-none">
           <span>DARVELL LABS</span>
         </div>
       </div>

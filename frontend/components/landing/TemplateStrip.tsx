@@ -39,7 +39,7 @@ export default function TemplateStrip() {
   const totalTables = TEMPLATES.reduce((sum, t) => sum + t.schema.tables.length, 0);
 
   return (
-    <section className="w-full max-w-4xl px-4 mt-14">
+    <section className="w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 mt-14">
       <div className="flex flex-wrap items-end justify-between mb-4 gap-x-4 gap-y-2">
         <div className="min-w-0">
           <h2 className="text-base sm:text-lg font-bold text-content-primary">
@@ -67,7 +67,7 @@ export default function TemplateStrip() {
           >
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-xs font-semibold text-content-primary">{tpl.label}</span>
-              <span className="text-[9px] uppercase tracking-wider font-bold text-content-subtle shrink-0">
+              <span className="text-micro uppercase tracking-wider font-bold text-content-subtle shrink-0">
                 {SIZE_LABEL[tpl.size]}
               </span>
             </div>

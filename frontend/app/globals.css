@@ -87,9 +87,14 @@
      değiştirince yüzey basamakları birbirine giriyor.
      ══════════════════════════════════════════════════════════════════════ */
 
-  /* Arayüz nötrleri (zemin + metin) */
-  --ui-hue: 250;        /* zeminin ton'u — 250 = hafif mavimsi, 0 = kırmızımsı */
-  --ui-chroma: 0.012;   /* zeminin renk doygunluğu — 0 = tam gri */
+  /* Arayüz nötrleri (zemin + metin).
+     --ui-chroma daha önce 0.012'ydi — o kadar düşük doygunluk "bilinçli
+     mavimsi-gri" ile "donuk/kirli gri" arasında belirsiz bir yerde kalıyordu.
+     0 = TAM nötr gri (Linear/Vercel/GitHub'ın kullandığı yön) — hiç renk
+     iması yok, net bir karar. `--ui-hue` bu değerde etkisiz (chroma 0'ken
+     hue'nun hiçbir görsel karşılığı yok) ama referans olarak duruyor. */
+  --ui-hue: 250;        /* zeminin ton'u — chroma 0'ken etkisiz */
+  --ui-chroma: 0;       /* zeminin renk doygunluğu — 0 = tam gri */
   --ui-bg-l: 34%;       /* ↑ ARTIR = DAHA AYDINLIK ARAYÜZ (güvenli aralık %17-%36) */
   --ui-bg-step: 3.6%;   /* yüzey basamakları arası açıklık farkı */
 
@@ -188,15 +193,25 @@
   --color-surface-500: color-mix(in srgb, var(--content-primary) 14%, transparent);
   --color-surface-400: color-mix(in srgb, var(--content-primary) 22%, transparent);
 
-  /* `--color-bg-base`: surface-900'ün takma adı, yalnızca bu bir yerde
-     kullanımda (PNG dışa aktarımın zemin rengi, bkz. lib/designTokens.ts).
-     `bg-elevated`/`bg-surface`/`bg-surface-2` eş anlamlıları ve düz
-     `--color-line` (yalnızca -strong/-solid/-solid-strong sürümleri
-     kullanılıyor) KALDIRILDI — hiçbir bileşen onları okumuyordu. "Renk
-     paletini kısaltalım" isteğinin somut karşılığı: 44 token'dan 15'i hiç
-     kullanılmıyordu (bkz. FRONTEND.md §14). */
-  --color-bg-base: var(--surface-900);
+  /* `--color-bg-base`: surface-900'ün takma adı, PNG dışa aktarımın zemin
+     rengi olarak okunuyor (bkz. lib/designTokens.ts).
 
+     <b>REGRESYON ONARIMI.</b> Bir önceki turda kullanılmıyor sanılan 15 token
+     silinmişti; silme öncesi arama yalnızca `.tsx`/`.ts` dosyalarında
+     yapılmış, BU DOSYANIN KENDİSİNDE yapılmamıştı. Sonuç: 5 token / 9 kullanım
+     tanımsız kaldı ve `var()` sessizce miras alınan değere düştü — hiçbir hata
+     vermeden `.glass-panel` gölgesi ve kod bloklarının rengi bozuldu.
+     Denetim betiğinin kendi kör noktasının aynısı: bir kuralı tek dosya
+     türünde uygulamak, kuralın uygulandığı yanılsaması üretiyor.
+
+     Bunlar geri geliyor çünkü GERÇEKTEN kullanımdalar (aşağıdaki Prism ve
+     glassmorphism blokları): */
+  --color-bg-base: var(--surface-900);
+  --color-bg-elevated: var(--surface-800);
+  --color-bg-surface: var(--surface-700);
+  --color-ink: var(--content-primary);
+
+  --color-line: color-mix(in srgb, var(--content-primary) 8%, transparent);
   --color-line-strong: color-mix(in srgb, var(--content-primary) 16%, transparent);
   /* Opak karşılıkları: canvas ızgarası, minimap ve PNG/SVG dışa aktarımı
      alfayı saydam zemin üstünde hesapladığı için orada görünmez oluyorlardı. */
@@ -226,6 +241,133 @@
   --color-warning-subtle: var(--warning-subtle);
 
   --color-scrim: var(--scrim);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     RENK DIŞI ÖLÇEKLER — Vercel uyarlaması
+     (bkz. VERCEL_DESIGN_ADAPTATION.md §7-§12)
+
+     Renk katmanı zaten tek merkezdeydi; ölçülen sorun renk DIŞINDAKİ her
+     katmanda ölçek yokluğuydu: 509 keyfi `text-[Npx]`, 8 eşzamanlı radius
+     değeri, 6 farklı geçiş süresi, 23 farklı container genişliği.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* ── Radius: 8 değerden 3'e ────────────────────────────────────────────
+     Vercel'de ölçülen: 6 / 8 / 12 — üç değer. Bizde sekiz vardı
+     (rounded, -sm, -md, -lg, -xl, -2xl, -3xl, -full) ve aralarında hiçbir
+     ilişki yoktu. Görev dokümanının yasak listesinde birebir madde:
+     "multiple unrelated border-radius values". */
+  --radius-control: 6px;   /* buton, input, select, rozet */
+  --radius-card: 10px;     /* kart, panel, tablo düğümü */
+  --radius-modal: 14px;    /* modal, drawer, açılır menü */
+
+  /* ── Kenarlık: tek değer ───────────────────────────────────────────────
+     Vercel'de ölçülen kenarlık sayısı: 1 (`1px rgba(0,0,0,0.08)`). */
+  --color-border-hairline: color-mix(in srgb, var(--content-primary) 12%, transparent);
+  --color-border-strong: color-mix(in srgb, var(--content-primary) 20%, transparent);
+
+  /* ── Layout genişlikleri ───────────────────────────────────────────────
+     Vercel: 1400px dış container + ~960px okuma sütunu. Bizde 23 farklı
+     `max-w-*` vardı ve sayfalar kendi genişliğini seçiyordu. */
+  --w-prose: 720px;   /* okuma metni, form odaklı sayfa */
+  --w-app: 1200px;    /* varsayılan uygulama içeriği */
+  --w-wide: 1440px;   /* tablo/canvas gibi geniş içerik */
+
+  /* ── Motion ────────────────────────────────────────────────────────────
+     Mevcut kodda 6 farklı süre vardı (75/150/200/250/300/500ms). */
+  --dur-fast: 120ms;   /* hover, focus */
+  --dur-base: 180ms;   /* açılır menü, geçiş */
+  --dur-slow: 280ms;   /* modal giriş/çıkış */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ── Gölge ─────────────────────────────────────────────────────────────
+     Vercel yüksekliği KENARLIKLA ifade ediyor, gölgeyle değil. Gölge
+     yalnızca gerçekten yüzen katmanda (modal, popover).
+     `--shadow-glass` bir önceki turda silinmişti ama `.glass-panel` hâlâ
+     okuyordu — tanımsız var() sessizce düşüyordu (bkz. yukarıdaki not). */
+  --shadow-glass: 0 8px 32px 0 color-mix(in srgb, var(--scrim) 55%, transparent);
+  --shadow-modal: 0 16px 48px color-mix(in srgb, var(--scrim) 60%, transparent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Tipografi ölçeği — @utility
+
+   <b>Neden utility, ham sınıf değil:</b> ölçüm sonucu kullanımın %51'i
+   ölçeğin dışındaydı (509 keyfi `text-[Npx]`). Bir ölçeği zorlamanın yolu
+   onu KULLANIMI KOLAY yapmak: `text-body` yazmak `text-[11px] font-medium
+   leading-tight` yazmaktan kısa.
+
+   Vercel ilkesi (§3.2 ölçümü): boyut büyüdükçe AĞIRLIK DÜŞÜYOR
+   (48px→400, 32px→450, 14px→500) ve negatif harf aralığı boyutla
+   ölçekleniyor. Büyük metin zaten dikkat çekiyor; bir de kalın olması
+   gürültü yapıyor.
+
+   Taban 11px: mevcut kodda `text-[8px]`/`text-[9px]` 74 kez kullanılıyordu
+   ve okunabilirlik alt sınırının altındaydı.
+   ───────────────────────────────────────────────────────────────────────── */
+@utility text-display {
+  font-size: 2.5rem;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+@utility text-h1 {
+  font-size: 1.875rem;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+@utility text-h2 {
+  font-size: 1.5rem;
+  font-weight: 450;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+@utility text-h3 {
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+@utility text-body-lg {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+@utility text-body {
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.55;
+}
+@utility text-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+@utility text-caption {
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+@utility text-micro {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Odak halkası — @utility focus-ring
+
+   Denetimde ölçüldü: 41 `outline-none`, yalnızca 10 `focus-visible`. Yani
+   odak halkası çoğunlukla KALDIRILMIŞ ama yerine bir şey konmamıştı —
+   klavye kullanıcısı nerede olduğunu göremiyordu. FRONTEND.md §6 bunu
+   "pazarlık edilemez" diyor.
+   ───────────────────────────────────────────────────────────────────────── */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -358,7 +500,7 @@ select {
 }
 
 select:hover {
-  background-color: var(--color-bg-surface-2);
+  background-color: var(--color-surface-600);
   border-color: var(--color-line-strong);
   box-shadow: 0 4px 20px color-mix(in srgb, var(--color-accent) 15%, transparent);
 }
