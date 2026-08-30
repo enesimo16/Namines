@@ -270,7 +270,7 @@ export default function LandingPage() {
         </div>
 
         {/* Form Card */}
-        <div className="w-full max-w-2xl glass-panel rounded-2xl p-4 sm:p-6 relative overflow-visible group">
+        <div className="w-full max-w-2xl glass-panel rounded-[var(--radius-modal)] p-4 sm:p-6 relative overflow-visible group">
           <form onSubmit={handleGenerate} className="relative">
             {/* Textarea Section */}
             <div className="mb-4 relative">
@@ -278,7 +278,7 @@ export default function LandingPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
-                className="w-full h-24 sm:h-28 p-3 rounded-xl glass-input resize-none placeholder-content-muted text-sm leading-relaxed"
+                className="w-full h-24 sm:h-28 p-3 rounded-[var(--radius-card)] glass-input resize-none placeholder-content-muted text-sm leading-relaxed"
                 disabled={isGenerating}
               ></textarea>
 
@@ -286,7 +286,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => setShowUrlInput(!showUrlInput)}
-                  className={`w-7 h-7 rounded-lg glass-button flex items-center justify-center transition-all ${showUrlInput || apiSpecUrl ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
+                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${showUrlInput || apiSpecUrl ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
                   title="Infer from a GraphQL or OpenAPI/Swagger URL"
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
@@ -294,7 +294,7 @@ export default function LandingPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-7 h-7 rounded-lg glass-button flex items-center justify-center transition-all ${image ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
+                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${image ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
                   title="Add Image"
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
@@ -306,7 +306,7 @@ export default function LandingPage() {
                   accept=".png,.jpg,.jpeg"
                   className="hidden"
                 />
-                <div className="w-7 h-7 rounded-lg glass-button flex items-center justify-center transition-all overflow-hidden relative">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all overflow-hidden relative">
                   <div className="absolute inset-0 flex items-center justify-center scale-[0.8]">
                     <VoiceRecorder
                       disabled={isGenerating}
@@ -319,7 +319,7 @@ export default function LandingPage() {
 
             {/* Extended Inputs Area */}
             {(showUrlInput || image) && (
-              <div className="flex flex-col gap-3 p-3 bg-surface-800/80 rounded-xl border border-white/[0.04] mb-6">
+              <div className="flex flex-col gap-3 p-3 bg-surface-800/80 rounded-[var(--radius-card)] border border-white/[0.04] mb-6">
                 {showUrlInput && (
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
@@ -349,7 +349,7 @@ export default function LandingPage() {
 
                 {image && (
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 shrink-0">
+                    <div className="w-10 h-10 rounded-[var(--radius-control)] overflow-hidden border border-white/10 shrink-0">
                       <img src={URL.createObjectURL(image)} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -380,7 +380,7 @@ export default function LandingPage() {
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                    className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
+                    className="flex items-center justify-between glass-input rounded-[var(--radius-control)] pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
                   >
                     <span className="truncate">
                       {selectedModel?.displayName || 'Namines AI'}
@@ -389,7 +389,7 @@ export default function LandingPage() {
                   </button>
 
                   {modelDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-[260px] rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
+                    <div className="absolute left-0 bottom-full mb-2 w-[260px] rounded-[var(--radius-card)] border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
                       {models.map(m => {
                         const isSelected = m.id === naiModel;
                         return (
@@ -401,7 +401,7 @@ export default function LandingPage() {
                               setNaiModel(m.id);
                               setModelDropdownOpen(false);
                             }}
-                            className={`flex items-start justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-left ${
+                            className={`flex items-start justify-between gap-2 px-3 py-2 rounded-[var(--radius-control)] cursor-pointer transition-all text-left ${
                               !m.available
                                 ? 'opacity-40 cursor-not-allowed text-content-muted'
                                 : isSelected
@@ -436,7 +436,7 @@ export default function LandingPage() {
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
-                    className="flex items-center justify-between glass-input rounded-lg pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
+                    className="flex items-center justify-between glass-input rounded-[var(--radius-control)] pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
                   >
                     <span className="truncate">
                       {dbType === 'MSSQL' ? 'SQL Server' :
@@ -454,7 +454,7 @@ export default function LandingPage() {
                   </button>
 
                   {dbDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
+                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
                       {[
                         { value: 'MSSQL', label: 'SQL Server' },
                         { value: 'PostgreSQL', label: 'PostgreSQL' },
@@ -476,7 +476,7 @@ export default function LandingPage() {
                               setDbType(db.value as any);
                               setDbDropdownOpen(false);
                             }}
-                            className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all text-left ${
+                            className={`flex items-center justify-between px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-medium cursor-pointer transition-all text-left ${
                               isSelected
                                 ? 'bg-white/[0.08] text-content-primary border-l-2 border-white/40 pl-2'
                                 : 'text-content-muted hover:bg-white/[0.04] hover:text-content-primary'
@@ -498,7 +498,7 @@ export default function LandingPage() {
               <button
                 type="submit"
                 disabled={isGenerating || isClarifying || !prompt.trim()}
-                className="w-full md:w-auto bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 px-5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="w-full md:w-auto bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 px-5 rounded-[var(--radius-card)] transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {isGenerating || isClarifying ? (
                   <>

@@ -169,10 +169,10 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-surface-800 border border-content-primary/12 rounded-2xl w-[90vw] max-w-xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
+      <div className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-[90vw] max-w-xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
         <div className="border-b border-content-primary/10 px-5 py-3.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-lg flex items-center justify-center">
+            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-[var(--radius-control)] flex items-center justify-center">
               <Network className="w-4 h-4 text-content-primary" />
             </div>
             <div>
@@ -180,7 +180,7 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
               <p className="text-[11px] text-content-muted">Logical links to other projects — not enforced by any database.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/[0.06] rounded-lg text-content-subtle hover:text-content-primary transition-colors" aria-label="Close">
+          <button onClick={onClose} className="p-1.5 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary transition-colors" aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -199,7 +199,7 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
               )}
 
               {relations.map(r => (
-                <div key={r.id} className="border border-dashed border-content-primary/25 rounded-xl p-3 flex items-center justify-between gap-3">
+                <div key={r.id} className="border border-dashed border-content-primary/25 rounded-[var(--radius-card)] p-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 text-xs font-mono text-content-primary">
                       <span className="truncate">{r.direction === 'outgoing' ? r.localColumn : r.otherColumn}</span>
@@ -207,7 +207,7 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
                       <span className="truncate">{r.direction === 'outgoing' ? r.otherColumn : r.localColumn}</span>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-micro font-bold uppercase tracking-wide text-content-subtle bg-surface-700 border border-content-primary/10 px-1.5 py-0.5 rounded">
+                      <span className="text-micro font-bold uppercase tracking-wide text-content-subtle bg-surface-700 border border-content-primary/10 px-1.5 py-0.5 rounded-[var(--radius-control)]">
                         Not enforced
                       </span>
                       <span className="text-[10px] text-content-muted truncate">→ {r.otherProjectName}</span>
@@ -217,13 +217,13 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
                   <div className="flex items-center gap-0.5 shrink-0">
                     <button
                       onClick={() => openMap(r.otherProjectId)}
-                      className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-colors"
+                      className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-[var(--radius-control)] transition-colors"
                       aria-label="See both databases side by side"
                       title="See both databases side by side"
                     >
                       <Map className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => handleDelete(r.id)} className="p-1.5 text-content-subtle hover:text-danger-text hover:bg-danger-subtle rounded-lg transition-colors" aria-label="Delete relation">
+                    <button onClick={() => handleDelete(r.id)} className="p-1.5 text-content-subtle hover:text-danger-text hover:bg-danger-subtle rounded-[var(--radius-control)] transition-colors" aria-label="Delete relation">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -231,13 +231,13 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
               ))}
 
               {isAdding ? (
-                <div className="border border-content-primary/15 rounded-xl p-3.5 flex flex-col gap-2.5 mt-1">
+                <div className="border border-content-primary/15 rounded-[var(--radius-card)] p-3.5 flex flex-col gap-2.5 mt-1">
                   <label className="flex flex-col gap-1 text-[11px] text-content-muted">
                     Other project
                     <select
                       value={otherProjectId}
                       onChange={e => { setOtherProjectId(e.target.value); setRemoteTableId(''); setRemoteColumnId(''); }}
-                      className="bg-surface-700 border border-content-primary/10 rounded-lg px-2 py-1.5 text-xs text-content-primary"
+                      className="bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-content-primary"
                     >
                       <option value="">Select a project…</option>
                       {otherProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -247,11 +247,11 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
                   <div className="grid grid-cols-2 gap-2.5">
                     <label className="flex flex-col gap-1 text-[11px] text-content-muted">
                       This project's table.column
-                      <select value={localTableId} onChange={e => { setLocalTableId(e.target.value); setLocalColumnId(''); }} className="bg-surface-700 border border-content-primary/10 rounded-lg px-2 py-1.5 text-xs text-content-primary">
+                      <select value={localTableId} onChange={e => { setLocalTableId(e.target.value); setLocalColumnId(''); }} className="bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-content-primary">
                         <option value="">Table…</option>
                         {schema?.tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
-                      <select value={localColumnId} onChange={e => setLocalColumnId(e.target.value)} disabled={!localTable} className="bg-surface-700 border border-content-primary/10 rounded-lg px-2 py-1.5 text-xs text-content-primary disabled:opacity-40">
+                      <select value={localColumnId} onChange={e => setLocalColumnId(e.target.value)} disabled={!localTable} className="bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-content-primary disabled:opacity-40">
                         <option value="">Column…</option>
                         {localTable?.columns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
@@ -259,11 +259,11 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
 
                     <label className="flex flex-col gap-1 text-[11px] text-content-muted">
                       Their table.column
-                      <select value={remoteTableId} onChange={e => { setRemoteTableId(e.target.value); setRemoteColumnId(''); }} disabled={!remoteSchema} className="bg-surface-700 border border-content-primary/10 rounded-lg px-2 py-1.5 text-xs text-content-primary disabled:opacity-40">
+                      <select value={remoteTableId} onChange={e => { setRemoteTableId(e.target.value); setRemoteColumnId(''); }} disabled={!remoteSchema} className="bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-content-primary disabled:opacity-40">
                         <option value="">Table…</option>
                         {remoteSchema?.tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
-                      <select value={remoteColumnId} onChange={e => setRemoteColumnId(e.target.value)} disabled={!remoteTable} className="bg-surface-700 border border-content-primary/10 rounded-lg px-2 py-1.5 text-xs text-content-primary disabled:opacity-40">
+                      <select value={remoteColumnId} onChange={e => setRemoteColumnId(e.target.value)} disabled={!remoteTable} className="bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-content-primary disabled:opacity-40">
                         <option value="">Column…</option>
                         {remoteTable?.columns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
@@ -272,15 +272,15 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
 
                   <label className="flex flex-col gap-1 text-[11px] text-content-muted">
                     Note (optional)
-                    <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. same user identity" className="bg-surface-700 border border-content-primary/10 rounded-lg px-2 py-1.5 text-xs text-content-primary" />
+                    <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. same user identity" className="bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-content-primary" />
                   </label>
 
                   <div className="flex items-center justify-end gap-2 mt-1">
-                    <button onClick={resetAddForm} className="px-3 py-1.5 rounded-lg text-content-muted hover:text-content-primary text-xs font-semibold transition-colors">Cancel</button>
+                    <button onClick={resetAddForm} className="px-3 py-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary text-xs font-semibold transition-colors">Cancel</button>
                     <button
                       onClick={handleCreate}
                       disabled={isSubmitting || !otherProjectId || !localColumnId || !remoteColumnId}
-                      className="bg-content-primary hover:bg-content-secondary text-surface-900 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                      className="bg-content-primary hover:bg-content-secondary text-surface-900 px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-semibold transition-all disabled:opacity-50"
                     >
                       {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save relation'}
                     </button>
@@ -289,7 +289,7 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
               ) : (
                 <button
                   onClick={startAdding}
-                  className="flex items-center justify-center gap-1.5 mt-1 px-3 py-2 rounded-lg border border-dashed border-content-primary/20 text-content-muted hover:text-content-primary hover:border-content-primary/40 text-xs font-semibold transition-colors"
+                  className="flex items-center justify-center gap-1.5 mt-1 px-3 py-2 rounded-[var(--radius-control)] border border-dashed border-content-primary/20 text-content-muted hover:text-content-primary hover:border-content-primary/40 text-xs font-semibold transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" /> Link to another database
                 </button>

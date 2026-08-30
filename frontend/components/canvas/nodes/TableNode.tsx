@@ -186,7 +186,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
       // tablo) tuvaldeki her tablo bu genişlikte yer kaplıyordu — "her şey büyük
       // görünüyor" geri bildiriminin en somut kaynağı buydu, çünkü ekranda aynı
       // anda görülebilen tablo sayısını doğrudan sınırlıyordu.
-      className={`${containerBgClass} border rounded-xl shadow-[0_10px_30px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] w-72 flex flex-col overflow-hidden transition-all relative ${borderColorClass}`}
+      className={`${containerBgClass} border rounded-[var(--radius-card)] shadow-[0_10px_30px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] w-72 flex flex-col overflow-hidden transition-all relative ${borderColorClass}`}
       onDoubleClick={(e) => {
         e.stopPropagation();
         openPopover();
@@ -209,7 +209,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               setSelectedTableForEdit(table.id);
               setShowPopover(false);
             }}
-            className="w-full py-2.5 px-4 bg-content-primary hover:bg-content-secondary text-surface-900 rounded-xl text-xs font-bold transition-all border border-accent-hover/40 cursor-pointer"
+            className="w-full py-2.5 px-4 bg-content-primary hover:bg-content-secondary text-surface-900 rounded-[var(--radius-card)] text-xs font-bold transition-all border border-accent-hover/40 cursor-pointer"
           >
             Edit Manual Structure
           </button>
@@ -221,7 +221,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               setIsPanelOpen(true);
               setShowPopover(false);
             }}
-            className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary rounded-xl text-xs font-bold transition-all border border-surface-500 cursor-pointer"
+            className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary rounded-[var(--radius-card)] text-xs font-bold transition-all border border-surface-500 cursor-pointer"
           >
             Go to AI DBA Suggestions
           </button>
@@ -233,7 +233,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 duplicateTable(table.id);
                 setShowPopover(false);
               }}
-              className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary rounded-xl text-xs font-bold transition-all border border-surface-500 cursor-pointer"
+              className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary rounded-[var(--radius-card)] text-xs font-bold transition-all border border-surface-500 cursor-pointer"
             >
               Duplicate Table
             </button>
@@ -284,13 +284,13 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-content-secondary bg-surface-600 px-2 py-1 rounded-md">
+          <span className="text-xs text-content-secondary bg-surface-600 px-2 py-1 rounded-[var(--radius-control)]">
             {table.columns.length} cols
           </span>
           {isEditMode && !diff && (
             <button
               onClick={handleEditClick}
-              className="p-1 hover:bg-surface-600 rounded-md text-content-muted hover:text-content-primary transition-colors"
+              className="p-1 hover:bg-surface-600 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary transition-colors"
               title="Edit table"
               aria-label={`Edit table ${table.name}`}
             >
@@ -353,12 +353,12 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 {/* Kolon tipi her satırdaki birincil bilgi — eski text-content-subtle
                     koyu zeminde ~4.0:1 ile AA'nın altındaydı. */}
                 <span className={diffStatus === 'modified' && details?.typeChanged
-                  ? 'text-content-primary font-bold bg-white/[0.06] px-1 py-0.5 rounded'
+                  ? 'text-content-primary font-bold bg-white/[0.06] px-1 py-0.5 rounded-[var(--radius-control)]'
                   : 'text-content-muted'}>
                   {typeLabel}
                 </span>
                 {col.isNullable && (
-                  <span className="text-content-muted text-[10px] font-bold bg-surface-600 border border-surface-500 px-1.5 py-0.5 rounded uppercase select-none">
+                  <span className="text-content-muted text-[10px] font-bold bg-surface-600 border border-surface-500 px-1.5 py-0.5 rounded-[var(--radius-control)] uppercase select-none">
                     NULL
                   </span>
                 )}

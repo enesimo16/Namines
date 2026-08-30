@@ -40,10 +40,10 @@ export default function AlternativeCompareModal({ current, alternative, onKeepCu
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-surface-800 border border-content-primary/12 rounded-2xl w-[90vw] max-w-2xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
+      <div className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-[90vw] max-w-2xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
         <div className="border-b border-content-primary/10 px-5 py-3.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-lg flex items-center justify-center">
+            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-[var(--radius-control)] flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-content-primary" />
             </div>
             <div>
@@ -51,7 +51,7 @@ export default function AlternativeCompareModal({ current, alternative, onKeepCu
               <p className="text-[11px] text-content-muted">Pick one — the other is discarded.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/[0.06] rounded-lg text-content-subtle hover:text-content-primary transition-colors" aria-label="Close">
+          <button onClick={onClose} className="p-1.5 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary transition-colors" aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -85,13 +85,13 @@ export default function AlternativeCompareModal({ current, alternative, onKeepCu
         <div className="border-t border-content-primary/10 px-5 py-3.5 flex items-center justify-end gap-2.5 shrink-0">
           <button
             onClick={onKeepCurrent}
-            className="px-4 py-2 rounded-lg border border-content-primary/15 text-content-primary hover:bg-white/[0.06] text-xs font-semibold transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-control)] border border-content-primary/15 text-content-primary hover:bg-white/[0.06] text-xs font-semibold transition-colors"
           >
             Keep current (A)
           </button>
           <button
             onClick={onKeepAlternative}
-            className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
+            className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-[var(--radius-control)] text-xs font-semibold transition-all"
           >
             Use alternative (B)
           </button>
@@ -112,7 +112,7 @@ function DiffGroup({ icon, label, tone, items }: { icon: React.ReactNode; label:
       </div>
       <div className="flex flex-wrap gap-1.5">
         {items.map(name => (
-          <span key={name} className="font-mono text-xs text-content-primary bg-surface-700 border border-content-primary/10 px-2 py-1 rounded-md">
+          <span key={name} className="font-mono text-xs text-content-primary bg-surface-700 border border-content-primary/10 px-2 py-1 rounded-[var(--radius-control)]">
             {name}
           </span>
         ))}

@@ -378,7 +378,7 @@ export default function CanvasPage() {
       {/* Connection Lost Overlay for Read-Only Mode */}
       {isOffline && (
         <div className="absolute inset-0 z-[8000] bg-scrim/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-auto">
-          <div className="bg-surface-800 border border-danger/25 px-6 py-5 rounded-2xl flex flex-col items-center text-center gap-3">
+          <div className="bg-surface-800 border border-danger/25 px-6 py-5 rounded-[var(--radius-modal)] flex flex-col items-center text-center gap-3">
             <span className="flex items-center gap-1.5 bg-danger-subtle text-danger-text border border-danger/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
               <AlertTriangle className="w-3 h-3" />
               Connection Lost
@@ -391,7 +391,7 @@ export default function CanvasPage() {
             </div>
             <button
               onClick={() => setIsOffline(false)}
-              className="mt-2 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-content-secondary text-xs font-semibold rounded-xl transition-all cursor-pointer"
+              className="mt-2 px-4 py-2 bg-surface-700 hover:bg-surface-600 text-content-secondary text-xs font-semibold rounded-[var(--radius-card)] transition-all cursor-pointer"
             >
               Work Offline (Local Mode)
             </button>
@@ -449,7 +449,7 @@ export default function CanvasPage() {
                 return isEditMode ? token('--color-accent-hover') : token('--color-line-solid');
               }}
               maskColor="color-mix(in srgb, var(--color-scrim) 70%, transparent)"
-              className="!hidden md:!block bg-surface-700 border border-content-primary/12 rounded-2xl overflow-hidden shadow-lg"
+              className="!hidden md:!block bg-surface-700 border border-content-primary/12 rounded-[var(--radius-modal)] overflow-hidden shadow-lg"
             />
 
             {/* Odadaki diğer kullanıcıların imleçleri (ReactFlow içinde: viewport'a erişir) */}
@@ -461,7 +461,7 @@ export default function CanvasPage() {
                 AYNI kırılma noktasını (`lg`) kullanmak zorunda: ikisi farklı
                 noktada geçiş yapsaydı, 768-1023px aralığında biri diğerinin
                 üstüne binerdi (tam da bu ölçüde, tablet dikey modda, yaşanan buydu). */}
-            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 px-3 py-2 lg:p-4 rounded-xl lg:rounded-2xl !mt-[120px] lg:!mt-4 !ml-2 lg:!ml-4 w-auto max-w-[calc(100vw-1rem)] lg:w-64 select-none pointer-events-auto">
+            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 px-3 py-2 lg:p-4 rounded-[var(--radius-card)] lg:rounded-[var(--radius-modal)] !mt-[120px] lg:!mt-4 !ml-2 lg:!ml-4 w-auto max-w-[calc(100vw-1rem)] lg:w-64 select-none pointer-events-auto">
               {/* `!mt-`: React Flow'un `.react-flow__panel { margin: 15px }`
                   kuralı Tailwind sınıfıyla aynı özgüllükte ve stylesheet'i
                   sonra yüklendiği için kazanıyordu — panel araç çubuğunun
@@ -553,7 +553,7 @@ function TableZoomList({ tables }: { tables: { id: string; name: string; color?:
             <button
               key={t.id}
               onClick={() => zoomTo(t.id)}
-              className="flex items-center gap-2 px-2 py-1 rounded-lg text-xs text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] transition-colors text-left cursor-pointer w-full truncate"
+              className="flex items-center gap-2 px-2 py-1 rounded-[var(--radius-control)] text-xs text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] transition-colors text-left cursor-pointer w-full truncate"
             >
               {t.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color }} />}
               <span className="truncate">{t.name}</span>
@@ -589,9 +589,9 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
 
   return (
     <div className="fixed inset-0 z-[9999] bg-surface-900 flex flex-col items-center justify-center font-sans">
-      <div className="relative bg-surface-800 border border-content-primary/10 p-6 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col items-center text-center max-w-sm w-full mx-4 gap-5">
+      <div className="relative bg-surface-800 border border-content-primary/10 p-6 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col items-center text-center max-w-sm w-full mx-4 gap-5">
 
-        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-surface-600 border border-content-primary/10">
+        <div className="flex items-center justify-center w-12 h-12 rounded-[var(--radius-card)] bg-surface-600 border border-content-primary/10">
           <Loader2 className="w-5 h-5 text-accent-text animate-spin" />
         </div>
 
@@ -599,7 +599,7 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
           <h3 className="text-sm font-bold text-content-primary">
             {status === 'connecting' ? 'Connecting to Room' : 'Room is Empty'}
           </h3>
-          <p className="text-content-muted font-mono text-[11px] bg-surface-700 border border-content-primary/8 px-2.5 py-1 rounded-lg">
+          <p className="text-content-muted font-mono text-[11px] bg-surface-700 border border-content-primary/8 px-2.5 py-1 rounded-[var(--radius-control)]">
             Room ID: {roomId}
           </p>
           <p className="text-content-muted text-xs leading-relaxed max-w-sm mt-1">
@@ -612,7 +612,7 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
         {status === 'connecting' ? (
           <button
             onClick={onCancel}
-            className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-primary font-semibold text-xs rounded-lg border border-content-primary/10 transition-all cursor-pointer"
+            className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-primary font-semibold text-xs rounded-[var(--radius-control)] border border-content-primary/10 transition-all cursor-pointer"
           >
             Cancel and Return
           </button>
@@ -620,13 +620,13 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
           <div className="flex flex-col gap-2 w-full">
             <button
               onClick={handleStartBlank}
-              className="w-full py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-xs rounded-lg transition-all cursor-pointer"
+              className="w-full py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-xs rounded-[var(--radius-control)] transition-all cursor-pointer"
             >
               Start Clean Schema (Host Room)
             </button>
             <button
               onClick={onCancel}
-              className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-secondary font-semibold text-xs rounded-lg border border-content-primary/10 transition-all cursor-pointer"
+              className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-secondary font-semibold text-xs rounded-[var(--radius-control)] border border-content-primary/10 transition-all cursor-pointer"
             >
               Return to Main Menu
             </button>

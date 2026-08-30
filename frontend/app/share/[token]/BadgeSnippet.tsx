@@ -40,13 +40,13 @@ export default function BadgeSnippet({ token, projectName }: { token: string; pr
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="px-3 py-1 rounded-lg bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-primary text-xs border border-surface-500 transition-colors"
+        className="px-3 py-1 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-primary text-xs border border-surface-500 transition-colors"
       >
         README badge
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-10 w-[420px] max-w-[calc(100vw-2rem)] rounded-xl border border-surface-500 bg-surface-800 p-3 shadow-[0_12px_40px_color-mix(in srgb, var(--color-scrim) 45%, transparent)]">
+        <div className="absolute right-0 top-full mt-2 z-10 w-[420px] max-w-[calc(100vw-2rem)] rounded-[var(--radius-card)] border border-surface-500 bg-surface-800 p-3 shadow-[0_12px_40px_color-mix(in srgb, var(--color-scrim) 45%, transparent)]">
           <p className="text-content-muted text-xs mb-2 leading-relaxed">
             Paste this into your README. The badge reflects the schema&apos;s current
             structural score and updates on its own.
@@ -61,14 +61,14 @@ export default function BadgeSnippet({ token, projectName }: { token: string; pr
             className="mb-2"
           />
 
-          <code className="block rounded-lg bg-surface-900 border border-surface-600 p-2 text-[11px] font-mono text-content-muted break-all select-all">
+          <code className="block rounded-[var(--radius-control)] bg-surface-900 border border-surface-600 p-2 text-[11px] font-mono text-content-muted break-all select-all">
             {markdown}
           </code>
 
           <button
             type="button"
             onClick={copy}
-            className="mt-2 w-full px-3 py-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-content-primary text-xs font-medium transition-colors"
+            className="mt-2 w-full px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-primary text-xs font-medium transition-colors"
           >
             {copied ? 'Copied' : 'Copy Markdown'}
           </button>

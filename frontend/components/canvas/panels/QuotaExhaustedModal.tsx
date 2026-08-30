@@ -58,12 +58,12 @@ export default function QuotaExhaustedModal() {
         onClick={() => setExhaustedModalOpen(false)}
       />
 
-      <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] rounded-[var(--radius-modal)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
 
         {/* Header */}
         <div className="flex justify-between items-center px-5 pt-5 pb-3 border-b border-content-primary/10">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-surface-600 border border-content-primary/15">
+            <div className="p-1.5 rounded-[var(--radius-control)] bg-surface-600 border border-content-primary/15">
               <ShieldAlert className="w-4 h-4 text-content-secondary" />
             </div>
             <div>
@@ -75,7 +75,7 @@ export default function QuotaExhaustedModal() {
           </div>
           <button
             onClick={() => setExhaustedModalOpen(false)}
-            className="p-1 rounded-lg text-content-subtle hover:text-content-primary hover:bg-white/[0.06] transition-all cursor-pointer"
+            className="p-1 rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary hover:bg-white/[0.06] transition-all cursor-pointer"
             aria-label="Close modal"
           >
             <X className="w-4 h-4" />
@@ -103,13 +103,13 @@ export default function QuotaExhaustedModal() {
           </div>
 
           {/* Reset Info */}
-          <div className="bg-surface-700 border border-content-primary/8 rounded-xl p-3 flex items-center gap-2.5 text-[11px] text-content-primary">
+          <div className="bg-surface-700 border border-content-primary/8 rounded-[var(--radius-card)] p-3 flex items-center gap-2.5 text-[11px] text-content-primary">
             <HelpCircle className="w-3.5 h-3.5 text-content-muted shrink-0" />
             <span>Credits reset at <span className="text-content-primary font-semibold">{getResetTimeFormatted()}</span>.</span>
           </div>
 
           {/* Free Default / Local switch option */}
-          <div className="bg-surface-700 border border-content-primary/8 rounded-xl p-3.5 flex flex-col gap-2 text-[11px] text-content-primary">
+          <div className="bg-surface-700 border border-content-primary/8 rounded-[var(--radius-card)] p-3.5 flex flex-col gap-2 text-[11px] text-content-primary">
             <div className="flex items-center gap-2 text-content-primary">
               <Sliders className="w-3.5 h-3.5 text-content-muted shrink-0" />
               <span className="font-bold uppercase tracking-wide text-[10px]">Switch to Free Local Engine</span>
@@ -121,7 +121,7 @@ export default function QuotaExhaustedModal() {
               type="button"
               disabled={isUpdating}
               onClick={handleSwitchToDefault}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.12] disabled:opacity-60 text-content-primary font-semibold rounded-lg transition-colors cursor-pointer text-[10px] border border-white/15 self-start"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.12] disabled:opacity-60 text-content-primary font-semibold rounded-[var(--radius-control)] transition-colors cursor-pointer text-[10px] border border-white/15 self-start"
             >
               {isUpdating ? (
                 <>
@@ -138,7 +138,7 @@ export default function QuotaExhaustedModal() {
           <div className="space-y-2 pt-1">
             <button
               onClick={handleOpenSettings}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-xs rounded-xl transition-all cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-xs rounded-[var(--radius-card)] transition-all cursor-pointer"
             >
               <Key className="w-3.5 h-3.5" />
               <span>Use My Own API Key (BYOK)</span>
@@ -146,7 +146,7 @@ export default function QuotaExhaustedModal() {
 
             <button
               onClick={() => setExhaustedModalOpen(false)}
-              className="w-full py-2.5 bg-transparent hover:bg-white/[0.04] text-content-muted hover:text-content-primary text-xs font-medium rounded-xl border border-content-primary/10 transition-all cursor-pointer text-center"
+              className="w-full py-2.5 bg-transparent hover:bg-white/[0.04] text-content-muted hover:text-content-primary text-xs font-medium rounded-[var(--radius-card)] border border-content-primary/10 transition-all cursor-pointer text-center"
             >
               I'll wait until tomorrow
             </button>

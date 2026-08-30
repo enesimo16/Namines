@@ -38,7 +38,7 @@ export default function EmptyCanvasState() {
       <div className="relative w-full max-w-md p-8 rounded-[var(--radius-modal)] bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 80%, transparent)] backdrop-blur-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Header Icon */}
-        <div className="w-12 h-12 rounded-xl bg-content-primary/[0.06] border border-content-primary/12 text-accent-text flex items-center justify-center shadow-sm shrink-0">
+        <div className="w-12 h-12 rounded-[var(--radius-card)] bg-content-primary/[0.06] border border-content-primary/12 text-accent-text flex items-center justify-center shadow-sm shrink-0">
           <Database className="w-5 h-5" />
         </div>
 
@@ -60,10 +60,10 @@ export default function EmptyCanvasState() {
           {/* Action 1: Generate with AI */}
           <button
             onClick={handleGenerateWithAi}
-            className="group relative flex items-center justify-between p-4 rounded-xl bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
+            className="group relative flex items-center justify-between p-4 rounded-[var(--radius-card)] bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-content-primary/[0.06] border border-content-primary/12 flex items-center justify-center text-accent-text">
+              <div className="w-8 h-8 rounded-[var(--radius-control)] bg-content-primary/[0.06] border border-content-primary/12 flex items-center justify-center text-accent-text">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
@@ -77,10 +77,10 @@ export default function EmptyCanvasState() {
           {/* Action 2: Import from Image */}
           <button
             onClick={handleImportFromImage}
-            className="group relative flex items-center justify-between p-4 rounded-xl bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
+            className="group relative flex items-center justify-between p-4 rounded-[var(--radius-card)] bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent-text">
+              <div className="w-8 h-8 rounded-[var(--radius-control)] bg-accent/10 border border-accent/20 flex items-center justify-center text-accent-text">
                 <FileImage className="w-4 h-4" />
               </div>
               <div>
@@ -94,10 +94,10 @@ export default function EmptyCanvasState() {
           {/* Action 3: Browse Templates */}
           <button
             onClick={handleBrowseTemplates}
-            className="group relative flex items-center justify-between p-4 rounded-xl bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
+            className="group relative flex items-center justify-between p-4 rounded-[var(--radius-card)] bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-content-primary/[0.04] border border-accent-hover/20 flex items-center justify-center text-content-muted">
+              <div className="w-8 h-8 rounded-[var(--radius-control)] bg-content-primary/[0.04] border border-accent-hover/20 flex items-center justify-center text-content-muted">
                 <LayoutTemplate className="w-4 h-4" />
               </div>
               <div>
@@ -111,10 +111,10 @@ export default function EmptyCanvasState() {
           {/* Action 4: Start from Scratch */}
           <button
             onClick={handleStartFromScratch}
-            className="group relative flex items-center justify-between p-4 rounded-xl bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
+            className="group relative flex items-center justify-between p-4 rounded-[var(--radius-card)] bg-surface-900/40 hover:bg-surface-900/85 border border-surface-600/80 hover:border-surface-500/85 transition-all text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-success/10 border border-success/20 flex items-center justify-center text-success-text">
+              <div className="w-8 h-8 rounded-[var(--radius-control)] bg-success/10 border border-success/20 flex items-center justify-center text-success-text">
                 <Plus className="w-4 h-4" />
               </div>
               <div>

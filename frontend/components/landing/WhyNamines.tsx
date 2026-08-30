@@ -65,7 +65,7 @@ export default function WhyNamines() {
         {POINTS.map(point => (
           <div
             key={point.title}
-            className="glass-panel rounded-2xl p-5 flex flex-col gap-3"
+            className="glass-panel rounded-[var(--radius-modal)] p-5 flex flex-col gap-3"
           >
             <point.icon className="w-5 h-5 text-content-primary shrink-0" />
             <div>

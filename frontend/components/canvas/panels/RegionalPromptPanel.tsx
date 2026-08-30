@@ -152,7 +152,7 @@ export default function RegionalPromptPanel() {
       {promptHistory.length > 0 && isHistoryOpen && (
         <div
           ref={historyRef}
-          className="mb-2 w-[560px] max-w-[88vw] max-h-56 overflow-y-auto bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-2xl p-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col gap-0.5"
+          className="mb-2 w-[560px] max-w-[88vw] max-h-56 overflow-y-auto bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-[var(--radius-modal)] p-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col gap-0.5"
         >
           {promptHistory.map((p, i) => (
             <button
@@ -163,7 +163,7 @@ export default function RegionalPromptPanel() {
                 setIsHistoryOpen(false);
                 inputRef.current?.focus();
               }}
-              className="text-left text-xs text-content-muted hover:text-content-primary hover:bg-white/[0.05] rounded-lg px-2.5 py-1.5 truncate transition-colors"
+              className="text-left text-xs text-content-muted hover:text-content-primary hover:bg-white/[0.05] rounded-[var(--radius-control)] px-2.5 py-1.5 truncate transition-colors"
               title={p}
             >
               {p}

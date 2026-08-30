@@ -57,7 +57,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
-      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto glass-panel rounded-2xl p-5 sm:p-6">
+      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto glass-panel rounded-[var(--radius-modal)] p-5 sm:p-6">
         {isLoading || !plan ? (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-content-muted">
             <Loader2 className="w-4 h-4 animate-spin" /> Planlanıyor…
@@ -82,7 +82,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
                   key={option}
                   type="button"
                   onClick={() => setFollowUpChoice(prev => (prev === option ? null : option))}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                  className={`px-2.5 py-1.5 rounded-[var(--radius-control)] text-xs font-medium transition-all border ${
                     followUpChoice === option
                       ? 'bg-white/[0.10] text-content-primary border-white/30'
                       : 'text-content-muted border-white/10 hover:text-content-primary hover:bg-white/[0.04]'
@@ -100,7 +100,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
               <button
                 type="button"
                 onClick={handleFollowUpSubmit}
-                className="bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-xl text-sm transition-all"
+                className="bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-[var(--radius-card)] text-sm transition-all"
               >
                 Devam
               </button>
@@ -127,7 +127,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
             </div>
 
             {plan.assumptions.length > 0 && (
-              <div className="border border-white/10 rounded-lg p-3 mb-5 bg-white/[0.03]">
+              <div className="border border-white/10 rounded-[var(--radius-control)] p-3 mb-5 bg-white/[0.03]">
                 <p className="text-[10px] uppercase tracking-wider text-content-subtle font-semibold mb-1.5">
                   Cevaplamadıkların için varsayılan kullanıldı
                 </p>
@@ -152,7 +152,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
                 type="button"
                 disabled={isGenerating}
                 onClick={() => onApprove(answers)}
-                className="flex items-center gap-2 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-xl text-sm transition-all disabled:opacity-50"
+                className="flex items-center gap-2 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-[var(--radius-card)] text-sm transition-all disabled:opacity-50"
               >
                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
                 Onayla ve üret

@@ -27,7 +27,7 @@ export default function ContextualHelpTooltip({ content }: ContextualHelpTooltip
             side="top"
             align="center"
             sideOffset={6}
-            className="z-[9999] max-w-[280px] bg-surface-800 border border-content-primary/12 text-content-primary p-3.5 rounded-xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] animate-in fade-in slide-in-from-bottom-2 duration-150 text-xs leading-relaxed font-sans"
+            className="z-[9999] max-w-[280px] bg-surface-800 border border-content-primary/12 text-content-primary p-3.5 rounded-[var(--radius-card)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] animate-in fade-in slide-in-from-bottom-2 duration-150 text-xs leading-relaxed font-sans"
           >
             <div className="flex flex-col gap-1">
               <span className="font-bold text-content-primary tracking-wide uppercase text-[10px]">

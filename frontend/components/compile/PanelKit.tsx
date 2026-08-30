@@ -30,7 +30,7 @@ export function Panel({
 }) {
   return (
     <div
-      className={`w-full h-full min-h-0 flex flex-col bg-surface-700 border border-surface-500 rounded-lg ${className}`}
+      className={`w-full h-full min-h-0 flex flex-col bg-surface-700 border border-surface-500 rounded-[var(--radius-control)] ${className}`}
     >
       <div className={`flex-1 min-h-0 ${scroll ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         {children}
@@ -68,7 +68,7 @@ export function Segmented<T extends string>({
   ariaLabel: string;
 }) {
   return (
-    <div role="group" aria-label={ariaLabel} className="flex items-center gap-0.5 bg-surface-600 rounded-md p-0.5">
+    <div role="group" aria-label={ariaLabel} className="flex items-center gap-0.5 bg-surface-600 rounded-[var(--radius-control)] p-0.5">
       {options.map(opt => {
         const active = opt.value === value;
         return (
@@ -76,7 +76,7 @@ export function Segmented<T extends string>({
             key={opt.value}
             onClick={() => onChange(opt.value)}
             aria-pressed={active}
-            className={`px-2 h-6 rounded text-[10px] font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
+            className={`px-2 h-6 rounded-[var(--radius-control)] text-[10px] font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
               active
                 ? 'bg-accent-subtle text-accent-text'
                 : 'text-content-muted hover:text-content-secondary'
@@ -112,7 +112,7 @@ export function IconButton({
       disabled={disabled || busy}
       title={label}
       aria-label={label}
-      className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
+      className={`flex items-center justify-center w-8 h-8 rounded-[var(--radius-control)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
         tone === 'primary'
           ? 'bg-accent-subtle text-accent-text hover:bg-accent-hover/30'
           : 'text-content-muted hover:text-content-primary hover:bg-surface-600'
@@ -150,7 +150,7 @@ export function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled || busy}
-      className={`inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-[11px] font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${tones[tone]} ${full ? 'w-full' : ''}`}
+      className={`inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-[var(--radius-control)] text-[11px] font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${tones[tone]} ${full ? 'w-full' : ''}`}
     >
       {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : Icon ? <Icon className="w-3.5 h-3.5" /> : null}
       {children}
@@ -225,19 +225,19 @@ export function OptionCard({
 }) {
   return (
     <div
-      className={`flex flex-col gap-2.5 p-3 rounded-lg border bg-surface-600 border-surface-500 ${
+      className={`flex flex-col gap-2.5 p-3 rounded-[var(--radius-control)] border bg-surface-600 border-surface-500 ${
         disabled ? 'opacity-50' : ''
       }`}
     >
       <div className="flex items-start gap-2.5">
-        <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md bg-accent-subtle text-accent-text">
+        <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-[var(--radius-control)] bg-accent-subtle text-accent-text">
           <Icon className="w-3.5 h-3.5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <h3 className="text-[12px] font-semibold text-content-primary truncate">{title}</h3>
             {badge && (
-              <span className="shrink-0 text-micro font-bold uppercase tracking-wider text-content-muted bg-surface-500/30 px-1.5 py-0.5 rounded">
+              <span className="shrink-0 text-micro font-bold uppercase tracking-wider text-content-muted bg-surface-500/30 px-1.5 py-0.5 rounded-[var(--radius-control)]">
                 {badge}
               </span>
             )}

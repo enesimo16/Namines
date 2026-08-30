@@ -229,7 +229,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="relative w-full max-w-2xl rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-5 md:p-6 flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="relative w-full max-w-2xl rounded-[var(--radius-modal)] bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-5 md:p-6 flex flex-col max-h-[85vh] overflow-hidden">
 
         {/* Header */}
         <div className="flex justify-between items-start mb-5 select-none">
@@ -241,7 +241,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-all cursor-pointer"
+            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-[var(--radius-control)] transition-all cursor-pointer"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -249,7 +249,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center gap-3 mb-5 bg-surface-700 p-2.5 rounded-xl select-none">
+        <div className="flex items-center gap-3 mb-5 bg-surface-700 p-2.5 rounded-[var(--radius-card)] select-none">
           <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${step >= 1 ? 'bg-content-primary text-surface-900' : 'bg-surface-600 text-content-subtle'}`}>
               {step > 1 ? <Check className="w-3.5 h-3.5" /> : '1'}
@@ -274,7 +274,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
         {/* Errors */}
         {error && (
-          <div className="bg-danger-subtle border border-danger/25 rounded-xl p-3 flex gap-2.5 items-start mb-5">
+          <div className="bg-danger-subtle border border-danger/25 rounded-[var(--radius-card)] p-3 flex gap-2.5 items-start mb-5">
             <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
             <div>
               <span className="text-danger-text text-xs font-bold block mb-0.5">Operation Failed</span>
@@ -291,7 +291,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             <div className="space-y-4">
 
               {/* Controls: DB Type */}
-              <div className="flex items-center justify-between bg-surface-700 p-3.5 rounded-xl">
+              <div className="flex items-center justify-between bg-surface-700 p-3.5 rounded-[var(--radius-card)]">
                 <div className="flex items-center gap-2.5">
                   <Database className="w-4 h-4 text-content-muted" />
                   <div>
@@ -302,7 +302,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 <select
                   value={selectedDbType}
                   onChange={(e) => setSelectedDbType(e.target.value as DbType)}
-                  className="bg-surface-800 border border-content-primary/10 rounded-lg px-3 py-1.5 text-xs font-semibold text-content-secondary focus:outline-none focus:border-focus-ring"
+                  className="bg-surface-800 border border-content-primary/10 rounded-[var(--radius-control)] px-3 py-1.5 text-xs font-semibold text-content-secondary focus:outline-none focus:border-focus-ring"
                 >
                   <option value="MSSQL">Microsoft SQL Server</option>
                   <option value="PostgreSQL">PostgreSQL</option>
@@ -318,7 +318,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               </div>
 
               {/* Option 2: Use Current Diagram as Baseline */}
-              <div className="bg-surface-700 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+              <div className="bg-surface-700 rounded-[var(--radius-card)] p-4 flex flex-col md:flex-row items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-4 h-4 text-content-muted mt-0.5 shrink-0" />
                   <div>
@@ -331,7 +331,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 <button
                   type="button"
                   onClick={handleUseCurrentAsBaseline}
-                  className="bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold px-4 py-2 rounded-lg transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
+                  className="bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold px-4 py-2 rounded-[var(--radius-control)] transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Set as Baseline</span>
@@ -344,7 +344,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all duration-300 ${isDragOver ? 'border-focus-ring bg-accent-subtle/30' : 'border-content-primary/12 hover:border-content-primary/20 bg-surface-700/40'}`}
+                className={`border border-dashed rounded-[var(--radius-card)] p-6 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all duration-300 ${isDragOver ? 'border-focus-ring bg-accent-subtle/30' : 'border-content-primary/12 hover:border-content-primary/20 bg-surface-700/40'}`}
               >
                 <input
                   type="file"
@@ -353,7 +353,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                   accept=".cs"
                   className="hidden"
                 />
-                <div className="w-10 h-10 bg-surface-600 border border-content-primary/10 text-accent-text flex items-center justify-center rounded-xl">
+                <div className="w-10 h-10 bg-surface-600 border border-content-primary/10 text-accent-text flex items-center justify-center rounded-[var(--radius-card)]">
                   <Upload className="w-4 h-4" />
                 </div>
                 <div className="text-center">
@@ -365,14 +365,14 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               {/* Text Area for raw pasting */}
               <div className="space-y-1.5">
                 <span className="text-content-subtle text-xs font-medium block">Or paste your DbContext C# source code directly:</span>
-                <div className="relative rounded-xl overflow-hidden border border-content-primary/10 bg-surface-700">
+                <div className="relative rounded-[var(--radius-card)] overflow-hidden border border-content-primary/10 bg-surface-700">
                   <textarea
                     value={dbContextCode}
                     onChange={(e) => setDbContextCode(e.target.value)}
                     placeholder="public class AppDbContext : DbContext { ..."
                     className="w-full h-40 bg-transparent text-xs font-mono text-content-secondary p-3.5 focus:outline-none resize-none"
                   />
-                  <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-surface-800 border border-content-primary/10 px-2.5 py-1 rounded-md select-none">
+                  <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-surface-800 border border-content-primary/10 px-2.5 py-1 rounded-[var(--radius-control)] select-none">
                     <Terminal className="w-3 h-3 text-content-subtle" />
                     <span className="text-content-subtle text-[10px] font-semibold uppercase">C# Source</span>
                   </div>
@@ -384,7 +384,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
           {/* STEP 2: CANVAS EDIT GUIDANCE */}
           {step === 2 && (
             <div className="space-y-5 flex flex-col items-center justify-center py-4">
-              <div className="w-12 h-12 bg-surface-600 border border-content-primary/10 text-accent-text flex items-center justify-center rounded-xl">
+              <div className="w-12 h-12 bg-surface-600 border border-content-primary/10 text-accent-text flex items-center justify-center rounded-[var(--radius-card)]">
                 <CheckCircle className="w-5 h-5" />
               </div>
               <div className="text-center max-w-md select-none">
@@ -399,7 +399,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               </div>
 
               {/* Guidance Box */}
-              <div className="bg-surface-700 rounded-xl p-4 w-full space-y-2.5">
+              <div className="bg-surface-700 rounded-[var(--radius-card)] p-4 w-full space-y-2.5">
                 <div className="flex items-center gap-2 text-content-secondary text-xs font-bold">
                   <AlertTriangle className="w-3.5 h-3.5 text-content-muted" />
                   <span>What Should I Do Next?</span>
@@ -443,7 +443,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             {step === 2 && (
               <button
                 onClick={handleReset}
-                className="text-xs text-danger-text hover:text-danger-text font-semibold flex items-center gap-1.5 bg-danger-subtle hover:bg-danger-subtle px-3 py-2 rounded-lg transition-all cursor-pointer"
+                className="text-xs text-danger-text hover:text-danger-text font-semibold flex items-center gap-1.5 bg-danger-subtle hover:bg-danger-subtle px-3 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Reset Baseline</span>
@@ -452,7 +452,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             {step === 3 && (
               <button
                 onClick={() => setStep(2)}
-                className="text-xs text-content-muted hover:text-content-secondary font-semibold flex items-center gap-1.5 bg-surface-700 hover:bg-surface-600 px-3 py-2 rounded-lg transition-all cursor-pointer"
+                className="text-xs text-content-muted hover:text-content-secondary font-semibold flex items-center gap-1.5 bg-surface-700 hover:bg-surface-600 px-3 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Go Back</span>
@@ -465,7 +465,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               <button
                 onClick={handleParse}
                 disabled={loading || !dbContextCode.trim()}
-                className="flex items-center gap-2 bg-content-primary hover:bg-content-primary-hover disabled:bg-surface-600 disabled:text-content-subtle text-surface-900 text-xs font-semibold px-5 py-2 rounded-lg transition-all disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center gap-2 bg-content-primary hover:bg-content-primary-hover disabled:bg-surface-600 disabled:text-content-subtle text-surface-900 text-xs font-semibold px-5 py-2 rounded-[var(--radius-control)] transition-all disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -485,14 +485,14 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
               <>
                 <button
                   onClick={onClose}
-                  className="bg-surface-700 hover:bg-surface-600 text-content-secondary text-xs font-semibold px-4 py-2 rounded-lg transition-all cursor-pointer"
+                  className="bg-surface-700 hover:bg-surface-600 text-content-secondary text-xs font-semibold px-4 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
                 >
                   Edit Schema (Close)
                 </button>
                 <button
                   onClick={handleGenerate}
                   disabled={loading}
-                  className="flex items-center gap-2 bg-content-primary hover:bg-content-primary-hover disabled:bg-surface-600 disabled:text-content-subtle text-surface-900 text-xs font-semibold px-5 py-2 rounded-lg transition-all cursor-pointer"
+                  className="flex items-center gap-2 bg-content-primary hover:bg-content-primary-hover disabled:bg-surface-600 disabled:text-content-subtle text-surface-900 text-xs font-semibold px-5 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
                 >
                   {loading ? (
                     <>
@@ -512,7 +512,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             {step === 3 && (
               <button
                 onClick={onClose}
-                className="bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold px-5 py-2 rounded-lg transition-all cursor-pointer"
+                className="bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold px-5 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
               >
                 Complete & Close
               </button>
@@ -523,8 +523,8 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
         {/* Overwrite warning dialog — desatüre amber, veri kaybı riski (semantik) */}
         {showOverwriteWarning && (
           <div className="absolute inset-0 z-[110] bg-scrim/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
-            <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-2xl p-5 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] text-center space-y-4">
-              <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-xl mx-auto">
+            <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-[var(--radius-modal)] p-5 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] text-center space-y-4">
+              <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-[var(--radius-card)] mx-auto">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-1.5">
@@ -539,13 +539,13 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                     setShowOverwriteWarning(false);
                     setPendingParsedSchema(null);
                   }}
-                  className="text-xs text-content-muted hover:text-content-secondary bg-transparent hover:bg-white/[0.04] border border-content-primary/10 px-4 py-2 rounded-lg transition-all cursor-pointer"
+                  className="text-xs text-content-muted hover:text-content-secondary bg-transparent hover:bg-white/[0.04] border border-content-primary/10 px-4 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmOverwrite}
-                  className="text-xs text-surface-800 font-semibold bg-danger hover:bg-danger-text px-4 py-2 rounded-lg transition-all cursor-pointer"
+                  className="text-xs text-surface-800 font-semibold bg-danger hover:bg-danger-text px-4 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
                 >
                   Confirm & Overwrite
                 </button>

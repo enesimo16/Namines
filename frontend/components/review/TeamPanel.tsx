@@ -88,7 +88,7 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
   };
 
   return (
-    <div className="bg-surface-700 border border-surface-500 rounded-xl overflow-hidden">
+    <div className="bg-surface-700 border border-surface-500 rounded-[var(--radius-card)] overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-4 h-11 border-b border-surface-500 bg-surface-800">
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-accent-text" />
@@ -148,7 +148,7 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
                         onChange={e => handleRoleChange(m.userId, e.target.value as OrgRole)}
                         aria-label={`Role for ${m.username ?? m.email}`}
                         title={ORG_ROLE_HINT[m.role]}
-                        className="appearance-none bg-surface-600 border border-surface-500 rounded-md h-7 pl-2 pr-6 text-[11px] text-content-secondary cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] disabled:opacity-50"
+                        className="appearance-none bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] h-7 pl-2 pr-6 text-[11px] text-content-secondary cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] disabled:opacity-50"
                       >
                         {ASSIGNABLE_ROLES.map(r => (
                           <option key={r} value={r}>{ORG_ROLE_LABEL[r]}</option>
@@ -159,7 +159,7 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
                   ) : (
                     <span
                       title={ORG_ROLE_HINT[m.role]}
-                      className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded bg-surface-600 text-content-muted"
+                      className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-[var(--radius-control)] bg-surface-600 text-content-muted"
                     >
                       {ORG_ROLE_LABEL[m.role]}
                     </span>
@@ -171,7 +171,7 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
                       disabled={isBusy}
                       aria-label={`Remove ${m.username ?? m.email}`}
                       title="Remove from team"
-                      className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-content-subtle hover:text-danger-text hover:bg-danger-subtle transition-colors cursor-pointer disabled:opacity-40"
+                      className="shrink-0 flex items-center justify-center w-7 h-7 rounded-[var(--radius-control)] text-content-subtle hover:text-danger-text hover:bg-danger-subtle transition-colors cursor-pointer disabled:opacity-40"
                     >
                       {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                     </button>
@@ -191,14 +191,14 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
                   onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
                   placeholder="teammate@example.com"
                   aria-label="Teammate email"
-                  className="flex-1 min-w-0 bg-surface-600 border border-surface-500 rounded-md h-8 px-2.5 text-[11px] text-content-primary placeholder-content-subtle focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)]"
+                  className="flex-1 min-w-0 bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] h-8 px-2.5 text-[11px] text-content-primary placeholder-content-subtle focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)]"
                 />
                 <div className="relative shrink-0">
                   <select
                     value={role}
                     onChange={e => setRole(e.target.value as OrgRole)}
                     aria-label="Role for the new member"
-                    className="appearance-none bg-surface-600 border border-surface-500 rounded-md h-8 pl-2 pr-6 text-[11px] text-content-secondary cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)]"
+                    className="appearance-none bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] h-8 pl-2 pr-6 text-[11px] text-content-secondary cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)]"
                   >
                     {ASSIGNABLE_ROLES.map(r => (
                       <option key={r} value={r}>{ORG_ROLE_LABEL[r]}</option>
@@ -209,7 +209,7 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
                 <button
                   onClick={handleAdd}
                   disabled={isAdding || !email.trim()}
-                  className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[11px] font-semibold bg-content-primary text-surface-900 hover:bg-content-primary-hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-control)] text-[11px] font-semibold bg-content-primary text-surface-900 hover:bg-content-primary-hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isAdding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
                   Add

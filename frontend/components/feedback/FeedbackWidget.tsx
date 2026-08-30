@@ -63,10 +63,10 @@ export default function FeedbackWidget() {
       )}
 
       {open && (
-        <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-[9991] sm:w-[320px] max-w-full rounded-xl bg-surface-800 border border-content-primary/10 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-4 animate-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-[9991] sm:w-[320px] max-w-full rounded-[var(--radius-card)] bg-surface-800 border border-content-primary/10 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-4 animate-in slide-in-from-bottom-3 duration-200">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">Feedback</h3>
-            <button onClick={() => setOpen(false)} className="p-1 text-content-muted hover:text-content-primary rounded-md hover:bg-white/[0.06] cursor-pointer" aria-label="Close">
+            <button onClick={() => setOpen(false)} className="p-1 text-content-muted hover:text-content-primary rounded-[var(--radius-control)] hover:bg-white/[0.06] cursor-pointer" aria-label="Close">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -76,7 +76,7 @@ export default function FeedbackWidget() {
               <button
                 key={c.key}
                 onClick={() => setCategory(c.key)}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-[var(--radius-control)] text-[11px] font-semibold border transition-all ${
                   category === c.key
                     ? 'bg-white/[0.08] border-white/25 text-content-primary'
                     : 'bg-surface-700 border-content-primary/10 text-content-muted hover:text-content-primary'
@@ -94,7 +94,7 @@ export default function FeedbackWidget() {
             rows={3}
             maxLength={4000}
             placeholder="A bug, an idea, or general thoughts?"
-            className="w-full bg-surface-700 border border-content-primary/10 focus:border-focus-ring rounded-lg py-2 px-3 text-sm text-content-primary focus:outline-none resize-none placeholder:text-content-muted"
+            className="w-full bg-surface-700 border border-content-primary/10 focus:border-focus-ring rounded-[var(--radius-control)] py-2 px-3 text-sm text-content-primary focus:outline-none resize-none placeholder:text-content-muted"
           />
 
           <input
@@ -102,13 +102,13 @@ export default function FeedbackWidget() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email (optional)"
-            className="w-full mt-2 bg-surface-700 border border-content-primary/10 focus:border-focus-ring rounded-lg py-2 px-3 text-sm text-content-primary focus:outline-none placeholder:text-content-muted"
+            className="w-full mt-2 bg-surface-700 border border-content-primary/10 focus:border-focus-ring rounded-[var(--radius-control)] py-2 px-3 text-sm text-content-primary focus:outline-none placeholder:text-content-muted"
           />
 
           <button
             onClick={submit}
             disabled={sending}
-            className="w-full mt-2.5 py-2 rounded-lg bg-content-primary hover:bg-content-secondary text-surface-900 text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full mt-2.5 py-2 rounded-[var(--radius-control)] bg-content-primary hover:bg-content-secondary text-surface-900 text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit'}
           </button>

@@ -181,7 +181,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="relative w-full max-w-md rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-5 flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="relative w-full max-w-md rounded-[var(--radius-modal)] bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-5 flex flex-col max-h-[85vh] overflow-hidden">
 
         {/* Header */}
         <div className="flex justify-between items-start mb-4 shrink-0 select-none">
@@ -198,7 +198,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
           <button
             onClick={handleClose}
             disabled={loading}
-            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-all disabled:opacity-50"
+            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-[var(--radius-control)] transition-all disabled:opacity-50"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -207,7 +207,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-danger-subtle border border-danger/25 rounded-xl p-3 flex gap-2.5 items-start mb-4 shrink-0">
+          <div className="bg-danger-subtle border border-danger/25 rounded-[var(--radius-card)] p-3 flex gap-2.5 items-start mb-4 shrink-0">
             <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
             <div>
               <span className="text-danger-text text-xs font-bold block mb-0.5">Analysis Failed</span>
@@ -218,7 +218,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
         {/* Success Alert */}
         {success && (
-          <div className="bg-success-subtle border border-success/25 rounded-xl p-3 flex gap-2.5 items-start mb-4 shrink-0">
+          <div className="bg-success-subtle border border-success/25 rounded-[var(--radius-card)] p-3 flex gap-2.5 items-start mb-4 shrink-0">
             <CheckCircle className="w-4 h-4 text-success-text mt-0.5 shrink-0" />
             <div>
               <span className="text-success-text text-xs font-bold block mb-0.5">Schema Imported Successfully!</span>
@@ -233,7 +233,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
           {showVerification && parsedSchema ? (
             /* Verification Screen */
             <div className="space-y-3 py-1">
-              <div className="bg-surface-700 border border-content-primary/8 rounded-xl p-3 flex gap-2.5 items-start">
+              <div className="bg-surface-700 border border-content-primary/8 rounded-[var(--radius-card)] p-3 flex gap-2.5 items-start">
                 <AlertCircle className="w-4 h-4 text-content-primary mt-0.5 shrink-0" />
                 <div>
                   <span className="text-content-primary text-xs font-bold block mb-0.5">Parsing Successful!</span>
@@ -248,7 +248,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                 <span className="text-[10px] font-bold text-content-subtle uppercase tracking-wider block">Detected Tables ({parsedSchema.tables.length})</span>
                 <div className="grid grid-cols-2 gap-1.5 max-h-[110px] overflow-y-auto pr-1">
                   {parsedSchema.tables.map((t: any) => (
-                    <div key={t.id} className="p-2 bg-surface-700 border border-content-primary/8 rounded-lg flex justify-between items-center text-xs">
+                    <div key={t.id} className="p-2 bg-surface-700 border border-content-primary/8 rounded-[var(--radius-control)] flex justify-between items-center text-xs">
                       <span className="text-content-primary font-semibold truncate max-w-[120px]">{t.name}</span>
                       <span className="text-content-subtle text-[10px]">{t.columns?.length || 0} Columns</span>
                     </div>
@@ -261,7 +261,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                 <span className="text-[10px] font-bold text-content-subtle uppercase tracking-wider block">Detected Relationships ({parsedSchema.relations?.length || 0})</span>
                 <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
                   {(!parsedSchema.relations || parsedSchema.relations.length === 0) ? (
-                    <p className="text-content-subtle text-xs italic p-3 bg-surface-700 border border-content-primary/8 rounded-lg text-center select-none">No relationships detected.</p>
+                    <p className="text-content-subtle text-xs italic p-3 bg-surface-700 border border-content-primary/8 rounded-[var(--radius-control)] text-center select-none">No relationships detected.</p>
                   ) : (
                     parsedSchema.relations.map((rel: any, idx: number) => {
                       const sourceTable = parsedSchema.tables.find((t: any) => t.id === rel.sourceTableId || t.name === rel.sourceTableId);
@@ -271,10 +271,10 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                       const key = rel.id || `rel-${idx}`;
 
                       return (
-                        <div key={key} className="flex items-center justify-between p-2 bg-surface-700 hover:bg-surface-600 border border-content-primary/8 rounded-lg transition-all">
+                        <div key={key} className="flex items-center justify-between p-2 bg-surface-700 hover:bg-surface-600 border border-content-primary/8 rounded-[var(--radius-control)] transition-all">
                           <div className="flex items-center gap-1.5 text-[11px] select-none">
                             <span className="text-content-primary font-semibold truncate max-w-[100px]">{sourceName}</span>
-                            <span className="text-content-primary px-1 py-0.5 bg-white/[0.08] rounded border border-white/15 text-micro font-mono shrink-0">{rel.type || 'OneToMany'}</span>
+                            <span className="text-content-primary px-1 py-0.5 bg-white/[0.08] rounded-[var(--radius-control)] border border-white/15 text-micro font-mono shrink-0">{rel.type || 'OneToMany'}</span>
                             <span className="text-content-subtle">→</span>
                             <span className="text-content-primary font-semibold truncate max-w-[100px]">{targetName}</span>
                           </div>
@@ -287,7 +287,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                                 [key]: !prev[key]
                               }));
                             }}
-                            className="w-3.5 h-3.5 rounded accent-accent-hover cursor-pointer shrink-0"
+                            className="w-3.5 h-3.5 rounded-[var(--radius-control)] accent-accent-hover cursor-pointer shrink-0"
                           />
                         </div>
                       );
@@ -303,7 +303,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all duration-300 min-h-[180px] select-none ${isDragOver ? 'border-focus-ring bg-white/[0.08]/40' : 'border-content-primary/12 hover:border-content-primary/20 bg-surface-700/40'}`}
+              className={`border border-dashed rounded-[var(--radius-card)] p-6 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all duration-300 min-h-[180px] select-none ${isDragOver ? 'border-focus-ring bg-white/[0.08]/40' : 'border-content-primary/12 hover:border-content-primary/20 bg-surface-700/40'}`}
             >
               <input
                 type="file"
@@ -312,7 +312,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
               />
-              <div className="w-10 h-10 bg-surface-600 border border-content-primary/10 text-content-primary flex items-center justify-center rounded-xl">
+              <div className="w-10 h-10 bg-surface-600 border border-content-primary/10 text-content-primary flex items-center justify-center rounded-[var(--radius-card)]">
                 <Image className="w-4 h-4" />
               </div>
               <div className="text-center">
@@ -323,7 +323,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
           ) : (
             /* Preview Area */
             <div className="space-y-3">
-              <div className="relative rounded-xl overflow-hidden border border-content-primary/10 bg-surface-700 max-h-[220px] flex items-center justify-center">
+              <div className="relative rounded-[var(--radius-card)] overflow-hidden border border-content-primary/10 bg-surface-700 max-h-[220px] flex items-center justify-center">
                 <img
                   src={previewUrl}
                   alt="Preview"
@@ -350,7 +350,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                       setShowVerification(false);
                       setParsedSchema(null);
                     }}
-                    className="text-xs text-content-muted hover:text-content-primary bg-surface-700 border border-content-primary/10 px-3 py-1.5 rounded-lg transition-all"
+                    className="text-xs text-content-muted hover:text-content-primary bg-surface-700 border border-content-primary/10 px-3 py-1.5 rounded-[var(--radius-control)] transition-all"
                   >
                     Select Another Image
                   </button>
@@ -365,7 +365,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
           <button
             onClick={handleClose}
             disabled={loading}
-            className="bg-transparent hover:bg-white/[0.04] border border-content-primary/10 text-content-muted hover:text-content-primary text-xs font-medium px-4 py-2 rounded-lg transition-all disabled:opacity-50"
+            className="bg-transparent hover:bg-white/[0.04] border border-content-primary/10 text-content-muted hover:text-content-primary text-xs font-medium px-4 py-2 rounded-[var(--radius-control)] transition-all disabled:opacity-50"
           >
             Close
           </button>
@@ -373,7 +373,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
           {showVerification && parsedSchema && !success && (
             <button
               onClick={handleConfirmImport}
-              className="flex items-center gap-1.5 bg-success hover:bg-success-text text-surface-800 text-xs font-semibold px-4 py-2 rounded-lg transition-all"
+              className="flex items-center gap-1.5 bg-success hover:bg-success-text text-surface-800 text-xs font-semibold px-4 py-2 rounded-[var(--radius-control)] transition-all"
             >
               <CheckCircle className="w-3.5 h-3.5" />
               <span>Confirm & Import to Canvas</span>
@@ -383,7 +383,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
           {previewUrl && !showVerification && !loading && !success && (
             <button
               onClick={handleAnalyze}
-              className="flex items-center gap-1.5 bg-content-primary hover:bg-content-secondary text-surface-900 text-xs font-semibold px-4 py-2 rounded-lg transition-all"
+              className="flex items-center gap-1.5 bg-content-primary hover:bg-content-secondary text-surface-900 text-xs font-semibold px-4 py-2 rounded-[var(--radius-control)] transition-all"
             >
               <span>Convert to Schema with AI</span>
             </button>
@@ -393,8 +393,8 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
         {/* Overwrite warning dialog — desatüre uyarı/amber, veri kaybı riski (semantik) */}
         {showOverwriteWarning && (
           <div className="absolute inset-0 z-[110] bg-scrim/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
-            <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-2xl p-5 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] text-center space-y-4">
-              <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-xl mx-auto">
+            <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-[var(--radius-modal)] p-5 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] text-center space-y-4">
+              <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-[var(--radius-card)] mx-auto">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-1.5">
@@ -409,13 +409,13 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                     setShowOverwriteWarning(false);
                     setPendingSchema(null);
                   }}
-                  className="text-xs text-content-muted hover:text-content-primary bg-transparent hover:bg-white/[0.04] border border-content-primary/10 px-4 py-2 rounded-lg transition-all cursor-pointer"
+                  className="text-xs text-content-muted hover:text-content-primary bg-transparent hover:bg-white/[0.04] border border-content-primary/10 px-4 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmOverwrite}
-                  className="text-xs text-surface-800 font-semibold bg-danger hover:bg-danger-text px-4 py-2 rounded-lg transition-all cursor-pointer"
+                  className="text-xs text-surface-800 font-semibold bg-danger hover:bg-danger-text px-4 py-2 rounded-[var(--radius-control)] transition-all cursor-pointer"
                 >
                   Confirm & Overwrite
                 </button>

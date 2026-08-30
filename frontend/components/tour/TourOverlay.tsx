@@ -180,7 +180,7 @@ export default function TourOverlay() {
       {/* Tour Dialog Card */}
       <div
         style={cardStyle}
-        className="w-[320px] p-5 rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col gap-4 text-sans animate-in zoom-in-95 duration-200"
+        className="w-[320px] p-5 rounded-[var(--radius-modal)] bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col gap-4 text-sans animate-in zoom-in-95 duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -189,7 +189,7 @@ export default function TourOverlay() {
           </span>
           <button
             onClick={endTour}
-            className="text-content-subtle hover:text-content-primary transition-colors p-0.5 rounded-lg hover:bg-white/[0.06] cursor-pointer"
+            className="text-content-subtle hover:text-content-primary transition-colors p-0.5 rounded-[var(--radius-control)] hover:bg-white/[0.06] cursor-pointer"
             title="Skip Tour"
           >
             <X className="w-4 h-4" />
@@ -217,7 +217,7 @@ export default function TourOverlay() {
             {activeStepIndex > 0 && (
               <button
                 onClick={prevStep}
-                className="p-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-content-secondary transition-colors flex items-center justify-center cursor-pointer"
+                className="p-1.5 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-secondary transition-colors flex items-center justify-center cursor-pointer"
                 title="Previous"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -225,7 +225,7 @@ export default function TourOverlay() {
             )}
             <button
               onClick={isLastStep ? endTour : nextStep}
-              className="px-3.5 py-1.5 rounded-lg bg-content-primary hover:bg-content-primary-hover text-surface-900 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
+              className="px-3.5 py-1.5 rounded-[var(--radius-control)] bg-content-primary hover:bg-content-primary-hover text-surface-900 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer"
             >
               <span>{isLastStep ? 'Complete' : 'Next'}</span>
               {!isLastStep && <ChevronRight className="w-3.5 h-3.5" />}

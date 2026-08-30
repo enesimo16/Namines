@@ -81,7 +81,7 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-surface-800 border border-surface-500 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        className="bg-surface-800 border border-surface-500 rounded-[var(--radius-modal)] shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
         onClick={e => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -95,7 +95,7 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
             placeholder="Search commands…"
             className="flex-1 bg-transparent text-content-primary placeholder-content-muted text-sm outline-none"
           />
-          <kbd className="px-1.5 py-0.5 rounded bg-surface-700 border border-surface-500 text-content-muted text-xs font-mono">ESC</kbd>
+          <kbd className="px-1.5 py-0.5 rounded-[var(--radius-control)] bg-surface-700 border border-surface-500 text-content-muted text-xs font-mono">ESC</kbd>
         </div>
 
         {/* Actions list */}
@@ -113,7 +113,7 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
                 idx === activeIdx ? 'bg-white/[0.08]' : 'hover:bg-surface-700'
               }`}
             >
-              <span className={`w-8 h-8 flex items-center justify-center rounded-lg shrink-0 ${
+              <span className={`w-8 h-8 flex items-center justify-center rounded-[var(--radius-control)] shrink-0 ${
                 idx === activeIdx ? 'bg-content-primary/30 text-content-primary' : 'bg-surface-700 text-content-muted'
               }`}>
                 {action.icon}
@@ -130,8 +130,8 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
 
         {/* Footer hint */}
         <div className="flex items-center gap-3 px-4 py-2 border-t border-surface-600 text-content-muted text-xs">
-          <span><kbd className="font-mono bg-surface-700 px-1 rounded">↑↓</kbd> navigate</span>
-          <span><kbd className="font-mono bg-surface-700 px-1 rounded">↵</kbd> run</span>
+          <span><kbd className="font-mono bg-surface-700 px-1 rounded-[var(--radius-control)]">↑↓</kbd> navigate</span>
+          <span><kbd className="font-mono bg-surface-700 px-1 rounded-[var(--radius-control)]">↵</kbd> run</span>
           <span className="ml-auto">ESC to close</span>
         </div>
       </div>

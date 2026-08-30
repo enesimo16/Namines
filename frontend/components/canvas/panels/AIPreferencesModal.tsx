@@ -113,7 +113,7 @@ function CustomSelect<T extends string | number>({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between bg-surface-600 border border-content-primary/15 hover:border-content-primary/25 text-content-secondary text-xs font-semibold py-2 px-3.5 rounded-lg cursor-pointer transition-all select-none focus:border-focus-ring"
+        className="w-full flex items-center justify-between bg-surface-600 border border-content-primary/15 hover:border-content-primary/25 text-content-secondary text-xs font-semibold py-2 px-3.5 rounded-[var(--radius-control)] cursor-pointer transition-all select-none focus:border-focus-ring"
       >
         <span className="truncate">{selectedOption ? selectedOption.label : value}</span>
         <ChevronDown className={`w-3.5 h-3.5 text-content-subtle transition-transform duration-200 shrink-0 ml-1.5 ${isOpen ? 'rotate-180' : ''}`} />
@@ -121,7 +121,7 @@ function CustomSelect<T extends string | number>({
 
       {isOpen && (
         <div
-          className={`absolute left-0 w-full min-w-[200px] max-h-[240px] overflow-y-auto rounded-lg border border-content-primary/15 bg-surface-600 p-1.5 shadow-2xl z-[999] flex flex-col gap-0.5 select-none ${
+          className={`absolute left-0 w-full min-w-[200px] max-h-[240px] overflow-y-auto rounded-[var(--radius-control)] border border-content-primary/15 bg-surface-600 p-1.5 shadow-2xl z-[999] flex flex-col gap-0.5 select-none ${
             openUpward ? 'bottom-full mb-2' : 'top-full mt-2'
           }`}
         >
@@ -135,7 +135,7 @@ function CustomSelect<T extends string | number>({
                   onChange(opt.value);
                   setIsOpen(false);
                 }}
-                className={`flex items-center justify-between w-full px-3 py-2 rounded-md text-xs font-semibold cursor-pointer transition-all text-left select-none ${
+                className={`flex items-center justify-between w-full px-3 py-2 rounded-[var(--radius-control)] text-xs font-semibold cursor-pointer transition-all text-left select-none ${
                   isSelected
                     ? 'bg-white/[0.1] text-content-primary'
                     : 'text-content-secondary hover:bg-white/[0.05] hover:text-content-primary'
@@ -616,7 +616,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
           <div className="space-y-2">
             <h5 className="text-[10px] font-bold text-content-secondary uppercase tracking-wider">Base Feature Cost</h5>
-            <div className="border border-content-primary/15 rounded-lg overflow-hidden bg-surface-600">
+            <div className="border border-content-primary/15 rounded-[var(--radius-control)] overflow-hidden bg-surface-600">
               <table className="w-full text-left border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-white/[0.04] border-b border-content-primary/15 text-content-muted font-bold uppercase">
@@ -641,7 +641,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
           <div className="space-y-2">
             <h5 className="text-[10px] font-bold text-content-secondary uppercase tracking-wider">AI Model Multiplier</h5>
-            <div className="border border-content-primary/15 rounded-lg overflow-hidden bg-surface-600">
+            <div className="border border-content-primary/15 rounded-[var(--radius-control)] overflow-hidden bg-surface-600">
               <table className="w-full text-left border-collapse text-[10px]">
                 <thead>
                   <tr className="bg-white/[0.04] border-b border-content-primary/15 text-content-muted font-bold uppercase">
@@ -658,7 +658,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
             </div>
           </div>
 
-          <div className="bg-surface-600 rounded-lg p-2.5 text-micro leading-relaxed text-content-muted">
+          <div className="bg-surface-600 rounded-[var(--radius-control)] p-2.5 text-micro leading-relaxed text-content-muted">
             <strong>Calculation Example:</strong> Running a <span className="text-content-primary font-bold">DBA Audit (8% base)</span> with the <span className="text-content-primary font-bold">Medium engine (2x)</span> will deduct <span className="text-accent-text font-bold">16%</span> from your daily quota. Running it with the Default engine costs <span className="text-accent-text font-bold">0%</span>.
           </div>
         </div>
@@ -691,8 +691,8 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
     { id: 'help', label: 'Help & FAQ', icon: HelpCircle },
   ];
 
-  const inputClass = "w-full px-3.5 py-2 bg-surface-600 border border-content-primary/15 rounded-lg text-xs text-content-primary placeholder-content-subtle focus:outline-none focus:border-focus-ring transition-all";
-  const cardClass = "bg-surface-700 border border-content-primary/15 rounded-xl";
+  const inputClass = "w-full px-3.5 py-2 bg-surface-600 border border-content-primary/15 rounded-[var(--radius-control)] text-xs text-content-primary placeholder-content-subtle focus:outline-none focus:border-focus-ring transition-all";
+  const cardClass = "bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)]";
   const primaryBtnClass = "bg-content-primary hover:bg-content-primary-hover text-surface-900 font-semibold";
 
   return (
@@ -702,13 +702,13 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
         onClick={onClose}
       />
 
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="ai-pref-title" className="relative w-full max-w-6xl h-[92dvh] md:h-[calc(100dvh-64px)] md:max-h-[880px] bg-surface-800 border border-content-primary/15 rounded-2xl flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 text-content-primary">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="ai-pref-title" className="relative w-full max-w-6xl h-[92dvh] md:h-[calc(100dvh-64px)] md:max-h-[880px] bg-surface-800 border border-content-primary/15 rounded-[var(--radius-modal)] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 text-content-primary">
 
         {/* Left Sidebar */}
         <div className="w-full md:w-64 bg-surface-700 border-b md:border-b-0 md:border-r border-content-primary/15 p-5 flex flex-col justify-between shrink-0">
           <div className="space-y-6">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-[var(--radius-control)] bg-white/[0.06] flex items-center justify-center shrink-0">
                 <Database className="w-4 h-4 text-content-muted" />
               </div>
               <div>
@@ -735,7 +735,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       setActiveTab(item.id);
                       if (item.id === 'ai') setShowAdvancedScreen(false);
                     }}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none whitespace-nowrap ${
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--radius-control)] text-xs font-semibold transition-all cursor-pointer select-none whitespace-nowrap ${
                       isActive
                         ? 'bg-white/[0.1] text-content-primary'
                         : 'text-content-muted hover:text-content-secondary hover:bg-white/[0.04]'
@@ -756,7 +756,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                 showToast('Logged out successfully.', 'info');
                 onClose();
               }}
-              className="hidden md:flex items-center justify-center gap-2 w-full py-2.5 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-lg transition-all cursor-pointer active:scale-95"
+              className="hidden md:flex items-center justify-center gap-2 w-full py-2.5 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-[var(--radius-control)] transition-all cursor-pointer active:scale-95"
             >
               <LogOut className="w-4 h-4" />
               <span>Log Out</span>
@@ -789,7 +789,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-content-subtle hover:text-content-secondary hover:bg-white/[0.06] transition-all cursor-pointer"
+              className="p-1.5 rounded-[var(--radius-control)] text-content-subtle hover:text-content-secondary hover:bg-white/[0.06] transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -860,7 +860,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <button
                         type="submit"
                         disabled={isSavingProfile}
-                        className={`flex items-center gap-1.5 px-4 py-2 disabled:opacity-60 text-xs rounded-lg transition-all cursor-pointer active:scale-95 ${primaryBtnClass}`}
+                        className={`flex items-center gap-1.5 px-4 py-2 disabled:opacity-60 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer active:scale-95 ${primaryBtnClass}`}
                       >
                         <Save className="w-3.5 h-3.5" />
                         <span>{isSavingProfile ? 'Saving...' : 'Save Profile'}</span>
@@ -948,25 +948,25 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
+                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">SignalR Realtime Multiplayer</span>
-                          <span className={`text-micro font-bold px-2 py-0.5 rounded ${user?.type === 'corporate' ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.04] text-content-subtle'}`}>
+                          <span className={`text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] ${user?.type === 'corporate' ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.04] text-content-subtle'}`}>
                             {user?.type === 'corporate' ? 'ENABLED' : 'DISABLED'}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
+                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Automated DBA Linter</span>
-                          <span className={`text-micro font-bold px-2 py-0.5 rounded ${user?.type === 'corporate' ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.08] text-content-secondary'}`}>
+                          <span className={`text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] ${user?.type === 'corporate' ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.08] text-content-secondary'}`}>
                             {user?.type === 'corporate' ? 'UNLIMITED' : '100% DAILY'}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
+                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Cloud Workspace Sync</span>
-                          <span className="text-micro font-bold px-2 py-0.5 rounded bg-success-text/10 text-success-text">ACTIVE</span>
+                          <span className="text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] bg-success-text/10 text-success-text">ACTIVE</span>
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
+                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">API Quota Bypass (BYOK)</span>
-                          <span className="text-micro font-bold px-2 py-0.5 rounded bg-success-text/10 text-success-text">SUPPORTED</span>
+                          <span className="text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] bg-success-text/10 text-success-text">SUPPORTED</span>
                         </div>
                       </div>
                     </div>
@@ -991,7 +991,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                             placeholder="e.g., CI/CD deploy runner"
                             className={`flex-1 ${inputClass}`}
                           />
-                          <button type="submit" className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg transition-all cursor-pointer ${primaryBtnClass}`}>
+                          <button type="submit" className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer ${primaryBtnClass}`}>
                             <Plus className="w-4 h-4" />
                             <span>Generate</span>
                           </button>
@@ -999,19 +999,19 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       </form>
 
                       {generatedToken && (
-                        <div className="bg-surface-600 rounded-lg p-4 space-y-2.5">
+                        <div className="bg-surface-600 rounded-[var(--radius-control)] p-4 space-y-2.5">
                           <div className="flex justify-between items-center">
                             <span className="text-xs font-semibold text-content-primary">Token Generated Successfully</span>
                             <button
                               type="button"
                               onClick={() => copyToClipboard(generatedToken)}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-white/[0.06] hover:bg-white/[0.1] rounded-md text-[10px] font-semibold text-content-secondary transition-colors cursor-pointer"
+                              className="flex items-center gap-1 px-2.5 py-1 bg-white/[0.06] hover:bg-white/[0.1] rounded-[var(--radius-control)] text-[10px] font-semibold text-content-secondary transition-colors cursor-pointer"
                             >
                               <Copy className="w-3.5 h-3.5" />
                               <span>Copy Token</span>
                             </button>
                           </div>
-                          <div className="font-mono text-xs bg-surface-800 p-2.5 rounded-md select-all text-content-secondary break-all">
+                          <div className="font-mono text-xs bg-surface-800 p-2.5 rounded-[var(--radius-control)] select-all text-content-secondary break-all">
                             {generatedToken}
                           </div>
                           <p className="text-[10px] text-content-subtle font-medium">Make sure to copy this access token. It will not be shown again.</p>
@@ -1023,7 +1023,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         {tokens.length === 0 ? (
                           <p className="text-xs text-content-subtle italic">No access tokens active.</p>
                         ) : (
-                          <div className="bg-surface-600 rounded-lg overflow-hidden">
+                          <div className="bg-surface-600 rounded-[var(--radius-control)] overflow-hidden">
                             <table className="w-full text-left border-collapse text-xs">
                               <thead>
                                 <tr className="border-b border-content-primary/10 text-content-subtle font-bold tracking-wider text-micro uppercase">
@@ -1041,7 +1041,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                                       <button
                                         type="button"
                                         onClick={() => handleRevokeToken(tok.id)}
-                                        className="p-1.5 text-content-muted hover:text-danger-text hover:bg-danger-text/10 rounded-md transition-colors cursor-pointer"
+                                        className="p-1.5 text-content-muted hover:text-danger-text hover:bg-danger-text/10 rounded-[var(--radius-control)] transition-colors cursor-pointer"
                                         title="Revoke Token"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -1062,7 +1062,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         showToast('Logged out successfully.', 'info');
                         onClose();
                       }}
-                      className="flex md:hidden items-center justify-center gap-2 w-full py-2.5 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                      className="flex md:hidden items-center justify-center gap-2 w-full py-2.5 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-[var(--radius-control)] transition-all cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Log Out</span>
@@ -1087,7 +1087,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           <button
                             type="button"
                             onClick={() => setShowAdvancedScreen(true)}
-                            className="flex items-center gap-1.5 text-[10px] font-semibold text-content-muted hover:text-content-secondary bg-white/[0.05] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-lg shrink-0 transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 text-[10px] font-semibold text-content-muted hover:text-content-secondary bg-white/[0.05] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-[var(--radius-control)] shrink-0 transition-colors cursor-pointer"
                           >
                             <SlidersHorizontal className="w-3.5 h-3.5" />
                             <span>Advanced Settings</span>
@@ -1095,13 +1095,13 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         </div>
 
                         {/* Cost Multiplier Legend */}
-                        <div className="py-3 px-4 bg-surface-600 rounded-lg mb-5 text-[10px] space-y-2">
+                        <div className="py-3 px-4 bg-surface-600 rounded-[var(--radius-control)] mb-5 text-[10px] space-y-2">
                           <p className="font-semibold text-content-secondary uppercase tracking-wider">AI Cost Multiplier Legend</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                             {[
                               ['NAI v1 Flash', '0.5x'], ['NAI v1', '1x'], ['NAI v1 Pro', '2x'],
                             ].map(([label, val]) => (
-                              <div key={label} className="p-1.5 bg-surface-800 rounded text-center">
+                              <div key={label} className="p-1.5 bg-surface-800 rounded-[var(--radius-control)] text-center">
                                 <span className="block font-bold text-content-secondary">{label}</span>
                                 <span className="text-content-muted font-medium">{val}</span>
                               </div>
@@ -1139,7 +1139,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <button
                         type="submit"
                         disabled={isLoading}
-                        className={`w-full py-2.5 text-xs rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.99] ${primaryBtnClass}`}
+                        className={`w-full py-2.5 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.99] ${primaryBtnClass}`}
                       >
                         <span>{isLoading ? 'Saving...' : 'Save AI Routing'}</span>
                       </button>
@@ -1160,7 +1160,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                               type="button"
                               onClick={() => { if (!isSavedKey) setSelectedProvider(prov); }}
                               disabled={isSavedKey}
-                              className={`flex-1 py-2 text-micro font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                              className={`flex-1 py-2 text-micro font-bold uppercase tracking-wider rounded-[var(--radius-control)] transition-all cursor-pointer ${
                                 selectedProvider === prov
                                   ? 'bg-white/[0.1] text-content-primary'
                                   : 'bg-surface-600 text-content-muted hover:text-content-secondary hover:bg-white/[0.06]'
@@ -1187,20 +1187,20 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
                         {isSavedKey ? (
                           <div className="flex gap-2">
-                            <div className="flex-1 py-2 px-3 bg-success-text/10 rounded-lg flex items-center gap-2 text-success-text text-xs font-semibold font-mono">
+                            <div className="flex-1 py-2 px-3 bg-success-text/10 rounded-[var(--radius-control)] flex items-center gap-2 text-success-text text-xs font-semibold font-mono">
                               <Shield className="w-3.5 h-3.5" />
                               <span>Decryption Key Locked</span>
                             </div>
                             <button
                               type="button"
                               onClick={handleClearKey}
-                              className="px-4 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                              className="px-4 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-[var(--radius-control)] transition-all cursor-pointer"
                             >
                               Delete Key
                             </button>
                           </div>
                         ) : (
-                          <button type="submit" className={`w-full py-2.5 text-xs rounded-lg transition-all cursor-pointer ${primaryBtnClass}`}>
+                          <button type="submit" className={`w-full py-2.5 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer ${primaryBtnClass}`}>
                             Save API Key
                           </button>
                         )}
@@ -1214,7 +1214,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <button
                         type="button"
                         onClick={() => setShowAdvancedScreen(false)}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-content-muted hover:text-content-secondary bg-white/[0.05] hover:bg-white/[0.08] rounded-lg transition-all cursor-pointer select-none active:scale-95"
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-content-muted hover:text-content-secondary bg-white/[0.05] hover:bg-white/[0.08] rounded-[var(--radius-control)] transition-all cursor-pointer select-none active:scale-95"
                       >
                         <ArrowLeft className="w-4 h-4" />
                         <span>Back to AI Routing</span>
@@ -1224,7 +1224,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       </h4>
                     </div>
 
-                    <div className="flex gap-2.5 p-3.5 bg-white/[0.05] rounded-lg">
+                    <div className="flex gap-2.5 p-3.5 bg-white/[0.05] rounded-[var(--radius-control)]">
                       <Shield className="w-4 h-4 shrink-0 text-content-muted mt-0.5" />
                       <div className="text-[10px] leading-normal text-content-secondary font-medium">
                         <span className="font-bold text-content-primary uppercase">Caution:</span> Altering default prompt settings, delete action policies, or temperature variables can result in unexpected compilation failures or syntax differences. Proceed with caution.
@@ -1291,7 +1291,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         </div>
                       </div>
 
-                      <button type="submit" className={`w-full py-2.5 text-xs rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.99] ${primaryBtnClass}`}>
+                      <button type="submit" className={`w-full py-2.5 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.99] ${primaryBtnClass}`}>
                         <Save className="w-4 h-4" />
                         <span>Save Advanced Settings</span>
                       </button>
@@ -1334,17 +1334,17 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       <span>AI Engine Allocation Share</span>
                       <span className="text-content-subtle">COMPILATION BREAKDOWN</span>
                     </div>
-                    <div className="w-full h-5 rounded-lg overflow-hidden flex bg-surface-600">
+                    <div className="w-full h-5 rounded-[var(--radius-control)] overflow-hidden flex bg-surface-600">
                       <div className="h-full bg-white/[0.15]" style={{ width: '55%' }} title="Local Engine: 55%" />
                       <div className="h-full bg-white/[0.25]" style={{ width: '25%' }} title="NAI v1: 25%" />
                       <div className="h-full bg-white/[0.4]" style={{ width: '15%' }} title="NAI v1 Pro: 15%" />
                       <div className="h-full bg-white/[0.6]" style={{ width: '5%' }} title="Custom: 5%" />
                     </div>
                     <div className="flex flex-wrap gap-x-6 gap-y-2 text-[10px] font-semibold text-content-muted uppercase tracking-wide">
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.15]" /><span>Local (55%)</span></div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.25]" /><span>NAI v1 (25%)</span></div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.4]" /><span>NAI v1 Pro (15%)</span></div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-white/[0.6]" /><span>Custom (5%)</span></div>
+                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-[var(--radius-control)] bg-white/[0.15]" /><span>Local (55%)</span></div>
+                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-[var(--radius-control)] bg-white/[0.25]" /><span>NAI v1 (25%)</span></div>
+                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-[var(--radius-control)] bg-white/[0.4]" /><span>NAI v1 Pro (15%)</span></div>
+                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-[var(--radius-control)] bg-white/[0.6]" /><span>Custom (5%)</span></div>
                     </div>
                   </div>
 
@@ -1372,7 +1372,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   <div className={`${cardClass} p-5 space-y-4 w-full`}>
                     <span className="text-[10px] font-semibold text-content-muted uppercase tracking-wider block">Weekly Performance Metrics</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="p-3.5 bg-surface-600 rounded-lg space-y-2">
+                      <div className="p-3.5 bg-surface-600 rounded-[var(--radius-control)] space-y-2">
                         <div className="flex justify-between text-[11px] font-semibold uppercase text-content-secondary">
                           <span>WASM Compiler Success Rate</span>
                           <span className="text-success-text font-bold">100%</span>
@@ -1381,7 +1381,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           <div className="h-full bg-success-text rounded-full" style={{ width: '100%' }} />
                         </div>
                       </div>
-                      <div className="p-3.5 bg-surface-600 rounded-lg space-y-2">
+                      <div className="p-3.5 bg-surface-600 rounded-[var(--radius-control)] space-y-2">
                         <div className="flex justify-between text-[11px] font-semibold uppercase text-content-secondary">
                           <span>DBA Integrity Rating</span>
                           <span className="text-content-secondary font-bold">94.8%</span>
@@ -1406,13 +1406,13 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center justify-between text-xs p-3 bg-surface-600 hover:bg-white/[0.04] rounded-lg transition-all">
+                          <div className="flex items-center justify-between text-xs p-3 bg-surface-600 hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-all">
                             <span className="font-semibold text-content-secondary">Local WASM compiler schema generation</span>
-                            <span className="text-micro bg-success-text/10 text-success-text px-2.5 py-0.5 rounded font-bold">SUCCESS</span>
+                            <span className="text-micro bg-success-text/10 text-success-text px-2.5 py-0.5 rounded-[var(--radius-control)] font-bold">SUCCESS</span>
                           </div>
-                          <div className="flex items-center justify-between text-xs p-3 bg-surface-600 hover:bg-white/[0.04] rounded-lg transition-all">
+                          <div className="flex items-center justify-between text-xs p-3 bg-surface-600 hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-all">
                             <span className="font-semibold text-content-secondary">{Math.round((used / dailyLimit) * 100)}% daily credits checked</span>
-                            <span className="text-micro bg-white/[0.08] text-content-secondary px-2.5 py-0.5 rounded font-bold">INFO</span>
+                            <span className="text-micro bg-white/[0.08] text-content-secondary px-2.5 py-0.5 rounded-[var(--radius-control)] font-bold">INFO</span>
                           </div>
                         </>
                       )}
@@ -1429,13 +1429,13 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   Stripe'ın işlem başına sabit $0,30'u aylıkta her ay tekrar
                   kesiliyordu (bkz. second-phase/16-KOTA-VE-MALIYET.md). */}
               <div className="flex items-center justify-center gap-2">
-                <div className="inline-flex rounded-xl bg-surface-700 border border-surface-500 p-1">
+                <div className="inline-flex rounded-[var(--radius-card)] bg-surface-700 border border-surface-500 p-1">
                   {(['monthly', 'yearly'] as BillingInterval[]).map(opt => (
                     <button
                       key={opt}
                       type="button"
                       onClick={() => setInterval(opt)}
-                      className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                      className={`px-4 py-1.5 rounded-[var(--radius-control)] text-[11px] font-bold transition-all cursor-pointer ${
                         interval === opt
                           ? 'bg-content-primary text-surface-900'
                           : 'text-content-muted hover:text-content-primary'
@@ -1449,7 +1449,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     değişip etiket elle güncellenmezse, ekranda gerçek olmayan
                     bir indirim durur. */}
                 {discountOf('pro') !== null && (
-                  <span className="text-[10px] font-bold text-success-text bg-success-text/10 px-2.5 py-1 rounded-lg">
+                  <span className="text-[10px] font-bold text-success-text bg-success-text/10 px-2.5 py-1 rounded-[var(--radius-control)]">
                     Save {discountOf('pro')}% yearly
                   </span>
                 )}
@@ -1490,7 +1490,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                 </div>
 
                 {/* Pro Plan Card */}
-                <div className="bg-surface-600 border border-content-primary/20 rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
+                <div className="bg-surface-600 border border-content-primary/20 rounded-[var(--radius-card)] p-5 flex flex-col justify-between relative overflow-hidden">
                   <div className="absolute top-0 right-0 bg-white/[0.1] text-content-primary text-micro font-bold uppercase tracking-wider px-3 py-1 rounded-bl-lg">
                     Recommended
                   </div>
@@ -1514,7 +1514,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   <div className="mt-5 flex flex-col gap-2">
                     {subscriptionStatus === 'active' && planTier !== 'Team' ? (
                       <>
-                        <div className="flex items-center gap-2 text-[11px] text-success-text font-semibold bg-success-text/10 rounded-lg px-4 py-2.5">
+                        <div className="flex items-center gap-2 text-[11px] text-success-text font-semibold bg-success-text/10 rounded-[var(--radius-control)] px-4 py-2.5">
                           <Check className="w-4 h-4" />
                           You are on the Pro plan
                         </div>
@@ -1522,7 +1522,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           type="button"
                           onClick={handleManageSubscription}
                           disabled={isUpgrading}
-                          className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-lg px-4 py-2.5 transition-all disabled:opacity-50 cursor-pointer"
+                          className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-[var(--radius-control)] px-4 py-2.5 transition-all disabled:opacity-50 cursor-pointer"
                         >
                           <CreditCard className="w-3.5 h-3.5" />
                           {isUpgrading ? 'Opening portal...' : 'Manage Subscription'}
@@ -1533,7 +1533,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         type="button"
                         onClick={() => handleUpgrade('pro')}
                         disabled={isUpgrading || priceLabel('pro')?.available === false}
-                        className={`w-full flex items-center justify-center gap-2 text-[11px] rounded-lg px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-wait cursor-pointer ${primaryBtnClass}`}
+                        className={`w-full flex items-center justify-center gap-2 text-[11px] rounded-[var(--radius-control)] px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-wait cursor-pointer ${primaryBtnClass}`}
                       >
                         {isUpgrading ? 'Redirecting to Stripe...' : upgradeLabel('Pro', priceLabel('pro'), interval)}
                       </button>
@@ -1564,7 +1564,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                   <div className="mt-5 flex flex-col gap-2">
                     {planTier === 'Team' ? (
                       <>
-                        <div className="flex items-center gap-2 text-[11px] text-success-text font-semibold bg-success-text/10 rounded-lg px-4 py-2.5">
+                        <div className="flex items-center gap-2 text-[11px] text-success-text font-semibold bg-success-text/10 rounded-[var(--radius-control)] px-4 py-2.5">
                           <Check className="w-4 h-4" />
                           You are on the Team plan
                         </div>
@@ -1572,7 +1572,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           type="button"
                           onClick={handleManageSubscription}
                           disabled={isUpgrading}
-                          className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-lg px-4 py-2.5 transition-all disabled:opacity-50 cursor-pointer"
+                          className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-[var(--radius-control)] px-4 py-2.5 transition-all disabled:opacity-50 cursor-pointer"
                         >
                           <CreditCard className="w-3.5 h-3.5" />
                           {isUpgrading ? 'Opening portal...' : 'Manage Subscription'}
@@ -1583,7 +1583,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         type="button"
                         onClick={() => handleUpgrade('team')}
                         disabled={isUpgrading || priceLabel('team')?.available === false}
-                        className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-lg px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-wait cursor-pointer"
+                        className="w-full flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[11px] font-semibold rounded-[var(--radius-control)] px-4 py-3 transition-all disabled:opacity-50 disabled:cursor-wait cursor-pointer"
                       >
                         {isUpgrading ? 'Redirecting to Stripe...' : upgradeLabel('Team', priceLabel('team'), interval)}
                       </button>

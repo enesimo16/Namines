@@ -103,7 +103,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-surface-900/80 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[460px] bg-surface-700 border border-surface-500 rounded-2xl z-50 flex flex-col animate-in fade-in zoom-in-95 overflow-hidden">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[460px] bg-surface-700 border border-surface-500 rounded-[var(--radius-modal)] z-50 flex flex-col animate-in fade-in zoom-in-95 overflow-hidden">
 
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-5 pb-3">
@@ -112,7 +112,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
               Deploy to Live Database
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button className="w-7 h-7 flex items-center justify-center text-content-subtle hover:text-content-secondary hover:bg-white/[0.08] rounded-lg transition-colors cursor-pointer">
+              <button className="w-7 h-7 flex items-center justify-center text-content-subtle hover:text-content-secondary hover:bg-white/[0.08] rounded-[var(--radius-control)] transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </Dialog.Close>
@@ -129,7 +129,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                 <select
                   value={dbType}
                   onChange={(e) => { setDbType(e.target.value as any); resetState(); }}
-                  className="w-full appearance-none bg-surface-600 border border-surface-500 text-content-primary text-sm rounded-lg px-3.5 py-2.5 pr-9 focus:outline-none focus:border-focus-ring transition-colors cursor-pointer"
+                  className="w-full appearance-none bg-surface-600 border border-surface-500 text-content-primary text-sm rounded-[var(--radius-control)] px-3.5 py-2.5 pr-9 focus:outline-none focus:border-focus-ring transition-colors cursor-pointer"
                 >
                   <option value="MSSQL">SQL Server</option>
                   <option value="PostgreSQL">PostgreSQL</option>
@@ -160,7 +160,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                 onChange={(e) => { setConnectionString(e.target.value); resetState(); }}
                 placeholder={DB_PLACEHOLDERS[dbType] || DB_PLACEHOLDERS['MSSQL']}
                 rows={3}
-                className="w-full bg-surface-600 border border-surface-500 text-content-secondary text-sm rounded-lg px-3.5 py-2.5 resize-none focus:outline-none focus:border-focus-ring transition-colors font-mono placeholder:text-content-subtle leading-relaxed"
+                className="w-full bg-surface-600 border border-surface-500 text-content-secondary text-sm rounded-[var(--radius-control)] px-3.5 py-2.5 resize-none focus:outline-none focus:border-focus-ring transition-colors font-mono placeholder:text-content-subtle leading-relaxed"
               />
               <p className="text-[11px] text-content-subtle flex items-center gap-1.5 font-medium">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -170,7 +170,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
 
             {/* Feedback */}
             {deployMessage && (
-              <div className={`px-3.5 py-2.5 rounded-lg text-xs flex items-start gap-2 ${
+              <div className={`px-3.5 py-2.5 rounded-[var(--radius-control)] text-xs flex items-start gap-2 ${
                 deployMessage.isError
                   ? 'bg-danger-text/10 text-danger-text'
                   : 'bg-success-text/10 text-success-text'
@@ -187,7 +187,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
               <button
                 onClick={handleTestConnection}
                 disabled={isTesting || !connectionString.trim()}
-                className="flex-1 py-2.5 bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 text-content-secondary text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-1 py-2.5 bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 text-content-secondary text-xs font-semibold rounded-[var(--radius-control)] transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isTesting
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -199,7 +199,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
               <button
                 onClick={handleDeploy}
                 disabled={!testSuccess || isDeploying || !connectionString.trim() || !sqlScript.trim()}
-                className="flex-1 py-2.5 bg-content-primary hover:bg-content-primary-hover disabled:opacity-40 disabled:bg-white/[0.06] text-surface-900 disabled:text-content-subtle text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-1 py-2.5 bg-content-primary hover:bg-content-primary-hover disabled:opacity-40 disabled:bg-white/[0.06] text-surface-900 disabled:text-content-subtle text-xs font-semibold rounded-[var(--radius-control)] transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isDeploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 Run Script

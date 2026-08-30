@@ -209,7 +209,7 @@ function DemoContent() {
 
         {/* Baslik */}
         <header className="space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-lg bg-white/[0.06] px-3 py-1 text-[11px] font-semibold text-content-secondary">
+          <div className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-white/[0.06] px-3 py-1 text-[11px] font-semibold text-content-secondary">
             <ShieldCheck className="h-3.5 w-3.5" />
             No account needed &middot; nothing is sent to an AI
           </div>
@@ -246,7 +246,7 @@ function DemoContent() {
                     if (first) setTemplateKey(first.key);
                   }}
                   title={tier.blurb}
-                  className={`rounded-xl px-3.5 min-h-11 text-xs font-bold transition-all cursor-pointer ${
+                  className={`rounded-[var(--radius-card)] px-3.5 min-h-11 text-xs font-bold transition-all cursor-pointer ${
                     sizeTab === tier.id
                       ? 'bg-content-primary text-surface-900'
                       : 'bg-surface-800 text-content-muted hover:text-content-primary'
@@ -267,7 +267,7 @@ function DemoContent() {
                   key={t.key}
                   type="button"
                   onClick={() => setTemplateKey(t.key)}
-                  className={`shrink-0 rounded-xl border px-3 min-h-11 text-xs font-semibold transition-all cursor-pointer ${
+                  className={`shrink-0 rounded-[var(--radius-card)] border px-3 min-h-11 text-xs font-semibold transition-all cursor-pointer ${
                     t.key === templateKey
                       ? 'border-content-primary/40 bg-white/[0.08] text-content-primary'
                       : 'border-surface-500 bg-surface-800 text-content-muted hover:text-content-primary'
@@ -289,7 +289,7 @@ function DemoContent() {
                   key={e}
                   type="button"
                   onClick={() => setEngine(e)}
-                  className={`shrink-0 rounded-lg px-3 min-h-11 text-[11px] font-bold transition-all cursor-pointer ${
+                  className={`shrink-0 rounded-[var(--radius-control)] px-3 min-h-11 text-[11px] font-bold transition-all cursor-pointer ${
                     e === engine
                       ? 'bg-content-primary text-surface-900'
                       : 'bg-surface-800 text-content-muted hover:text-content-primary'
@@ -308,7 +308,7 @@ function DemoContent() {
             lekeye dönüşüyor, ekran boş görünüyordu. Gerçek boyutlu bir şema,
             gerçek boyutlu bir alan ister. */}
         <div>
-          <div className="h-[340px] sm:h-[440px] lg:h-[560px] overflow-hidden rounded-2xl border border-surface-500 bg-surface-800">
+          <div className="h-[340px] sm:h-[440px] lg:h-[560px] overflow-hidden rounded-[var(--radius-modal)] border border-surface-500 bg-surface-800">
             <DemoCanvas nodes={nodes} edges={edges} resetKey={template?.key ?? ''} />
           </div>
           <p className="mt-2 text-[11px] text-content-subtle">
@@ -320,7 +320,7 @@ function DemoContent() {
         <div className="grid gap-4 lg:grid-cols-2">
 
           {/* Kanit paneli */}
-          <div className="flex max-h-[420px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800 lg:h-[420px]">
+          <div className="flex max-h-[420px] flex-col overflow-hidden rounded-[var(--radius-modal)] border border-surface-500 bg-surface-800 lg:h-[420px]">
             <div className="flex items-center justify-between border-b border-surface-600 px-4 py-3">
               <span className="text-sm font-semibold text-content-primary">Rule engine findings</span>
               {proving && <Loader2 className="h-4 w-4 animate-spin text-content-muted" />}
@@ -363,12 +363,12 @@ function DemoContent() {
                       ? 'text-warning-text'
                       : 'text-content-muted';
                     return (
-                      <div key={i} className="flex items-start gap-2 rounded-lg bg-surface-700 p-2.5 text-xs leading-relaxed text-content-secondary">
+                      <div key={i} className="flex items-start gap-2 rounded-[var(--radius-control)] bg-surface-700 p-2.5 text-xs leading-relaxed text-content-secondary">
                         <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${color}`} />
                         <span className="min-w-0">
                           {g.message}
                           {g.count > 1 && (
-                            <span className="ml-1.5 rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-bold text-content-primary">
+                            <span className="ml-1.5 rounded-[var(--radius-control)] bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-bold text-content-primary">
                               ×{g.count}
                             </span>
                           )}
@@ -387,7 +387,7 @@ function DemoContent() {
           </div>
 
           {/* Uretilen SQL */}
-          <div className="flex h-[360px] flex-col overflow-hidden rounded-2xl border border-surface-500 bg-surface-800 lg:h-[420px]">
+          <div className="flex h-[360px] flex-col overflow-hidden rounded-[var(--radius-modal)] border border-surface-500 bg-surface-800 lg:h-[420px]">
             {/* Başlık ve rozet sarılıyor: 375px'te ikisi tek satıra sığmıyor ve
                 rozet başlığın üstüne biniyordu. */}
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-surface-600 px-4 py-3">
@@ -403,7 +403,7 @@ function DemoContent() {
         </div>
 
         {/* Donusum */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-500 bg-surface-800 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-modal)] border border-surface-500 bg-surface-800 px-5 py-4">
           <p className="text-sm text-content-secondary">
             Want this from a sentence instead of a template? That part uses AI — and needs an account.
           </p>
@@ -411,13 +411,13 @@ function DemoContent() {
             <button
               type="button"
               onClick={openInEditor}
-              className="flex items-center gap-2 rounded-xl bg-surface-600 px-4 py-2.5 text-xs font-bold text-content-secondary transition-all hover:text-content-primary cursor-pointer"
+              className="flex items-center gap-2 rounded-[var(--radius-card)] bg-surface-600 px-4 py-2.5 text-xs font-bold text-content-secondary transition-all hover:text-content-primary cursor-pointer"
             >
               Open this in the editor
             </button>
             <Link
               href="/"
-              className="flex items-center gap-2 rounded-xl bg-content-primary px-4 py-2.5 text-xs font-bold text-surface-900 transition-all hover:bg-content-secondary"
+              className="flex items-center gap-2 rounded-[var(--radius-card)] bg-content-primary px-4 py-2.5 text-xs font-bold text-surface-900 transition-all hover:bg-content-secondary"
             >
               <Wand2 className="h-3.5 w-3.5" />
               Describe your own

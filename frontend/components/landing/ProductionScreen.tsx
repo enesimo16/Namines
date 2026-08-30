@@ -48,7 +48,7 @@ export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/85 backdrop-blur-sm">
-      <div className="w-full max-w-md glass-panel rounded-2xl p-5 sm:p-6">
+      <div className="w-full max-w-md glass-panel rounded-[var(--radius-modal)] p-5 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-content-primary">
             {isRunning ? 'Şema üretiliyor' : 'Tamamlandı'}
@@ -60,7 +60,7 @@ export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="tap-44 p-1 rounded-lg text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors"
+            className="tap-44 p-1 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -102,7 +102,7 @@ export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="w-full mt-5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 rounded-xl text-sm transition-colors"
+            className="w-full mt-5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 rounded-[var(--radius-card)] text-sm transition-colors"
           >
             Devam et
           </button>

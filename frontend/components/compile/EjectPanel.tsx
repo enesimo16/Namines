@@ -113,7 +113,7 @@ export default function EjectPanel({ schema, dbType }: Props) {
             <select
               value={selected}
               onChange={e => setSelected(e.target.value)}
-              className="bg-surface-800 border border-content-primary/15 rounded-lg px-2 py-1 text-[11px] text-content-primary outline-none focus:border-accent/50"
+              className="bg-surface-800 border border-content-primary/15 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-primary outline-none focus:border-accent/50"
             >
               {targets.map(t => (
                 <option key={t.target} value={t.target}>{t.name}</option>
@@ -152,7 +152,7 @@ export default function EjectPanel({ schema, dbType }: Props) {
               <button
                 key={name}
                 onClick={() => setActiveFile(name)}
-                className={`shrink-0 px-2 py-1 rounded-md text-[10px] font-mono transition-colors ${
+                className={`shrink-0 px-2 py-1 rounded-[var(--radius-control)] text-[10px] font-mono transition-colors ${
                   activeFile === name
                     ? 'bg-surface-600 text-content-primary'
                     : 'text-content-muted hover:text-content-secondary'

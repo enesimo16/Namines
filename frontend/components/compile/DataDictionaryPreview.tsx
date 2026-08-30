@@ -158,12 +158,12 @@ export default function DataDictionaryPreview({ schema, projectName }: DataDicti
                         <td className="py-1.5 px-3">
                           <div className="flex flex-wrap gap-1">
                             {col.isPK && (
-                              <span className="inline-flex items-center gap-0.5 text-micro font-bold px-1.5 py-0.5 rounded bg-accent-subtle text-accent-text">
+                              <span className="inline-flex items-center gap-0.5 text-micro font-bold px-1.5 py-0.5 rounded-[var(--radius-control)] bg-accent-subtle text-accent-text">
                                 <Key className="w-2.5 h-2.5" /> PK
                               </span>
                             )}
                             {col.isFK && (
-                              <span className="inline-flex items-center gap-0.5 text-micro font-bold px-1.5 py-0.5 rounded bg-surface-500/30 text-content-muted">
+                              <span className="inline-flex items-center gap-0.5 text-micro font-bold px-1.5 py-0.5 rounded-[var(--radius-control)] bg-surface-500/30 text-content-muted">
                                 <Link2 className="w-2.5 h-2.5" /> FK
                               </span>
                             )}

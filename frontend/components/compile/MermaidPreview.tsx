@@ -41,7 +41,7 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
   }, [mermaidCode]);
 
   return (
-    <div className="w-full h-full bg-surface-700 rounded-lg overflow-hidden border border-surface-500 relative">
+    <div className="w-full h-full bg-surface-700 rounded-[var(--radius-control)] overflow-hidden border border-surface-500 relative">
       {isRendering && (
         <div className="absolute inset-0 z-20 bg-surface-900/80 backdrop-blur-sm flex items-center justify-center">
           <Loader2 className="w-4 h-4 animate-spin text-content-muted" />

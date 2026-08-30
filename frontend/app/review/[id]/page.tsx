@@ -159,7 +159,7 @@ export default function ChangeRequestDetailPage() {
         </button>
 
         {/* Header */}
-        <div className="bg-surface-700 border border-content-primary/15 rounded-xl p-5 mb-4">
+        <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-5 mb-4">
           <div className="flex items-center gap-2 text-[11px] text-content-subtle mb-2">
             <GitBranch className="w-3.5 h-3.5" />
             <span>{cr.branchName}</span>
@@ -192,7 +192,7 @@ export default function ChangeRequestDetailPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-4 bg-surface-700 border border-content-primary/15 rounded-xl p-1">
+        <div className="flex gap-1 mb-4 bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-1">
           {([
             { id: 'DIFF', label: 'Schema Diff' },
             { id: 'SQL', label: 'Migration Code' },
@@ -203,7 +203,7 @@ export default function ChangeRequestDetailPage() {
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 text-xs font-semibold py-2 rounded-[var(--radius-control)] transition-all cursor-pointer ${
                 activeTab === t.id ? 'bg-white/[0.1] text-content-primary' : 'text-content-muted hover:text-content-secondary'
               }`}
             >
@@ -213,7 +213,7 @@ export default function ChangeRequestDetailPage() {
         </div>
 
         {/* Tab content */}
-        <div className="bg-surface-700 border border-content-primary/15 rounded-xl p-5 mb-4 min-h-[240px]">
+        <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-5 mb-4 min-h-[240px]">
           {activeTab === 'DIFF' && (
             <div className="space-y-4">
               {impact.affectedTables.length === 0 ? (
@@ -221,7 +221,7 @@ export default function ChangeRequestDetailPage() {
               ) : (
                 <div className="space-y-2">
                   {impact.affectedTables.map((t, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-surface-600 rounded-lg">
+                    <div key={i} className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
                       <div className="flex items-center gap-2.5">
                         <Table2 className="w-4 h-4 text-content-muted" />
                         <div>
@@ -273,7 +273,7 @@ export default function ChangeRequestDetailPage() {
           {activeTab === 'IMPACT' && (
             <div className="space-y-5">
               {cr.aiExplanation && (
-                <div className="p-3.5 bg-accent-subtle rounded-lg">
+                <div className="p-3.5 bg-accent-subtle rounded-[var(--radius-control)]">
                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-accent-text uppercase tracking-wider mb-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>AI Summary</span>
@@ -287,7 +287,7 @@ export default function ChangeRequestDetailPage() {
                 title="Breaking Changes"
                 empty="No breaking changes detected."
                 items={impact.breakingChanges.map((b, i) => (
-                  <div key={i} className="p-3 bg-surface-600 rounded-lg">
+                  <div key={i} className="p-3 bg-surface-600 rounded-[var(--radius-control)]">
                     <p className="text-xs text-content-primary">{b.description}</p>
                     {b.suggestedMitigation && (
                       <p className="text-[10px] text-content-subtle mt-1">Suggestion: {b.suggestedMitigation}</p>
@@ -300,7 +300,7 @@ export default function ChangeRequestDetailPage() {
                 title="Data Loss Risks"
                 empty="No data loss risks detected."
                 items={impact.dataLossRisks.map((d, i) => (
-                  <div key={i} className="p-3 bg-surface-600 rounded-lg">
+                  <div key={i} className="p-3 bg-surface-600 rounded-[var(--radius-control)]">
                     <p className="text-xs text-content-primary">{d.tableName}{d.columnName ? `.${d.columnName}` : ''}</p>
                     <p className="text-[10px] text-content-subtle mt-1">{d.reason}</p>
                   </div>
@@ -311,7 +311,7 @@ export default function ChangeRequestDetailPage() {
                 title="Lock Risks"
                 empty="No blocking locks expected."
                 items={impact.lockRisks.map((l, i) => (
-                  <div key={i} className="p-3 bg-surface-600 rounded-lg flex items-center justify-between gap-3">
+                  <div key={i} className="p-3 bg-surface-600 rounded-[var(--radius-control)] flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs text-content-primary">{l.operation}{l.tableName ? ` — ${l.tableName}` : ''}</p>
                       {l.saferAlternative && <p className="text-[10px] text-content-subtle mt-1">{l.saferAlternative}</p>}
@@ -329,7 +329,7 @@ export default function ChangeRequestDetailPage() {
                 title="Index Suggestions"
                 empty="No missing indexes detected."
                 items={impact.indexSuggestions.map((s, i) => (
-                  <div key={i} className="p-3 bg-surface-600 rounded-lg">
+                  <div key={i} className="p-3 bg-surface-600 rounded-[var(--radius-control)]">
                     <p className="text-xs text-content-primary">{s.tableName}.{s.columnName}</p>
                     <p className="text-[10px] text-content-subtle mt-1">{s.reason}</p>
                   </div>
@@ -355,14 +355,14 @@ export default function ChangeRequestDetailPage() {
               <button
                 onClick={handleRunTests}
                 disabled={isRunningTests}
-                className="flex items-center gap-2 px-4 py-2.5 bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold rounded-lg transition-all disabled:opacity-60 cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2.5 bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold rounded-[var(--radius-control)] transition-all disabled:opacity-60 cursor-pointer"
               >
                 {isRunningTests ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
                 {isRunningTests ? 'Running in a test container…' : 'Run Tests'}
               </button>
 
               {cr.testRun && (
-                <div className={`p-3.5 rounded-lg ${
+                <div className={`p-3.5 rounded-[var(--radius-control)] ${
                   !cr.testRun.testRunSupported ? 'bg-white/[0.04]'
                     : cr.testRun.testRunSuccess ? 'bg-success-text/10' : 'bg-danger-text/10'
                 }`}>
@@ -414,7 +414,7 @@ export default function ChangeRequestDetailPage() {
               <div className="flex items-center gap-2.5">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-xs font-semibold rounded-[var(--radius-control)] transition-all cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   Add Files
@@ -422,7 +422,7 @@ export default function ChangeRequestDetailPage() {
                 <button
                   onClick={handleScanCode}
                   disabled={isScanning || codeFiles.length === 0}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold rounded-[var(--radius-control)] transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {isScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSearch className="w-3.5 h-3.5" />}
                   Scan {codeFiles.length > 0 ? `${codeFiles.length} file${codeFiles.length > 1 ? 's' : ''}` : ''}
@@ -432,7 +432,7 @@ export default function ChangeRequestDetailPage() {
               {codeFiles.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {codeFiles.map((f, i) => (
-                    <span key={i} className="text-[10px] text-content-muted bg-white/[0.05] px-2 py-1 rounded-md flex items-center gap-1.5">
+                    <span key={i} className="text-[10px] text-content-muted bg-white/[0.05] px-2 py-1 rounded-[var(--radius-control)] flex items-center gap-1.5">
                       {f.fileName}
                       <button onClick={() => setCodeFiles(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-danger-text cursor-pointer">
                         <X className="w-3 h-3" />
@@ -448,7 +448,7 @@ export default function ChangeRequestDetailPage() {
                 ) : (
                   <div className="space-y-2">
                     {scanResult.matches.map((m, i) => (
-                      <div key={i} className="p-3 bg-surface-600 rounded-lg">
+                      <div key={i} className="p-3 bg-surface-600 rounded-[var(--radius-control)]">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[11px] font-semibold text-content-secondary">{m.fileName}:{m.lineNumber}</span>
                           <span className="text-micro font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-content-secondary bg-white/[0.08]">{m.matchedIdentifier}</span>
@@ -464,7 +464,7 @@ export default function ChangeRequestDetailPage() {
         </div>
 
         {/* Approvals + decision */}
-        <div className="bg-surface-700 border border-content-primary/15 rounded-xl p-5">
+        <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-content-secondary">
               {cr.approvedCount}/{cr.requiredApprovals} approvals
@@ -495,7 +495,7 @@ export default function ChangeRequestDetailPage() {
               <button
                 onClick={() => handleDecide('Rejected')}
                 disabled={isDeciding}
-                className="flex items-center gap-1.5 px-4 py-2 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-[var(--radius-control)] transition-all disabled:opacity-50 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
                 Reject
@@ -503,7 +503,7 @@ export default function ChangeRequestDetailPage() {
               <button
                 onClick={() => handleDecide('Approved')}
                 disabled={isDeciding}
-                className="flex items-center gap-1.5 px-4 py-2 bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold rounded-lg transition-all disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 bg-content-primary hover:bg-content-primary-hover text-surface-900 text-xs font-semibold rounded-[var(--radius-control)] transition-all disabled:opacity-50 cursor-pointer"
               >
                 {isDeciding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 Approve
@@ -513,7 +513,7 @@ export default function ChangeRequestDetailPage() {
         </div>
 
         {auditLog.length > 0 && (
-          <div className="bg-surface-700 border border-content-primary/15 rounded-xl p-5 mt-4">
+          <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-5 mt-4">
             <p className="text-[10px] font-bold text-content-subtle uppercase tracking-wider mb-2.5">History</p>
             <div className="space-y-1.5">
               {auditLog.map(entry => (

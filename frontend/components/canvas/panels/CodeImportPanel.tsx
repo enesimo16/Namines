@@ -74,10 +74,10 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-surface-800 border border-content-primary/12 rounded-2xl w-[90vw] max-w-xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
+      <div className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-[90vw] max-w-xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
         <div className="border-b border-content-primary/10 px-5 py-3.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-lg flex items-center justify-center">
+            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-[var(--radius-control)] flex items-center justify-center">
               <FileCode2 className="w-4 h-4 text-content-primary" />
             </div>
             <div>
@@ -85,7 +85,7 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
               <p className="text-[11px] text-content-muted">Prisma, EF Core or SQL migrations — read only, never executed.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/[0.06] rounded-lg text-content-subtle hover:text-content-primary transition-colors" aria-label="Close">
+          <button onClick={onClose} className="p-1.5 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary transition-colors" aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -108,7 +108,7 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="flex flex-col items-center justify-center gap-2 w-full py-10 rounded-xl border border-dashed border-content-primary/20 text-content-muted hover:text-content-primary hover:border-content-primary/40 transition-colors disabled:opacity-50"
+              className="flex flex-col items-center justify-center gap-2 w-full py-10 rounded-[var(--radius-card)] border border-dashed border-content-primary/20 text-content-muted hover:text-content-primary hover:border-content-primary/40 transition-colors disabled:opacity-50"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
               <span className="text-xs font-semibold">
@@ -137,12 +137,12 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
 
               <div className="flex flex-wrap gap-1.5">
                 {result.parsedModels.map(m => (
-                  <span key={m} className="font-mono text-[11px] text-content-primary bg-surface-700 border border-content-primary/10 px-2 py-1 rounded-md">{m}</span>
+                  <span key={m} className="font-mono text-[11px] text-content-primary bg-surface-700 border border-content-primary/10 px-2 py-1 rounded-[var(--radius-control)]">{m}</span>
                 ))}
               </div>
 
               {result.skipped.length > 0 && (
-                <div className="border border-warning/25 bg-warning/[0.06] rounded-xl p-3">
+                <div className="border border-warning/25 bg-warning/[0.06] rounded-[var(--radius-card)] p-3">
                   <p className="text-[10px] uppercase tracking-wider text-warning font-bold mb-1.5">Could not be read</p>
                   <ul className="flex flex-col gap-1">
                     {result.skipped.map((s, i) => (
@@ -155,7 +155,7 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
               )}
 
               {result.drift && (
-                <div className="border border-content-primary/12 rounded-xl p-3">
+                <div className="border border-content-primary/12 rounded-[var(--radius-card)] p-3">
                   <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-content-subtle font-bold mb-2">
                     <GitCompare className="w-3 h-3" />
                     Code vs. this canvas
@@ -190,7 +190,7 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
                 </button>
                 <button
                   onClick={applyToCanvas}
-                  className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-lg text-xs font-semibold transition-all"
+                  className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-[var(--radius-control)] text-xs font-semibold transition-all"
                 >
                   Load onto canvas
                 </button>

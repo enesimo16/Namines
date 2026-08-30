@@ -154,7 +154,7 @@ export default function SqlExplorerPanel() {
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-surface-800 border border-content-primary/12 shadow-[0_10px_50px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-2xl"
+      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-surface-800 border border-content-primary/12 shadow-[0_10px_50px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-[var(--radius-modal)]"
     >
       {/* Panel Header */}
       <div className="flex items-center justify-between px-5 py-2.5 border-b border-content-primary/10 select-none shrink-0">
@@ -180,7 +180,7 @@ export default function SqlExplorerPanel() {
           <button
             onClick={syncAndSeedDb}
             disabled={isSyncing}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-content-secondary hover:text-content-primary bg-surface-700 hover:bg-surface-600 border border-content-primary/8 transition-all disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-control)] text-[11px] font-semibold text-content-secondary hover:text-content-primary bg-surface-700 hover:bg-surface-600 border border-content-primary/8 transition-all disabled:opacity-50 cursor-pointer"
             title="Reload diagram schema and mock data into local database"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -189,7 +189,7 @@ export default function SqlExplorerPanel() {
 
           <button
             onClick={() => setIsOpen(false)}
-            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-[var(--radius-control)] transition-colors cursor-pointer"
             aria-label="Close SQL Console"
           >
             <X className="w-4 h-4" />
@@ -205,7 +205,7 @@ export default function SqlExplorerPanel() {
 
           {/* Status/Errors inside Result Section */}
           {syncError && (
-            <div className="m-3 bg-danger-subtle border border-danger/25 rounded-lg p-3 flex gap-2.5 items-start shrink-0">
+            <div className="m-3 bg-danger-subtle border border-danger/25 rounded-[var(--radius-control)] p-3 flex gap-2.5 items-start shrink-0">
               <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
               <div>
                 <span className="text-danger-text text-xs font-bold block mb-0.5">Setup Error</span>
@@ -215,7 +215,7 @@ export default function SqlExplorerPanel() {
           )}
 
           {syncSuccess && (
-            <div className="m-3 bg-success-subtle border border-success/25 rounded-lg p-3 flex gap-2.5 items-start shrink-0">
+            <div className="m-3 bg-success-subtle border border-success/25 rounded-[var(--radius-control)] p-3 flex gap-2.5 items-start shrink-0">
               <CheckCircle className="w-4 h-4 text-success-text mt-0.5 shrink-0" />
               <div>
                 <span className="text-success-text text-xs font-bold block mb-0.5">Sync Successful</span>
@@ -225,11 +225,11 @@ export default function SqlExplorerPanel() {
           )}
 
           {queryError && (
-            <div className="m-3 bg-danger-subtle border border-danger/25 rounded-lg p-3 flex gap-2.5 items-start shrink-0">
+            <div className="m-3 bg-danger-subtle border border-danger/25 rounded-[var(--radius-control)] p-3 flex gap-2.5 items-start shrink-0">
               <AlertCircle className="w-4 h-4 text-danger-text mt-0.5 shrink-0" />
               <div>
                 <span className="text-danger-text text-xs font-bold block mb-0.5">Runtime Error</span>
-                <p className="text-danger-text text-xs font-mono mt-1 leading-relaxed bg-scrim/20 p-2 rounded-md">{queryError}</p>
+                <p className="text-danger-text text-xs font-mono mt-1 leading-relaxed bg-scrim/20 p-2 rounded-[var(--radius-control)]">{queryError}</p>
               </div>
             </div>
           )}
@@ -255,7 +255,7 @@ export default function SqlExplorerPanel() {
                     </div>
                   </div>
                 ) : (
-                  <div className="border border-content-primary/10 rounded-lg overflow-hidden bg-surface-700">
+                  <div className="border border-content-primary/10 rounded-[var(--radius-control)] overflow-hidden bg-surface-700">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-surface-600 border-b border-content-primary/10 text-[10px] font-bold text-content-muted uppercase tracking-wider">
@@ -318,14 +318,14 @@ export default function SqlExplorerPanel() {
             value={sqlQuery}
             onChange={(e) => setSqlQuery(e.target.value)}
             placeholder="SELECT * FROM Users LIMIT 10;"
-            className="flex-1 font-mono text-xs text-content-primary bg-surface-700 border border-content-primary/10 rounded-lg p-2.5 focus:border-focus-ring focus:outline-none resize-none leading-relaxed"
+            className="flex-1 font-mono text-xs text-content-primary bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] p-2.5 focus:border-focus-ring focus:outline-none resize-none leading-relaxed"
             spellCheck={false}
           />
 
           <button
             onClick={handleRunQuery}
             disabled={executing || isSyncing || !sqlQuery.trim()}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg font-semibold text-xs text-surface-900 bg-content-primary hover:bg-content-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-[var(--radius-control)] font-semibold text-xs text-surface-900 bg-content-primary hover:bg-content-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {executing ? (
               <>

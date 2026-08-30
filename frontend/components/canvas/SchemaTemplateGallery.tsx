@@ -55,7 +55,7 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
     // tarayıcılarda vh, adres çubuğu gizlenene kadar gerçek yüksekliği vermiyor
     // ve modalın altı ekranın dışında kalıyordu.
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-3 sm:p-4">
-      <div className="bg-surface-800 border border-surface-500 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90dvh]">
+      <div className="bg-surface-800 border border-surface-500 rounded-[var(--radius-modal)] shadow-2xl w-full max-w-2xl flex flex-col max-h-[90dvh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 pt-5 pb-4 border-b border-surface-600">
@@ -83,7 +83,7 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search templates…"
-              className="w-full bg-surface-900 border border-surface-500 focus:border-accent-hover rounded-xl pl-9 pr-4 py-2.5 text-sm text-content-primary placeholder-content-muted outline-none"
+              className="w-full bg-surface-900 border border-surface-500 focus:border-accent-hover rounded-[var(--radius-card)] pl-9 pr-4 py-2.5 text-sm text-content-primary placeholder-content-muted outline-none"
             />
           </div>
 
@@ -98,7 +98,7 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
                     key={tier.id}
                     type="button"
                     onClick={() => setFilter(tier.id)}
-                    className={`shrink-0 px-3 min-h-11 sm:min-h-0 sm:py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                    className={`shrink-0 px-3 min-h-11 sm:min-h-0 sm:py-1.5 rounded-[var(--radius-control)] text-[11px] font-bold transition-colors cursor-pointer ${
                       filter === tier.id
                         ? 'bg-content-primary text-surface-900'
                         : 'bg-surface-700 text-content-muted hover:text-content-primary'
@@ -123,7 +123,7 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
           {filtered.map(tpl => (
             <div
               key={tpl.key}
-              className="flex flex-col p-4 rounded-xl bg-surface-700 border border-surface-500 text-left transition-all"
+              className="flex flex-col p-4 rounded-[var(--radius-card)] bg-surface-700 border border-surface-500 text-left transition-all"
             >
               <p className="text-content-primary font-semibold text-sm">{tpl.label}</p>
               <p className="text-content-muted text-xs mt-0.5 leading-relaxed">{tpl.description}</p>
@@ -133,13 +133,13 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
               <div className="flex gap-2 mt-3 pt-3 border-t border-surface-500/60">
                 <button
                   onClick={() => handleReplace(tpl.key)}
-                  className="flex-1 min-h-11 rounded-lg bg-content-primary hover:bg-content-secondary text-surface-900 text-xs font-bold transition-colors cursor-pointer"
+                  className="flex-1 min-h-11 rounded-[var(--radius-control)] bg-content-primary hover:bg-content-secondary text-surface-900 text-xs font-bold transition-colors cursor-pointer"
                 >
                   Replace
                 </button>
                 <button
                   onClick={() => handleMerge(tpl.key)}
-                  className="flex-1 min-h-11 rounded-lg bg-surface-600 hover:bg-surface-500 text-content-secondary hover:text-content-primary border border-surface-400 text-xs font-bold transition-colors cursor-pointer"
+                  className="flex-1 min-h-11 rounded-[var(--radius-control)] bg-surface-600 hover:bg-surface-500 text-content-secondary hover:text-content-primary border border-surface-400 text-xs font-bold transition-colors cursor-pointer"
                 >
                   Merge
                 </button>

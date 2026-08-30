@@ -306,7 +306,7 @@ export default function CanvasExportToolbar() {
         <div 
           id="canvas-toolbar"
           ref={nodeRef} 
-          className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-xl bg-gradient-to-r from-surface-700/90 to-surface-600/80 backdrop-blur-md border border-content-primary/12 select-none transition-all duration-300"
+          className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-[var(--radius-card)] bg-gradient-to-r from-surface-700/90 to-surface-600/80 backdrop-blur-md border border-content-primary/12 select-none transition-all duration-300"
           style={{ width: isCollapsed ? '76px' : 'auto' }}
         >
           {/* Drag Handle */}
@@ -322,7 +322,7 @@ export default function CanvasExportToolbar() {
             /* COLLAPSED STATE (Compact mode) */
             <button
               onClick={() => setIsCollapsed(false)}
-              className="p-2 rounded-lg bg-content-primary/[0.06] hover:bg-content-primary/12 border border-content-primary/12 text-content-primary transition-all shrink-0"
+              className="p-2 rounded-[var(--radius-control)] bg-content-primary/[0.06] hover:bg-content-primary/12 border border-content-primary/12 text-content-primary transition-all shrink-0"
               title="Expand Toolbar"
             >
               <ChevronRight className="w-4 h-4" />
@@ -334,7 +334,7 @@ export default function CanvasExportToolbar() {
               <button
                 id="canvas-vision-import-btn"
                 onClick={() => setIsVisionOpen(true)}
-                className="group/btn flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-content-primary hover:text-content-primary hover:bg-content-primary/[0.06] transition-all border border-transparent hover:border-content-primary/12 relative shadow-sm overflow-hidden shrink-0"
+                className="group/btn flex items-center gap-2 px-3 py-2 rounded-[var(--radius-control)] text-xs font-bold text-content-primary hover:text-content-primary hover:bg-content-primary/[0.06] transition-all border border-transparent hover:border-content-primary/12 relative shadow-sm overflow-hidden shrink-0"
                 title="Upload Whiteboard Photo"
                 aria-label="Import from Whiteboard"
               >
@@ -349,7 +349,7 @@ export default function CanvasExportToolbar() {
               <button
                 id="canvas-dba-inspect-btn"
                 onClick={() => setIsPanelOpen(!isPanelOpen)}
-                className={`group/btn flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all relative overflow-hidden border shrink-0 ${
+                className={`group/btn flex items-center gap-2 px-3 py-2 rounded-[var(--radius-control)] text-xs font-bold transition-all relative overflow-hidden border shrink-0 ${
                   isPanelOpen 
                     ? 'bg-content-primary/12 text-content-primary border-white/25' 
                     : 'text-success hover:text-success-text hover:bg-success-subtle border-transparent hover:border-success/30'
@@ -378,7 +378,7 @@ export default function CanvasExportToolbar() {
               <button
                 id="canvas-edit-mode-btn"
                 onClick={toggleEditMode}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 shrink-0 ${isEditMode ? 'bg-content-primary/12 text-content-primary border border-white/15' : 'text-content-muted hover:text-content-primary hover:bg-white/5 border border-transparent'}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-[var(--radius-control)] text-xs font-medium transition-all duration-300 shrink-0 ${isEditMode ? 'bg-content-primary/12 text-content-primary border border-white/15' : 'text-content-muted hover:text-content-primary hover:bg-white/5 border border-transparent'}`}
                 title={isEditMode ? 'Switch to view mode' : 'Switch to edit mode'}
                 aria-label={isEditMode ? 'Disable edit mode' : 'Enable edit mode'}
                 aria-pressed={isEditMode}
@@ -404,7 +404,7 @@ export default function CanvasExportToolbar() {
                   id="canvas-export-dropdown-btn"
                   onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
                   disabled={isCurrentlyExporting}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-[var(--radius-control)] text-xs font-bold transition-all border ${
                     isExportDropdownOpen
                       ? 'bg-white/[0.08] text-content-primary border-white/25 shadow-none'
                       : 'text-content-secondary hover:text-content-primary hover:bg-white/[0.06] border-transparent hover:border-content-primary/12'
@@ -423,7 +423,7 @@ export default function CanvasExportToolbar() {
 
                 {/* Dropdown Menu (Opens upwards) */}
                 {isExportDropdownOpen && (
-                  <div className="absolute bottom-full left-0 mb-2 w-52 rounded-xl bg-surface-900/95 border border-content-primary/12 flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200">
+                  <div className="absolute bottom-full left-0 mb-2 w-52 rounded-[var(--radius-card)] bg-surface-900/95 border border-content-primary/12 flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200">
                     <div className="px-2.5 py-1.5 text-micro font-extrabold text-content-subtle uppercase tracking-wider select-none">
                       Image Export
                     </div>
@@ -433,7 +433,7 @@ export default function CanvasExportToolbar() {
                         exportAsPng({ fileName: slug });
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-white/[0.06] rounded-[var(--radius-control)] transition-colors text-left"
                     >
                       <FileImage className="w-3.5 h-3.5 text-content-primary" />
                       <span>PNG Image (.png)</span>
@@ -444,7 +444,7 @@ export default function CanvasExportToolbar() {
                         exportAsJpeg({ fileName: slug });
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-[var(--radius-control)] transition-colors text-left"
                     >
                       <FileImage className="w-3.5 h-3.5 text-content-primary" />
                       <span>JPEG Image (.jpg)</span>
@@ -455,7 +455,7 @@ export default function CanvasExportToolbar() {
                         exportAsSvg();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
                     >
                       <FileCode className="w-3.5 h-3.5 text-content-muted" />
                       <span>Vector Graphic (.svg)</span>
@@ -472,7 +472,7 @@ export default function CanvasExportToolbar() {
                         exportAsSql();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-success hover:bg-success-subtle rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-success hover:bg-success-subtle rounded-[var(--radius-control)] transition-colors text-left"
                     >
                       <Database className="w-3.5 h-3.5 text-success" />
                       <span>SQL Schema Code (.sql)</span>
@@ -483,7 +483,7 @@ export default function CanvasExportToolbar() {
                         exportAsJson();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-danger hover:bg-danger-subtle rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-danger hover:bg-danger-subtle rounded-[var(--radius-control)] transition-colors text-left"
                     >
                       <Braces className="w-3.5 h-3.5 text-danger" />
                       <span>Namines Meta Schema (.json)</span>
@@ -494,7 +494,7 @@ export default function CanvasExportToolbar() {
                         exportAsPrisma();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
                       title="Export as Prisma ORM schema file"
                     >
                       <Database className="w-3.5 h-3.5 text-content-muted" />
@@ -506,7 +506,7 @@ export default function CanvasExportToolbar() {
                         exportAsPdf();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
                     >
                       <FileText className="w-3.5 h-3.5 text-content-muted" />
                       <span>PDF Technical Report (.pdf)</span>
@@ -517,7 +517,7 @@ export default function CanvasExportToolbar() {
                         exportForCi();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
                       title="Save as namines-schema.json for GitHub Actions CI diff"
                     >
                       <GitBranch className="w-3.5 h-3.5 text-content-muted" />
@@ -529,7 +529,7 @@ export default function CanvasExportToolbar() {
                         setIsCloudModalOpen(true);
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-lg transition-colors text-left border border-transparent hover:border-content-primary/12"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-[var(--radius-control)] transition-colors text-left border border-transparent hover:border-content-primary/12"
                     >
                       <Archive className="w-3.5 h-3.5 text-content-primary" />
                       <span>Full-Stack Project (.zip)</span>
@@ -540,7 +540,7 @@ export default function CanvasExportToolbar() {
                         setIsSharedHostingModalOpen(true);
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-lg transition-colors text-left border border-transparent hover:border-content-primary/12"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-[var(--radius-control)] transition-colors text-left border border-transparent hover:border-content-primary/12"
                       title="Plesk/cPanel (phpMyAdmin) or mobile (SQLite) — no CLI, no Docker"
                     >
                       <Server className="w-3.5 h-3.5 text-content-primary" />
@@ -558,7 +558,7 @@ export default function CanvasExportToolbar() {
                         setIsExportDropdownOpen(false);
                         sqlFileInputRef.current?.click();
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-lg transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
                       title="Parse a .sql DDL file and load tables onto the canvas"
                     >
                       <FileCode className="w-3.5 h-3.5 text-content-muted" />
@@ -573,7 +573,7 @@ export default function CanvasExportToolbar() {
               {/* Collapse Toggle Button */}
               <button
                 onClick={() => setIsCollapsed(true)}
-                className="p-2 rounded-lg hover:bg-surface-700 text-content-subtle hover:text-content-secondary transition-all shrink-0"
+                className="p-2 rounded-[var(--radius-control)] hover:bg-surface-700 text-content-subtle hover:text-content-secondary transition-all shrink-0"
                 title="Collapse Toolbar"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -592,7 +592,7 @@ export default function CanvasExportToolbar() {
       {/* Zero-to-Cloud Infrastructure Selector Modal */}
       {isCloudModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-[450px] p-6 rounded-2xl bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
+          <div className="w-[450px] p-6 rounded-[var(--radius-modal)] bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
             {/* Title */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -601,7 +601,7 @@ export default function CanvasExportToolbar() {
               </div>
               <button
                 onClick={() => setIsCloudModalOpen(false)}
-                className="p-1.5 rounded-lg text-content-subtle hover:text-content-secondary hover:bg-surface-700/80 transition-colors cursor-pointer"
+                className="p-1.5 rounded-[var(--radius-control)] text-content-subtle hover:text-content-secondary hover:bg-surface-700/80 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -615,7 +615,7 @@ export default function CanvasExportToolbar() {
             {/* AI-BI Premium Checkbox */}
             <div 
               onClick={() => setIncludeBiModule(!includeBiModule)}
-              className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+              className={`p-3 rounded-[var(--radius-card)] border transition-all cursor-pointer flex items-center justify-between ${
                 includeBiModule 
                   ? 'bg-content-primary/[0.06] border-white/25 text-content-primary' 
                   : 'bg-surface-800/20 border-surface-600 text-content-muted hover:border-surface-500'
@@ -626,7 +626,7 @@ export default function CanvasExportToolbar() {
                   type="checkbox"
                   checked={includeBiModule}
                   onChange={() => {}} 
-                  className="rounded border-surface-500 bg-surface-800 text-accent focus:ring-accent-hover/30 h-4 w-4"
+                  className="rounded-[var(--radius-control)] border-surface-500 bg-surface-800 text-accent focus:ring-accent-hover/30 h-4 w-4"
                 />
                 <div>
                   <h4 className="text-xs font-bold text-content-primary">Premium: AI Data Analytics (BI) Assistant</h4>
@@ -640,10 +640,10 @@ export default function CanvasExportToolbar() {
               {/* Option 1: None */}
               <button
                 onClick={() => exportAsFullStackProject('None')}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-surface-700 flex items-center justify-center text-content-muted group-hover:text-content-primary transition-colors font-bold text-xs">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-muted group-hover:text-content-primary transition-colors font-bold text-xs">
                     None
                   </div>
                   <div>
@@ -657,10 +657,10 @@ export default function CanvasExportToolbar() {
               {/* Option 2: AWS */}
               <button
                 onClick={() => exportAsFullStackProject('AWS')}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-accent-subtle/10 hover:bg-accent-subtle/20 border border-accent-subtle/20 hover:border-accent/40 transition-all text-left group cursor-pointer"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-accent-subtle/10 hover:bg-accent-subtle/20 border border-accent-subtle/20 hover:border-accent/40 transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent-text font-extrabold text-xs">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-accent/10 flex items-center justify-center text-accent-text font-extrabold text-xs">
                     AWS
                   </div>
                   <div>
@@ -674,10 +674,10 @@ export default function CanvasExportToolbar() {
               {/* Option 3: Azure */}
               <button
                 onClick={() => exportAsFullStackProject('Azure')}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-accent-subtle/10 hover:bg-accent-subtle/20 border border-accent-subtle/20 hover:border-accent/40 transition-all text-left group cursor-pointer"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-accent-subtle/10 hover:bg-accent-subtle/20 border border-accent-subtle/20 hover:border-accent/40 transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center text-content-muted font-extrabold text-xs">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-white/[0.04] flex items-center justify-center text-content-muted font-extrabold text-xs">
                     AZ
                   </div>
                   <div>
@@ -700,7 +700,7 @@ export default function CanvasExportToolbar() {
       {/* Shared Hosting / Mobile Selector Modal — second-phase/13-DAGITIM-HEDEFLERI.md */}
       {isSharedHostingModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-[420px] p-6 rounded-2xl bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
+          <div className="w-[420px] p-6 rounded-[var(--radius-modal)] bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Server className="w-5 h-5 text-content-primary" />
@@ -708,7 +708,7 @@ export default function CanvasExportToolbar() {
               </div>
               <button
                 onClick={() => setIsSharedHostingModalOpen(false)}
-                className="p-1.5 rounded-lg text-content-subtle hover:text-content-secondary hover:bg-surface-700/80 transition-colors cursor-pointer"
+                className="p-1.5 rounded-[var(--radius-control)] text-content-subtle hover:text-content-secondary hover:bg-surface-700/80 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -724,7 +724,7 @@ export default function CanvasExportToolbar() {
               <button
                 onClick={() => exportSharedHosting('MySQL')}
                 disabled={isCurrentlyExporting}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
               >
                 <div>
                   <h4 className="text-xs font-bold text-content-primary">MySQL (Plesk / cPanel / DirectAdmin)</h4>
@@ -736,7 +736,7 @@ export default function CanvasExportToolbar() {
               <button
                 onClick={() => exportSharedHosting('MariaDB')}
                 disabled={isCurrentlyExporting}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
               >
                 <div>
                   <h4 className="text-xs font-bold text-content-primary">MariaDB</h4>
@@ -748,7 +748,7 @@ export default function CanvasExportToolbar() {
               <button
                 onClick={() => exportSharedHosting('SQLite')}
                 disabled={isCurrentlyExporting}
-                className="flex items-center justify-between p-3.5 rounded-xl bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
               >
                 <div>
                   <h4 className="text-xs font-bold text-content-primary">Mobile (SQLite)</h4>

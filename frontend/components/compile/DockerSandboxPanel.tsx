@@ -333,8 +333,8 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
         </PanelBar>
 
         <div className="flex-1 min-h-0 flex items-center justify-center p-4">
-          <div className="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-surface-600 border border-surface-500">
-            <span className="shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-accent-subtle text-accent-text">
+          <div className="flex items-center gap-3 px-3.5 py-3 rounded-[var(--radius-control)] bg-surface-600 border border-surface-500">
+            <span className="shrink-0 flex items-center justify-center w-8 h-8 rounded-[var(--radius-control)] bg-accent-subtle text-accent-text">
               <Database className="w-4 h-4" />
             </span>
             <div className="min-w-0">
@@ -344,7 +344,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
             {downloadUrl && (
               <a
                 href={downloadUrl}
-                className="ml-2 shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-[11px] font-semibold bg-content-primary text-surface-900 hover:opacity-90 transition-opacity"
+                className="ml-2 shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-[var(--radius-control)] text-[11px] font-semibold bg-content-primary text-surface-900 hover:opacity-90 transition-opacity"
               >
                 <Download className="w-3.5 h-3.5" /> Download .bak
               </a>

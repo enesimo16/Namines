@@ -148,24 +148,24 @@ export default function ConflictResolverModal() {
 
   const getConflictBadge = (type: string) => {
     switch(type) {
-      case 'table_added': return <span className="bg-success-subtle text-success-text border border-success/25 px-2 py-0.5 rounded text-[10px] font-semibold">New Table</span>;
-      case 'table_deleted': return <span className="bg-danger-subtle text-danger-text border border-danger/25 px-2 py-0.5 rounded text-[10px] font-semibold">Deleted Table</span>;
-      case 'table_name': return <span className="bg-surface-600 text-content-secondary border border-content-primary/15 px-2 py-0.5 rounded text-[10px] font-semibold">Name Change</span>;
-      case 'column_added': return <span className="bg-success-subtle text-success-text border border-success/20 px-2 py-0.5 rounded text-[10px]">New Column</span>;
-      case 'column_deleted': return <span className="bg-danger-subtle text-danger-text border border-danger/20 px-2 py-0.5 rounded text-[10px]">Deleted Column</span>;
-      case 'column_modified': return <span className="bg-surface-600 text-content-secondary border border-content-primary/15 px-2 py-0.5 rounded text-[10px]">Column Modification</span>;
+      case 'table_added': return <span className="bg-success-subtle text-success-text border border-success/25 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px] font-semibold">New Table</span>;
+      case 'table_deleted': return <span className="bg-danger-subtle text-danger-text border border-danger/25 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px] font-semibold">Deleted Table</span>;
+      case 'table_name': return <span className="bg-surface-600 text-content-secondary border border-content-primary/15 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px] font-semibold">Name Change</span>;
+      case 'column_added': return <span className="bg-success-subtle text-success-text border border-success/20 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px]">New Column</span>;
+      case 'column_deleted': return <span className="bg-danger-subtle text-danger-text border border-danger/20 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px]">Deleted Column</span>;
+      case 'column_modified': return <span className="bg-surface-600 text-content-secondary border border-content-primary/15 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px]">Column Modification</span>;
       default: return null;
     }
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-300">
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-800 border border-content-primary/12 rounded-2xl w-[90vw] max-w-4xl h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-[90vw] max-w-4xl h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
 
         {/* Header */}
         <div className="bg-surface-800 border-b border-content-primary/10 px-5 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-lg flex items-center justify-center">
+            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-[var(--radius-control)] flex items-center justify-center">
               <GitMerge className="w-4 h-4 text-content-primary" />
             </div>
             <div>
@@ -180,7 +180,7 @@ export default function ConflictResolverModal() {
 
           <button
             onClick={resetMergeSession}
-            className="p-1.5 hover:bg-white/[0.06] rounded-lg text-content-subtle hover:text-content-primary transition-colors"
+            className="p-1.5 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary transition-colors"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -196,13 +196,13 @@ export default function ConflictResolverModal() {
           <div className="flex gap-2">
             <button
               onClick={() => handleAutoResolve('source')}
-              className="bg-surface-600 hover:bg-white/[0.08] text-content-primary px-2.5 py-1.5 rounded-md border border-content-primary/10 font-semibold transition-all text-[11px]"
+              className="bg-surface-600 hover:bg-white/[0.08] text-content-primary px-2.5 py-1.5 rounded-[var(--radius-control)] border border-content-primary/10 font-semibold transition-all text-[11px]"
             >
               Keep All Active
             </button>
             <button
               onClick={() => handleAutoResolve('target')}
-              className="bg-content-primary hover:bg-content-secondary text-surface-900 px-2.5 py-1.5 rounded-md font-semibold transition-all text-[11px]"
+              className="bg-content-primary hover:bg-content-secondary text-surface-900 px-2.5 py-1.5 rounded-[var(--radius-control)] font-semibold transition-all text-[11px]"
             >
               Accept All Incoming
             </button>
@@ -218,7 +218,7 @@ export default function ConflictResolverModal() {
             return (
               <div
                 key={item.id}
-                className="bg-surface-700 border border-content-primary/8 rounded-xl p-3.5"
+                className="bg-surface-700 border border-content-primary/8 rounded-[var(--radius-card)] p-3.5"
               >
                 {/* Meta details */}
                 <div className="flex items-center gap-2 mb-2.5">
@@ -235,7 +235,7 @@ export default function ConflictResolverModal() {
                   {/* Left Choice: Keep Source (Active Branch) */}
                   <div
                     onClick={() => updateConflictChoice(item.id, 'source')}
-                    className={`border rounded-lg p-2.5 cursor-pointer transition-all flex flex-col justify-between ${
+                    className={`border rounded-[var(--radius-control)] p-2.5 cursor-pointer transition-all flex flex-col justify-between ${
                       isSourceSelected
                         ? 'border-focus-ring bg-white/[0.06]'
                         : 'border-content-primary/8 bg-surface-800 opacity-70 hover:opacity-100 hover:border-content-primary/15'
@@ -246,7 +246,7 @@ export default function ConflictResolverModal() {
                       {isSourceSelected && <CheckCircle2 className="w-3.5 h-3.5 text-content-primary" />}
                     </div>
 
-                    <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-md min-h-[40px] flex items-center">
+                    <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-[var(--radius-control)] min-h-[40px] flex items-center">
                       {item.sourceValue ? (
                         typeof item.sourceValue === 'string' ? (
                           <span>{item.sourceValue}</span>
@@ -267,7 +267,7 @@ export default function ConflictResolverModal() {
                   {/* Right Choice: Keep Target (Incoming Branch) */}
                   <div
                     onClick={() => updateConflictChoice(item.id, 'target')}
-                    className={`border rounded-lg p-2.5 cursor-pointer transition-all flex flex-col justify-between ${
+                    className={`border rounded-[var(--radius-control)] p-2.5 cursor-pointer transition-all flex flex-col justify-between ${
                       isTargetSelected
                         ? 'border-success bg-success-subtle/60'
                         : 'border-content-primary/8 bg-surface-800 opacity-70 hover:opacity-100 hover:border-content-primary/15'
@@ -278,7 +278,7 @@ export default function ConflictResolverModal() {
                       {isTargetSelected && <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />}
                     </div>
 
-                    <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-md min-h-[40px] flex items-center">
+                    <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-[var(--radius-control)] min-h-[40px] flex items-center">
                       {item.targetValue ? (
                         typeof item.targetValue === 'string' ? (
                           <span>{item.targetValue}</span>
@@ -305,14 +305,14 @@ export default function ConflictResolverModal() {
         <div className="bg-surface-800 border-t border-content-primary/10 px-5 py-3.5 flex items-center justify-between">
           <button
             onClick={resetMergeSession}
-            className="px-4 py-2 rounded-lg border border-content-primary/10 text-content-muted hover:text-content-primary hover:bg-white/[0.04] text-xs font-semibold transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-control)] border border-content-primary/10 text-content-muted hover:text-content-primary hover:bg-white/[0.04] text-xs font-semibold transition-colors"
           >
             Cancel
           </button>
 
           <button
             onClick={handleCompleteMerge}
-            className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all"
+            className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-[var(--radius-control)] text-xs font-semibold flex items-center gap-2 transition-all"
           >
             <GitMerge className="w-3.5 h-3.5" />
             <span>Apply & Complete Merge</span>

@@ -190,7 +190,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-content-subtle hover:text-content-primary hover:bg-white/[0.06] transition-all cursor-pointer"
+          className="p-1.5 rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary hover:bg-white/[0.06] transition-all cursor-pointer"
           aria-label="Close DBA panel"
         >
           <X className="w-4 h-4" />
@@ -233,7 +233,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         <button
           onClick={handleCopyBadge}
           disabled={isCopyingBadge}
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           title="Copy Markdown badge for your README"
         >
           {isCopyingBadge
@@ -253,7 +253,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         <button
           onClick={handleManualAnalyze}
           disabled={isAnalyzing || isAnalyzingLocal}
-          className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 text-content-secondary hover:text-content-primary font-semibold text-xs rounded-lg border border-content-primary/10 transition-all cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 text-content-secondary hover:text-content-primary font-semibold text-xs rounded-[var(--radius-control)] border border-content-primary/10 transition-all cursor-pointer"
         >
           {isAnalyzing || isAnalyzingLocal ? (
             <>
@@ -270,7 +270,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           <button
             onClick={handleAutoFix}
             disabled={isFixing}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-primary-hover disabled:opacity-50 text-surface-900 font-semibold text-xs rounded-lg transition-all cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-primary-hover disabled:opacity-50 text-surface-900 font-semibold text-xs rounded-[var(--radius-control)] transition-all cursor-pointer"
           >
             {isFixing ? (
               <>
@@ -287,10 +287,10 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         <div className="space-y-1.5">
           <h4 className="text-[10px] font-bold text-content-subtle uppercase tracking-widest">Enterprise Advisory</h4>
 
-          <div className="grid grid-cols-4 gap-1 p-1 bg-surface-700 rounded-lg">
+          <div className="grid grid-cols-4 gap-1 p-1 bg-surface-700 rounded-[var(--radius-control)]">
             <button
               onClick={() => setCategoryFilter('ALL')}
-              className={`py-1.5 text-micro font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
+              className={`py-1.5 text-micro font-extrabold rounded-[var(--radius-control)] cursor-pointer transition-all duration-200 border ${
                 categoryFilter === 'ALL'
                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                   : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -300,7 +300,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             </button>
             <button
               onClick={() => setCategoryFilter('Performance')}
-              className={`py-1.5 text-micro font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
+              className={`py-1.5 text-micro font-extrabold rounded-[var(--radius-control)] cursor-pointer transition-all duration-200 border ${
                 categoryFilter === 'Performance'
                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                   : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -310,7 +310,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             </button>
             <button
               onClick={() => setCategoryFilter('Security')}
-              className={`py-1.5 text-micro font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
+              className={`py-1.5 text-micro font-extrabold rounded-[var(--radius-control)] cursor-pointer transition-all duration-200 border ${
                 categoryFilter === 'Security'
                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                   : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -320,7 +320,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             </button>
             <button
               onClick={() => setCategoryFilter('FinOps')}
-              className={`py-1.5 text-micro font-extrabold rounded-lg cursor-pointer transition-all duration-200 border ${
+              className={`py-1.5 text-micro font-extrabold rounded-[var(--radius-control)] cursor-pointer transition-all duration-200 border ${
                 categoryFilter === 'FinOps'
                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                   : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -335,13 +335,13 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         <div className="space-y-1.5">
           <h4 className="text-[10px] font-bold text-content-subtle uppercase tracking-widest">Severity Level ({filteredIssues.length})</h4>
 
-          <div className="flex bg-surface-700 p-1 rounded-lg justify-between">
+          <div className="flex bg-surface-700 p-1 rounded-[var(--radius-control)] justify-between">
             {(['ALL', 'ERROR', 'WARNING', 'INFO'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setFilter(tab)}
                 className={`
-                  flex-1 py-1.5 text-[10px] font-bold rounded-lg cursor-pointer transition-all border duration-200
+                  flex-1 py-1.5 text-[10px] font-bold rounded-[var(--radius-control)] cursor-pointer transition-all border duration-200
                   ${filter === tab
                     ? 'bg-white/[0.08] border-white/25 text-content-primary'
                     : 'bg-transparent border-transparent text-content-subtle hover:text-content-primary'
@@ -357,10 +357,10 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         {/* Issues List */}
         <div className="space-y-3">
           {selectedTableFilter && (
-            <div className="flex items-center justify-between bg-white/[0.08] border border-content-primary/10 px-4 py-3 rounded-xl animate-in fade-in duration-300">
+            <div className="flex items-center justify-between bg-white/[0.08] border border-content-primary/10 px-4 py-3 rounded-[var(--radius-card)] animate-in fade-in duration-300">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-content-muted font-bold uppercase tracking-wider">Table:</span>
-                <span className="text-[10px] font-mono font-bold text-content-primary bg-white/[0.08] border border-white/20 px-2 py-0.5 rounded">
+                <span className="text-[10px] font-mono font-bold text-content-primary bg-white/[0.08] border border-white/20 px-2 py-0.5 rounded-[var(--radius-control)]">
                   {selectedTableFilter}
                 </span>
               </div>
@@ -374,7 +374,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           )}
 
           {filteredIssues.length === 0 ? (
-            <div className="text-center py-10 border border-dashed border-content-primary/12 rounded-xl bg-surface-700/40">
+            <div className="text-center py-10 border border-dashed border-content-primary/12 rounded-[var(--radius-card)] bg-surface-700/40">
               <span className="text-content-muted text-xs font-semibold">No issues found. Congratulations!</span>
             </div>
           ) : (
@@ -427,32 +427,32 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                 <div
                   key={idx}
                   data-table-issue={issue.tableName}
-                  className={`p-3.5 rounded-xl flex flex-col gap-3 relative overflow-hidden transition-all border ${highlightBorderClass}`}
+                  className={`p-3.5 rounded-[var(--radius-card)] flex flex-col gap-3 relative overflow-hidden transition-all border ${highlightBorderClass}`}
                 >
                   {/* Badge Row */}
                   <div className="flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-2">
-                      <span className={`text-micro font-mono font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider ${badgeColorClass}`}>
+                      <span className={`text-micro font-mono font-extrabold px-2 py-0.5 rounded-[var(--radius-control)] border uppercase tracking-wider ${badgeColorClass}`}>
                         {issue.ruleId}
                       </span>
                       {categoryLower === 'security' && (
-                        <span className="text-micro font-extrabold text-content-secondary bg-surface-600 border border-content-primary/15 px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                        <span className="text-micro font-extrabold text-content-secondary bg-surface-600 border border-content-primary/15 px-2 py-0.5 rounded-[var(--radius-control)] uppercase tracking-wider flex items-center gap-1">
                           Privacy
                         </span>
                       )}
                       {categoryLower === 'finops' && (
-                        <span className="text-micro font-extrabold text-success-text bg-success-subtle border border-success/30 px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                        <span className="text-micro font-extrabold text-success-text bg-success-subtle border border-success/30 px-2 py-0.5 rounded-[var(--radius-control)] uppercase tracking-wider flex items-center gap-1">
                           FinOps
                         </span>
                       )}
                       {isHighlighted && (
-                        <span className="text-micro text-content-primary font-bold bg-white/[0.08] border border-white/15 px-1.5 py-0.5 rounded uppercase tracking-widest flex items-center gap-1">
+                        <span className="text-micro text-content-primary font-bold bg-white/[0.08] border border-white/15 px-1.5 py-0.5 rounded-[var(--radius-control)] uppercase tracking-widest flex items-center gap-1">
                           <Sparkles className="w-2.5 h-2.5 text-content-primary" />
                           Selected
                         </span>
                       )}
                     </div>
-                    <span className="text-micro font-extrabold text-content-subtle bg-surface-700 px-2 py-0.5 rounded border border-content-primary/10 uppercase tracking-widest flex items-center gap-1">
+                    <span className="text-micro font-extrabold text-content-subtle bg-surface-700 px-2 py-0.5 rounded-[var(--radius-control)] border border-content-primary/10 uppercase tracking-widest flex items-center gap-1">
                       {issue.source === 'AI' ? (
                         <>
                           <Cpu className="w-3 h-3 text-content-primary" />
@@ -465,7 +465,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                   </div>
 
                   {/* Context headers */}
-                  <div className="text-[11px] font-semibold text-content-primary bg-surface-700 px-2.5 py-1.5 rounded-lg border border-content-primary/10 flex items-center gap-2">
+                  <div className="text-[11px] font-semibold text-content-primary bg-surface-700 px-2.5 py-1.5 rounded-[var(--radius-control)] border border-content-primary/10 flex items-center gap-2">
                     <span className="text-content-subtle font-bold">Table:</span>
                     <span className="text-content-primary font-mono font-bold">{issue.tableName}</span>
                     {issue.columnName && (
@@ -490,7 +490,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
                     </div>
 
                     {issue.suggestion && (
-                      <div className="bg-surface-700 border border-content-primary/10 p-3 rounded-lg flex flex-col gap-1 text-[11px]">
+                      <div className="bg-surface-700 border border-content-primary/10 p-3 rounded-[var(--radius-control)] flex flex-col gap-1 text-[11px]">
                         <span className="font-extrabold text-content-muted uppercase tracking-wider text-micro mb-0.5">
                           Resolution Recommendation
                         </span>

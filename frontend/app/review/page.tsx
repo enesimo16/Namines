@@ -104,7 +104,7 @@ export default function ChangeRequestListPage() {
           <button
             onClick={handleToggleAutoApprove}
             disabled={isTogglingAutoApprove}
-            className="w-full flex items-center justify-between gap-3 bg-surface-700 border border-content-primary/15 rounded-xl px-4 py-3 mb-6 text-left cursor-pointer hover:bg-surface-600 transition-colors disabled:opacity-60"
+            className="w-full flex items-center justify-between gap-3 bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] px-4 py-3 mb-6 text-left cursor-pointer hover:bg-surface-600 transition-colors disabled:opacity-60"
           >
             <div>
               <p className="text-xs font-semibold text-content-secondary">Auto-approve Safe changes</p>
@@ -131,11 +131,11 @@ export default function ChangeRequestListPage() {
         )}
 
         {!isAuthenticated ? (
-          <div className="bg-surface-700 border border-content-primary/15 rounded-xl p-8 text-center">
+          <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-8 text-center">
             <p className="text-sm text-content-secondary">Sign in to see change requests for your projects.</p>
           </div>
         ) : !activeProjectId ? (
-          <div className="bg-surface-700 border border-content-primary/15 rounded-xl p-8 text-center">
+          <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-8 text-center">
             <p className="text-sm text-content-secondary">No active project. Open a project from the canvas first.</p>
           </div>
         ) : items === null ? (
@@ -143,11 +143,11 @@ export default function ChangeRequestListPage() {
             <Loader2 className="w-5 h-5 text-content-muted animate-spin" />
           </div>
         ) : error ? (
-          <div className="bg-surface-700 border border-content-primary/15 rounded-xl p-8 text-center text-sm text-danger-text">
+          <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-8 text-center text-sm text-danger-text">
             {error}
           </div>
         ) : items.length === 0 ? (
-          <div className="bg-surface-700 border border-content-primary/15 rounded-xl p-8 text-center">
+          <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-8 text-center">
             <p className="text-sm text-content-secondary">No change requests yet.</p>
             <p className="text-xs text-content-subtle mt-1">Use "Request Review" on the canvas toolbar to open one.</p>
           </div>
@@ -157,7 +157,7 @@ export default function ChangeRequestListPage() {
               <button
                 key={cr.id}
                 onClick={() => router.push(`/review/${cr.id}`)}
-                className="text-left bg-surface-700 hover:bg-surface-600 border border-content-primary/15 rounded-xl p-4 transition-all cursor-pointer"
+                className="text-left bg-surface-700 hover:bg-surface-600 border border-content-primary/15 rounded-[var(--radius-card)] p-4 transition-all cursor-pointer"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">

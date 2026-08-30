@@ -55,7 +55,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-surface-800 border border-surface-500 rounded-2xl shadow-2xl w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
+        className="bg-surface-800 border border-surface-500 rounded-[var(--radius-modal)] shadow-2xl w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
         style={{ maxHeight: '80vh' }}
         onClick={e => e.stopPropagation()}
       >
@@ -81,7 +81,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
                       {s.keys.map(k => (
                         <kbd
                           key={k}
-                          className="px-2 py-0.5 rounded-md bg-surface-600 border border-surface-400 text-content-primary text-xs font-mono font-semibold shadow-[0_1px_0_color-mix(in srgb, var(--color-scrim) 40%, transparent)]"
+                          className="px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-600 border border-surface-400 text-content-primary text-xs font-mono font-semibold shadow-[0_1px_0_color-mix(in srgb, var(--color-scrim) 40%, transparent)]"
                         >
                           {k}
                         </kbd>

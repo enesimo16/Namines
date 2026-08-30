@@ -42,7 +42,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
-      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto glass-panel rounded-2xl p-5 sm:p-6">
+      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto glass-panel rounded-[var(--radius-modal)] p-5 sm:p-6">
         <div className="mb-5">
           <h2 className="text-lg font-semibold text-content-primary mb-1">
             A few questions first
@@ -85,7 +85,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
                           return next;
                         })
                       }
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                      className={`px-2.5 py-1.5 rounded-[var(--radius-control)] text-xs font-medium transition-all border ${
                         isSelected
                           ? 'bg-white/[0.10] text-content-primary border-white/30'
                           : 'text-content-muted border-white/10 hover:text-content-primary hover:bg-white/[0.04]'
@@ -113,7 +113,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
             placeholder="e.g. also add a return/refund process…"
             maxLength={FREE_TEXT_LIMIT}
             rows={2}
-            className="w-full p-2.5 rounded-xl glass-input resize-none placeholder-content-muted text-xs leading-relaxed disabled:opacity-50"
+            className="w-full p-2.5 rounded-[var(--radius-card)] glass-input resize-none placeholder-content-muted text-xs leading-relaxed disabled:opacity-50"
           />
           <span className="text-[10px] text-content-muted mt-1 block text-right">
             {freeText.length}/{FREE_TEXT_LIMIT}
@@ -138,7 +138,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
               type="button"
               disabled={isGenerating}
               onClick={handleSubmit}
-              className="bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-[var(--radius-card)] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {isGenerating ? (
                 <>

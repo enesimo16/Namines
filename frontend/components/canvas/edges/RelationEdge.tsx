@@ -110,12 +110,12 @@ export default function RelationEdge({
             title={`Silme davranışı: ${onDelete}\nDeğiştirmek için tıkla`}
             aria-label={`İlişki ayarları. Silme davranışı ${onDelete}`}
             aria-expanded={open}
-            className="flex items-center gap-1 bg-surface-700 text-content-primary px-2 py-1 rounded border border-content-primary/12 shadow-md font-mono hover:border-white/25 transition-colors cursor-pointer"
+            className="flex items-center gap-1 bg-surface-700 text-content-primary px-2 py-1 rounded-[var(--radius-control)] border border-content-primary/12 shadow-md font-mono hover:border-white/25 transition-colors cursor-pointer"
           >
             <span>{label}</span>
             {badge && (
               <span
-                className={`px-1 rounded text-micro ${
+                className={`px-1 rounded-[var(--radius-control)] text-micro ${
                   onDelete === 'Cascade'
                     ? 'bg-danger-subtle text-danger-text'
                     : 'bg-surface-600 text-content-muted'
@@ -129,7 +129,7 @@ export default function RelationEdge({
           {open && (
             <div
               role="menu"
-              className="absolute left-1/2 top-full mt-1 -translate-x-1/2 z-50 w-64 bg-surface-800 border border-content-primary/12 rounded-lg shadow-xl p-1"
+              className="absolute left-1/2 top-full mt-1 -translate-x-1/2 z-50 w-64 bg-surface-800 border border-content-primary/12 rounded-[var(--radius-control)] shadow-xl p-1"
             >
               <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-content-subtle font-semibold">
                 Silinince (ON DELETE)
@@ -141,7 +141,7 @@ export default function RelationEdge({
                   role="menuitemradio"
                   aria-checked={onDelete === opt.value}
                   onClick={() => setOnDelete(opt.value)}
-                  className={`w-full text-left px-2 py-1.5 rounded text-[11px] transition-colors ${
+                  className={`w-full text-left px-2 py-1.5 rounded-[var(--radius-control)] text-[11px] transition-colors ${
                     onDelete === opt.value
                       ? 'bg-white/[0.08] text-content-primary'
                       : 'text-content-primary hover:bg-white/[0.04]'

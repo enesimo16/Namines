@@ -111,7 +111,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
     const flushTable = (keyIndex: number) => {
       if (tableRows.length > 0) {
         renderedElements.push(
-          <div key={`table-wrapper-${keyIndex}`} className="overflow-x-auto my-4 border border-content-primary/10 rounded-xl bg-surface-800">
+          <div key={`table-wrapper-${keyIndex}`} className="overflow-x-auto my-4 border border-content-primary/10 rounded-[var(--radius-card)] bg-surface-800">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-content-primary/8 text-content-subtle font-bold uppercase tracking-wider">
@@ -126,7 +126,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
                     {row.map((cell, colIndex) => (
                       <td key={`td-${keyIndex}-${rowIndex}-${colIndex}`} className="py-2.5 px-4 text-content-secondary leading-normal">
                         {cell.trim().startsWith('`') && cell.trim().endsWith('`') ? (
-                          <code className="text-accent-text bg-white/[0.05] px-1 py-0.5 rounded font-mono text-[10px]">
+                          <code className="text-accent-text bg-white/[0.05] px-1 py-0.5 rounded-[var(--radius-control)] font-mono text-[10px]">
                             {cell.replace(/`/g, '')}
                           </code>
                         ) : cell.includes('🔑') || cell.includes('🔗') || cell.includes('✅') || cell.includes('❌') ? (
@@ -178,7 +178,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
           renderedElements.push(
             <pre
               key={`code-${idx}`}
-              className="bg-surface-800 p-4 rounded-xl border border-content-primary/10 my-4 text-xs font-mono text-accent-text overflow-x-auto"
+              className="bg-surface-800 p-4 rounded-[var(--radius-card)] border border-content-primary/10 my-4 text-xs font-mono text-accent-text overflow-x-auto"
             >
               <code>{codeBlockLines.join('\n')}</code>
             </pre>

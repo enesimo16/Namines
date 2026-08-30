@@ -5,8 +5,8 @@ import React from 'react';
  *
  * <b>Neden gerekti:</b> denetimde `<button>` sayıldı — **286 adet, sıfır
  * paylaşılan primitif**. `components/ui/` dizini yoktu. Aynı birincil buton
- * şu varyasyonlarla el yazması olarak yazılmıştı: `rounded-lg`/`rounded-xl`,
- * `py-2`/`py-2.5`/`py-3`, `text-xs`/`text-sm`, `font-semibold`/`font-bold`.
+ * birbirinden bağımsız yazılmış sekiz farklı radius, üç farklı dikey dolgu,
+ * iki farklı font boyutu ve iki farklı ağırlık varyasyonuyla tekrarlanıyordu.
  * Bir buton kararını değiştirmek 286 dosyaya dokunmak demekti.
  *
  * Vercel'de ölçülen: TEK yükseklik (40px), TEK radius (6px), TEK yatay dolgu

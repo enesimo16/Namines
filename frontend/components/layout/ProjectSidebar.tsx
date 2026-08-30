@@ -108,7 +108,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
             </span>
             <button
               onClick={onClose}
-              className="tap-44 p-1 text-content-muted hover:text-content-primary rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+              className="tap-44 p-1 text-content-muted hover:text-content-primary rounded-[var(--radius-control)] hover:bg-white/[0.06] transition-colors cursor-pointer"
               aria-label="Close workspace"
             >
               <X className="w-4 h-4" />
@@ -120,7 +120,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
         <div className="px-4 sm:px-5 py-3 shrink-0">
           <button
             onClick={handleNewProject}
-            className="w-full rounded-lg border border-dashed border-content-primary/15 hover:border-white/25 bg-surface-700 hover:bg-surface-600 p-3 transition-all flex items-center justify-between"
+            className="w-full rounded-[var(--radius-control)] border border-dashed border-content-primary/15 hover:border-white/25 bg-surface-700 hover:bg-surface-600 p-3 transition-all flex items-center justify-between"
           >
             <span className="text-content-primary text-sm font-medium">New Project</span>
             <Plus className="w-4 h-4 text-content-muted" />
@@ -143,21 +143,21 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
             sortedProjects.map((project) => (
               <div
                 key={project.id}
-                className="group rounded-lg border border-content-primary/10 bg-surface-700 hover:border-white/25 p-3 cursor-pointer transition-all flex flex-col gap-2.5"
+                className="group rounded-[var(--radius-control)] border border-content-primary/10 bg-surface-700 hover:border-white/25 p-3 cursor-pointer transition-all flex flex-col gap-2.5"
                 onClick={() => handleLoadProject(project)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && handleLoadProject(project)}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg border border-content-primary/15 bg-surface-600 flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] border border-content-primary/15 bg-surface-600 flex items-center justify-center shrink-0">
                     <Database className="w-3.5 h-3.5 text-content-primary" />
                   </div>
                   <p className="text-content-primary text-sm font-medium truncate flex-1 min-w-0">{project.name}</p>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium border ${DB_BADGE_CLASS}`}>
+                  <span className={`px-2 py-0.5 rounded-[var(--radius-control)] text-[11px] font-medium border ${DB_BADGE_CLASS}`}>
                     {project.dbType}
                   </span>
                   <span className="text-content-muted text-[11px]">{formatDate(project.updatedAt)}</span>
@@ -166,7 +166,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                 <div className="pt-2 border-t border-content-primary/10 flex items-center justify-between">
                   <button
                     onClick={(e) => handleDeleteProject(e, project.id)}
-                    className="tap-44 p-1 -ml-1 rounded-md text-content-muted hover:text-danger hover:bg-danger-subtle transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                    className="tap-44 p-1 -ml-1 rounded-[var(--radius-control)] text-content-muted hover:text-danger hover:bg-danger-subtle transition-colors opacity-0 group-hover:opacity-100 shrink-0"
                     title="Delete project"
                     aria-label="Delete project"
                   >
@@ -189,7 +189,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
       {/* Delete Confirmation Modal */}
       {projectToDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-scrim/70 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/15 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden flex flex-col p-5">
+          <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/15 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden flex flex-col p-5">
             <div className="flex items-center justify-between pb-3 border-b border-content-primary/10">
               <div className="flex items-center gap-2 text-danger-text">
                 <Trash2 className="w-4 h-4 shrink-0" />
@@ -200,7 +200,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                   e.stopPropagation();
                   setProjectToDelete(null);
                 }}
-                className="p-1 hover:bg-white/[0.06] rounded-md text-content-muted hover:text-content-primary transition-all cursor-pointer"
+                className="p-1 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-muted hover:text-content-primary transition-all cursor-pointer"
                 aria-label="Close"
               >
                 <X className="w-4 h-4" />
@@ -222,7 +222,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                   e.stopPropagation();
                   setProjectToDelete(null);
                 }}
-                className="flex-1 py-2.5 px-4 rounded-lg border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary font-semibold text-xs transition-all cursor-pointer"
+                className="flex-1 py-2.5 px-4 rounded-[var(--radius-control)] border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary font-semibold text-xs transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -234,7 +234,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
                     setProjectToDelete(null);
                   }
                 }}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-danger hover:bg-danger-text text-content-primary font-semibold text-xs transition-all cursor-pointer"
+                className="flex-1 py-2.5 px-4 rounded-[var(--radius-control)] bg-danger hover:bg-danger-text text-content-primary font-semibold text-xs transition-all cursor-pointer"
               >
                 Delete
               </button>

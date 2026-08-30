@@ -184,7 +184,7 @@ export default function CompilePage() {
         <div className="p-2.5">
           <button
             onClick={() => router.push('/canvas')}
-            className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors cursor-pointer text-[11px] font-medium"
+            className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors cursor-pointer text-[11px] font-medium"
           >
             <ArrowLeft className="w-3 h-3" />
             <span>Back to Diagram</span>
@@ -204,7 +204,7 @@ export default function CompilePage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex items-center gap-2 w-full pl-2.5 pr-2 py-1.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`relative flex items-center gap-2 w-full pl-2.5 pr-2 py-1.5 rounded-[var(--radius-control)] text-[11px] font-medium transition-colors cursor-pointer ${
                   isActive
                     ? 'bg-accent-subtle text-accent-text'
                     : 'text-content-muted hover:text-content-secondary hover:bg-white/[0.04]'
@@ -237,7 +237,7 @@ export default function CompilePage() {
                   value={diagramType}
                   onChange={(e) => updateDiagram(e.target.value as any)}
                   aria-label="Diagram type"
-                  className="bg-surface-600 border border-surface-500 rounded-md h-8 pl-2 pr-6 text-[11px] text-content-secondary focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] cursor-pointer"
+                  className="bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] h-8 pl-2 pr-6 text-[11px] text-content-secondary focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] cursor-pointer"
                 >
                   <option value="ER">ER Diagram</option>
                   <option value="CLASS">Class Diagram</option>
@@ -268,7 +268,7 @@ export default function CompilePage() {
           {activeTab !== 'ADMIN' && activeTab !== 'SANDBOX' && activeTab !== 'DICTIONARY' && activeTab !== 'README' && (
             <div className="flex-1 min-h-0 relative">
               {isLoading && (
-                <div className="absolute inset-0 z-20 bg-surface-900/60 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                <div className="absolute inset-0 z-20 bg-surface-900/60 backdrop-blur-sm flex items-center justify-center rounded-[var(--radius-card)]">
                   <div className="animate-spin rounded-full h-6 w-6 border-2 border-surface-500 border-t-content-primary" />
                 </div>
               )}
@@ -311,13 +311,13 @@ export default function CompilePage() {
         </div>
         <div className="px-3.5 py-2.5 border-b border-surface-500 flex items-center justify-between">
           <span className="text-[10px] text-content-muted font-medium">Target Engine</span>
-          <span className="text-[10px] font-mono font-semibold text-accent-text bg-accent-subtle px-2 py-0.5 rounded">{dbType}</span>
+          <span className="text-[10px] font-mono font-semibold text-accent-text bg-accent-subtle px-2 py-0.5 rounded-[var(--radius-control)]">{dbType}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
           <p className="text-micro font-bold text-content-muted uppercase tracking-wider px-1.5 mb-1.5">Tables</p>
           <div className="space-y-0.5">
             {schema.tables.map(t => (
-              <div key={t.id} className="flex items-center justify-between px-1.5 py-1 rounded text-[11px] hover:bg-white/[0.04]">
+              <div key={t.id} className="flex items-center justify-between px-1.5 py-1 rounded-[var(--radius-control)] text-[11px] hover:bg-white/[0.04]">
                 <span className="text-content-secondary font-mono truncate">{t.name}</span>
                 <span className="text-content-muted font-mono text-[10px] shrink-0 ml-2">{t.columns.length}</span>
               </div>

@@ -14,7 +14,7 @@ export default function Logo({ size = 'default' }: { size?: 'default' | 'sm' }) 
 
   return (
     <span className="inline-flex items-center gap-2">
-      <span className={`${box} rounded-lg bg-surface-600 border border-content-primary/15 flex items-center justify-center shrink-0`}>
+      <span className={`${box} rounded-[var(--radius-control)] bg-surface-600 border border-content-primary/15 flex items-center justify-center shrink-0`}>
         <Database className={`${icon} text-accent-text`} strokeWidth={2} />
       </span>
       <span className={`font-mono font-bold tracking-widest ${text} text-content-primary`}>

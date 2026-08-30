@@ -134,7 +134,7 @@ export default function SharePage() {
         </div>
         <Link
           href="/"
-          className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-content-primary text-sm font-semibold transition-colors"
+          className="px-5 py-2.5 rounded-[var(--radius-card)] bg-accent hover:bg-accent-hover text-content-primary text-sm font-semibold transition-colors"
         >
           Go to Namines
         </Link>
@@ -159,7 +159,7 @@ export default function SharePage() {
         <span className="hidden sm:inline text-surface-500">|</span>
         <span className="text-content-primary font-medium text-sm truncate">{projectName}</span>
         {dbType && (
-          <span className="ml-1 px-2 py-0.5 rounded-md bg-surface-700 text-content-muted text-xs font-mono shrink-0">
+          <span className="ml-1 px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-700 text-content-muted text-xs font-mono shrink-0">
             {dbType}
           </span>
         )}
@@ -177,7 +177,7 @@ export default function SharePage() {
           alt="DBA score"
           className="hidden sm:block h-5 shrink-0"
         />
-        <span className="ml-auto hidden sm:inline px-3 py-1 rounded-lg bg-surface-700 text-content-muted text-xs border border-surface-500 shrink-0">
+        <span className="ml-auto hidden sm:inline px-3 py-1 rounded-[var(--radius-control)] bg-surface-700 text-content-muted text-xs border border-surface-500 shrink-0">
           Read-only view
         </span>
         <BadgeSnippet token={token} projectName={projectName} />
@@ -185,7 +185,7 @@ export default function SharePage() {
             buraya kadar hiçbir yerde "sen de yapabilirsin" demiyorduk. */}
         <a
           href="/demo"
-          className="ml-auto sm:ml-0 shrink-0 px-3 py-2 rounded-lg bg-content-primary text-surface-900 text-xs font-bold hover:bg-content-secondary transition-colors"
+          className="ml-auto sm:ml-0 shrink-0 px-3 py-2 rounded-[var(--radius-control)] bg-content-primary text-surface-900 text-xs font-bold hover:bg-content-secondary transition-colors"
         >
           Build your own
         </a>

@@ -126,7 +126,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
   const openCount = permissions.filter(p => p.canRead || p.canWrite).length;
 
   return (
-    <section className="bg-surface-700 border border-content-primary/15 rounded-xl overflow-hidden">
+    <section className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] overflow-hidden">
       <header className="flex items-center gap-2 px-4 py-3 border-b border-content-primary/10">
         <KeyRound className="w-4 h-4 text-content-secondary" />
         <h2 className="text-xs font-semibold text-content-primary">Gateway API keys</h2>
@@ -143,19 +143,19 @@ export default function GatewayKeyPanel({ projectId }: Props) {
           </p>
           <p className="text-[10px] text-content-muted mb-2">{created.warning}</p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 min-w-0 truncate bg-surface-900 border border-content-primary/15 rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-content-secondary">
+            <code className="flex-1 min-w-0 truncate bg-surface-900 border border-content-primary/15 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] font-mono text-content-secondary">
               {created.key}
             </code>
             <button
               onClick={copyKey}
-              className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-600 hover:bg-surface-500 text-[11px] text-content-primary transition-colors"
+              className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-control)] bg-surface-600 hover:bg-surface-500 text-[11px] text-content-primary transition-colors"
             >
               {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               {copied ? 'Copied' : 'Copy'}
             </button>
             <button
               onClick={() => setCreated(null)}
-              className="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] text-content-muted hover:text-content-primary transition-colors"
+              className="shrink-0 px-2.5 py-1.5 rounded-[var(--radius-control)] text-[11px] text-content-muted hover:text-content-primary transition-colors"
             >
               Done
             </button>
@@ -169,7 +169,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="Key name (e.g. production backend)"
-          className="flex-1 min-w-[180px] bg-surface-800 border border-content-primary/15 rounded-lg px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
+          className="flex-1 min-w-[180px] bg-surface-800 border border-content-primary/15 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
         />
         <label className="flex items-center gap-1.5 text-[11px] text-content-secondary cursor-pointer select-none">
           <input
@@ -189,7 +189,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
         <button
           onClick={handleCreate}
           disabled={isCreating || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-[11px] font-medium text-content-primary transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-[11px] font-medium text-content-primary transition-colors disabled:opacity-50"
         >
           {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
           Create
@@ -208,7 +208,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
                 value={allowedOrigins}
                 onChange={e => setAllowedOrigins(e.target.value)}
                 placeholder="https://app.example.com"
-                className="bg-surface-800 border border-content-primary/15 rounded-lg px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
+                className="bg-surface-800 border border-content-primary/15 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -217,7 +217,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
                 value={allowedIps}
                 onChange={e => setAllowedIps(e.target.value)}
                 placeholder="1.2.3.4, 10.0.0.0/8"
-                className="bg-surface-800 border border-content-primary/15 rounded-lg px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
+                className="bg-surface-800 border border-content-primary/15 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -227,7 +227,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
                 onChange={e => setRateLimit(e.target.value)}
                 inputMode="numeric"
                 placeholder="600"
-                className="bg-surface-800 border border-content-primary/15 rounded-lg px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
+                className="bg-surface-800 border border-content-primary/15 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted outline-none focus:border-accent/50"
               />
             </label>
             <p className="sm:col-span-3 text-[10px] text-content-muted leading-relaxed">
@@ -270,7 +270,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
                   onClick={() => handleRevoke(key)}
                   disabled={busyId === key.id}
                   title="Revoke"
-                  className="shrink-0 p-1.5 rounded-lg text-content-muted hover:text-danger-text hover:bg-surface-600 transition-colors disabled:opacity-50"
+                  className="shrink-0 p-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-danger-text hover:bg-surface-600 transition-colors disabled:opacity-50"
                 >
                   {busyId === key.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 </button>
@@ -308,7 +308,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
                 return (
                   <div
                     key={table.id || table.name}
-                    className="flex items-center gap-3 bg-surface-800 border border-content-primary/10 rounded-lg px-2.5 py-1.5"
+                    className="flex items-center gap-3 bg-surface-800 border border-content-primary/10 rounded-[var(--radius-control)] px-2.5 py-1.5"
                   >
                     <span className="flex-1 min-w-0 truncate text-[11px] font-mono text-content-secondary">
                       {table.name}

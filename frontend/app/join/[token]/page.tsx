@@ -77,7 +77,7 @@ export default function JoinTeamPage() {
 
   return (
     <div className="min-h-[calc(100vh-56px)] flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md glass-panel rounded-2xl p-6 text-content-primary">
+      <div className="w-full max-w-md glass-panel rounded-[var(--radius-modal)] p-6 text-content-primary">
         <div className="flex items-center gap-2 mb-5">
           <Users className="w-4 h-4" />
           <h1 className="text-base font-bold">Team invitation</h1>
@@ -95,21 +95,21 @@ export default function JoinTeamPage() {
           </div>
         ) : error ? (
           <div className="space-y-4">
-            <div className="flex items-start gap-2.5 border border-content-primary/15 rounded-xl p-4 bg-surface-700">
+            <div className="flex items-start gap-2.5 border border-content-primary/15 rounded-[var(--radius-card)] p-4 bg-surface-700">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-content-muted" />
               <p className="text-[11px] text-content-secondary leading-relaxed">{error}</p>
             </div>
             <button
               type="button"
               onClick={() => router.push('/')}
-              className="w-full bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary font-semibold py-2.5 rounded-xl text-sm transition-colors"
+              className="w-full bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary font-semibold py-2.5 rounded-[var(--radius-card)] text-sm transition-colors"
             >
               Go to Namines
             </button>
           </div>
         ) : (
           <div className="space-y-5">
-            <div className="border border-content-primary/15 rounded-xl p-4 bg-surface-700 space-y-2">
+            <div className="border border-content-primary/15 rounded-[var(--radius-card)] p-4 bg-surface-700 space-y-2">
               <p className="text-sm">
                 You have been invited to <strong>{preview?.organization}</strong>
               </p>
@@ -138,7 +138,7 @@ export default function JoinTeamPage() {
               type="button"
               onClick={handleJoin}
               disabled={isJoining}
-              className="w-full bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 rounded-[var(--radius-card)] text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isJoining ? (
                 <>

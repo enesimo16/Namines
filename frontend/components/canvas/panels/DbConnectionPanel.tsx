@@ -74,7 +74,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 backdrop-blur-sm">
-      <div className="bg-surface-800 border border-surface-500 rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 flex flex-col gap-5">
+      <div className="bg-surface-800 border border-surface-500 rounded-[var(--radius-modal)] shadow-2xl w-full max-w-lg mx-4 p-6 flex flex-col gap-5">
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -88,7 +88,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
         </div>
 
         {/* Warning */}
-        <div className="flex gap-2 bg-surface-600 border border-content-primary/12 rounded-xl p-3 text-content-secondary text-xs">
+        <div className="flex gap-2 bg-surface-600 border border-content-primary/12 rounded-[var(--radius-card)] p-3 text-content-secondary text-xs">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>
             Your connection string is sent to the Namines API and never stored. Use a read-only DB user when possible.
@@ -103,7 +103,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
               <button
                 key={t.value}
                 onClick={() => { setDbType(t.value); setConnectionString(''); setError(null); }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                className={`px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-medium border transition-all ${
                   dbType === t.value
                     ? 'bg-content-primary/30 border-accent-hover/60 text-surface-900'
                     : 'bg-surface-700 border-surface-500 text-content-muted hover:border-accent-hover/50 hover:text-content-secondary'
@@ -124,7 +124,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
               onChange={e => { setConnectionString(e.target.value); setError(null); }}
               placeholder={PLACEHOLDERS[dbType] ?? ''}
               rows={3}
-              className="w-full bg-surface-900 border border-surface-500 focus:border-accent-hover rounded-xl px-3 py-2.5 text-sm text-content-primary placeholder-content-muted outline-none resize-none font-mono"
+              className="w-full bg-surface-900 border border-surface-500 focus:border-accent-hover rounded-[var(--radius-card)] px-3 py-2.5 text-sm text-content-primary placeholder-content-muted outline-none resize-none font-mono"
               style={{ WebkitTextSecurity: showCs ? 'none' : 'disc' } as React.CSSProperties}
             />
             <button
@@ -140,7 +140,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
 
         {/* Error */}
         {error && (
-          <div className="bg-danger-subtle/20 border border-danger/30 rounded-xl p-3 text-danger-text text-xs">
+          <div className="bg-danger-subtle/20 border border-danger/30 rounded-[var(--radius-card)] p-3 text-danger-text text-xs">
             {error}
           </div>
         )}
@@ -149,14 +149,14 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-surface-700 hover:bg-surface-600 text-content-secondary text-sm font-medium border border-surface-500 transition-all"
+            className="px-4 py-2 rounded-[var(--radius-card)] bg-surface-700 hover:bg-surface-600 text-content-secondary text-sm font-medium border border-surface-500 transition-all"
           >
             Cancel
           </button>
           <button
             onClick={handleIntrospect}
             disabled={loading || !connectionString.trim()}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-content-primary hover:bg-content-secondary disabled:opacity-50 disabled:cursor-not-allowed text-surface-900 text-sm font-semibold border border-content-primary/[0.04]0 transition-all"
+            className="flex items-center gap-2 px-5 py-2 rounded-[var(--radius-card)] bg-content-primary hover:bg-content-secondary disabled:opacity-50 disabled:cursor-not-allowed text-surface-900 text-sm font-semibold border border-content-primary/[0.04]0 transition-all"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {loading ? 'Connecting…' : 'Import Schema'}

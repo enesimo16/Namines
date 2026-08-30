@@ -17,7 +17,7 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <code key={`${keyPrefix}-${i}`} className="bg-surface-600 border border-content-primary/10 rounded px-1.5 py-0.5 text-[11px] font-mono text-accent-text">
+        <code key={`${keyPrefix}-${i}`} className="bg-surface-600 border border-content-primary/10 rounded-[var(--radius-control)] px-1.5 py-0.5 text-[11px] font-mono text-accent-text">
           {part.slice(1, -1)}
         </code>
       );
@@ -54,7 +54,7 @@ export default function MarkdownLite({ text }: { text: string }) {
         codeBuffer = [];
       } else {
         blocks.push(
-          <pre key={key} className="bg-surface-700 border border-content-primary/8 rounded-lg p-3 my-2 overflow-x-auto">
+          <pre key={key} className="bg-surface-700 border border-content-primary/8 rounded-[var(--radius-control)] p-3 my-2 overflow-x-auto">
             <code className="text-[11px] font-mono text-content-secondary whitespace-pre">{codeBuffer.join('\n')}</code>
           </pre>
         );

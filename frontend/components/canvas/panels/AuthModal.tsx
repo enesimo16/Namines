@@ -16,7 +16,7 @@ interface AuthModalProps {
 }
 
 const inputClass =
-  'w-full bg-surface-700 border border-content-primary/15 focus:border-focus-ring rounded-lg py-2.5 px-3.5 text-sm text-content-primary focus:outline-none transition-all placeholder:text-content-muted';
+  'w-full bg-surface-700 border border-content-primary/15 focus:border-focus-ring rounded-[var(--radius-control)] py-2.5 px-3.5 text-sm text-content-primary focus:outline-none transition-all placeholder:text-content-muted';
 
 export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { setAuth } = useAuthStore();
@@ -151,7 +151,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-modal-title"
-        className="relative w-full max-w-sm bg-surface-800 border border-content-primary/10 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden flex flex-col p-5 sm:p-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-sm bg-surface-800 border border-content-primary/10 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden flex flex-col p-5 sm:p-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -160,7 +160,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </h3>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-white/[0.06] rounded-md text-content-muted hover:text-content-primary transition-all cursor-pointer"
+            className="p-1 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-muted hover:text-content-primary transition-all cursor-pointer"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -168,11 +168,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         </div>
 
         {/* Tab selector */}
-        <div className="flex bg-surface-700 p-1 rounded-lg border border-content-primary/10 mb-4">
+        <div className="flex bg-surface-700 p-1 rounded-[var(--radius-control)] border border-content-primary/10 mb-4">
           <button
             type="button"
             onClick={() => { setIsLogin(true); setErrorMsg(null); }}
-            className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition-all ${
+            className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-[var(--radius-control)] transition-all ${
               isLogin ? 'bg-content-primary text-surface-900' : 'bg-transparent text-content-muted hover:text-content-primary'
             }`}
           >
@@ -181,7 +181,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <button
             type="button"
             onClick={() => { setIsLogin(false); setErrorMsg(null); }}
-            className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-md transition-all ${
+            className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-[var(--radius-control)] transition-all ${
               !isLogin ? 'bg-content-primary text-surface-900' : 'bg-transparent text-content-muted hover:text-content-primary'
             }`}
           >
@@ -194,7 +194,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <button
             type="button"
             onClick={() => handleOAuthPlaceholder('Google')}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary text-sm font-medium transition-all cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-control)] border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary text-sm font-medium transition-all cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="var(--color-content-subtle)" d="M21.35 11.1H12v2.9h5.35c-.23 1.4-1.6 4.1-5.35 4.1-3.22 0-5.85-2.66-5.85-5.95S8.78 6.2 12 6.2c1.84 0 3.07.78 3.77 1.45l2.57-2.48C16.7 3.66 14.55 2.7 12 2.7 6.98 2.7 2.9 6.78 2.9 11.8s4.08 9.1 9.1 9.1c5.25 0 8.74-3.69 8.74-8.89 0-.6-.07-1.05-.14-1.51z"/>
@@ -204,7 +204,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <button
             type="button"
             onClick={() => handleOAuthPlaceholder('GitHub')}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary text-sm font-medium transition-all cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-control)] border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary text-sm font-medium transition-all cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="var(--color-content-subtle)">
               <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.5 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.9 1.57 2.36 1.12 2.93.86.09-.67.35-1.12.64-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.72 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 2.5-.35c.85 0 1.7.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .28.18.61.69.5A9.99 9.99 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/>
@@ -220,7 +220,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         </div>
 
         {errorMsg && (
-          <div className="mb-3 px-3 py-2 rounded-lg bg-danger-subtle border border-danger/30 text-danger-text text-xs font-medium flex items-center gap-2">
+          <div className="mb-3 px-3 py-2 rounded-[var(--radius-control)] bg-danger-subtle border border-danger/30 text-danger-text text-xs font-medium flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 text-danger" />
             <span>{errorMsg}</span>
           </div>
@@ -232,7 +232,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               <button
                 type="button"
                 onClick={() => setUserType('individual')}
-                className={`py-1.5 px-2 text-center border rounded-lg text-xs font-semibold transition-all ${
+                className={`py-1.5 px-2 text-center border rounded-[var(--radius-control)] text-xs font-semibold transition-all ${
                   userType === 'individual'
                     ? 'border-focus-ring bg-white/[0.08] text-content-primary'
                     : 'border-content-primary/10 text-content-muted hover:text-content-primary'
@@ -243,7 +243,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               <button
                 type="button"
                 onClick={() => setUserType('corporate')}
-                className={`py-1.5 px-2 text-center border rounded-lg text-xs font-semibold transition-all ${
+                className={`py-1.5 px-2 text-center border rounded-[var(--radius-control)] text-xs font-semibold transition-all ${
                   userType === 'corporate'
                     ? 'border-focus-ring bg-white/[0.08] text-content-primary'
                     : 'border-content-primary/10 text-content-muted hover:text-content-primary'
@@ -297,7 +297,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-2 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-sm py-2.5 rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full mt-2 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-sm py-2.5 rounded-[var(--radius-control)] transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
             {isLoading ? (
               <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

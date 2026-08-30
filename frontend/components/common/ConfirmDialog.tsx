@@ -30,7 +30,7 @@ export default function ConfirmDialog() {
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
-        className="relative w-full max-w-sm bg-surface-800/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 80%, transparent)] overflow-hidden animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-sm bg-surface-800/95 backdrop-blur-2xl border border-white/10 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 80%, transparent)] overflow-hidden animate-in zoom-in-95 duration-150"
       >
         <div className="p-6 flex flex-col items-center text-center gap-3">
           <div
@@ -49,14 +49,14 @@ export default function ConfirmDialog() {
         <div className="flex gap-2.5 px-6 pb-6">
           <button
             onClick={() => respond(false)}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-content-secondary bg-white/5 border border-white/10 hover:bg-white/10 transition-all cursor-pointer"
+            className="flex-1 py-2.5 rounded-[var(--radius-card)] text-sm font-semibold text-content-secondary bg-white/5 border border-white/10 hover:bg-white/10 transition-all cursor-pointer"
           >
             {options.cancelLabel ?? 'Cancel'}
           </button>
           <button
             autoFocus
             onClick={() => respond(true)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold text-content-primary transition-all cursor-pointer active:scale-[0.98] ${
+            className={`flex-1 py-2.5 rounded-[var(--radius-card)] text-sm font-bold text-content-primary transition-all cursor-pointer active:scale-[0.98] ${
               danger
                 ? 'bg-danger hover:bg-danger shadow-[0_4px_15px_color-mix(in srgb, var(--color-danger) 35%, transparent)]'
                 : 'bg-accent hover:bg-accent-hover shadow-[0_4px_15px_color-mix(in srgb, var(--color-accent) 35%, transparent)]'

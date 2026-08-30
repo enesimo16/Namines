@@ -27,7 +27,7 @@ import { DatabaseSchema } from '../../../types/schema';
 // `shrink-0`: mobilde araç çubuğu yatay kaydırılan bir şerit; onsuz butonlar
 // sıkışıp okunmaz hâle geliyordu.
 const iconBtnBase =
-  'relative shrink-0 flex items-center justify-center w-9 h-9 rounded-lg border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+  'relative shrink-0 flex items-center justify-center w-9 h-9 rounded-[var(--radius-control)] border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 const iconBtnIdle =
   'bg-surface-700 border-content-primary/10 text-content-muted hover:text-content-primary hover:border-content-primary/20 hover:bg-surface-600';
 const iconBtnActive =
@@ -234,7 +234,7 @@ export default function ToolbarPanel() {
       <div
         className="fixed z-[60] flex items-center gap-1.5
           top-[60px] left-2 right-2 overflow-x-auto scrollbar-none
-          rounded-xl border border-content-primary/10 bg-surface-800/95 backdrop-blur-xl p-1.5
+          rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800/95 backdrop-blur-xl p-1.5
           lg:top-2.5 lg:left-auto lg:right-6 lg:overflow-visible
           lg:rounded-none lg:border-0 lg:bg-transparent lg:backdrop-blur-none lg:p-0"
       >
@@ -277,11 +277,11 @@ export default function ToolbarPanel() {
           </button>
 
           {isShareOpen && (
-            <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 animate-dropdown-in">
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-[var(--radius-card)] border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 animate-dropdown-in">
               <button
                 onClick={handleShareReadOnly}
                 disabled={isSharing}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-xs font-medium text-content-primary hover:bg-white/[0.04] hover:text-content-primary transition-all disabled:opacity-50"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-control)] text-left text-xs font-medium text-content-primary hover:bg-white/[0.04] hover:text-content-primary transition-all disabled:opacity-50"
               >
                 {isSharing ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
                 <span>
@@ -292,7 +292,7 @@ export default function ToolbarPanel() {
               <button
                 onClick={shareRoomLink}
                 disabled={!isConnected}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-xs font-medium text-content-primary hover:bg-white/[0.04] hover:text-content-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-control)] text-left text-xs font-medium text-content-primary hover:bg-white/[0.04] hover:text-content-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Users className="w-3.5 h-3.5 shrink-0" />
                 <span>
@@ -398,7 +398,7 @@ export default function ToolbarPanel() {
         <button
           id="approve-diagram-btn"
           onClick={handleApprove}
-          className="group shrink-0 flex items-center justify-center gap-1.5 bg-content-primary hover:bg-content-primary-hover active:scale-[0.97] text-surface-900 pl-4 pr-3 h-9 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+          className="group shrink-0 flex items-center justify-center gap-1.5 bg-content-primary hover:bg-content-primary-hover active:scale-[0.97] text-surface-900 pl-4 pr-3 h-9 rounded-[var(--radius-control)] text-xs font-semibold transition-all cursor-pointer"
         >
           <span>Approve</span>
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -448,7 +448,7 @@ export default function ToolbarPanel() {
       {explanation !== null && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-scrim/70 backdrop-blur-sm" onClick={() => setExplanation(null)}>
           <div
-            className="bg-surface-800 border border-content-primary/12 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
+            className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
             style={{ maxHeight: '80vh' }}
             onClick={e => e.stopPropagation()}
           >
@@ -464,13 +464,13 @@ export default function ToolbarPanel() {
                     setExplanationCopied(true);
                     setTimeout(() => setExplanationCopied(false), 1500);
                   }}
-                  className="p-1.5 text-content-subtle hover:text-content-primary rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  className="p-1.5 text-content-subtle hover:text-content-primary rounded-[var(--radius-control)] hover:bg-white/[0.06] transition-colors cursor-pointer"
                   aria-label="Copy explanation"
                   title="Copy as Markdown"
                 >
                   {explanationCopied ? <Check className="w-3.5 h-3.5 text-success-text" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
-                <button onClick={() => setExplanation(null)} className="p-1.5 text-content-subtle hover:text-content-primary rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer" aria-label="Close">
+                <button onClick={() => setExplanation(null)} className="p-1.5 text-content-subtle hover:text-content-primary rounded-[var(--radius-control)] hover:bg-white/[0.06] transition-colors cursor-pointer" aria-label="Close">
                   <X className="w-4 h-4" />
                 </button>
               </div>

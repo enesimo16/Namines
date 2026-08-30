@@ -134,7 +134,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         willChange: 'transform, opacity',
       }}
       className={`
-        relative w-[360px] max-w-[calc(100vw-32px)] rounded-2xl border
+        relative w-[360px] max-w-[calc(100vw-32px)] rounded-[var(--radius-modal)] border
         backdrop-blur-xl shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 45%, transparent)]
         overflow-hidden pointer-events-auto
         ${BG_CLASS[toast.type]}
@@ -164,7 +164,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
           {toast.action && (
             <button
               onClick={toast.action.onClick}
-              className="text-xs font-bold px-2 py-1 rounded-lg border border-white/20 text-white/80
+              className="text-xs font-bold px-2 py-1 rounded-[var(--radius-control)] border border-white/20 text-white/80
                          hover:bg-white/10 hover:text-content-primary transition-colors"
             >
               {toast.action.label}
@@ -174,7 +174,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
             <button
               onClick={handleDismiss}
               aria-label="Dismiss notification"
-              className="w-6 h-6 flex items-center justify-center rounded-lg text-white/40
+              className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-control)] text-white/40
                          hover:text-white/80 hover:bg-white/10 transition-colors text-base leading-none"
             >
               ×

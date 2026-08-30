@@ -103,7 +103,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="team-title"
-        className="relative w-full max-w-3xl max-h-[88vh] overflow-y-auto bg-surface-800 border border-content-primary/15 rounded-2xl p-6 text-content-primary animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-3xl max-h-[88vh] overflow-y-auto bg-surface-800 border border-content-primary/15 rounded-[var(--radius-modal)] p-6 text-content-primary animate-in zoom-in-95 duration-200"
       >
         <div className="flex items-start justify-between mb-5">
           <div>
@@ -120,7 +120,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="tap-44 p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-white/[0.06]"
+            className="tap-44 p-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-white/[0.06]"
           >
             <X className="w-4 h-4" />
           </button>
@@ -132,7 +132,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
           </div>
         ) : !team?.teamEnabled ? (
           <div className="space-y-4">
-            <div className="border border-content-primary/15 rounded-xl p-5 bg-surface-700">
+            <div className="border border-content-primary/15 rounded-[var(--radius-card)] p-5 bg-surface-700">
               <p className="text-sm font-semibold mb-2">Your plan is single-seat</p>
               <p className="text-[11px] text-content-secondary leading-relaxed">
                 The Team plan gives you <strong className="text-content-primary">3 seats</strong> — you plus two
@@ -146,7 +146,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
                 onClose();
                 window.dispatchEvent(new Event('namines:open-ai-settings'));
               }}
-              className="w-full bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 rounded-xl text-sm transition-colors"
+              className="w-full bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 rounded-[var(--radius-card)] text-sm transition-colors"
             >
               See plans
             </button>
@@ -154,7 +154,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
         ) : (
           <div className="space-y-6">
             {/* Koltuklar */}
-            <div className="flex items-center justify-between border border-content-primary/15 rounded-xl px-4 py-3 bg-surface-700">
+            <div className="flex items-center justify-between border border-content-primary/15 rounded-[var(--radius-card)] px-4 py-3 bg-surface-700">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-content-subtle font-semibold">Seats</p>
                 <p className="text-sm font-bold mt-0.5">
@@ -167,7 +167,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
                 type="button"
                 onClick={handleCreate}
                 disabled={isCreating || team.seats.available === 0}
-                className="flex items-center gap-2 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold px-4 py-2 rounded-lg text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold px-4 py-2 rounded-[var(--radius-control)] text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
                 {team.seats.available === 0 ? 'No seats left' : 'Create invite link'}
@@ -176,16 +176,16 @@ export default function TeamModal({ isOpen, onClose }: Props) {
 
             {/* Yeni bağlantı — yalnızca bir kez gösterilir */}
             {fresh && (
-              <div className="border border-content-primary/25 rounded-xl p-4 bg-white/[0.04] space-y-2">
+              <div className="border border-content-primary/25 rounded-[var(--radius-card)] p-4 bg-white/[0.04] space-y-2">
                 <p className="text-[11px] font-semibold">Copy this link now — it is shown only once.</p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-[10px] bg-surface-900 rounded-lg px-3 py-2 overflow-x-auto whitespace-nowrap">
+                  <code className="flex-1 text-[10px] bg-surface-900 rounded-[var(--radius-control)] px-3 py-2 overflow-x-auto whitespace-nowrap">
                     {inviteUrl}
                   </code>
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="tap-44 p-2 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] transition-colors"
+                    className="tap-44 p-2 rounded-[var(--radius-control)] bg-white/[0.08] hover:bg-white/[0.14] transition-colors"
                     aria-label="Copy invite link"
                   >
                     {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -200,7 +200,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
             {/* Üyeler */}
             <div>
               <h3 className="text-[10px] uppercase tracking-wider text-content-subtle font-semibold mb-2">Members</h3>
-              <div className="border border-content-primary/15 rounded-xl divide-y divide-content-primary/10 overflow-hidden">
+              <div className="border border-content-primary/15 rounded-[var(--radius-card)] divide-y divide-content-primary/10 overflow-hidden">
                 {team.members.map(m => {
                   const Icon = roleIcon[m.role] ?? Eye;
                   return (
@@ -233,7 +233,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
                 <p className="text-[10px] text-content-muted mb-2">
                   A pending invite holds a seat until it is used or revoked.
                 </p>
-                <div className="border border-content-primary/15 rounded-xl divide-y divide-content-primary/10 overflow-hidden">
+                <div className="border border-content-primary/15 rounded-[var(--radius-card)] divide-y divide-content-primary/10 overflow-hidden">
                   {team.pendingInvites.map(i => (
                     <div key={i.id} className="flex items-center gap-3 px-4 py-2.5">
                       <Clock className="w-3.5 h-3.5 text-content-muted shrink-0" />
@@ -246,7 +246,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
                       <button
                         type="button"
                         onClick={() => handleRevoke(i.id)}
-                        className="tap-44 p-1.5 rounded-lg text-content-muted hover:text-danger hover:bg-white/[0.06] transition-colors"
+                        className="tap-44 p-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-danger hover:bg-white/[0.06] transition-colors"
                         aria-label="Revoke invite"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -263,11 +263,11 @@ export default function TeamModal({ isOpen, onClose }: Props) {
                 Shared projects
               </h3>
               {projects.length === 0 ? (
-                <p className="text-[11px] text-content-muted border border-content-primary/15 rounded-xl px-4 py-5 text-center">
+                <p className="text-[11px] text-content-muted border border-content-primary/15 rounded-[var(--radius-card)] px-4 py-5 text-center">
                   No shared projects yet. Anything anyone saves shows up here for the whole team.
                 </p>
               ) : (
-                <div className="border border-content-primary/15 rounded-xl divide-y divide-content-primary/10 overflow-hidden">
+                <div className="border border-content-primary/15 rounded-[var(--radius-card)] divide-y divide-content-primary/10 overflow-hidden">
                   {projects.map(p => (
                     <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                       <div className="min-w-0 flex-1">

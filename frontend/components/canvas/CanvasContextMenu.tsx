@@ -78,14 +78,14 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
       {isEditMode && (
         <ContextMenu.Portal>
           <ContextMenu.Content
-            className="min-w-[180px] bg-gradient-to-b from-surface-700/95 to-surface-600/95 backdrop-blur-md rounded-xl border border-content-primary/12 p-1.5 shadow-[0_8px_30px_color-mix(in srgb, var(--color-scrim) 40%, transparent),0_0_15px_color-mix(in srgb, var(--color-accent-hover) 15%, transparent)] z-[100] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+            className="min-w-[180px] bg-gradient-to-b from-surface-700/95 to-surface-600/95 backdrop-blur-md rounded-[var(--radius-card)] border border-content-primary/12 p-1.5 shadow-[0_8px_30px_color-mix(in srgb, var(--color-scrim) 40%, transparent),0_0_15px_color-mix(in srgb, var(--color-accent-hover) 15%, transparent)] z-[100] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
             onCloseAutoFocus={e => e.preventDefault()}
           >
             {menuState?.type === 'canvas' && (
               <>
                 <div className="px-2 py-1.5 text-xs font-semibold text-content-muted uppercase tracking-wider mb-1">Canvas</div>
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-lg cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-[var(--radius-control)] cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
                   onSelect={handleAddTable}
                 >
                   <Plus className="w-4 h-4 text-accent-text" />
@@ -101,14 +101,14 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
                   Table Operations
                 </div>
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-lg cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-[var(--radius-control)] cursor-pointer outline-none transition-colors hover:bg-content-primary/12 hover:text-content-primary focus:bg-content-primary/12 focus:text-content-primary"
                   onSelect={handleEditTable}
                 >
                   <Pencil className="w-4 h-4 text-accent-text" />
                   <span>Edit</span>
                 </ContextMenu.Item>
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-lg cursor-pointer outline-none transition-colors hover:bg-accent/20 hover:text-accent-text focus:bg-accent/20 focus:text-accent-text"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-[var(--radius-control)] cursor-pointer outline-none transition-colors hover:bg-accent/20 hover:text-accent-text focus:bg-accent/20 focus:text-accent-text"
                   onSelect={() => { if (menuState?.nodeId) { duplicateTable(menuState.nodeId); setMenuState(null); } }}
                 >
                   <Copy className="w-4 h-4 text-accent-text" />
@@ -116,7 +116,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
                 </ContextMenu.Item>
                 <ContextMenu.Separator className="h-px bg-content-primary/[0.06] my-1 mx-1" />
                 <ContextMenu.Item
-                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-lg cursor-pointer outline-none transition-colors hover:bg-danger/20 hover:text-danger-text focus:bg-danger/20 focus:text-danger-text group"
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-[var(--radius-control)] cursor-pointer outline-none transition-colors hover:bg-danger/20 hover:text-danger-text focus:bg-danger/20 focus:text-danger-text group"
                   onSelect={handleDeleteTable}
                 >
                   <Trash2 className="w-4 h-4 text-danger-text/80 group-hover:text-danger-text" />

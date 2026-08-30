@@ -108,7 +108,7 @@ export default function Header() {
           <button
             id="header-workspace-btn"
             onClick={() => setIsSidebarOpen(true)}
-            className={`tap-44 flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0 ${
+            className={`tap-44 flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-[var(--radius-control)] text-sm font-medium transition-colors shrink-0 ${
               isSidebarOpen
                 ? 'bg-white/[0.08] text-content-primary'
                 : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
@@ -125,7 +125,7 @@ export default function Header() {
           {isAuthenticated && (
             <button
               onClick={() => setIsTeamOpen(true)}
-              className={`tap-44 flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-colors shrink-0 ${
+              className={`tap-44 flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-[var(--radius-control)] text-sm font-medium transition-colors shrink-0 ${
                 isTeamOpen
                   ? 'bg-white/[0.08] text-content-primary'
                   : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
@@ -150,7 +150,7 @@ export default function Header() {
                   onChange={(e) => setDraft(e.target.value)}
                   onBlur={commitEdit}
                   onKeyDown={handleKeyDown}
-                  className="bg-surface-700/70 border border-content-primary/15 text-content-primary rounded px-2 py-1 text-sm w-48 focus:outline-none focus:border-focus-ring"
+                  className="bg-surface-700/70 border border-content-primary/15 text-content-primary rounded-[var(--radius-control)] px-2 py-1 text-sm w-48 focus:outline-none focus:border-focus-ring"
                   maxLength={60}
                   autoFocus
                 />
@@ -165,7 +165,7 @@ export default function Header() {
             ) : (
               <button
                 onClick={startEditing}
-                className="group flex items-center gap-2 text-content-primary hover:text-content-primary px-2 py-1 rounded transition-colors"
+                className="group flex items-center gap-2 text-content-primary hover:text-content-primary px-2 py-1 rounded-[var(--radius-control)] transition-colors"
                 title="Edit project name"
               >
                 <span className="text-sm font-medium max-w-[160px] truncate">{projectName}</span>
@@ -223,7 +223,7 @@ export default function Header() {
             <button
               id="auth-modal-trigger"
               onClick={openAuthModal}
-              className="flex items-center justify-center py-1.5 px-3 sm:px-4 rounded-xl bg-content-primary hover:bg-content-primary-hover text-surface-900 text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap"
+              className="flex items-center justify-center py-1.5 px-3 sm:px-4 rounded-[var(--radius-card)] bg-content-primary hover:bg-content-primary-hover text-surface-900 text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap"
             >
               <span className="hidden sm:inline">Login / Sign Up</span>
               <span className="inline sm:hidden">Login</span>

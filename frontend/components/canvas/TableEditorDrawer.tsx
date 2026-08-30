@@ -27,7 +27,7 @@ const genId = (): string =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-const inputClass = 'bg-surface-700 border border-content-primary/10 rounded-lg text-content-primary placeholder:text-content-subtle focus:outline-none focus:border-focus-ring transition-colors';
+const inputClass = 'bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] text-content-primary placeholder:text-content-subtle focus:outline-none focus:border-focus-ring transition-colors';
 
 export default function TableEditorDrawer() {
   const { schema, selectedTableForEdit, setSelectedTableForEdit, updateTable } = useSchemaStore();
@@ -254,7 +254,7 @@ export default function TableEditorDrawer() {
               </p>
             </div>
             <Dialog.Close asChild>
-              <button className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-lg transition-colors" aria-label="Close">
+              <button className="p-1.5 text-content-subtle hover:text-content-primary hover:bg-white/[0.06] rounded-[var(--radius-control)] transition-colors" aria-label="Close">
                 <X className="w-4 h-4" />
               </button>
             </Dialog.Close>
@@ -302,7 +302,7 @@ export default function TableEditorDrawer() {
                   <span className="text-[10px] font-bold tracking-wider text-content-subtle uppercase">Columns</span>
                   <button
                     onClick={handleAddColumn}
-                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-content-primary bg-white/[0.08] hover:bg-white/[0.12] border border-white/15 rounded-md transition-all"
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-content-primary bg-white/[0.08] hover:bg-white/[0.12] border border-white/15 rounded-[var(--radius-control)] transition-all"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Add</span>
@@ -312,7 +312,7 @@ export default function TableEditorDrawer() {
                 <div className="flex flex-col gap-1.5">
                   {draft.columns.map((col) => (
                     <div key={col.id} className="flex flex-col">
-                    <div className="group flex items-center gap-1.5 p-2 bg-surface-700 border border-content-primary/8 rounded-lg hover:border-content-primary/15 transition-all">
+                    <div className="group flex items-center gap-1.5 p-2 bg-surface-700 border border-content-primary/8 rounded-[var(--radius-control)] hover:border-content-primary/15 transition-all">
                       {/* Gelişmiş alanlar KAPALI başlıyor. Beş alanı daha satır içine
                           koymak, kolon listesini taranamaz hâle getirirdi; günlük
                           kullanımda gerekmeyen ayarları isteyen açar. */}
@@ -388,7 +388,7 @@ export default function TableEditorDrawer() {
                       <button
                         onClick={() => handleDeleteColumn(col.id)}
                         disabled={col.isPK && draft.columns.filter((c: SchemaColumn) => c.isPK).length <= 1}
-                        className="p-1 text-content-subtle hover:text-danger-text hover:bg-danger-subtle rounded-md opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-content-subtle shrink-0"
+                        className="p-1 text-content-subtle hover:text-danger-text hover:bg-danger-subtle rounded-[var(--radius-control)] opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-content-subtle shrink-0"
                         title="Delete column"
                         aria-label="Delete column"
                       >
@@ -397,7 +397,7 @@ export default function TableEditorDrawer() {
                     </div>
 
                     {expandedColumnId === col.id && (
-                      <div className="mt-1 ml-6 p-2.5 bg-surface-800 border border-content-primary/8 rounded-lg flex flex-col gap-2.5">
+                      <div className="mt-1 ml-6 p-2.5 bg-surface-800 border border-content-primary/8 rounded-[var(--radius-control)] flex flex-col gap-2.5">
                         <div className="grid grid-cols-2 gap-2.5">
                           <div className="flex flex-col gap-1">
                             <label htmlFor={`identity-${col.id}`} className="text-micro font-bold tracking-wider text-content-subtle uppercase">
@@ -502,7 +502,7 @@ export default function TableEditorDrawer() {
                   ))}
 
                   {draft.columns.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-8 border border-dashed border-content-primary/12 rounded-lg">
+                    <div className="flex flex-col items-center justify-center py-8 border border-dashed border-content-primary/12 rounded-[var(--radius-control)]">
                       <p className="text-xs text-content-subtle">No columns added yet.</p>
                       <button
                         onClick={handleAddColumn}
@@ -526,7 +526,7 @@ export default function TableEditorDrawer() {
                   </div>
                   <button
                     onClick={handleAddIndex}
-                    className={`text-[11px] px-2 py-1.5 rounded-md flex items-center gap-1 ${inputClass} hover:border-content-primary/20 text-content-primary`}
+                    className={`text-[11px] px-2 py-1.5 rounded-[var(--radius-control)] flex items-center gap-1 ${inputClass} hover:border-content-primary/20 text-content-primary`}
                   >
                     <Plus className="w-3 h-3" />
                     Index ekle
@@ -534,7 +534,7 @@ export default function TableEditorDrawer() {
                 </div>
 
                 {unindexedFkColumns.length > 0 && (
-                  <div className="mb-2.5 flex items-start gap-2 p-2.5 rounded-lg bg-surface-600 border border-content-primary/15">
+                  <div className="mb-2.5 flex items-start gap-2 p-2.5 rounded-[var(--radius-control)] bg-surface-600 border border-content-primary/15">
                     <AlertTriangle className="w-3.5 h-3.5 text-content-secondary shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] text-content-secondary">
@@ -556,7 +556,7 @@ export default function TableEditorDrawer() {
                   {(draft.indexes ?? []).map(ix => (
                     <div
                       key={ix.id}
-                      className="p-2.5 rounded-lg bg-surface-700 border border-content-primary/8"
+                      className="p-2.5 rounded-[var(--radius-control)] bg-surface-700 border border-content-primary/8"
                     >
                       <div className="flex items-center gap-1.5 mb-2">
                         <input
@@ -577,7 +577,7 @@ export default function TableEditorDrawer() {
                         <button
                           onClick={() => handleDeleteIndex(ix.id)}
                           aria-label="Index'i sil"
-                          className="p-1 rounded text-content-subtle hover:text-danger-text hover:bg-danger-subtle transition-colors shrink-0"
+                          className="p-1 rounded-[var(--radius-control)] text-content-subtle hover:text-danger-text hover:bg-danger-subtle transition-colors shrink-0"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -590,7 +590,7 @@ export default function TableEditorDrawer() {
                             <button
                               key={col.id}
                               onClick={() => handleToggleIndexColumn(ix.id, col.id)}
-                              className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                              className={`px-2 py-0.5 rounded-[var(--radius-control)] text-[10px] font-mono border transition-colors ${
                                 selected
                                   ? 'bg-white/[0.08] border-white/25 text-content-primary'
                                   : 'bg-surface-800 border-content-primary/10 text-content-subtle hover:text-content-primary'
@@ -623,13 +623,13 @@ export default function TableEditorDrawer() {
           <div className="p-4 border-t border-content-primary/10 bg-surface-800 shrink-0 flex items-center justify-end gap-2">
             <button
               onClick={handleClose}
-              className="px-4 py-2 text-xs font-medium text-content-muted hover:text-content-primary hover:bg-white/[0.04] rounded-lg transition-colors"
+              className="px-4 py-2 text-xs font-medium text-content-muted hover:text-content-primary hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="px-4 py-2 text-xs font-semibold text-surface-900 bg-content-primary hover:bg-content-secondary rounded-lg transition-all flex items-center gap-2"
+              className="px-4 py-2 text-xs font-semibold text-surface-900 bg-content-primary hover:bg-content-secondary rounded-[var(--radius-control)] transition-all flex items-center gap-2"
             >
               <span>Save Changes</span>
             </button>

@@ -115,7 +115,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-4">
-      <div className="bg-surface-700 border border-surface-500 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-surface-700 border border-surface-500 rounded-[var(--radius-card)] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
 
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-surface-500">
@@ -132,7 +132,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {!connected ? (
             <div className="flex flex-col gap-4">
-              <div className="flex gap-2 bg-surface-600 border border-surface-500 rounded-lg p-3 text-content-secondary text-[11px]">
+              <div className="flex gap-2 bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] p-3 text-content-secondary text-[11px]">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>Read-only. Only SELECT queries run — your connection string is sent to the API and never stored. Use a read-only DB user when possible.</span>
               </div>
@@ -144,7 +144,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                     <button
                       key={t.value}
                       onClick={() => { setDbType(t.value); setConnectionString(''); setError(null); }}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-[var(--radius-control)] text-[11px] font-medium border transition-all cursor-pointer ${
                         dbType === t.value
                           ? 'bg-accent-subtle border-accent-hover/60 text-accent-text'
                           : 'bg-surface-600 border-surface-500 text-content-subtle hover:text-content-secondary'
@@ -164,7 +164,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                     onChange={e => { setConnectionString(e.target.value); setError(null); }}
                     placeholder={PLACEHOLDERS[dbType] ?? ''}
                     rows={2}
-                    className="w-full bg-surface-800 border border-surface-500 focus:border-accent-hover rounded-lg px-3 py-2 text-[12px] text-content-primary placeholder-content-subtle outline-none resize-none font-mono"
+                    className="w-full bg-surface-800 border border-surface-500 focus:border-accent-hover rounded-[var(--radius-control)] px-3 py-2 text-[12px] text-content-primary placeholder-content-subtle outline-none resize-none font-mono"
                     style={{ WebkitTextSecurity: showCs ? 'none' : 'disc' } as React.CSSProperties}
                   />
                   <button
@@ -183,7 +183,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                 <select
                   value={selectedTable}
                   onChange={e => setSelectedTable(e.target.value)}
-                  className="bg-surface-800 border border-surface-500 focus:border-accent-hover rounded-lg px-3 py-2 text-[12px] text-content-secondary outline-none cursor-pointer"
+                  className="bg-surface-800 border border-surface-500 focus:border-accent-hover rounded-[var(--radius-control)] px-3 py-2 text-[12px] text-content-secondary outline-none cursor-pointer"
                 >
                   <option value="">Select a table from the schema…</option>
                   {schema?.tables.map(t => (
@@ -198,7 +198,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
               </div>
 
               {error && (
-                <div className="bg-danger-subtle border border-danger/30 rounded-lg p-2.5 text-danger-text text-[11px]">
+                <div className="bg-danger-subtle border border-danger/30 rounded-[var(--radius-control)] p-2.5 text-danger-text text-[11px]">
                   {error}
                 </div>
               )}
@@ -206,14 +206,14 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
               <div className="flex justify-end gap-2">
                 <button
                   onClick={onClose}
-                  className="px-3.5 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[12px] font-medium transition-all cursor-pointer"
+                  className="px-3.5 py-2 rounded-[var(--radius-control)] bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[12px] font-medium transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => loadPage(1)}
                   disabled={isLoading || !connectionString.trim() || !selectedTable}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-content-primary hover:bg-content-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-surface-900 text-[12px] font-semibold transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-4 py-2 rounded-[var(--radius-control)] bg-content-primary hover:bg-content-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-surface-900 text-[12px] font-semibold transition-all cursor-pointer"
                 >
                   {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {isLoading ? 'Connecting…' : 'Browse Data'}
@@ -228,7 +228,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
               >
                 <ArrowLeft className="w-3.5 h-3.5" /> Back to list
               </button>
-              <div className="bg-surface-600 border border-surface-500 rounded-lg divide-y divide-surface-500">
+              <div className="bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] divide-y divide-surface-500">
                 {Object.entries(detailRow.values).map(([key, value]) => (
                   <div key={key} className="flex items-start gap-4 px-3.5 py-2">
                     <span className="w-40 shrink-0 text-[11px] font-mono font-semibold text-accent-text">{key}</span>
@@ -249,7 +249,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                 <span className="text-[10px] text-content-subtle font-mono">{totalCount} rows</span>
               </div>
 
-              <div className="overflow-x-auto border border-surface-500 rounded-lg relative">
+              <div className="overflow-x-auto border border-surface-500 rounded-[var(--radius-control)] relative">
                 {isLoading && (
                   <div className="absolute inset-0 bg-surface-800/70 backdrop-blur-sm flex items-center justify-center z-10">
                     <Loader2 className="w-5 h-5 text-content-muted animate-spin" />
@@ -293,7 +293,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                   <button
                     onClick={() => loadPage(page - 1)}
                     disabled={page <= 1 || isLoading}
-                    className="p-1.5 rounded-md bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 disabled:cursor-not-allowed text-content-secondary transition-all cursor-pointer"
+                    className="p-1.5 rounded-[var(--radius-control)] bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 disabled:cursor-not-allowed text-content-secondary transition-all cursor-pointer"
                     aria-label="Previous page"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
@@ -301,7 +301,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                   <button
                     onClick={() => loadPage(page + 1)}
                     disabled={page >= totalPages || isLoading}
-                    className="p-1.5 rounded-md bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 disabled:cursor-not-allowed text-content-secondary transition-all cursor-pointer"
+                    className="p-1.5 rounded-[var(--radius-control)] bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 disabled:cursor-not-allowed text-content-secondary transition-all cursor-pointer"
                     aria-label="Next page"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />

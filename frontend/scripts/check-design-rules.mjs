@@ -106,11 +106,12 @@ const UNREADABLE_FONT = /text-\[(?:[0-9]|[0-9]\.[0-9])px\]/g;
  * Ölçek artık: --radius-control (6px) / --radius-card (10px) /
  * --radius-modal (14px) + rounded-full (yalnızca avatar ve nokta).
  *
- * `rounded-lg`/`rounded-xl` HENÜZ yasak değil — 415 kullanımları var ve
- * hepsini tek commit'te taşımak gözden geçirilemez bir diff üretirdi.
- * Yasaklananlar, ölçekte karşılığı OLMAYAN uç değerler.
+ * Migrasyon TAMAMLANDI: 565 keyfi radius kullanımı üç token'a taşındı ve
+ * ölçek dışı hiçbir değer kalmadı. Artık hepsi yasak — `rounded-full` tek
+ * istisna (avatar ve nokta göstergesi).
  */
-const DEPRECATED_RADIUS = /(?<![\w-])rounded-(?:sm|3xl)(?![\w-])/g;
+const DEPRECATED_RADIUS =
+  /(?<![\w-])rounded(?:-(?:sm|md|lg|xl|2xl|3xl))?(?![\w[-])/g;
 
 /** Tailwind yerine geçmeye çalışan kütüphaneler — FRONTEND.md §5. */
 const FORBIDDEN_IMPORTS = [

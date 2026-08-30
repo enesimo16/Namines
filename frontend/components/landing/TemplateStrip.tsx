@@ -63,7 +63,7 @@ export default function TemplateStrip() {
           <Link
             key={tpl.key}
             href={`/demo?template=${encodeURIComponent(tpl.key)}`}
-            className="glass-panel rounded-xl p-4 flex flex-col gap-2 transition-all hover:bg-white/[0.06]"
+            className="glass-panel rounded-[var(--radius-card)] p-4 flex flex-col gap-2 transition-all hover:bg-white/[0.06]"
           >
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-xs font-semibold text-content-primary">{tpl.label}</span>

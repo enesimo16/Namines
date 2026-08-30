@@ -29,7 +29,7 @@ export default function DbTypeSelector({ selectedDb, onSelect, disabled }: DbTyp
         value={selectedDb}
         onChange={(e) => onSelect(e.target.value)}
         disabled={disabled}
-        className="bg-surface-600 border border-surface-500 text-content-secondary text-xs rounded-lg px-3 py-1.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] transition-colors cursor-pointer hover:bg-surface-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="bg-surface-600 border border-surface-500 text-content-secondary text-xs rounded-[var(--radius-control)] px-3 py-1.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] transition-colors cursor-pointer hover:bg-surface-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Select database type"
       >
         {DB_OPTIONS.map((opt) => (
