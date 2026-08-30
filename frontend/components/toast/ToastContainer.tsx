@@ -1,61 +1,46 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Info, Loader2, Sparkles } from 'lucide-react';
 import { useToastStore, Toast, ToastType } from '../../store/useToastStore';
 
-// ─── Tip Mappings ─────────────────────────────────────────────────────────────
-// Yalnızca iki semantik renk: başarı (yeşil) ve hata (kırmızı). Warning/info/
-// loading/ai nötr off-white — sarı/mor/indigo aile tamamen kaldırıldı
-// (kullanıcı talimatı: "sarı bir şey istemiyorum").
+// ─── Tip Eşlemeleri ──────────────────────────────────────────────────────────
+/*
+ * <b>Yeniden tasarım: minimum renk, terminal etiketi.</b>
+ *
+ * Eski tasarımda her bildirim şunları taşıyordu: renkli zemin
+ * (`bg-success-subtle`), 3px sol renk çubuğu, renkli ikon ve parlayan
+ * gradyanlı ilerleme çubuğu. Yani tek bir bildirimde DÖRT ayrı renkli öğe
+ * vardı; 143 çağrı noktasıyla birleşince ekran sürekli renk yakıp söndüren
+ * bir yüzeye dönüşüyordu (bkz. UI_UX_PRODUCT_AUDIT.md §4/O1).
+ *
+ * Yeni kural: <b>yüzey her zaman nötr</b>, renk yalnızca 2-4 karakterlik
+ * monospace etikette. Etiket hem tipi söylüyor hem ikonun işini yapıyor —
+ * ayrı bir ikona gerek kalmıyor. Terminal çıktısı hissi, ürünün kimliğiyle
+ * (veritabanı/geliştirici aracı, JetBrains Mono zaten yüklü) tutarlı ve
+ * jenerik "renkli kart + ikon + progress" bildiriminden ayrışıyor.
+ *
+ * Renk yalnızca ANLAM taşıdığı yerde: başarı ve hata. Uyarı/bilgi/yükleme
+ * nötr — FRONTEND.md §2'nin "warning ayrı bir renk değil" kuralı.
+ */
 
-/** Sol kenar çubuğu rengi */
-const ACCENT: Record<ToastType, string> = {
-  success: 'var(--color-success)',
-  error:   'var(--color-danger)',
-  warning: 'var(--color-content-primary)',
-  info:    'var(--color-content-primary)',
-  loading: 'var(--color-content-primary)',
-  ai:      'var(--color-content-primary)',
+/** 2-4 karakterlik durum etiketi — ikonun yerine geçiyor. */
+const TAG: Record<ToastType, string> = {
+  success: 'OK',
+  error:   'ERR',
+  warning: 'WARN',
+  info:    'INFO',
+  loading: '···',
+  ai:      'AI',
 };
 
-/** Arka plan sınıfları */
-const BG_CLASS: Record<ToastType, string> = {
-  success: 'bg-success-subtle/95 border-success/25',
-  error:   'bg-danger-subtle/95 border-danger/25',
-  warning: 'bg-surface-800/95 border-content-primary/12',
-  info:    'bg-surface-800/95 border-content-primary/12',
-  loading: 'bg-surface-800/95 border-content-primary/12',
-  ai:      'bg-surface-800/95 border-content-primary/12',
-};
-
-/** Progress bar rengi */
-const BAR_CLASS: Record<ToastType, string> = {
-  success: 'from-success to-success-text',
-  error:   'from-danger to-danger-text',
-  warning: 'from-content-muted to-content-secondary',
-  info:    'from-content-muted to-content-secondary',
-  loading: 'from-content-muted to-content-secondary',
-  ai:      'from-content-muted to-content-secondary',
-};
-
-/** Varsayılan ikonlar — emoji değil, SVG (bkz. FRONTEND.md) */
-const ICON: Record<ToastType, React.ComponentType<{ className?: string }>> = {
-  success: CheckCircle2,
-  error:   XCircle,
-  warning: AlertTriangle,
-  info:    Info,
-  loading: Loader2,
-  ai:      Sparkles,
-};
-
-const ICON_COLOR: Record<ToastType, string> = {
+/** Etiket rengi — TEK renkli öğe. Yalnızca başarı/hata renkli. */
+const TAG_COLOR: Record<ToastType, string> = {
   success: 'text-success-text',
   error:   'text-danger-text',
   warning: 'text-content-secondary',
   info:    'text-content-muted',
-  loading: 'text-content-muted animate-spin',
-  ai:      'text-content-secondary',
+  loading: 'text-content-muted',
+  ai:      'text-accent-text',
 };
 
 // ─── Tek Toast Kartı ──────────────────────────────────────────────────────────
@@ -69,7 +54,10 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
   const [visible, setVisible]   = useState(false); // giriş animasyonu
   const [exiting, setExiting]   = useState(false); // çıkış animasyonu
   const [elapsed, setElapsed]   = useState(0);     // elapsed ms (progress bar)
-  const startRef                = useRef(Date.now());
+  // `useRef(Date.now())` DEĞİL: argüman her render'da yeniden hesaplanıyordu
+  // (yalnızca ilki saklansa da) ve render'ı saf olmaktan çıkarıyordu.
+  // Başlangıç zamanı, sayacın gerçekten başladığı efektte damgalanıyor.
+  const startRef                = useRef(0);
   const rafRef                  = useRef<number | null>(null);
 
   // ── Giriş animasyonu: mount sonrası 1 frame gecikmeli tetikle
@@ -83,6 +71,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
     if (toast.type !== 'loading' && toast.type !== 'ai') return;
     if (toast.progress !== undefined) return; // manuel progress varsa dış kontrole bırak
 
+    startRef.current = Date.now();
     const tick = () => {
       setElapsed(Date.now() - startRef.current);
       rafRef.current = requestAnimationFrame(tick);
@@ -129,43 +118,43 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         transform:  exiting ? 'translateX(calc(100% + 20px))' : visible ? 'translateX(0)' : 'translateX(calc(100% + 20px))',
         opacity:    exiting ? 0 : visible ? 1 : 0,
         transition: exiting
-          ? 'transform 200ms cubic-bezier(0.4, 0, 1, 1), opacity 200ms ease-in'
-          : 'transform 280ms cubic-bezier(0.16, 1, 0.3, 1), opacity 250ms ease-out',
+          ? 'transform var(--dur-base) cubic-bezier(0.4, 0, 1, 1), opacity var(--dur-base) ease-in'
+          : 'transform var(--dur-slow) var(--ease-out), opacity var(--dur-base) var(--ease-out)',
         willChange: 'transform, opacity',
       }}
-      className={`
-        relative w-[360px] max-w-[calc(100vw-32px)] rounded-[var(--radius-modal)] border
-        backdrop-blur-xl shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 45%, transparent)]
-        overflow-hidden pointer-events-auto
-        ${BG_CLASS[toast.type]}
-      `}
+      /*
+       * Tek nötr yüzey — tipe göre zemin/kenarlık DEĞİŞMİYOR.
+       * `backdrop-blur` kaldırıldı: her karede yeniden hesaplanan pahalı bir
+       * filtre ve düz bir yüzeyde görsel karşılığı yok (bkz. §19 performans).
+       * Genişlik 360 → 320px: bildirim asıl işin önüne geçmemeli.
+       */
+      className="relative w-[320px] max-w-[calc(100vw-32px)] rounded-[var(--radius-card)]
+                 border border-[var(--color-border-hairline)] bg-surface-800
+                 shadow-[0_4px_16px_color-mix(in_srgb,var(--color-scrim)_50%,transparent)]
+                 overflow-hidden pointer-events-auto"
     >
-      {/* Sol renk çubuğu */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl"
-        style={{ background: ACCENT[toast.type] }}
-      />
+      <div className="flex items-start gap-2.5 px-3 py-2.5">
+        {/* Durum etiketi — ikonun yerine geçiyor, tek renkli öğe. */}
+        <span
+          className={`font-mono text-micro shrink-0 w-9 pt-px tabular-nums ${TAG_COLOR[toast.type]} ${
+            toast.type === 'loading' ? 'animate-pulse' : ''
+          }`}
+        >
+          {TAG[toast.type]}
+        </span>
 
-      {/* İçerik */}
-      <div className="flex items-start gap-3 px-4 py-3 pl-5">
-        {/* İkon */}
-        {(() => {
-          const IconComp = ICON[toast.type];
-          return <IconComp className={`w-4 h-4 mt-0.5 flex-shrink-0 ${ICON_COLOR[toast.type]}`} />;
-        })()}
-
-        {/* Mesaj */}
-        <p className="flex-1 text-sm font-medium text-content-primary leading-snug break-words min-w-0">
+        <p className="flex-1 text-caption text-content-secondary leading-snug break-words min-w-0">
           {toast.message}
         </p>
 
-        {/* Aksiyon + Kapat */}
-        <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
+        <div className="flex items-center gap-1 shrink-0">
           {toast.action && (
             <button
               onClick={toast.action.onClick}
-              className="text-xs font-bold px-2 py-1 rounded-[var(--radius-control)] border border-white/20 text-white/80
-                         hover:bg-white/10 hover:text-content-primary transition-colors"
+              className="focus-ring text-micro font-semibold px-2 py-1 rounded-[var(--radius-control)]
+                         border border-[var(--color-border-hairline)] text-content-secondary
+                         hover:text-content-primary hover:border-[var(--color-border-strong)]
+                         transition-colors cursor-pointer"
             >
               {toast.action.label}
             </button>
@@ -174,8 +163,9 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
             <button
               onClick={handleDismiss}
               aria-label="Dismiss notification"
-              className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-control)] text-white/40
-                         hover:text-white/80 hover:bg-white/10 transition-colors text-base leading-none"
+              className="focus-ring w-6 h-6 flex items-center justify-center rounded-[var(--radius-control)]
+                         text-content-subtle hover:text-content-primary transition-colors
+                         cursor-pointer text-sm leading-none"
             >
               ×
             </button>
@@ -183,34 +173,25 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
         </div>
       </div>
 
-      {/* Progress / Pulse Bar */}
+      {/*
+       * İlerleme: 1px NÖTR çizgi. Eski hâli gradyan + `boxShadow` parıltıydı;
+       * ilerleme bilgisi renk gerektirmiyor — konum zaten söylüyor.
+       */}
       {(progressPct !== null || isPulse) && (
-        <div className="relative h-[3px] w-full overflow-hidden">
-          {/* Arka plan track */}
-          <div className="absolute inset-0 bg-white/5" />
-
+        <div className="relative h-px w-full overflow-hidden bg-[var(--color-border-hairline)]">
           {isPulse ? (
-            /* Sonsuz pulse efekti — loading/ai kalıcı */
             <div
-              className={`absolute top-0 h-full w-1/3 bg-gradient-to-r ${BAR_CLASS[toast.type]} rounded-full`}
-              style={{
-                animation: 'namines-toast-slide 1.4s ease-in-out infinite',
-              }}
+              className="absolute top-0 h-full w-1/3 bg-content-muted"
+              style={{ animation: 'namines-toast-slide 1.4s ease-in-out infinite' }}
             />
           ) : (
-            /* Determinate bar */
             <div
-              className={`absolute top-0 left-0 h-full bg-gradient-to-r ${BAR_CLASS[toast.type]} rounded-full`}
-              style={{
-                width:      `${progressPct}%`,
-                transition: 'width 150ms linear',
-                boxShadow:  `0 0 6px ${ACCENT[toast.type]}80`,
-              }}
+              className="absolute top-0 left-0 h-full bg-content-muted"
+              style={{ width: `${progressPct}%`, transition: 'width 150ms linear' }}
             />
           )}
         </div>
       )}
-
     </div>
   );
 }
@@ -222,10 +203,6 @@ const ANIMATION_STYLES = `
   0%   { left: -33%; }
   50%  { left: 50%; }
   100% { left: 133%; }
-}
-@keyframes namines-toast-glow {
-  0%, 100% { opacity: 0.6; }
-  50%       { opacity: 1; }
 }
 `;
 

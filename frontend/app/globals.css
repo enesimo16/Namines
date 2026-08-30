@@ -95,8 +95,22 @@
      hue'nun hiçbir görsel karşılığı yok) ama referans olarak duruyor. */
   --ui-hue: 250;        /* zeminin ton'u — chroma 0'ken etkisiz */
   --ui-chroma: 0;       /* zeminin renk doygunluğu — 0 = tam gri */
-  --ui-bg-l: 34%;       /* ↑ ARTIR = DAHA AYDINLIK ARAYÜZ (güvenli aralık %17-%36) */
-  --ui-bg-step: 3.6%;   /* yüzey basamakları arası açıklık farkı */
+
+  /* <b>%34 → %15: "soluk" geri bildiriminin ölçülebilir sebebi.</b>
+     %34'te zemin rgb(56,56,56) — ORTA GRİ. Orta gri zeminde her şey puslu
+     görünüyor çünkü kontrast düşüyor: metin/zemin oranı 11.68:1 idi.
+
+     Vercel'in karanlık modu canlı sayfada ölçüldü:
+        zemin  rgb(10,10,10)     metin rgb(237,237,237)     kontrast 16.91:1
+     Bizimki artık:
+        zemin  rgb(11,11,11)     metin rgb(236,239,241)     kontrast 17.04:1
+
+     Daha önceki "çok karanlık" şikâyeti KOYULUKTAN değildi: o palet
+     rgb(5,7,12) idi — mavimsi ve donuk — ve tuvali React Flow ayrı bir
+     #141414 ile boyuyordu, yani ekran iki kopuk tona bölünüyordu. İkisi de
+     düzeldi; artık nötr, tek parça ve yüksek kontrastlı. */
+  --ui-bg-l: 15%;       /* ↑ ARTIR = DAHA AYDINLIK (güvenli aralık %12-%36) */
+  --ui-bg-step: 5%;     /* yüzey basamakları arası açıklık farkı */
 
   /* Marka / vurgu.
      Önceki değer (hue 262, chroma 0.075) nötr zeminin hue'suna (250) yalnızca
@@ -142,11 +156,16 @@
   --surface-700: oklch(calc(var(--ui-bg-l) + var(--ui-bg-step) * 2) var(--ui-chroma) var(--ui-hue));
   --surface-600: oklch(calc(var(--ui-bg-l) + var(--ui-bg-step) * 3) var(--ui-chroma) var(--ui-hue));
 
-  --content-primary: oklch(calc(var(--ui-bg-l) + 77%) 0.004 var(--ui-hue));
-  --content-primary-hover: oklch(calc(var(--ui-bg-l) + 80%) 0.004 var(--ui-hue));
-  --content-secondary: oklch(calc(var(--ui-bg-l) + 67%) 0.006 var(--ui-hue));
-  --content-muted: oklch(calc(var(--ui-bg-l) + 58%) 0.010 var(--ui-hue));
-  --content-subtle: oklch(calc(var(--ui-bg-l) + 51%) 0.012 var(--ui-hue));
+  /* Metin adımları Vercel'in karanlık modundaki KONTRAST yapısına eşitlendi
+     (canlı ölçüm: metin rgb(237,237,237), zemin rgb(10,10,10), 16.91:1).
+     Deltalar 77/67/58/51 → 80/69/61/55: eski değerler yeni koyu zeminde
+     `content-subtle`'ı en açık yüzeye karşı 4.35:1'e düşürüyordu (AA altı).
+     Yeni değerlerle en kötü durum 5.10:1. */
+  --content-primary: oklch(calc(var(--ui-bg-l) + 80%) 0.004 var(--ui-hue));
+  --content-primary-hover: oklch(calc(var(--ui-bg-l) + 83%) 0.004 var(--ui-hue));
+  --content-secondary: oklch(calc(var(--ui-bg-l) + 69%) 0.006 var(--ui-hue));
+  --content-muted: oklch(calc(var(--ui-bg-l) + 61%) 0.010 var(--ui-hue));
+  --content-subtle: oklch(calc(var(--ui-bg-l) + 55%) 0.012 var(--ui-hue));
 
   --accent: oklch(var(--brand-l) var(--brand-chroma) var(--brand-hue));
   --accent-hover: oklch(calc(var(--brand-l) + 8%) var(--brand-chroma) var(--brand-hue));

@@ -564,3 +564,84 @@ kapsandı, ikisi arasında sorun olmaz" varsayılmıştı. Bu varsayım yanlış
 - Büyüklük: TableNode %10 daha dar, satırlar %16 daha kısa — üç ölçekte de
   (375 / 768-1023 / 1920+) doğrulandı
 - Tablet: gerçek bir "birincil eylem erişilemez" hatası bulundu ve düzeltildi
+
+---
+
+## 15. Vercel karanlık moduna hizalama + bildirim sistemi yeniden tasarımı
+
+> **Geri bildirim:** "ekran çok soluk, renk işini ayarla Vercel ile aynı olsun"
+> ve "bütün sağ alert sistemini düzenle, minimum renkli, daha değişik".
+
+### 15.1 "Soluk"un ölçülebilir sebebi: orta gri zemin
+
+`--ui-bg-l` bir önceki turda %34'e çekilmişti (o zamanki geri bildirim "çok
+karanlık"tı). Ama %34'te zemin **rgb(56,56,56)** — orta gri. Orta gri zeminde
+her şey puslu görünüyor çünkü kontrast düşüyor.
+
+Vercel'in **karanlık modu** canlı sayfada ölçüldü (`data-theme="dark"` zorlanıp
+`getComputedStyle` + canvas ile piksel okundu):
+
+| Token | Vercel dark |
+|---|---|
+| `--ds-background-200` | rgb(0,0,0) |
+| `--ds-background-100` | rgb(10,10,10) |
+| `--ds-gray-100` | rgb(26,26,26) |
+| `--ds-gray-200` | rgb(31,31,31) |
+| `--ds-gray-400` | rgb(46,46,46) |
+| `--ds-gray-1000` (metin) | rgb(237,237,237) |
+
+**Karşılaştırma:**
+
+| | Zemin | Metin | Kontrast |
+|---|---|---|---|
+| Bizim (%34) | rgb(56,56,56) | rgb(253,255,255) | **11.68:1** |
+| Vercel dark | rgb(10,10,10) | rgb(237,237,237) | **16.91:1** |
+| Bizim (yeni, %15) | rgb(11,11,11) | rgb(236,239,241) | **17.04:1** |
+
+Vercel'in karanlığı "muddy" değil çünkü **nötr** ve **kontrastı yüksek**.
+Bizim eski "çok karanlık" paletimiz rgb(5,7,12) idi — mavimsi, donuk, ve
+tuvali React Flow ayrı bir `#141414` ile boyuyordu; ekran iki kopuk tona
+bölünüyordu. İkisi de düzeldiği için artık koyu olmak "karanlık ve boğuk"
+değil, "keskin" okunuyor.
+
+**Uygulanan:** `--ui-bg-l: 34% → 15%`, `--ui-bg-step: 3.6% → 5%`.
+Yüzeyler: 11 / 22 / 34 / 46 (Vercel: 10 / 26 / 31 / 46).
+
+Metin deltaları da yükseltildi (77/67/58/51 → **80/69/61/55**): eski deltalar
+yeni koyu zeminde `content-subtle`'ı en açık yüzeye karşı **4.35:1**'e
+düşürüyordu (AA altı). Yeni değerlerle en kötü durum **5.10:1**.
+
+### 15.2 Bildirim sistemi — minimum renk, terminal etiketi
+
+**Eski tasarımda tek bir bildirimde DÖRT renkli öğe vardı:** renkli zemin
+(`bg-success-subtle`), 3px sol renk çubuğu, renkli ikon ve parlayan gradyanlı
+ilerleme çubuğu (`boxShadow` glow ile). 143 çağrı noktasıyla birleşince ekran
+sürekli renk yakıp söndüren bir yüzeye dönüşüyordu.
+
+**Yeni kural: yüzey her zaman nötr, renk yalnızca etikette.**
+
+| | Önce | Sonra |
+|---|---|---|
+| Zemin | Tipe göre renkli | **Tek nötr** `surface-800` |
+| Sol renk çubuğu | 3px, tipe göre | **Kaldırıldı** |
+| İkon | Renkli lucide ikonu | **Kaldırıldı** — etiket işini yapıyor |
+| Tip göstergesi | — | **Monospace etiket:** `OK` `ERR` `WARN` `INFO` `···` `AI` |
+| İlerleme | Gradyan + parıltı | **1px nötr çizgi** |
+| Genişlik | 360px | **320px** |
+| `backdrop-blur` | `blur-xl` | **Kaldırıldı** (her karede yeniden hesaplanıyor) |
+
+Renk yalnızca **anlam taşıdığı yerde**: başarı yeşil, hata kırmızı.
+Uyarı/bilgi/yükleme nötr — §2'nin "warning ayrı bir renk değil" kuralı.
+
+Etiket hem tipi söylüyor hem ikonun işini yapıyor, yani ayrı bir ikona gerek
+kalmıyor. Terminal çıktısı hissi ürünün kimliğiyle (veritabanı/geliştirici
+aracı; JetBrains Mono zaten yüklü) tutarlı ve jenerik "renkli kart + ikon +
+progress bar" bildiriminden ayrışıyor.
+
+**Canlı ölçüm:** genişlik 320px · zemin `oklch(0.2 0 250)` (nötr, tipe göre
+değişmiyor) · radius 10px (`--radius-card`) · `backdrop-filter: none` ·
+etiket `OK` / JetBrains Mono / 11px / `oklch(0.7 0.08 155)`.
+
+**Yan bulgu:** `useRef(Date.now())` render sırasında saf olmayan bir çağrıydı
+(argüman her render'da yeniden hesaplanıyor). Başlangıç zamanı artık sayacın
+gerçekten başladığı efektte damgalanıyor.
