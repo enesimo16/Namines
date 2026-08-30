@@ -81,7 +81,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
                       {s.keys.map(k => (
                         <kbd
                           key={k}
-                          className="px-2 py-0.5 rounded-md bg-surface-600 border border-surface-400 text-content-primary text-xs font-mono font-semibold shadow-[0_1px_0_rgba(0,0,0,0.4)]"
+                          className="px-2 py-0.5 rounded-md bg-surface-600 border border-surface-400 text-content-primary text-xs font-mono font-semibold shadow-[0_1px_0_color-mix(in srgb, var(--color-scrim) 40%, transparent)]"
                         >
                           {k}
                         </kbd>

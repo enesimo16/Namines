@@ -46,7 +46,7 @@ export default function BadgeSnippet({ token, projectName }: { token: string; pr
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-10 w-[420px] max-w-[calc(100vw-2rem)] rounded-xl border border-surface-500 bg-surface-800 p-3 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+        <div className="absolute right-0 top-full mt-2 z-10 w-[420px] max-w-[calc(100vw-2rem)] rounded-xl border border-surface-500 bg-surface-800 p-3 shadow-[0_12px_40px_color-mix(in srgb, var(--color-scrim) 45%, transparent)]">
           <p className="text-content-muted text-xs mb-2 leading-relaxed">
             Paste this into your README. The badge reflects the schema&apos;s current
             structural score and updates on its own.

@@ -65,11 +65,22 @@
      bağlanmamıştı. "Renk tek yerden değişmiyor" şikâyetinin sebebi buydu.
 
      ── Nasıl denenir ──
-     · Daha AYDINLIK arayüz  → --ui-bg-l değerini artır (%19 → %26)
-     · Daha KOYU arayüz      → --ui-bg-l değerini azalt
-     · Farklı marka rengi    → --brand-hue (0-360) değiştir
-     · Daha CANLI            → --brand-chroma artır (0.07 → 0.14)
+     · Daha AYDINLIK arayüz  → --ui-bg-l değerini artır (%28 → %34, güvenli üst sınır %36)
+     · Daha KOYU arayüz      → --ui-bg-l değerini azalt (güvenli alt sınır %17)
+     · Farklı marka rengi    → --brand-hue değiştir (0-360; bazı yön önerileri
+       aşağıda — hepsi mevcut chroma'da denendi, gamut taşması yok)
+     · Daha CANLI            → --brand-chroma artır (0.09 → 0.14)
      · Tamamen nötr/gri      → --ui-chroma ve --brand-chroma = 0
+
+     ── Marka rengi yön önerileri (--brand-hue) ──
+     195  camgöbeği/turkuaz  (VARSAYILAN — "veri/terminal aracı")
+     150  yeşil-camgöbeği    (daha "canlı sistem", success-hue'ya (155) yakın —
+                               dikkatli kullan, buton ile "başarı" karışabilir)
+     230  gerçek mavi        (klasik "developer tool" — VS Code/GitHub ailesi)
+     30   bronz/amber-kahve  (sıcak, "zanaat" hissi — nötr sıcaklığıyla (--ui-hue)
+                               tutarlı olması için ikisini birlikte ayarla)
+     Kaçınılacaklar: 260-290 (indigo/mor — jenerik "AI SaaS" paleti, kasıtlı
+     olarak terk edildi) ve 45-70 (sarı/amber — kullanıcı talimatıyla yasak).
 
      OKLCH kullanılıyor çünkü açıklık (L) algısal: L'yi %4 artırmak her renk
      tonunda AYNI kadar aydınlanma demek. HSL'de bu doğru değil ve tonu
@@ -82,9 +93,20 @@
   --ui-bg-l: 34%;       /* ↑ ARTIR = DAHA AYDINLIK ARAYÜZ (güvenli aralık %17-%36) */
   --ui-bg-step: 3.6%;   /* yüzey basamakları arası açıklık farkı */
 
-  /* Marka / vurgu */
-  --brand-hue: 262;
-  --brand-chroma: 0.075;
+  /* Marka / vurgu.
+     Önceki değer (hue 262, chroma 0.075) nötr zeminin hue'suna (250) yalnızca
+     12° uzaktaydı — aksan neredeyse hiç ayrışmıyor, arayüzün tamamı TEK bir
+     boğuk mavi-gri leke gibi görünüyordu. Bu, "yapay/jenerik duruyor" geri
+     bildiriminin renkle ölçülebilir karşılığıydı: göz, "burası zemin" ile
+     "burası tıklanacak şey"i ayıramıyordu. Ayrıca 262° tam olarak indigo/mor
+     ailesinin bulunduğu açı — "her AI ürünü aynı boğuk mora boyanmış" hissinin
+     kaynağı da buydu.
+
+     Şimdi 55° uzakta ve camgöbeği/turkuaz ailesinde — "minimal lacivert"
+     kimliğini korurken (hâlâ desatüre, hâlâ parlak değil) veri/terminal
+     aracı hissini güçlendiriyor, jenerik "mor SaaS" paletinden ayrışıyor. */
+  --brand-hue: 195;
+  --brand-chroma: 0.09;
   --brand-l: 48%;       /* aksan ZEMİN olarak kullanılıyor, üstüne açık metin geliyor */
 
   /* Semantik durumlar — yalnızca TON. Açıklık, nötrlerle aynı formülden
@@ -166,14 +188,15 @@
   --color-surface-500: color-mix(in srgb, var(--content-primary) 14%, transparent);
   --color-surface-400: color-mix(in srgb, var(--content-primary) 22%, transparent);
 
-  /* Eş anlamlılar — FRONTEND.md §2 bu adlarla anıyor, bileşenlerde ikisi de
-     kullanımda. Tek kaynak yukarıdaki ölçek; bunlar yalnızca takma ad. */
+  /* `--color-bg-base`: surface-900'ün takma adı, yalnızca bu bir yerde
+     kullanımda (PNG dışa aktarımın zemin rengi, bkz. lib/designTokens.ts).
+     `bg-elevated`/`bg-surface`/`bg-surface-2` eş anlamlıları ve düz
+     `--color-line` (yalnızca -strong/-solid/-solid-strong sürümleri
+     kullanılıyor) KALDIRILDI — hiçbir bileşen onları okumuyordu. "Renk
+     paletini kısaltalım" isteğinin somut karşılığı: 44 token'dan 15'i hiç
+     kullanılmıyordu (bkz. FRONTEND.md §14). */
   --color-bg-base: var(--surface-900);
-  --color-bg-elevated: var(--surface-800);
-  --color-bg-surface: var(--surface-700);
-  --color-bg-surface-2: var(--surface-600);
 
-  --color-line: color-mix(in srgb, var(--content-primary) 8%, transparent);
   --color-line-strong: color-mix(in srgb, var(--content-primary) 16%, transparent);
   /* Opak karşılıkları: canvas ızgarası, minimap ve PNG/SVG dışa aktarımı
      alfayı saydam zemin üstünde hesapladığı için orada görünmez oluyorlardı. */
@@ -185,10 +208,6 @@
   --color-content-secondary: var(--content-secondary);
   --color-content-muted: var(--content-muted);
   --color-content-subtle: var(--content-subtle);
-
-  --color-ink: var(--content-primary);
-  --color-ink-secondary: var(--content-secondary);
-  --color-ink-muted: var(--content-muted);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
@@ -207,17 +226,6 @@
   --color-warning-subtle: var(--warning-subtle);
 
   --color-scrim: var(--scrim);
-
-  /* Geriye dönük adlar — referanslar kırılmasın diye İSİMLER korunuyor. */
-  --color-ocean-dark: var(--surface-900);
-  --color-ocean-mid: var(--surface-700);
-  --color-ocean-light: var(--surface-600);
-  --color-primary-glow: var(--accent);
-  --color-primary-glow-hover: var(--accent-hover);
-
-  --shadow-neon: 0 0 15px color-mix(in srgb, var(--accent) 45%, transparent);
-  --shadow-neon-hover: 0 0 25px color-mix(in srgb, var(--accent-hover) 70%, transparent);
-  --shadow-glass: 0 8px 32px 0 color-mix(in srgb, var(--scrim) 55%, transparent);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

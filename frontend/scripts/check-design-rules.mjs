@@ -78,7 +78,7 @@ const PALETTE_CLASS = new RegExp(
  * de yalnizca `#` biciminde olanlari goruyordu. Uc yerde React Flow minimap
  * maskesi ve tur overlay'i bu sekilde palet disinda kalmisti.
  */
-const RAW_FUNCTIONAL_COLOR = /rgba?\(\s*\d/g;
+const RAW_FUNCTIONAL_COLOR = /rgba?\(\s*\d/g;
 
 const PURE_BW =
   /(?<![\w-])(?:text-white|bg-white|bg-black|text-black|border-white|border-black)(?![\w/-])/g;

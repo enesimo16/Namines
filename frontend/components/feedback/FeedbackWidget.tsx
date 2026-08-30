@@ -63,7 +63,7 @@ export default function FeedbackWidget() {
       )}
 
       {open && (
-        <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-[9991] sm:w-[320px] max-w-full rounded-xl bg-surface-800 border border-content-primary/10 shadow-[0_20px_60px_rgba(0,0,0,0.6)] p-4 animate-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-[9991] sm:w-[320px] max-w-full rounded-xl bg-surface-800 border border-content-primary/10 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-4 animate-in slide-in-from-bottom-3 duration-200">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">Feedback</h3>
             <button onClick={() => setOpen(false)} className="p-1 text-content-muted hover:text-content-primary rounded-md hover:bg-white/[0.06] cursor-pointer" aria-label="Close">

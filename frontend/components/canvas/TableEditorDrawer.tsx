@@ -234,7 +234,7 @@ export default function TableEditorDrawer() {
         <Dialog.Overlay className="fixed inset-0 bg-scrim/60 backdrop-blur-sm z-[80] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
 
         <Dialog.Content
-          className="fixed top-0 right-0 h-full w-[400px] max-w-[92vw] bg-surface-800 border-l border-content-primary/10 shadow-[-4px_0_40px_rgba(0,0,0,0.5)] z-[90] flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          className="fixed top-0 right-0 h-full w-[400px] max-w-[92vw] bg-surface-800 border-l border-content-primary/10 shadow-[-4px_0_40px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] z-[90] flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]"
           aria-describedby="table-editor-desc"
           onInteractOutside={handleClose}
           onEscapeKeyDown={handleClose}

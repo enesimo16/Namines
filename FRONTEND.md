@@ -457,3 +457,110 @@ TPM duvarına çarpıyor (bkz. new-phase/34 §9.1).
 | Panel araç çubuğunun altında kalıyordu | React Flow'un `.react-flow__panel { margin: 15px }` kuralı aynı özgüllükte ve sonra yüklendiği için kazanıyordu → `!mt-[120px]` |
 | Minimap alttaki AI giriş kutusunu örtüyordu | 375px'te zaten okunmuyor → `md:` altında gizli |
 | `scrollbar-none` sınıfı üç yerde kullanılıyordu ama **Tailwind çekirdeğinde yok** | `@utility scrollbar-none` eklendi |
+
+## 14. Palet kısaltma, "yapay" görünüm, tablet ve büyük ekran (tamamlandı)
+
+> **Sorulan iş:** "renk paletlerimizi daha da kısabiliriz ve renk temasını
+> komple değiştirebiliriz şu an çok yapay duruyor, her cihaza (tablet/mobil)
+> uyumlu mu bilmiyoruz, benim monitörümde her şey çok büyük gözüküyor."
+
+### 14.1 Denetim betiğinin kendisi bir kontrol karakteri yüzünden ~2 hafta kör çalışıyordu
+
+`check-design-rules.mjs`'e daha önce eklenen `RAW_FUNCTIONAL_COLOR` regex'i
+(`rgba()`/`rgb()` yakalayan kural) hiçbir şeyi yakalamıyordu. Sebep: regex
+kaynağının başında **görünmez bir U+0008 BACKSPACE karakteri** vardı —
+muhtemelen önceki bir düzenlemede `\b` (regex kelime sınırı) bir Python
+string'i içinde yazılmış ve Python onu backspace kaçış dizisi olarak
+yorumlayıp dosyaya öyle yazmıştı. Terminalde, `Read` çıktısında, hatta
+`.source` çıktısında GÖRÜNMÜYORDU — yalnızca kod noktası dökümüyle
+(`codePointAt`) ortaya çıktı.
+
+Temizlendiğinde denetim aynı anda **42 ihlal** buldu — hiçbiri daha önce
+raporlanmamıştı:
+
+| Bulunan | Nerede |
+|---|---|
+| `rgba(79,70,229,…)` — indigo-600, §2'nin **açıkça yasakladığı** aile | `ConfirmDialog.tsx` (onay butonu gölgesi) |
+| `rgba(59,130,246,…)` — mavi-500 | `CanvasContextMenu.tsx` (bağlam menüsü gölgesi) |
+| `rgba(239,68,68,…)`, `rgba(225,29,72,…)` — kırmızı/gül | `TableNode.tsx`, `ConfirmDialog.tsx` |
+| `rgba(16,185,129,…)` — zümrüt | `TableNode.tsx` (başarı kenarlığı gölgesi) |
+| 36 × `rgba(0,0,0,…)` | 30+ modal/panel gölgesi ve karartması |
+
+Hepsi ilgili token'a (`--color-accent`, `--color-danger`, `--color-success`,
+`--color-scrim`) `color-mix()` ile bağlandı. **Denetimin gerçekten
+yakaladığı ayrıca doğrulandı**: yapay bir `rgba()` enjekte edilip çıkış
+kodunun 1 döndüğü görüldü, sonra temizlendi.
+
+**Ders:** "betik yeşil dönüyor" ile "kural uygulanıyor" aynı şey değil —
+betiğin kendisinin de test edilmesi gerekiyordu, tam da §1'in söylediği gibi.
+
+### 14.2 Palet kısaltıldı — 44 → 32 token
+
+Ölçüldü: 44 `--color-*` token'ından **15'i hiçbir bileşende, hiçbir JS
+köprüsünde kullanılmıyordu** (yalnızca kendi tanımlarında geçiyorlardı):
+`--color-ink`/`-secondary`/`-muted` (3), `--color-ocean-dark`/`-mid`/`-light`
+(3), `--color-primary-glow`/`-hover` (2), `--color-bg-elevated`/`-surface`/
+`-surface-2` (3), düz `--color-line` (yalnızca `-strong`/`-solid`/
+`-solid-strong` sürümleri kullanımdaydı) (1), `--shadow-neon`/`-hover`/
+`--shadow-glass` (3). Hepsi kaldırıldı; `--color-bg-base` tek başına kaldı
+çünkü PNG dışa aktarımın zemin rengi olarak gerçekten okunuyor
+(`lib/designTokens.ts`).
+
+### 14.3 "Yapay" görünümün ölçülebilir sebebi: aksan neredeyse zeminle aynı tondaydı
+
+Vurgu rengi (`--brand-hue: 262`) nötr zeminin tonundan (`--ui-hue: 250`)
+yalnızca **12° uzaktaydı** — göz, "burası zemin" ile "burası tıklanacak şey"i
+neredeyse ayıramıyordu, arayüzün tamamı tek bir boğuk mavi-gri leke gibi
+okunuyordu. Ayrıca 262° tam olarak indigo/mor ailesinin açısı — "her AI
+ürünü aynı boğuk mora boyanmış" hissinin renk karşılığı buydu.
+
+Vurgu **55° öteye**, camgöbeği/turkuaz ailesine (`--brand-hue: 195`)
+taşındı ve doygunluğu bir tık artırıldı (`--brand-chroma: 0.075 → 0.09`).
+Palet hâlâ desatüre ve "minimal lacivert" kimliğinde (parlak/neon değil),
+ama artık aksan gerçekten AYRIŞIYOR — ve "veri/terminal aracı" hissini
+jenerik "mor SaaS" paletinden daha net ayırıyor. `globals.css`'e beş alternatif
+yön (mavi, yeşil-camgöbeği, bronz…) ve kaçınılacak açı aralıkları not
+düşüldü — knob'u denemek isteyen tek satır değiştiriyor.
+
+### 14.4 "Her şey büyük görünüyor" — TableNode 320px → 288px
+
+Ölçüldü: 1920×1080'de %100 yakınlaştırmada bir tablo kartı ekranın
+**%16,7'sini** kaplıyordu — yatayda altı taneden fazlası sığmıyordu. Bu,
+"büyük monitörde her şey büyük" geri bildiriminin tek, ölçülebilir kaynağıydı
+(kök font-size 16px, DPR 1, tarayıcı zoom'u %100 — büyütme yoktu; sorun
+bileşenin kendi boyutuydu).
+
+- Genişlik `w-80`(320px) → `w-72`(288px), köşe `rounded-2xl` → `rounded-xl`
+- Başlık `py-3.5` → `py-2.5`, `text-base`(miras) → `text-sm`
+- Satır `py-2.5` → `py-2`, kolon adı `text-sm`(14px) → `text-[13px]`, `truncate` eklendi (güvenlik: uzun ad artık taşmıyor, kesiliyor)
+- `lib/schemaToFlow.ts`'deki yerleşim sabitleri SENKRON güncellendi (`NODE_HEADER` 64→48, `ROW_HEIGHT` 38→32, `GRID_SPACING_X` 400→340) — bileşenle sabitler birbirinden bağımsız kayarsa tablolar üst üste biner
+
+Sonuç aynı ekranda ~%25 daha fazla tablo, aynı okunabilirlikte (tarayıcıda
+yakından doğrulandı — bkz. ekran görüntüsü kaydı).
+
+### 14.5 Tablet — gerçek bir kırık bulundu ve düzeltildi
+
+768×1024 (tablet dikey) hiç test edilmemişti. Test edildiğinde: araç
+çubuğu bu genişlikte **masaüstü moduna** geçiyordu (`md:` = 768px eşiği)
+ama ~10 düğme + Approve CTA'sı bu genişliğe sığmıyordu — **Approve düğmesi
+ekranın sağından tamamen taşıyordu**, birincil eylem tıklanamaz hâldeydi.
+
+Kırılma noktası `md`(768px)'den `lg`(1024px)'e çekildi — hem araç çubuğunda
+hem onunla senkron çalışması gereken şema bilgi panelinde (aksi hâlde
+768-1023px aralığında ikisi üst üste binerdi, tam da §13'te mobilde
+düzeltilen hatanın aynısı). 1024px'te (yeni eşik) tüm düğmelerin sığdığı
+doğrulandı.
+
+**Bulma şekli önemli:** yalnızca 375px (mobil) ve 1920px+ (masaüstü) test
+edilmişti; 768-1023px aralığı hiç denenmemiş, "mobil kapsandı, masaüstü
+kapsandı, ikisi arasında sorun olmaz" varsayılmıştı. Bu varsayım yanlıştı.
+
+### 14.6 Sonuç
+
+- Palet: **44 → 32 token**, hâlâ tek merkezden (§11), artık ölçülebilir
+  şekilde de kısaltılmış
+- Denetim: kendi kendini doğrulayan hâle getirildi (enjekte edilen ihlal
+  gerçekten yakalanıyor)
+- Büyüklük: TableNode %10 daha dar, satırlar %16 daha kısa — üç ölçekte de
+  (375 / 768-1023 / 1920+) doğrulandı
+- Tablet: gerçek bir "birincil eylem erişilemez" hatası bulundu ve düzeltildi

@@ -44,7 +44,7 @@ export default function AIGatewayModal() {
       <div className="absolute inset-0" onClick={closeGateway} />
 
       {/* Main Container - Minimalist Dark Glass Theme */}
-      <div className="relative w-full max-w-md bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_rgba(0,0,0,0.8)] rounded-3xl backdrop-blur-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
+      <div className="relative w-full max-w-md bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 80%, transparent)] rounded-3xl backdrop-blur-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4.5 border-b border-surface-600/80 bg-surface-900/20">

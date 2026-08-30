@@ -135,7 +135,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       }}
       className={`
         relative w-[360px] max-w-[calc(100vw-32px)] rounded-2xl border
-        backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.45)]
+        backdrop-blur-xl shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 45%, transparent)]
         overflow-hidden pointer-events-auto
         ${BG_CLASS[toast.type]}
       `}

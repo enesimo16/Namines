@@ -5,13 +5,18 @@ export function schemaToFlow(schema: DatabaseSchema): { nodes: Node[]; edges: Ed
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
-  const GRID_SPACING_X = 400;
+  // TableNode küçültüldü (320px -> 288px genişlik, satır 38px -> 32px) — büyük
+  // şemalarda tuvaldeki her tablo orantısız yer kaplıyordu ve bu, "her şey
+  // büyük görünüyor" geri bildiriminin en somut kaynağıydı. Yerleşim
+  // sabitleri bileşenle SENKRON kalmalı; biri değişip diğeri değişmezse
+  // tablolar üst üste biner ya da aralarında gereksiz boşluk kalır.
+  const GRID_SPACING_X = 340;
 
-  // TableNode ölçüleri (bkz. components/canvas/nodes/TableNode.tsx): 320px genişlik,
-  // ~52px başlık + 12px iç boşluk, kolon başına ~38px.
-  const NODE_HEADER = 64;
-  const ROW_HEIGHT = 38;
-  const ROW_GAP = 60;
+  // TableNode ölçüleri (bkz. components/canvas/nodes/TableNode.tsx): 288px
+  // genişlik, ~48px başlık, kolon başına ~32px.
+  const NODE_HEADER = 48;
+  const ROW_HEIGHT = 32;
+  const ROW_GAP = 48;
 
   // Null guard — API may return PascalCase (Tables) or camelCase (tables)
   const tables: SchemaTable[] = (schema as any).Tables ?? schema.tables ?? [];

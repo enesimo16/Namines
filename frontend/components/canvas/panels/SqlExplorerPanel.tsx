@@ -154,7 +154,7 @@ export default function SqlExplorerPanel() {
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-surface-800 border border-content-primary/12 shadow-[0_10px_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-2xl"
+      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-surface-800 border border-content-primary/12 shadow-[0_10px_50px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-2xl"
     >
       {/* Panel Header */}
       <div className="flex items-center justify-between px-5 py-2.5 border-b border-content-primary/10 select-none shrink-0">

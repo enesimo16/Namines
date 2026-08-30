@@ -21,7 +21,7 @@ export default function GuestSchemaMigrationModal({
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-scrim/70 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col p-5 animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden flex flex-col p-5 animate-in zoom-in-95 duration-200">
 
         {/* Header */}
         <div className="flex items-center gap-2 pb-3 border-b border-content-primary/10 text-accent-text">

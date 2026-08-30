@@ -217,20 +217,26 @@ export default function ToolbarPanel() {
   return (
     <>
       {/*
-        Araç çubuğu MOBİLDE başlığın ALTINDA, tam genişlikte ve yatay kaydırılan
-        bir şerit.
+        Araç çubuğu MOBİLDE VE TABLETTE başlığın ALTINDA, tam genişlikte ve
+        yatay kaydırılan bir şerit; yalnızca `lg:` (1024px+) üstünde eski
+        sabit-konumlu desktop şeridine dönüyor.
 
         Önceden her boyutta `fixed top-2.5 right-6` idi: 375px'te on düğme
         başlık şeridinin (56px) üstüne biniyor, logo ve proje adı okunmaz hâle
         geliyordu. Alta almak da olmuyor — orada AI giriş kutusu var. Başlığın
         hemen altı, iki çakışmayı da önleyen tek yer.
+
+        Kırılma noktası `md`(768px) DEĞİL `lg`(1024px): tablet dikey modda
+        (768px) ~10 düğme + Approve CTA'sı sabit-konumlu şeritte sığmıyordu —
+        Approve düğmesi ekranın sağından TAMAMEN taşıyordu, birincil eylem
+        tıklanamaz hâldeydi. 1024px altında hâlâ kaydırılan şerit kullanılıyor.
       */}
       <div
         className="fixed z-[60] flex items-center gap-1.5
           top-[60px] left-2 right-2 overflow-x-auto scrollbar-none
           rounded-xl border border-content-primary/10 bg-surface-800/95 backdrop-blur-xl p-1.5
-          md:top-2.5 md:left-auto md:right-6 md:overflow-visible
-          md:rounded-none md:border-0 md:bg-transparent md:backdrop-blur-none md:p-0"
+          lg:top-2.5 lg:left-auto lg:right-6 lg:overflow-visible
+          lg:rounded-none lg:border-0 lg:bg-transparent lg:backdrop-blur-none lg:p-0"
       >
         {/* AI Explain Schema */}
         <button
@@ -271,7 +277,7 @@ export default function ToolbarPanel() {
           </button>
 
           {isShareOpen && (
-            <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-50 flex flex-col gap-0.5 animate-dropdown-in">
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 animate-dropdown-in">
               <button
                 onClick={handleShareReadOnly}
                 disabled={isSharing}
@@ -442,7 +448,7 @@ export default function ToolbarPanel() {
       {explanation !== null && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-scrim/70 backdrop-blur-sm" onClick={() => setExplanation(null)}>
           <div
-            className="bg-surface-800 border border-content-primary/12 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
+            className="bg-surface-800 border border-content-primary/12 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
             style={{ maxHeight: '80vh' }}
             onClick={e => e.stopPropagation()}
           >

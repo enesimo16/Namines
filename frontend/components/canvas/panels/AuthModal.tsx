@@ -151,7 +151,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-modal-title"
-        className="relative w-full max-w-sm bg-surface-800 border border-content-primary/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col p-5 sm:p-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-sm bg-surface-800 border border-content-primary/10 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden flex flex-col p-5 sm:p-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">

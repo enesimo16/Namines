@@ -456,29 +456,31 @@ export default function CanvasPage() {
             <MultiplayerCursors />
 
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
-            {/* Şema bilgi paneli mobilde araç çubuğunun ALTINA iniyor ve daralıyor:
-                araç çubuğu artık başlığın hemen altında (top-60px), panel eski
-                yerinde kalsaydı ikisi üst üste binerdi. */}
-            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 px-3 py-2 md:p-4 rounded-xl md:rounded-2xl !mt-[120px] md:!mt-4 !ml-2 md:!ml-4 w-auto max-w-[calc(100vw-1rem)] md:w-64 select-none pointer-events-auto">
+            {/* Şema bilgi paneli araç çubuğu kaydırılan şerit hâlindeyken (< lg,
+                yani mobil VE tablet) ALTINA iniyor ve daralıyor — araç çubuğuyla
+                AYNI kırılma noktasını (`lg`) kullanmak zorunda: ikisi farklı
+                noktada geçiş yapsaydı, 768-1023px aralığında biri diğerinin
+                üstüne binerdi (tam da bu ölçüde, tablet dikey modda, yaşanan buydu). */}
+            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 px-3 py-2 lg:p-4 rounded-xl lg:rounded-2xl !mt-[120px] lg:!mt-4 !ml-2 lg:!ml-4 w-auto max-w-[calc(100vw-1rem)] lg:w-64 select-none pointer-events-auto">
               {/* `!mt-`: React Flow'un `.react-flow__panel { margin: 15px }`
                   kuralı Tailwind sınıfıyla aynı özgüllükte ve stylesheet'i
                   sonra yüklendiği için kazanıyordu — panel araç çubuğunun
                   ALTINDA kalıyordu (ölçüldü: top 71px, araç çubuğu 60-112px).
 
-                  Mobilde tek satır: ad ve sayılar yan yana. Dikey yerleşim
-                  375px'te tuvalin üçte birini kaplıyordu ve kullanıcı asıl
-                  bakmak istediği şemayı göremiyordu. */}
-              <div className="flex items-baseline gap-3 md:block">
-                <h2 className="text-sm md:text-xl font-bold text-content-primary md:mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
-                <div className="text-[11px] md:text-xs text-content-secondary/80 flex gap-2 md:gap-4 font-medium shrink-0">
+                  Dar ekranlarda tek satır: ad ve sayılar yan yana. Dikey
+                  yerleşim 375px'te tuvalin üçte birini kaplıyordu ve kullanıcı
+                  asıl bakmak istediği şemayı göremiyordu. */}
+              <div className="flex items-baseline gap-3 lg:block">
+                <h2 className="text-sm lg:text-xl font-bold text-content-primary lg:mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
+                <div className="text-[11px] lg:text-xs text-content-secondary/80 flex gap-2 lg:gap-4 font-medium shrink-0">
                   <span>{schema.tables.length} Tables</span>
                   <span>{schema.relations.length} Relations</span>
                 </div>
               </div>
               {/* Branch denetimi ve tablo listesi masaüstü araçları: birincisi
-                  bir açılır menü, ikincisi uzun bir liste — ikisi de 375px'te
-                  tuvali tamamen örtüyordu. */}
-              <div className="hidden md:block">
+                  bir açılır menü, ikincisi uzun bir liste — ikisi de dar
+                  ekranlarda tuvali tamamen örtüyordu. */}
+              <div className="hidden lg:block">
                 <BranchControlPanel />
                 <TableZoomList tables={schema.tables} />
               </div>
@@ -587,7 +589,7 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
 
   return (
     <div className="fixed inset-0 z-[9999] bg-surface-900 flex flex-col items-center justify-center font-sans">
-      <div className="relative bg-surface-800 border border-content-primary/10 p-6 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col items-center text-center max-w-sm w-full mx-4 gap-5">
+      <div className="relative bg-surface-800 border border-content-primary/10 p-6 rounded-2xl shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col items-center text-center max-w-sm w-full mx-4 gap-5">
 
         <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-surface-600 border border-content-primary/10">
           <Loader2 className="w-5 h-5 text-accent-text animate-spin" />

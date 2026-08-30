@@ -177,7 +177,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
   });
 
   return (
-    <div className="fixed top-14 right-0 bottom-0 z-[45] w-[400px] max-w-[92vw] bg-surface-800 border-l border-content-primary/10 shadow-[-4px_0_40px_rgba(0,0,0,0.5)] flex flex-col font-sans animate-in slide-in-from-right duration-250">
+    <div className="fixed top-14 right-0 bottom-0 z-[45] w-[400px] max-w-[92vw] bg-surface-800 border-l border-content-primary/10 shadow-[-4px_0_40px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col font-sans animate-in slide-in-from-right duration-250">
 
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-content-primary/10">

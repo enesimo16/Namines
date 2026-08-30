@@ -229,7 +229,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="relative w-full max-w-2xl rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] p-5 md:p-6 flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="relative w-full max-w-2xl rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-5 md:p-6 flex flex-col max-h-[85vh] overflow-hidden">
 
         {/* Header */}
         <div className="flex justify-between items-start mb-5 select-none">
@@ -523,7 +523,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
         {/* Overwrite warning dialog — desatüre amber, veri kaybı riski (semantik) */}
         {showOverwriteWarning && (
           <div className="absolute inset-0 z-[110] bg-scrim/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
-            <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-2xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.6)] text-center space-y-4">
+            <div className="w-full max-w-sm bg-surface-800 border border-danger/30 rounded-2xl p-5 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] text-center space-y-4">
               <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-xl mx-auto">
                 <AlertTriangle className="w-5 h-5" />
               </div>

@@ -180,7 +180,7 @@ export default function TourOverlay() {
       {/* Tour Dialog Card */}
       <div
         style={cardStyle}
-        className="w-[320px] p-5 rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col gap-4 text-sans animate-in zoom-in-95 duration-200"
+        className="w-[320px] p-5 rounded-2xl bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col gap-4 text-sans animate-in zoom-in-95 duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between">

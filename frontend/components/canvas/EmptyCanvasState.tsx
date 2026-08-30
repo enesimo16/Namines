@@ -35,7 +35,7 @@ export default function EmptyCanvasState() {
 
   return (
     <div className="absolute inset-0 z-[40] flex items-center justify-center bg-scrim/75 backdrop-blur-sm pointer-events-auto">
-      <div className="relative w-full max-w-md p-8 rounded-3xl bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200 font-sans">
+      <div className="relative w-full max-w-md p-8 rounded-3xl bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 80%, transparent)] backdrop-blur-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Header Icon */}
         <div className="w-12 h-12 rounded-xl bg-content-primary/[0.06] border border-content-primary/12 text-accent-text flex items-center justify-center shadow-sm shrink-0">

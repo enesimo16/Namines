@@ -382,7 +382,7 @@ export default function LandingPage() {
                   </button>
 
                   {modelDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-[260px] rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(0,0,0,0.4)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
+                    <div className="absolute left-0 bottom-full mb-2 w-[260px] rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
                       {models.map(m => {
                         const isSelected = m.id === naiModel;
                         return (
@@ -447,7 +447,7 @@ export default function LandingPage() {
                   </button>
 
                   {dbDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_rgba(0,0,0,0.4)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
+                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-xl border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
                       {[
                         { value: 'MSSQL', label: 'SQL Server' },
                         { value: 'PostgreSQL', label: 'PostgreSQL' },

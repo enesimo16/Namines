@@ -152,7 +152,7 @@ export default function RegionalPromptPanel() {
       {promptHistory.length > 0 && isHistoryOpen && (
         <div
           ref={historyRef}
-          className="mb-2 w-[560px] max-w-[88vw] max-h-56 overflow-y-auto bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-2xl p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col gap-0.5"
+          className="mb-2 w-[560px] max-w-[88vw] max-h-56 overflow-y-auto bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-2xl p-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col gap-0.5"
         >
           {promptHistory.map((p, i) => (
             <button
@@ -174,7 +174,7 @@ export default function RegionalPromptPanel() {
 
       <form
         onSubmit={handleAction}
-        className="flex items-center gap-2 w-[560px] max-w-[88vw] bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-full pl-3 pr-1.5 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="flex items-center gap-2 w-[560px] max-w-[88vw] bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-full pl-3 pr-1.5 py-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 50%, transparent)]"
       >
         {promptHistory.length > 0 && (
           <button

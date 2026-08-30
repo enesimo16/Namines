@@ -40,7 +40,7 @@ export default function AlternativeCompareModal({ current, alternative, onKeepCu
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-surface-800 border border-content-primary/12 rounded-2xl w-[90vw] max-w-2xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden">
+      <div className="bg-surface-800 border border-content-primary/12 rounded-2xl w-[90vw] max-w-2xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
         <div className="border-b border-content-primary/10 px-5 py-3.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-lg flex items-center justify-center">

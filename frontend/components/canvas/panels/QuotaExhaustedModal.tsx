@@ -58,7 +58,7 @@ export default function QuotaExhaustedModal() {
         onClick={() => setExhaustedModalOpen(false)}
       />
 
-      <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
 
         {/* Header */}
         <div className="flex justify-between items-center px-5 pt-5 pb-3 border-b border-content-primary/10">
