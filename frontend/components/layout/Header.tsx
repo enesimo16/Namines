@@ -92,8 +92,14 @@ export default function Header() {
   return (
     <>
       <header className="flex items-center justify-between h-14 px-3 sm:px-6 bg-surface-800/85 backdrop-blur-md border-b border-content-primary/10 sticky top-0 z-50 w-full">
-        {/* Left — Logo + Workspace + Project Name */}
-        <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+        {/* Left — Logo + Workspace + Project Name
+
+            `<nav>` landmark'ı: ölçüldü, sayfada `<nav>` sayısı 0'dı. Ekran
+            okuyucu kullanıcısı gezinme bağlantılarını içerikten ayırt
+            edemiyordu (bkz. UI_UX_PRODUCT_AUDIT.md §4 / Y2). Bu şerit
+            GLOBAL gezinme — alanlar arası geçiş; araç çubuğu (tuval eylemleri)
+            ve bilgi paneli (proje içi) ayrı katmanlar, onlar nav değil. */}
+        <nav aria-label="Global" className="flex items-center gap-2 sm:gap-6 min-w-0">
           <button
             onClick={handleLogoClick}
             className="shrink-0"
@@ -173,7 +179,7 @@ export default function Header() {
               </button>
             )}
           </div>
-        </div>
+        </nav>
 
         {/* Right — Actions depending on path */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">

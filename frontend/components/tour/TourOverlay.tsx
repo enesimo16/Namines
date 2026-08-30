@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTourStore, TourStep } from '../../store/useTourStore';
+import { useSchemaStore } from '../../store/useSchemaStore';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const steps: TourStep[] = [
@@ -31,15 +32,28 @@ export default function TourOverlay() {
   const { isTourActive, activeStepIndex, hasCompletedTour, startTour, nextStep, prevStep, endTour } = useTourStore();
   const [coords, setCoords] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
-  // Auto-start tour if not completed
+  /**
+   * Tur, tuval BOŞKEN başlamıyor.
+   *
+   * <b>Düzeltilen çakışma:</b> yeni kullanıcı `/canvas`'a geldiğinde iki ayrı
+   * onboarding aynı anda çalışıyordu — `EmptyCanvasState` ("AI ile üret /
+   * Görselden içe aktar / Şablonlara göz at / Sıfırdan başla") ve 4 adımlık
+   * tur. Tur, ekranı karartıp asıl karşılama ekranının üstünü örtüyordu; yani
+   * kullanıcıya ne yapacağını anlatan şeyin önüne, ona ne yapacağını anlatan
+   * başka bir şey çıkıyordu.
+   *
+   * Boş tuvalde doğru onboarding `EmptyCanvasState`: dört somut başlangıç yolu
+   * sunuyor ve kullanıcı hemen çalışmaya başlıyor. Tur ise araç çubuğundaki
+   * özellikleri işaret ediyor — işaret edilecek bir şema OLDUĞUNDA anlamlı.
+   * Bu yüzden yalnızca tuvalde tablo varken başlıyor.
+   */
+  const hasTables = useSchemaStore(s => (s.schema?.tables.length ?? 0) > 0);
+
   useEffect(() => {
-    if (!hasCompletedTour) {
-      const timer = setTimeout(() => {
-        startTour();
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [hasCompletedTour, startTour]);
+    if (hasCompletedTour || !hasTables) return;
+    const timer = setTimeout(() => startTour(), 1500);
+    return () => clearTimeout(timer);
+  }, [hasCompletedTour, hasTables, startTour]);
 
   // Handle ESC key to cancel the tour
   useEffect(() => {

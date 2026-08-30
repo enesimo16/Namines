@@ -53,9 +53,13 @@ export default function RootLayout({
         <Header />
 
         {/* has-header: header yüksekliği kadar (52px) padding-top ile başlar */}
-        <div className="has-header flex flex-col flex-1" id="main-content">
+        {/* `<div>` DEĞİL `<main>`: "Skip to main content" bağlantısı vardı ama
+            gittiği yer bir landmark değildi — ekran okuyucu kullanıcısı
+            atlayabiliyor ama nereye atladığını duyamıyordu. Ölçüldü: sayfada
+            `<main>` sayısı 0'dı (bkz. UI_UX_PRODUCT_AUDIT.md §4 / Y2). */}
+        <main className="has-header flex flex-col flex-1" id="main-content">
           {children}
-        </div>
+        </main>
 
         {/* Global bildirim sistemi — tüm sayfalarda sağ alt köşede çalışır */}
         <ToastContainer />

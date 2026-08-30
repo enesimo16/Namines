@@ -36,6 +36,8 @@ const iconBtnActive =
 export default function ToolbarPanel() {
   const router = useRouter();
   const schema = useSchemaStore(s => s.schema);
+  // Şemaya bağlı eylemlerin görünürlüğü (bkz. aşağıdaki not).
+  const hasTables = (schema?.tables.length ?? 0) > 0;
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
   const dbType = useSchemaStore(s => s.dbType);
   const naiModel = useSchemaStore(s => s.naiModel);
@@ -366,6 +368,22 @@ export default function ToolbarPanel() {
           <FileCode2 className="w-4 h-4" />
         </button>
 
+        {/*
+          ŞEMAYA BAĞLI EYLEMLER — yalnızca tuvalde tablo varken.
+
+          <b>Düzeltilen sorun:</b> boş bir tuvalde 28 görünür buton ölçüldü ve
+          bunların arasında "Alternative", "Request Review", "Approve" gibi
+          sıfır tabloyla hiçbir anlamı olmayan eylemler vardı. Yeni kullanıcı
+          hangi eylemin şu an mümkün olduğunu ayırt edemiyordu — Phase 2'nin
+          sorduğu "şimdi ne yapmam gerekiyor?" sorusu birebir doğuyordu.
+
+          Gizlemek, devre dışı bırakmaya tercih edildi: devre dışı bir düğme
+          hâlâ görsel gürültü üretiyor ve sebebini yalnızca üzerine gelince
+          söylüyor. Boş tuvalde doğru yönlendirme zaten ekranın ortasında
+          (`EmptyCanvasState`).
+        */}
+        {hasTables && (
+        <>
         {/* Generate Alternative — second-phase/09-SEMA-ALTERNATIFLERI.md.
             Maliyet buton metninde açık: bu ikinci bir üretim turu. */}
         <button
@@ -403,6 +421,8 @@ export default function ToolbarPanel() {
           <span>Approve</span>
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
         </button>
+        </>
+        )}
       </div>
 
       {/* Migration Wizard */}

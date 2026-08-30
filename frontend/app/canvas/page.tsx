@@ -78,7 +78,34 @@ export default function CanvasPage() {
     return () => clearInterval(interval);
   }, [urlRoomId]);
 
+  /**
+   * Kullanıcı PAYLAŞILAN bir odaya mı katıldı, yoksa uygulama kendi mi oda üretti?
+   *
+   * <b>Düzeltilen hata (Kritik):</b> `useMultiplayer` oda kimliği yoksa rastgele
+   * bir tane üretip URL'e `pushState` ile yazıyor. Aşağıdaki `urlRoomId` bunu
+   * 500ms içinde okuyor ve şema henüz boş olduğu için sayfa
+   * `MultiplayerLoadingScreen`'i açıyordu. Sonuç: `/canvas`'a ilk kez gelen
+   * kullanıcının gördüğü İLK EKRAN şuydu:
+   *
+   *   "Room is Empty · Room ID: room-27c6f79b-… · no active peers online"
+   *
+   * Kullanıcı çok oyunculu bir şey istememişti, "oda" kavramını bilmiyordu ve
+   * ekranda ham bir UUID görüyordu. Asıl karşılama ekranı (`EmptyCanvasState`
+   * — "AI ile üret / Görselden içe aktar / Şablonlara göz at / Sıfırdan başla")
+   * bu yüzden yeni kullanıcıya HİÇ gösterilmiyordu.
+   *
+   * Ayrım, VARIŞ URL'inden yapılıyor: `useState` başlatıcısı ilk render'da,
+   * yani herhangi bir effect (ve dolayısıyla pushState) çalışmadan ÖNCE
+   * okunuyor. `?roomId=` ile gelindiyse gerçekten bir davet bağlantısı var.
+   */
+  const [joinedSharedRoom] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).has('roomId');
+  });
+
   const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, toggleEditMode, addTable, connectColumns, deleteTable, deleteRelation, undo, redo, canUndo, canRedo } = useSchemaStore();
+  // Boş şema kurulumu için (bkz. aşağıdaki karşılama efekti).
+  const loadEmptySchema = useSchemaStore(s => s.loadFromSchema);
   const { score, issues, assessment, isAnalyzing, isPanelOpen, setIsPanelOpen } = useDbaStore();
 
   const { projects, activeProjectId } = useProjectHistoryStore();
@@ -362,11 +389,54 @@ export default function CanvasPage() {
     }
   }, [isEditMode, showToast]);
 
+  /**
+   * Şemasız gelen kullanıcıya BOŞ BİR ŞEMA kuruluyor.
+   *
+   * Store `schema: null` ile başlıyor ve sayfa bu durumda erken dönüyordu;
+   * yani `/canvas`'a ilk kez gelen biri ya boş bir sayfa ya da (oda kimliği
+   * otomatik üretildiği için) "Room is Empty" ekranı görüyordu. İkisi de
+   * ürünün karşılama ekranı DEĞİL.
+   *
+   * Boş şema kurulunca normal tuval akışı çalışıyor ve `EmptyCanvasState`
+   * devreye giriyor: "AI ile üret / Görselden içe aktar / Şablonlara göz at /
+   * Sıfırdan başla". Paylaşılan odaya katılanlar hariç — orada şemanın
+   * karşı taraftan gelmesi bekleniyor.
+   */
+  useEffect(() => {
+    if (schema || joinedSharedRoom) return;
+    loadEmptySchema({
+      schemaId: typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 11),
+      name: 'Untitled Schema',
+      tables: [],
+      relations: [],
+    });
+  }, [schema, joinedSharedRoom, loadEmptySchema]);
+
   if (!schema) {
-    if (urlRoomId) {
+    // `joinedSharedRoom`: yalnızca kullanıcı GERÇEKTEN bir davet bağlantısıyla
+    // geldiyse eş bekleme ekranı gösteriliyor. Eskiden yalnızca `urlRoomId`
+    // kontrol ediliyordu ve o kimliği uygulamanın kendisi üretiyordu — bkz.
+    // yukarıdaki not.
+    if (joinedSharedRoom && urlRoomId) {
       return <MultiplayerLoadingScreen roomId={urlRoomId} onCancel={() => router.push('/')} />;
     }
-    return null;
+    // Şema yokken `null` DÖNÜLMÜYOR. Store'un başlangıç değeri `schema: null`
+    // olduğu için burası yeni kullanıcıda her zaman çalışıyordu ve ekrana
+    // BOMBOŞ bir sayfa basıyordu — `EmptyCanvasState` (asıl karşılama ekranı)
+    // `!schema` kapısının ötesinde kaldığı için hiç render edilmiyordu.
+    // Yukarıdaki efekt boş bir şema kurana kadar geçici bir yükleme durumu.
+    return (
+      <div
+        className="w-full flex items-center justify-center"
+        style={{ height: 'calc(100vh - 52px)' }}
+        role="status"
+        aria-live="polite"
+      >
+        <span className="text-body text-content-muted">Preparing your canvas…</span>
+      </div>
+    );
   }
 
   return (
