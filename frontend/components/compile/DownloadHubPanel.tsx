@@ -155,7 +155,7 @@ export default function DownloadHubPanel({ schema, dbType }: DownloadHubPanelPro
             {status === 'success' && downloadUrl && (
               <a
                 href={downloadUrl}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-control)] text-[11px] font-semibold bg-content-primary text-surface-900 hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-[var(--radius-control)] text-[11px] font-semibold bg-content-primary text-surface-900 hover:opacity-90 transition-opacity"
               >
                 <Download className="w-3.5 h-3.5" /> .zip
               </a>

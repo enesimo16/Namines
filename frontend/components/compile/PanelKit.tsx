@@ -39,7 +39,15 @@ export function Panel({
   );
 }
 
-/* ── Dar aksiyon şeridi — panel içi başlık YERİNE geçer. Sadece kontroller. ─── */
+/* ── Dar aksiyon şeridi — panel içi başlık YERİNE geçer. Sadece kontroller.
+   `h-9` SABİTTİ ve taşma varsa gizliyordu — 10 panelin de kullandığı bu tek
+   primitifte dar ekranda (ör. 390px) `left` yuvası (genelde 1-2 native
+   `<select>`) + `children` yuvası (ikon/aksiyon butonları) toplamı şeridin
+   genişliğini aşınca içerik panelin dışına taşıyordu ("bu tarz yerler
+   sığmıyorlar" geri bildirimi — DDL Script'teki DB seçici, Test Data'daki
+   sektör/satır seçicileri + Generate). Kaydırma çubuğu EKLEMEDİK (kullanıcı
+   FAB'da da "scroll olmasın, düz olsun" demişti) — bunun yerine şerit gerekince
+   İKİNCİ SATIRA sarıyor (`flex-wrap`, sabit yükseklik yerine `min-h`). */
 export function PanelBar({
   left,
   children,
@@ -48,14 +56,18 @@ export function PanelBar({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="shrink-0 flex items-center justify-between gap-3 h-9 px-2.5 border-b border-surface-500 bg-surface-800">
-      <div className="flex items-center gap-2 min-w-0">{left}</div>
+    <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 min-h-9 px-2.5 py-1.5 border-b border-surface-500 bg-surface-800">
+      <div className="flex flex-wrap items-center gap-2 min-w-0">{left}</div>
       <div className="flex items-center gap-1.5 shrink-0">{children}</div>
     </div>
   );
 }
 
-/* ── Segment seçici (dil, görünüm modu, motor) — native select yerine. ──────── */
+/* ── Segment seçici (dil, görünüm modu, motor) — native select yerine.
+   Dıştan `h-9`: aynı şeritte yan yana duran `IconButton`/`ActionButton` da
+   `h-9` — üçü farklı yükseklikteydi (24 / 32 / 36px), aynı satırda yan yana
+   gelince kullanıcının fark ettiği bariz bir hizasızlık yaratıyordu ("yeşil
+   butonlar ile beyaz butonlar aynı boyutta olmalı" geri bildirimi). ──────── */
 export function Segmented<T extends string>({
   value,
   onChange,
@@ -68,7 +80,7 @@ export function Segmented<T extends string>({
   ariaLabel: string;
 }) {
   return (
-    <div role="group" aria-label={ariaLabel} className="flex items-center gap-0.5 bg-surface-600 rounded-[var(--radius-control)] p-0.5">
+    <div role="group" aria-label={ariaLabel} className="flex items-center gap-0.5 h-9 bg-surface-600 rounded-[var(--radius-control)] p-0.5">
       {options.map(opt => {
         const active = opt.value === value;
         return (
@@ -76,7 +88,7 @@ export function Segmented<T extends string>({
             key={opt.value}
             onClick={() => onChange(opt.value)}
             aria-pressed={active}
-            className={`px-2 h-6 rounded-[var(--radius-control)] text-[10px] font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
+            className={`px-2.5 h-full rounded-[var(--radius-control)] text-[10px] font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
               active
                 ? 'bg-accent-subtle text-accent-text'
                 : 'text-content-muted hover:text-content-secondary'
@@ -90,7 +102,8 @@ export function Segmented<T extends string>({
   );
 }
 
-/* ── İkon butonu — 32px, aria-label ZORUNLU (FRONTEND.md §6). ───────────────── */
+/* ── İkon butonu — `h-9`: Segmented/ActionButton ile aynı satır yüksekliği
+   (bkz. yukarıdaki not). aria-label ZORUNLU (FRONTEND.md §6). ───────────────── */
 export function IconButton({
   icon: Icon,
   label,
@@ -112,7 +125,7 @@ export function IconButton({
       disabled={disabled || busy}
       title={label}
       aria-label={label}
-      className={`flex items-center justify-center w-8 h-8 rounded-[var(--radius-control)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
+      className={`flex items-center justify-center w-9 h-9 rounded-[var(--radius-control)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
         tone === 'primary'
           ? 'bg-accent-subtle text-accent-text hover:bg-accent-hover/30'
           : 'text-content-muted hover:text-content-primary hover:bg-surface-600'
@@ -191,10 +204,12 @@ export function CodeSurface({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ── Satır içi metrik — panel üstü özet şeridi için. ────────────────────────── */
+/* ── Satır içi metrik — panel üstü özet şeridi için. `PanelBar` gibi sabit
+   yükseklik yerine `flex-wrap` + `min-h` — dar ekranda metrikler ikinci
+   satıra sarsın, panelin dışına taşmasın. ────────────────────────── */
 export function StatStrip({ items }: { items: { label: string; value: React.ReactNode }[] }) {
   return (
-    <div className="shrink-0 flex items-center gap-4 px-3 h-8 border-b border-surface-500 bg-surface-800">
+    <div className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-1 px-3 min-h-8 py-1 border-b border-surface-500 bg-surface-800">
       {items.map(it => (
         <div key={it.label} className="flex items-baseline gap-1.5">
           <span className="text-[11px] font-mono font-semibold text-content-primary">{it.value}</span>

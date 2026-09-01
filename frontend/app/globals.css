@@ -233,9 +233,15 @@
   --color-line: color-mix(in srgb, var(--content-primary) 8%, transparent);
   --color-line-strong: color-mix(in srgb, var(--content-primary) 16%, transparent);
   /* Opak karşılıkları: canvas ızgarası, minimap ve PNG/SVG dışa aktarımı
-     alfayı saydam zemin üstünde hesapladığı için orada görünmez oluyorlardı. */
-  --color-line-solid: oklch(calc(var(--ui-bg-l) + 5%) var(--ui-chroma) var(--ui-hue));
-  --color-line-solid-strong: oklch(calc(var(--ui-bg-l) + 10%) var(--ui-chroma) var(--ui-hue));
+     alfayı saydam zemin üstünde hesapladığı için orada görünmez oluyorlardı.
+
+     +5%/+10% delta'ları --ui-bg-l %34 iken (eski zemin) yeterince görünürdü;
+     zemin %15'e indirilince (bkz. §15, Vercel karanlık modu hizalaması) aynı
+     delta neredeyse hiç fark üretmiyordu — ızgara noktaları ve minimap
+     düğümleri zeminle aynı tona yakınsadı ("canvas yapısı net değil" geri
+     bildirimi). Delta'lar zemin karardıkça büyümeli: +14%/+22%. */
+  --color-line-solid: oklch(calc(var(--ui-bg-l) + 14%) var(--ui-chroma) var(--ui-hue));
+  --color-line-solid-strong: oklch(calc(var(--ui-bg-l) + 22%) var(--ui-chroma) var(--ui-hue));
 
   --color-content-primary: var(--content-primary);
   --color-content-primary-hover: var(--content-primary-hover);

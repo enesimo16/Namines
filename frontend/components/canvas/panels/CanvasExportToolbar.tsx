@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import {
   ImageDown,
   FileImage,
@@ -7,10 +8,6 @@ import {
   Pencil,
   Eye,
   Camera,
-  Activity,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   FileCode,
   Braces,
   Database,
@@ -18,27 +15,41 @@ import {
   Archive,
   GitBranch,
   X,
-  Server
+  Server,
+  Wrench,
+  ShieldCheck,
+  BookOpen,
+  Settings,
+  Table,
+  History,
+  Network,
+  FileCode2
 } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useCanvasExport } from '../../../hooks/useCanvasExport';
 import { useDbaStore } from '../../../store/useDbaStore';
+import { useByokStore } from '../../../store/useByokStore';
 import { schemaService, scaffolderService } from '../../../services/api';
 
 import { DatabaseSchema } from '../../../types/schema';
 import { useRef, useState, useEffect } from 'react';
 import * as htmlToImage from 'html-to-image';
-import Draggable from 'react-draggable';
 import VisionUploadModal from './VisionUploadModal';
 import { parseSqlDdl } from '../../../lib/sqlImportParser';
 import { toPrismaSchema } from '../../../lib/prismaExporter';
 import { useToastStore } from '../../../store/useToastStore';
 import { token } from '../../../lib/designTokens';
 
-/** Floating toolbar — sol alt köşe. Export + Edit Mode toggle + DBA drawer toggle. */
+/** Sol-alt "toolkit" FAB'ı — canvas'a yerel araçlar (Import/DBA/Edit/Export) ve
+ *  üst navbardan taşınan az-kullanılan 7 araç (Explain/Settings/DB Import/
+ *  Browse Data/Migration/Cross-DB/Code Import) burada, tek dikey speed-dial'da. */
 export default function CanvasExportToolbar() {
   const { projectName, schema, dbType, isEditMode, toggleEditMode, loadFromSchema } = useSchemaStore();
   const { isExporting, exportAsPng, exportAsJpeg } = useCanvasExport();
+  // Yalnızca "AI Settings" mini dairesinde "ayarlı" noktasını göstermek için —
+  // asıl AI/BYOK ayarları hâlâ ToolbarPanel.tsx'in yönettiği modalda yaşıyor
+  // (bkz. aşağıdaki custom event notu).
+  const apiKey = useByokStore(s => s.apiKey);
   
   // DBA store hooks
   const isPanelOpen = useDbaStore(state => state.isPanelOpen);
@@ -53,18 +64,34 @@ export default function CanvasExportToolbar() {
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isSharedHostingModalOpen, setIsSharedHostingModalOpen] = useState(false);
   const [includeBiModule, setIncludeBiModule] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  // Dikey speed-dial: kapalıyken tek yuvarlak, açılınca küçük yuvarlaklar
+  // YUKARI doğru açılıyor (bkz. Toolbar Redesign Options artifact, seçenek 1 —
+  // kullanıcı onayı). Eskiden yatayda genişleyen bir div + onun altında ayrı
+  // bir "Export" dropdown'ı vardı; ikisi de artık aynı dikey desende.
+  const [isDialOpen, setIsDialOpen] = useState(false);
 
-  const nodeRef = useRef<HTMLDivElement>(null);
+  const dialRef = useRef<HTMLDivElement>(null);
   const sqlFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleOpenVision = () => {
       setIsVisionOpen(true);
-      setIsCollapsed(false);
+      setIsDialOpen(true);
     };
     window.addEventListener('namines:open-vision-modal', handleOpenVision);
     return () => window.removeEventListener('namines:open-vision-modal', handleOpenVision);
+  }, []);
+
+  // Dial dışına tıklayınca kapan — Share/More dropdown'larıyla aynı desen.
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dialRef.current && !dialRef.current.contains(e.target as Node)) {
+        setIsDialOpen(false);
+        setIsExportDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -302,128 +329,170 @@ export default function CanvasExportToolbar() {
         onChange={handleSqlFileChange}
       />
 
-      <Draggable nodeRef={nodeRef} bounds="parent" handle=".drag-handle">
-        <div 
-          id="canvas-toolbar"
-          ref={nodeRef} 
-          className="absolute bottom-6 left-6 z-50 flex items-center gap-1.5 p-1.5 rounded-[var(--radius-card)] bg-gradient-to-r from-surface-700/90 to-surface-600/80 backdrop-blur-md border border-content-primary/12 select-none transition-all duration-300"
-          style={{ width: isCollapsed ? '76px' : 'auto' }}
-        >
-          {/* Drag Handle */}
-          <div className="drag-handle cursor-move px-1.5 text-accent-hover/50 hover:text-content-primary transition-colors shrink-0" title="Drag">
-            <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
-              <circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/>
-              <circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/>
-              <circle cx="3" cy="13" r="1.5"/><circle cx="7" cy="13" r="1.5"/>
-            </svg>
+      {/* Dikey speed-dial "toolkit" — bkz. Toolbar Redesign Options artifact,
+          seçenek 1 (kullanıcı onayı). Eskiden yatayda genişleyen bir şerit +
+          onun İÇİNDE ayrı bir Export dropdown vardı; şimdi kapalıyken 40px'lik
+          tek daire, açılınca 11 araç YUKARI doğru açılıyor.
+
+          <b>İlk sürüm 11'i TEK dikey sütunda dizdi — "çok fazla oldular" geri
+          bildirimi geldi.</b> Uzun bir liste, sayıca aynı kalsa da GÖRSEL
+          olarak "bir sürü şey" hissi veriyordu. Çözüm sayıyı azaltmak değil
+          (hepsi gerçek özellik), YERLEŞİMİ değiştirmek: tek sütun yerine iki
+          küçük 4-sütunlu "pod" (grid) — aynı 11 araç artık 2 kompakt küme
+          gibi okunuyor, tek uzun şerit gibi değil. Yükseklik ~500px'ten
+          ~160px'e indi.
+
+          Pod 1 (üstte, FAB'dan uzak) = üst navbardan taşınan 7 az-kullanılan
+          araç. Pod 2 (altta, FAB'a yakın) = tuval-yerel 4 araç (Import/DBA/
+          Edit/Export). `id="canvas-toolbar"` sabit kaldı — TourOverlay.tsx bu
+          ID'yi hedefliyor. */}
+      <div id="canvas-toolbar" ref={dialRef} className="fixed bottom-6 left-6 z-50 select-none">
+        {/* `w-[184px]` ZORUNLU: bu kapsayıcı absolute-içinde-absolute (shrink-
+            to-fit) olduğu için, pod'ların `grid-cols-4` / `1fr` sütunları
+            belirsiz bir genişliğe bölüşmeye çalışıyor ve tarayıcı sütunları
+            neredeyse sıfıra küçültüp daireleri üst üste bindiriyordu (ölçüldü:
+            36px'lik daireler yalnızca ~10px arayla diziliyordu). Sabit
+            genişlik, 1fr'lere bölüşecek somut bir taban veriyor: 4×36 + 3×8
+            (gap) + 2×6 (pod padding) = 180px, +4px pay.
+
+            <b>REGRESYON.</b> Önceki turda buraya "kısa viewport'larda üst
+            araç çubuğuna değebiliyor" diye bir `max-h` + `overflow-y-auto` +
+            `overflow-x-visible` güvenlik payı eklenmişti. CSS'in kendi kuralı
+            gereği overflow-x/y çifti "biri auto biri visible" olamaz — visible
+            olan sessizce auto'ya döner (spec: computed overflow-x, visible
+            paired with non-visible overflow-y). Sonuç: istenmeyen bir YATAY
+            kaydırma çubuğu (görünür, teal renkli — `--color-accent-hover`
+            global scrollbar-color'dan) pod'ların altında belirdi.
+
+            İki pod'un gerçek yüksekliği ~160px — 620px'lik güvenlik payı
+            zaten hiçbir gerçek ekranda gerekmiyordu. Kaldırıldı, sabit
+            yükseklik kaldı. */}
+        <div className="absolute bottom-[52px] left-0 w-[184px] flex flex-col gap-2">
+
+          {/* ── Pod 1 — üst navbardan taşınan 7 araç (kullanıcı talebi: "az
+              kullanılanları sol alt toolbara al"). 4 sütun × 2 satır.
+
+              <b>REGRESYON.</b> Pod'un kendi arka plan/kenarlığı `isDialOpen`e
+              hiç bağlı değildi — yalnızca İÇİNDEKİ 11 daire ayrı ayrı
+              soluyordu. Dial kapanınca daireler görünmez oluyordu ama boş
+              yuvarlatılmış dikdörtgen ARKA PLANI tuvalde asılı kalıyordu
+              ("toolbarı kapatınca divler kalıyor" geri bildirimi). Pod'un
+              kendisi de aynı opacity geçişini almalı. */}
+          <div
+            className="grid grid-cols-4 gap-2 p-1.5 rounded-[var(--radius-card)] bg-surface-800/70 border border-content-primary/8"
+            style={{
+              opacity: isDialOpen ? 1 : 0,
+              pointerEvents: isDialOpen ? 'auto' : 'none',
+              transition: 'opacity 150ms var(--ease-out)',
+            }}
+          >
+            <DialMini
+              open={isDialOpen}
+              delayIndex={0}
+              label="Explain schema with AI"
+              onClick={() => { window.dispatchEvent(new CustomEvent('namines:explain-schema')); setIsDialOpen(false); }}
+              icon={<BookOpen className="w-4 h-4" />}
+            />
+            <DialMini
+              open={isDialOpen}
+              delayIndex={1}
+              label="AI & BYOK Settings"
+              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-ai-settings')); setIsDialOpen(false); }}
+              icon={<Settings className="w-4 h-4" />}
+              dot={apiKey ? 'success' : undefined}
+            />
+            <DialMini
+              open={isDialOpen}
+              delayIndex={2}
+              label="Import from a live database"
+              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-db-connect')); setIsDialOpen(false); }}
+              icon={<Database className="w-4 h-4" />}
+            />
+            <DialMini
+              open={isDialOpen}
+              delayIndex={3}
+              label="Browse live data (read-only)"
+              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-gateway')); setIsDialOpen(false); }}
+              icon={<Table className="w-4 h-4" />}
+            />
+            <DialMini
+              open={isDialOpen}
+              delayIndex={4}
+              label="Migration Engine"
+              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-migration')); setIsDialOpen(false); }}
+              icon={<History className="w-4 h-4" />}
+            />
+            <DialMini
+              open={isDialOpen}
+              delayIndex={5}
+              label="Cross-database relations"
+              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-cross-db')); setIsDialOpen(false); }}
+              icon={<Network className="w-4 h-4" />}
+            />
+            <DialMini
+              open={isDialOpen}
+              delayIndex={6}
+              label="Extract schema from code"
+              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-code-import')); setIsDialOpen(false); }}
+              icon={<FileCode2 className="w-4 h-4" />}
+            />
           </div>
 
-          {isCollapsed ? (
-            /* COLLAPSED STATE (Compact mode) */
-            <button
-              onClick={() => setIsCollapsed(false)}
-              className="p-2 rounded-[var(--radius-control)] bg-content-primary/[0.06] hover:bg-content-primary/12 border border-content-primary/12 text-content-primary transition-all shrink-0"
-              title="Expand Toolbar"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : (
-            /* EXPANDED STATE */
-            <>
-              {/* Whiteboard Vision Import Button */}
-              <button
-                id="canvas-vision-import-btn"
-                onClick={() => setIsVisionOpen(true)}
-                className="group/btn flex items-center gap-2 px-3 py-2 rounded-[var(--radius-control)] text-xs font-bold text-content-primary hover:text-content-primary hover:bg-content-primary/[0.06] transition-all border border-transparent hover:border-content-primary/12 relative shadow-sm overflow-hidden shrink-0"
-                title="Upload Whiteboard Photo"
-                aria-label="Import from Whiteboard"
+          {/* ── Pod 2 — tuval-yerel 4 araç. FAB'a en yakın, en sık kullanılan
+              küme. Export son sütunda: yandaki dropdown'ı sağa taşırken pod
+              içindeki komşu daireye binmiyor. ── */}
+          <div
+            className="grid grid-cols-4 gap-2 p-1.5 rounded-[var(--radius-card)] bg-surface-800/70 border border-content-primary/8"
+            style={{
+              opacity: isDialOpen ? 1 : 0,
+              pointerEvents: isDialOpen ? 'auto' : 'none',
+              transition: 'opacity 150ms var(--ease-out)',
+            }}
+          >
+            <DialMini
+              open={isDialOpen}
+              delayIndex={7}
+              label="Import from Image"
+              onClick={() => { setIsVisionOpen(true); setIsDialOpen(false); }}
+              icon={<Camera className="w-4 h-4" />}
+              btnId="canvas-vision-import-btn"
+            />
+            <DialMini
+              open={isDialOpen}
+              delayIndex={8}
+              label="DBA Analysis"
+              onClick={() => setIsPanelOpen(!isPanelOpen)}
+              active={isPanelOpen}
+              dot={issues.length > 0 ? 'alert' : undefined}
+              btnId="canvas-dba-inspect-btn"
+              icon={<ShieldCheck className="w-4 h-4" />}
+            />
+            <DialMini
+              open={isDialOpen}
+              delayIndex={9}
+              label={isEditMode ? 'Switch to view mode' : 'Switch to edit mode'}
+              onClick={toggleEditMode}
+              active={isEditMode}
+              btnId="canvas-edit-mode-btn"
+              icon={isEditMode ? <Eye className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+            />
+            <div className="relative">
+              <DialMini
+                open={isDialOpen}
+                delayIndex={10}
+                label="Export diagram…"
+                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                active={isExportDropdownOpen}
+                btnId="canvas-export-dropdown-btn"
+                disabled={isCurrentlyExporting}
+                icon={isCurrentlyExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageDown className="w-4 h-4" />}
+              />
+
+              {/* Dropdown Menu — dial'ın sağına açılıyor */}
+              {isExportDropdownOpen && (
+              <div
+                className="absolute bottom-0 left-full ml-2 w-52 max-h-[min(480px,calc(100vh-32px))] overflow-y-auto rounded-[var(--radius-card)] bg-surface-900/95 border border-content-primary/12 flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200"
               >
-                <span className="absolute inset-0 bg-accent-hover/5 opacity-50 group-hover/btn:opacity-100 transition-opacity duration-300" />
-                <Camera className="w-3.5 h-3.5 text-content-primary relative z-10" />
-                <span className="relative z-10">Import</span>
-              </button>
-
-              <div className="w-px h-5 bg-content-primary/12 mx-0.5 shrink-0" />
-
-              {/* DBA Button */}
-              <button
-                id="canvas-dba-inspect-btn"
-                onClick={() => setIsPanelOpen(!isPanelOpen)}
-                className={`group/btn flex items-center gap-2 px-3 py-2 rounded-[var(--radius-control)] text-xs font-bold transition-all relative overflow-hidden border shrink-0 ${
-                  isPanelOpen 
-                    ? 'bg-content-primary/12 text-content-primary border-white/25' 
-                    : 'text-success hover:text-success-text hover:bg-success-subtle border-transparent hover:border-success/30'
-                }`}
-                title="Inspect Database DBA Analysis"
-                aria-label="DBA Analysis"
-              >
-                <svg className="w-3.5 h-3.5 text-success relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2L20 6.5V17.5L12 22L4 17.5V6.5L12 2Z" className="opacity-80" />
-                  <circle cx="12" cy="12" r="3" className="fill-current text-content-primary" />
-                  <path d="M12 2v7M12 15v7M4 6.5l8 5.5M20 6.5l-8 5.5M4 17.5l8-5.5M20 17.5l-8-5.5" className="opacity-60 text-success" />
-                </svg>
-                <span className="relative z-10">DBA</span>
-                
-                {issues.length > 0 && (
-                  <span className="relative z-10 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-danger"></span>
-                  </span>
-                )}
-              </button>
-
-              <div className="w-px h-5 bg-content-primary/12 mx-0.5 shrink-0" />
-
-              {/* Edit Mode Toggle */}
-              <button
-                id="canvas-edit-mode-btn"
-                onClick={toggleEditMode}
-                className={`flex items-center gap-2 px-3 py-2 rounded-[var(--radius-control)] text-xs font-medium transition-all duration-300 shrink-0 ${isEditMode ? 'bg-content-primary/12 text-content-primary border border-white/15' : 'text-content-muted hover:text-content-primary hover:bg-white/5 border border-transparent'}`}
-                title={isEditMode ? 'Switch to view mode' : 'Switch to edit mode'}
-                aria-label={isEditMode ? 'Disable edit mode' : 'Enable edit mode'}
-                aria-pressed={isEditMode}
-              >
-                {isEditMode ? (
-                  <>
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>View</span>
-                  </>
-                ) : (
-                  <>
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Edit</span>
-                  </>
-                )}
-              </button>
-
-              <div className="w-px h-5 bg-content-primary/12 mx-0.5 shrink-0" />
-
-              {/* Export Dropdown Button */}
-              <div className="relative shrink-0">
-                <button
-                  id="canvas-export-dropdown-btn"
-                  onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-                  disabled={isCurrentlyExporting}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-[var(--radius-control)] text-xs font-bold transition-all border ${
-                    isExportDropdownOpen
-                      ? 'bg-white/[0.08] text-content-primary border-white/25 shadow-none'
-                      : 'text-content-secondary hover:text-content-primary hover:bg-white/[0.06] border-transparent hover:border-content-primary/12'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title="Export diagram..."
-                  aria-label="Export"
-                >
-                  {isCurrentlyExporting ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-content-primary" />
-                  ) : (
-                    <ImageDown className="w-3.5 h-3.5" />
-                  )}
-                  <span>Export</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${isExportDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Dropdown Menu (Opens upwards) */}
-                {isExportDropdownOpen && (
-                  <div className="absolute bottom-full left-0 mb-2 w-52 rounded-[var(--radius-card)] bg-surface-900/95 border border-content-primary/12 flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200">
                     <div className="px-2.5 py-1.5 text-micro font-extrabold text-content-subtle uppercase tracking-wider select-none">
                       Image Export
                     </div>
@@ -565,23 +634,27 @@ export default function CanvasExportToolbar() {
                       <span>Import SQL DDL (.sql)</span>
                     </button>
                   </div>
-                )}
-              </div>
-
-              <div className="w-px h-5 bg-content-primary/12 mx-0.5 shrink-0" />
-
-              {/* Collapse Toggle Button */}
-              <button
-                onClick={() => setIsCollapsed(true)}
-                className="p-2 rounded-[var(--radius-control)] hover:bg-surface-700 text-content-subtle hover:text-content-secondary transition-all shrink-0"
-                title="Collapse Toolbar"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            </>
-          )}
+              )}
+            </div>
+          </div>
         </div>
-      </Draggable>
+
+        {/* Ana FAB — daireye basınca dial açılır/kapanır; ikon + (plus) 45°
+            dönüp X'e dönüşür, ayrı bir "kapat" ikonu taşımaya gerek kalmadan. */}
+        <button
+          onClick={() => setIsDialOpen(v => !v)}
+          className={`relative z-10 w-11 h-11 rounded-full flex items-center justify-center border shadow-[0_6px_20px_color-mix(in srgb,var(--color-scrim)_55%,transparent)] transition-all duration-200 cursor-pointer ${
+            isDialOpen
+              ? 'bg-content-primary border-content-primary text-surface-900'
+              : 'bg-surface-700 border-content-primary/14 text-content-primary hover:border-accent-hover/50 hover:bg-surface-600'
+          }`}
+          title={isDialOpen ? 'Close toolkit' : 'Open toolkit: import, DBA, edit mode, export'}
+          aria-label={isDialOpen ? 'Close toolkit' : 'Open toolkit'}
+          aria-expanded={isDialOpen}
+        >
+          <Wrench className={`w-[18px] h-[18px] transition-transform duration-200 ${isDialOpen ? 'rotate-45' : ''}`} />
+        </button>
+      </div>
 
       {/* Vision Import Modal */}
       <VisionUploadModal
@@ -761,5 +834,83 @@ export default function CanvasExportToolbar() {
         </div>
       )}
     </>
+  );
+}
+
+// ── Speed-dial mini daire ────────────────────────────────────────────────
+// `#canvas-toolbar`'daki 11 araç ortak bir görünüm paylaşıyor: 36px GÖRSEL
+// daire (`tap-44` ile 44px dokunma hedefi — FRONTEND.md §6), hover'da
+// ÜSTTE açılan etiket, dial kapalıyken görünmez+küçük, açılınca kademeli
+// (staggered) beliriyor. Etiket sağda değil ÜSTTE: iki pod artık 4 sütunlu
+// bir grid, sağdaki komşu daireye binmemesi için (bkz. Toolbar Redesign
+// Options artifact'te Option 2'nin canlı testinde bulunan hata: paylaşılmayan
+// taban stil, bir varyantın ikonlarını arka plansız bıraktı — aynı riski
+// tekrarlamamak için taban stil hâlâ tek yerden).
+function DialMini({
+  open,
+  delayIndex,
+  label,
+  onClick,
+  icon,
+  active,
+  dot,
+  disabled,
+  btnId,
+}: {
+  open: boolean;
+  delayIndex: number;
+  label: string;
+  onClick: () => void;
+  icon: React.ReactNode;
+  active?: boolean;
+  /** 'alert': kırmızı, nabız atan (DBA sorunları gibi dikkat gerektiren durumlar).
+   *  'success': sabit yeşil nokta (bir şeyin "ayarlı/aktif" olduğunu gösterir,
+   *  alarm değildir — bkz. AI & BYOK Settings). */
+  dot?: 'alert' | 'success';
+  disabled?: boolean;
+  btnId?: string;
+}) {
+  return (
+    <div
+      className="group/mini relative"
+      style={{
+        opacity: open ? 1 : 0,
+        transform: open ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.7)',
+        pointerEvents: open ? 'auto' : 'none',
+        transition: `opacity 200ms var(--ease-out), transform 200ms var(--ease-out)`,
+        transitionDelay: open ? `${delayIndex * 35}ms` : '0ms',
+      }}
+    >
+      <button
+        id={btnId}
+        onClick={onClick}
+        disabled={disabled}
+        className={`tap-44 relative w-9 h-9 rounded-full flex items-center justify-center border shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+          active
+            ? 'bg-content-primary/12 border-white/25 text-content-primary'
+            : 'bg-surface-700 border-content-primary/12 text-content-muted hover:text-content-primary hover:border-accent-hover/50 hover:bg-surface-600'
+        }`}
+        aria-label={label}
+      >
+        {icon}
+        {dot === 'alert' && (
+          <span className="absolute top-0 right-0 flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-danger" />
+          </span>
+        )}
+        {dot === 'success' && (
+          <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-success" />
+        )}
+      </button>
+
+      {/* Hover etiketi — ÜSTTE açılır (4 sütunlu grid'de sağa açsaydı komşu
+          sütundaki daireye binerdi). z-20: pod arka planının üstünde kalsın. */}
+      <span
+        className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-2.5 py-1.5 rounded-[var(--radius-control)] bg-surface-800 border border-content-primary/12 text-xs font-semibold text-content-secondary opacity-0 group-hover/mini:opacity-100 transition-opacity duration-150 pointer-events-none shadow-md"
+      >
+        {label}
+      </span>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import { Node, Edge, Connection, OnNodesChange, OnEdgesChange, applyNodeChanges,
 import localforage from 'localforage';
 import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../types/schema';
 import { schemaToFlow } from '../lib/schemaToFlow';
+import { getLayoutedNodes } from '../lib/autoLayout';
 
 export type DbType = 'MSSQL' | 'PostgreSQL' | 'MySQL' | 'SQLite' | 'Oracle' | 'MariaDB' | 'Db2' | 'Firebird' | 'Spanner' | 'Redshift';
 
@@ -105,6 +106,9 @@ interface SchemaState {
   recordGenerationSource: (prompt: string, answers: Record<string, string> | null) => void;
   loadFromSchema: (schema: DatabaseSchema, nodePositions?: Record<string, { x: number; y: number }>, preserveProjectName?: boolean) => void;
   applyRevision: (partialSchema: DatabaseSchema) => void;
+  /** Mevcut node/edge kümesini dagre ile yeniden dizer (bkz. lib/autoLayout.ts).
+   *  Manuel "Tidy Up" tetikleyicisi — geri alınabilir (undo geçmişine yazar). */
+  autoLayout: () => void;
   resetProject: () => void;
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -222,10 +226,16 @@ export const useSchemaStore = create<SchemaState>()(
 
       loadFromSchema: (schema, nodePositions, preserveProjectName) => {
         const { nodes, edges } = schemaToFlow(schema);
+        // `nodePositions` VERİLMİŞSE çağıran zaten bir yerleşim biliyor demektir
+        // (kaydedilmiş proje, branch/diff karşılaştırması, multiplayer senkronu) —
+        // o zaman dokunma, kullanıcının/geçmişin pozisyonlarını ez. VERİLMEMİŞSE
+        // bu TAZE bir şema (AI üretimi, şablon yükleme, import) — schemaToFlow'un
+        // kare-kök ızgarası ilişkileri hesaba katmıyor (bkz. lib/autoLayout.ts
+        // dosya başı yorumu), o yüzden burada otomatik dagre yerleşimi uygula.
         const restoredNodes = nodePositions
           ? nodes.map(n => nodePositions[n.id] ? { ...n, position: nodePositions[n.id] } : n)
-          : nodes;
-        
+          : getLayoutedNodes(nodes, edges);
+
         const currentName = get().projectName || 'Yeni Proje';
         const isCustomName = currentName !== 'Yeni Proje' && currentName !== 'Shared Room Project' && currentName.trim() !== '';
 
@@ -275,6 +285,15 @@ export const useSchemaStore = create<SchemaState>()(
 
       onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
       onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
+
+      autoLayout: () => {
+        const state = get();
+        if (!state.schema || state.nodes.length === 0) return;
+        // Geri alınabilir olsun — beğenmezse Ctrl+Z ile eski elle-dizilmiş
+        // konumlara dönebilsin.
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        set({ nodes: getLayoutedNodes(state.nodes, state.edges) });
+      },
 
       // ── Faz 3: Düzenleme modu actions ─────────────────────────────────────
 

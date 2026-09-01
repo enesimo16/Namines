@@ -177,11 +177,22 @@ export default function CompilePage() {
   const totalColumns = schema.tables.reduce((sum, t) => sum + t.columns.length, 0);
 
   return (
-    <div className="h-[calc(100vh-56px)] bg-surface-900 text-content-primary flex font-sans overflow-hidden">
+    <div className="h-[calc(100vh-56px)] bg-surface-900 text-content-primary flex flex-col lg:flex-row font-sans overflow-hidden">
 
-      {/* Sol dar navigasyon — ikon + kısa etiket, aktif durum aksan ailesinde */}
-      <aside className="w-48 shrink-0 bg-surface-800 border-r border-surface-500 flex flex-col">
-        <div className="p-2.5">
+      {/* Sol navigasyon — MASAÜSTÜNDE (lg+) dikey sidebar, DAR EKRANDA yatay
+          kaydırılan sekme şeridi (bkz. ToolbarPanel.tsx'in aynı deseni —
+          proje zaten mobil araç çubuklarını böyle çözüyor).
+
+          <b>REGRESYON.</b> Bu kabuk hiç responsive DEĞİLDİ: sidebar sabit
+          `w-48` idi, 390px genişlikte viewport'un YARISINI yiyip içerik
+          sütununu tek satırlık koda sığmayan bir şeride sıkıştırıyordu
+          ("approve'dan sonrası bütün panellerde div sorunu" geri bildirimi —
+          canlı ölçtüm: sidebar 390px'in ~200px'ini kaplıyordu). */}
+      <aside className="shrink-0 bg-surface-800 border-b lg:border-b-0 lg:border-r border-surface-500 flex flex-col lg:w-48">
+        {/* Masaüstü: "Geri dön" ayrı satır + proje adı bloğu. Dar ekranda bu
+            ikisi TEK kompakt satıra iner — sekme şeridi zaten kendi satırını
+            alacak, iki ayrı blok dar ekranda gereksiz dikey yer yerdi. */}
+        <div className="hidden lg:block p-2.5">
           <button
             onClick={() => router.push('/canvas')}
             className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors cursor-pointer text-[11px] font-medium"
@@ -190,13 +201,26 @@ export default function CompilePage() {
             <span>Back to Diagram</span>
           </button>
         </div>
-
-        <div className="px-3 pb-2.5 border-b border-surface-500">
+        {/* "{N} tables · {M} rel." satırı buradan silindi — sağdaki "Schema
+            Info" rayında (aşağıda, TABLES/COLUMNS/RELATIONS kartları) zaten
+            var, tekrar tekrarıydı ("zaten sağda var" geri bildirimi). */}
+        <div className="hidden lg:block px-3 pb-2.5 border-b border-surface-500">
           <h1 className="text-[13px] font-bold text-content-primary truncate leading-tight" title={schema.name}>{schema.name || 'Untitled Schema'}</h1>
-          <p className="text-[10px] text-content-muted mt-0.5 font-mono">{schema.tables.length} tables · {schema.relations.length} rel.</p>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+        <div className="flex lg:hidden items-center gap-2 h-10 px-2 border-b border-surface-500 shrink-0">
+          <button
+            onClick={() => router.push('/canvas')}
+            aria-label="Back to Diagram"
+            title="Back to Diagram"
+            className="tap-44 shrink-0 flex items-center justify-center w-7 h-7 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </button>
+          <h1 className="text-[12px] font-bold text-content-primary truncate min-w-0 flex-1" title={schema.name}>{schema.name || 'Untitled Schema'}</h1>
+        </div>
+
+        <nav className="flex lg:flex-1 lg:flex-col overflow-x-auto lg:overflow-x-visible lg:overflow-y-auto gap-1 lg:gap-0 lg:space-y-0.5 p-1.5 scrollbar-none">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -204,15 +228,18 @@ export default function CompilePage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex items-center gap-2 w-full pl-2.5 pr-2 py-1.5 rounded-[var(--radius-control)] text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
                   isActive
                     ? 'bg-accent-subtle text-accent-text'
                     : 'text-content-muted hover:text-content-secondary hover:bg-white/[0.04]'
                 }`}
               >
-                {isActive && <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-accent-hover" />}
+                {/* Masaüstünde SOL kenar çubuğu, dar ekranın yatay şeridinde ALT
+                    kenar çubuğu — dikey/yatay akışa göre aynı "aktif" dilini konuşur. */}
+                {isActive && <span className="hidden lg:block absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-accent-hover" />}
+                {isActive && <span className="lg:hidden absolute left-1.5 right-1.5 bottom-0 h-0.5 rounded-full bg-accent-hover" />}
                 <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{tab.label}</span>
+                <span className="lg:truncate">{tab.label}</span>
               </button>
             );
           })}
@@ -220,10 +247,12 @@ export default function CompilePage() {
       </aside>
 
       {/* Orta içerik sütunu */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
 
-        {/* Ortak üst şerit — panel başına tekrar başlık çizmek yerine tek yerde */}
-        <div className="flex items-center justify-between shrink-0 h-10 px-4 bg-surface-800 border-b border-surface-500">
+        {/* Ortak üst şerit — panel başına tekrar başlık çizmek yerine tek yerde.
+            `flex-wrap` + `min-h`: DDL/ER kontrolleri (DB seçici, diyagram tipi +
+            indir butonu) dar ekranda sığmazsa ikinci satıra sarsın. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 shrink-0 min-h-10 px-3 lg:px-4 py-1.5 bg-surface-800 border-b border-surface-500">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-accent-text">
             <activeMeta.icon className="w-3.5 h-3.5" />
             <span>{activeMeta.label}</span>

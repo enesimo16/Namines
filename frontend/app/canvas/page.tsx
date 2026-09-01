@@ -516,7 +516,11 @@ export default function CanvasPage() {
               nodeColor={(node) => {
                 const tableColor = (node.data as any)?.table?.color;
                 if (tableColor) return tableColor;
-                return isEditMode ? token('--color-accent-hover') : token('--color-line-solid');
+                // `--color-line-solid` (ızgara noktası deltası) minimap'in kendi
+                // zemininden (surface-700) daha KOYU kalıyordu — renksiz tablolar
+                // haritada görünmüyordu. `-strong` varyantı zeminden belirgin
+                // şekilde açık, tıpkı paylaşım sayfasının minimap'inde olduğu gibi.
+                return isEditMode ? token('--color-accent-hover') : token('--color-line-solid-strong');
               }}
               maskColor="color-mix(in srgb, var(--color-scrim) 70%, transparent)"
               className="!hidden md:!block bg-surface-700 border border-content-primary/12 rounded-[var(--radius-modal)] overflow-hidden shadow-lg"

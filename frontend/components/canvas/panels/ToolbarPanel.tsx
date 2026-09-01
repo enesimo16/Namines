@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, History, Users, Terminal, Settings, Link2, Loader2, Database, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Table, Sparkles, Network, FileCode2 } from 'lucide-react';
+import { ArrowRight, Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Sparkles, Wand2 } from 'lucide-react';
 import MarkdownLite from '../../common/MarkdownLite';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useReactFlow } from '@xyflow/react';
@@ -10,7 +10,6 @@ import { useMultiplayerStore } from '../../../store/useMultiplayerStore';
 import { useBranchStore } from '../../../store/useBranchStore';
 import { useSqlExplorerStore } from '../../../store/useSqlExplorerStore';
 import { useToastStore } from '../../../store/useToastStore';
-import { useByokStore } from '../../../store/useByokStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useAIGateway } from '../../../hooks/useAIGateway';
@@ -39,6 +38,7 @@ export default function ToolbarPanel() {
   // Şemaya bağlı eylemlerin görünürlüğü (bkz. aşağıdaki not).
   const hasTables = (schema?.tables.length ?? 0) > 0;
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
+  const autoLayout = useSchemaStore(s => s.autoLayout);
   const dbType = useSchemaStore(s => s.dbType);
   const naiModel = useSchemaStore(s => s.naiModel);
   const lastGenerationPrompt = useSchemaStore(s => s.lastGenerationPrompt);
@@ -61,13 +61,17 @@ export default function ToolbarPanel() {
   const isSqlExplorerOpen = useSqlExplorerStore(state => state.isOpen);
   const toggleSqlExplorer = useSqlExplorerStore(state => state.toggleOpen);
 
-  const apiKey = useByokStore(s => s.apiKey);
   const showToast = useToastStore(state => state.showToast);
 
   const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const [isSharing, setIsSharing] = useState(false);
-  const [isExplaining, setIsExplaining] = useState(false);
+  // Yalnızca setter kullanılıyor — "Explain schema" düğmesi (dolayısıyla
+  // yükleniyor göstergesi) CanvasExportToolbar.tsx'in FAB'ına taşındı, bu
+  // dosyada artık okunan bir spinner yok, ama handleExplainSchema hâlâ
+  // isExplaining'i true/false yapıyor (ileride buraya bir gösterge eklenmek
+  // istenirse diye tutuldu).
+  const [, setIsExplaining] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explanationCopied, setExplanationCopied] = useState(false);
   const [isRequestingReview, setIsRequestingReview] = useState(false);
@@ -81,10 +85,6 @@ export default function ToolbarPanel() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const openAiSettings = () => {
-    window.dispatchEvent(new CustomEvent('namines:open-ai-settings'));
-  };
 
   const handleExplainSchema = async () => {
     if (!schema || schema.tables.length === 0) {
@@ -101,6 +101,35 @@ export default function ToolbarPanel() {
       setIsExplaining(false);
     }
   };
+
+  // Explain/DB Import/Browse Data/Migration/Cross-DB/Code Import — az kullanılan
+  // bu 6 aracın DÜĞMESİ artık üst araç çubuğunda değil, sol-alt "toolkit"
+  // FAB'ında (bkz. CanvasExportToolbar.tsx). State + modal + iş mantığı burada
+  // KALDI (taşımak gereksiz churn olurdu) — FAB sadece `namines:open-ai-settings`
+  // ile aynı desende bir custom event fırlatıyor, burası dinleyip açıyor.
+  useEffect(() => {
+    const openExplain = () => handleExplainSchema();
+    const openDbConnect = () => setIsDbConnectOpen(true);
+    const openGateway = () => setIsGatewayOpen(true);
+    const openMigration = () => setIsMigrationOpen(true);
+    const openCrossDb = () => setIsCrossDbOpen(true);
+    const openCodeImport = () => setIsCodeImportOpen(true);
+    window.addEventListener('namines:explain-schema', openExplain);
+    window.addEventListener('namines:open-db-connect', openDbConnect);
+    window.addEventListener('namines:open-gateway', openGateway);
+    window.addEventListener('namines:open-migration', openMigration);
+    window.addEventListener('namines:open-cross-db', openCrossDb);
+    window.addEventListener('namines:open-code-import', openCodeImport);
+    return () => {
+      window.removeEventListener('namines:explain-schema', openExplain);
+      window.removeEventListener('namines:open-db-connect', openDbConnect);
+      window.removeEventListener('namines:open-gateway', openGateway);
+      window.removeEventListener('namines:open-migration', openMigration);
+      window.removeEventListener('namines:open-cross-db', openCrossDb);
+      window.removeEventListener('namines:open-code-import', openCodeImport);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleApprove = () => {
     // Diff görünümü SALT-OKUNUR. processedNodes bu modda karşılaştırılan branch'ten
@@ -240,30 +269,6 @@ export default function ToolbarPanel() {
           lg:top-2.5 lg:left-auto lg:right-6 lg:overflow-visible
           lg:rounded-none lg:border-0 lg:bg-transparent lg:backdrop-blur-none lg:p-0"
       >
-        {/* AI Explain Schema */}
-        <button
-          onClick={handleExplainSchema}
-          disabled={isExplaining}
-          className={`${iconBtnBase} ${iconBtnIdle}`}
-          title="Explain schema with AI"
-          aria-label="Explain schema with AI"
-        >
-          {isExplaining ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
-        </button>
-
-        {/* AI Settings */}
-        <button
-          onClick={openAiSettings}
-          className={`${iconBtnBase} ${iconBtnIdle}`}
-          title="AI & BYOK Settings"
-          aria-label="AI & BYOK Settings"
-        >
-          <Settings className="w-4 h-4" />
-          {apiKey && (
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-success" />
-          )}
-        </button>
-
         {/* Share — tek giriş noktası: salt-okunur link ve Live Share (varsa) burada birleşti */}
         <div className="relative" ref={shareRef}>
           <button
@@ -318,56 +323,6 @@ export default function ToolbarPanel() {
           <Terminal className="w-4 h-4" />
         </button>
 
-        {/* Import from live DB */}
-        <button
-          onClick={() => setIsDbConnectOpen(true)}
-          className={`${iconBtnBase} ${iconBtnIdle}`}
-          title="Import schema from a live database"
-          aria-label="Import schema from a live database"
-        >
-          <Database className="w-4 h-4" />
-        </button>
-
-        {/* G14 — Minimal Gateway: browse live data read-only */}
-        <button
-          onClick={() => setIsGatewayOpen(true)}
-          className={`${iconBtnBase} ${iconBtnIdle}`}
-          title="Browse live data (read-only)"
-          aria-label="Browse live data (read-only)"
-        >
-          <Table className="w-4 h-4" />
-        </button>
-
-        {/* Migration */}
-        <button
-          onClick={() => setIsMigrationOpen(true)}
-          className={`${iconBtnBase} ${iconBtnIdle}`}
-          title="Open Migration Engine Panel"
-          aria-label="Open Migration Engine Panel"
-        >
-          <History className="w-4 h-4" />
-        </button>
-
-        {/* Cross-database relations — second-phase/10-COKLU-DB.md */}
-        <button
-          onClick={() => setIsCrossDbOpen(true)}
-          className={`${iconBtnBase} ${iconBtnIdle}`}
-          title="Cross-database relations (links to other projects)"
-          aria-label="Cross-database relations"
-        >
-          <Network className="w-4 h-4" />
-        </button>
-
-        {/* Schema from code — second-phase/11-KODDAN-SEMA.md */}
-        <button
-          onClick={() => setIsCodeImportOpen(true)}
-          className={`${iconBtnBase} ${iconBtnIdle}`}
-          title="Extract schema from Prisma / EF Core code"
-          aria-label="Extract schema from code"
-        >
-          <FileCode2 className="w-4 h-4" />
-        </button>
-
         {/*
           ŞEMAYA BAĞLI EYLEMLER — yalnızca tuvalde tablo varken.
 
@@ -384,6 +339,20 @@ export default function ToolbarPanel() {
         */}
         {hasTables && (
         <>
+        {/* Tidy Up — dagre ile otomatik yerleşim (bkz. lib/autoLayout.ts).
+            Taze şemalar (AI üretimi, şablon yükleme) zaten otomatik bu düzene
+            giriyor; bu düğme, kullanıcı elle sürükleyip düzeni bozduktan sonra
+            (ya da beğenmediğinde) İSTEDİĞİ AN yeniden tetikleyebilmesi için —
+            geri alınabilir (Ctrl+Z). */}
+        <button
+          onClick={autoLayout}
+          className={`${iconBtnBase} ${iconBtnIdle}`}
+          title="Tidy up: re-arrange tables to minimize crossing connections"
+          aria-label="Tidy up table layout"
+        >
+          <Wand2 className="w-4 h-4" />
+        </button>
+
         {/* Generate Alternative — second-phase/09-SEMA-ALTERNATIFLERI.md.
             Maliyet buton metninde açık: bu ikinci bir üretim turu. */}
         <button
