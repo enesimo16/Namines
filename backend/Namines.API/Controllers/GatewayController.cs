@@ -21,6 +21,7 @@ using System.Linq;
 using System.Text;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Core.Security;
 
 namespace Namines.API.Controllers;
 
@@ -111,6 +112,7 @@ public class GatewayController : ControllerBase
     private readonly GroqAIService _groq;
     private readonly ILogger<GatewayController> _logger;
     private readonly AiQuotaService _quota;
+    private readonly IConnectionSecretProtector _protector;
 
     /// <summary>
     /// Bir doğal dil çevirisinin tahmini token maliyeti.
@@ -124,7 +126,8 @@ public class GatewayController : ControllerBase
 
     public GatewayController(
         IGatewayService gateway, AuthDbContext context, IConfiguration configuration,
-        GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota)
+        GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota,
+        IConnectionSecretProtector protector)
     {
         _gateway = gateway;
         _context = context;
@@ -132,6 +135,7 @@ public class GatewayController : ControllerBase
         _groq = groq;
         _logger = logger;
         _quota = quota;
+        _protector = protector;
     }
 
     /// <summary>
@@ -287,19 +291,53 @@ public class GatewayController : ControllerBase
     private string MaskingSecret(string projectId) =>
         (_configuration["Jwt:Key"] ?? "namines-masking-fallback") + ":mask:" + projectId;
 
+    /// <summary>
+    /// İstekte bağlantı YOKSA, API anahtarının bağlı olduğu projede saklanan
+    /// şifreli bağlantıyı çözer.
+    ///
+    /// <b>Namines Desk için eklendi.</b> Desk barındırılan bir panel; bağlantıyı
+    /// tarayıcıdan göndermek veritabanı parolasını istemciye taşırdı. Artık
+    /// tarayıcı yalnızca API anahtarı gönderiyor, bağlantıyı sunucu çözüyor.
+    ///
+    /// <b>Mevcut davranış korunuyor:</b> istek bağlantı taşıyorsa o kullanılır —
+    /// tasarım düzlemindeki (canvas) çağrılar hiç değişmiyor.
+    /// </summary>
+    private async Task<string?> ResolveConnectionAsync(
+        string? requested, GatewayApiKey? apiKey, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(requested)) return requested;
+        if (apiKey is null) return null;
+
+        var project = await _context.CloudProjects
+            .Where(p => p.Id == apiKey.ProjectId)
+            .Select(p => new { p.EncryptedConnectionString })
+            .FirstOrDefaultAsync(ct);
+
+        if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString)) return null;
+
+        // Çözülemezse (anahtar döndü / kayıt bozuldu) İSTİSNA fırlar ve üstteki
+        // catch 500 döner. Bilinçli: sessizce "bağlantı yok" demek, kullanıcıyı
+        // yanlış yere (bağlantıyı yeniden gir) yönlendirirdi.
+        return _protector.Unprotect(project.EncryptedConnectionString);
+    }
+
     [HttpPost("list")]
     public async Task<IActionResult> List([FromBody] GatewayListRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName))
-            return BadRequest(new { message = "Connection string and table name are required." });
+        if (string.IsNullOrWhiteSpace(request.TableName))
+            return BadRequest(new { message = "Table name is required." });
 
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
+        var connectionString = await ResolveConnectionAsync(request.ConnectionString, apiKey, cancellationToken);
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
+
         try
         {
             var result = await _gateway.ListAsync(
-                request.ConnectionString, request.DbType, request.TableName,
+                connectionString, request.DbType, request.TableName,
                 request.Page, request.PageSize, request.OrderByColumn,
                 request.IncludeTotalCount, request.SortDirection, request.Filters,
                 request.OrGroups, request.Select, request.Expand, cancellationToken);

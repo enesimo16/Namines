@@ -108,6 +108,13 @@ public static class ServiceCollectionExtensions
         // SSRF politikası — üretimde daima sıkı; yalnızca Development + açık bayrakla gevşer.
         services.AddSingleton<Namines.Core.Security.IDbHostAccessPolicy, Namines.Infrastructure.Security.DbHostAccessPolicy>();
 
+        // Bağlantı dizesi şifreleme (Namines Desk). Singleton: anahtar türetmesi
+        // PBKDF2 ile 100k tur — istek başına yapılırsa ölçülebilir bir maliyet olur,
+        // bir kez yapılıp paylaşılıyor. Uygulama, sır tanımlı değilse AÇIKÇA durur
+        // (bkz. AesGcmConnectionSecretProtector) — sessizce şifresiz saklamaz.
+        services.AddSingleton<Namines.Core.Security.IConnectionSecretProtector,
+                              Namines.Infrastructure.Security.AesGcmConnectionSecretProtector>();
+
         // Arka Plan Docker Sweeper (Sunucu Kilitlenmesi Önleyici)
         services.AddHostedService<DockerSweeperBackgroundService>();
 

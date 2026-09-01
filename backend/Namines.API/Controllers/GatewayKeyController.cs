@@ -9,6 +9,8 @@ using Namines.Core.Analysis;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+using Namines.Infrastructure.Services;
+using Namines.Core.Security;
 
 namespace Namines.API.Controllers;
 
@@ -40,8 +42,18 @@ public sealed record SetTablePermissionRequest(
 public class GatewayKeyController : ControllerBase
 {
     private readonly AuthDbContext _context;
+    private readonly IConnectionSecretProtector _protector;
+    private readonly IDbHostAccessPolicy _hostPolicy;
 
-    public GatewayKeyController(AuthDbContext context) => _context = context;
+    public GatewayKeyController(
+        AuthDbContext context,
+        IConnectionSecretProtector protector,
+        IDbHostAccessPolicy hostPolicy)
+    {
+        _context = context;
+        _protector = protector;
+        _hostPolicy = hostPolicy;
+    }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -269,5 +281,63 @@ public class GatewayKeyController : ControllerBase
 
         await _context.SaveChangesAsync(ct);
         return Ok(new { existing.TableName, existing.CanRead, existing.CanWrite, existing.MaskedColumns });
+    }
+
+    // ── Namines Desk: projeye bağlı CANLI veritabanı bağlantısı ──────────────
+    //
+    // Desk barındırılan bir panel. Bağlantı saklanmasaydı tarayıcının her istekte
+    // veritabanı parolasını göndermesi gerekirdi — parola istemcide yaşardı.
+    // Burada şifreli olarak sunucuda tutuluyor (bkz. IConnectionSecretProtector),
+    // Gateway istek anında çözüyor, tarayıcı hiç görmüyor.
+
+    /// <param name="ConnectionString">Düz metin — YALNIZCA burada, TLS üstünde, bir kez.</param>
+    public sealed record SetProjectConnectionRequest(string ConnectionString, string DbType);
+
+    [HttpPut("project/{projectId}/connection")]
+    public async Task<IActionResult> SetProjectConnection(
+        string projectId, [FromBody] SetProjectConnectionRequest request, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        if (!await CanManageAsync(projectId, userId))
+            return NotFound(new { error = "Proje bulunamadı." });
+
+        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.DbType))
+            return BadRequest(new { error = "Bağlantı dizesi ve motor türü gerekli." });
+
+        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        if (project is null) return NotFound(new { error = "Proje bulunamadı." });
+
+        // SSRF: kaydetmeden ÖNCE. Reddedilecek bir hedefi şifreleyip saklamak,
+        // sonra her istekte reddetmek; hatayı kullanıcıdan bir adım uzaklaştırırdı.
+        var host = DbIntrospectionService.ExtractHost(request.ConnectionString, request.DbType);
+        if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
+            return BadRequest(new { error = denyReason });
+
+        project.EncryptedConnectionString = _protector.Protect(request.ConnectionString);
+        project.ConnectionDbType = request.DbType;
+        project.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(ct);
+
+        // Bağlantı dizesi ASLA geri döndürülmez — maskelenmiş hâli bile değil.
+        return Ok(new { projectId, dbType = request.DbType, connected = true });
+    }
+
+    [HttpDelete("project/{projectId}/connection")]
+    public async Task<IActionResult> ClearProjectConnection(string projectId, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        if (!await CanManageAsync(projectId, userId))
+            return NotFound(new { error = "Proje bulunamadı." });
+
+        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        if (project is null) return NotFound(new { error = "Proje bulunamadı." });
+
+        project.EncryptedConnectionString = null;
+        project.ConnectionDbType = null;
+        project.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(ct);
+        return Ok(new { projectId, connected = false });
     }
 }

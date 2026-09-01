@@ -26,6 +26,30 @@ namespace Namines.Core.Models.Auth
         public string? OrganizationId { get; set; }
         public Organization? Organization { get; set; }
         
+        /// <summary>
+        /// Projenin CANLI veritabanı bağlantısı — <b>şifreli</b>
+        /// (bkz. <c>IConnectionSecretProtector</c>). Namines Desk için eklendi:
+        /// barındırılan panel, bağlantıyı sunucuda çözer, tarayıcı hiç görmez.
+        ///
+        /// <b>Nullable ve varsayılan null:</b> mevcut projelerin hiçbirinde canlı
+        /// bağlantı yok ve olması da gerekmiyor — tasarım düzlemi bağlantısız
+        /// çalışmaya devam eder. Yalnızca kullanıcı açıkça bir veritabanı
+        /// bağladığında dolar.
+        ///
+        /// <b>Buraya asla düz metin yazılmaz.</b> Yazan tek yer
+        /// <c>GatewayKeyController.SetProjectConnection</c>.
+        /// </summary>
+        public string? EncryptedConnectionString { get; set; }
+
+        /// <summary>
+        /// <see cref="EncryptedConnectionString"/> hangi motora ait.
+        /// <see cref="DbType"/>'dan AYRI: o, şemanın DERLENDİĞİ hedef motor
+        /// (kullanıcı canvas'ta seçer). Bu ise gerçekten BAĞLANILAN motor.
+        /// İkisi farklı olabilir — kullanıcı PostgreSQL'e bağlıyken şemayı
+        /// MSSQL için derliyor olabilir.
+        /// </summary>
+        public string? ConnectionDbType { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
