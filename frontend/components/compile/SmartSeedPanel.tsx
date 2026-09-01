@@ -103,8 +103,10 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
     ? Object.values(result.tableRowCounts).reduce((a, b) => a + b, 0)
     : 0;
 
+  // h-9: aynı şeritteki `ActionButton` ("Generate") da h-9. Bu iki select h-8
+  // kaldığı için Test Data şeridinde gözle görülür bir hiza kayması vardı.
   const selectCls =
-    'bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] h-8 pl-2 pr-6 text-[11px] text-content-secondary focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] cursor-pointer disabled:opacity-50';
+    'bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] h-9 pl-2.5 pr-6 text-[11px] text-content-secondary focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] cursor-pointer disabled:opacity-50';
 
   return (
     <Panel scroll={false}>

@@ -16,17 +16,37 @@ import { Node, Edge } from '@xyflow/react';
 // inmeyebilir (çok-döngülü şemalarda matematiksel olarak imkansız olabilir) ama
 // kare-kök ızgaraya göre ölçülebilir şekilde daha az.
 //
-// Node boyutları schemaToFlow'daki sabitlerle SENKRON tutulmalı — biri değişip
-// diğeri değişmezse dagre, node'ları birbirinin üstüne bindirir ya da aralarında
-// gereksiz boşluk bırakır (bkz. TableNode.tsx `w-72` = 288px).
+// <b>BİLİNEN SINIR (dürüstlük notu).</b> Dagre burada YALNIZCA düğüm konumu
+// üretiyor; kenarları React Flow kendi çiziyor ve bunu iki KOLON tutamacı
+// arasında düz bir bezier olarak yapıyor. Dagre'nin kendi kenar yönlendirmesi
+// (ara katmanlara koyduğu sanal düğümlerle çizgiyi kırma) kullanılmıyor.
+// Sonuç: birden fazla katman atlayan bir FK (ör. `comments.author_id → users`,
+// aralarında `tasks` varken) aradaki tabloların üzerinden düz geçer.
+// Canlı ölçüm ("Tasks & Projects", 6 tablo / 9 ilişki): 9 kenardan 10 çift
+// kesişiyor, düğüm çakışması 0. Kesişimi daha da düşürmek kenar yönlendirme
+// (orthogonal routing) gerektirir — ayrı ve çok daha büyük bir iş.
+//
+// Node boyutları GERÇEK render'la senkron olmak ZORUNDA: dagre her düğüm için
+// verilen yüksekliği rezerve eder ve düğümü o alanın MERKEZİNE koyar. Tahmin
+// küçükse dagre düğümleri gerçekte olduklarından yakın sanır → satırlar üst üste
+// biner, kenarlar düğümlerin içinden geçer.
+//
+// <b>ÖLÇÜLDÜ (canlı DOM, zoom geri alınarak, "Tasks & Projects" şeması):</b>
+//   task_labels 3 kolon → 168px · users 4 → 204 · comments 5 → 241
+//   projects 6 → 277 · tasks 11 → 460
+// İki noktadan doğru: (204-168)/(4-3) = 36px/satır, taban = 168 - 3*36 = 60px.
+// Doğrulama: 5 kolon → 60+180 = 240 (gerçek 241) · 11 → 60+396 = 456 (gerçek 460).
+//
+// Eski değerler (48 taban + 32/satır) 11 kolonluk `tasks` için 412px diyordu —
+// gerçeğin 48px altında, yani %10 hata. "Düzenleme hâlâ hatalı" geri bildiriminin
+// ölçülebilir nedeni buydu.
 const NODE_WIDTH = 288;
-const NODE_HEADER = 48;
-const ROW_HEIGHT = 32;
-const NODE_FOOTER_PADDING = 12;
+const NODE_HEADER = 60;
+const ROW_HEIGHT = 36;
 
 function estimateNodeHeight(node: Node): number {
   const columnCount = (node.data as any)?.table?.columns?.length ?? 0;
-  return NODE_HEADER + columnCount * ROW_HEIGHT + NODE_FOOTER_PADDING;
+  return NODE_HEADER + columnCount * ROW_HEIGHT;
 }
 
 export type LayoutDirection = 'LR' | 'TB';
@@ -53,9 +73,20 @@ export function getLayoutedNodes(
   g.setGraph({
     rankdir: direction,
     // Katmanlar arası (ilişki yönündeki) boşluk — tablo genişliği + nefes payı.
-    ranksep: 120,
-    // Aynı katmandaki tablolar arası boşluk.
-    nodesep: 64,
+    ranksep: 140,
+    // Aynı katmandaki tablolar arası boşluk. Tablolar 460px'e kadar uzayabildiği
+    // için dar bir değer, komşu tabloların kenar etiketlerini (`1:N` rozetleri)
+    // birbirine yapıştırıyordu.
+    nodesep: 80,
+    // Şemalarda döngü NORMALDİR (karşılıklı FK, `parent_id` gibi kendine
+    // referanslar). Dagre döngülü bir çizgede katman atayamaz; varsayılan DFS
+    // tabanlı kırıcı yerine `greedy` sezgiseli, geri çevrilen kenar sayısını
+    // daha iyi azaltıyor — az geri kenar = az uzun/çapraz bağlantı.
+    acyclicer: 'greedy',
+    // `ranker` bilinçli olarak VARSAYILANDA ('network-simplex') bırakıldı:
+    // 'tight-tree' canlı ölçüldü, bu şemada tıpatıp aynı sonucu verdi
+    // (10 kesişen kenar çifti, 11855px toplam kenar uzunluğu) — hiçbir şey
+    // kazandırmayan bir ayarı taşımamak için eklenmedi.
     marginx: 40,
     marginy: 40,
   });
@@ -67,7 +98,18 @@ export function getLayoutedNodes(
   edges.forEach(edge => {
     // Kendine referans (self-relation) dagre'de döngü hatası üretir — atla.
     if (edge.source === edge.target) return;
-    g.setEdge(edge.source, edge.target);
+    // <b>YÖN TERS ÇEVRİLİYOR — kasıtlı.</b> Şemadaki kenar ÇOCUK→EBEVEYN akar
+    // (`tasks.project_id` → `projects.id`). Dagre kaynakları ilk katmana koyar;
+    // ham yönle beslenince `users`/`projects` gibi HERKESİN referans verdiği
+    // birkaç tablo en SON katmana düşüyor ve tuvalin yarısını geçen onlarca
+    // çizgi onların üzerinde toplanıyordu (kullanıcının ekran görüntüsündeki
+    // tam olarak buydu: `users` en sağda, her şey ona uzanıyor).
+    //
+    // Ters çevirince ebeveynler solda başlıyor, çocuklar sağa doğru DAĞILIYOR:
+    // bir hub'ın çok sayıda kısa kenarı olur, çok sayıda uzun kenarı değil.
+    // Yalnızca YERLEŞİM hesabını etkiler — React Flow'un çizdiği gerçek kenar
+    // yönü/oku değişmez.
+    g.setEdge(edge.target, edge.source);
   });
 
   dagre.layout(g);

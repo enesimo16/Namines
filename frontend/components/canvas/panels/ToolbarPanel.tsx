@@ -229,8 +229,26 @@ export default function ToolbarPanel() {
       showToast('Failed to generate an alternative. Please try again.', 'error');
     } finally {
       setIsGeneratingAlternative(false);
+      // Tetikleyici düğme artık prompt çubuğunda (RegionalPromptPanel) ve kendi
+      // "meşgul" göstergesini tutuyor — bitişi ona bildir. Başarı ve hata
+      // yolunun İKİSİ de buradan geçer (`finally`), yoksa hata durumunda
+      // oradaki spinner sonsuza kadar dönerdi.
+      window.dispatchEvent(new CustomEvent('namines:alternative-done'));
     }
   };
+
+  // Prompt çubuğundaki düğmeden gelen tetikleme. Bu `useEffect` bilinçli olarak
+  // `handleGenerateAlternative`'ın TANIMINDAN SONRA duruyor: yukarıdaki toplu
+  // event effect'ine eklenseydi, fonksiyon henüz bildirilmemiş olacağı için
+  // eslint'in `react-hooks/immutability` kuralı "declared before it is used"
+  // hatası verirdi (aynı hata CanvasExportToolbar'da `exportAsPrisma` için
+  // hâlâ açık duruyor — burada tekrarlamamak için ayrı effect).
+  useEffect(() => {
+    const run = () => handleGenerateAlternative();
+    window.addEventListener('namines:generate-alternative', run);
+    return () => window.removeEventListener('namines:generate-alternative', run);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastGenerationPrompt, lastGenerationAnswers, dbType, naiModel]);
 
   const shareRoomLink = () => {
     if (!roomId) return;
@@ -353,18 +371,22 @@ export default function ToolbarPanel() {
           <Wand2 className="w-4 h-4" />
         </button>
 
-        {/* Generate Alternative — second-phase/09-SEMA-ALTERNATIFLERI.md.
-            Maliyet buton metninde açık: bu ikinci bir üretim turu. */}
-        <button
-          onClick={handleGenerateAlternative}
-          disabled={isGeneratingAlternative || !lastGenerationPrompt}
-          className={`${iconBtnBase} w-auto px-3 gap-1.5 ${iconBtnIdle}`}
-          title={lastGenerationPrompt ? 'Generate an alternative schema (~1 round)' : 'Generate a schema from a prompt first'}
-          aria-label="Generate an alternative schema"
-        >
-          {isGeneratingAlternative ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          <span className="text-xs font-semibold">Alternative (~1 round)</span>
-        </button>
+        {/* "Alternative" DÜĞMESİ BURADAN TAŞINDI → prompt çubuğuna
+            (RegionalPromptPanel.tsx). İki gerçek sorun vardı:
+
+            1. <b>Basılamıyordu.</b> `disabled` koşulu `!lastGenerationPrompt`
+               içeriyordu — bu alan yalnızca şema BİR PROMPT'TAN üretildiğinde
+               dolar. Şablonla/import'la gelen şemalarda `null` olduğu için
+               düğme kalıcı olarak devre dışıydı, ama devre dışı olduğu yalnızca
+               tooltip'ten anlaşılıyordu ("basılmıyor" geri bildirimi).
+            2. <b>Ağırlığı yanlıştı.</b> "Alternative (~1 round)" metniyle
+               araç çubuğundaki en geniş öğeydi; oysa bu, prompt'a bağlı ve
+               nadir kullanılan bir eylem.
+
+            Yeni yeri kavramsal olarak da doğru: eylem "son prompt'u yeniden
+            çalıştır" demek, dolayısıyla prompt kutusunun yanına ait. Orada
+            prompt YOKSA hiç render edilmiyor (gizlemek > devre dışı bırakmak —
+            aşağıdaki `hasTables` bloğuyla aynı gerekçe). */}
 
         {/* Request Review — "Database PR" akışını başlatır (bkz. new-phase/29) */}
         <button

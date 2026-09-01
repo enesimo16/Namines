@@ -29,7 +29,9 @@ export default function DbTypeSelector({ selectedDb, onSelect, disabled }: DbTyp
         value={selectedDb}
         onChange={(e) => onSelect(e.target.value)}
         disabled={disabled}
-        className="bg-surface-600 border border-surface-500 text-content-secondary text-xs rounded-[var(--radius-control)] px-3 py-1.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] transition-colors cursor-pointer hover:bg-surface-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+        /* h-9: compile şeridindeki diğer tüm kontrollerle (IconButton,
+           ActionButton, Segmented, diğer select'ler) aynı yükseklik. */
+        className="bg-surface-600 border border-surface-500 text-content-secondary text-xs rounded-[var(--radius-control)] h-9 px-3 focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] transition-colors cursor-pointer hover:bg-surface-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Select database type"
       >
         {DB_OPTIONS.map((opt) => (

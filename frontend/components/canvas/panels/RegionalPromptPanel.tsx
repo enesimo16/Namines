@@ -4,7 +4,7 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useAIGateway } from '../../../hooks/useAIGateway';
 import { schemaService } from '../../../services/api';
-import { Loader2, ArrowUp, History } from 'lucide-react';
+import { Loader2, ArrowUp, History, Sparkles } from 'lucide-react';
 import { flowToSchema } from '../../../lib/flowToSchema';
 
 /**
@@ -24,6 +24,22 @@ export default function RegionalPromptPanel() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
+
+  // ── "Alternative" — üst araç çubuğundan buraya taşındı (bkz. ToolbarPanel.tsx
+  //    içindeki taşıma notu). Eylem "son prompt'u ikinci kez çalıştır" demek,
+  //    dolayısıyla prompt kutusunun yanı doğru yer.
+  //
+  //    İş mantığı (kota kontrolü, üretim, A/B karşılaştırma modalı) ToolbarPanel'de
+  //    KALDI — burası yalnızca tetikleyici. Projede zaten kurulu olan custom-event
+  //    deseni (`namines:open-ai-settings` vb.) kullanılıyor.
+  const lastGenerationPrompt = useSchemaStore(s => s.lastGenerationPrompt);
+  const [isGeneratingAlt, setIsGeneratingAlt] = useState(false);
+
+  useEffect(() => {
+    const done = () => setIsGeneratingAlt(false);
+    window.addEventListener('namines:alternative-done', done);
+    return () => window.removeEventListener('namines:alternative-done', done);
+  }, []);
 
   // Geçmiş menüsü dışına tıklanınca kapan — second-phase/08-PROMPT-DENEYIMI.md §8.3.
   useEffect(() => {
@@ -219,6 +235,28 @@ export default function RegionalPromptPanel() {
           disabled={isRevising}
           className="flex-1 min-w-0 bg-transparent text-sm text-content-primary placeholder:text-content-subtle focus:outline-none"
         />
+
+        {/* Alternative — YALNIZCA son üretim prompt'u varken render edilir.
+            Devre dışı gri bir düğme göstermek yerine gizleniyor: eski hâlinde
+            kullanıcı basmayı deniyor, hiçbir şey olmuyor ve nedenini yalnızca
+            tooltip söylüyordu ("alternative kısmı çalışmıyor yani basılmıyor").
+            Şablonla/import'la gelen şemalarda yeniden çalıştırılacak bir prompt
+            yoktur — o yüzden düğme de yoktur. */}
+        {lastGenerationPrompt && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsGeneratingAlt(true);
+              window.dispatchEvent(new CustomEvent('namines:generate-alternative'));
+            }}
+            disabled={isGeneratingAlt || isRevising}
+            aria-label="Generate an alternative schema from the same prompt"
+            title="Alternative — replay the last prompt for a second design (~1 AI round)"
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-content-muted hover:text-content-primary hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          >
+            {isGeneratingAlt ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          </button>
+        )}
 
         <button
           type="submit"

@@ -266,7 +266,10 @@ export default function CompilePage() {
                   value={diagramType}
                   onChange={(e) => updateDiagram(e.target.value as any)}
                   aria-label="Diagram type"
-                  className="bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] h-8 pl-2 pr-6 text-[11px] text-content-secondary focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] cursor-pointer"
+                  /* h-9: yanındaki `IconButton` de h-9 — ikisi 32/36 olarak
+                     ayrı yüksekliklerdeyken aynı satırda gözle görülür şekilde
+                     kayıyorlardı (Mermaid ER şeridi ekran görüntüsü). */
+                  className="bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] h-9 pl-2.5 pr-6 text-[11px] text-content-secondary focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] cursor-pointer"
                 >
                   <option value="ER">ER Diagram</option>
                   <option value="CLASS">Class Diagram</option>

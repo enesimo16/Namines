@@ -111,18 +111,28 @@ export default function Header() {
 
           <div className="h-4 w-px bg-surface-500 shrink-0" />
 
+          {/* Workspace / Team — YALNIZCA İKON (kullanıcı talebi: "üstteki
+              workspace ve team yazılarını kaldırıp sadece ikonlarla
+              tanımlayabiliriz"). Metin `title` + `aria-label`'da yaşamaya
+              devam ediyor: fare üstüne gelince tooltip, ekran okuyucuda tam ad
+              — görsel etiket gitti, erişilebilirlik gitmedi.
+
+              İkonların kendisi zaten ayırt edici: klasör = kaydedilmiş
+              projeler, insanlar = ekip. Bunlar araç çubuğundaki 9 soyut ikonun
+              aksine evrensel karşılığı olan iki simge, o yüzden burada
+              etiketsiz kalmaları güvenli. */}
           <button
             id="header-workspace-btn"
             onClick={() => setIsSidebarOpen(true)}
-            className={`tap-44 flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-[var(--radius-control)] text-sm font-medium transition-colors shrink-0 ${
+            className={`tap-44 flex items-center justify-center w-9 h-9 rounded-[var(--radius-control)] transition-colors shrink-0 ${
               isSidebarOpen
                 ? 'bg-white/[0.08] text-content-primary'
                 : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
             }`}
-            title="View your saved projects"
+            title="Workspace — your saved projects"
+            aria-label="Workspace"
           >
             <FolderOpen className="w-4 h-4" />
-            <span className="hidden sm:inline">Workspace</span>
           </button>
 
           {/* Ekip — yalnızca giriş yapmış kullanıcıda. Team planı olmayanlarda da
@@ -131,16 +141,15 @@ export default function Header() {
           {isAuthenticated && (
             <button
               onClick={() => setIsTeamOpen(true)}
-              className={`tap-44 flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-[var(--radius-control)] text-sm font-medium transition-colors shrink-0 ${
+              className={`tap-44 flex items-center justify-center w-9 h-9 rounded-[var(--radius-control)] transition-colors shrink-0 ${
                 isTeamOpen
                   ? 'bg-white/[0.08] text-content-primary'
                   : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
               }`}
-              title="Team members and shared projects"
+              title="Team — members and shared projects"
               aria-label="Team"
             >
               <Users className="w-4 h-4" />
-              <span className="hidden lg:inline">Team</span>
             </button>
           )}
 
