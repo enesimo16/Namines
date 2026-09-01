@@ -411,7 +411,11 @@ try
     if (!builder.Environment.IsProduction())
         allowedOrigins = allowedOrigins.Concat(new[] {
             "http://localhost:3000", "http://localhost:3001", "http://localhost:3002",
-            "http://localhost:3003", "http://127.0.0.1:3000", "http://127.0.0.1:3002"
+            "http://localhost:3003", "http://127.0.0.1:3000", "http://127.0.0.1:3002",
+            // Namines Desk (services/desk) — AYRI mikroservis, ayrı port.
+            // Yalnızca Production DIŞINDA; üretimde Cors:AllowedOrigins'e
+            // gerçek alan adı yazılır (bu blok Production'da hiç çalışmaz).
+            "http://localhost:3200", "http://127.0.0.1:3200"
         }).ToArray();
 
     allowedOrigins = allowedOrigins

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpenText, FileText, Container, Package, Download } from 'lucide-react';
+import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpenText, FileText, Container, Download, PanelsTopLeft, ExternalLink } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { schemaService } from '../../services/api';
@@ -12,7 +12,6 @@ import SqlPreview from '../../components/compile/SqlPreview';
 import DataDictionaryPreview from '../../components/compile/DataDictionaryPreview';
 import ReadmePreview from '../../components/compile/ReadmePreview';
 import MermaidPreview from '../../components/compile/MermaidPreview';
-import DownloadHubPanel from '../../components/compile/DownloadHubPanel';
 import DockerSandboxPanel from '../../components/compile/DockerSandboxPanel';
 import SmartSeedPanel from '../../components/compile/SmartSeedPanel';
 import EfCorePreview from '../../components/compile/EfCorePreview';
@@ -35,7 +34,7 @@ import {
   generateRequirementDiagram
 } from '../../utils/diagramGenerators';
 
-type TabId = 'SQL' | 'EF' | 'PRISMA' | 'EJECT' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'ADMIN';
+type TabId = 'SQL' | 'EF' | 'PRISMA' | 'EJECT' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX';
 
 const TABS: { id: TabId; label: string; icon: typeof FileCode2 }[] = [
   { id: 'SQL',        label: 'DDL Script',       icon: FileCode2 },
@@ -47,7 +46,6 @@ const TABS: { id: TabId; label: string; icon: typeof FileCode2 }[] = [
   { id: 'DICTIONARY', label: 'Data Dictionary',  icon: BookOpenText },
   { id: 'README',     label: 'README.md',        icon: FileText },
   { id: 'SANDBOX',    label: 'Docker Sandbox',   icon: Container },
-  { id: 'ADMIN',      label: 'Developer Package', icon: Package },
 ];
 
 /**
@@ -243,6 +241,24 @@ export default function CompilePage() {
               </button>
             );
           })}
+
+          {/* Namines Desk — AYRI mikroservis (services/desk), ayri port.
+              Sekme DEGIL bir BAGLANTI: bu sayfanin icinde render edilemez,
+              kendi uygulamasi. "Developer Package" sekmesi (indirilebilir
+              Streamlit/Next.js paketleri) bunun yerine kaldirildi:
+              indirilen bir panel yerine barindirilan bir panel veriyoruz. */}
+          <a
+            href={process.env.NEXT_PUBLIC_DESK_URL ?? 'http://localhost:3200'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 mt-1 lg:mt-2 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10"
+            title="Namines Desk — veritabaniniz icin barindirilan CRUD arayuzu (ayri uygulama)"
+          >
+            <PanelsTopLeft className="w-3.5 h-3.5 shrink-0" />
+            <span className="lg:truncate">Namines Desk</span>
+            <span className="text-micro font-bold uppercase tracking-wider text-accent-text bg-accent-subtle px-1.5 py-0.5 rounded-full shrink-0">beta</span>
+            <ExternalLink className="w-3 h-3 shrink-0 ml-auto opacity-60" />
+          </a>
         </nav>
       </aside>
 
@@ -293,11 +309,10 @@ export default function CompilePage() {
 
         {/* Content area */}
         <div className="flex-1 min-h-0 p-3 bg-surface-900" style={{ display: 'flex', flexDirection: 'column' }}>
-          {activeTab === 'ADMIN' && <DownloadHubPanel schema={schema} dbType={dbType} />}
           {activeTab === 'SANDBOX' && <DockerSandboxPanel schema={schema} dbType={dbType} sql={sql} />}
           {activeTab === 'DICTIONARY' && <DataDictionaryPreview schema={schema} projectName={projectName} />}
           {activeTab === 'README' && <ReadmePreview schema={schema} />}
-          {activeTab !== 'ADMIN' && activeTab !== 'SANDBOX' && activeTab !== 'DICTIONARY' && activeTab !== 'README' && (
+          {activeTab !== 'SANDBOX' && activeTab !== 'DICTIONARY' && activeTab !== 'README' && (
             <div className="flex-1 min-h-0 relative">
               {isLoading && (
                 <div className="absolute inset-0 z-20 bg-surface-900/60 backdrop-blur-sm flex items-center justify-center rounded-[var(--radius-card)]">

@@ -243,3 +243,67 @@ Backend tarafı kanıtlandı. Kalan iş **arayüz**:
   uygulanacak (bilinçli olarak tek uçta kanıtlandı, sonra yayılacak).
 - Rotadaki "kullanıcı adı" nereden gelecek? Bugün `ApplicationUser.UserName` var
   ama URL'de benzersizlik garantisi ayrıca doğrulanmalı.
+
+---
+
+## 9. Desk v0.1 — YAPILDI (2026-09-01)
+
+`services/desk/` — kendi `package.json`'ı, kendi portu (3200), kendi
+`Dockerfile`/`docker-compose.yml`'i, kendi `README.md`'si olan **ayrı** Next.js
+uygulaması. `Namines.Core`'a ya da ana `frontend/`'e **hiçbir kod referansı yok**;
+iletişim yalnızca `/api/gateway/*` HTTP sözleşmesi üzerinden.
+
+### Deterministik katman (`lib/schema.ts`)
+
+Saf fonksiyonlar, **AI yok**. Aynı veritabanı her zaman aynı arayüzü üretir:
+
+| Kolon bilgisi | Sonuç |
+|---|---|
+| `bool`/`bit` | onay kutusu |
+| `timestamp`/`datetime` | tarih-saat girişi |
+| `int`/`numeric`/`decimal` | sayı girişi |
+| `text`/`json` veya `length > 255` | çok satırlı |
+| `isNullable = false` | zorunlu (`*`) |
+| `isPK` + otomatik artan | ekleme formunda gizli |
+| Bileşik PK | tablo **salt-okunur** |
+
+**Bileşik PK neden salt-okunur:** Gateway'in `update`/`delete` uçları TEK bir
+`pkColumn` alıyor. Düzenlenebilir göstermek, kaydetme anında sessizce YANLIŞ
+SATIRI güncellemek olurdu.
+
+### Tarayıcıdan uçtan uca doğrulandı
+
+| Ne | Sonuç |
+|---|---|
+| Anahtarla giriş → şema okundu | 2 tablo, kolon tipleriyle |
+| Form üretimi | `BOOLEAN`→checkbox, `TIMESTAMP`→datetime, `id`→gizli, NOT NULL→zorunlu |
+| **Ekleme** | `psql` ile doğrulandı — satır gerçekten yazıldı |
+| **Güncelleme** | `full_name` + `is_active` gerçekten değişti |
+| **Silme** | satır gerçekten gitti |
+| FK gösterimi | `customer_id→customers` (§2'deki düzeltmenin meyvesi) |
+| Yazma izni yok | arayüz salt-okunur, sebebi yazılı |
+
+### Yolda yapılan ve düzeltilen hata
+
+Toplu regex ile guard temizlerken `if (...)` satırı silinip
+`return BadRequest(...)` satırı **öksüz kalmıştı** — Detail/Update/Delete
+koşulsuz 400 dönüyordu. Derlemedeki "ulaşılamayan kod" uyarıları işaretti,
+ilk seferde kaçırıldı; UI'da düzenleme denenince yakalandı. Guard'lar
+bağlantı hariç, gerçekten zorunlu alanlar için doğru biçimde geri eklendi.
+
+### Developer Package kaldırıldı
+
+`DownloadHubPanel` sekmesi (indirilebilir Streamlit paketi + satılamayan
+"Next.js Enterprise — PREMIUM / Coming soon" kartı) compile ekranından
+çıkarıldı; yerine sol panelde **Namines Desk (beta)** bağlantısı var.
+Yön değişimi: *indirilen* panel yerine *barındırılan* panel.
+
+> Arka uç dosyaları (`ScaffolderService`, `CoderAIPackagerService` ve
+> controller'ları) HENÜZ SİLİNMEDİ — başka uçlar onlara bağlı olabilir,
+> ayrı bir temizlik turu istiyor.
+
+### Sıradaki (Desk)
+
+- FK açılır listesi (hedef biliniyor, veri çekilmiyor)
+- Filtreleme / sıralama (Gateway destekliyor, arayüzü yok)
+- `/kullanıcı/proje` rotası — kullanıcı adının URL benzersizliği doğrulanmalı

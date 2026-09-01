@@ -1,0 +1,9 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# Next.js'in otomatik urettigi ajan dosyalari. Icerikleri node_modules'e isaret
+# ediyor (commit'lenmiyor) ve projenin kendi AGENTS.md gelenegiyle karisiyor.
+AGENTS.md
+CLAUDE.md

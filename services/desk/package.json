@@ -1,0 +1,22 @@
+{
+  "name": "namines-desk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Namines Desk — barindirilan, deterministik CRUD arayuzu. AYRI mikroservis: ana backend'e yalnizca HTTP ile baglanir.",
+  "scripts": {
+    "dev": "next dev -p 3200",
+    "build": "next build",
+    "start": "next start -p 3200",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.6.0"
+  }
+}

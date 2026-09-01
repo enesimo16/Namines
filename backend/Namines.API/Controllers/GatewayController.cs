@@ -113,6 +113,7 @@ public class GatewayController : ControllerBase
     private readonly ILogger<GatewayController> _logger;
     private readonly AiQuotaService _quota;
     private readonly IConnectionSecretProtector _protector;
+    private readonly IDbIntrospectionService _introspection;
 
     /// <summary>
     /// Bir doğal dil çevirisinin tahmini token maliyeti.
@@ -127,7 +128,7 @@ public class GatewayController : ControllerBase
     public GatewayController(
         IGatewayService gateway, AuthDbContext context, IConfiguration configuration,
         GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota,
-        IConnectionSecretProtector protector)
+        IConnectionSecretProtector protector, IDbIntrospectionService introspection)
     {
         _gateway = gateway;
         _context = context;
@@ -136,6 +137,7 @@ public class GatewayController : ControllerBase
         _logger = logger;
         _quota = quota;
         _protector = protector;
+        _introspection = introspection;
     }
 
     /// <summary>
@@ -302,23 +304,39 @@ public class GatewayController : ControllerBase
     /// <b>Mevcut davranış korunuyor:</b> istek bağlantı taşıyorsa o kullanılır —
     /// tasarım düzlemindeki (canvas) çağrılar hiç değişmiyor.
     /// </summary>
-    private async Task<string?> ResolveConnectionAsync(
-        string? requested, GatewayApiKey? apiKey, CancellationToken ct)
+    /// <returns>
+    /// Bağlantı dizesi VE motor türü. İkisi birlikte dönüyor çünkü ayrı ayrı
+    /// çözmek, saklanan bağlantıyla istekteki motorun ayrışmasına izin verirdi —
+    /// PostgreSQL'e MSSQL sürücüsüyle bağlanmaya çalışmak gibi.
+    /// </returns>
+    private async Task<(string? Connection, string DbType)> ResolveConnectionAsync(
+        string? requested, string? requestedDbType, GatewayApiKey? apiKey, CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(requested)) return requested;
-        if (apiKey is null) return null;
+        if (!string.IsNullOrWhiteSpace(requested))
+            return (requested, requestedDbType ?? string.Empty);
+
+        if (apiKey is null) return (null, string.Empty);
 
         var project = await _context.CloudProjects
             .Where(p => p.Id == apiKey.ProjectId)
-            .Select(p => new { p.EncryptedConnectionString })
+            .Select(p => new { p.EncryptedConnectionString, p.ConnectionDbType })
             .FirstOrDefaultAsync(ct);
 
-        if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString)) return null;
+        if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString))
+            return (null, string.Empty);
 
         // Çözülemezse (anahtar döndü / kayıt bozuldu) İSTİSNA fırlar ve üstteki
         // catch 500 döner. Bilinçli: sessizce "bağlantı yok" demek, kullanıcıyı
         // yanlış yere (bağlantıyı yeniden gir) yönlendirirdi.
-        return _protector.Unprotect(project.EncryptedConnectionString);
+        //
+        // Motor türü İSTEKTEKİNE DEĞİL saklanana güvenir: istemci boş ya da
+        // yanlış gönderebilir, ama bağlantının hangi motora ait olduğunu
+        // kaydeden taraf sunucudur.
+        var dbType = !string.IsNullOrWhiteSpace(project.ConnectionDbType)
+            ? project.ConnectionDbType
+            : (requestedDbType ?? string.Empty);
+
+        return (_protector.Unprotect(project.EncryptedConnectionString), dbType);
     }
 
     [HttpPost("list")]
@@ -330,14 +348,14 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
-        var connectionString = await ResolveConnectionAsync(request.ConnectionString, apiKey, cancellationToken);
+        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
         if (string.IsNullOrWhiteSpace(connectionString))
             return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
         try
         {
             var result = await _gateway.ListAsync(
-                connectionString, request.DbType, request.TableName,
+                connectionString, effectiveDbType, request.TableName,
                 request.Page, request.PageSize, request.OrderByColumn,
                 request.IncludeTotalCount, request.SortDirection, request.Filters,
                 request.OrGroups, request.Select, request.Expand, cancellationToken);
@@ -366,17 +384,25 @@ public class GatewayController : ControllerBase
     [HttpPost("detail")]
     public async Task<IActionResult> Detail([FromBody] GatewayDetailRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName)
-            || string.IsNullOrWhiteSpace(request.PkColumn) || request.PkValue is null)
-            return BadRequest(new { message = "Connection string, table name, PK column and PK value are required." });
+        // Baglanti ARTIK zorunlu degil (anahtardan cozulebilir) ama anahtar
+        // kolonu/degeri hala zorunlu: onlarsiz hangi satirin hedeflendigi belirsiz.
+        if (string.IsNullOrWhiteSpace(request.TableName) ||
+            string.IsNullOrWhiteSpace(request.PkColumn) ||
+            string.IsNullOrWhiteSpace(request.PkValue))
+            return BadRequest(new { message = "Table name, PK column and PK value are required." });
 
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
+        // Baglanti istekte yoksa API anahtarindan cozulur (Namines Desk).
+        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
+
         try
         {
             var row = await _gateway.DetailAsync(
-                request.ConnectionString, request.DbType, request.TableName,
+                connectionString, effectiveDbType, request.TableName,
                 request.PkColumn, request.PkValue, cancellationToken);
 
             if (row is null) return NotFound(new { message = "No row found for the given key." });
@@ -413,20 +439,23 @@ public class GatewayController : ControllerBase
     [HttpPost("create")]
     public async Task<IActionResult> Create([FromBody] GatewayCreateRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName))
-            return BadRequest(new { message = "Connection string and table name are required." });
-
+        
         if (request.Values is null || request.Values.Count == 0)
             return BadRequest(new { message = "At least one column value is required." });
 
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
+        // Baglanti istekte yoksa API anahtarindan cozulur (Namines Desk).
+        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
+
         return await AuditedAsync(apiKey, GatewayWriteKind.Create, request.TableName, null,
             request.Values.Keys, cancellationToken, async () =>
             {
                 var result = await _gateway.CreateAsync(
-                    request.ConnectionString, request.DbType, request.TableName,
+                    connectionString, effectiveDbType, request.TableName,
                     request.Values, cancellationToken);
                 return (Ok(result), result.AffectedRows);
             });
@@ -435,9 +464,12 @@ public class GatewayController : ControllerBase
     [HttpPost("update")]
     public async Task<IActionResult> Update([FromBody] GatewayUpdateRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName)
-            || string.IsNullOrWhiteSpace(request.PkColumn) || request.PkValue is null)
-            return BadRequest(new { message = "Connection string, table name, PK column and PK value are required." });
+        // Baglanti ARTIK zorunlu degil (anahtardan cozulebilir) ama anahtar
+        // kolonu/degeri hala zorunlu: onlarsiz hangi satirin hedeflendigi belirsiz.
+        if (string.IsNullOrWhiteSpace(request.TableName) ||
+            string.IsNullOrWhiteSpace(request.PkColumn) ||
+            string.IsNullOrWhiteSpace(request.PkValue))
+            return BadRequest(new { message = "Table name, PK column and PK value are required." });
 
         if (request.Values is null || request.Values.Count == 0)
             return BadRequest(new { message = "At least one column value is required." });
@@ -445,11 +477,16 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
+        // Baglanti istekte yoksa API anahtarindan cozulur (Namines Desk).
+        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
+
         return await AuditedAsync(apiKey, GatewayWriteKind.Update, request.TableName, request.PkValue,
             request.Values.Keys, cancellationToken, async () =>
             {
                 var result = await _gateway.UpdateAsync(
-                    request.ConnectionString, request.DbType, request.TableName,
+                    connectionString, effectiveDbType, request.TableName,
                     request.PkColumn, request.PkValue, request.Values, cancellationToken);
 
                 return (result.AffectedRows == 0
@@ -461,18 +498,26 @@ public class GatewayController : ControllerBase
     [HttpPost("delete")]
     public async Task<IActionResult> Delete([FromBody] GatewayDeleteRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName)
-            || string.IsNullOrWhiteSpace(request.PkColumn) || request.PkValue is null)
-            return BadRequest(new { message = "Connection string, table name, PK column and PK value are required." });
+        // Baglanti ARTIK zorunlu degil (anahtardan cozulebilir) ama anahtar
+        // kolonu/degeri hala zorunlu: onlarsiz hangi satirin hedeflendigi belirsiz.
+        if (string.IsNullOrWhiteSpace(request.TableName) ||
+            string.IsNullOrWhiteSpace(request.PkColumn) ||
+            string.IsNullOrWhiteSpace(request.PkValue))
+            return BadRequest(new { message = "Table name, PK column and PK value are required." });
 
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
+
+        // Baglanti istekte yoksa API anahtarindan cozulur (Namines Desk).
+        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
         return await AuditedAsync(apiKey, GatewayWriteKind.Delete, request.TableName, request.PkValue,
             null, cancellationToken, async () =>
             {
                 var result = await _gateway.DeleteAsync(
-                    request.ConnectionString, request.DbType, request.TableName,
+                    connectionString, effectiveDbType, request.TableName,
                     request.PkColumn, request.PkValue, cancellationToken);
 
                 return (result.AffectedRows == 0
@@ -958,6 +1003,95 @@ public class GatewayController : ControllerBase
         await _context.RecordAsync(key.CreatedByUserId, UsageResource.ApiRequest, 1, "sql", ct);
 
         return (true, null, key);
+    }
+
+    /// <summary>
+    /// Namines Desk için ŞEMA: izinli tabloların kolon meta verisi.
+    ///
+    /// <b>Neden `dbintrospect` değil:</b> orası JWT istiyor (Studio kullanıcısı) ve
+    /// bağlantı dizesini istekte bekliyor. Desk'in ikisi de yok — yalnızca bir API
+    /// anahtarı taşıyor.
+    ///
+    /// <b>Neden kayıtlı `SchemaJson` değil:</b> o, kullanıcının canvas'ta ÇİZDİĞİ
+    /// tasarım. Gerçek veritabanı ondan sapmış olabilir (elle ALTER, başka bir
+    /// araç). Desk formu gerçek kolonlara göre üretmek zorunda, yoksa var olmayan
+    /// bir kolona yazmaya çalışır. Bu yüzden CANLI introspection.
+    ///
+    /// Anahtarın okuyamadığı tablolar listeden düşürülür — Desk'in var olduğunu
+    /// bile bilmesine gerek yok.
+    /// </summary>
+    [HttpGet("schema")]
+    public async Task<IActionResult> Schema(CancellationToken cancellationToken)
+    {
+        var key = await ResolveKeyAsync(cancellationToken);
+        if (key is null) return Unauthorized(new { message = "A valid API key is required." });
+
+        var project = await _context.CloudProjects
+            .Where(p => p.Id == key.ProjectId)
+            .Select(p => new { p.EncryptedConnectionString, p.ConnectionDbType })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString))
+            return BadRequest(new { message = "This project has no stored database connection." });
+
+        var permissions = await _context.ReadableTablesAsync(key.ProjectId, cancellationToken);
+        var allowed = permissions
+            .Where(p => p.CanRead)
+            .ToDictionary(p => p.TableName, p => p.CanWrite && key.CanWrite, StringComparer.OrdinalIgnoreCase);
+
+        if (allowed.Count == 0)
+            return Ok(new { tables = Array.Empty<object>() });
+
+        try
+        {
+            var connectionString = _protector.Unprotect(project.EncryptedConnectionString);
+            var schema = await _introspection.IntrospectAsync(
+                connectionString, project.ConnectionDbType ?? "PostgreSQL", cancellationToken);
+
+            // İlişkiler Id üzerinden geliyor; Desk'in isimle çalışması daha basit.
+            var tableById  = schema.Tables.ToDictionary(t => t.Id);
+            var columnById = schema.Tables
+                .SelectMany(t => t.Columns.Select(c => new { t, c }))
+                .ToDictionary(x => x.c.Id, x => x);
+
+            var fkTargets = new Dictionary<string, object>();
+            foreach (var r in schema.Relations)
+            {
+                if (!columnById.TryGetValue(r.SourceColumnId, out var src)) continue;
+                if (!tableById.TryGetValue(r.TargetTableId, out var tgtTable)) continue;
+                if (!columnById.TryGetValue(r.TargetColumnId, out var tgt)) continue;
+                fkTargets[$"{src.t.Name}.{src.c.Name}"] = new { table = tgtTable.Name, column = tgt.c.Name };
+            }
+
+            var tables = schema.Tables
+                .Where(t => allowed.ContainsKey(t.Name))
+                .Select(t => new
+                {
+                    name = t.Name,
+                    canWrite = allowed[t.Name],
+                    columns = t.Columns.Select(c => new
+                    {
+                        name = c.Name,
+                        type = c.Type,
+                        length = c.Length,
+                        isPK = c.IsPK,
+                        isFK = c.IsFK,
+                        isNullable = c.IsNullable,
+                        // Desk formu bunu kullanarak FK alanını açılır listeye çevirir.
+                        references = fkTargets.TryGetValue($"{t.Name}.{c.Name}", out var fk) ? fk : null,
+                    }),
+                });
+
+            return Ok(new { tables });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not allowed"))
+        {
+            return BadRequest(new { message = "Connection target is not allowed (private or reserved address)." });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { message = "Could not read the database schema." });
+        }
     }
 
     [HttpGet("tables")]
