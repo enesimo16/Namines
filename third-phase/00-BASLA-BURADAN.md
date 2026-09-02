@@ -307,3 +307,43 @@ Yön değişimi: *indirilen* panel yerine *barındırılan* panel.
 - FK açılır listesi (hedef biliniyor, veri çekilmiyor)
 - Filtreleme / sıralama (Gateway destekliyor, arayüzü yok)
 - `/kullanıcı/proje` rotası — kullanıcı adının URL benzersizliği doğrulanmalı
+
+---
+
+## 10. Desk v1 — plan yazıldı
+
+v0.1 (deterministik CRUD) çalışıyor. **v1'in kapsamı ayrı bir klasöre alındı:**
+[`namines_desk/`](../namines_desk/00-GENEL-BAKIS.md) — her panel kendi
+dokümanında.
+
+| # | Doküman | Konu |
+|---|---|---|
+| 00 | [Genel Bakış](../namines_desk/00-GENEL-BAKIS.md) | Kapsam, elimizde ne var / ne yok |
+| 01 | [Kimlik ve Oturum](../namines_desk/01-KIMLIK-VE-OTURUM.md) | Anahtar yerine JWT |
+| 02 | [Projects](../namines_desk/02-PROJECTS.md) | Ana ekran + Import |
+| 03 | [Canvas](../namines_desk/03-CANVAS.md) | Şema görünümü + drift |
+| 04 | [Data (CRUD)](../namines_desk/04-DATA-CRUD.md) | v0.1'in kaydı + v1 eklentileri |
+| 05 | [Deployments](../namines_desk/05-DEPLOYMENTS.md) | Şema sürüm geçmişi |
+| 06 | [Logs](../namines_desk/06-LOGS.md) | Denetim kaydı |
+| 07 | [Analytics](../namines_desk/07-ANALYTICS.md) | Gerçek veriden metrikler |
+| 08 | [Tasarım Sistemi](../namines_desk/08-TASARIM-SISTEMI.md) | Vercel düzeni + Namines paleti |
+| 09 | [Yol Haritası](../namines_desk/09-YOL-HARITASI.md) | Sıra + kabul kriterleri |
+
+### Planı şekillendiren üç bulgu
+
+1. **Anahtar kavramı kalkıyor.** Kullanıcı geri bildirimi ("key nereden alınacak
+   belli değil") haklıydı. Gateway zaten oturum yolunu destekliyor; Desk JWT ile
+   çalışacak, API anahtarları asıl sahibine (dış uygulamalar) kalacak.
+   Gereken tek backend değişikliği: oturum yolunda `projectId` kabul etmek —
+   **yetki doğrulamasıyla birlikte.**
+
+2. **Vercel'in metrikleri kopyalanamaz.** Edge Requests / Fluid CPU / Fast Origin
+   Transfer, Vercel'in kendi altyapısından gelir; Namines kimsenin uygulamasını
+   çalıştırmıyor. `NaminesMetrics` sayaçları proje bazlı değil ve DB'de değil;
+   `UsageEvent` ise **kullanıcı** bazlı (`ProjectId` alanı yok). Analytics
+   ekranı `GatewayAuditEntry` üzerine kuruluyor — o tabloda `ProjectId` var.
+
+3. **"Pushla direkt değişsin" v1 dışı.** Şema değişikliğini gerçek veritabanında
+   çalıştırmak `ALTER TABLE` demek ve **geri alınamaz**. Migration üretimi, risk
+   analizi ve onay politikası hazır; eksik olan **yedek**. Bu yüzden bu özellik
+   Vault'tan sonra.

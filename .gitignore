@@ -144,6 +144,7 @@ docker-compose.local.yml
 !new-phase/*.md
 !second-phase/*.md
 !third-phase/*.md
+!namines_desk/*.md
 
 # Ajan araci yapilandirmasi -- gelistiricinin kendi makinesine ait, urune ait
 # degil. Depoda durmasi, kullanilan araci herkese duyurmaktan baska bir sey
