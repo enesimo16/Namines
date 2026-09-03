@@ -1,0 +1,930 @@
+<title>Toolbar Redesign Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Namines'in kendi token'larından birebir alındı (app/globals.css) ──
+     Bu sayfa TEK TEMA: kararlı olarak koyu. Namines şu an yalnızca karanlık
+     modda çalışıyor (color-scheme: dark sabit) — burada aydınlık bir varyant
+     göstermek yanıltıcı olurdu, mockup'lar gerçek ürünle birebir eşleşmeli. */
+  :root {
+    --bg-900: #0b0b0b;
+    --bg-800: #161616;
+    --bg-700: #222222;
+    --bg-600: #2e2e2e;
+    --bg-500: #3a3a3a;
+    --ink: #eceff1;
+    --ink-2: #c8cbce;
+    --ink-3: #acb2b7;
+    --ink-4: #999fa6;
+    --accent: #006d6d;
+    --accent-hover: #198585;
+    --accent-text: #76a9a9;
+    --line: #2b2b2b;
+    --line-strong: #404040;
+    --success: #267b4c;
+    --danger: #af3c3a;
+    --r-control: 6px;
+    --r-card: 10px;
+    --r-modal: 14px;
+    --ease: cubic-bezier(0.2, 0, 0, 1);
+
+    /* Bu sayfanın KENDİ kromu için — mockup çerçevelerini "belge" olarak
+       ayırmak amacıyla app zemininden hafifçe farklı, biraz daha soğuk bir
+       nötr (mavi-teal'e kayık) kullanıyorum. Chosen, inherited değil. */
+    --page-bg: #0d1011;
+    --page-panel: #14181a;
+    --page-line: #23282b;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--page-bg);
+    color: var(--ink-2);
+    font-family: 'Inter', 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  ::selection { background: var(--accent); color: #fff; }
+
+  .mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  a { color: var(--accent-text); }
+
+  /* ── Sayfa iskeleti ────────────────────────────────────────────── */
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 40px;
+    margin-bottom: 44px;
+    border-bottom: 1px solid var(--page-line);
+  }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+  }
+  h1 {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin: 0;
+    text-wrap: balance;
+  }
+  .lede {
+    font-size: 15px;
+    color: var(--ink-3);
+    max-width: 62ch;
+    margin: 0;
+  }
+  .constraints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .constraint-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+    background: var(--page-panel);
+    border: 1px solid var(--page-line);
+    border-radius: 999px;
+    padding: 5px 11px;
+  }
+
+  section.block { margin-bottom: 64px; }
+  .block-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 6px;
+  }
+  .block-head h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .block-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-4);
+  }
+  .block-problem {
+    font-size: 13.5px;
+    color: var(--ink-3);
+    max-width: 68ch;
+    margin: 0 0 28px;
+  }
+  .block-problem b { color: var(--ink-2); font-weight: 600; }
+
+  /* ── Seçenek kartları ──────────────────────────────────────────── */
+  .options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+  @media (max-width: 980px) {
+    .options { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--page-panel);
+    border: 1px solid var(--page-line);
+    border-radius: var(--r-modal);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .card.recommended {
+    border-color: color-mix(in srgb, var(--accent-hover) 55%, var(--page-line));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-hover) 30%, transparent);
+  }
+  .card-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 16px 11px;
+  }
+  .card-label-name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .card-letter {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-4);
+  }
+  .card-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .badge-rec {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bg-900);
+    background: var(--accent-text);
+    border-radius: 999px;
+    padding: 3px 8px;
+  }
+
+  /* ── Mockup çerçevesi: gerçek canvas zemini ──────────────────────── */
+  .stage {
+    position: relative;
+    background: var(--bg-900);
+    background-image: radial-gradient(circle, var(--line) 1px, transparent 1px);
+    background-size: 18px 18px;
+    height: 230px;
+    overflow: hidden;
+    border-top: 1px solid var(--page-line);
+    border-bottom: 1px solid var(--page-line);
+  }
+  .ghost-node {
+    position: absolute;
+    width: 92px;
+    background: var(--bg-700);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-card);
+  }
+  .ghost-node .gh { height: 16px; background: var(--bg-600); border-radius: var(--r-card) var(--r-card) 0 0; }
+  .ghost-node .gr { height: 8px; margin: 6px 8px; background: var(--line-strong); border-radius: 2px; }
+  .ghost-node .gr:nth-child(3) { width: 60%; }
+
+  .card-notes {
+    padding: 14px 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .note-row { display: flex; gap: 8px; font-size: 12.5px; color: var(--ink-3); }
+  .note-row .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+    height: fit-content;
+    white-space: nowrap;
+  }
+  .tag.good { color: var(--success); background: color-mix(in srgb, var(--success) 16%, transparent); }
+  .tag.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 16%, transparent); }
+
+  /* ── Namines UI parçaları (birebir token) ─────────────────────────── */
+  .ns-header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 34px;
+    background: color-mix(in srgb, var(--bg-800) 85%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    backdrop-filter: blur(6px);
+  }
+  .ns-logo { width: 15px; height: 15px; border-radius: 4px; background: var(--accent); flex-shrink: 0; }
+  .ns-crumb {
+    font-size: 10px; font-weight: 600; color: var(--ink-4);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .ns-sep { width: 1px; height: 11px; background: var(--bg-500); }
+
+  .icon-btn {
+    width: 22px; height: 22px;
+    border-radius: var(--r-control);
+    border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+    background: var(--bg-700);
+    color: var(--ink-3);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: all 150ms var(--ease);
+  }
+  .icon-btn:hover { color: var(--ink); background: var(--bg-600); }
+  .icon-btn svg { width: 11px; height: 11px; }
+
+  .pill-btn {
+    height: 22px;
+    border-radius: var(--r-control);
+    border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+    background: var(--bg-700);
+    color: var(--ink-3);
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 8px;
+    font-size: 9.5px; font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .pill-btn svg { width: 10px; height: 10px; }
+
+  .cta-btn {
+    height: 22px;
+    border-radius: var(--r-control);
+    background: var(--ink);
+    color: var(--bg-900);
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 9px;
+    font-size: 9.5px; font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* ── OPTION A: gruplu / taşan menü ─────────────────────────────── */
+  .toolbar-a {
+    position: absolute; top: 6px; right: 8px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .more-wrap { position: relative; }
+  .more-menu {
+    position: absolute;
+    top: 26px; right: 0;
+    width: 148px;
+    background: color-mix(in srgb, var(--bg-800) 96%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+    border-radius: var(--r-card);
+    padding: 5px;
+    display: none;
+    flex-direction: column;
+    gap: 1px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.5);
+    z-index: 5;
+  }
+  .more-menu.open { display: flex; animation: dropIn 160ms var(--ease); }
+  @keyframes dropIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .more-item {
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 7px;
+    border-radius: 5px;
+    font-size: 9.5px; font-weight: 600;
+    color: var(--ink-3);
+    cursor: pointer;
+  }
+  .more-item:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+  .more-item svg { width: 10px; height: 10px; flex-shrink: 0; }
+
+  /* ── OPTION B: yoğun ikon-only ─────────────────────────────────── */
+  .toolbar-b {
+    position: absolute; top: 6px; right: 8px;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .toolbar-b .icon-btn { width: 20px; height: 20px; }
+  .toolbar-b .icon-btn svg { width: 10px; height: 10px; }
+
+  /* ── OPTION C: komut-öncelikli minimal ────────────────────────── */
+  .toolbar-c {
+    position: absolute; top: 6px; right: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .cmdk-hint {
+    display: flex; align-items: center; gap: 5px;
+    height: 22px; padding: 0 8px;
+    border-radius: var(--r-control);
+    border: 1px dashed color-mix(in srgb, var(--ink) 18%, transparent);
+    color: var(--ink-4);
+    font-size: 9.5px;
+  }
+  .kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px; font-weight: 600;
+    background: var(--bg-600);
+    border-radius: 3px;
+    padding: 1px 4px;
+    color: var(--ink-2);
+  }
+
+  /* ── FAB seçenekleri (sol-alt toolkit) ───────────────────────────── */
+  .fab-zone { position: absolute; left: 14px; bottom: 14px; }
+
+  .fab-main {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--bg-700);
+    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+    color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    transition: transform 180ms var(--ease), background 180ms var(--ease), border-color 180ms var(--ease);
+    position: relative;
+    z-index: 3;
+  }
+  .fab-main:hover { border-color: color-mix(in srgb, var(--accent-hover) 60%, transparent); }
+  .fab-main svg { width: 17px; height: 17px; transition: transform 220ms var(--ease); }
+  .fab-zone.open .fab-main { background: var(--accent); border-color: var(--accent-hover); }
+  .fab-zone.open .fab-main svg { transform: rotate(45deg); }
+
+  /* Option 1: dikey speed-dial */
+  .dial-vert {
+    position: absolute;
+    bottom: 48px; left: 0;
+    display: flex; flex-direction: column-reverse;
+    gap: 8px;
+  }
+  /* Taban görünüm — Option 1 (dikey) VE Option 2 (yay) ortak: dolgu, kenarlık,
+     boyut. Konumlandırma (nerede/nasıl açılır) her varyantta ayrı override
+     ediliyor, ama "yuvarlak bir mini-buton nasıl görünür" tek yerden gelmeli
+     — aksi hâlde Option 2'nin ikonları arka plansız çıplak kalır. */
+  .mini {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--bg-700);
+    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+    color: var(--ink-3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 150ms var(--ease), border-color 150ms var(--ease), color 150ms var(--ease), transform 220ms var(--ease), opacity 220ms var(--ease);
+  }
+  .mini svg { width: 14px; height: 14px; }
+
+  .dial-vert .mini {
+    position: relative;
+    opacity: 0; transform: translateY(8px) scale(0.7);
+  }
+  .fab-zone.open .dial-vert .mini { opacity: 1; transform: translateY(0) scale(1); }
+  .fab-zone.open .dial-vert .mini:nth-child(1) { transition-delay: 40ms; }
+  .fab-zone.open .dial-vert .mini:nth-child(2) { transition-delay: 80ms; }
+  .fab-zone.open .dial-vert .mini:nth-child(3) { transition-delay: 120ms; }
+  .fab-zone.open .dial-vert .mini:nth-child(4) { transition-delay: 160ms; }
+  .fab-zone.open .dial-vert .mini:nth-child(5) { transition-delay: 200ms; }
+  .mini:hover { color: var(--ink); border-color: color-mix(in srgb, var(--accent-hover) 55%, transparent); }
+  .mini .mini-label {
+    position: absolute;
+    left: 42px; top: 50%; transform: translateY(-50%) translateX(-4px);
+    background: var(--bg-800);
+    border: 1px solid var(--line-strong);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 9.5px; font-weight: 600;
+    color: var(--ink-2);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms, transform 120ms;
+  }
+  .mini:hover .mini-label { opacity: 1; transform: translateY(-50%) translateX(0); }
+
+  /* Option 2: radyal yay */
+  .dial-arc .mini {
+    position: absolute; bottom: 0; left: 0;
+    opacity: 0; transform: translate(0, 0) scale(0.6);
+  }
+  .dial-arc.open .mini { opacity: 1; }
+  .dial-arc .mini:nth-child(1) { transition-delay: 40ms; }
+  .dial-arc .mini:nth-child(2) { transition-delay: 80ms; }
+  .dial-arc .mini:nth-child(3) { transition-delay: 120ms; }
+  .dial-arc .mini:nth-child(4) { transition-delay: 160ms; }
+  .dial-arc.open .mini:nth-child(1) { transform: translate(0px, -52px) scale(1); }
+  .dial-arc.open .mini:nth-child(2) { transform: translate(38px, -42px) scale(1); }
+  .dial-arc.open .mini:nth-child(3) { transform: translate(60px, -14px) scale(1); }
+  .dial-arc.open .mini:nth-child(4) { transform: translate(68px, 20px) scale(1); }
+
+  /* Option 3: dikey dock kapsül (her zaman kısmen açık) */
+  .dock {
+    position: absolute; left: 14px; bottom: 14px;
+    display: flex; flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: color-mix(in srgb, var(--bg-800) 92%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+    border-radius: 22px;
+    padding: 8px 6px;
+    backdrop-filter: blur(8px);
+  }
+  .dock .icon-btn { width: 26px; height: 26px; border-radius: 50%; border-color: transparent; background: transparent; }
+  .dock .icon-btn:hover { background: var(--bg-600); }
+  .dock .icon-btn svg { width: 12px; height: 12px; }
+  .dock .dock-more {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-4); cursor: pointer;
+  }
+  .dock .dock-extra {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    max-height: 0; overflow: hidden;
+    transition: max-height 220ms var(--ease);
+  }
+  .dock.open .dock-extra { max-height: 140px; }
+
+  .hint {
+    position: absolute; right: 14px; bottom: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px; color: var(--ink-4);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .hint svg { width: 11px; height: 11px; }
+
+  /* ── Final composed preview ──────────────────────────────────────── */
+  .final-frame {
+    background: var(--page-panel);
+    border: 1px solid color-mix(in srgb, var(--accent-hover) 45%, var(--page-line));
+    border-radius: var(--r-modal);
+    overflow: hidden;
+  }
+  .final-stage { height: 320px; }
+  .final-notes {
+    padding: 18px 22px 22px;
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .final-notes p { margin: 0; font-size: 13px; color: var(--ink-3); max-width: 56ch; }
+  .final-notes p b { color: var(--ink); }
+  .next-btn-ghost {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    color: var(--accent-text);
+    white-space: nowrap;
+  }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--page-line);
+    font-size: 12px;
+    color: var(--ink-4);
+  }
+</style>
+
+<div class="page">
+
+  <div class="masthead">
+    <div class="eyebrow">Namines — Kullanıcı Arayüzü Notu</div>
+    <h1>Araç Çubuğu Seçenekleri</h1>
+    <p class="lede">
+      Üstteki araç çubuğu 9 ikon + 3 metin butonuna sığmaya çalışıyor;
+      sol-alttaki Export/DBA şeridi ise yatayda genişleyen bir "div" ve
+      yukarı açılan uzun bir dropdown ile çalışıyor. Aşağıda her ikisi için
+      üçer somut yön var — hepsi gerçek token'lardan (renk, radius, yazı
+      tipi) birebir kurulu, tıklanabilir.
+    </p>
+    <div class="constraints">
+      <span class="constraint-chip">renk: --surface-900…600, --accent (teal)</span>
+      <span class="constraint-chip">radius: 6 / 10 / 14px</span>
+      <span class="constraint-chip">yazı: Inter + JetBrains Mono</span>
+      <span class="constraint-chip">tek tema: koyu (uygulama zaten sabit dark)</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════ BÖLÜM 1 — ÜST NAVBAR ══════════════════════════════ -->
+  <section class="block">
+    <div class="block-head">
+      <h2>1 — Üst Araç Çubuğu</h2>
+      <span class="block-num mono">3 seçenek</span>
+    </div>
+    <p class="block-problem">
+      Şu an sağda art arda: Explain · Settings · Share · SQL · DB Import ·
+      Gateway · Migration · Cross-DB · Code Import · Tidy Up, sonra
+      Alternative / Request Review / Approve. <b>Hepsi eşit ağırlıkta</b>
+      görünüyor — kullanıcı hangisinin sık, hangisinin kurulum-anı özelliği
+      olduğunu ayırt edemiyor.
+    </p>
+
+    <div class="options">
+
+      <!-- OPTION A — Grouped / overflow -->
+      <div class="card recommended">
+        <div class="card-label">
+          <div class="card-label-name">
+            <span class="card-letter">A</span>
+            <span class="card-title">Gruplu · taşan menü</span>
+          </div>
+          <span class="badge-rec">Önerilen</span>
+        </div>
+        <div class="stage">
+          <div class="ns-header">
+            <div class="ns-logo"></div>
+            <span class="ns-crumb">Workspace</span>
+            <div class="ns-sep"></div>
+            <span class="ns-crumb" style="color:var(--ink-2)">E2E Probe</span>
+          </div>
+          <div class="ghost-node" style="top:60px; left:20px; height:64px;">
+            <div class="gh"></div><div class="gr"></div><div class="gr"></div>
+          </div>
+          <div class="ghost-node" style="top:96px; left:140px; height:80px;">
+            <div class="gh"></div><div class="gr"></div><div class="gr"></div>
+          </div>
+
+          <div class="toolbar-a">
+            <button class="pill-btn"><span data-icon="link"></span><span>Share</span></button>
+            <button class="icon-btn" title="SQL Console"><span data-icon="terminal"></span></button>
+            <button class="icon-btn" title="Tidy Up"><span data-icon="wand"></span></button>
+            <div class="more-wrap">
+              <button class="icon-btn" id="moreBtnA" title="Daha fazla araç"><span data-icon="dots"></span></button>
+              <div class="more-menu" id="moreMenuA">
+                <div class="more-item"><span data-icon="book"></span><span>Explain Schema</span></div>
+                <div class="more-item"><span data-icon="settings"></span><span>AI Settings</span></div>
+                <div class="more-item"><span data-icon="db"></span><span>DB Import</span></div>
+                <div class="more-item"><span data-icon="table"></span><span>Browse Data</span></div>
+                <div class="more-item"><span data-icon="history"></span><span>Migration</span></div>
+                <div class="more-item"><span data-icon="network"></span><span>Cross-DB</span></div>
+                <div class="more-item"><span data-icon="code"></span><span>Code Import</span></div>
+              </div>
+            </div>
+            <div style="width:1px;height:13px;background:var(--bg-500);margin:0 1px;"></div>
+            <button class="pill-btn"><span data-icon="sparkle"></span><span>Alternative</span></button>
+            <button class="pill-btn"><span data-icon="pr"></span><span>Review</span></button>
+            <button class="cta-btn"><span>Approve</span><span data-icon="arrow"></span></button>
+          </div>
+          <div class="hint"><span data-icon="tap"></span><span>··· dene</span></div>
+        </div>
+        <div class="card-notes">
+          <div class="note-row"><span class="tag good">iyi</span> Görünür buton 12 → 5; kurulum-anı araçlar (Migration, Cross-DB, Code Import) tek çatı altında.</div>
+          <div class="note-row"><span class="tag good">iyi</span> "···" konumu sabit — kullanıcı bir kez öğrenince nereye bakacağını bilir.</div>
+          <div class="note-row"><span class="tag bad">dikkat</span> Gruplanan 7 aracın hangisi "az kullanılır" olduğuna karar vermek gerekiyor — kullanım verisi yoksa ilk tahmin biraz varsayım.</div>
+        </div>
+      </div>
+
+      <!-- OPTION B — Icon-only dense -->
+      <div class="card">
+        <div class="card-label">
+          <div class="card-label-name">
+            <span class="card-letter">B</span>
+            <span class="card-title">Yoğun ikon satırı</span>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="ns-header">
+            <div class="ns-logo"></div>
+            <span class="ns-crumb">Workspace</span>
+            <div class="ns-sep"></div>
+            <span class="ns-crumb" style="color:var(--ink-2)">E2E Probe</span>
+          </div>
+          <div class="ghost-node" style="top:60px; left:20px; height:64px;">
+            <div class="gh"></div><div class="gr"></div><div class="gr"></div>
+          </div>
+          <div class="ghost-node" style="top:96px; left:140px; height:80px;">
+            <div class="gh"></div><div class="gr"></div><div class="gr"></div>
+          </div>
+          <div class="toolbar-b">
+            <button class="icon-btn" title="Explain"><span data-icon="book"></span></button>
+            <button class="icon-btn" title="Settings"><span data-icon="settings"></span></button>
+            <button class="icon-btn" title="Share"><span data-icon="link"></span></button>
+            <button class="icon-btn" title="SQL"><span data-icon="terminal"></span></button>
+            <button class="icon-btn" title="DB Import"><span data-icon="db"></span></button>
+            <button class="icon-btn" title="Browse"><span data-icon="table"></span></button>
+            <button class="icon-btn" title="Migration"><span data-icon="history"></span></button>
+            <button class="icon-btn" title="Cross-DB"><span data-icon="network"></span></button>
+            <button class="icon-btn" title="Code"><span data-icon="code"></span></button>
+            <button class="icon-btn" title="Tidy"><span data-icon="wand"></span></button>
+            <div style="width:1px;height:13px;background:var(--bg-500);margin:0 1px;"></div>
+            <button class="cta-btn"><span>Approve</span><span data-icon="arrow"></span></button>
+          </div>
+        </div>
+        <div class="card-notes">
+          <div class="note-row"><span class="tag good">iyi</span> En az kod değişikliği — davranış aynı kalır, sadece 4px daha sık dizilir.</div>
+          <div class="note-row"><span class="tag bad">dikkat</span> 10 ikon hâlâ 10 ikon; "hangisi ne" sorusu tooltip'e emanet — dokunmatik/tablette tooltip yok.</div>
+          <div class="note-row"><span class="tag bad">dikkat</span> Asıl şikayeti ("çok dolu") çözmüyor, sadece sıkıştırıyor.</div>
+        </div>
+      </div>
+
+      <!-- OPTION C — Command-first minimal -->
+      <div class="card">
+        <div class="card-label">
+          <div class="card-label-name">
+            <span class="card-letter">C</span>
+            <span class="card-title">Komut-öncelikli minimal</span>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="ns-header">
+            <div class="ns-logo"></div>
+            <span class="ns-crumb">Workspace</span>
+            <div class="ns-sep"></div>
+            <span class="ns-crumb" style="color:var(--ink-2)">E2E Probe</span>
+          </div>
+          <div class="ghost-node" style="top:60px; left:20px; height:64px;">
+            <div class="gh"></div><div class="gr"></div><div class="gr"></div>
+          </div>
+          <div class="ghost-node" style="top:96px; left:140px; height:80px;">
+            <div class="gh"></div><div class="gr"></div><div class="gr"></div>
+          </div>
+          <div class="toolbar-c">
+            <div class="cmdk-hint"><span class="kbd">⌘K</span><span>tüm araçlar</span></div>
+            <button class="pill-btn"><span data-icon="link"></span><span>Share</span></button>
+            <button class="icon-btn" title="SQL Console"><span data-icon="terminal"></span></button>
+            <button class="cta-btn"><span>Approve</span><span data-icon="arrow"></span></button>
+          </div>
+        </div>
+        <div class="card-notes">
+          <div class="note-row"><span class="tag good">iyi</span> En sakin görünüm — yalnızca 2 eylem + CTA.</div>
+          <div class="note-row"><span class="tag bad">dikkat</span> Command Palette zaten var ama gizli bir özellik; herkes ⌘K'yı bilmez — "Migration nerede?" sorusu artabilir.</div>
+          <div class="note-row"><span class="tag bad">dikkat</span> Yeni kullanıcı için keşfedilebilirlik en düşük seçenek.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════ BÖLÜM 2 — SOL-ALT TOOLKIT ══════════════════════════════ -->
+  <section class="block">
+    <div class="block-head">
+      <h2>2 — Sol-Alt "Toolkit"</h2>
+      <span class="block-num mono">3 seçenek · tıklanabilir</span>
+    </div>
+    <p class="block-problem">
+      Bugünkü hâli: kapalıyken tek bir "&gt;" ok, açılınca <b>yatayda genişleyen</b>
+      bir şerit (Import · DBA · Edit · Export▾) ve Export'un kendisi de yukarı
+      açılan 12 satırlık ayrı bir dropdown. İki katmanlı açılma, dar ekranda
+      araç çubuğunun kendisi taşıyor.
+    </p>
+
+    <div class="options">
+
+      <!-- OPTION 1 — Vertical speed-dial -->
+      <div class="card recommended">
+        <div class="card-label">
+          <div class="card-label-name">
+            <span class="card-letter">1</span>
+            <span class="card-title">Dikey speed-dial</span>
+          </div>
+          <span class="badge-rec">İstediğiniz yön</span>
+        </div>
+        <div class="stage">
+          <div class="fab-zone" id="fabZone1">
+            <div class="dial-vert">
+              <div class="mini" title="Export"><span data-icon="download"></span><span class="mini-label">Export</span></div>
+              <div class="mini" title="Import"><span data-icon="upload"></span><span class="mini-label">Import</span></div>
+              <div class="mini" title="DBA"><span data-icon="shield"></span><span class="mini-label">DBA Analizi</span></div>
+              <div class="mini" title="Edit Mode"><span data-icon="pencil"></span><span class="mini-label">Edit Mode</span></div>
+            </div>
+            <button class="fab-main" id="fabBtn1"><span data-icon="plus"></span></button>
+          </div>
+          <div class="hint"><span data-icon="tap"></span><span>yuvarlağa dokun</span></div>
+        </div>
+        <div class="card-notes">
+          <div class="note-row"><span class="tag good">iyi</span> Tam sizin tarif ettiğiniz: tek yuvarlak, üstüne dokununca küçük yuvarlaklar yukarı doğru açılıyor — div genişlemiyor.</div>
+          <div class="note-row"><span class="tag good">iyi</span> Kapalıyken tuvalden tek 40px'lik bir daire çalıyor — bugünkünden (76px'lik şerit) daha az yer.</div>
+          <div class="note-row"><span class="tag bad">dikkat</span> Export'un kendi 12 alt-formatı (PNG/SVG/SQL/Prisma/PDF…) burada nereye gidecek? Öneri: Export dairesine basınca AYNI speed-dial deseni ikinci katman açar (aşağı yerine sağa), ya da tek tıkla en-çok-kullanılan formatı (PNG) indirir, geri kalanı sağ-tık/uzun-bas menüsünde kalır.</div>
+        </div>
+      </div>
+
+      <!-- OPTION 2 — Radial arc -->
+      <div class="card">
+        <div class="card-label">
+          <div class="card-label-name">
+            <span class="card-letter">2</span>
+            <span class="card-title">Radyal yay</span>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="fab-zone dial-arc" id="fabZone2" style="left:14px;bottom:14px;">
+            <div class="mini" title="Export"><span data-icon="download"></span></div>
+            <div class="mini" title="Import"><span data-icon="upload"></span></div>
+            <div class="mini" title="DBA"><span data-icon="shield"></span></div>
+            <div class="mini" title="Edit"><span data-icon="pencil"></span></div>
+            <button class="fab-main" id="fabBtn2"><span data-icon="plus"></span></button>
+          </div>
+          <div class="hint"><span data-icon="tap"></span><span>yuvarlağa dokun</span></div>
+        </div>
+        <div class="card-notes">
+          <div class="note-row"><span class="tag good">iyi</span> Aynı büyük-yuvarlak fikri, daha kompakt bir alanda (yayın yarıçapı ~70px) — dar ekranda daha az dikey yer kaplar.</div>
+          <div class="note-row"><span class="tag bad">dikkat</span> Yay üzerindeki hedefler köşegen konumda — fare/parmak hassasiyeti dikey diziden biraz daha zor, 4'ten fazla öğeye zor ölçekler.</div>
+        </div>
+      </div>
+
+      <!-- OPTION 3 — Vertical dock capsule -->
+      <div class="card">
+        <div class="card-label">
+          <div class="card-label-name">
+            <span class="card-letter">3</span>
+            <span class="card-title">Dikey dock kapsül</span>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="dock" id="dock3">
+            <button class="icon-btn" title="Import"><span data-icon="upload"></span></button>
+            <button class="icon-btn" title="DBA"><span data-icon="shield"></span></button>
+            <button class="icon-btn" title="Edit"><span data-icon="pencil"></span></button>
+            <div class="dock-extra" id="dockExtra3">
+              <button class="icon-btn" title="Export PNG"><span data-icon="download"></span></button>
+              <button class="icon-btn" title="Export SQL"><span data-icon="db"></span></button>
+            </div>
+            <div class="dock-more" id="dockMore3"><span data-icon="chevdown"></span></div>
+          </div>
+          <div class="hint"><span data-icon="tap"></span><span>oka dokun</span></div>
+        </div>
+        <div class="card-notes">
+          <div class="note-row"><span class="tag good">iyi</span> 3 en-sık araç HER ZAMAN görünür — "burada bir şey var" keşfi speed-dial'dan daha kolay, yeni kullanıcı için daha güvenli.</div>
+          <div class="note-row"><span class="tag bad">dikkat</span> Sizin tarif ettiğiniz "tek büyük yuvarlak" hissini vermiyor — bu daha çok bugünkü şeridin dikeye dönmüş, yuvarlak-ikonlu hâli.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════ ÖNERİLEN BİLEŞİM ══════════════════════════════ -->
+  <section class="block" style="margin-bottom: 0;">
+    <div class="block-head">
+      <h2>Önerilen bileşim</h2>
+      <span class="block-num mono">A + 1</span>
+    </div>
+    <p class="block-problem">
+      İkisi birlikte, aynı tuval üzerinde — onaylarsanız üstteki gerçek koda bunu işlerim.
+    </p>
+
+    <div class="final-frame">
+      <div class="stage final-stage">
+        <div class="ns-header">
+          <div class="ns-logo"></div>
+          <span class="ns-crumb">Workspace</span>
+          <div class="ns-sep"></div>
+          <span class="ns-crumb" style="color:var(--ink-2)">E2E Probe</span>
+        </div>
+        <div class="ghost-node" style="top:70px; left:26px; height:64px;">
+          <div class="gh"></div><div class="gr"></div><div class="gr"></div>
+        </div>
+        <div class="ghost-node" style="top:120px; left:170px; height:80px;">
+          <div class="gh"></div><div class="gr"></div><div class="gr"></div>
+        </div>
+        <div class="ghost-node" style="top:70px; left:320px; height:56px;">
+          <div class="gh"></div><div class="gr"></div>
+        </div>
+
+        <div class="toolbar-a">
+          <button class="pill-btn"><span data-icon="link"></span><span>Share</span></button>
+          <button class="icon-btn" title="SQL Console"><span data-icon="terminal"></span></button>
+          <button class="icon-btn" title="Tidy Up"><span data-icon="wand"></span></button>
+          <div class="more-wrap">
+            <button class="icon-btn" id="moreBtnFinal" title="Daha fazla araç"><span data-icon="dots"></span></button>
+            <div class="more-menu" id="moreMenuFinal">
+              <div class="more-item"><span data-icon="book"></span><span>Explain Schema</span></div>
+              <div class="more-item"><span data-icon="settings"></span><span>AI Settings</span></div>
+              <div class="more-item"><span data-icon="db"></span><span>DB Import</span></div>
+              <div class="more-item"><span data-icon="table"></span><span>Browse Data</span></div>
+              <div class="more-item"><span data-icon="history"></span><span>Migration</span></div>
+              <div class="more-item"><span data-icon="network"></span><span>Cross-DB</span></div>
+              <div class="more-item"><span data-icon="code"></span><span>Code Import</span></div>
+            </div>
+          </div>
+          <div style="width:1px;height:13px;background:var(--bg-500);margin:0 1px;"></div>
+          <button class="pill-btn"><span data-icon="sparkle"></span><span>Alternative</span></button>
+          <button class="pill-btn"><span data-icon="pr"></span><span>Review</span></button>
+          <button class="cta-btn"><span>Approve</span><span data-icon="arrow"></span></button>
+        </div>
+
+        <div class="fab-zone" id="fabZoneFinal">
+          <div class="dial-vert">
+            <div class="mini" title="Export"><span data-icon="download"></span><span class="mini-label">Export</span></div>
+            <div class="mini" title="Import"><span data-icon="upload"></span><span class="mini-label">Import</span></div>
+            <div class="mini" title="DBA"><span data-icon="shield"></span><span class="mini-label">DBA Analizi</span></div>
+            <div class="mini" title="Edit Mode"><span data-icon="pencil"></span><span class="mini-label">Edit Mode</span></div>
+          </div>
+          <button class="fab-main" id="fabBtnFinal"><span data-icon="plus"></span></button>
+        </div>
+      </div>
+      <div class="final-notes">
+        <p>
+          <b>Üstte kalan:</b> Share, SQL Console, Tidy Up, Alternative, Request Review, Approve —
+          bir oturumda tekrar tekrar dokunduğunuz eylemler.
+          <b>Sol-altta toplanan:</b> Import, DBA, Edit Mode, Export — kurulum/bitiş-anı eylemleri,
+          artık kendi köşesinde, tuvalden çalmadan.
+        </p>
+        <span class="next-btn-ghost">→ onaylarsan uyguluyorum</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Namines · dahili tasarım notu · token kaynağı: <span class="mono">app/globals.css</span>
+  </footer>
+
+</div>
+
+<script>
+  // ── İkon kütüphanesi: kısa, elle yazılmış minimal SVG'ler (kısa path) ──
+  function icon(name) {
+    const s = 'stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+    const map = {
+      link: `<svg viewBox="0 0 24 24" ${s}><path d="M9 12a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M15 12a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg>`,
+      terminal: `<svg viewBox="0 0 24 24" ${s}><path d="M4 5l6 7-6 7"/><path d="M13 19h7"/></svg>`,
+      wand: `<svg viewBox="0 0 24 24" ${s}><path d="M4 20L18 6"/><path d="M15 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>`,
+      dots: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`,
+      book: `<svg viewBox="0 0 24 24" ${s}><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg>`,
+      settings: `<svg viewBox="0 0 24 24" ${s}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg>`,
+      db: `<svg viewBox="0 0 24 24" ${s}><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>`,
+      table: `<svg viewBox="0 0 24 24" ${s}><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 10h18M9 4v16"/></svg>`,
+      history: `<svg viewBox="0 0 24 24" ${s}><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v5l3 2"/></svg>`,
+      network: `<svg viewBox="0 0 24 24" ${s}><circle cx="5" cy="6" r="2.4"/><circle cx="19" cy="6" r="2.4"/><circle cx="12" cy="18" r="2.4"/><path d="M7 7l3.5 9M17 7l-3.5 9M7.4 6h9.2"/></svg>`,
+      code: `<svg viewBox="0 0 24 24" ${s}><path d="M9 8l-4 4 4 4M15 8l4 4-4 4"/></svg>`,
+      sparkle: `<svg viewBox="0 0 24 24" ${s}><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M19 15l.7 1.9L21.5 17.5l-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/></svg>`,
+      pr: `<svg viewBox="0 0 24 24" ${s}><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 8v8M18 11v0a4 4 0 0 1-4 4H9"/></svg>`,
+      arrow: `<svg viewBox="0 0 24 24" ${s}><path d="M5 12h14M13 6l6 6-6 6"/></svg>`,
+      plus: `<svg viewBox="0 0 24 24" ${s}><path d="M12 5v14M5 12h14"/></svg>`,
+      download: `<svg viewBox="0 0 24 24" ${s}><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>`,
+      upload: `<svg viewBox="0 0 24 24" ${s}><path d="M12 21V9M7 14l5-5 5 5"/><path d="M4 19h16" opacity="0"/><path d="M4 4h16" opacity="0"/></svg>`,
+      shield: `<svg viewBox="0 0 24 24" ${s}><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`,
+      pencil: `<svg viewBox="0 0 24 24" ${s}><path d="M4 20l1-4.5L15.5 5 19 8.5 8.5 19z"/><path d="M13 7l4 4"/></svg>`,
+      chevdown: `<svg viewBox="0 0 24 24" ${s}><path d="M6 9l6 6 6-6"/></svg>`,
+      tap: `<svg viewBox="0 0 24 24" ${s}><path d="M9 12V5a1.5 1.5 0 0 1 3 0v6"/><path d="M12 11V4a1.5 1.5 0 0 1 3 0v7"/><path d="M15 11.5V6a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6.5 7-2.5 0-4-1-5.5-3l-2.3-3.5c-.5-.8 0-1.9 1-2 .6 0 1.1.3 1.5.8L8 12"/></svg>`,
+    };
+    return map[name] || '';
+  }
+
+  // İçerik yukarıda template-literal olmadığı için (statik HTML) ikonları
+  // build-time yerine burada, DOM hazır olduğunda enjekte ediyoruz.
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-icon]').forEach(el => {
+      el.innerHTML = icon(el.getAttribute('data-icon'));
+    });
+
+    // ── Etkileşimler: her kart bağımsız çalışır, birbirini kapatmaz ──
+    // (yan yana karşılaştırırken hepsini açık tutabilmek için)
+
+    // Option A + Final — "···" taşan menü
+    [['moreBtnA', 'moreMenuA'], ['moreBtnFinal', 'moreMenuFinal']].forEach(([btnId, menuId]) => {
+      const btn = document.getElementById(btnId);
+      const menu = document.getElementById(menuId);
+      if (!btn || !menu) return;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('open');
+      });
+    });
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.more-menu.open').forEach(m => m.classList.remove('open'));
+    });
+
+    // Option 1 + Final — dikey speed-dial
+    [['fabBtn1', 'fabZone1'], ['fabBtnFinal', 'fabZoneFinal']].forEach(([btnId, zoneId]) => {
+      const btn = document.getElementById(btnId);
+      const zone = document.getElementById(zoneId);
+      if (!btn || !zone) return;
+      btn.addEventListener('click', () => zone.classList.toggle('open'));
+    });
+
+    // Option 2 — radyal yay
+    const fabBtn2 = document.getElementById('fabBtn2');
+    const fabZone2 = document.getElementById('fabZone2');
+    if (fabBtn2 && fabZone2) {
+      fabBtn2.addEventListener('click', () => fabZone2.classList.toggle('open'));
+    }
+
+    // Option 3 — dikey dock kapsül
+    const dockMore3 = document.getElementById('dockMore3');
+    const dock3 = document.getElementById('dock3');
+    if (dockMore3 && dock3) {
+      dockMore3.addEventListener('click', () => dock3.classList.toggle('open'));
+    }
+  });
+</script>
