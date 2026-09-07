@@ -7,8 +7,10 @@ import type { DeskTable } from './schema';
  * HTTP sözleşmesine bağlı. Ana backend'in iç tipleri buraya sızmıyor —
  * `DeskTable` gibi tipler bu serviste ayrıca tanımlı (bilinçli kopya).
  *
- * Kimlik: yalnızca API anahtarı (`X-Namines-Key`). Bağlantı dizesi ve parola
- * ASLA istemciye gelmez, sunucu anahtardan çözer.
+ * Kimlik: oturum (JWT, `Authorization: Bearer`) + `projectId`. Bağlantı dizesi
+ * ve parola ASLA istemciye gelmez, sunucu `projectId` + oturum sahibinin bu
+ * projeye erişimini doğruladıktan sonra şifreli bağlantıyı çözer
+ * (01-KIMLIK-VE-OTURUM.md §3). v0.1'deki ham API anahtarının yerini bu aldı.
  */
 
 const API = process.env.NAMINES_API ?? 'http://localhost:5000';
@@ -19,12 +21,20 @@ export class DeskApiError extends Error {
   }
 }
 
-async function call<T>(path: string, key: string, init?: RequestInit): Promise<T> {
+/** Bir oturumu ve seçili projeyi taşıyan çağrı bağlamı. */
+export interface DeskSession { token: string; projectId: string; }
+
+/** Namines.Core.Models.GatewayOperator ile birebir — enum adı STRING olarak gider (JsonStringEnumConverter). */
+export type GatewayOperator = 'Eq' | 'Neq' | 'Gt' | 'Gte' | 'Lt' | 'Lte' | 'Like' | 'In' | 'IsNull' | 'IsNotNull';
+export type GatewaySortDirection = 'Asc' | 'Desc';
+export interface GatewayFilter { column: string; operator: GatewayOperator; values: (string | null)[]; }
+
+async function call(path: string, session: DeskSession, init?: RequestInit): Promise<Response> {
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      'X-Namines-Key': key,
+      Authorization: `Bearer ${session.token}`,
       ...(init?.headers ?? {}),
     },
     cache: 'no-store',
@@ -41,42 +51,89 @@ async function call<T>(path: string, key: string, init?: RequestInit): Promise<T
     throw new DeskApiError(message, res.status);
   }
 
+  return res;
+}
+
+async function callJson<T>(path: string, session: DeskSession, init?: RequestInit): Promise<T> {
+  const res = await call(path, session, init);
   return res.json() as Promise<T>;
 }
 
 export interface DeskRow { values: Record<string, unknown>; }
 export interface ListResult { rows: DeskRow[]; page: number; pageSize: number; totalCount: number | null; }
 
+/** D4 §2.2: sıralama + filtre — hepsi Gateway'in zaten desteklediği alanlar (backend değişikliği gerekmiyor). */
+export interface ListOptions {
+  orderByColumn?: string | null;
+  sortDirection?: GatewaySortDirection;
+  filters?: GatewayFilter[];
+  select?: string[];
+}
+
 export const deskApi = {
   /** İzinli tabloların kolon meta verisi — formlar buradan DETERMİNİSTİK üretilir. */
-  schema: (key: string) =>
-    call<{ tables: DeskTable[] }>('/api/gateway/schema', key),
+  schema: (session: DeskSession) =>
+    callJson<{ tables: DeskTable[] }>(`/api/gateway/schema?projectId=${encodeURIComponent(session.projectId)}`, session),
 
-  list: (key: string, table: string, page: number, pageSize: number) =>
-    call<ListResult>('/api/gateway/list', key, {
+  list: (session: DeskSession, table: string, page: number, pageSize: number, options?: ListOptions) =>
+    callJson<ListResult>('/api/gateway/list', session, {
       method: 'POST',
       body: JSON.stringify({
-        // Boş: sunucu bağlantıyı anahtardan çözecek.
-        connectionString: '', dbType: '', tableName: table,
+        // Boş: sunucu bağlantıyı oturum + projectId'den çözecek.
+        connectionString: '', dbType: '', tableName: table, projectId: session.projectId,
         page, pageSize, includeTotalCount: true,
+        orderByColumn: options?.orderByColumn ?? null,
+        sortDirection: options?.sortDirection ?? 'Asc',
+        filters: options?.filters ?? null,
+        select: options?.select ?? null,
       }),
     }),
 
-  create: (key: string, table: string, values: Record<string, string | null>) =>
-    call<{ affectedRows: number; row: DeskRow | null }>('/api/gateway/create', key, {
+  create: (session: DeskSession, table: string, values: Record<string, string | null>) =>
+    callJson<{ affectedRows: number; row: DeskRow | null }>('/api/gateway/create', session, {
       method: 'POST',
-      body: JSON.stringify({ connectionString: '', dbType: '', tableName: table, values }),
+      body: JSON.stringify({ connectionString: '', dbType: '', tableName: table, projectId: session.projectId, values }),
     }),
 
-  update: (key: string, table: string, pkColumn: string, pkValue: string, values: Record<string, string | null>) =>
-    call<{ affectedRows: number }>('/api/gateway/update', key, {
+  update: (session: DeskSession, table: string, pkColumn: string, pkValue: string, values: Record<string, string | null>) =>
+    callJson<{ affectedRows: number }>('/api/gateway/update', session, {
       method: 'POST',
-      body: JSON.stringify({ connectionString: '', dbType: '', tableName: table, pkColumn, pkValue, values }),
+      body: JSON.stringify({ connectionString: '', dbType: '', tableName: table, projectId: session.projectId, pkColumn, pkValue, values }),
     }),
 
-  remove: (key: string, table: string, pkColumn: string, pkValue: string) =>
-    call<{ affectedRows: number }>('/api/gateway/delete', key, {
+  remove: (session: DeskSession, table: string, pkColumn: string, pkValue: string) =>
+    callJson<{ affectedRows: number }>('/api/gateway/delete', session, {
       method: 'POST',
-      body: JSON.stringify({ connectionString: '', dbType: '', tableName: table, pkColumn, pkValue }),
+      body: JSON.stringify({ connectionString: '', dbType: '', tableName: table, projectId: session.projectId, pkColumn, pkValue }),
     }),
+
+  /** Namines Desk v2 §E4.1 — toplu silme, TEK işlemde (ya hepsi ya hiçbiri). */
+  bulkRemove: (session: DeskSession, table: string, pkColumn: string, pkValues: string[]) =>
+    callJson<{ affectedRows: number }>('/api/gateway/bulk-delete', session, {
+      method: 'POST',
+      body: JSON.stringify({ connectionString: '', dbType: '', tableName: table, projectId: session.projectId, pkColumn, pkValues }),
+    }),
+
+  /**
+   * D4 §2.3 — dışa aktarma. `POST /api/gateway/export` bir dosya (CSV/JSON)
+   * döndürür, JSON gövde değil; bu yüzden `callJson` değil ham `call` kullanılıyor.
+   */
+  async export(
+    session: DeskSession, table: string, format: 'csv' | 'json',
+    options?: Pick<ListOptions, 'orderByColumn' | 'sortDirection' | 'filters'>,
+  ): Promise<{ blob: Blob; fileName: string }> {
+    const res = await call('/api/gateway/export', session, {
+      method: 'POST',
+      body: JSON.stringify({
+        connectionString: '', dbType: '', tableName: table, projectId: session.projectId,
+        format, maxRows: 10_000,
+        orderByColumn: options?.orderByColumn ?? null,
+        sortDirection: options?.sortDirection ?? 'Asc',
+        filters: options?.filters ?? null,
+      }),
+    });
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const match = /filename="?([^"]+)"?/.exec(disposition);
+    return { blob: await res.blob(), fileName: match?.[1] ?? `${table}.${format}` };
+  },
 };

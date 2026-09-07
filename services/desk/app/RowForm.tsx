@@ -1,10 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   type DeskTable, type DeskColumn,
   fieldKind, normalizeValue, insertableColumns, editableColumns, primaryKey,
 } from '../lib/schema';
+
+/** D4 §2.1 — FK açılır listesi sonucu: seçenekler, ya da eşik aşıldı, ya da hiç denenmedi. */
+export type FkOptionsResult =
+  | { kind: 'options'; options: { value: string; label: string }[] }
+  | { kind: 'too_many' }
+  | { kind: 'error' };
 
 /**
  * Satır ekleme/düzenleme formu — TAMAMEN kolon meta verisinden üretilir.
@@ -15,13 +21,19 @@ import {
  * pratikte bu dosyada yaşıyor.
  */
 export default function RowForm({
-  table, initial, onCancel, onSubmit,
+  table, initial, onCancel, onSubmit, fetchFkOptions,
 }: {
   table: DeskTable;
   /** null → ekleme, dolu → düzenleme */
   initial: Record<string, unknown> | null;
   onCancel: () => void;
   onSubmit: (values: Record<string, string | null>) => Promise<void>;
+  /**
+   * D4 §2.1: FK alanı için hedef tablodan okunabilir seçenekler.
+   * 200'den fazla satır varsa 'too_many' — ham değer girişine düşülür,
+   * sebebi arayüzde yazılır (04-DATA-CRUD.md §2.1 ölçek sınırı).
+   */
+  fetchFkOptions: (targetTable: string) => Promise<FkOptionsResult>;
 }) {
   const isEdit = initial !== null;
   const columns = isEdit ? editableColumns(table) : insertableColumns(table);
@@ -66,7 +78,8 @@ export default function RowForm({
         {error && <div className="notice notice-error">{error}</div>}
 
         {columns.map(c => (
-          <Field key={c.name} column={c} value={values[c.name] ?? ''} onChange={v => set(c.name, v)} />
+          <Field key={c.name} column={c} value={values[c.name] ?? ''} onChange={v => set(c.name, v)}
+                 fetchFkOptions={fetchFkOptions} />
         ))}
 
         <div className="dialog-actions">
@@ -80,8 +93,9 @@ export default function RowForm({
   );
 }
 
-function Field({ column, value, onChange }: {
+function Field({ column, value, onChange, fetchFkOptions }: {
   column: DeskColumn; value: string; onChange: (v: string) => void;
+  fetchFkOptions: (targetTable: string) => Promise<FkOptionsResult>;
 }) {
   const kind = fieldKind(column);
   // NOT NULL alan zorunlu. Boş bırakılırsa veritabanı zaten reddederdi; formda
@@ -123,9 +137,14 @@ function Field({ column, value, onChange }: {
     );
   }
 
-  // FK ve tarih/sayı: hepsi tek satırlık giriş. FK için açılır liste, hedef
-  // tablodan veri çekmeyi gerektirir — ilk sürümde bilinçli olarak ham değer
-  // giriliyor ve hedef, etikette gösteriliyor (bkz. README "kapsam dışı").
+  if (kind === 'reference' && column.references) {
+    return (
+      <FkField column={column} value={value} onChange={onChange} required={required} label={label}
+               fetchFkOptions={fetchFkOptions} />
+    );
+  }
+
+  // Tarih/sayı: tek satırlık giriş.
   const type =
     kind === 'number' ? 'number' :
     kind === 'date' ? 'date' :
@@ -136,6 +155,65 @@ function Field({ column, value, onChange }: {
       {label}
       <input id={`f-${column.name}`} type={type} value={value} required={required}
              onChange={e => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+/**
+ * D4 §2.1 — FK alanı okunabilir bir seçim sunar (ham "3" yerine "Ayşe Demir").
+ * Hedefte 200'den fazla satır varsa ham değer girişine düşer, sebebini yazar —
+ * 50.000 satırlık bir tabloyu açılır listeye dökmek tarayıcıyı kilitlerdi.
+ */
+function FkField({ column, value, onChange, required, label, fetchFkOptions }: {
+  column: DeskColumn; value: string; onChange: (v: string) => void;
+  required: boolean; label: React.ReactNode;
+  fetchFkOptions: (targetTable: string) => Promise<FkOptionsResult>;
+}) {
+  const [result, setResult] = useState<FkOptionsResult | 'loading'>('loading');
+
+  useEffect(() => {
+    let cancelled = false;
+    setResult('loading');
+    fetchFkOptions(column.references!.table)
+      .then(r => { if (!cancelled) setResult(r); })
+      .catch(() => { if (!cancelled) setResult({ kind: 'error' }); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [column.references!.table]);
+
+  if (result === 'loading') {
+    return (
+      <div className="field">
+        {label}
+        <input id={`f-${column.name}`} type="text" value={value} disabled placeholder="Seçenekler yükleniyor…" />
+      </div>
+    );
+  }
+
+  if (result.kind === 'options') {
+    return (
+      <div className="field">
+        {label}
+        <select id={`f-${column.name}`} value={value} required={required}
+                onChange={e => onChange(e.target.value)}>
+          <option value="">{required ? '— seçin —' : '— boş —'}</option>
+          {result.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+    );
+  }
+
+  // 'too_many' ya da 'error' — ham değer girişine düş, sebebini yaz.
+  return (
+    <div className="field">
+      {label}
+      <input id={`f-${column.name}`} type="text" value={value} required={required}
+             onChange={e => onChange(e.target.value)} />
+      <div style={{ fontSize: 10.5, color: 'var(--content-subtle)', marginTop: 4 }}>
+        {result.kind === 'too_many'
+          ? `${column.references!.table} tablosunda 200'den fazla kayıt var — ham ${column.references!.column} değeri girin.`
+          : 'Seçenekler okunamadı — ham değer girin.'}
+      </div>
     </div>
   );
 }
