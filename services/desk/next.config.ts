@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
   env: {
     // Tek yapilandirma noktasi. Uretimde gercek API adresi verilir.
     NAMINES_API: process.env.NAMINES_API ?? 'http://localhost:5000',
+    // Ana Namines UYGULAMASI (backend API DEGIL) — "Ana uygulamada bir proje
+    // olusturun" gibi baglantilar buraya gider. NAMINES_API'yle KARISTIRILMASIN:
+    // biri API sunucusu (JSON doner), diger tarayicida acilan uygulama.
+    NAMINES_FRONTEND: process.env.NAMINES_FRONTEND ?? 'http://localhost:3000',
   },
 };
 
