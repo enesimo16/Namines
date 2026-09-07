@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowRight, Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Sparkles, Wand2, Moon, Sun } from 'lucide-react';
 import MarkdownLite from '../../common/MarkdownLite';
 import { useSchemaStore } from '../../../store/useSchemaStore';
+import { useHomeThemeStore } from '../../../store/useHomeThemeStore';
 import { useReactFlow } from '@xyflow/react';
 import { flowToSchema } from '../../../lib/flowToSchema';
 import MigrationWizard from '../../migration/MigrationWizard';
@@ -34,6 +35,7 @@ const iconBtnActive =
 
 export default function ToolbarPanel() {
   const router = useRouter();
+  const { theme, toggle: toggleTheme } = useHomeThemeStore();
   const schema = useSchemaStore(s => s.schema);
   // Şemaya bağlı eylemlerin görünürlüğü (bkz. aşağıdaki not).
   const hasTables = (schema?.tables.length ?? 0) > 0;
@@ -330,6 +332,21 @@ export default function ToolbarPanel() {
             </div>
           )}
         </div>
+
+        {/* Theme Toggle (Dark / Light) — Share'in hemen yanında */}
+        <button
+          onClick={toggleTheme}
+          type="button"
+          className={`${iconBtnBase} ${iconBtnIdle}`}
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {theme === 'dark' ? (
+            <Moon className="w-4 h-4 text-accent-text" />
+          ) : (
+            <Sun className="w-4 h-4 text-accent" />
+          )}
+        </button>
 
         {/* SQL Console */}
         <button

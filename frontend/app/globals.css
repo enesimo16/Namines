@@ -193,6 +193,93 @@
   --background: var(--surface-900);
   --foreground: var(--content-primary);
   color-scheme: dark;
+
+  /* Render.com ilhamlı düzen için SU YEŞİLİ / CAMGÖBEĞİ marka token'ları */
+  --namines-teal-glow: oklch(36% 0.14 var(--brand-hue));
+  --namines-teal-badge: oklch(54% 0.15 var(--brand-hue));
+  --namines-teal-vibrant: oklch(82% 0.16 168);
+  --namines-teal-ribbon: linear-gradient(90deg, oklch(13% 0.04 var(--brand-hue)) 0%, oklch(20% 0.09 var(--brand-hue)) 50%, oklch(13% 0.04 var(--brand-hue)) 100%);
+  --namines-teal-tile: oklch(20% 0.05 var(--brand-hue));
+  --namines-teal-tile-border: oklch(32% 0.09 var(--brand-hue));
+  --namines-gradient-banner: linear-gradient(90deg, oklch(24% 0.08 var(--brand-hue)) 0%, oklch(46% 0.13 165) 50%, oklch(68% 0.15 155) 100%);
+  --namines-gradient-headline: linear-gradient(90deg, oklch(78% 0.14 var(--brand-hue)) 0%, oklch(80% 0.15 170) 50%, oklch(84% 0.14 155) 100%);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   AÇIK TEMA / BEYAZ MOD (Light Mode Token'ları)
+   ───────────────────────────────────────────────────────────────────────── */
+:root[data-theme="light"],
+html[data-theme="light"],
+html.light,
+[data-theme="light"],
+body.light {
+  --ui-bg-l: 98.5%;
+  --ui-bg-step: -4%;
+
+  --surface-900: oklch(98.5% 0.002 var(--ui-hue));
+  --surface-800: oklch(94.5% 0.003 var(--ui-hue));
+  --surface-700: oklch(89.5% 0.004 var(--ui-hue));
+  --surface-600: oklch(83% 0.005 var(--ui-hue));
+
+  --content-primary: oklch(16% 0.004 var(--ui-hue));
+  --content-primary-hover: oklch(10% 0.004 var(--ui-hue));
+  --content-secondary: oklch(34% 0.006 var(--ui-hue));
+  --content-muted: oklch(48% 0.008 var(--ui-hue));
+  --content-subtle: oklch(58% 0.010 var(--ui-hue));
+
+  --accent: oklch(46% 0.13 var(--brand-hue));
+  --accent-hover: oklch(40% 0.14 var(--brand-hue));
+  --accent-text: oklch(34% 0.13 var(--brand-hue));
+  --accent-subtle: oklch(92% 0.04 var(--brand-hue));
+  --focus-ring: oklch(50% 0.14 var(--brand-hue));
+
+  --color-surface-500: color-mix(in srgb, var(--content-primary) 12%, transparent);
+  --color-surface-400: color-mix(in srgb, var(--content-primary) 20%, transparent);
+
+  --color-bg-base: var(--surface-900);
+  --color-bg-elevated: var(--surface-800);
+  --color-bg-surface: var(--surface-700);
+  --color-ink: var(--content-primary);
+
+  --color-line: color-mix(in srgb, var(--content-primary) 8%, transparent);
+  --color-line-strong: color-mix(in srgb, var(--content-primary) 16%, transparent);
+
+  --scrim: oklch(10% 0 var(--ui-hue) / 0.5);
+
+  --background: var(--surface-900);
+  --foreground: var(--content-primary);
+  color-scheme: light;
+
+  --namines-teal-glow: oklch(88% 0.08 var(--brand-hue));
+  --namines-teal-badge: oklch(46% 0.14 var(--brand-hue));
+  --namines-teal-vibrant: oklch(42% 0.16 168);
+  --namines-teal-ribbon: linear-gradient(90deg, oklch(96% 0.02 var(--brand-hue)) 0%, oklch(92% 0.05 var(--brand-hue)) 50%, oklch(96% 0.02 var(--brand-hue)) 100%);
+  --namines-teal-tile: oklch(95% 0.02 var(--brand-hue));
+  --namines-teal-tile-border: oklch(84% 0.05 var(--brand-hue));
+  --namines-gradient-banner: linear-gradient(90deg, oklch(94% 0.04 var(--brand-hue)) 0%, oklch(90% 0.08 165) 50%, oklch(92% 0.08 155) 100%);
+  --namines-gradient-headline: linear-gradient(90deg, oklch(24% 0.12 var(--brand-hue)) 0%, oklch(28% 0.14 170) 50%, oklch(32% 0.13 155) 100%);
+
+  --color-surface-900: var(--surface-900);
+  --color-surface-800: var(--surface-800);
+  --color-surface-700: var(--surface-700);
+  --color-surface-600: var(--surface-600);
+  --color-content-primary: var(--content-primary);
+  --color-content-secondary: var(--content-secondary);
+  --color-content-muted: var(--content-muted);
+  --color-content-subtle: var(--content-subtle);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+
+  --color-line-solid: oklch(72% 0.008 var(--ui-hue));
+  --color-line-solid-strong: oklch(58% 0.012 var(--ui-hue));
+}
+
+html[data-theme="light"],
+html.light,
+html[data-theme="light"] body,
+html.light body {
+  background-color: var(--surface-900);
+  color: var(--content-primary);
 }
 
 @theme inline {
@@ -240,8 +327,8 @@
      delta neredeyse hiç fark üretmiyordu — ızgara noktaları ve minimap
      düğümleri zeminle aynı tona yakınsadı ("canvas yapısı net değil" geri
      bildirimi). Delta'lar zemin karardıkça büyümeli: +14%/+22%. */
-  --color-line-solid: oklch(calc(var(--ui-bg-l) + 14%) var(--ui-chroma) var(--ui-hue));
-  --color-line-solid-strong: oklch(calc(var(--ui-bg-l) + 22%) var(--ui-chroma) var(--ui-hue));
+  --color-line-solid: oklch(calc(var(--ui-bg-l) + 22%) var(--ui-chroma) var(--ui-hue));
+  --color-line-solid-strong: oklch(calc(var(--ui-bg-l) + 32%) var(--ui-chroma) var(--ui-hue));
 
   --color-content-primary: var(--content-primary);
   --color-content-primary-hover: var(--content-primary-hover);
@@ -266,6 +353,10 @@
   --color-warning-subtle: var(--warning-subtle);
 
   --color-scrim: var(--scrim);
+  --color-namines-badge: var(--namines-teal-badge);
+  --color-namines-vibrant: var(--namines-teal-vibrant);
+  --color-namines-tile: var(--namines-teal-tile);
+  --color-namines-tile-border: var(--namines-teal-tile-border);
 
   /* ══════════════════════════════════════════════════════════════════════
      RENK DIŞI ÖLÇEKLER — Vercel uyarlaması
@@ -456,6 +547,11 @@
 /* Attribution linki paletin dışında kalıyordu (kendi mavi/gri tonu). */
 .react-flow__attribution a {
   color: var(--color-content-subtle);
+}
+
+/* İlişki etiketleri ve açılır menülerin tablolardan önde render edilmesini sağlar */
+.react-flow__edgelabel-renderer {
+  z-index: 1001 !important;
 }
 
 body {
@@ -680,8 +776,13 @@ select option {
 .glass-input {
   background: color-mix(in srgb, var(--color-scrim) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-content-primary) 14%, transparent);
-  color: var(--color-ink);
+  color: oklch(95% 0.004 var(--ui-hue));
   transition: all 0.3s ease;
+}
+
+.glass-input::placeholder {
+  color: oklch(76% 0.010 var(--ui-hue));
+  opacity: 1;
 }
 
 .glass-input:focus {
@@ -690,10 +791,34 @@ select option {
   outline: none;
 }
 
+:root[data-theme="light"] .glass-input,
+html[data-theme="light"] .glass-input,
+html.light .glass-input {
+  background: color-mix(in srgb, var(--surface-700) 85%, black);
+  border: 1px solid color-mix(in srgb, var(--color-content-primary) 22%, transparent);
+  color: oklch(95% 0.004 var(--ui-hue));
+}
+
+:root[data-theme="light"] .glass-input::placeholder,
+html[data-theme="light"] .glass-input::placeholder,
+html.light .glass-input::placeholder {
+  color: oklch(76% 0.010 var(--ui-hue));
+  opacity: 1;
+}
+
 .glass-button {
   background: color-mix(in srgb, var(--color-surface-600) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-content-primary) 6%, transparent);
+  color: oklch(92% 0.006 var(--ui-hue));
   transition: all 0.3s ease;
+}
+
+:root[data-theme="light"] .glass-button,
+html[data-theme="light"] .glass-button,
+html.light .glass-button {
+  background: color-mix(in srgb, var(--surface-700) 75%, black);
+  border: 1px solid color-mix(in srgb, var(--color-content-primary) 15%, transparent);
+  color: oklch(92% 0.006 var(--ui-hue));
 }
 
 .glass-button:hover {

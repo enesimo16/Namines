@@ -17,8 +17,17 @@ import QuotaExhaustedModal from '../canvas/panels/QuotaExhaustedModal';
 import ProjectSidebar from './ProjectSidebar';
 import Logo from './Logo';
 import HomeBanner from '../landing/HomeBanner';
+import ThemeToggleButton from '../landing/ThemeToggleButton';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
-import { useHomeThemeStore } from '../../store/useHomeThemeStore';
+
+const HOME_NAV_ITEMS = [
+  { id: 'how-it-works', label: 'How it works' },
+  { id: 'engines', label: 'Engines' },
+  { id: 'zero-drift', label: 'Zero Drift' },
+  { id: 'spotlights', label: 'Architecture' },
+  { id: 'builder-grid', label: 'Ecosystem' },
+  { id: 'security', label: 'Security' },
+];
 
 export default function Header() {
   const router = useRouter();
@@ -32,11 +41,8 @@ export default function Header() {
   // (bkz. aşağıdaki `isHome` dallanmaları). Diğer tüm rotalarda Header
   // AYNEN eskisi gibi davranmaya devam ediyor.
   const isHome = pathname === '/';
-  // Yalnızca `isHome`'un okuduğu açık/koyu önizleme anahtarı — kapsamı ve
-  // gerekçesi `useHomeThemeStore.ts`'te.
-  const homeTheme = useHomeThemeStore(s => s.theme);
-  const isHomeLight = isHome && homeTheme === 'light';
 
+  const [activeSection, setActiveSection] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(projectName);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -44,6 +50,51 @@ export default function Header() {
   const [isAIPreferencesOpen, setIsAIPreferencesOpen] = useState(false);
   const [isTeamOpen, setIsTeamOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Scroll spy for homepage sections
+  useEffect(() => {
+    if (!isHome) return;
+
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + 140;
+      let current = '';
+
+      for (const item of HOME_NAV_ITEMS) {
+        const el = document.getElementById(item.id);
+        if (el) {
+          const top = el.offsetTop;
+          const height = el.offsetHeight;
+          if (scrollPosition >= top && scrollPosition < top + height) {
+            current = item.id;
+            break;
+          }
+        }
+      }
+
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 60) {
+        current = HOME_NAV_ITEMS[HOME_NAV_ITEMS.length - 1].id;
+      }
+
+      setActiveSection(current);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isHome]);
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault();
+    const el = document.getElementById(id);
+    if (el) {
+      const yOffset = -70;
+      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+      setActiveSection(id);
+      window.history.pushState(null, '', `#${id}`);
+    }
+  };
 
   const { isAuthenticated, user, logout } = useAuthStore();
   const showToast = useToastStore(state => state.showToast);
@@ -133,24 +184,12 @@ export default function Header() {
 
       <header
         className={`flex items-center justify-between h-14 px-3 sm:px-6 backdrop-blur-md sticky top-0 z-50 w-full transition-colors ${
-          isHomeLight
-            ? 'bg-white border-b border-black/10'
-            // `isHome` (koyu): render.com'un ekran görüntüsündeki net, BEYAZA
-            // yakın ayırıcı çizgi — diğer tüm sayfalardaki daha sakin %10'luk
-            // çizgiden BİLİNÇLİ olarak daha belirgin (kullanıcı talebi).
-            : isHome
-              ? 'bg-surface-800/85 border-b border-white/15'
-              : 'bg-surface-800/85 border-b border-content-primary/10'
+          isHome
+            ? 'bg-surface-900/90 border-b border-surface-500'
+            : 'bg-surface-800/85 border-b border-content-primary/10'
         }`}
       >
-        {/* Left — Logo + Workspace + Project Name (app içi) YA DA Logo + tanıtım
-            bağlantıları (`isHome`).
-
-            `<nav>` landmark'ı: ölçüldü, sayfada `<nav>` sayısı 0'dı. Ekran
-            okuyucu kullanıcısı gezinme bağlantılarını içerikten ayırt
-            edemiyordu (bkz. UI_UX_PRODUCT_AUDIT.md §4 / Y2). Bu şerit
-            GLOBAL gezinme — alanlar arası geçiş; araç çubuğu (tuval eylemleri)
-            ve bilgi paneli (proje içi) ayrı katmanlar, onlar nav değil. */}
+        {/* Left — Logo + Global Nav Links */}
         <nav aria-label="Global" className="flex items-center gap-2 sm:gap-6 min-w-0">
           <button
             onClick={handleLogoClick}
@@ -162,30 +201,33 @@ export default function Header() {
           </button>
 
           {isHome ? (
-            // Tanıtım sayfasında workspace/ekip/proje-adı anlamsız — burada
-            // proje bağlamı yok. Onun yerine sayfanın kendi bölümlerine
-            // (Product/How it works) ve girişsiz demoya giden gerçek
-            // bağlantılar var — uydurma rota yok, hepsi bu sayfada zaten var.
-            <div className="hidden md:flex items-center gap-6 ml-2">
-              {[
-                { href: '#features', label: 'Product' },
-                { href: '#how-it-works', label: 'How it works' },
-              ].map(l => (
-                <a
-                  key={l.href}
-                  href={l.href}
-                  className={`text-sm transition-colors ${
-                    isHomeLight ? 'text-black/70 hover:text-black' : 'text-content-secondary hover:text-content-primary'
-                  }`}
-                >
-                  {l.label}
-                </a>
-              ))}
+            <div className="hidden md:flex items-center gap-5 lg:gap-6 ml-3">
+              {HOME_NAV_ITEMS.map((item) => {
+                const isActive = activeSection === item.id;
+                return (
+                  <a
+                    key={item.id}
+                    href={`#${item.id}`}
+                    onClick={(e) => handleNavClick(e, item.id)}
+                    className={`relative py-1 text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'text-accent-text font-semibold'
+                        : 'text-content-muted hover:text-content-primary'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    {isActive && (
+                      <span
+                        className="absolute -bottom-2.5 left-0 right-0 h-[2px] rounded-full"
+                        style={{ backgroundColor: 'var(--namines-teal-vibrant)' }}
+                      />
+                    )}
+                  </a>
+                );
+              })}
               <Link
                 href="/demo"
-                className={`text-sm transition-colors ${
-                  isHomeLight ? 'text-black/70 hover:text-black' : 'text-content-secondary hover:text-content-primary'
-                }`}
+                className="text-xs font-medium text-content-muted hover:text-content-primary transition-colors"
               >
                 Demo
               </Link>
@@ -277,30 +319,27 @@ export default function Header() {
 
         {/* Right — Actions depending on path */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {!isCanvas && !isCompile && <ThemeToggleButton />}
           {isHome && !isAuthenticated ? (
-            // Tanıtım sayfası, misafir ziyaretçi: Render'ın "Sign In" +
-            // "Get Started" ikilisi — aynı global AuthModal'ı açıyorlar,
-            // ayrı bir giriş sistemi YOK. "Get Started" doğrudan /new'e
-            // gidiyor (asıl işi yapan yer); modal isteğe bağlı, orada da açılır.
             <>
+              <Link
+                href="/demo"
+                className="hidden lg:inline text-xs font-medium text-content-secondary hover:text-content-primary transition-colors px-2"
+              >
+                Explore Demo
+              </Link>
               <button
                 onClick={openAuthModal}
-                className={`hidden sm:inline text-sm font-medium transition-colors px-2 ${
-                  isHomeLight ? 'text-black/70 hover:text-black' : 'text-content-secondary hover:text-content-primary'
-                }`}
+                className="hidden sm:inline text-xs font-medium text-content-secondary hover:text-accent-text transition-colors px-2"
               >
-                Sign in
+                Sign In
               </button>
               <Link
                 href="/new"
-                className={`inline-flex items-center gap-1.5 py-1.5 px-3 sm:px-4 rounded-[var(--radius-card)] text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                  isHomeLight
-                    ? 'bg-black hover:bg-black/85 text-white'
-                    : 'bg-content-primary hover:bg-content-primary-hover text-surface-900'
-                }`}
+                className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-surface-900 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm shadow-accent/15"
               >
                 Get Started
-                <ArrowRight className="w-3 h-3" />
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </>
           ) : isCanvas || isCompile ? (
@@ -308,7 +347,7 @@ export default function Header() {
                 onClick={() => setIsAIPreferencesOpen(true)}
                 title="Settings"
                 aria-label="Open Settings"
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/[0.04] hover:bg-content-primary/15 border border-content-primary/10 hover:border-white/25 text-content-primary hover:text-content-primary transition-all duration-200 cursor-pointer active:scale-95"
+                className="lg:hidden w-9 h-9 flex items-center justify-center rounded-full bg-white/[0.04] hover:bg-content-primary/15 border border-content-primary/10 hover:border-white/25 text-content-primary hover:text-content-primary transition-all duration-200 cursor-pointer active:scale-95"
               >
                 <Settings className="w-4 h-4" />
               </button>

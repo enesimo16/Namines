@@ -29,6 +29,9 @@ Icon?
 .env.development.local
 .env.test.local
 .env.production.local
+env-namines
+graphify-out/
+graphify-memory/
 
 # ASP.NET Core local secrets — NEVER commit these
 appsettings.secrets.json

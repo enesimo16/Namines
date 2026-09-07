@@ -11,8 +11,6 @@ import VoiceRecorder from '../../components/landing/VoiceRecorder';
 import ClarifyDialog from '../../components/landing/ClarifyDialog';
 import ProductionScreen from '../../components/landing/ProductionScreen';
 import PlanScreen from '../../components/landing/PlanScreen';
-import WhyNamines from '../../components/landing/WhyNamines';
-import TemplateStrip from '../../components/landing/TemplateStrip';
 import { streamSchemaGeneration, AgentStepEvent } from '../../lib/sseSchemaStream';
 import { ClarifyResponse, NaiModelOption } from '../../types/nai';
 
@@ -278,7 +276,7 @@ export default function NewProjectPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
-                className="w-full h-24 sm:h-28 p-3 rounded-[var(--radius-card)] glass-input resize-none placeholder-content-muted text-sm leading-relaxed"
+                className="w-full h-24 sm:h-28 p-3 rounded-[var(--radius-card)] glass-input resize-none text-white/90 placeholder:text-white/50 text-sm leading-relaxed focus:outline-none"
                 disabled={isGenerating}
               ></textarea>
 
@@ -286,7 +284,7 @@ export default function NewProjectPage() {
                 <button
                   type="button"
                   onClick={() => setShowUrlInput(!showUrlInput)}
-                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${showUrlInput || apiSpecUrl ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
+                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${showUrlInput || apiSpecUrl ? 'text-accent-text' : 'text-white/60 hover:text-white/90'}`}
                   title="Infer from a GraphQL or OpenAPI/Swagger URL"
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
@@ -294,7 +292,7 @@ export default function NewProjectPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${image ? 'text-content-primary' : 'text-content-muted hover:text-content-primary'}`}
+                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${image ? 'text-accent-text' : 'text-white/60 hover:text-white/90'}`}
                   title="Add Image"
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
@@ -306,7 +304,7 @@ export default function NewProjectPage() {
                   accept=".png,.jpg,.jpeg"
                   className="hidden"
                 />
-                <div className="w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all overflow-hidden relative">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all overflow-hidden relative text-white/70">
                   <div className="absolute inset-0 flex items-center justify-center scale-[0.8]">
                     <VoiceRecorder
                       disabled={isGenerating}
@@ -364,28 +362,26 @@ export default function NewProjectPage() {
               </div>
             )}
 
-            {/* Options & Submit Section */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
-              <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto shrink-0">
-
-                {/* Namines AI model seçici (new-phase/36 §3).
-                    Sağlayıcı adları (Groq/Gemini/Ollama) ve model kimlikleri
-                    ARTIK GÖSTERİLMİYOR: kullanıcının "llama-3.3-70b" ile
-                    "mixtral" arasında seçim yapması gereken bir karar değildi,
-                    ve sağlayıcı o modeli kaldırdığında ürün bozulmuş
-                    görünüyordu. */}
-                {models.length > 0 && (
-                <div className="relative flex-1 min-w-[120px] sm:flex-initial sm:w-[205px]" ref={modelDropdownRef}>
+            {/* Options & Submit Section — side-by-side single row */}
+            <div className="flex items-center gap-2 sm:gap-2.5 mt-4 w-full">
+              {/* Namines AI model seçici (new-phase/36 §3).
+                  Sağlayıcı adları (Groq/Gemini/Ollama) ve model kimlikleri
+                  ARTIK GÖSTERİLMİYOR: kullanıcının "llama-3.3-70b" ile
+                  "mixtral" arasında seçim yapması gereken bir karar değildi,
+                  ve sağlayıcı o modeli kaldırdığında ürün bozulmuş
+                  görünüyordu. */}
+              {models.length > 0 && (
+                <div className="relative flex-1 min-w-[120px]" ref={modelDropdownRef}>
                   <button
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                    className="flex items-center justify-between glass-input rounded-[var(--radius-control)] pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
+                    className="flex items-center justify-between glass-input rounded-[var(--radius-control)] px-3 py-2 text-sm text-white/90 focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70 h-[38px]"
                   >
                     <span className="truncate">
                       {selectedModel?.displayName || 'Namines AI'}
                     </span>
-                    <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-white/60 transition-transform duration-200 shrink-0 ml-1.5 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {modelDropdownOpen && (
@@ -405,8 +401,8 @@ export default function NewProjectPage() {
                               !m.available
                                 ? 'opacity-40 cursor-not-allowed text-content-muted'
                                 : isSelected
-                                ? 'bg-white/[0.08] text-content-primary border-l-2 border-white/40 pl-2'
-                                : 'text-content-muted hover:bg-white/[0.04] hover:text-content-primary'
+                                ? 'bg-accent/20 text-accent-text border-l-2 border-accent pl-2'
+                                : 'text-content-secondary hover:bg-surface-700/60 hover:text-content-primary'
                             }`}
                           >
                             <span className="min-w-0">
@@ -420,7 +416,7 @@ export default function NewProjectPage() {
                               </span>
                             </span>
                             {isSelected && m.available && (
-                              <Check className="w-3 h-3 text-content-primary shrink-0 mt-0.5" />
+                              <Check className="w-3 h-3 text-accent shrink-0 mt-0.5" />
                             )}
                           </button>
                         );
@@ -428,77 +424,76 @@ export default function NewProjectPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* Database Select */}
+              <div className="relative flex-1 min-w-[130px]" ref={dbDropdownRef}>
+                <button
+                  type="button"
+                  disabled={isGenerating}
+                  onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
+                  className="flex items-center justify-between glass-input rounded-[var(--radius-control)] px-3 py-2 text-sm text-white/90 focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70 h-[38px]"
+                >
+                  <span className="truncate">
+                    {dbType === 'MSSQL' ? 'SQL Server' :
+                     dbType === 'PostgreSQL' ? 'PostgreSQL' :
+                     dbType === 'MySQL' ? 'MySQL' :
+                     dbType === 'SQLite' ? 'SQLite' :
+                     dbType === 'Oracle' ? 'Oracle' :
+                     dbType === 'MariaDB' ? 'MariaDB' :
+                     dbType === 'Db2' ? 'IBM Db2' :
+                     dbType === 'Firebird' ? 'Firebird' :
+                     dbType === 'Spanner' ? 'Google Spanner' :
+                     dbType === 'Redshift' ? 'Amazon Redshift' : dbType}
+                  </span>
+                  <ChevronDown className={`w-3 h-3 text-white/60 transition-transform duration-200 shrink-0 ml-1.5 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {dbDropdownOpen && (
+                  <div className="absolute left-0 bottom-full mb-2 w-full min-w-[180px] max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
+                    {[
+                      { value: 'MSSQL', label: 'SQL Server' },
+                      { value: 'PostgreSQL', label: 'PostgreSQL' },
+                      { value: 'MySQL', label: 'MySQL' },
+                      { value: 'SQLite', label: 'SQLite' },
+                      { value: 'Oracle', label: 'Oracle' },
+                      { value: 'MariaDB', label: 'MariaDB' },
+                      { value: 'Db2', label: 'IBM Db2' },
+                      { value: 'Firebird', label: 'Firebird' },
+                      { value: 'Spanner', label: 'Google Spanner' },
+                      { value: 'Redshift', label: 'Amazon Redshift' }
+                    ].map(db => {
+                      const isSelected = dbType === db.value;
+                      return (
+                        <button
+                          key={db.value}
+                          type="button"
+                          onClick={() => {
+                            setDbType(db.value as any);
+                            setDbDropdownOpen(false);
+                          }}
+                          className={`flex items-center justify-between px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-medium cursor-pointer transition-all text-left ${
+                            isSelected
+                              ? 'bg-accent/20 text-accent-text border-l-2 border-accent pl-2'
+                              : 'text-content-secondary hover:bg-surface-700/60 hover:text-content-primary'
+                          }`}
+                        >
+                          <span>{db.label}</span>
+                          {isSelected && (
+                              <Check className="w-3 h-3 text-accent" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-
-                {/* Database Select */}
-                <div className="relative flex-1 min-w-[140px] sm:flex-initial sm:w-[215px]" ref={dbDropdownRef}>
-                  <button
-                    type="button"
-                    disabled={isGenerating}
-                    onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
-                    className="flex items-center justify-between glass-input rounded-[var(--radius-control)] pl-3 pr-3.5 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70"
-                  >
-                    <span className="truncate">
-                      {dbType === 'MSSQL' ? 'SQL Server' :
-                       dbType === 'PostgreSQL' ? 'PostgreSQL' :
-                       dbType === 'MySQL' ? 'MySQL' :
-                       dbType === 'SQLite' ? 'SQLite' :
-                       dbType === 'Oracle' ? 'Oracle' :
-                       dbType === 'MariaDB' ? 'MariaDB' :
-                       dbType === 'Db2' ? 'IBM Db2' :
-                       dbType === 'Firebird' ? 'Firebird' :
-                       dbType === 'Spanner' ? 'Google Spanner' :
-                       dbType === 'Redshift' ? 'Amazon Redshift' : dbType}
-                    </span>
-                    <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {dbDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-full max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
-                      {[
-                        { value: 'MSSQL', label: 'SQL Server' },
-                        { value: 'PostgreSQL', label: 'PostgreSQL' },
-                        { value: 'MySQL', label: 'MySQL' },
-                        { value: 'SQLite', label: 'SQLite' },
-                        { value: 'Oracle', label: 'Oracle' },
-                        { value: 'MariaDB', label: 'MariaDB' },
-                        { value: 'Db2', label: 'IBM Db2' },
-                        { value: 'Firebird', label: 'Firebird' },
-                        { value: 'Spanner', label: 'Google Spanner' },
-                        { value: 'Redshift', label: 'Amazon Redshift' }
-                      ].map(db => {
-                        const isSelected = dbType === db.value;
-                        return (
-                          <button
-                            key={db.value}
-                            type="button"
-                            onClick={() => {
-                              setDbType(db.value as any);
-                              setDbDropdownOpen(false);
-                            }}
-                            className={`flex items-center justify-between px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-medium cursor-pointer transition-all text-left ${
-                              isSelected
-                                ? 'bg-white/[0.08] text-content-primary border-l-2 border-white/40 pl-2'
-                                : 'text-content-muted hover:bg-white/[0.04] hover:text-content-primary'
-                            }`}
-                          >
-                            <span>{db.label}</span>
-                            {isSelected && (
-                                <Check className="w-3 h-3 text-content-primary" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Generate Button */}
               <button
                 type="submit"
                 disabled={isGenerating || isClarifying || !prompt.trim()}
-                className="w-full md:w-auto bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 px-5 rounded-[var(--radius-card)] transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                className="h-[38px] px-4 sm:px-5 bg-accent hover:bg-accent-hover text-white/95 font-bold rounded-[var(--radius-control)] transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider cursor-pointer shadow-sm shadow-accent/20"
               >
                 {isGenerating || isClarifying ? (
                   <>
@@ -515,21 +510,6 @@ export default function NewProjectPage() {
             </div>
           </form>
         </div>
-
-        {/* Girişsiz demoya çıkış. Form'un hemen altında, çünkü AI üretimi giriş
-            istiyor: hesabı olmayan biri "Generate Schema"ya bastığında bir
-            giriş kutusuyla karşılaşıyor. Ürünü görmenin ücretsiz bir yolu
-            varken, ilk teması bir duvara çıkarmak gereksiz kayıp. */}
-        <p className="mt-4 text-xs text-content-muted">
-          Just looking around?{' '}
-          <a href="/demo" className="text-content-primary font-semibold underline underline-offset-4 hover:text-content-secondary">
-            Try the live demo
-          </a>{' '}
-          — no account, no AI, real checks.
-        </p>
-
-        <TemplateStrip />
-        <WhyNamines />
       </main>
 
       {clarify && !planAnswers && (
