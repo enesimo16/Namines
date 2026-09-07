@@ -67,7 +67,7 @@ export default function JoinTeamPage() {
       await teamService.acceptInvite(token);
       setJoined(true);
       showToast('You joined the team.', 'success');
-      setTimeout(() => router.push('/'), 1200);
+      setTimeout(() => router.push('/new'), 1200);
     } catch (err: any) {
       setError(err?.response?.data?.error ?? 'Could not join the team.');
     } finally {
@@ -101,7 +101,7 @@ export default function JoinTeamPage() {
             </div>
             <button
               type="button"
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/new')}
               className="w-full bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary font-semibold py-2.5 rounded-[var(--radius-card)] text-sm transition-colors"
             >
               Go to Namines

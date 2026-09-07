@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Key, Save, Shield, User, CreditCard, HelpCircle, LogOut, Check, Lock, Plus, Trash2, Copy, BarChart3, ChevronDown, SlidersHorizontal, ArrowLeft, Database } from 'lucide-react';
 import { useAIPolicyStore, AIPolicy, AiAdvancedSettings } from '../../../store/useAIPolicyStore';
-import { useByokStore } from '../../../store/useByokStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useQuotaStore } from '../../../store/useQuotaStore';
@@ -241,7 +240,6 @@ const sqlPrettyOptions = [
 
 export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesModalProps) {
   const { policy, updatePolicy, isLoading, fetchPolicy } = useAIPolicyStore();
-  const { apiKey, provider, setApiKey, setProvider, clearApiKey } = useByokStore();
   const { user, logout, isAuthenticated } = useAuthStore();
   const { dailyLimit, used, remaining, resetAt, fetchQuota } = useQuotaStore();
   const showToast = useToastStore(state => state.showToast);
@@ -250,9 +248,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
   const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'ai' | 'pricing' | 'help' | 'analytics'>('profile');
   const [localPolicy, setLocalPolicy] = useState<AIPolicy>({ ...policy });
-  const [inputKey, setInputKey] = useState(apiKey || '');
-  const [selectedProvider, setSelectedProvider] = useState(provider);
-  const [isSavedKey, setIsSavedKey] = useState(!!apiKey);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [isAdvancedUnlocked, setIsAdvancedUnlocked] = useState(false);
   const [showAdvancedScreen, setShowAdvancedScreen] = useState(false);
@@ -313,9 +308,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       if (isAuthenticated) {
         fetchQuota();
       }
-      setInputKey(apiKey || '');
-      setSelectedProvider(provider);
-      setIsSavedKey(!!apiKey);
       setOpenFaq(null);
       setIsAdvancedUnlocked(false);
 
@@ -400,7 +392,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
           .catch(() => {});
       }
     }
-  }, [isOpen, apiKey, provider, isAuthenticated, fetchPolicy, fetchQuota]);
+  }, [isOpen, isAuthenticated, fetchPolicy, fetchQuota]);
 
   const handleUpgrade = async (plan: 'pro' | 'team' = 'pro') => {
     setIsUpgrading(true);
@@ -534,15 +526,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   const handleSavePolicy = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const usesByok = Object.entries(localPolicy)
-        .filter(([key]) => key !== 'schemaGeneration')
-        .some(([_, val]) => val === 5);
-
-      if (usesByok && !apiKey && !inputKey.trim()) {
-        showToast('Please save your BYOK API key below before selecting BYOK routing.', 'warning');
-        return;
-      }
-
       // Gelişmiş tercihler de aynı istekte gidiyor: ayrı bir uç olsaydı biri
       // başarılı biri başarısız olabilir ve kullanıcı yarısı kaydedilmiş bir
       // yapılandırmayla kalırdı.
@@ -566,27 +549,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
     }
   };
 
-  const handleSaveKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputKey.trim()) {
-      clearApiKey();
-      setIsSavedKey(false);
-      showToast('BYOK Key removed.', 'info');
-      return;
-    }
-    setApiKey(inputKey.trim());
-    setProvider(selectedProvider);
-    setIsSavedKey(true);
-    showToast('BYOK Key successfully saved.', 'success');
-  };
-
-  const handleClearKey = () => {
-    clearApiKey();
-    setInputKey('');
-    setIsSavedKey(false);
-    showToast('BYOK Key deleted.', 'info');
-  };
-
   const policyFields = [
     { key: 'smartSeed', label: 'Smart Seeding', desc: 'Mock database records generator (requires AI for domain-aware data).' },
     { key: 'documentation', label: 'Documentation & Reports', desc: 'PDF data dictionary and README files.' },
@@ -598,14 +560,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   ] as const;
 
   const faqs = [
-    {
-      q: 'Is my BYOK API key secure?',
-      a: (
-        <p>
-          Yes. Your BYOK API keys are encrypted client-side using obfuscation routines and stored solely in your browser's local storage. They are never sent to or stored on our servers, ensuring maximum privacy.
-        </p>
-      )
-    },
     {
       q: 'How do daily quotas and credit deductions work?',
       a: (
@@ -964,10 +918,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Cloud Workspace Sync</span>
                           <span className="text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] bg-success-text/10 text-success-text">ACTIVE</span>
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
-                          <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">API Quota Bypass (BYOK)</span>
-                          <span className="text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] bg-success-text/10 text-success-text">SUPPORTED</span>
-                        </div>
                       </div>
                     </div>
 
@@ -1145,67 +1095,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       </button>
                     </form>
 
-                    {/* BYOK Section */}
-                    <div className={`${cardClass} p-5 space-y-4`}>
-                      <div className="space-y-1">
-                        <h3 className="text-xs font-bold text-content-primary">BYOK Credentials</h3>
-                        <p className="text-[10px] text-content-subtle leading-normal">Supply custom API tokens to completely bypass default platform request quotas.</p>
-                      </div>
-
-                      <form onSubmit={handleSaveKey} className="space-y-3">
-                        <div className="flex gap-1.5">
-                          {(['groq', 'openai', 'anthropic', 'gemini'] as const).map((prov) => (
-                            <button
-                              key={prov}
-                              type="button"
-                              onClick={() => { if (!isSavedKey) setSelectedProvider(prov); }}
-                              disabled={isSavedKey}
-                              className={`flex-1 py-2 text-micro font-bold uppercase tracking-wider rounded-[var(--radius-control)] transition-all cursor-pointer ${
-                                selectedProvider === prov
-                                  ? 'bg-white/[0.1] text-content-primary'
-                                  : 'bg-surface-600 text-content-muted hover:text-content-secondary hover:bg-white/[0.06]'
-                              }`}
-                            >
-                              {prov}
-                            </button>
-                          ))}
-                        </div>
-
-                        <div className="relative">
-                          <input
-                            type="password"
-                            value={inputKey}
-                            onChange={(e) => setInputKey(e.target.value)}
-                            disabled={isSavedKey}
-                            placeholder={isSavedKey ? "••••••••••••••••••••" : `Enter ${selectedProvider.toUpperCase()} Key`}
-                            className={`${inputClass} pr-9 font-mono`}
-                          />
-                          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-content-subtle">
-                            <Key className="w-3.5 h-3.5" />
-                          </div>
-                        </div>
-
-                        {isSavedKey ? (
-                          <div className="flex gap-2">
-                            <div className="flex-1 py-2 px-3 bg-success-text/10 rounded-[var(--radius-control)] flex items-center gap-2 text-success-text text-xs font-semibold font-mono">
-                              <Shield className="w-3.5 h-3.5" />
-                              <span>Decryption Key Locked</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleClearKey}
-                              className="px-4 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-[var(--radius-control)] transition-all cursor-pointer"
-                            >
-                              Delete Key
-                            </button>
-                          </div>
-                        ) : (
-                          <button type="submit" className={`w-full py-2.5 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer ${primaryBtnClass}`}>
-                            Save API Key
-                          </button>
-                        )}
-                      </form>
-                    </div>
                   </div>
                 ) : (
                   // Advanced settings screen

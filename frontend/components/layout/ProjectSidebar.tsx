@@ -75,7 +75,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
     resetProject();
     setActiveProjectId(null);
     onClose();
-    router.push('/');
+    router.push('/new');
   };
 
   const sortedProjects = [...projects].sort(

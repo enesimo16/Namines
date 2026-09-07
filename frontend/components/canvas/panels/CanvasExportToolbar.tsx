@@ -28,7 +28,6 @@ import {
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useCanvasExport } from '../../../hooks/useCanvasExport';
 import { useDbaStore } from '../../../store/useDbaStore';
-import { useByokStore } from '../../../store/useByokStore';
 import { schemaService, scaffolderService } from '../../../services/api';
 
 import { DatabaseSchema } from '../../../types/schema';
@@ -46,11 +45,7 @@ import { token } from '../../../lib/designTokens';
 export default function CanvasExportToolbar() {
   const { projectName, schema, dbType, isEditMode, toggleEditMode, loadFromSchema } = useSchemaStore();
   const { isExporting, exportAsPng, exportAsJpeg } = useCanvasExport();
-  // Yalnızca "AI Settings" mini dairesinde "ayarlı" noktasını göstermek için —
-  // asıl AI/BYOK ayarları hâlâ ToolbarPanel.tsx'in yönettiği modalda yaşıyor
-  // (bkz. aşağıdaki custom event notu).
-  const apiKey = useByokStore(s => s.apiKey);
-  
+
   // DBA store hooks
   const isPanelOpen = useDbaStore(state => state.isPanelOpen);
   const setIsPanelOpen = useDbaStore(state => state.setIsPanelOpen);
@@ -396,10 +391,9 @@ export default function CanvasExportToolbar() {
             <DialMini
               open={isDialOpen}
               delayIndex={1}
-              label="AI & BYOK Settings"
+              label="AI Settings"
               onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-ai-settings')); setIsDialOpen(false); }}
               icon={<Settings className="w-4 h-4" />}
-              dot={apiKey ? 'success' : undefined}
             />
             <DialMini
               open={isDialOpen}
@@ -865,7 +859,7 @@ function DialMini({
   active?: boolean;
   /** 'alert': kırmızı, nabız atan (DBA sorunları gibi dikkat gerektiren durumlar).
    *  'success': sabit yeşil nokta (bir şeyin "ayarlı/aktif" olduğunu gösterir,
-   *  alarm değildir — bkz. AI & BYOK Settings). */
+   *  alarm değildir). */
   dot?: 'alert' | 'success';
   disabled?: boolean;
   btnId?: string;

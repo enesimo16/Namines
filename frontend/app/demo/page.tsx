@@ -416,7 +416,7 @@ function DemoContent() {
               Open this in the editor
             </button>
             <Link
-              href="/"
+              href="/new"
               className="flex items-center gap-2 rounded-[var(--radius-card)] bg-content-primary px-4 py-2.5 text-xs font-bold text-surface-900 transition-all hover:bg-content-secondary"
             >
               <Wand2 className="h-3.5 w-3.5" />
