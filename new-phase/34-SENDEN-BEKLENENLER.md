@@ -128,6 +128,10 @@ ediyorsan hiçbir şey yapman gerekmiyor. §7
 | 1 | Neon hesabı | hesap | 🟢 | Branch DB'ler yavaş açılıyor (ama açılıyor) |
 | K | Ücretsiz havuz 500K/gün (~$3,7/ay) | onay | 🟢 | Varsayılan kondu; kademeli büyüme önerisi hazır |
 | L | Çoklu DB sınırı 3/25/100 | onay | 🟢 | Varsayılan kondu |
+| 11 | Desk v2 SSO devir jetonunun taşınma şekli | karar | ✅ | Karar verildi VE kodlandı — POST form (b), aşağıda ne yapıldığı yazıyor |
+| 12 | Desk v2 toplu silme onay eşiği | karar | ✅ | 10 olarak onaylandı VE kodlandı |
+| 13 | Desk v2'de oturum yolunda ham SQL'e izin — güvenlik kararı | karar | ✅ | İzin verildi (Owner + açık onay + çok katmanlı güvenlik) VE kodlandı |
+| 14 | Desk v2 uyarı kuralları için e-posta altyapısı | hesap | 🟡 | Bilinçli olarak ŞİMDİLİK ertelendi — e-posta altyapısı gelene kadar E5.3 uygulanmayacak |
 
 **En yüksek etkili üçü:** **10** (disk — her şeyi yavaşlatıyor), **6**
 (Stripe — ürünün para kazanmasının önündeki tek engel) ve **9** (Groq kartı —
@@ -408,6 +412,65 @@ demek. Tam karşılaştırma: `second-phase/16-KOTA-VE-MALIYET.md`.
 başlatmam gerekti. AGENTS.md zaten uyarıyor: *"Docker/build hataları illa kod
 hatası değil — önce boş alanı kontrol et."* Bu, hem ürünü hem geliştirmeyi
 yavaşlatıyor.
+
+---
+
+## 11-14. Namines Desk v2'nin açtığı kararlar
+
+> Bu dördü diğerlerinden farklı bir kategoriydi: aşağıdaki üçü artık **karar
+> verildi VE kodlandı** (Desk v2 tamamlandı — bkz.
+> `namines_desk/11-DESK-V2-TAMAMLANDI.md`); 14. madde ise bilinçli olarak
+> ertelendi. Kaynak: `namines_desk/10-DESK-V2-YOL-HARITASI.md`.
+
+### 11. SSO devir jetonunun taşınma şekli — ✅ karar (b), kodlandı
+
+**Seçilen: (b) kısa ömürlü `POST` formu** — en güvenli seçenek. Jeton hiçbir
+zaman URL/query string'e girmiyor, dolayısıyla tarayıcı geçmişine ve
+`Referer` başlığına düşmüyor. Uygulama: ana uygulamada gizli, otomatik
+gönderilen bir `<form method="POST" target="_blank">`; Desk tarafında bunu
+karşılayan bir Next.js Route Handler (`app/handoff/route.ts`). Jeton
+tek kullanımlık (`DeskHandoffToken`, TeamInvite ile aynı desen — yalnızca
+SHA256 hash'i saklanıyor), kısa ömürlü, ve eşzamanlı iki kullanım denemesinde
+yalnızca birinin geçtiği `ExecuteUpdateAsync` tabanlı atomik bir güncellemeyle
+garanti altına alındı (canlı Postgres'e karşı eşzamanlılık testiyle doğrulandı).
+
+### 12. Toplu silme onay eşiği — ✅ 10 olarak onaylandı, kodlandı
+
+Eşik **10** (senin onayınla). 10'dan az seçimde tarayıcının kendi `confirm()`'ü
+yeterli; 10 ve üzerinde kullanıcı bir onay kutusuna **"SİL" yazmak zorunda**
+(`BulkDeleteConfirm.tsx`) — Namines Bot'un "aprove/approve" tahmin ETMEME
+kararıyla aynı ilke. Silme sunucuda TEK transactionda çalışıyor (ya hepsi ya
+hiçbiri) — bir satırda FK ihlali olursa öncekiler de geri alınıyor, bu canlı
+bir testle (gerçek FK ihlali zorlanarak) doğrulandı.
+
+### 13. Desk'in oturum yolunda ham SQL'e izin — ✅ izin verildi, kodlandı
+
+**Karar: izin verildi, tüm güvenlik önlemleriyle.** Uygulanan çok katmanlı
+güvenlik:
+1. Yalnızca proje **Owner**'ı erişebilir (sunucu `OrgRole.Owner` kontrolü).
+2. Proje bazında **açıkça kapalı başlar** — Owner `AllowDeskSql` bayrağını
+   bilerek açmadan konsol çalışmaz.
+3. Yalnızca **tek bir salt-okunur ifade** (SELECT/WITH/EXPLAIN/SHOW) —
+   regex tabanlı bir beyaz liste (`EnsureReadOnlySelectStatement`) INSERT/
+   UPDATE/DELETE/DROP/ALTER/... ve `SELECT…INTO` dahil tüm yazma/DDL
+   biçimlerini ve zincirlenmiş ifadeleri reddediyor.
+4. Bağlantı, motor destekliyorsa (Postgres/MySQL/MariaDB) veritabanı
+   düzeyinde salt-okunur bir oturumla açılıyor — regex'i atlatan bir ifade
+   olsa bile veritabanının kendisi yazmayı reddediyor (bu doğrudan test
+   edildi: gerçek bir `PostgresException` alındı). SQL Server/Oracle'da bu
+   ikinci katman yok, o yüzden regex katmanı onlarda "ekstra" değil, tek
+   savunma hattı.
+5. Ayrı, sıkı bir rate-limit politikası (`sensitive`, 5 istek/dk).
+6. Her çalıştırma denemesi audit trail'e yazılıyor.
+
+### 14. Uyarı kuralları için e-posta altyapısı — 🟡 bilinçli olarak ertelendi
+
+Senin açık talimatınla: **e-posta davet gönderme mekanizması değişecek, o
+yüzden şimdilik olduğu gibi kalsın.** E5.3'ün "X tablosunda silme olursa
+e-posta at" özelliği bu yüzden Desk v2'ye DAHİL EDİLMEDİ — ekip davet
+e-postasıyla (35-KALAN-BUYUK-ISLER.md §8) aynı eksik altyapıya bağımlı
+olmaya devam ediyor. Bir e-posta servisi (SendGrid/Postmark/SES gibi)
+bağlandığında ikisi birlikte ele alınabilir.
 
 ---
 
