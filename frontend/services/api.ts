@@ -11,7 +11,6 @@ import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 import { useSchemaStore } from '../store/useSchemaStore';
-import { useByokStore } from '../store/useByokStore';
 import { useToastStore } from '../store/useToastStore';
 import { API_BASE_URL } from '../lib/apiConfig';
 
@@ -459,6 +458,18 @@ export const authService = {
   },
 
   /**
+   * Namines Desk v2 §E1.2 — SSO devri, en güvenli seçenek (34-SENDEN-
+   * BEKLENENLER.md madde 11'in kararı). Bu çağrı zaten girişli kullanıcının
+   * çerezini kullanır (`withCredentials: true`) ve tek kullanımlık, 30 saniye
+   * ömürlü bir jeton döner — jeton BURADA, yalnızca bu yanıt gövdesinde
+   * görünür, hiçbir URL'e yazılmaz.
+   */
+  createDeskHandoffToken: async (): Promise<{ token: string; expiresInSeconds: number }> => {
+    const response = await api.post('/auth/desk-handoff-token');
+    return response.data;
+  },
+
+  /**
    * second-phase/10-COKLU-DB.md — iki proje arasındaki mantıksal (gerçek FK
    * OLMAYAN) ilişkiler. Hepsi backend'de yetki kontrolünden geçiyor (bkz.
    * CrossDatabaseController) — iki tarafı da görebilen kullanıcı.
@@ -550,7 +561,7 @@ export const authService = {
   }
 };
 
-// Request interceptor to dynamically inject the JWT bearer token from Zustand auth store and BYOK headers from useByokStore
+// Request interceptor to dynamically inject the JWT bearer token from Zustand auth store
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
@@ -566,19 +577,6 @@ api.interceptors.request.use(
           console.error('Auth token parsing error', e);
         }
       }
-
-      // Inject BYOK Headers — anahtar bellekteki store'dan (zaten çözülmüş) okunur;
-      // localStorage'da AES-256-GCM ciphertext durur, burada tekrar çözme yapılmaz.
-      try {
-        const { apiKey, provider } = useByokStore.getState();
-        if (apiKey) {
-          config.headers['X-BYOK-Key'] = apiKey;
-          config.headers['X-BYOK-Provider'] = provider || 'groq';
-        }
-      } catch (e) {
-        console.error('BYOK header injection error', e);
-      }
-
     }
     return config;
   },

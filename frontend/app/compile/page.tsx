@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpenText, FileText, Container, Download, PanelsTopLeft, ExternalLink } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
-import { schemaService } from '../../services/api';
+import { schemaService, authService } from '../../services/api';
 
 import DbTypeSelector from '../../components/compile/DbTypeSelector';
 import SqlPreview from '../../components/compile/SqlPreview';
@@ -73,10 +73,50 @@ export default function CompilePage() {
   const [activeTab, setActiveTab] = useState<TabId>('SQL');
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingSvg, setIsExportingSvg] = useState(false);
+  const [openingDesk, setOpeningDesk] = useState(false);
+
+  /**
+   * Namines Desk v2 §E1.2 — SSO devri. EN GÜVENLİ seçenek uygulandı: jeton
+   * bir <a href> ya da window.open URL'inde DEĞİL, gizli bir <form>'un POST
+   * gövdesinde gider. Bu, jetonun tarayıcı geçmişine ve `Referer` başlığına
+   * düşmesini engeller (bir form POST gövdesi bunların hiçbirine yansımaz).
+   *
+   * Akış: 1) çerezle (zaten girişli) tek kullanımlık bir jeton iste,
+   * 2) o jetonu tek bir gizli input'a koyan, Desk'in `/handoff` ucuna hedefli
+   * bir form oluştur, 3) formu yeni sekmede otomatik gönder, 4) formu DOM'dan
+   * kaldır (jeton sayfa kaynağında asılı kalmasın).
+   */
+  async function openNaminesDesk() {
+    setOpeningDesk(true);
+    try {
+      const { token } = await authService.createDeskHandoffToken();
+      const deskUrl = process.env.NEXT_PUBLIC_DESK_URL ?? 'http://localhost:3200';
+
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `${deskUrl}/handoff`;
+      form.target = '_blank';
+      form.style.display = 'none';
+
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'token';
+      input.value = token;
+      form.appendChild(input);
+
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+    } catch {
+      showToast('Namines Desk açılamadı. Lütfen tekrar deneyin.', 'error');
+    } finally {
+      setOpeningDesk(false);
+    }
+  }
 
   useEffect(() => {
     if (!schema) {
-      router.push('/');
+      router.push('/new');
       return;
     }
 
@@ -246,19 +286,24 @@ export default function CompilePage() {
               Sekme DEGIL bir BAGLANTI: bu sayfanin icinde render edilemez,
               kendi uygulamasi. "Developer Package" sekmesi (indirilebilir
               Streamlit/Next.js paketleri) bunun yerine kaldirildi:
-              indirilen bir panel yerine barindirilan bir panel veriyoruz. */}
-          <a
-            href={process.env.NEXT_PUBLIC_DESK_URL ?? 'http://localhost:3200'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 mt-1 lg:mt-2 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10"
+              indirilen bir panel yerine barindirilan bir panel veriyoruz.
+
+              Namines Desk v2 §E1.2 — SSO devri EN GÜVENLİ şekilde: jeton bir
+              URL'e ASLA yazılmaz (tarayıcı geçmişi + Referer sızıntısı riski),
+              yalnızca gizli bir form'un POST gövdesinde Desk'in /handoff
+              ucuna taşınır. */}
+          <button
+            type="button"
+            onClick={openNaminesDesk}
+            disabled={openingDesk}
+            className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 mt-1 lg:mt-2 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10 disabled:opacity-50"
             title="Namines Desk — veritabaniniz icin barindirilan CRUD arayuzu (ayri uygulama)"
           >
             <PanelsTopLeft className="w-3.5 h-3.5 shrink-0" />
-            <span className="lg:truncate">Namines Desk</span>
+            <span className="lg:truncate">{openingDesk ? 'Açılıyor…' : 'Namines Desk'}</span>
             <span className="text-micro font-bold uppercase tracking-wider text-accent-text bg-accent-subtle px-1.5 py-0.5 rounded-full shrink-0">beta</span>
             <ExternalLink className="w-3 h-3 shrink-0 ml-auto opacity-60" />
-          </a>
+          </button>
         </nav>
       </aside>
 

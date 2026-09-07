@@ -141,7 +141,7 @@ export default function QuotaExhaustedModal() {
               className="w-full flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold text-xs rounded-[var(--radius-card)] transition-all cursor-pointer"
             >
               <Key className="w-3.5 h-3.5" />
-              <span>Use My Own API Key (BYOK)</span>
+              <span>Open AI Settings</span>
             </button>
 
             <button

@@ -95,7 +95,25 @@ interface ProjectHistoryState {
   hasHydrated: boolean;
   setHasHydrated: (val: boolean) => void;
   setMigrationBaseline: (baseline: DatabaseSchema | null) => void;
+  /**
+   * Cloud'dan İNDİRİR (tek yön). Yüklemek için `syncAllToCloud` — ikisi
+   * ayrı yönler, adları buna göre okunmalı.
+   */
   syncWithCloud: () => Promise<void>;
+  /**
+   * Yerelde olup cloud'da olmayan (ya da yerelde daha yeni olan) TÜM projeleri
+   * cloud'a yükler.
+   *
+   * <b>Neden gerekli:</b> `triggerCloudSyncIfDue` yalnızca AKTİF projeyi ve
+   * yalnızca `pendingCloudSync` bayrağı set edildiyse gönderiyor; o bayrak da
+   * yalnızca kullanıcı KAYIT ANINDA giriş yapmışsa set ediliyor. Misafirken
+   * oluşturulan projeler bu yüzden cloud'a hiç çıkmıyordu — AuthModal'daki
+   * "senkronla?" diyaloğu kapatıldıysa kalıcı olarak yerelde kalıyorlardı.
+   * Sonuç: kullanıcı ana uygulamada projesini görüyor ama Namines Desk
+   * (ve ileride Vault/Ground) "proje yok" diyordu, çünkü onlar YALNIZCA
+   * cloud'u görüyor.
+   */
+  syncAllToCloud: () => Promise<void>;
 
   // ── Cloud Sync Throttle state ─────────────────────────────────────────
   /** true ise cloud'a atılmamış değişiklik var — bir sonraki triggerCloudSyncIfDue zamanında gönderilecek */
@@ -155,7 +173,7 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           
           // Geriye dönük uyumluluk: branches yoksa main olarak oluştur
           let currentBranches = oldProj.branches ? [...oldProj.branches] : [];
-          let currentBranchName = oldProj.currentBranch || 'main';
+          const currentBranchName = oldProj.currentBranch || 'main';
 
           if (currentBranches.length === 0) {
             currentBranches = [
@@ -335,7 +353,7 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
 
         const proj = projects[projIdx];
         let currentBranches = proj.branches ? [...proj.branches] : [];
-        let currentBranchName = proj.currentBranch || 'main';
+        const currentBranchName = proj.currentBranch || 'main';
 
         // Geriye dönük uyumluluk: branches dizisi yoksa main oluştur
         if (currentBranches.length === 0) {
@@ -535,6 +553,47 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
         }
       },
       // ───────────────────────────────────────────────────────────────────────
+
+      syncAllToCloud: async () => {
+        const { projects, hasHydrated } = get();
+        const isAuth = useAuthStore.getState().isAuthenticated;
+        if (!isAuth || !hasHydrated || projects.length === 0) return;
+
+        try {
+          // Önce cloud'un mevcut hâli okunur: yerelde ESKİ kalmış bir kopyayı
+          // cloud'daki DAHA YENİ sürümün üstüne yazmak, başka bir cihazda
+          // yapılan düzenlemeyi sessizce yok etmek olurdu. Bu yüzden yalnızca
+          // "cloud'da hiç yok" ya da "yerel daha yeni" olanlar gönderiliyor.
+          const cloudRaw = await authService.getCloudProjects();
+          const cloudUpdatedById = new Map<string, number>();
+          if (Array.isArray(cloudRaw)) {
+            cloudRaw.forEach(cp => {
+              if (cp?.id) cloudUpdatedById.set(cp.id, new Date(cp.updatedAt).getTime());
+            });
+          }
+
+          const toUpload = projects.filter(p => {
+            if (!p.schema) return false; // şemasız proje anlamlı bir yük değil
+            const cloudUpdated = cloudUpdatedById.get(p.id);
+            if (cloudUpdated === undefined) return true;      // cloud'da hiç yok
+            return new Date(p.updatedAt).getTime() > cloudUpdated; // yerel daha yeni
+          });
+
+          if (toUpload.length === 0) return;
+
+          await authService.syncProjects(toUpload.map(p => ({
+            id: p.id,
+            name: p.name,
+            dbType: p.dbType,
+            schemaJson: JSON.stringify(p.schema),
+            nodePositionsJson: JSON.stringify(p.nodePositions ?? {}),
+          })));
+          set({ pendingCloudSync: false, lastCloudSyncAt: Date.now() });
+        } catch (e) {
+          // Sessizce başarısız ol — bir sonraki girişte/tetiklemede tekrar denenir.
+          console.error('[CloudSync] syncAllToCloud failed:', e);
+        }
+      },
 
       syncWithCloud: async () => {
         const { projects, hasHydrated } = get();

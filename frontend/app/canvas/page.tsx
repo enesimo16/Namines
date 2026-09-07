@@ -376,7 +376,7 @@ export default function CanvasPage() {
     if (!schema && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (!params.get('roomId')) {
-        router.push('/');
+        router.push('/new');
       }
     }
     setIsGenerating(false);
@@ -420,7 +420,7 @@ export default function CanvasPage() {
     // kontrol ediliyordu ve o kimliği uygulamanın kendisi üretiyordu — bkz.
     // yukarıdaki not.
     if (joinedSharedRoom && urlRoomId) {
-      return <MultiplayerLoadingScreen roomId={urlRoomId} onCancel={() => router.push('/')} />;
+      return <MultiplayerLoadingScreen roomId={urlRoomId} onCancel={() => router.push('/new')} />;
     }
     // Şema yokken `null` DÖNÜLMÜYOR. Store'un başlangıç değeri `schema: null`
     // olduğu için burası yeni kullanıcıda her zaman çalışıyordu ve ekrana

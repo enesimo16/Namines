@@ -1,42 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Lock, Sparkles, Key, LogIn, CheckCircle, ShieldAlert } from 'lucide-react';
+import React from 'react';
+import { X, Lock, LogIn, ShieldAlert } from 'lucide-react';
 import { useAIGatewayStore } from '../../../store/useAIGatewayStore';
-import { useByokStore } from '../../../store/useByokStore';
 import { useToastStore } from '../../../store/useToastStore';
 
 export default function AIGatewayModal() {
   const { isOpen, featureName, closeGateway } = useAIGatewayStore();
-  const { apiKey, provider, setApiKey, setProvider, clearApiKey } = useByokStore();
   const showToast = useToastStore(state => state.showToast);
 
-  const [inputKey, setInputKey] = useState(apiKey || '');
-  const [selectedProvider, setSelectedProvider] = useState(provider);
-  const [isSaved, setIsSaved] = useState(!!apiKey);
-
   if (!isOpen) return null;
-
-  const handleSaveKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputKey.trim()) {
-      clearApiKey();
-      setIsSaved(false);
-      showToast('API Key removed. Enterprise fallback will be used if authenticated.', 'info');
-      return;
-    }
-    setApiKey(inputKey.trim());
-    setProvider(selectedProvider);
-    setIsSaved(true);
-    showToast('API Key obfuscated and saved securely.', 'success');
-  };
-
-  const handleClearKey = () => {
-    clearApiKey();
-    setInputKey('');
-    setIsSaved(false);
-    showToast('API Key deleted from secure local storage.', 'info');
-  };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-scrim/75 backdrop-blur-sm animate-fade-in">
@@ -45,7 +18,7 @@ export default function AIGatewayModal() {
 
       {/* Main Container - Minimalist Dark Glass Theme */}
       <div className="relative w-full max-w-md bg-surface-900/95 border border-surface-600 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 80%, transparent)] rounded-[var(--radius-modal)] backdrop-blur-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
-        
+
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4.5 border-b border-surface-600/80 bg-surface-900/20">
           <div className="flex items-center gap-2.5">
@@ -73,20 +46,20 @@ export default function AIGatewayModal() {
             <div className="space-y-1">
               <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">AI Operations Restricted</h4>
               <p className="text-[11px] text-content-muted leading-relaxed font-semibold">
-                You are currently accessing the canvas as a <strong className="text-accent-text">Guest</strong>. The feature <span className="text-content-secondary font-mono font-bold">"{featureName || 'AI Agent'}"</span> requires enterprise credits or your own secure API token to prevent resource drainage.
+                You are currently accessing the canvas as a <strong className="text-accent-text">Guest</strong>. The feature <span className="text-content-secondary font-mono font-bold">"{featureName || 'AI Agent'}"</span> requires an authenticated account.
               </p>
             </div>
           </div>
 
-          {/* Option A: Login / Sign Up */}
+          {/* Sign In / Sign Up */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-micro font-extrabold text-content-subtle uppercase tracking-widest font-mono">
-                Option I: Sign In to Account
+                Sign In to Continue
               </span>
               <div className="h-px flex-1 bg-surface-700/60 ml-3" />
             </div>
-            
+
             <button
               onClick={() => {
                 closeGateway();
@@ -102,84 +75,6 @@ export default function AIGatewayModal() {
               <LogIn className="w-4 h-4 text-white/95 group-hover:translate-x-0.5 transition-transform" />
               <span>Access Namines Cloud</span>
             </button>
-          </div>
-
-          {/* Option B: BYOK Interface */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-micro font-extrabold text-content-subtle uppercase tracking-widest font-mono">
-                Option II: Secure BYOK (Own API Key)
-              </span>
-              <div className="h-px flex-1 bg-surface-700/60 ml-3" />
-            </div>
-
-            <form onSubmit={handleSaveKey} className="bg-surface-900/45 border border-surface-600/80 p-5 rounded-[var(--radius-modal)] space-y-4">
-              {/* Tab Selector */}
-              <div className="flex bg-surface-900/80 p-1 rounded-[var(--radius-card)] border border-surface-600/60">
-                {(['groq', 'openai', 'anthropic', 'gemini'] as const).map((prov) => (
-                  <button
-                    key={prov}
-                    type="button"
-                    onClick={() => {
-                      if (!isSaved) setSelectedProvider(prov);
-                    }}
-                    disabled={isSaved}
-                    className={`flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider rounded-[var(--radius-control)] transition-all duration-200 cursor-pointer ${
-                      selectedProvider === prov
-                        ? 'bg-surface-700 border-surface-500 text-content-primary shadow-sm'
-                        : 'bg-transparent border-transparent text-content-subtle hover:text-content-secondary'
-                    }`}
-                  >
-                    {prov}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-extrabold text-content-muted uppercase tracking-wider block">
-                  API Key Input
-                </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    value={inputKey}
-                    onChange={(e) => setInputKey(e.target.value)}
-                    disabled={isSaved}
-                    placeholder={isSaved ? "••••••••••••••••••••" : `Enter your ${selectedProvider.toUpperCase()} Key`}
-                    className="w-full px-3 py-2 bg-surface-900 border border-surface-600 rounded-[var(--radius-card)] text-xs text-content-primary placeholder-zinc-700 focus:outline-none focus:border-accent-hover transition-all font-mono"
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-content-subtle">
-                    <Key className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-                <span className="text-micro text-content-subtle block mt-1 font-sans leading-normal">
-                  * Your key is encrypted in local storage with an AES-based obfuscation layer against XSS attacks.
-                </span>
-              </div>
-
-              {isSaved ? (
-                <div className="flex gap-2">
-                  <div className="flex-1 py-2 px-3 bg-success-subtle/20 border border-success/20 rounded-[var(--radius-card)] flex items-center gap-2 text-success-text text-xs font-bold font-mono">
-                    <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>Securely Saved</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleClearKey}
-                    className="px-4 bg-surface-700 hover:bg-surface-600 border border-surface-500 text-content-secondary hover:text-content-primary text-xs font-bold rounded-[var(--radius-card)] transition-all cursor-pointer"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-content-primary hover:bg-content-secondary text-surface-900 font-bold text-xs tracking-wider uppercase rounded-[var(--radius-card)] transition-all duration-200 cursor-pointer shadow-sm"
-                >
-                  Encrypt and Mount Key
-                </button>
-              )}
-            </form>
           </div>
         </div>
 

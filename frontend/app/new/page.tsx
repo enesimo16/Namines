@@ -3,20 +3,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, X, Link as LinkIcon, Image as ImageIcon, ChevronDown, Check, Wand2 } from 'lucide-react';
-import { schemaService } from '../services/api';
-import { useSchemaStore } from '../store/useSchemaStore';
-import { useToastStore } from '../store/useToastStore';
-import { useAuthModalStore } from '../store/useAuthModalStore';
-import VoiceRecorder from '../components/landing/VoiceRecorder';
-import ClarifyDialog from '../components/landing/ClarifyDialog';
-import ProductionScreen from '../components/landing/ProductionScreen';
-import PlanScreen from '../components/landing/PlanScreen';
-import WhyNamines from '../components/landing/WhyNamines';
-import TemplateStrip from '../components/landing/TemplateStrip';
-import { streamSchemaGeneration, AgentStepEvent } from '../lib/sseSchemaStream';
-import { ClarifyResponse, NaiModelOption } from '../types/nai';
+import { schemaService } from '../../services/api';
+import { useSchemaStore } from '../../store/useSchemaStore';
+import { useToastStore } from '../../store/useToastStore';
+import { useAuthModalStore } from '../../store/useAuthModalStore';
+import VoiceRecorder from '../../components/landing/VoiceRecorder';
+import ClarifyDialog from '../../components/landing/ClarifyDialog';
+import ProductionScreen from '../../components/landing/ProductionScreen';
+import PlanScreen from '../../components/landing/PlanScreen';
+import WhyNamines from '../../components/landing/WhyNamines';
+import TemplateStrip from '../../components/landing/TemplateStrip';
+import { streamSchemaGeneration, AgentStepEvent } from '../../lib/sseSchemaStream';
+import { ClarifyResponse, NaiModelOption } from '../../types/nai';
 
-export default function LandingPage() {
+export default function NewProjectPage() {
   const [prompt, setPrompt] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [apiSpecUrl, setApiSpecUrl] = useState('');

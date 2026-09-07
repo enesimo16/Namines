@@ -1,12 +1,10 @@
 import { useAuthStore } from '../store/useAuthStore';
 import { useAIGatewayStore } from '../store/useAIGatewayStore';
-import { useByokStore } from '../store/useByokStore';
 import { useAIPolicyStore } from '../store/useAIPolicyStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 
 export function useAIGateway() {
   const { isAuthenticated } = useAuthStore();
-  const { apiKey } = useByokStore();
   const { openGateway } = useAIGatewayStore();
   const { policy } = useAIPolicyStore();
   const { remaining, setExhaustedModalOpen } = useQuotaStore();
@@ -39,26 +37,15 @@ export function useAIGateway() {
       return true;
     }
 
-    // If policy mode is BYOK (5) and the user has a local secure key configured, allow bypass
-    if (mode === 5 && apiKey) {
-      return true;
-    }
-
-    // For Guest user (no auth, no local key)
-    if (!isAuthenticated && !apiKey) {
+    // Guest (kimliksiz) kullanıcı — giriş gateway'i göster.
+    if (!isAuthenticated) {
       openGateway(featureName);
       return false;
     }
 
-    // For Auth user with quota, check if quota is remaining
-    if (isAuthenticated && mode !== 0 && mode !== 5 && remaining <= 0) {
+    // Giriş yapmış kullanıcı, kota bittiyse durdur.
+    if (remaining <= 0) {
       setExhaustedModalOpen(true);
-      return false;
-    }
-
-    // For BYOK mode where key is missing
-    if (mode === 5 && !apiKey) {
-      window.dispatchEvent(new CustomEvent('namines:open-ai-settings'));
       return false;
     }
 
