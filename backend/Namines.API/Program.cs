@@ -571,7 +571,6 @@ try
     app.UseAuthorization();
     app.UseRateLimiter();
 
-    app.UseMiddleware<BYOKMiddleware>();
     app.UseMiddleware<AIQuotaMiddleware>();
 
     app.UseNaminesObservability();

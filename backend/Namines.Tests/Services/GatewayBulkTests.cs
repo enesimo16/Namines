@@ -39,6 +39,66 @@ public class GatewayBulkTests
         Assert.Contains("one statement", error.Message);
     }
 
+    // ── Namines Desk v2 §E4.2: SQL konsolunun ekstra katmanı ─────────────────
+    //
+    // Bu testlerin varlık sebebi: DB'nin kendi salt-okunur oturumu SQL Server/
+    // Oracle'da hiç yok (bkz. EnsureReadOnlySelectStatement'ın sınıf yorumu),
+    // yani BU regex TEK katman olarak da doğru davranmak zorunda.
+
+    [Theory]
+    [InlineData("SELECT * FROM customers")]
+    [InlineData("select id from customers where id = 1")]
+    [InlineData("  SELECT 1")]
+    [InlineData("WITH t AS (SELECT 1) SELECT * FROM t")]
+    [InlineData("EXPLAIN SELECT * FROM customers")]
+    [InlineData("SHOW TABLES")]
+    public void A_plain_select_is_accepted(string sql)
+    {
+        GatewayService.EnsureReadOnlySelectStatement(sql);
+    }
+
+    [Theory]
+    [InlineData("INSERT INTO customers (name) VALUES ('x')")]
+    [InlineData("UPDATE customers SET name = 'x'")]
+    [InlineData("DELETE FROM customers")]
+    [InlineData("DROP TABLE customers")]
+    [InlineData("TRUNCATE TABLE customers")]
+    [InlineData("CREATE TABLE evil (id int)")]
+    [InlineData("ALTER TABLE customers ADD COLUMN x int")]
+    [InlineData("GRANT ALL ON customers TO public")]
+    [InlineData("CALL some_procedure()")]
+    [InlineData("EXEC some_procedure")]
+    [InlineData("VACUUM customers")]
+    public void Non_select_statements_are_rejected_outright(string sql)
+    {
+        Assert.Throws<ArgumentException>(() => GatewayService.EnsureReadOnlySelectStatement(sql));
+    }
+
+    [Theory]
+    // MSSQL'in klasik "salt okuma gibi görünen ama tablo YAZAN" ifadesi.
+    [InlineData("SELECT * INTO new_table FROM customers")]
+    // SELECT ile başlıyor ama alt yan tümcede yazma barındırıyor.
+    [InlineData("SELECT * FROM customers; INSERT INTO customers (name) VALUES ('x')")]
+    [InlineData("SELECT (INSERT INTO customers (name) VALUES ('x')) FROM customers")]
+    public void A_select_that_smuggles_a_write_is_still_rejected(string sql)
+    {
+        Assert.Throws<ArgumentException>(() => GatewayService.EnsureReadOnlySelectStatement(sql));
+    }
+
+    [Fact]
+    public void Chained_statements_are_rejected_even_when_the_first_is_a_select()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            GatewayService.EnsureReadOnlySelectStatement("SELECT 1; DROP TABLE customers"));
+    }
+
+    [Fact]
+    public void Empty_or_whitespace_sql_is_rejected()
+    {
+        Assert.Throws<ArgumentException>(() => GatewayService.EnsureReadOnlySelectStatement(""));
+        Assert.Throws<ArgumentException>(() => GatewayService.EnsureReadOnlySelectStatement("   "));
+    }
+
     // ── RPC: motor sözdizimi ─────────────────────────────────────────────────
 
     [Theory]

@@ -448,4 +448,101 @@ public class GatewayWriteExecutionTests : IAsyncLifetime
 
         Assert.Equal(2, rows.Count);
     }
+
+    // ── Namines Desk v2 §E4.1: toplu silme ───────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Bulk_delete_removes_exactly_the_requested_rows()
+    {
+        await SeedOrdersAsync();
+
+        var result = await Service().BulkDeleteAsync(
+            ConnectionString, "PostgreSQL", "orders", "id", new List<string> { "1", "3" });
+
+        Assert.Equal(2, result.AffectedRows);
+        Assert.Equal(1, await ScalarAsync("SELECT COUNT(*) FROM orders"));
+        Assert.Equal(0, await ScalarAsync("SELECT COUNT(*) FROM orders WHERE id IN (1,3)"));
+    }
+
+    [RequiresDockerFact]
+    public async Task Bulk_delete_rolls_back_earlier_rows_when_a_later_row_fails()
+    {
+        // ASIL kanıt burada: listedeki İLK id gerçekten silinebilir durumda
+        // (bağımlısı yok), İKİNCİ id'nin FOREIGN KEY bağımlısı var — motor onu
+        // reddeder. Koruma yalnızca "istisna fırlatıp devam etmek" olsaydı,
+        // ilk satır sessizce silinmiş, ikincisi silinmemiş, TUTARSIZ bir yarım
+        // sonuç kalırdı. TEK işlem garantisi bunu imkânsız kılmalı: id=1'in
+        // silinmesi de geri alınmalı.
+        await SeedOrdersAsync();
+        await ExecuteAsync("CREATE TABLE order_items (id SERIAL PRIMARY KEY, order_id INT NOT NULL REFERENCES orders(id))");
+        await ExecuteAsync("INSERT INTO order_items (order_id) VALUES (2)"); // id=2'yi silmeyi FK ile engeller
+
+        await Assert.ThrowsAsync<PostgresException>(() => Service().BulkDeleteAsync(
+            ConnectionString, "PostgreSQL", "orders", "id", new List<string> { "1", "2", "3" }));
+
+        // id=1 hâlâ duruyor olmalı — transaction'ın TAMAMI geri alındı.
+        Assert.Equal(3, await ScalarAsync("SELECT COUNT(*) FROM orders"));
+        Assert.Equal(1, await ScalarAsync("SELECT COUNT(*) FROM orders WHERE id = 1"));
+    }
+
+    [RequiresDockerFact]
+    public async Task Bulk_delete_over_the_cap_touches_nothing()
+    {
+        await SeedOrdersAsync();
+        var tooMany = Enumerable.Range(1, GatewayService.MaxBulkDeleteRows + 1).Select(i => i.ToString()).ToList();
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            Service().BulkDeleteAsync(ConnectionString, "PostgreSQL", "orders", "id", tooMany));
+
+        Assert.Contains("capped", ex.Message);
+        // Tavan aşıldığında hiçbir DELETE hiç ÇALIŞTIRILMADI — kanıt: 3 satır hâlâ duruyor.
+        Assert.Equal(3, await ScalarAsync("SELECT COUNT(*) FROM orders"));
+    }
+
+    // ── Namines Desk v2 §E4.2: SQL konsolu — gerçek motora karşı ─────────────
+
+    [RequiresDockerFact]
+    public async Task Desk_sql_console_returns_real_rows()
+    {
+        await SeedOrdersAsync();
+
+        var result = await Service().DeskSqlQueryAsync(
+            ConnectionString, "PostgreSQL", "SELECT * FROM orders ORDER BY id", maxRows: 500);
+
+        Assert.Equal(3, result.Rows.Count);
+        Assert.False(result.Truncated);
+    }
+
+    [RequiresDockerFact]
+    public async Task Desk_sql_console_truncates_rather_than_erroring_over_the_cap()
+    {
+        await SeedOrdersAsync();
+
+        var result = await Service().DeskSqlQueryAsync(
+            ConnectionString, "PostgreSQL", "SELECT * FROM orders ORDER BY id", maxRows: 2);
+
+        Assert.Equal(2, result.Rows.Count);
+        Assert.True(result.Truncated);
+    }
+
+    [RequiresDockerFact]
+    public async Task Desk_sql_console_cannot_actually_write_even_if_the_statement_slips_past_the_regex()
+    {
+        // ASIL kanıt: naif bir regex atlatılsa BİLE (burada atlatılmıyor, bu
+        // sorgu zaten reddedilir), DB-seviyesi salt-okunur oturum PostgreSQL'de
+        // gerçek bir ikinci katman. Bu test onu doğrudan kanıtlıyor: readOnly
+        // oturumda bir yazma denemesi motorun KENDİSİ tarafından reddedilir.
+        await SeedOrdersAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => Service().DeskSqlQueryAsync(
+            ConnectionString, "PostgreSQL", "DELETE FROM orders", maxRows: 500));
+
+        // Doğrudan QueryAsync(readOnly:true) ile DB'nin kendi korumasını da sına —
+        // regex'i atlamış olsaydık bile motor reddederdi.
+        var dbEx = await Assert.ThrowsAsync<PostgresException>(() =>
+            Service().QueryAsync(ConnectionString, "PostgreSQL", "DELETE FROM orders", readOnly: true));
+        Assert.Contains("read-only", dbEx.Message, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(3, await ScalarAsync("SELECT COUNT(*) FROM orders"));
+    }
 }

@@ -3,13 +3,18 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Namines.API.Controllers
@@ -18,6 +23,15 @@ namespace Namines.API.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
+        // BranchController ile aynı desen: frontend enum'ları (ör. ReferentialAction)
+        // JSON'a string yazıyor ("NoAction", "Cascade"...) — dönüştürücü olmadan
+        // Deserialize<DatabaseSchema> bu alanlarda JsonException fırlatır.
+        private static readonly JsonSerializerOptions SchemaJsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            Converters = { new JsonStringEnumConverter() }
+        };
+
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly AuthDbContext _context;
         private readonly IConfiguration _configuration;
@@ -170,6 +184,52 @@ namespace Namines.API.Controllers
             });
         }
 
+        /// <summary>
+        /// Namines Desk v2 §E1.2, adım 1 — ana uygulamada zaten girişli kullanıcı için
+        /// tek kullanımlık, 30 saniye ömürlü bir devir jetonu üretir. Jetonun kendisi
+        /// yalnızca burada, bu yanıtın gövdesinde görünür — asla bir URL'e YAZILMAZ
+        /// (çağıran taraf, `frontend`'in "Namines Desk" düğmesi, bunu bir form POST
+        /// gövdesinde Desk'e taşır; bkz. `DeskHandoffToken` sınıf yorumu).
+        ///
+        /// Asıl mantık <c>DeskHandoff.CreateDeskHandoffTokenAsync</c>'te (Infrastructure/
+        /// Data) — GatewayAudit/OrgAccess ile aynı desen, DB'ye dokunan mantık
+        /// controller'da yaşamaz; ayrıca yarış korumasının Testcontainers'la gerçek
+        /// Postgres'e karşı sınanabilmesi için de gerekliydi.
+        /// </summary>
+        [Authorize]
+        [HttpPost("desk-handoff-token")]
+        public async Task<IActionResult> CreateDeskHandoffToken(CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            var raw = await _context.CreateDeskHandoffTokenAsync(userId, ct);
+            return Ok(new { token = raw, expiresInSeconds = 30 });
+        }
+
+        /// <summary>
+        /// Namines Desk v2 §E1.2, adım 2 — Desk'in sunucu tarafı (`app/handoff/route.ts`)
+        /// jetonu burada tam bir JWT'ye çevirir. <c>[AllowAnonymous]</c>: çağıranın henüz
+        /// hiçbir kimliği yok, kimliği jetonun KENDİSİ taşıyor.
+        /// </summary>
+        [AllowAnonymous]
+        [HttpPost("desk-handoff-exchange")]
+        public async Task<IActionResult> ExchangeDeskHandoffToken([FromBody] DeskHandoffExchangeRequest request, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(request.Token))
+                return BadRequest(new { Message = "Token gerekli." });
+
+            var userId = await _context.ExchangeDeskHandoffTokenAsync(request.Token, ct);
+            if (userId is null)
+                return Unauthorized(new { Message = "Geçersiz, süresi dolmuş ya da zaten kullanılmış jeton." });
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null) return Unauthorized(new { Message = "Kullanıcı bulunamadı." });
+
+            var jwt = GenerateJwtToken(user);
+            return Ok(new { token = jwt });
+        }
+
         [Authorize]
         [HttpPost("sync")]
         public async Task<IActionResult> SyncProjects([FromBody] List<SyncProjectDto> projects)
@@ -262,6 +322,13 @@ namespace Namines.API.Controllers
                 .Select(m => m.OrganizationId)
                 .ToListAsync();
 
+            // Namines Desk v2 §E4.2: hangi projede Owner olduğumu bilmem gerekiyor
+            // (yalnızca Owner ham SQL çalıştırabilir/açabilir) — yukarıdaki
+            // `myOrgIds` yalnızca ÜYELİĞİ biliyordu, ROLÜ değil.
+            var myRoles = await _context.OrganizationMembers.AsNoTracking()
+                .Where(m => m.UserId == userId)
+                .ToDictionaryAsync(m => m.OrganizationId, m => m.Role);
+
             var projects = await _context.CloudProjects
                 .Where(p => p.UserId == userId ||
                             (p.OrganizationId != null && myOrgIds.Contains(p.OrganizationId)))
@@ -280,11 +347,64 @@ namespace Namines.API.Controllers
                     // hâlde ortak listede kimin ne eklediği anlaşılmaz.
                     ownerUserId = p.UserId,
                     ownerName = p.User.UserName,
-                    isMine = p.UserId == userId
+                    isMine = p.UserId == userId,
+                    // Namines Desk (namines_desk/02-PROJECTS.md §2): kart üzerindeki
+                    // "bağlı/bağlı değil" rozeti gerçek bir alana dayanıyor —
+                    // bağlantı dizesinin KENDİSİ asla dönmez, yalnızca var/yok bilgisi.
+                    hasConnection = p.EncryptedConnectionString != null,
+                    connectionDbType = p.ConnectionDbType,
+                    p.OrganizationId,
+                    p.AllowDeskSql,
                 })
                 .ToListAsync();
 
-            return Ok(projects);
+            // Tablo sayısı SchemaJson'dan sayılır (§2 "Tablo sayısı" alanı) — ayrı
+            // bir sorgu değil, zaten dönen alanın üstüne bir hesap. Ayrıştırılamayan
+            // bir SchemaJson sessizce 0 GÖSTERMEZ: null döner, yani arayüz "?" yazar,
+            // uydurma bir sayı değil.
+            // `schemaJson` ANA UYGULAMA TARAFINDAN OKUNUYOR (frontend/store/
+            // useProjectHistoryStore.ts) — buradan çıkarmak Studio'nun bulut
+            // senkronundan şema hidrasyonunu kırardı. Bu yüzden alan KORUNUYOR;
+            // yeni alanlar (tableCount, hasConnection, connectionDbType) üstüne
+            // ekleniyor, onun yerine geçmiyor.
+            var result = projects.Select(p => new
+            {
+                p.Id, p.Name, p.DbType, p.SchemaJson, p.NodePositionsJson, p.CreatedAt, p.UpdatedAt,
+                p.AutoApproveSafeChanges, p.ownerUserId, p.ownerName, p.isMine,
+                p.hasConnection, p.connectionDbType,
+                tableCount = TryCountTables(p.SchemaJson),
+                // Legacy (org'a taşınmamış) satırlarda GetRoleAsync'in kendi kuralıyla
+                // aynı: sahip == Owner sayılır (OrgAccess.GetRoleAsync'teki fallback).
+                isOwner = p.OrganizationId == null
+                    ? p.isMine
+                    : myRoles.TryGetValue(p.OrganizationId, out var role) && role == OrgRole.Owner,
+                allowDeskSql = p.AllowDeskSql,
+            });
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Namines Desk'in proje kartındaki "N tablo" alanı için (02-PROJECTS.md §2).
+        ///
+        /// `BranchController`'ın zaten kurduğu <c>Deserialize&lt;DatabaseSchema&gt;(json,
+        /// SchemaJsonOptions)</c> desenini yeniden kullanıyor — bu depoda `SchemaJson`
+        /// okuyan her yer aynı yoldan geçsin diye (bkz. o dosyadaki aynı yorum).
+        ///
+        /// Ayrıştırılamayan/beklenmeyen biçimdeki bir SchemaJson SESSİZCE 0 SAYILMAZ —
+        /// null döner, arayüz "bilinmiyor" gösterir; uydurma bir sayı vermektense.
+        /// </summary>
+        private static int? TryCountTables(string schemaJson)
+        {
+            if (string.IsNullOrWhiteSpace(schemaJson)) return null;
+            try
+            {
+                return JsonSerializer.Deserialize<DatabaseSchema>(schemaJson, SchemaJsonOptions)?.Tables.Count;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
 
         [Authorize]
@@ -444,6 +564,8 @@ namespace Namines.API.Controllers
         public string Email { get; set; } = null!;
         public string Password { get; set; } = null!;
     }
+
+    public sealed record DeskHandoffExchangeRequest(string Token);
 
     public class SyncProjectDto
     {

@@ -54,8 +54,6 @@ public class CoderAIController : ControllerBase
         bool fallbackToLocal = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var claimsPrincipal = HttpContext.User;
-        var byokKey = HttpContext.Items.ContainsKey("ByokApiKey") ? HttpContext.Items["ByokApiKey"] as string : null;
-        var byokProvider = HttpContext.Items.ContainsKey("ByokProvider") ? HttpContext.Items["ByokProvider"] as string : null;
 
         // Run background packaging task (no docker container startup)
         Task.Run(async () =>
@@ -70,8 +68,6 @@ public class CoderAIController : ControllerBase
                 User = claimsPrincipal,
                 RequestServices = sp
             };
-            if (!string.IsNullOrEmpty(byokKey)) mockContext.Items["ByokApiKey"] = byokKey;
-            if (!string.IsNullOrEmpty(byokProvider)) mockContext.Items["ByokProvider"] = byokProvider;
             if (fallbackToLocal) mockContext.Items["FallbackToLocal"] = true;
 
             httpContextAccessor.HttpContext = mockContext;

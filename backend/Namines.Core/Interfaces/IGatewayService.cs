@@ -128,4 +128,29 @@ public interface IGatewayService
         string connectionString, string dbType, string tableName,
         string pkColumn, string pkValue,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Toplu silme (Namines Desk v2 §E4.1) — TEK işlem, ya hepsi ya hiçbiri
+    /// (<see cref="ImportAsync"/> ile aynı desen). <paramref name="pkValues"/>
+    /// boş ya da <see cref="MaxBulkDeleteRows"/>'u aşarsa <see cref="System.ArgumentException"/>.
+    /// </summary>
+    Task<GatewayBulkDeleteResult> BulkDeleteAsync(
+        string connectionString, string dbType, string tableName,
+        string pkColumn, IReadOnlyList<string> pkValues,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Namines Desk v2 §E4.2 — Desk'in salt-okunur SQL konsolu için AYRI, daha
+    /// katı bir yol. <see cref="QueryAsync"/>'ten farkı: <paramref name="sql"/>
+    /// yalnızca tek bir SELECT/WITH/EXPLAIN/SHOW ifadesiyse çalışır (bkz.
+    /// GatewayService.EnsureReadOnlySelectStatement'ın sınıf yorumu — bu, DB'nin
+    /// kendi salt-okunur oturumunun SQL Server/Oracle'da hiç var olmamasını
+    /// telafi eden ek katman). Bu uç API anahtarı yolunda HİÇ kullanılmaz —
+    /// yalnızca oturum + Owner + <c>CloudProject.AllowDeskSql</c> için var.
+    /// </summary>
+    /// <param name="maxRows">Aşılırsa sonuç KESİLİR (asla hata değil) ve
+    /// <see cref="GatewayQueryResult.Truncated"/> true döner.</param>
+    Task<GatewayQueryResult> DeskSqlQueryAsync(
+        string connectionString, string dbType, string sql, int maxRows,
+        CancellationToken cancellationToken = default);
 }

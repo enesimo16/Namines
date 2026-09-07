@@ -64,5 +64,16 @@ namespace Namines.Core.Models.Auth
         /// (Safe dahil) insan onayından geçer.
         /// </summary>
         public bool AutoApproveSafeChanges { get; set; } = false;
+
+        /// <summary>
+        /// Namines Desk v2 §E4.2 — Desk'in salt-okunur SQL konsolu bu proje için açık mı.
+        /// Varsayılan false: bir kişi normal <see cref="OrgRole.Owner"/> olsa bile SQL
+        /// konsolu SESSİZCE açık olmaz — proje sahibinin AYRICA, açıkça bir kez daha
+        /// onaylaması gerekir (<c>AutoApproveSafeChanges</c> ile aynı opt-in deseni).
+        /// Yalnızca Owner rolündeki kullanıcı bu bayrağı değiştirebilir
+        /// (bkz. GatewayKeyController.SetDeskSqlEnabled) ve yalnızca Owner rolündeki
+        /// kullanıcı bu bayrak açıkken SQL çalıştırabilir — iki ayrı kontrol.
+        /// </summary>
+        public bool AllowDeskSql { get; set; } = false;
     }
 }
