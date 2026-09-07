@@ -2,56 +2,57 @@
 
 import { useEffect, useState } from 'react';
 
-/**
- * Başlığın renkli, dönen son parçası (render.com'un "for [data pipelines /
- * HIPAA apps / ...]" efektinden ilhamla).
- *
- * <b>Uydurma kategori yok:</b> bu isimler rastgele seçilmedi — hepsi
- * `lib/templates.ts`'teki GERÇEK, demoda (girişsiz) denenebilen şablonların
- * karşılığı (E-Commerce, SaaS Platform, CRM & Sales, Multi-vendor
- * Marketplace, Healthcare/EMR, Banking & Ledger). Ziyaretçi "e-ticaret
- * platformları" gördüğünde, `/demo`'ya gidip GERÇEKTEN öyle bir şema bulabilir.
- */
 const WORDS = [
-  'e-commerce platforms',
-  'SaaS products',
-  'CRM systems',
-  'marketplaces',
-  'healthcare records',
-  'banking ledgers',
+  'modern SaaS',
+  'e-commerce',
+  'fintech apps',
+  'AI agent memory',
+  'multi-tenant',
+  'PostgreSQL',
 ];
 
-const INTERVAL_MS = 2600;
-
-export default function RotatingHeadline({ light = false }: { light?: boolean }) {
-  const [index, setIndex] = useState(0);
-  // Vurgu ilk boyamada YOK: sunucu tarafında render edilen ilk kelime,
-  // hidrasyon bitmeden animasyonsuz görünsün diye — aksi hâlde SSR/CSR
-  // arasında bir "flash" olurdu.
-  const [mounted, setMounted] = useState(false);
+export default function RotatingHeadline() {
+  const [wordIndex, setWordIndex] = useState(0);
+  const [text, setText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    const id = setInterval(() => {
-      setIndex(i => (i + 1) % WORDS.length);
-    }, INTERVAL_MS);
-    return () => clearInterval(id);
-  }, []);
+    const currentWord = WORDS[wordIndex];
+    let timer: NodeJS.Timeout;
+
+    if (!isDeleting && text === currentWord) {
+      // Pause when full word is typed
+      timer = setTimeout(() => setIsDeleting(true), 1800);
+    } else if (isDeleting && text === '') {
+      // Move to next word after deleting
+      setIsDeleting(false);
+      setWordIndex((prev) => (prev + 1) % WORDS.length);
+    } else {
+      // Typing or backspacing speed
+      const speed = isDeleting ? 35 : 75;
+      timer = setTimeout(() => {
+        setText((prev) =>
+          isDeleting
+            ? currentWord.substring(0, prev.length - 1)
+            : currentWord.substring(0, prev.length + 1)
+        );
+      }, speed);
+    }
+
+    return () => clearTimeout(timer);
+  }, [text, isDeleting, wordIndex]);
 
   return (
     <span
-      className="inline-block bg-clip-text text-transparent transition-opacity duration-300"
-      style={{
-        backgroundImage: light
-          ? 'linear-gradient(90deg, var(--accent), var(--accent-hover))'
-          : 'linear-gradient(90deg, var(--accent-hover), var(--accent-text))',
-        opacity: mounted ? 1 : 0.9,
-      }}
-      // Ekran okuyucu her 2.6 sn'de bir kelimeyi tekrar duyurmasın — tek
-      // seferlik, sabit bir etiket yeterli.
-      aria-label="a variety of real-world schemas"
+      className="inline-flex items-center whitespace-nowrap font-extrabold select-none"
+      style={{ color: 'var(--namines-teal-vibrant)' }}
+      aria-label="a variety of real-world database architectures"
     >
-      {WORDS[index]}
+      <span>{text}</span>
+      <span
+        className="inline-block w-[3px] h-[0.9em] ml-1 bg-current animate-pulse align-middle"
+        aria-hidden="true"
+      />
     </span>
   );
 }

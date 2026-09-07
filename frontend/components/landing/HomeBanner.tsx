@@ -25,25 +25,25 @@ export default function HomeBanner() {
 
   return (
     <div
-      className="relative flex items-center justify-center gap-3 px-4 py-2 text-center text-xs sm:text-sm font-medium text-content-primary"
+      className="relative flex items-center justify-center gap-3 px-4 py-2 text-center text-xs sm:text-sm font-medium text-surface-900"
       style={{
-        background: 'linear-gradient(90deg, var(--accent-subtle), var(--accent), var(--accent-hover))',
+        backgroundImage: 'var(--namines-gradient-banner)',
       }}
     >
-      <span className="truncate">
-        Namines Desk (beta) is live — a hosted admin panel generated straight from your schema.
+      <span className="truncate font-semibold">
+        Migrating database schemas or building new architectures? Get instant deterministic checks across 6 SQL engines.
       </span>
       <Link
         href="/new"
-        className="inline-flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-full bg-surface-900/80 hover:bg-surface-900 text-content-primary text-xs font-bold transition-colors"
+        className="inline-flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-[var(--radius-control)] bg-surface-900 text-content-primary text-xs font-bold hover:bg-surface-800 transition-colors shadow-sm"
       >
-        Try it now
+        <span>Start free</span>
         <ArrowRight className="w-3 h-3" />
       </Link>
       <button
         onClick={() => setDismissed(true)}
-        aria-label="Dismiss"
-        className="absolute right-2 sm:right-3 p-1 text-content-primary/70 hover:text-content-primary transition-colors"
+        aria-label="Dismiss banner"
+        className="absolute right-2 sm:right-3 p-1 text-surface-900/70 hover:text-surface-900 transition-colors"
       >
         <X className="w-3.5 h-3.5" />
       </button>

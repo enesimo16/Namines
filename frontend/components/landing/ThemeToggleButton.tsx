@@ -1,29 +1,48 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { useHomeThemeStore } from '../../store/useHomeThemeStore';
 
-/**
- * Sağ-alt köşedeki açık/koyu önizleme anahtarı — render.com'un ekran
- * görüntüsündeki köşe düğmesinin birebir karşılığı. Kapsamı
- * `useHomeThemeStore`'da açıklanıyor: yalnızca üst gezinme + hero.
- */
 export default function ThemeToggleButton() {
-  const theme = useHomeThemeStore(s => s.theme);
-  const toggle = useHomeThemeStore(s => s.toggle);
+  const { theme, toggle } = useHomeThemeStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div
+        className="w-8 h-8 rounded-full border border-surface-500/80 bg-surface-800/90 opacity-0"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  const isDark = theme === 'dark';
 
   return (
     <button
       onClick={toggle}
-      aria-label={theme === 'dark' ? 'Switch to light preview' : 'Switch to dark preview'}
-      title={theme === 'dark' ? 'Light preview' : 'Dark preview'}
-      className={`fixed bottom-5 right-5 z-40 w-10 h-10 flex items-center justify-center rounded-full border transition-colors cursor-pointer ${
-        theme === 'dark'
-          ? 'bg-surface-800 border-content-primary/15 text-content-primary hover:bg-surface-700'
-          : 'bg-white border-black/10 text-black hover:bg-black/5'
-      }`}
+      type="button"
+      title={isDark ? 'Switch to light theme (Beyaz mod)' : 'Switch to dark theme (Siyah mod)'}
+      aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      className="tap-44 h-8 px-2.5 flex items-center gap-1.5 rounded-full border border-surface-500/80 bg-surface-800/95 hover:bg-surface-700/90 text-content-primary shadow-lg backdrop-blur-md transition-all hover:scale-105 active:scale-95 cursor-pointer select-none text-xs font-mono font-medium"
     >
-      {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+      {isDark ? (
+        <>
+          <Moon className="w-3.5 h-3.5 text-accent-text shrink-0" />
+          <span className="text-content-secondary hidden sm:inline">Dark</span>
+        </>
+      ) : (
+        <>
+          <Sun className="w-3.5 h-3.5 text-accent-text shrink-0" />
+          <span className="text-content-secondary hidden sm:inline">Light</span>
+        </>
+      )}
     </button>
   );
 }
+

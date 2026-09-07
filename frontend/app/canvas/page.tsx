@@ -53,9 +53,12 @@ import MultiplayerCursors from '../../components/canvas/MultiplayerCursors';
 import EmptyCanvasState from '../../components/canvas/EmptyCanvasState';
 import TourOverlay from '../../components/tour/TourOverlay';
 import { token } from '../../lib/designTokens';
+import { useHomeThemeStore } from '../../store/useHomeThemeStore';
+import { useActiveEdgeMenuStore } from '../../store/useActiveEdgeMenuStore';
 
 export default function CanvasPage() {
   const router = useRouter();
+  const { theme } = useHomeThemeStore();
 
   // Keep real-time multiplayer connection active globally
   useMultiplayer();
@@ -492,13 +495,15 @@ export default function CanvasPage() {
             onConnect={handleConnect}
             onNodesDelete={handleNodesDelete}
             onEdgesDelete={handleEdgesDelete}
+            onPaneClick={() => useActiveEdgeMenuStore.getState().close()}
+            onMoveStart={() => useActiveEdgeMenuStore.getState().close()}
             // Diff görünümü salt-okunur (sanal "silinmiş tablo" node'ları gerçek şemadan
             // silinememeli) ve çevrimdışıyken değişiklik yayınlanamaz → silme tuşunu kapat.
             deleteKeyCode={isDiffMode || isOffline ? null : ['Backspace', 'Delete']}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
-            colorMode="dark"
+            colorMode={theme === 'light' ? 'light' : 'dark'}
             nodesDraggable={!isDiffMode && !isOffline}
             // Diff görünümü salt-okunur ve çevrimdışıyken değişiklik yayınlanamaz.
             // (Düzenleme modu bağlantı kurmayı ENGELLEMEZ — tam tersi beklenir.)
@@ -506,10 +511,10 @@ export default function CanvasPage() {
             proOptions={{ hideAttribution: true }}
           >
             <Background
-              color={isEditMode ? token('--color-accent-hover') : token('--color-line-solid')}
+              color={isEditMode ? token('--color-accent-hover') : token('--color-line-solid-strong')}
               variant={BackgroundVariant.Dots}
               gap={20}
-              size={1}
+              size={1.5}
             />
             
             <MiniMap

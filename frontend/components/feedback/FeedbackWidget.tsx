@@ -6,6 +6,8 @@ import { MessageSquarePlus, X, Bug, Lightbulb, MessageCircle, Loader2 } from 'lu
 import api from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 
+import ThemeToggleButton from '../landing/ThemeToggleButton';
+
 type Category = 'bug' | 'idea' | 'general';
 
 const CATS: { key: Category; label: string; icon: React.ReactNode }[] = [
@@ -50,17 +52,20 @@ export default function FeedbackWidget() {
 
   return (
     <>
-      {/* Floating trigger */}
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          title="Send feedback"
-          className="fixed bottom-4 left-4 z-[9990] flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-600 hover:bg-white/[0.08] border border-content-primary/15 text-content-primary hover:text-content-primary text-xs font-semibold transition-all cursor-pointer"
-        >
-          <MessageSquarePlus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Feedback</span>
-        </button>
-      )}
+      {/* Floating bottom-left dock: Feedback on left, Theme Toggle on right */}
+      <div className="fixed bottom-4 left-4 z-[9990] flex items-center gap-2">
+        {!open && (
+          <button
+            onClick={() => setOpen(true)}
+            title="Send feedback"
+            className="tap-44 h-8 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-800/95 hover:bg-surface-700/90 border border-surface-500/80 text-content-primary text-xs font-semibold shadow-lg backdrop-blur-md transition-all cursor-pointer hover:scale-105 active:scale-95"
+          >
+            <MessageSquarePlus className="w-3.5 h-3.5 text-content-secondary" />
+            <span>Feedback</span>
+          </button>
+        )}
+        <ThemeToggleButton />
+      </div>
 
       {open && (
         <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-[9991] sm:w-[320px] max-w-full rounded-[var(--radius-card)] bg-surface-800 border border-content-primary/10 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-4 animate-in slide-in-from-bottom-3 duration-200">

@@ -1,33 +1,61 @@
+'use client';
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-/**
- * Yalnızca tanıtım sayfasının (`/`) kendi açık/koyu ÖNİZLEME anahtarı.
- *
- * <b>Bu, uygulama genelinde bir tema sistemi DEĞİL.</b> Namines'in geri
- * kalanı (canvas, compile, Desk...) tamamen koyu tonlarda tasarlandı ve
- * `app/globals.css`'teki token'lar (`--surface-900` vb.) bu varsayımla
- * türetiliyor — basitçe tersine çevrilemezler (açık zeminde `content-primary`
- * formülü karanlık metin üretmez, oklch aralığının dışına taşar).
- *
- * Kullanıcının isteği render.com'un ekran görüntüsündeki sağ-alt köşe
- * anahtarını birebir yansıtmaktı: yalnızca üst gezinme + hero bölümü, açık
- * zemin ile taklit ediliyor (bkz. `Header.tsx`'in `isHome` dalı ve
- * `app/page.tsx`'in hero'su) — sayfanın geri kalanı (Features/How it works/
- * Footer) kasıtlı olarak koyu kalıyor, çünkü ekran görüntülerinde de
- * yalnızca üst kısım gösteriliyordu.
- */
+export type AppTheme = 'dark' | 'light';
+
 interface HomeThemeState {
-  theme: 'dark' | 'light';
+  theme: AppTheme;
+  setTheme: (theme: AppTheme) => void;
   toggle: () => void;
 }
 
+const applyThemeToDom = (t: AppTheme) => {
+  if (typeof document === 'undefined') return;
+
+  document.documentElement.setAttribute('data-theme', t);
+  document.body.setAttribute('data-theme', t);
+  document.documentElement.style.colorScheme = t;
+  if (t === 'light') {
+    document.documentElement.classList.add('light');
+    document.documentElement.classList.remove('dark');
+    document.body.classList.add('light');
+    document.body.classList.remove('dark');
+  } else {
+    document.documentElement.classList.add('dark');
+    document.documentElement.classList.remove('light');
+    document.body.classList.add('dark');
+    document.body.classList.remove('light');
+  }
+};
+
 export const useHomeThemeStore = create<HomeThemeState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: 'dark',
-      toggle: () => set(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+      setTheme: (theme: AppTheme) => {
+        applyThemeToDom(theme);
+        set({ theme });
+      },
+      toggle: () => {
+        const current = get().theme;
+        const next: AppTheme = current === 'dark' ? 'light' : 'dark';
+        applyThemeToDom(next);
+        set({ theme: next });
+      },
     }),
-    { name: 'namines-home-theme-preview' },
+    {
+      name: 'namines-home-theme-preview',
+      onRehydrateStorage: () => (state) => {
+        if (state?.theme) {
+          applyThemeToDom(state.theme);
+        }
+      },
+    },
   ),
 );
+
+// Alias
+export const useThemeStore = useHomeThemeStore;
+

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getBezierPath, useReactFlow } from '@xyflow/react';
 import type { ReferentialAction } from '../../../types/schema';
+import { useActiveEdgeMenuStore } from '../../../store/useActiveEdgeMenuStore';
 
 /**
  * FK silme davranışı seçenekleri.
@@ -64,7 +65,35 @@ export default function RelationEdge({
   data,
 }: EdgeProps) {
   const { setEdges } = useReactFlow();
-  const [open, setOpen] = useState(false);
+  const activeEdgeId = useActiveEdgeMenuStore((s) => s.activeEdgeId);
+  const setActiveEdgeId = useActiveEdgeMenuStore((s) => s.setActiveEdgeId);
+  const closeMenu = useActiveEdgeMenuStore((s) => s.close);
+
+  const isOpen = activeEdgeId === id;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        closeMenu();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeMenu();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, closeMenu]);
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -86,7 +115,12 @@ export default function RelationEdge({
     setEdges((edges) =>
       edges.map((e) => (e.id === id ? { ...e, data: { ...e.data, onDelete: value } } : e))
     );
-    setOpen(false);
+    closeMenu();
+  };
+
+  const toggleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveEdgeId(isOpen ? null : id);
   };
 
   const badge = SHORT_LABEL[onDelete];
@@ -96,20 +130,22 @@ export default function RelationEdge({
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
       <EdgeLabelRenderer>
         <div
+          ref={containerRef}
           style={{
             position: 'absolute',
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             fontSize: 10,
             pointerEvents: 'all',
+            zIndex: isOpen ? 10000 : 10,
           }}
-          className="nodrag nopan"
+          className={`nodrag nopan relative ${isOpen ? 'z-[10000]' : 'z-10'}`}
         >
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
+            onClick={toggleOpen}
             title={`Silme davranışı: ${onDelete}\nDeğiştirmek için tıkla`}
             aria-label={`İlişki ayarları. Silme davranışı ${onDelete}`}
-            aria-expanded={open}
+            aria-expanded={isOpen}
             className="flex items-center gap-1 bg-surface-700 text-content-primary px-2 py-1 rounded-[var(--radius-control)] border border-content-primary/12 shadow-md font-mono hover:border-white/25 transition-colors cursor-pointer"
           >
             <span>{label}</span>
@@ -126,10 +162,10 @@ export default function RelationEdge({
             )}
           </button>
 
-          {open && (
+          {isOpen && (
             <div
               role="menu"
-              className="absolute left-1/2 top-full mt-1 -translate-x-1/2 z-50 w-64 bg-surface-800 border border-content-primary/12 rounded-[var(--radius-control)] shadow-xl p-1"
+              className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 z-[10001] w-64 bg-surface-800/98 backdrop-blur-xl border border-content-primary/20 rounded-[var(--radius-card)] shadow-2xl p-1.5"
             >
               <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-content-subtle font-semibold">
                 Silinince (ON DELETE)
@@ -141,9 +177,9 @@ export default function RelationEdge({
                   role="menuitemradio"
                   aria-checked={onDelete === opt.value}
                   onClick={() => setOnDelete(opt.value)}
-                  className={`w-full text-left px-2 py-1.5 rounded-[var(--radius-control)] text-[11px] transition-colors ${
+                  className={`w-full text-left px-2 py-1.5 rounded-[var(--radius-control)] text-[11px] transition-colors cursor-pointer ${
                     onDelete === opt.value
-                      ? 'bg-white/[0.08] text-content-primary'
+                      ? 'bg-white/[0.08] text-content-primary font-semibold'
                       : 'text-content-primary hover:bg-white/[0.04]'
                   }`}
                 >

@@ -26,6 +26,8 @@ const FALLBACKS: Record<string, string> = {
   '--color-accent': '#3c4a6b',
   '--color-accent-hover': '#4c5c82',
   '--color-line-strong': 'rgba(231, 233, 238, 0.16)',
+  '--color-line-solid': 'rgba(231, 233, 238, 0.28)',
+  '--color-line-solid-strong': 'rgba(231, 233, 238, 0.42)',
   '--color-content-subtle': '#7a8194',
   '--color-content-primary': '#e7e9ee',
   '--color-danger': '#b8544b',

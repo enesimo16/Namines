@@ -33,7 +33,31 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${jetbrainsMono.variable} ${ibmPlexSans.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem('namines-home-theme-preview');
+                  if (stored) {
+                    var parsed = JSON.parse(stored);
+                    var theme = parsed.state && parsed.state.theme ? parsed.state.theme : 'dark';
+                    document.documentElement.setAttribute('data-theme', theme);
+                    if (theme === 'light') {
+                      document.documentElement.classList.add('light');
+                    } else {
+                      document.documentElement.classList.add('dark');
+                    }
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       {/* NOT: Font Awesome CDN kaldırıldı — render'ı bloklayan harici bir stylesheet'ti
           ve ikonlar lucide-react'e taşındı. İkon setini tek yerde tut. */}
       <body className="min-h-full flex flex-col font-sans">
