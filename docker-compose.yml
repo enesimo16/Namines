@@ -29,14 +29,33 @@ services:
     env_file:
       - .env
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      # Bu compose dosyası YEREL GELİŞTİRME yığını: portlar localhost'a açık,
+      # DB parolası depoda ("..._dev_only_change_in_prod"), migration açılışta
+      # koşuyor. "Production" adı buna rağmen duruyordu ve iki gerçek arızaya
+      # yol açtı: (1) Desk'in origin'i CORS'a hiç eklenmiyordu, (2) Desk'in
+      # ÇEKİRDEK akışı — bir projeye canlı veritabanı bağlamak — imkânsızdı,
+      # çünkü `DbHostAccessPolicy` özel/konteyner adreslerine yalnızca
+      # Development'ta izin veriyor. Gerçek dağıtımda bu değer Production olur
+      # ve aşağıdaki iki `Security__*` satırı yerine gerçek sırlar verilir.
+      - ASPNETCORE_ENVIRONMENT=Development
       # Container içinde tüm arayüzlere bind et (localhost olsaydı dışarıdan erişilemezdi).
       - ASPNETCORE_URLS=http://+:8080
+      # Desk'in bağlantı dizelerini AES-256-GCM ile şifrelemesi için zorunlu.
+      # Tanımsızsa servis bağlantı saklamayı AÇIKÇA REDDEDER (düz metin saklamaz).
+      # YALNIZCA yerel geliştirme değeri — gerçek dağıtımda `openssl rand -base64 32`.
+      - Security__ConnectionEncryptionKey=dev-only-desk-connection-key-change-me-32ch
+      # Konteyner ağındaki (özel adresli) demo veritabanlarına bağlanabilmek için.
+      # Yalnızca Development'ta etkili — Production'da kod bunu yok sayar ve loglar.
+      - Security__AllowPrivateDbHosts=true
       - Jwt__Issuer=NaminesServer
       - Jwt__Audience=NaminesClient
       # CORS: Production'da localhost otomatik eklenmez, açıkça bildirilmeli.
       # Gerçek deploy'da bunu kendi frontend domain'inle değiştir.
       - App__FrontendUrl=http://localhost:3000
+      # Namines Desk (services/desk) — AYRI mikroservis, ayrı port, ayrı origin.
+      # App__FrontendUrl TEK değer aldığı için Desk'i buraya yazamıyoruz;
+      # Cors:AllowedOrigins dizi olduğu için ikinci origin burada ekleniyor.
+      - Cors__AllowedOrigins__0=http://localhost:3200
       # Frontend ile API farklı site'lardaysa (ör. Vercel + Railway) 'true' yap:
       # SameSite=None + Secure cookie üretir. Aynı host/subdomain'de gerekmez.
       - Auth__CrossSiteCookie=false

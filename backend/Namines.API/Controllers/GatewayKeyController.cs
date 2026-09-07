@@ -11,6 +11,7 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Namines.Core.Security;
+using Namines.Core.Interfaces;
 
 namespace Namines.API.Controllers;
 
@@ -44,15 +45,18 @@ public class GatewayKeyController : ControllerBase
     private readonly AuthDbContext _context;
     private readonly IConnectionSecretProtector _protector;
     private readonly IDbHostAccessPolicy _hostPolicy;
+    private readonly IDbIntrospectionService _introspection;
 
     public GatewayKeyController(
         AuthDbContext context,
         IConnectionSecretProtector protector,
-        IDbHostAccessPolicy hostPolicy)
+        IDbHostAccessPolicy hostPolicy,
+        IDbIntrospectionService introspection)
     {
         _context = context;
         _protector = protector;
         _hostPolicy = hostPolicy;
+        _introspection = introspection;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -63,6 +67,16 @@ public class GatewayKeyController : ControllerBase
     /// </summary>
     private async Task<bool> CanManageAsync(string projectId, string userId) =>
         await _context.CanManageMembersAsync(projectId, userId);
+
+    /// <summary>
+    /// Namines Desk v2 §E4.2 / 34-SENDEN-BEKLENENLER.md madde 13 — SQL konsolunu
+    /// AÇMAK, Admin'den de daha dar bir yetki: yalnızca Owner. Bir Admin'in bir
+    /// tabloyu Gateway'e açabilmesi (<see cref="CanManageAsync"/>) ile bir
+    /// projenin veritabanına ham SELECT çalıştırılabilmesini AÇMAK aynı ağırlıkta
+    /// değil — ikincisi yalnızca faturalama/org silme yetkisi olan role bırakıldı.
+    /// </summary>
+    private async Task<bool> IsOwnerAsync(string projectId, string userId) =>
+        await _context.GetRoleAsync(projectId, userId) == OrgRole.Owner;
 
     [HttpPost("{projectId}")]
     public async Task<IActionResult> Create(string projectId, [FromBody] CreateGatewayKeyRequest request, CancellationToken ct)
@@ -154,38 +168,110 @@ public class GatewayKeyController : ControllerBase
     }
 
     /// <summary>
-    /// Projenin denetim kaydı (07 §5).
+    /// Projenin denetim kaydı (07 §5, Namines Desk D6 06-LOGS.md §4).
     ///
     /// <b>Anahtar yönetimiyle aynı yetki isteniyor (Admin ve üstü).</b> Denetim
     /// kaydı kimin neye dokunduğunu gösterir; onu okuyabilmek, projenin veri
     /// hareketlerinin tamamını görebilmek demektir ve bu bir yönetim yetkisidir.
+    /// Desk bu kuralı GEVŞETMİYOR (06-LOGS.md §4 yetki notu) — Viewer/Editor bu
+    /// ekranı görür ama açıklayıcı bir 403 alır, boş liste değil.
     ///
     /// Kayıt <b>yalnızca okunabilir</b> — silme ya da düzenleme ucu YOK. Silinebilen
     /// bir denetim kaydı, tam olarak lazım olduğu anda kaybolur.
     /// </summary>
     [HttpGet("{projectId}/audit")]
-    public async Task<IActionResult> AuditTrail(string projectId, [FromQuery] int take = 100, CancellationToken ct = default)
+    public async Task<IActionResult> AuditTrail(
+        string projectId,
+        [FromQuery] DateTime? from = null, [FromQuery] DateTime? to = null,
+        [FromQuery] IReadOnlyList<GatewayWriteKind>? kinds = null,
+        [FromQuery] string? tableName = null, [FromQuery] bool? succeeded = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 100,
+        CancellationToken ct = default)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        if (!await CanManageAsync(projectId, userId))
+
+        // 404 yalnızca proje gerçekten görünmezse (Viewer bile değilse) — hangi
+        // projelerin var olduğunu sızdırmamak için (AuthorizeAsync'teki aynı
+        // gerekçe). Görüyor ama Admin değilse 403 + AÇIK sebep: kabul kriteri 5
+        // "yetkisiz kullanıcı açıklayıcı mesaj görür, boş liste değil".
+        if (!await _context.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Proje bulunamadı." });
+        if (!await CanManageAsync(projectId, userId))
+            return StatusCode(403, new { error = "Bu bölüm için yönetici (Admin) yetkisi gerekiyor." });
 
-        var entries = await _context.AuditTrailAsync(projectId, take, ct);
+        var (entries, totalCount) = await _context.AuditTrailAsync(
+            projectId, from, to, kinds, tableName, succeeded, page, pageSize, ct);
 
-        return Ok(entries.Select(e => new
+        return Ok(new
         {
-            e.Id,
-            kind = e.Kind.ToString().ToLowerInvariant(),
-            e.TableName,
-            e.RowKey,
-            e.Columns,
-            e.AffectedRows,
-            e.Succeeded,
-            e.ApiKeyPrefix,
-            e.ActorUserId,
-            e.CreatedAt,
-        }));
+            totalCount,
+            page,
+            pageSize,
+            entries = entries.Select(e => new
+            {
+                e.Id,
+                kind = e.Kind.ToString().ToLowerInvariant(),
+                e.TableName,
+                e.RowKey,
+                e.Columns,
+                e.AffectedRows,
+                e.Succeeded,
+                e.ApiKeyPrefix,
+                e.ActorUserId,
+                e.CreatedAt,
+            }),
+        });
+    }
+
+    /// <summary>
+    /// Namines Desk — Analytics (D7, 07-ANALYTICS.md §3). Rota, doc'un tarif
+    /// ettiği <c>/api/gateway/analytics/{projectId}</c> ile birebir eşleşsin
+    /// diye bu controller'ın <c>api/gateway/keys</c> önekini AÇIKÇA aşıyor
+    /// (baştaki <c>/</c>) — mantıksal olarak Logs'la (bu dosyadaki `/audit`)
+    /// aynı yetki/veri katmanına ait olduğu için burada duruyor, ayrı bir
+    /// controller açmak gereksiz bölünme olurdu.
+    ///
+    /// <b>Yetki Logs ile aynı (Admin ve üstü):</b> toplamlar da projenin veri
+    /// hareketinin tamamını açığa vuruyor.
+    /// </summary>
+    [HttpGet("/api/gateway/analytics/{projectId}")]
+    public async Task<IActionResult> Analytics(
+        string projectId, [FromQuery] DateTime? from = null, [FromQuery] DateTime? to = null,
+        [FromQuery] string bucket = "day", CancellationToken ct = default)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        if (!await _context.CanViewAsync(projectId, userId, ct))
+            return NotFound(new { error = "Proje bulunamadı." });
+        if (!await CanManageAsync(projectId, userId))
+            return StatusCode(403, new { error = "Bu bölüm için yönetici (Admin) yetkisi gerekiyor." });
+
+        var effectiveTo = to ?? DateTime.UtcNow;
+        var effectiveFrom = from ?? effectiveTo.AddDays(-7);
+        var effectiveBucket = bucket == "hour" ? "hour" : "day";
+
+        var result = await _context.AnalyticsAsync(projectId, effectiveFrom, effectiveTo, effectiveBucket, ct);
+
+        return Ok(new
+        {
+            from = effectiveFrom,
+            to = effectiveTo,
+            bucket = effectiveBucket,
+            buckets = result.Buckets.Select(b => new
+            {
+                bucketStart = b.BucketStart,
+                create = b.Create, update = b.Update, delete = b.Delete,
+                import = b.Import, rpc = b.Rpc, sql = b.Sql,
+            }),
+            totalWrites = result.TotalWrites,
+            successRate = result.SuccessRate,
+            totalAffectedRows = result.TotalAffectedRows,
+            topTables = result.TopTables.Select(t => new { tableName = t.TableName, count = t.Count }),
+            sourceBreakdown = new { human = result.HumanCount, application = result.ApplicationCount },
+            schemaVersionCount = result.SchemaVersionCount,
+        });
     }
 
     [HttpDelete("{projectId}/{keyId}")]
@@ -314,6 +400,34 @@ public class GatewayKeyController : ControllerBase
         if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
             return BadRequest(new { error = denyReason });
 
+        // Namines Desk (02-PROJECTS.md §3 kabul kriteri 4): yanlış bir bağlantı
+        // dizesi KAYDEDİLMEZ, sebep gösterilir. Kaydedip ilk veri ekranında
+        // patlamasını beklemek yerine, kaydetmeden ÖNCE gerçekten bağlanılıp
+        // şema okunabildiği doğrulanır — aynı zamanda "bağlı" rozetinin
+        // arkasında gerçekten okunabilir bir şema olduğunu garantiler.
+        try
+        {
+            await _introspection.IntrospectAsync(request.ConnectionString, request.DbType, ct);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not allowed"))
+        {
+            return BadRequest(new { error = "Connection target is not allowed (private or reserved address)." });
+        }
+        catch (Exception ex)
+        {
+            // Ham sürücü mesajı (ex.Message) İSTEMCİYE ASLA döndürülmez: Npgsql/SqlClient
+            // gibi sürücüler bağlantı hatalarında hedef host/port'u, hatta bazen bozuk
+            // bağlantı dizesinin bir kısmını mesaja gömer — bu uç dış (Admin/Owner
+            // olmayan bir saldırgan için bile) rastgele hostlara karşı bir bağlantı
+            // kâşifine dönerdi. GatewayController'ın kendi genel `catch(Exception)`
+            // bloğu da aynı sebeple ex.Message'ı hiç yazdırmıyor; burası ondan sapıyordu.
+            //
+            // Yine de kapsam dışı KALMASIN diye (02-PROJECTS.md §4: "sunucunun HAM
+            // mesajı" değil ama "bir hata oluştu" da değil) birkaç GÜVENLİ kategoriye
+            // ayrıştırılıyor — sürücü metninin kendisi asla geri yansıtılmadan.
+            return BadRequest(new { error = ClassifyConnectionFailure(ex) });
+        }
+
         project.EncryptedConnectionString = _protector.Protect(request.ConnectionString);
         project.ConnectionDbType = request.DbType;
         project.UpdatedAt = DateTime.UtcNow;
@@ -321,6 +435,31 @@ public class GatewayKeyController : ControllerBase
 
         // Bağlantı dizesi ASLA geri döndürülmez — maskelenmiş hâli bile değil.
         return Ok(new { projectId, dbType = request.DbType, connected = true });
+    }
+
+    /// <summary>
+    /// Bir bağlantı denemesi neden başarısız oldu — sürücünün HAM mesajını hiç
+    /// okuyucuya yansıtmadan birkaç güvenli kategoriye ayırır. Yalnızca ex.Message'ın
+    /// KENDİSİNİ okur (dahili karar için), asla geri döndürmez.
+    /// </summary>
+    private static string ClassifyConnectionFailure(Exception ex)
+    {
+        var m = ex.Message;
+        if (m.Contains("password", StringComparison.OrdinalIgnoreCase) ||
+            m.Contains("authentication", StringComparison.OrdinalIgnoreCase) ||
+            m.Contains("login failed", StringComparison.OrdinalIgnoreCase))
+            return "Authentication failed. Check the username and password in the connection string.";
+
+        if (m.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+            ex is TimeoutException)
+            return "Connection timed out. Check the host, port, and firewall rules.";
+
+        if (m.Contains("database", StringComparison.OrdinalIgnoreCase) &&
+            (m.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ||
+             m.Contains("cannot open", StringComparison.OrdinalIgnoreCase)))
+            return "The database name in the connection string was not found on the server.";
+
+        return "Could not connect to the database. Check the connection string and network access.";
     }
 
     [HttpDelete("project/{projectId}/connection")]
@@ -339,5 +478,36 @@ public class GatewayKeyController : ControllerBase
         project.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync(ct);
         return Ok(new { projectId, connected = false });
+    }
+
+    public sealed record SetDeskSqlEnabledRequest(bool Enabled);
+
+    /// <summary>
+    /// Namines Desk v2 §E4.2 — SQL konsolunu bir proje için açar/kapatır.
+    /// <b>Owner-only</b> (bkz. <see cref="IsOwnerAsync"/>'ın sınıf yorumu) —
+    /// bu depoda Admin'den de dar bir yetki gerektiren ilk uç.
+    /// </summary>
+    [HttpPut("project/{projectId}/desk-sql")]
+    public async Task<IActionResult> SetDeskSqlEnabled(
+        string projectId, [FromBody] SetDeskSqlEnabledRequest request, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        // 404: proje hiç görünmüyor (Viewer bile değilsin) — var olan projectId'leri
+        // sızdırmama gerekçesi diğer uçlarla aynı. Görüyor ama Owner değilsen 403.
+        var role = await _context.GetRoleAsync(projectId, userId, ct);
+        if (role is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (role != OrgRole.Owner)
+            return StatusCode(403, new { error = "Yalnızca proje sahibi (Owner) SQL konsolunu açıp kapatabilir." });
+
+        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        if (project is null) return NotFound(new { error = "Proje bulunamadı." });
+
+        project.AllowDeskSql = request.Enabled;
+        project.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { projectId, allowDeskSql = project.AllowDeskSql });
     }
 }

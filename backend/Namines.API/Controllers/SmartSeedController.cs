@@ -68,11 +68,8 @@ public class SmartSeedController : ControllerBase
             }
             else
             {
-                // If Guest has NOT provided a BYOK Key, force deterministic mockup data to save API cost
-                if (string.IsNullOrEmpty(Request.Headers["X-BYOK-Key"]) && string.IsNullOrEmpty(Request.Headers["X-User-Api-Key"]))
-                {
-                    forceDeterministic = true;
-                }
+                // Misafir (kimliksiz) istek — API maliyetini korumak için deterministik üretime düş.
+                forceDeterministic = true;
             }
         }
 

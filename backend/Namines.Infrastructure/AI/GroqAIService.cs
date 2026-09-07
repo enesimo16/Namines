@@ -226,12 +226,6 @@ public class GroqAIService : IAIService
         if (httpContext == null)
             return UpstreamModel(NaiModel.Flash);
 
-        bool isByok = httpContext.Items.ContainsKey("IsByok") == true;
-
-        // BYOK'ta kullanıcı kendi anahtarını getiriyor, yani maliyeti o
-        // üstleniyor: en yetenekli modeli vermemek için sebep yok.
-        if (isByok) return UpstreamModel(NaiModel.Pro);
-
         var userId = httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (!string.IsNullOrEmpty(userId))
         {
@@ -296,9 +290,6 @@ public class GroqAIService : IAIService
 
         var request = new HttpRequestMessage(HttpMethod.Post, relativeUri) { Content = content };
 
-        var byokKey = _httpContextAccessor.HttpContext?.Items["ByokApiKey"] as string;
-        var byokProvider = _httpContextAccessor.HttpContext?.Items["ByokProvider"] as string;
-
         // Resolve the model name from the payload to detect Gemini routing
         string modelInPayload = "";
         try
@@ -311,16 +302,7 @@ public class GroqAIService : IAIService
 
         bool isGeminiModel = modelInPayload.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase);
 
-        if (!string.IsNullOrWhiteSpace(byokKey))
-        {
-            // BYOK: kullanıcının kendi API key'i
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", byokKey);
-            if (string.Equals(byokProvider, "openai", StringComparison.OrdinalIgnoreCase))
-                request.RequestUri = new Uri("https://api.openai.com/v1/" + relativeUri);
-            else if (string.Equals(byokProvider, "gemini", StringComparison.OrdinalIgnoreCase))
-                request.RequestUri = new Uri("https://generativelanguage.googleapis.com/v1beta/openai/" + relativeUri);
-        }
-        else if (isGeminiModel)
+        if (isGeminiModel)
         {
             // Sunucu-taraflı Gemini API key'i — configuration'dan al
             var httpContext = _httpContextAccessor.HttpContext;
@@ -610,16 +592,8 @@ public class GroqAIService : IAIService
 
                 if (request.Image != null)
                 {
-                    var byokProvider = _httpContextAccessor.HttpContext?.Items["ByokProvider"] as string;
-                    if (string.Equals(byokProvider, "openai", StringComparison.OrdinalIgnoreCase))
-                    {
-                        modelToUse = "gpt-4o";
-                    }
-                    else
-                    {
-                        modelToUse = "meta-llama/llama-4-scout-17b-16e-instruct"; // Use vision model
-                    }
-                    
+                    modelToUse = "meta-llama/llama-4-scout-17b-16e-instruct"; // Use vision model
+
                     using var ms = new MemoryStream();
                     await request.Image.CopyToAsync(ms);
                     var base64Image = Convert.ToBase64String(ms.ToArray());
@@ -1146,10 +1120,7 @@ Code:
         var systemPrompt = VisionPromptBuilder.BuildSystemPrompt();
         var userPrompt = VisionPromptBuilder.BuildUserPrompt();
 
-        var byokProvider = _httpContextAccessor.HttpContext?.Items["ByokProvider"] as string;
-        var modelToUse = string.Equals(byokProvider, "openai", StringComparison.OrdinalIgnoreCase) 
-            ? "gpt-4o" 
-            : "meta-llama/llama-4-scout-17b-16e-instruct";
+        var modelToUse = "meta-llama/llama-4-scout-17b-16e-instruct";
 
         var payload = new
         {

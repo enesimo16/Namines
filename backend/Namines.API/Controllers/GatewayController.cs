@@ -33,7 +33,8 @@ public sealed record GatewayListRequest(
     IReadOnlyList<GatewayFilter>? Filters = null,
     IReadOnlyList<GatewayFilterGroup>? OrGroups = null,
     IReadOnlyList<string>? Select = null,
-    IReadOnlyList<GatewayExpand>? Expand = null);
+    IReadOnlyList<GatewayExpand>? Expand = null,
+    string? ProjectId = null);
 
 public sealed record GatewayExportRequest(
     string ConnectionString, string DbType, string TableName,
@@ -43,21 +44,34 @@ public sealed record GatewayExportRequest(
     GatewaySortDirection SortDirection = GatewaySortDirection.Asc,
     IReadOnlyList<GatewayFilter>? Filters = null,
     IReadOnlyList<GatewayFilterGroup>? OrGroups = null,
-    IReadOnlyList<string>? Select = null);
-public sealed record GatewayDetailRequest(string ConnectionString, string DbType, string TableName, string PkColumn, string PkValue);
+    IReadOnlyList<string>? Select = null,
+    string? ProjectId = null);
+public sealed record GatewayDetailRequest(string ConnectionString, string DbType, string TableName, string PkColumn, string PkValue, string? ProjectId = null);
 
 public sealed record GatewayCreateRequest(
     string ConnectionString, string DbType, string TableName,
-    Dictionary<string, string?> Values);
+    Dictionary<string, string?> Values, string? ProjectId = null);
 
 public sealed record GatewayUpdateRequest(
     string ConnectionString, string DbType, string TableName,
     string PkColumn, string PkValue,
-    Dictionary<string, string?> Values);
+    Dictionary<string, string?> Values, string? ProjectId = null);
 
 public sealed record GatewayDeleteRequest(
     string ConnectionString, string DbType, string TableName,
-    string PkColumn, string PkValue);
+    string PkColumn, string PkValue, string? ProjectId = null);
+
+/// <summary>Namines Desk v2 §E4.1 — toplu silme.</summary>
+public sealed record GatewayBulkDeleteRequest(
+    string ConnectionString, string DbType, string TableName,
+    string PkColumn, List<string> PkValues, string? ProjectId = null);
+
+/// <summary>
+/// Namines Desk v2 §E4.2 — SQL konsolu. Bilinçli olarak <c>ConnectionString</c>/
+/// <c>DbType</c> ALMAZ: bu uç yalnızca oturum + <c>ProjectId</c> yoluyla çalışır,
+/// API anahtarı yolu hiç yok (aşağıdaki <c>DeskSql</c> action'ının yorumuna bkz.).
+/// </summary>
+public sealed record GatewayDeskSqlRequest(string ProjectId, string Sql, int MaxRows = 500);
 
 /// <param name="Rows">
 /// Yazılacak satırlar. Hepsi AYNI kolonları taşımalı — satır başına farklı kolon
@@ -294,36 +308,100 @@ public class GatewayController : ControllerBase
         (_configuration["Jwt:Key"] ?? "namines-masking-fallback") + ":mask:" + projectId;
 
     /// <summary>
-    /// İstekte bağlantı YOKSA, API anahtarının bağlı olduğu projede saklanan
-    /// şifreli bağlantıyı çözer.
+    /// İstekte bağlantı YOKSA, projede saklanan şifreli bağlantıyı çözer.
     ///
-    /// <b>Namines Desk için eklendi.</b> Desk barındırılan bir panel; bağlantıyı
-    /// tarayıcıdan göndermek veritabanı parolasını istemciye taşırdı. Artık
-    /// tarayıcı yalnızca API anahtarı gönderiyor, bağlantıyı sunucu çözüyor.
+    /// İki çağıran senaryosu var:
+    /// - <b>API anahtarı</b> (dış uygulama): proje, anahtarın bağlı olduğu
+    ///   projedir; tablo izinleri zaten <see cref="AuthorizeAsync"/> içinde
+    ///   uygulandı.
+    /// - <b>Oturum (JWT) + <paramref name="requestedProjectId"/></b> — Namines
+    ///   Desk. Anahtar taşımıyor, bunun yerine hangi projeyi istediğini
+    ///   açıkça bildiriyor. <b>Bu dal, JWT kullanıcısının O PROJEYE erişimi
+    ///   olduğunu DOĞRULAMADAN asla bağlantıyı çözmez</b> — aksi hâlde
+    ///   giriş yapmış herhangi bir kullanıcı başkasının `projectId`'sini
+    ///   yazıp o veritabanına bağlanabilirdi. Kontrol <c>OrgAccess</c>'teki
+    ///   tek kopyadan yapılır (<see cref="OrgAccess.CanViewAsync"/> /
+    ///   <see cref="OrgAccess.CanEditAsync"/>) — <c>GatewayKeyController</c>'ın
+    ///   kullandığı <c>CanManageMembersAsync</c> kasıtlı olarak KULLANILMADI:
+    ///   o Admin/Owner'a kilitli ve anahtar YÖNETİMİ için doğru, ama Desk'te
+    ///   kendi projesinin verisine bakan bir Viewer/Editor'ı dışlardı.
     ///
     /// <b>Mevcut davranış korunuyor:</b> istek bağlantı taşıyorsa o kullanılır —
     /// tasarım düzlemindeki (canvas) çağrılar hiç değişmiyor.
     /// </summary>
     /// <returns>
-    /// Bağlantı dizesi VE motor türü. İkisi birlikte dönüyor çünkü ayrı ayrı
-    /// çözmek, saklanan bağlantıyla istekteki motorun ayrışmasına izin verirdi —
-    /// PostgreSQL'e MSSQL sürücüsüyle bağlanmaya çalışmak gibi.
+    /// Bağlantı dizesi, motor türü ve (yetkisizse) doğrudan döndürülecek
+    /// <see cref="IActionResult"/>. Bağlantı ile motor türü birlikte dönüyor
+    /// çünkü ayrı ayrı çözmek, saklanan bağlantıyla istekteki motorun
+    /// ayrışmasına izin verirdi — PostgreSQL'e MSSQL sürücüsüyle bağlanmaya
+    /// çalışmak gibi.
     /// </returns>
-    private async Task<(string? Connection, string DbType)> ResolveConnectionAsync(
-        string? requested, string? requestedDbType, GatewayApiKey? apiKey, CancellationToken ct)
+    /// <summary>
+    /// Oturum (JWT) kullanıcısının <paramref name="projectId"/>'ye erişimi var mı —
+    /// <see cref="ResolveConnectionAsync"/> VE <see cref="Schema"/> tarafından
+    /// paylaşılan TEK kopya. Önceden ikisi bu kontrolü bağımsız yazıyordu; bu,
+    /// tam olarak <c>OrgAccess.cs</c>'in kendi kuruluş gerekçesinin uyardığı
+    /// kopyalanma riskiydi ("aynı mantığın kopyalanması ... hata olarak geri
+    /// dönmüştü") — burada erken kapatıldı.
+    ///
+    /// <see cref="GatewayKeyController"/>'ın kullandığı <c>CanManageMembersAsync</c>
+    /// kasıtlı olarak KULLANILMIYOR: o Admin/Owner'a kilitli ve anahtar YÖNETİMİ
+    /// için doğru, ama burada kendi projesinin verisine bakan bir Viewer/Editor'ı
+    /// dışlardı.
+    /// </summary>
+    /// <returns>
+    /// Erişim varsa <c>(true, userId, null)</c>. Yoksa <c>(false, null, Failure)</c> —
+    /// 401 (kimlik yok) ya da 403 (erişim yok). 403 ile "proje yok" arasında ayrım
+    /// yapılmıyor — bilinçli: hangi projectId'lerin var olduğunu sızdırmamak, key
+    /// yolundaki 403/404 tercihiyle aynı gerekçe (yukarıda AuthorizeAsync'te açıklandı).
+    /// </returns>
+    private async Task<(bool Allowed, string? UserId, IActionResult? Failure)> ResolveSessionAccessAsync(
+        string projectId, bool forWrite, CancellationToken ct)
+    {
+        // [AllowAnonymous] anahtarsız istekleri de kabul eder, bu yüzden kimliği
+        // burada netleştiriyoruz (AuthorizeAsync zaten IsAuthenticated'ı doğruladı,
+        // ama userId claim'i burada ayrıca lazım).
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return (false, null, Unauthorized());
+
+        var hasAccess = forWrite
+            ? await _context.CanEditAsync(projectId, userId, ct)
+            : await _context.CanViewAsync(projectId, userId, ct);
+
+        if (!hasAccess)
+            return (false, null, StatusCode(403, new { message = "You do not have access to this project." }));
+
+        return (true, userId, null);
+    }
+
+    private async Task<(string? Connection, string DbType, IActionResult? Failure)> ResolveConnectionAsync(
+        string? requested, string? requestedDbType, string? requestedProjectId,
+        GatewayApiKey? apiKey, bool forWrite, CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(requested))
-            return (requested, requestedDbType ?? string.Empty);
+            return (requested, requestedDbType ?? string.Empty, null);
 
-        if (apiKey is null) return (null, string.Empty);
+        string? projectId = apiKey?.ProjectId;
+
+        if (projectId is null)
+        {
+            if (string.IsNullOrWhiteSpace(requestedProjectId))
+                return (null, string.Empty, null);
+
+            var (allowed, _, failure) = await ResolveSessionAccessAsync(requestedProjectId, forWrite, ct);
+            if (!allowed) return (null, string.Empty, failure);
+
+            projectId = requestedProjectId;
+        }
 
         var project = await _context.CloudProjects
-            .Where(p => p.Id == apiKey.ProjectId)
+            .Where(p => p.Id == projectId)
             .Select(p => new { p.EncryptedConnectionString, p.ConnectionDbType })
             .FirstOrDefaultAsync(ct);
 
         if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString))
-            return (null, string.Empty);
+            return (null, string.Empty, null);
 
         // Çözülemezse (anahtar döndü / kayıt bozuldu) İSTİSNA fırlar ve üstteki
         // catch 500 döner. Bilinçli: sessizce "bağlantı yok" demek, kullanıcıyı
@@ -336,7 +414,7 @@ public class GatewayController : ControllerBase
             ? project.ConnectionDbType
             : (requestedDbType ?? string.Empty);
 
-        return (_protector.Unprotect(project.EncryptedConnectionString), dbType);
+        return (_protector.Unprotect(project.EncryptedConnectionString), dbType, null);
     }
 
     [HttpPost("list")]
@@ -348,7 +426,9 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
-        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, apiKey, forWrite: false, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
         if (string.IsNullOrWhiteSpace(connectionString))
             return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
@@ -394,8 +474,10 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
-        // Baglanti istekte yoksa API anahtarindan cozulur (Namines Desk).
-        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        // Baglanti istekte yoksa API anahtarindan ya da oturum + ProjectId'den cozulur (Namines Desk).
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, apiKey, forWrite: false, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
         if (string.IsNullOrWhiteSpace(connectionString))
             return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
@@ -446,8 +528,10 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
-        // Baglanti istekte yoksa API anahtarindan cozulur (Namines Desk).
-        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        // Baglanti istekte yoksa API anahtarindan ya da oturum + ProjectId'den cozulur (Namines Desk).
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, apiKey, forWrite: true, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
         if (string.IsNullOrWhiteSpace(connectionString))
             return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
@@ -458,7 +542,7 @@ public class GatewayController : ControllerBase
                     connectionString, effectiveDbType, request.TableName,
                     request.Values, cancellationToken);
                 return (Ok(result), result.AffectedRows);
-            });
+            }, projectId: apiKey?.ProjectId ?? request.ProjectId);
     }
 
     [HttpPost("update")]
@@ -477,8 +561,10 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
-        // Baglanti istekte yoksa API anahtarindan cozulur (Namines Desk).
-        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        // Baglanti istekte yoksa API anahtarindan ya da oturum + ProjectId'den cozulur (Namines Desk).
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, apiKey, forWrite: true, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
         if (string.IsNullOrWhiteSpace(connectionString))
             return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
@@ -492,7 +578,7 @@ public class GatewayController : ControllerBase
                 return (result.AffectedRows == 0
                     ? NotFound(new { message = "No row found for the given key." })
                     : Ok(result), result.AffectedRows);
-            });
+            }, projectId: apiKey?.ProjectId ?? request.ProjectId);
     }
 
     [HttpPost("delete")]
@@ -508,8 +594,10 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
         if (!allowed) return failure!;
 
-        // Baglanti istekte yoksa API anahtarindan cozulur (Namines Desk).
-        var (connectionString, effectiveDbType) = await ResolveConnectionAsync(request.ConnectionString, request.DbType, apiKey, cancellationToken);
+        // Baglanti istekte yoksa API anahtarindan ya da oturum + ProjectId'den cozulur (Namines Desk).
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, apiKey, forWrite: true, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
         if (string.IsNullOrWhiteSpace(connectionString))
             return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
@@ -523,7 +611,118 @@ public class GatewayController : ControllerBase
                 return (result.AffectedRows == 0
                     ? NotFound(new { message = "No row found for the given key." })
                     : Ok(result), result.AffectedRows);
-            });
+            }, projectId: apiKey?.ProjectId ?? request.ProjectId);
+    }
+
+    /// <summary>
+    /// Namines Desk v2 §E4.1 — toplu silme. <see cref="Delete"/>'in çoğul hâli;
+    /// aynı yetki modeli (yazma izni), aynı bağlantı çözümü, tek fark
+    /// <c>GatewayService.BulkDeleteAsync</c>'in TEK işlemde çalışması.
+    ///
+    /// <b>Onay eşiği Desk'in kendisinde (arayüz), burada DEĞİL:</b> "10+ satırda
+    /// yaz: SİL" kuralı bir kullanıcı deneyimi kararı — sunucu kaç satır
+    /// istendiğini umursamaz, yalnızca <see cref="GatewayService.MaxBulkDeleteRows"/>
+    /// tavanını uygular (34-SENDEN-BEKLENENLER.md madde 12).
+    /// </summary>
+    [HttpPost("bulk-delete")]
+    public async Task<IActionResult> BulkDelete([FromBody] GatewayBulkDeleteRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.TableName) || string.IsNullOrWhiteSpace(request.PkColumn))
+            return BadRequest(new { message = "Table name and PK column are required." });
+        if (request.PkValues is null || request.PkValues.Count == 0)
+            return BadRequest(new { message = "At least one row must be selected." });
+
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: true, cancellationToken);
+        if (!allowed) return failure!;
+
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, apiKey, forWrite: true, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
+
+        return await AuditedAsync(apiKey, GatewayWriteKind.Delete, request.TableName,
+            $"{request.PkValues.Count} rows", null, cancellationToken, async () =>
+            {
+                var result = await _gateway.BulkDeleteAsync(
+                    connectionString, effectiveDbType, request.TableName,
+                    request.PkColumn, request.PkValues, cancellationToken);
+                return (Ok(result), result.AffectedRows);
+            }, projectId: apiKey?.ProjectId ?? request.ProjectId);
+    }
+
+    /// <summary>
+    /// Namines Desk v2 §E4.2 — salt-okunur SQL konsolu.
+    ///
+    /// <b>Bilinçli olarak GENEL <see cref="Query"/> ucundan AYRI:</b> o uç API
+    /// anahtarı + <c>CanExecuteSql</c> için tasarlandı ve oturum yolunda hiçbir
+    /// ek kısıtlama uygulamıyordu (JWT çağıranı zaten kendi bağlantı dizesini
+    /// getiriyor sayıyordu — Desk'in modeli bu değil). Bu ikisini TEK bir action'a
+    /// sığdırmak (özel durumları genel yola yamamak), gelecekte "hangi koşulda
+    /// hangi kural işliyor" sorusunu karmaşıklaştırırdı; ayrı bir action ile her
+    /// kuralın YERİ tek satırda okunabilir kalıyor.
+    ///
+    /// Üç ayrı, birbirinden bağımsız kapı — hepsi geçmeli:
+    /// 1. Çağıran bu projenin <b>Owner</b>'ı mı (Admin bile yetmez — 34-SENDEN-
+    ///    BEKLENENLER.md madde 13'ün kararı: "tüm güvenlik önlemleri").
+    /// 2. Proje sahibi SQL konsolunu bu proje için AÇIKÇA açmış mı
+    ///    (<c>CloudProject.AllowDeskSql</c>, varsayılan kapalı).
+    /// 3. SQL'in kendisi tek bir SELECT/WITH/EXPLAIN/SHOW ifadesi mi
+    ///    (<c>GatewayService.EnsureReadOnlySelectStatement</c> — DB'nin kendi
+    ///    salt-okunur oturumunun SQL Server/Oracle'da hiç var olmamasını telafi
+    ///    eden katman, bkz. o metodun sınıf yorumu).
+    ///
+    /// Her çağrı — başarılı ya da başarısız — denetim kaydına yazılır
+    /// (<see cref="GatewayWriteKind.Sql"/>), D6/D7'nin Logs/Analytics ekranlarında
+    /// görünür olsun diye; salt-okunur olması onu "önemsiz" yapmıyor.
+    /// </summary>
+    // Kontrolcü seviyesindeki "gateway" politikasını (dakikada 1200) BİLEREK
+    // ezip daha sıkı "sensitive" politikasına (dakikada 5, bkz. Program.cs)
+    // düşürüyor — DatabaseExecutorController'ın ham SQL ucuyla AYNI gerekçe:
+    // bu, normal bir CRUD isteği değil, ek bir güvenlik katmanı hak ediyor.
+    [EnableRateLimiting("sensitive")]
+    [HttpPost("desk-sql")]
+    public async Task<IActionResult> DeskSql([FromBody] GatewayDeskSqlRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProjectId) || string.IsNullOrWhiteSpace(request.Sql))
+            return BadRequest(new { message = "ProjectId and Sql are required." });
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var role = await _context.GetRoleAsync(request.ProjectId, userId, cancellationToken);
+        // 404 ile "Owner değilsin" arasında ayrım yapılmıyor BURADA sızdırılan
+        // bilgi için: proje hiç görünmüyorsa (Viewer bile değilsen) 404, GÖRÜYOR
+        // ama Owner değilsen 403 + açık sebep — kabul kriteri "yetkisiz kullanıcı
+        // açıklayıcı mesaj görür" (D6/D7'de kurulan aynı ilke).
+        if (role is null)
+            return NotFound(new { message = "Project not found." });
+        if (role != OrgRole.Owner)
+            return StatusCode(403, new { message = "Only the project Owner can use the Desk SQL console." });
+
+        var project = await _context.CloudProjects
+            .Where(p => p.Id == request.ProjectId)
+            .Select(p => new { p.EncryptedConnectionString, p.ConnectionDbType, p.AllowDeskSql })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString))
+            return BadRequest(new { message = "This project has no stored database connection." });
+        if (!project.AllowDeskSql)
+            return StatusCode(403, new { message = "The SQL console is not enabled for this project yet." });
+
+        var connectionString = _protector.Unprotect(project.EncryptedConnectionString);
+        var dbType = project.ConnectionDbType ?? "PostgreSQL";
+        var maxRows = Math.Clamp(request.MaxRows, 1, 2000);
+
+        // ArgumentException (tek-ifade/salt-okunur ihlali) ve "not allowed" (SSRF)
+        // burada YAKALANMIYOR bilerek — ExecuteAsync'in (AuditedAsync'in içinde
+        // çağrılan) kendi catch merdiveni bunları zaten doğru mesajlarla ele
+        // alıyor; Create/Update/Delete ile AYNI desen, burada tekrar etmiyoruz.
+        return await AuditedAsync(null, GatewayWriteKind.Sql, null, null, null, cancellationToken, async () =>
+        {
+            var result = await _gateway.DeskSqlQueryAsync(connectionString, dbType, request.Sql, maxRows, cancellationToken);
+            return (Ok(result), result.Rows.Count);
+        }, projectId: request.ProjectId);
     }
 
     /// <summary>
@@ -588,7 +787,8 @@ public class GatewayController : ControllerBase
         string? rowKey,
         IEnumerable<string>? columns,
         CancellationToken cancellationToken,
-        Func<Task<(IActionResult Result, int AffectedRows)>> action)
+        Func<Task<(IActionResult Result, int AffectedRows)>> action,
+        string? projectId = null)
     {
         var affected = 0;
         var succeeded = false;
@@ -605,7 +805,7 @@ public class GatewayController : ControllerBase
 
         await _context.RecordAuditAsync(
             key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-            kind, tableName, rowKey, columns, affected, succeeded, cancellationToken);
+            kind, tableName, rowKey, columns, affected, succeeded, cancellationToken, projectId);
 
         return response;
     }
@@ -645,11 +845,22 @@ public class GatewayController : ControllerBase
     [HttpPost("export")]
     public async Task<IActionResult> Export([FromBody] GatewayExportRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.TableName))
-            return BadRequest(new { message = "Connection string and table name are required." });
+        if (string.IsNullOrWhiteSpace(request.TableName))
+            return BadRequest(new { message = "Table name is required." });
 
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
+
+        // Namines Desk (D4, 04-DATA-CRUD.md §2.3): bağlantı istekte yoksa API
+        // anahtarından ya da oturum + ProjectId'den çözülür — diğer beş uçla
+        // (list/detail/create/update/delete) aynı yol. Önceden burası yalnızca
+        // ham bir bağlantı dizesi kabul ediyordu; Desk'in oturum yolunu hiç
+        // desteklemiyordu.
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, apiKey, forWrite: false, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
         var format = (request.Format ?? "csv").Trim().ToLowerInvariant();
         if (format is not ("csv" or "json"))
@@ -658,7 +869,7 @@ public class GatewayController : ControllerBase
         try
         {
             IReadOnlyList<GatewayRow> rows = await _gateway.ExportAsync(
-                request.ConnectionString, request.DbType, request.TableName,
+                connectionString, effectiveDbType, request.TableName,
                 request.MaxRows, request.OrderByColumn, request.SortDirection,
                 request.Filters, request.OrGroups, request.Select, cancellationToken);
 
@@ -1021,26 +1232,52 @@ public class GatewayController : ControllerBase
     /// bile bilmesine gerek yok.
     /// </summary>
     [HttpGet("schema")]
-    public async Task<IActionResult> Schema(CancellationToken cancellationToken)
+    public async Task<IActionResult> Schema([FromQuery] string? projectId, CancellationToken cancellationToken)
     {
         var key = await ResolveKeyAsync(cancellationToken);
-        if (key is null) return Unauthorized(new { message = "A valid API key is required." });
+
+        // key varsa: dış uygulama yolu, tablo izinleri key'e göre uygulanır (mevcut davranış).
+        // key yoksa: oturum (JWT) yolu — Namines Desk. Tablo izinleri uygulanmaz (01 §2),
+        // ama `projectId`'ye erişim DOĞRULANIR — aksi hâlde herhangi bir giriş yapmış
+        // kullanıcı başkasının projesinin şemasını okuyabilirdi.
+        string resolvedProjectId;
+        Dictionary<string, bool>? keyPermissions = null;
+        bool sessionCanWrite = false;
+
+        if (key is not null)
+        {
+            resolvedProjectId = key.ProjectId;
+
+            var permissions = await _context.ReadableTablesAsync(key.ProjectId, cancellationToken);
+            keyPermissions = permissions
+                .Where(p => p.CanRead)
+                .ToDictionary(p => p.TableName, p => p.CanWrite && key.CanWrite, StringComparer.OrdinalIgnoreCase);
+
+            if (keyPermissions.Count == 0)
+                return Ok(new { tables = Array.Empty<object>() });
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(projectId))
+                return Unauthorized(new { message = "A valid API key or an authenticated session with a projectId is required." });
+
+            var (allowed, userId, failure) = await ResolveSessionAccessAsync(projectId, forWrite: false, cancellationToken);
+            if (!allowed) return failure!;
+
+            resolvedProjectId = projectId;
+            // Erişim (view) yeterliyken canWrite AYRI bir bayrak — şemayı okumak
+            // için Editor olmak gerekmez, ama Desk formunun düzenlenebilir mi
+            // salt-okunur mu göstereceğini bu belirler.
+            sessionCanWrite = await _context.CanEditAsync(projectId, userId!, cancellationToken);
+        }
 
         var project = await _context.CloudProjects
-            .Where(p => p.Id == key.ProjectId)
+            .Where(p => p.Id == resolvedProjectId)
             .Select(p => new { p.EncryptedConnectionString, p.ConnectionDbType })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString))
             return BadRequest(new { message = "This project has no stored database connection." });
-
-        var permissions = await _context.ReadableTablesAsync(key.ProjectId, cancellationToken);
-        var allowed = permissions
-            .Where(p => p.CanRead)
-            .ToDictionary(p => p.TableName, p => p.CanWrite && key.CanWrite, StringComparer.OrdinalIgnoreCase);
-
-        if (allowed.Count == 0)
-            return Ok(new { tables = Array.Empty<object>() });
 
         try
         {
@@ -1064,11 +1301,11 @@ public class GatewayController : ControllerBase
             }
 
             var tables = schema.Tables
-                .Where(t => allowed.ContainsKey(t.Name))
+                .Where(t => keyPermissions is null || keyPermissions.ContainsKey(t.Name))
                 .Select(t => new
                 {
                     name = t.Name,
-                    canWrite = allowed[t.Name],
+                    canWrite = keyPermissions is not null ? keyPermissions[t.Name] : sessionCanWrite,
                     columns = t.Columns.Select(c => new
                     {
                         name = c.Name,

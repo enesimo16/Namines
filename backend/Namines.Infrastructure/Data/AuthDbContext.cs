@@ -26,6 +26,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
         public DbSet<UserBillingSettings> UserBillingSettings { get; set; } = null!;
         public DbSet<TeamInvite> TeamInvites { get; set; } = null!;
+        public DbSet<DeskHandoffToken> DeskHandoffTokens { get; set; } = null!;
         public DbSet<CrossDatabaseRelation> CrossDatabaseRelations { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
@@ -302,6 +303,11 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<TeamInvite>()
                 .HasIndex(i => i.OrganizationId);
+
+            // ── Desk v2 SSO devir jetonları — TeamInvite ile aynı gerekçe ────
+            builder.Entity<DeskHandoffToken>()
+                .HasIndex(t => t.TokenHash)
+                .IsUnique();
 
             // ── second-phase/10-COKLU-DB.md — veritabanları arası mantıksal ilişki ──
             // İki proje sınırını aşan bir kayıt olduğu için Restrict: bir projeyi

@@ -131,9 +131,10 @@ public class GatewayAuditTests : IAsyncLifetime
         }
         await context.SaveChangesAsync();
 
-        var trail = await context.AuditTrailAsync("p1", take: 3);
+        var (trail, totalCount) = await context.AuditTrailAsync("p1", pageSize: 3);
 
         Assert.Equal(3, trail.Count);
+        Assert.Equal(10, totalCount);
         Assert.Equal("t9", trail[0].TableName);
         Assert.Equal("t7", trail[2].TableName);
     }
@@ -146,8 +147,8 @@ public class GatewayAuditTests : IAsyncLifetime
             context.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p1" });
         await context.SaveChangesAsync();
 
-        Assert.Equal(3, (await context.AuditTrailAsync("p1", take: 100_000)).Count);
-        Assert.Single(await context.AuditTrailAsync("p1", take: 0));
+        Assert.Equal(3, (await context.AuditTrailAsync("p1", pageSize: 100_000)).Entries.Count);
+        Assert.Single((await context.AuditTrailAsync("p1", pageSize: 0)).Entries);
     }
 
     [RequiresDockerFact]
@@ -158,9 +159,10 @@ public class GatewayAuditTests : IAsyncLifetime
         context.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p2", TableName = "theirs" });
         await context.SaveChangesAsync();
 
-        var trail = await context.AuditTrailAsync("p1", 100);
+        var (trail, totalCount) = await context.AuditTrailAsync("p1", pageSize: 100);
 
         Assert.Single(trail);
+        Assert.Equal(1, totalCount);
         Assert.Equal("mine", trail[0].TableName);
     }
 }

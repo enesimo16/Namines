@@ -59,10 +59,7 @@ public class DocumentationController : ControllerBase
             }
             else
             {
-                if (string.IsNullOrEmpty(Request.Headers["X-BYOK-Key"]))
-                {
-                    forceDeterministic = true;
-                }
+                forceDeterministic = true;
             }
         }
 

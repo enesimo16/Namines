@@ -9,6 +9,14 @@ namespace Namines.Core.Models;
 public sealed record GatewayImportResult(int InsertedRows);
 
 /// <summary>
+/// Toplu silme sonucu — Namines Desk v2 §E4.1.
+/// </summary>
+/// <param name="AffectedRows">Gerçekten silinen satır sayısı. İstenen sayıdan
+/// AZ olabilir (bazı anahtar değerleri zaten yoksa) — bu bir hata değil,
+/// çağırana olduğu gibi bildirilir.</param>
+public sealed record GatewayBulkDeleteResult(int AffectedRows);
+
+/// <summary>
 /// Ham sorgu ya da fonksiyon çağrısının sonucu.
 /// </summary>
 /// <param name="Rows">Sorgu satır döndürdüyse satırlar; döndürmediyse boş.</param>

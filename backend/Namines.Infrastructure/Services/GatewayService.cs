@@ -256,6 +256,57 @@ public sealed class GatewayService : IGatewayService
     internal const int MaxQueryRows = 10_000;
     internal const int MaxRpcArguments = 32;
 
+    /// <summary>Namines Desk v2 §E4.1 — tek satırlık <see cref="ImportAsync"/>'in
+    /// silme karşılığı. Üst sınır (<see cref="MaxBulkDeleteRows"/>) ZORUNLU: silme
+    /// geri alınamaz, sınırsız bir istek tek seferde tüm tabloyu boşaltabilir.</summary>
+    internal const int MaxBulkDeleteRows = 1_000;
+
+    public async Task<GatewayBulkDeleteResult> BulkDeleteAsync(
+        string connectionString, string dbType, string tableName,
+        string pkColumn, IReadOnlyList<string> pkValues,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateIdentifierOrThrow(tableName, nameof(tableName));
+        ValidateIdentifierOrThrow(pkColumn, nameof(pkColumn));
+
+        if (pkValues is null || pkValues.Count == 0)
+            throw new ArgumentException("Bulk delete needs at least one row.");
+        if (pkValues.Count > MaxBulkDeleteRows)
+            throw new ArgumentException(
+                $"Bulk delete is capped at {MaxBulkDeleteRows} rows per request. Split the selection and send it in batches.");
+
+        await using var conn = await OpenGuardedConnectionAsync(connectionString, dbType, readOnly: false, cancellationToken);
+
+        // TEK işlem: yarım kalan bir toplu silme, çağıranın hangi satırların
+        // gerçekten silindiğini bilememesi demektir — ImportAsync'teki AYNI gerekçe.
+        await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+
+        var affected = 0;
+        try
+        {
+            var sql = BuildDeleteSql(dbType, tableName, pkColumn);
+
+            foreach (var pkValue in pkValues)
+            {
+                await using var cmd = CreateCommand(conn, dbType);
+                cmd.Transaction = tx;
+                cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+                cmd.CommandText = sql;
+                AddParameter(cmd, dbType, "pkvalue", pkValue);
+
+                affected += await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
+
+        await tx.CommitAsync(cancellationToken);
+        return new GatewayBulkDeleteResult(affected);
+    }
+
     public async Task<GatewayImportResult> ImportAsync(
         string connectionString, string dbType, string tableName,
         IReadOnlyList<IReadOnlyDictionary<string, string?>> rows,
@@ -362,6 +413,22 @@ public sealed class GatewayService : IGatewayService
         return await ReadResultAsync(cmd, cancellationToken);
     }
 
+    public async Task<GatewayQueryResult> DeskSqlQueryAsync(
+        string connectionString, string dbType, string sql, int maxRows,
+        CancellationToken cancellationToken = default)
+    {
+        // Ek katman burada — EnsureReadOnlySelectStatement'ın kendi sınıf yorumu
+        // NEDEN tek başına DB'nin salt-okunur oturumuna güvenilemeyeceğini anlatıyor
+        // (SQL Server/Oracle'da o oturum hiç yok).
+        EnsureReadOnlySelectStatement(sql);
+
+        var result = await QueryAsync(connectionString, dbType, sql, readOnly: true, cancellationToken);
+
+        if (result.Rows.Count <= maxRows) return result;
+
+        return result with { Rows = result.Rows.Take(maxRows).ToList(), Truncated = true };
+    }
+
     /// <summary>
     /// Zincirlenmiş ifadeleri reddeder.
     ///
@@ -390,6 +457,55 @@ public sealed class GatewayService : IGatewayService
                         "Only one statement is allowed per request. Send chained statements separately.");
             }
         }
+    }
+
+    // Kelime sınırlarıyla eşleşir ("selection" içindeki "select" gibi yanlış
+    // pozitifleri önler) — büyük/küçük harfe duyarsız.
+    private static readonly Regex ForbiddenSqlKeyword = new(
+        @"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|CALL|EXEC|EXECUTE|COPY|VACUUM|MERGE|REPLACE|ATTACH|DETACH|PRAGMA|INTO)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex ReadOnlyLeadingKeyword = new(
+        @"^\s*(--[^\n]*\n\s*|/\*.*?\*/\s*)*(SELECT|WITH|EXPLAIN|SHOW)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+    /// <summary>
+    /// Namines Desk v2 §E4.2 — Desk'in SQL konsolu için ekstra katman.
+    ///
+    /// <b>Neden `readOnly:true` (UserDbConnection'ın DB-seviyesi salt-okunur
+    /// oturumu) TEK BAŞINA yeterli DEĞİL:</b> o yalnızca PostgreSQL/MySQL/MariaDB'de
+    /// gerçek bir koruma (bkz. <c>UserDbConnection.AppliesReadOnlySession</c>) —
+    /// SQL Server ve Oracle'da session-seviyesi salt-okunur bir eşdeğer YOK. Desk
+    /// tüm motorlarda çalıştığı için, DB'nin kendi korumasına güvenemeyen motorlarda
+    /// TEK koruma budur: yalnızca <c>SELECT</c>/<c>WITH</c>/<c>EXPLAIN</c>/<c>SHOW</c>
+    /// ile başlayan, biliniyor-yazan hiçbir anahtar kelime taşımayan tek bir ifade.
+    ///
+    /// <b>Bilinçli artık koruma değil, TEK katman olarak da yeterli olsun diye
+    /// tasarlandı</b> — <see cref="EnsureSingleStatement"/> zincirlemeyi zaten
+    /// engelliyor; buradaki anahtar-kelime taraması, SELECT içine gömülü bir
+    /// yazma girişimini (ör. MSSQL'in <c>SELECT ... INTO yeni_tablo</c>'su, ya da
+    /// bir alt sorguda çağrılan mutasyon yapan bir fonksiyon) yakalamaya çalışır.
+    ///
+    /// <b>Kalan risk, dürüstçe:</b> bu taramanın kaçırdığı, veri DEĞİŞTİRMEYEN ama
+    /// yan etkisi olan bir fonksiyon çağrısı (ör. bir sıra/sequence'i ilerleten
+    /// <c>nextval()</c>) teorik olarak hâlâ mümkün — tam bir SQL ayrıştırıcısı
+    /// olmadan sıfıra indirilemez. Bu yüzden Desk'in SQL konsolu yalnızca proje
+    /// Owner'ına açık ve varsayılan KAPALI (<c>CloudProject.AllowDeskSql</c>).
+    /// </summary>
+    internal static void EnsureReadOnlySelectStatement(string sql)
+    {
+        if (string.IsNullOrWhiteSpace(sql))
+            throw new ArgumentException("SQL is required.");
+
+        EnsureSingleStatement(sql);
+
+        if (!ReadOnlyLeadingKeyword.IsMatch(sql))
+            throw new ArgumentException(
+                "Only SELECT/WITH/EXPLAIN/SHOW statements are allowed in the Desk SQL console.");
+
+        if (ForbiddenSqlKeyword.IsMatch(sql))
+            throw new ArgumentException(
+                "This statement contains a keyword that is not allowed in the Desk SQL console (writes, DDL, and SELECT..INTO are blocked).");
     }
 
     /// <summary>

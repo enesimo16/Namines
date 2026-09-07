@@ -51,13 +51,6 @@ namespace Namines.API.Middleware
                 return;
             }
 
-            // BYOK bypass
-            if (context.Items.ContainsKey("IsByok") && context.Items["IsByok"] is true)
-            {
-                await _next(context);
-                return;
-            }
-
             // JWT auth check — deterministic branch'ten ÖNCE olmalı. Aksi halde
             // enhanceWithAI:false gönderen anonim istekler auth'u tamamen atlayıp
             // sunucu-taraflı üretim/paketleme tetikleyebiliyordu (unauth compute/disk DoS).
@@ -150,8 +143,8 @@ namespace Namines.API.Middleware
             else if (path.StartsWith("/api/migration")) { estTokens = 3000; if (policy != null) selectedMode = policy.Migration; }
             else if (path.StartsWith("/api/voice")) { estTokens = 1500; if (policy != null) selectedMode = policy.Voice; }
 
-            // DefaultNamines / BYOK → zaten ücretsiz/yerel; havuzdan düşme.
-            if (selectedMode == AIMode.DefaultNamines || selectedMode == AIMode.BYOK)
+            // DefaultNamines → zaten ücretsiz/yerel; havuzdan düşme.
+            if (selectedMode == AIMode.DefaultNamines)
             {
                 context.Items["FallbackToLocal"] = true;
                 await _next(context);
