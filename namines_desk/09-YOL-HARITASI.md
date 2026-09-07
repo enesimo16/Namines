@@ -132,15 +132,20 @@ başarı, sayfalama ([`06`](06-LOGS.md) §4).
 
 ## Bilinçli olarak v1 dışı
 
+> **Not:** "v1.1" olarak işaretlenen üç madde, ekran bazlı diğer ertelenenlerle
+> birlikte **Desk v2**'ye taşındı ([`10-DESK-V2-YOL-HARITASI.md`](10-DESK-V2-YOL-HARITASI.md))
+> — Namines (ana ürün) zaten v2'de olduğu için Desk'in kendi "v1.1" etiketi
+> ayrı bir versiyon şeması yaratıp kafa karıştırırdı.
+
 | Ne | Neden | Nereye |
 |---|---|---|
 | Şemayı veritabanına uygulama (DDL) | Yedek olmadan geri alınamaz | Vault'tan sonra |
 | GitHub push entegrasyonu | GitHub App hesabı 🟡 bekliyor | `34-SENDEN-BEKLENENLER` |
 | Okuma logu | Hacim/saklama/maliyet tasarlanmadı | Ayrı karar |
 | Proje bazlı kullanım/fatura | `UsageEvent`'te `ProjectId` yok, faturayı etkiler | Ayrı karar |
-| API anahtarı yönetim ekranı | Desk artık oturumla çalışıyor; anahtarlar dış uygulamalar için | v1.1 |
-| SSO devri | Yeni uç + jeton ömrü tasarımı | v1.1 |
-| Canlı log akışı | SignalR'a bağlanmak ayrı iş | v1.1 |
+| API anahtarı yönetim ekranı | Desk artık oturumla çalışıyor; anahtarlar dış uygulamalar için | Desk v2 |
+| SSO devri | Yeni uç + jeton ömrü tasarımı | Desk v2 |
+| Canlı log akışı | SignalR'a bağlanmak ayrı iş | Desk v2 |
 
 ---
 

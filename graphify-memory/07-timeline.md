@@ -1,0 +1,60 @@
+# Namines — Chronological Timeline
+
+- **~2026-01** — doc 01-MARKET.md's original competitive analysis written; later found partly obsolete after real 2026-08 competitive research.
+- **2026-08-08** — new-phase master plan drafted (docs `README.md`, `BASLA-BURADAN.md`), 36 documents, Faz 0–5 roadmap defined, "hiçbir özellik silinmiyor" (no feature is deleted) principle set. Git commits around this date: "docs: add Faz 2 planning docs and Faz 0 progress checklist", followed immediately by the shared AI token pool commit, a gitignore fix for `new-phase/*.md`, and "G7 — control DB SQLite'tan PostgreSQL'e tam geçiş" (full migration of the control DB from SQLite to PostgreSQL).
+- **2026-08-08 → mid-August** — Faz 0 executed through CHECKLIST gates:
+  - G0 — environment checks.
+  - G1 — removed `docker.sock` mounting, moved Serilog to stdout, split startup migrations out, fixed `ForwardedHeaders`.
+  - G2 — golden-file test infrastructure stood up: 120/120 green plus 8 intentionally red `KnownIssue` tests.
+  - G3 — fixed the hard-coded `ON DELETE CASCADE` bug, introduced `FkCascadeAnalyzer`, 176/176 tests green.
+  - G4 — added index/unique/check constraint support, 255/255 green.
+  - G5 — Testcontainers-based real-engine validation, 22/22 integration tests green, and **5 previously-unknown real bugs found**: a missing type mapping, a missing DEFAULT-function translation, a composite-PK identity conflict, a MySQL/MariaDB DEFAULT syntax bug, and a raw-SQL case-folding bug.
+  - G6 — SignalR with JWT auth plus a Redis backplane, 321+5 tests green.
+  - G7 — control DB migrated to PostgreSQL, resolving an `Npgsql` version-pin conflict along the way.
+- **2026-08-10** — the strategic pivot brief was delivered; doc 27-LIFECYCLE-PIVOT.md written, resequencing everything from gate G8 onward. `CHECKLIST.md`'s "Aktif faz" (active phase) marker was updated the same date.
+- **G8 → G17 (continuing through August)**:
+  - G8 — `SchemaImpactAnalyzer` built (generalized from `FkCascadeAnalyzer`).
+  - G9 — migration risk classification.
+  - G10 — server-side `branches`/`schema_versions` tables added.
+  - G11 — Database Change Review UI shipped, verified end-to-end live in-browser; uncovered a real `JsonStringEnumConverter` bug during testing, plus a disk-space/Docker outage mid-session.
+  - G12 — "Run Tests" reimplemented via raw `Docker.DotNet` instead of Testcontainers (see the Testcontainers DLL-collision entry in the relationships doc); this gate also uncovered an `sqlcmd -b` flag bug and a MySQL health-check bug.
+  - G13 — Affected-Code static scanner shipped.
+  - G14 — minimal read-only Gateway shipped, SSRF-protected.
+  - G15 — AI Impact Explainer agent added.
+  - G16 — destructive-operation approval flow plus audit log added.
+  - G17 — `CanvasHub` bound to a server-authoritative `branch_id`.
+- **G18 → G52 (late August into September 2026)** — the remainder of new-phase's checklist, roughly in order:
+  - G18–19 — org/membership RBAC.
+  - G20–21 — MCP server, CLI, and Skill.
+  - G22 — Prisma eject target.
+  - G23 — Gateway filtering and write-path.
+  - G24–25 — branch DB provisioning and BYODB hardening.
+  - G26 — Gateway API keys, permissions, OpenAPI generation.
+  - G27 — query-language support plus a key-management UI.
+  - G28 — key resource constraints plus per-key rate limit.
+  - G29 — Gateway export/expand support.
+  - G30–32 — all 19 eject targets shipped, including a Next.js admin panel and a TypeScript SDK.
+  - G33 — observability, PII redaction, metrics.
+  - G34 — metering/overage engine.
+  - G35 — NSL text format, parser, validator.
+  - G36 — Namines Bot webhook plus PR review logic.
+  - G37 — shareable schema social-preview pages.
+  - G38 — eject provenance file plus a README badge.
+  - G39 — a critical "app doesn't start" bug found despite 857 green tests — the origin of the recurring "tests passing proves nothing" project lesson.
+  - G40 — Console write screens.
+  - G41 — Gateway `import`/`/rpc`/`/query` endpoints, plus the Gateway rate-limit fix described in the business-model doc.
+  - G42 — NSL `identity` column support.
+  - G43 — Namines Bot writes to GitHub for real (code complete, still blocked on credentials).
+  - G44 — enum column types added; surfaced a Turkish-culture `ToUpper()` bug.
+  - G45 — `generated`/`collation`/array column types added.
+  - G46 — canonical JSON IR (`ir.json`) shipped.
+  - G47 — Console RBAC plus audit log.
+  - G48 — `/query/nl` (natural-language query) plus a session-end code review step.
+  - G49 — quota unification across plans.
+  - G50 — invisible unlimited Dev account plus real Pro/Team billing.
+  - G51 — clarifying-question agent plus the unified NAI model catalog.
+  - G52 — Team plan and NAI v1 shipped, plus working advanced settings.
+  - **1136 tests green at the close of new-phase.**
+- **2026-08-25** — the second-phase folder opened, formally acknowledging Faz 1 (new-phase) complete and the product "actually working" in production reality rather than only on paper.
+- **Late August – early September 2026** — second-phase docs 03 through 17 executed roughly in commit order: market/design self-analysis; Team shared token pool plus automatic design-rule enforcement; production/loading-screen SSE; Plan Mode; page-scraping removed in favor of GraphQL/OpenAPI extraction; engine-conversion loss-report; SSE JSON-casing crash fix plus prompt UX improvements; schema alternatives plus multi-DB relations plus shared-hosting export; code→schema extraction plus a Supabase import flow; multi-DB side-by-side map plus JSON shape inference; quota/cost hardening (fair-share pool); multi-DB plan limits; demo/pricing/template overhaul (Pro $15/Team $40 plus annual billing); single-OKLCH-color-center design system plus a light palette plus mobile canvas support plus an end-to-end audit; a Vercel-inspired design-system adaptation; completion of a border-radius token migration; the UI/UX product audit plus its 3 critical/high-severity fixes; a notification-system redesign plus Vercel-style dark-mode alignment; auto-layout plus a toolbar FAB plus a responsive compile screen; assorted layout/icon/alignment fixes.
+- **2026-09-01** — Namines Desk foundation laid down: the FK-relation-extraction fix plus encrypted connection storage landed; Desk v0.1 (deterministic CRUD) shipped as a fully separate microservice and was verified end-to-end against a real PostgreSQL database; Desk v1 planning was split out into per-screen documents under `namines_desk/`; local design documents were committed into the repository (the most recent commit in the observed history, and the point this synthesis was written from).

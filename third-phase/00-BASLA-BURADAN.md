@@ -1,12 +1,35 @@
 # Üçüncü Faz — Namines Ground · Vault · Desk
 
-> **Bu faz ne DEĞİL:** Namines'in (şema tasarım düzlemi) devamı değil. Üç **ayrı
-> mikroservis**, kendi solution'ı, kendi migration'ları, kendi testleri ve kendi
-> `docker compose up`'ı olan üç ayrı ürün.
+> **Bu faz ne DEĞİL:** Namines'in (şema tasarım düzlemi) devamı değil. Üç ayrı
+> **ürün** — kullanıcıya üç ayrı isimle (Namines Ground/Vault/Desk) sunulan,
+> ama mimarisi ikiye ayrılan üç yetenek.
 >
-> **Neden ayrı:** `second-phase/14-AYRI-URUN-DEVELOPMENT-HOSTING.md` "development
-> paketleri Namines içinde kalabilir ama **isim ayrımı** yapılmalı" diyor. Burada
-> o ayrım klasör ve namespace seviyesine kadar indiriliyor.
+> **Mimari (2026-09-07'de düzeltildi):** İlk yazımda üçü de "ayrı mikroservis"
+> olarak tanımlanmıştı, gerekçe olarak `second-phase/14-AYRI-URUN-DEVELOPMENT-
+> HOSTING.md` gösterilmişti. O doküman aslında **farklı bir konu** hakkında
+> (kullanıcının kendi uygulamasını barındırma riski, Shopify tarzı) ve
+> Vault/Ground'a hiç uygulanmıyordu — yalnızca Desk için geçerli bir emsal
+> teşkil ediyor (Desk'in kendi kullanıcı arayüzü ve kullanıcı kitlesi var).
+>
+> Gerçek karar:
+> - **Namines Desk** → ayrı mikroservis (`services/desk/`), kendi deploy
+>   birimi. Sebebi: kendi UI'ı, kendi kullanıcı kitlesi (operasyon ekibi),
+>   ana backend'e yalnızca HTTP ile bağlı — bu turda canlı doğrulandı.
+> - **Namines Vault** ve **Namines Ground** → ana backend'in **içinde** .NET
+>   modülleri (`Namines.Vault.*`, `Namines.Ground.*`), ayrı deploy birimi
+>   DEĞİL. Sebebi: ikisinin de kendi kullanıcı arayüzü yok (Desk üzerinden
+>   tetikleniyorlar) ve ikisi de ana backend'in ZATEN sahip olduğu bağlantı
+>   şifreleme bileşenine (`AesGcmConnectionSecretProtector`) muhtaç — ayrı
+>   servis olsalardı bu ya kopyalanır (güvenlik riski) ya da her işlemde
+>   ana API'ye geri HTTP çağrısı atılırdı (kazancı olmayan maliyet).
+>   Ayrıntı: [`namines-vault/00-GENEL-BAKIS.md`](../namines-vault/00-GENEL-BAKIS.md) §1,
+>   [`namines-ground/00-GENEL-BAKIS.md`](../namines-ground/00-GENEL-BAKIS.md) §1.
+>
+> **İzolasyon Vault/Ground'da da korunuyor** — süreç seviyesinde değil, kod
+> seviyesinde: kendi isim alanı, kendi klasörü, kendi rota öneki
+> (`/api/vault/*`, `/api/ground/*`), kendi arayüzü. Kullanıcı arayüzünde ve
+> API sözleşmesinde hâlâ **"Namines Vault"** / **"Namines Ground"** olarak
+> adlandırılıyorlar — mimari fark kullanıcıya görünmez, geliştiriciye nettir.
 
 ---
 
@@ -173,27 +196,40 @@ ileride binary'ler paketlenirse tamamen çıkarılabilir.
 
 ---
 
-## 5. Klasör ve mikroservis disiplini
+## 5. Klasör ve modül disiplini
+
+> §1 (üstteki kutu) neyin neden değiştiğini anlatıyor — burada yalnızca
+> sonuçtaki klasör yapısı.
 
 ```
 namines/
-  backend/            # mevcut tasarım düzlemi — DOKUNULMUYOR
+  backend/
+    Namines.API/            # controller'lar — Vault/Ground kendi öneklerinde
+    Namines.Core/
+    Namines.Infrastructure/
+    Namines.Vault/          # YENİ — Namines Vault modülü, kendi isim alanı
+    Namines.Ground/         # YENİ — Namines Ground modülü, kendi isim alanı
   frontend/
   services/
-    desk/  ground/  vault/
-      <Servis>.sln          ← kendi solution'ı
-      docker-compose.yml    ← ana backend kapalıyken de ayağa kalkar
+    desk/                   # TEK gerçek mikroservis — ayrı deploy birimi
+      package.json
+      docker-compose.yml
       README.md
-  third-phase/        # bu klasör
+  third-phase/              # bu klasör
 ```
 
-**Sahte mikroservisi engelleyen tek kural:** `Namines.Core`'a **proje referansı
-YOK**. İletişim yalnızca HTTP sözleşmesi üzerinden. Paylaşılması şart olan tip
-çıkarsa ya küçük bir contracts paketi yayınlanır ya da bilinçli olarak kopyalanır.
-Referans verildiği an bu, klasörü ayrılmış tek bir monolit olur.
+**Desk için (gerçek mikroservis):** `Namines.Core`'a **proje referansı YOK**,
+iletişim yalnızca HTTP. Kabul kriteri: `cd services/desk && npm run dev` —
+ana backend kapalıyken de UI ayağa kalkar (veriye erişemez, ama açılır).
 
-Her serviste: kendi portu, kendi `/health`'i, kendi migration'ları, kendi testleri.
-**Kabul kriteri:** `cd services/<x> && docker compose up` — ana backend kapalıyken çalışmalı.
+**Vault/Ground için (modül):** `Namines.Vault.*` / `Namines.Ground.*` isim
+alanı dışına sızmaz, kendi arayüzü (`IBackupProvider` / `IDatabaseProvider`)
+üzerinden çağrılır, kendi rota önekinde yaşar (`/api/vault/*`,
+`/api/ground/*`). "Sahte modül" olmasını engelleyen kural aynı ruhta ama
+süreç sınırı değil, **kod sınırı**: bu iki isim alanı birbirine ya da
+`Namines.API`'nin ilgisiz controller'larına doğrudan referans veremez —
+yalnızca kendi arayüzleri ve `Namines.Core`'un paylaşılan modelleri
+(`CloudProject` gibi) üzerinden konuşurlar.
 
 ---
 
@@ -347,3 +383,24 @@ dokümanında.
    çalıştırmak `ALTER TABLE` demek ve **geri alınamaz**. Migration üretimi, risk
    analizi ve onay politikası hazır; eksik olan **yedek**. Bu yüzden bu özellik
    Vault'tan sonra.
+
+---
+
+## 11. Desk v2 — bitti; Vault ve Ground — plan yazıldı (2026-09-06)
+
+Desk v1 (D1-D7) ve Desk v2 (E1-E4, E5.1-E5.2) tamamlandı — bitiş durumu
+[`namines_desk/11-DESK-V2-TAMAMLANDI.md`](../namines_desk/11-DESK-V2-TAMAMLANDI.md)'de.
+
+Sıradaki iki servisin planı, Desk'in kendi planlama disipliniyle
+(`namines_desk/00-GENEL-BAKIS.md` formatı) ayrı klasörlere yazıldı — henüz
+kod yok, bu bir planlama turu:
+
+| Servis | Doküman |
+|---|---|
+| Desk v2.1 pano kabuğu | [`namines_desk/12-DESK-PANO-KABUGU.md`](../namines_desk/12-DESK-PANO-KABUGU.md) |
+| Namines Vault | [`namines-vault/00-GENEL-BAKIS.md`](../namines-vault/00-GENEL-BAKIS.md) |
+| Namines Ground | [`namines-ground/00-GENEL-BAKIS.md`](../namines-ground/00-GENEL-BAKIS.md) |
+
+Her iki plan da §3'teki sırayı (**Vault önce, Ground sonra**) ve §6'daki
+çalışma disiplinini (yürüyen iskelet önce, kanıt = çalışan komut, motor
+bazında dürüstlük) aynen miras alıyor.
