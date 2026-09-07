@@ -87,8 +87,8 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
                       }
                       className={`px-2.5 py-1.5 rounded-[var(--radius-control)] text-xs font-medium transition-all border ${
                         isSelected
-                          ? 'bg-white/[0.10] text-content-primary border-white/30'
-                          : 'text-content-muted border-white/10 hover:text-content-primary hover:bg-white/[0.04]'
+                          ? 'bg-accent/15 text-accent-text border-accent'
+                          : 'text-content-muted border-line hover:text-content-primary hover:bg-surface-700/40'
                       }`}
                     >
                       {option}
@@ -120,7 +120,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-3 mt-2 pt-4 border-t border-white/10">
+        <div className="flex items-center justify-between gap-3 mt-2 pt-4 border-t border-line">
           <button
             type="button"
             disabled={isGenerating}
