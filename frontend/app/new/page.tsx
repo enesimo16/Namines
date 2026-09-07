@@ -241,12 +241,12 @@ export default function NewProjectPage() {
   return (
     <div className="relative font-sans text-content-primary flex-1 flex flex-col items-center justify-center overflow-x-hidden min-h-[calc(100vh-56px)] py-8 pb-20">
       {/* Background Effects */}
-      <div aria-hidden="true" className="ocean-wave">
+      <div aria-hidden="true" className="ocean-wave pointer-events-none z-0">
         <div className="wave wave1"></div>
         <div className="wave wave2"></div>
         <div className="wave wave3"></div>
       </div>
-      <div aria-hidden="true" id="stars-container"></div>
+      <div aria-hidden="true" id="stars-container" className="fixed inset-0 pointer-events-none z-0 overflow-hidden"></div>
 
       {/* Main Content Container */}
       <main className="relative z-10 w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center">
@@ -276,15 +276,15 @@ export default function NewProjectPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
-                className="w-full h-24 sm:h-28 p-3 rounded-[var(--radius-card)] glass-input resize-none text-white/90 placeholder:text-white/50 text-sm leading-relaxed focus:outline-none"
+                className="w-full h-24 sm:h-28 p-3 rounded-[var(--radius-card)] glass-input resize-none text-content-primary placeholder:text-content-muted text-sm leading-relaxed focus:outline-none"
                 disabled={isGenerating}
               ></textarea>
 
-              <div className="absolute bottom-2.5 right-2.5 flex gap-1.5">
+              <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setShowUrlInput(!showUrlInput)}
-                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${showUrlInput || apiSpecUrl ? 'text-accent-text' : 'text-white/60 hover:text-white/90'}`}
+                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${showUrlInput || apiSpecUrl ? 'text-accent-text border-accent' : 'text-content-muted hover:text-content-primary'}`}
                   title="Infer from a GraphQL or OpenAPI/Swagger URL"
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
@@ -292,7 +292,7 @@ export default function NewProjectPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${image ? 'text-accent-text' : 'text-white/60 hover:text-white/90'}`}
+                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${image ? 'text-accent-text border-accent' : 'text-content-muted hover:text-content-primary'}`}
                   title="Add Image"
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
@@ -304,20 +304,16 @@ export default function NewProjectPage() {
                   accept=".png,.jpg,.jpeg"
                   className="hidden"
                 />
-                <div className="w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all overflow-hidden relative text-white/70">
-                  <div className="absolute inset-0 flex items-center justify-center scale-[0.8]">
-                    <VoiceRecorder
-                      disabled={isGenerating}
-                      onTranscription={(text) => setPrompt(prev => prev ? `${prev} ${text}` : text)}
-                    />
-                  </div>
-                </div>
+                <VoiceRecorder
+                  disabled={isGenerating}
+                  onTranscription={(text) => setPrompt(prev => prev ? `${prev} ${text}` : text)}
+                />
               </div>
             </div>
 
             {/* Extended Inputs Area */}
             {(showUrlInput || image) && (
-              <div className="flex flex-col gap-3 p-3 bg-surface-800/80 rounded-[var(--radius-card)] border border-white/[0.04] mb-6">
+              <div className="flex flex-col gap-3 p-3 bg-surface-800/80 rounded-[var(--radius-card)] border border-line-strong mb-6">
                 {showUrlInput && (
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
@@ -376,16 +372,16 @@ export default function NewProjectPage() {
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                    className="flex items-center justify-between glass-input rounded-[var(--radius-control)] px-3 py-2 text-sm text-white/90 focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70 h-[38px]"
+                    className="flex items-center justify-between glass-input rounded-[var(--radius-control)] px-3 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/30 h-[38px]"
                   >
                     <span className="truncate">
                       {selectedModel?.displayName || 'Namines AI'}
                     </span>
-                    <ChevronDown className={`w-3 h-3 text-white/60 transition-transform duration-200 shrink-0 ml-1.5 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 shrink-0 ml-1.5 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {modelDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-[260px] rounded-[var(--radius-card)] border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-1 select-none animate-dropdown-in">
+                    <div className="absolute left-0 bottom-full mb-2 w-[260px] rounded-[var(--radius-card)] border border-line-strong bg-surface-800/98 backdrop-blur-xl p-2 shadow-2xl z-50 flex flex-col gap-1 select-none animate-dropdown-in">
                       {models.map(m => {
                         const isSelected = m.id === naiModel;
                         return (
@@ -432,7 +428,7 @@ export default function NewProjectPage() {
                   type="button"
                   disabled={isGenerating}
                   onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
-                  className="flex items-center justify-between glass-input rounded-[var(--radius-control)] px-3 py-2 text-sm text-white/90 focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/70 h-[38px]"
+                  className="flex items-center justify-between glass-input rounded-[var(--radius-control)] px-3 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/30 h-[38px]"
                 >
                   <span className="truncate">
                     {dbType === 'MSSQL' ? 'SQL Server' :
@@ -446,11 +442,11 @@ export default function NewProjectPage() {
                      dbType === 'Spanner' ? 'Google Spanner' :
                      dbType === 'Redshift' ? 'Amazon Redshift' : dbType}
                   </span>
-                  <ChevronDown className={`w-3 h-3 text-white/60 transition-transform duration-200 shrink-0 ml-1.5 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 shrink-0 ml-1.5 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {dbDropdownOpen && (
-                  <div className="absolute left-0 bottom-full mb-2 w-full min-w-[180px] max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-2 shadow-[0_-8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
+                  <div className="absolute left-0 bottom-full mb-2 w-full min-w-[180px] max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-line-strong bg-surface-800/98 backdrop-blur-xl p-2 shadow-2xl z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
                     {[
                       { value: 'MSSQL', label: 'SQL Server' },
                       { value: 'PostgreSQL', label: 'PostgreSQL' },

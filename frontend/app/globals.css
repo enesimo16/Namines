@@ -662,13 +662,13 @@ select option {
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 250px;
+  height: 260px;
   overflow: hidden;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
   background: linear-gradient(to top, var(--color-scrim) 0%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, var(--color-scrim) 40%, var(--color-scrim) 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, var(--color-scrim) 40%, var(--color-scrim) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 35%, black 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 35%, black 100%);
 }
 
 .wave {
@@ -681,10 +681,6 @@ select option {
   border-radius: 43%;
 }
 
-/* Dalgalar lacivert paletin tonları — eski cyan/sky/blue kaldırıldı, arka plan
-   daha "siyahımsı" hissetsin diye. Önceki opaklıklar (0.14-0.35) çok soluktu,
-   neredeyse görünmüyordu ("boğuk" geri bildirimi) — biraz açıldı, hâlâ minimal
-   ama fark edilir (bkz. FRONTEND.md §1). */
 .wave1 {
   bottom: -3820px;
   background: color-mix(in srgb, var(--color-accent-hover) 22%, transparent); /* accent-hover */
@@ -703,24 +699,55 @@ select option {
   animation: fluid-wave 40s infinite linear;
 }
 
+:root[data-theme="light"] .ocean-wave,
+html[data-theme="light"] .ocean-wave,
+html.light .ocean-wave {
+  background: linear-gradient(to top, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 100%);
+}
+
+:root[data-theme="light"] .wave1,
+html[data-theme="light"] .wave1,
+html.light .wave1 {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+:root[data-theme="light"] .wave2,
+html[data-theme="light"] .wave2,
+html.light .wave2 {
+  background: color-mix(in srgb, var(--focus-ring) 20%, transparent);
+}
+
+:root[data-theme="light"] .wave3,
+html[data-theme="light"] .wave3,
+html.light .wave3 {
+  background: color-mix(in srgb, var(--accent-hover) 15%, transparent);
+}
+
 @keyframes fluid-wave {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-/* Shooting Stars Animation — saf beyaz yerine off-white (bkz. FRONTEND.md §2) */
+/* Shooting Stars Animation */
 .shooting-star {
   position: fixed;
   width: 2px;
   height: 100px;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--color-content-primary) 0%, transparent) 0%, color-mix(in srgb, var(--color-content-primary) 90%, transparent) 100%);
+  background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--color-content-primary) 90%, transparent) 100%);
   top: -100px;
   right: 0;
   transform: rotate(45deg);
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
   animation: shoot 4s linear infinite;
   opacity: 0;
+}
+
+:root[data-theme="light"] .shooting-star,
+html[data-theme="light"] .shooting-star,
+html.light .shooting-star {
+  background: linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--accent) 85%, var(--content-primary)) 100%);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 @keyframes shoot {
@@ -734,25 +761,31 @@ select option {
   }
 }
 
-/* Static Twinkling Stars — off-white, saf var(--color-content-primary) değil */
+/* Static Twinkling Stars */
 .static-star {
   position: fixed;
   background-color: var(--color-content-primary);
   border-radius: 50%;
-  z-index: -2;
+  z-index: 0;
   pointer-events: none;
+}
+
+:root[data-theme="light"] .static-star,
+html[data-theme="light"] .static-star,
+html.light .static-star {
+  background-color: color-mix(in srgb, var(--accent) 65%, var(--content-primary));
 }
 
 @keyframes twinkle {
   0% {
-    opacity: 0.1;
+    opacity: 0.15;
     transform: scale(0.8);
     box-shadow: 0 0 2px color-mix(in srgb, var(--color-content-secondary) 10%, transparent);
   }
   100% {
     opacity: 0.85;
     transform: scale(1.5);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--color-content-secondary) 70%, transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 60%, transparent);
   }
 }
 
@@ -773,57 +806,84 @@ select option {
   box-shadow: var(--shadow-glass);
 }
 
+:root[data-theme="light"] .glass-panel,
+html[data-theme="light"] .glass-panel,
+html.light .glass-panel {
+  background: oklch(100% 0 var(--ui-hue) / 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid color-mix(in srgb, var(--content-primary) 12%, transparent);
+  box-shadow: 0 20px 48px -12px color-mix(in srgb, var(--color-scrim) 20%, transparent), 0 2px 8px -1px color-mix(in srgb, var(--color-scrim) 10%, transparent), 0 0 0 1px color-mix(in srgb, var(--content-primary) 4%, transparent);
+}
+
 .glass-input {
   background: color-mix(in srgb, var(--color-scrim) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-content-primary) 14%, transparent);
-  color: oklch(95% 0.004 var(--ui-hue));
-  transition: all 0.3s ease;
+  color: var(--color-content-primary);
+  transition: all 0.2s ease;
 }
 
 .glass-input::placeholder {
-  color: oklch(76% 0.010 var(--ui-hue));
+  color: var(--color-content-muted);
   opacity: 1;
 }
 
 .glass-input:focus {
   border-color: var(--color-focus-ring);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-focus-ring) 25%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-focus-ring) 25%, transparent);
   outline: none;
 }
 
 :root[data-theme="light"] .glass-input,
 html[data-theme="light"] .glass-input,
 html.light .glass-input {
-  background: color-mix(in srgb, var(--surface-700) 85%, black);
-  border: 1px solid color-mix(in srgb, var(--color-content-primary) 22%, transparent);
-  color: oklch(95% 0.004 var(--ui-hue));
+  background: oklch(98% 0.002 var(--ui-hue));
+  border: 1px solid color-mix(in srgb, var(--content-primary) 15%, transparent);
+  color: var(--content-primary);
 }
 
 :root[data-theme="light"] .glass-input::placeholder,
 html[data-theme="light"] .glass-input::placeholder,
 html.light .glass-input::placeholder {
-  color: oklch(76% 0.010 var(--ui-hue));
+  color: var(--content-muted);
   opacity: 1;
+}
+
+:root[data-theme="light"] .glass-input:focus,
+html[data-theme="light"] .glass-input:focus,
+html.light .glass-input:focus {
+  background: oklch(100% 0 var(--ui-hue));
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .glass-button {
   background: color-mix(in srgb, var(--color-surface-600) 60%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-content-primary) 6%, transparent);
-  color: oklch(92% 0.006 var(--ui-hue));
-  transition: all 0.3s ease;
-}
-
-:root[data-theme="light"] .glass-button,
-html[data-theme="light"] .glass-button,
-html.light .glass-button {
-  background: color-mix(in srgb, var(--surface-700) 75%, black);
-  border: 1px solid color-mix(in srgb, var(--color-content-primary) 15%, transparent);
-  color: oklch(92% 0.006 var(--ui-hue));
+  border: 1px solid color-mix(in srgb, var(--color-content-primary) 10%, transparent);
+  color: var(--color-content-secondary);
+  transition: all 0.2s ease;
 }
 
 .glass-button:hover {
   background: color-mix(in srgb, var(--color-accent) 25%, transparent);
   border-color: color-mix(in srgb, var(--color-accent-hover) 50%, transparent);
+  color: var(--color-content-primary);
+}
+
+:root[data-theme="light"] .glass-button,
+html[data-theme="light"] .glass-button,
+html.light .glass-button {
+  background: oklch(95% 0.003 var(--ui-hue));
+  border: 1px solid color-mix(in srgb, var(--content-primary) 12%, transparent);
+  color: var(--content-secondary);
+}
+
+:root[data-theme="light"] .glass-button:hover,
+html[data-theme="light"] .glass-button:hover,
+html.light .glass-button:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* ─────────────────────────────────────────
