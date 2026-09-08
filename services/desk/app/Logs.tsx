@@ -6,7 +6,7 @@ import PageHead from './PageHead';
 import { fetchAuditLog, LogsAccessError, type AuditLogEntry, type GatewayWriteKind } from '../lib/logs';
 
 const PAGE_SIZE = 50;
-const ALL_KINDS: GatewayWriteKind[] = ['create', 'update', 'delete', 'import', 'rpc', 'sql'];
+const ALL_KINDS: GatewayWriteKind[] = ['create', 'update', 'delete', 'import', 'rpc', 'sql', 'read'];
 
 /**
  * D6 — Logs (namines_desk/06-LOGS.md). ⚠️ Ekranın adı bilerek "Yazma işlemleri"
@@ -63,8 +63,10 @@ export default function Logs({ session }: { session: DeskSession }) {
       title="Kayıtlar"
       desc={<>
         Bu projedeki <b>yazma işlemlerinin</b> denetim kaydı — kim, ne zaman, hangi
-        tabloda ne değiştirdi. Okuma istekleri burada YOK: denetim kaydı bilinçli
-        olarak yalnızca veriyi değiştiren işlemleri tutuyor.
+        tabloda ne değiştirdi. Sıradan okumalar burada YOK; tek istisna
+        <b> maskeli kolon içeren tablolardan yapılan okumalar</b>: maskeleme
+        konulmuş bir kolona kimin eriştiği kaydediliyor. Onları <i>READ</i>
+        türüyle filtreleyebilirsiniz.
       </>}
     />
   );

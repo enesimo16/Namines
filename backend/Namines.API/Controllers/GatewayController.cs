@@ -1344,6 +1344,16 @@ public class GatewayController : ControllerBase
                         isPK = c.IsPK,
                         isFK = c.IsFK,
                         isNullable = c.IsNullable,
+                        // Değeri veritabanı mı üretiyor (SERIAL/IDENTITY/AUTO_INCREMENT).
+                        // Desk ekleme formu bu kolonu GİZLER. Önceden bu bilgi
+                        // gönderilmiyordu ve Desk tipe bakarak tahmin ediyordu:
+                        // her tamsayı birincil anahtarı otomatik sayıp formdan
+                        // düşürüyor, dışarıdan atanan bir kimliği girmeyi
+                        // imkânsız kılıyordu.
+                        isIdentity = c.Identity == true,
+                        // Veritabanı tarafında bir varsayılan var mı — NOT NULL
+                        // olsa bile formda zorunlu işaretlenmemesi için.
+                        hasDefault = !string.IsNullOrWhiteSpace(c.DefaultValue),
                         // Desk formu bunu kullanarak FK alanını açılır listeye çevirir.
                         references = fkTargets.TryGetValue($"{t.Name}.{c.Name}", out var fk) ? fk : null,
                     }),

@@ -718,6 +718,13 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                     Length       = length,
                     Scale        = columnScale,
                     DefaultValue = NormalizeDefault(rawDefault),
+                    // Üç durumlu ve yalnızca EMİN olunca doldurulur: veritabanı
+                    // "bu değeri ben üretiyorum" dediyse true, aksi hâlde null
+                    // ("söylenmedi"). false yazmak, okuyamadığımız bir motorda
+                    // "kesinlikle otomatik değil" iddiasında bulunmak olurdu.
+                    Identity     = rawDefault is not null && IsAutoIncrementDefault(rawDefault.Trim())
+                        ? true
+                        : null,
                     IsPK       = columnKey == "PRI",
                     IsFK       = isFk,
                     IsNullable = nullable.Equals("YES", StringComparison.OrdinalIgnoreCase)
@@ -837,10 +844,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
 
         var value = raw.Trim();
 
-        if (value.Contains("nextval(", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("AUTO_INCREMENT", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("IDENTITY", StringComparison.OrdinalIgnoreCase))
-            return null;
+        if (IsAutoIncrementDefault(value)) return null;
 
         // SQL Server varsayılanları parantezle sarar: ((0)) → 0, (getdate()) → getdate().
         // Fonksiyon çağrısının kendi parantezini yemesin diye yalnızca DIŞ sarmalayıcı
@@ -854,6 +858,22 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
 
         return value.Length == 0 ? null : value;
     }
+
+    /// <summary>
+    /// Ham varsayılan, "değeri veritabanı üretiyor" anlamına mı geliyor?
+    ///
+    /// <b>Neden ayrı bir bilgi:</b> <see cref="NormalizeDefault"/> bunu zaten
+    /// tespit edip <c>null</c> döndürüyordu, ama bilgi orada KAYBOLUYORDU. Sonuç:
+    /// tüketiciler "bu kolon otomatik mi" sorusunu tipe bakarak TAHMİN etmek
+    /// zorunda kalıyordu — Namines Desk her tamsayı birincil anahtarı otomatik
+    /// sayıp ekleme formundan düşürüyor, dışarıdan atanan bir kimliği (başka bir
+    /// sistemden gelen sipariş numarası) girmeyi imkânsız kılıyordu.
+    /// Artık <see cref="SchemaColumn.Identity"/>'ye yazılıyor.
+    /// </summary>
+    private static bool IsAutoIncrementDefault(string value) =>
+        value.Contains("nextval(", StringComparison.OrdinalIgnoreCase) ||
+        value.Contains("AUTO_INCREMENT", StringComparison.OrdinalIgnoreCase) ||
+        value.Contains("IDENTITY", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>İlk '(' gerçekten son ')' ile mi eşleşiyor — "(a)+(b)" yanlışlıkla soyulmasın.</summary>
     private static bool IsWrappingPair(string value)
