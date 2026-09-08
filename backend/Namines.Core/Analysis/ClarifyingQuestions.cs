@@ -59,24 +59,24 @@ public static class ClarifyingQuestions
     {
         new(
             Id: "scale",
-            Text: "Bu proje ne büyüklükte olacak?",
-            Options: new[] { "Küçük (birkaç yüz kayıt)", "Orta (binlerce)", "Büyük (milyonlarca)" },
-            Why: "Büyük veride index stratejisi, sayfalama ve arşivleme tabloları gerekir; küçük projede bunlar gereksiz karmaşıklıktır.",
-            DefaultOption: "Orta (binlerce)"),
+            Text: "How much data will this hold?",
+            Options: new[] { "Small (a few hundred rows)", "Medium (thousands)", "Large (millions)" },
+            Why: "Large data needs an index strategy, pagination and archive tables; on a small project those are needless complexity.",
+            DefaultOption: "Medium (thousands)"),
 
         new(
             Id: "environment",
-            Text: "Nerede kullanılacak?",
-            Options: new[] { "Deneme / öğrenme", "İç kullanım", "Üretim (gerçek müşteri)" },
-            Why: "Üretimde denetim kaydı, yumuşak silme ve zaman damgaları şart; deneme projesinde bunlar yolu uzatır.",
-            DefaultOption: "Üretim (gerçek müşteri)"),
+            Text: "Where will this run?",
+            Options: new[] { "Experiment / learning", "Internal use", "Production (real customers)" },
+            Why: "Production needs an audit trail, soft deletes and timestamps; on a throwaway project those slow you down.",
+            DefaultOption: "Production (real customers)"),
 
         new(
             Id: "auth",
-            Text: "Kullanıcı girişi olacak mı?",
-            Options: new[] { "Hayır", "Evet, basit (e-posta + şifre)", "Evet, roller ve izinlerle" },
-            Why: "Rol/izin modeli üç dört ek tablo demek; sonradan eklemek var olan yabancı anahtarları değiştirmeyi gerektirir.",
-            DefaultOption: "Evet, basit (e-posta + şifre)"),
+            Text: "Will people sign in?",
+            Options: new[] { "No", "Yes, simple (email + password)", "Yes, with roles and permissions" },
+            Why: "A role/permission model means three or four extra tables; adding it later means changing foreign keys that already exist.",
+            DefaultOption: "Yes, simple (email + password)"),
     };
 
     /// <summary>İş türüne özel sorular.</summary>
@@ -84,142 +84,142 @@ public static class ClarifyingQuestions
     {
         [ProjectArchetype.Ecommerce] = new[]
         {
-            new ClarifyingQuestion("variants", "Ürünlerin varyantı olacak mı (beden, renk)?",
-                new[] { "Hayır, tek ürün tek kayıt", "Evet, varyantlı" },
-                "Varyant, ürün tablosunu ikiye bölüyor ve stoğu varyant seviyesine taşıyor — sonradan eklemek stok verisini taşımayı gerektirir.",
-                "Evet, varyantlı"),
-            new ClarifyingQuestion("payment", "Ödeme ve kargo takibi şemada olacak mı?",
-                new[] { "Sadece sipariş yeter", "Ödeme kayıtları da olsun", "Ödeme + kargo takibi" },
-                "Ödeme ve kargo ayrı yaşam döngüleri; siparişin içine gömmek, bir siparişin iki ödemesi olduğunda kırılır.",
-                "Ödeme kayıtları da olsun"),
+            new ClarifyingQuestion("variants", "Do products come in variants (size, colour)?",
+                new[] { "No, one product is one row", "Yes, with variants" },
+                "Variants split the product table in two and move stock down to the variant level — adding them later means migrating stock data.",
+                "Yes, with variants"),
+            new ClarifyingQuestion("payment", "Should payments and shipping be part of the schema?",
+                new[] { "Orders only", "Also payment records", "Payments + shipment tracking" },
+                "Payment and shipping have their own lifecycles; folding them into the order breaks the moment one order has two payments.",
+                "Also payment records"),
         },
 
         [ProjectArchetype.Saas] = new[]
         {
-            new ClarifyingQuestion("tenancy", "Müşteriler birbirinden nasıl ayrılacak?",
-                new[] { "Tek müşteri (ayrım yok)", "Her tabloda tenant kolonu", "Müşteri başına ayrı şema" },
-                "Bu karar HER tabloyu etkiliyor ve sonradan değiştirmek şemanın tamamını yeniden yazmak demek.",
-                "Her tabloda tenant kolonu"),
-            new ClarifyingQuestion("billing", "Abonelik ve faturalama şemada olacak mı?",
-                new[] { "Hayır", "Plan + abonelik", "Plan + abonelik + kullanım ölçümü" },
-                "Kullanım bazlı faturalama, yüksek hacimli bir ölçüm tablosu demek — index'i baştan doğru kurmak gerekir.",
-                "Plan + abonelik"),
+            new ClarifyingQuestion("tenancy", "How are customers kept apart?",
+                new[] { "Single customer (no separation)", "A tenant column on every table", "A separate schema per customer" },
+                "This decision touches EVERY table, and changing it later means rewriting the whole schema.",
+                "A tenant column on every table"),
+            new ClarifyingQuestion("billing", "Should subscriptions and billing be in the schema?",
+                new[] { "No", "Plans + subscriptions", "Plans + subscriptions + usage metering" },
+                "Usage-based billing means a high-volume metering table — its indexes have to be right from day one.",
+                "Plans + subscriptions"),
         },
 
         [ProjectArchetype.Erp] = new[]
         {
-            new ClarifyingQuestion("companies", "Birden fazla şirket/şube olacak mı?",
-                new[] { "Tek şirket", "Çoklu şirket", "Çoklu şirket + şube" },
-                "Çoklu şirket, neredeyse her tabloya bir ayrım kolonu ekliyor; sonradan eklemek mevcut veriyi bölmeyi gerektirir.",
-                "Tek şirket"),
-            new ClarifyingQuestion("accounting", "Muhasebe entegrasyonu olacak mı?",
-                new[] { "Hayır", "Cari hesap takibi", "Tam çift taraflı defter" },
-                "Çift taraflı defter, değiştirilemez kayıt (append-only) tasarımı ister — normal tablolardan farklı bir yaklaşım.",
-                "Cari hesap takibi"),
+            new ClarifyingQuestion("companies", "Will there be more than one company or branch?",
+                new[] { "Single company", "Multiple companies", "Multiple companies + branches" },
+                "Multiple companies add a separating column to nearly every table; adding it later means splitting existing data.",
+                "Single company"),
+            new ClarifyingQuestion("accounting", "Will accounting be integrated?",
+                new[] { "No", "Account balance tracking", "Full double-entry ledger" },
+                "A double-entry ledger needs append-only records — a different design from ordinary tables.",
+                "Account balance tracking"),
         },
 
         [ProjectArchetype.Game] = new[]
         {
-            new ClarifyingQuestion("progression", "Oyuncu ilerlemesi nasıl saklanacak?",
-                new[] { "Basit (seviye + puan)", "Envanter + eşyalar", "Envanter + görevler + başarımlar" },
-                "Envanter, oyuncu başına yüksek satır sayısı demek; ilerleme tablosunun şekli oyunun tamamını belirliyor.",
-                "Envanter + eşyalar"),
-            new ClarifyingQuestion("multiplayer", "Çok oyunculu mu?",
-                new[] { "Tek oyunculu", "Çok oyunculu (lonca/takım)", "Çok oyunculu + eşleştirme" },
-                "Lonca ve eşleştirme, oyuncular arası ilişki tabloları ekliyor; tek oyuncuda bunlar boş yere durur.",
-                "Tek oyunculu"),
+            new ClarifyingQuestion("progression", "How is player progress stored?",
+                new[] { "Simple (level + score)", "Inventory + items", "Inventory + quests + achievements" },
+                "Inventory means a lot of rows per player; the shape of the progress table drives the whole game.",
+                "Inventory + items"),
+            new ClarifyingQuestion("multiplayer", "Is it multiplayer?",
+                new[] { "Single player", "Multiplayer (guild/team)", "Multiplayer + matchmaking" },
+                "Guilds and matchmaking add player-to-player relation tables; in single player they just sit there empty.",
+                "Single player"),
         },
 
         [ProjectArchetype.Social] = new[]
         {
-            new ClarifyingQuestion("graph", "Kullanıcılar arası bağ nasıl?",
-                new[] { "Takip (tek yönlü)", "Arkadaşlık (çift yönlü onaylı)", "İkisi de" },
-                "Tek yönlü takip ile onaylı arkadaşlık farklı tablo şekilleri; sonradan değiştirmek tüm ilişki verisini dönüştürmeyi gerektirir.",
-                "Takip (tek yönlü)"),
-            new ClarifyingQuestion("media", "Gönderiler medya içerecek mi?",
-                new[] { "Sadece metin", "Metin + görsel", "Metin + görsel + video" },
-                "Medya ayrı bir tablo ve dosya referansı demek; gönderiye gömmek, bir gönderiye çok medya eklendiğinde kırılır.",
-                "Metin + görsel"),
+            new ClarifyingQuestion("graph", "How do users connect?",
+                new[] { "Follow (one way)", "Friendship (mutual, approved)", "Both" },
+                "One-way follows and approved friendships are different table shapes; changing later means converting every relation row.",
+                "Follow (one way)"),
+            new ClarifyingQuestion("media", "Will posts carry media?",
+                new[] { "Text only", "Text + images", "Text + images + video" },
+                "Media means its own table and file references; embedding it in the post breaks as soon as one post has several files.",
+                "Text + images"),
         },
 
         [ProjectArchetype.Fintech] = new[]
         {
-            new ClarifyingQuestion("ledger", "Para hareketleri nasıl tutulacak?",
-                new[] { "Basit bakiye kolonu", "İşlem geçmişi + hesaplanan bakiye", "Çift taraflı defter" },
-                "Bakiyeyi kolonda tutmak, eşzamanlı işlemlerde para kaybettirir — bu, düzeltilmesi en pahalı hatalardan biri.",
-                "İşlem geçmişi + hesaplanan bakiye"),
-            new ClarifyingQuestion("currency", "Birden fazla para birimi olacak mı?",
-                new[] { "Tek para birimi", "Çoklu para birimi" },
-                "Çoklu para birimi, her tutar kolonuna bir birim ve kur kaydı ekliyor; sonradan eklemek tüm tutarları dönüştürmeyi gerektirir.",
-                "Tek para birimi"),
+            new ClarifyingQuestion("ledger", "How is money movement stored?",
+                new[] { "A simple balance column", "Transaction history + derived balance", "Double-entry ledger" },
+                "Keeping the balance in a column loses money under concurrent transactions — one of the most expensive bugs to fix later.",
+                "Transaction history + derived balance"),
+            new ClarifyingQuestion("currency", "Will there be more than one currency?",
+                new[] { "Single currency", "Multiple currencies" },
+                "Multiple currencies add a unit and an exchange-rate record to every amount; adding it later means converting every amount.",
+                "Single currency"),
         },
 
         [ProjectArchetype.Healthcare] = new[]
         {
-            new ClarifyingQuestion("records", "Hasta kayıtları ne kadar ayrıntılı?",
-                new[] { "Temel bilgi + randevu", "Tanı ve tedavi geçmişi", "Tam tıbbi kayıt + reçete" },
-                "Tıbbi kayıt, değiştirilemez geçmiş ve kim-ne-zaman izi ister; bu, normal bir tablodan farklı bir tasarım.",
-                "Tanı ve tedavi geçmişi"),
-            new ClarifyingQuestion("privacy", "Kişisel sağlık verisi maskelenecek mi?",
-                new[] { "Hayır", "Evet, hassas kolonlar işaretlensin" },
-                "İşaretlenen kolonlar API'de maskelenebiliyor; sonradan işaretlemek, o veriye çoktan erişilmiş olması demek.",
-                "Evet, hassas kolonlar işaretlensin"),
+            new ClarifyingQuestion("records", "How detailed are patient records?",
+                new[] { "Basics + appointments", "Diagnosis and treatment history", "Full medical record + prescriptions" },
+                "Medical records need immutable history and a who-did-what trail — a different design from an ordinary table.",
+                "Diagnosis and treatment history"),
+            new ClarifyingQuestion("privacy", "Should personal health data be masked?",
+                new[] { "No", "Yes, flag the sensitive columns" },
+                "Flagged columns can be masked in the API; flagging later means the data has already been read.",
+                "Yes, flag the sensitive columns"),
         },
 
         [ProjectArchetype.Education] = new[]
         {
-            new ClarifyingQuestion("structure", "Eğitim yapısı nasıl?",
-                new[] { "Kurs + öğrenci", "Kurs + ders + ödev", "Kurs + ders + ödev + sınav + not" },
-                "Not ve sınav, ayrı bir değerlendirme modeli demek; kurs tablosuna sıkıştırmak birden fazla sınavda kırılır.",
-                "Kurs + ders + ödev"),
+            new ClarifyingQuestion("structure", "How is the teaching structured?",
+                new[] { "Courses + students", "Courses + lessons + assignments", "Courses + lessons + assignments + exams + grades" },
+                "Grades and exams need their own assessment model; squeezing them into the course table breaks on the second exam.",
+                "Courses + lessons + assignments"),
         },
 
         [ProjectArchetype.Logistics] = new[]
         {
-            new ClarifyingQuestion("tracking", "Takip ne kadar ayrıntılı?",
-                new[] { "Sadece durum", "Durum + konum geçmişi", "Durum + konum + araç/sürücü" },
-                "Konum geçmişi yüksek hacimli bir zaman serisi; index'i baştan doğru kurmazsan birkaç ayda yavaşlar.",
-                "Durum + konum geçmişi"),
+            new ClarifyingQuestion("tracking", "How detailed is tracking?",
+                new[] { "Status only", "Status + location history", "Status + location + vehicle/driver" },
+                "Location history is a high-volume time series; get its indexes wrong and it slows down within months.",
+                "Status + location history"),
         },
 
         [ProjectArchetype.Iot] = new[]
         {
-            new ClarifyingQuestion("volume", "Ne sıklıkta ölçüm gelecek?",
-                new[] { "Saatte birkaç", "Dakikada birkaç", "Saniyede birkaç" },
-                "Yüksek frekans, ölçüm tablosunu bölümlemeyi (partition) ve eski veriyi arşivlemeyi gerektirir.",
-                "Dakikada birkaç"),
+            new ClarifyingQuestion("volume", "How often do readings arrive?",
+                new[] { "A few per hour", "A few per minute", "A few per second" },
+                "High frequency means partitioning the readings table and archiving old data.",
+                "A few per minute"),
         },
 
         [ProjectArchetype.Booking] = new[]
         {
-            new ClarifyingQuestion("resource", "Ne rezerve ediliyor?",
-                new[] { "Tek tip kaynak (oda/masa)", "Farklı tiplerde kaynaklar", "Kaynak + personel birlikte" },
-                "Farklı kaynak tipleri, tek bir tabloya sığmıyor; personel eklendiğinde çift taraflı müsaitlik kontrolü gerekir.",
-                "Tek tip kaynak (oda/masa)"),
+            new ClarifyingQuestion("resource", "What is being booked?",
+                new[] { "One kind of resource (room/table)", "Several kinds of resources", "Resource + staff together" },
+                "Different resource kinds do not fit one table; adding staff means checking availability on both sides.",
+                "One kind of resource (room/table)"),
         },
 
         [ProjectArchetype.Crm] = new[]
         {
-            new ClarifyingQuestion("pipeline", "Satış süreci takip edilecek mi?",
-                new[] { "Sadece kişi/şirket kaydı", "Fırsat + aşamalar", "Fırsat + aşamalar + aktivite geçmişi" },
-                "Aşama geçmişi ayrı bir tablo; fırsat kaydında tek kolon tutmak, 'bu fırsat ne zaman hangi aşamadaydı' sorusunu cevapsız bırakır.",
-                "Fırsat + aşamalar"),
+            new ClarifyingQuestion("pipeline", "Will you track a sales process?",
+                new[] { "Contacts and companies only", "Deals + stages", "Deals + stages + activity history" },
+                "Stage history is its own table; a single column on the deal leaves 'which stage was this deal in, and when' unanswerable.",
+                "Deals + stages"),
         },
 
         [ProjectArchetype.Cms] = new[]
         {
-            new ClarifyingQuestion("versioning", "İçeriğin sürüm geçmişi tutulacak mı?",
-                new[] { "Hayır", "Evet, taslak + yayın", "Evet, tam sürüm geçmişi" },
-                "Sürüm geçmişi, içerik tablosunu ikiye bölüyor; sonradan eklemek mevcut içeriği taşımayı gerektirir.",
-                "Evet, taslak + yayın"),
+            new ClarifyingQuestion("versioning", "Should content keep a version history?",
+                new[] { "No", "Yes, draft + published", "Yes, full version history" },
+                "Version history splits the content table in two; adding it later means migrating the content you already have.",
+                "Yes, draft + published"),
         },
 
         [ProjectArchetype.Marketplace] = new[]
         {
-            new ClarifyingQuestion("payouts", "Satıcı ödemeleri takip edilecek mi?",
-                new[] { "Hayır", "Komisyon + hakediş", "Komisyon + hakediş + ödeme geçmişi" },
-                "Hakediş, siparişten ayrı bir para akışı; sipariş tablosuna gömmek, iade ve kısmi ödemede kırılır.",
-                "Komisyon + hakediş"),
+            new ClarifyingQuestion("payouts", "Will seller payouts be tracked?",
+                new[] { "No", "Commission + earnings", "Commission + earnings + payout history" },
+                "Earnings are a separate money flow from the order; folding them into the order table breaks on refunds and partial payments.",
+                "Commission + earnings"),
         },
     };
 

@@ -87,6 +87,12 @@ public static class ArchetypeDetector
         {
             "blog", "cms", "içerik", "icerik", "content", "makale", "article", "sayfa", "page",
             "yayın", "yayin", "publish", "kategori", "category", "etiket", "tag",
+            // "post" hem blog hem sosyal ağ kelimesi; Social'da vardı, burada yoktu.
+            // Sonuç: "a simple blog with users, posts, comments and tags" gibi üç ayrı
+            // CMS kelimesi içeren bir prompt'ta CMS ile Social 2-2 berabere kalıyor ve
+            // beraberlik kuralı Generic'e düşürüyordu — kullanıcı "ne tür bir proje
+            // olduğunu anlayamadık" cevabı alıyordu. Bir blog gönderisi içeriktir.
+            "post",
         },
         [ProjectArchetype.Fintech] = new[]
         {

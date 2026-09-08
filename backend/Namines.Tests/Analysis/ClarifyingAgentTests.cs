@@ -30,6 +30,24 @@ public class ClarifyingAgentTests
         Assert.Equal(expected, ArchetypeDetector.Detect(prompt));
     }
 
+    /// <summary>
+    /// İngilizce prompt'lar da tanınmalı. Arayüz İngilizce ve örnek metin de
+    /// İngilizce ("Design an e-commerce database..."), yani kullanıcıların büyük
+    /// kısmı İngilizce yazıyor.
+    ///
+    /// BULUNMA YERİ: "A simple blog with users, posts, comments and tags" — üç ayrı
+    /// CMS anahtar kelimesi (blog, post, tag) içermesine rağmen Generic dönüyordu;
+    /// plan da prompt'taki tabloları görmeyip yalnızca iki genel tablo öneriyordu.
+    /// </summary>
+    [Theory]
+    [InlineData("A simple blog with users, posts, comments and tags", ProjectArchetype.Cms)]
+    [InlineData("an online store with products, orders and a cart", ProjectArchetype.Ecommerce)]
+    [InlineData("a hospital system with patients, doctors and appointments", ProjectArchetype.Healthcare)]
+    public void English_prompts_are_recognised_too(string prompt, ProjectArchetype expected)
+    {
+        Assert.Equal(expected, ArchetypeDetector.Detect(prompt));
+    }
+
     [Theory]
     [InlineData("E-TICARET SITESI")]
     [InlineData("e-ticaret sitesi")]

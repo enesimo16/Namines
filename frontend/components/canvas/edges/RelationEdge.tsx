@@ -19,28 +19,28 @@ const ON_DELETE_OPTIONS: {
   {
     value: 'NoAction',
     label: 'NO ACTION',
-    hint: 'Varsayılan. Bağlı kayıt varsa silmeyi engeller.',
+    hint: 'Default. Prevents deletion while dependent rows exist.',
   },
   {
     value: 'Restrict',
     label: 'RESTRICT',
-    hint: 'NO ACTION gibi, kontrol hemen yapılır. MSSQL/Oracle desteklemez.',
+    hint: 'Like NO ACTION, but checked immediately. Not supported by MSSQL/Oracle.',
   },
   {
     value: 'Cascade',
     label: 'CASCADE',
-    hint: 'Bağlı kayıtları da siler. Veri kaybettirebilir.',
+    hint: 'Deletes dependent rows too. Can lose data.',
     danger: true,
   },
   {
     value: 'SetNull',
     label: 'SET NULL',
-    hint: 'Bağlı kaydın FK kolonunu NULL yapar. Kolon nullable olmalı.',
+    hint: 'Sets the dependent row FK column to NULL. The column must be nullable.',
   },
   {
     value: 'SetDefault',
     label: 'SET DEFAULT',
-    hint: 'FK kolonunu DEFAULT değerine çeker. Kolonun default’u olmalı.',
+    hint: 'Resets the FK column to its DEFAULT. The column must have one.',
   },
 ];
 
@@ -143,8 +143,8 @@ export default function RelationEdge({
           <button
             type="button"
             onClick={toggleOpen}
-            title={`Silme davranışı: ${onDelete}\nDeğiştirmek için tıkla`}
-            aria-label={`İlişki ayarları. Silme davranışı ${onDelete}`}
+            title={`On delete: ${onDelete}\nClick to change`}
+            aria-label={`Relation settings. On delete ${onDelete}`}
             aria-expanded={isOpen}
             className="flex items-center gap-1 bg-surface-700 text-content-primary px-2 py-1 rounded-[var(--radius-control)] border border-content-primary/12 shadow-md font-mono hover:border-white/25 transition-colors cursor-pointer"
           >
@@ -186,7 +186,7 @@ export default function RelationEdge({
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono">{opt.label}</span>
                     {opt.danger && (
-                      <span className="text-micro text-danger-text shrink-0">veri kaybı</span>
+                      <span className="text-micro text-danger-text shrink-0">data loss</span>
                     )}
                   </div>
                   <div className="text-[10px] text-content-subtle mt-0.5 leading-snug">{opt.hint}</div>

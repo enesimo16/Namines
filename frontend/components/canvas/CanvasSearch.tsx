@@ -87,7 +87,7 @@ export default function CanvasSearch({ isOpen, onClose }: Props) {
           value={query}
           onChange={e => handleQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Tablo veya sütun ara…"
+          placeholder="Search tables or columns…"
           className="flex-1 bg-transparent text-content-primary placeholder-content-muted text-sm outline-none"
         />
         {matches.length > 0 && (
@@ -96,7 +96,7 @@ export default function CanvasSearch({ isOpen, onClose }: Props) {
           </span>
         )}
         {q && matches.length === 0 && (
-          <span className="text-danger-text text-xs shrink-0">Bulunamadı</span>
+          <span className="text-danger-text text-xs shrink-0">No matches</span>
         )}
         <button onClick={onClose} className="text-content-muted hover:text-content-primary transition-colors">
           <X className="w-4 h-4" />
@@ -104,7 +104,7 @@ export default function CanvasSearch({ isOpen, onClose }: Props) {
       </div>
       {matches.length > 0 && (
         <p className="text-center text-content-muted text-[10px] mt-1.5">
-          Enter → sonraki · Shift+Enter → önceki
+          Enter → next · Shift+Enter → previous
         </p>
       )}
     </div>

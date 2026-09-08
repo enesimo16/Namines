@@ -50,79 +50,79 @@ public static class PlanBuilder
     {
         [ProjectArchetype.Ecommerce] = new[]
         {
-            new PlannedTable("products", "Satılan ürünler."),
-            new PlannedTable("orders", "Bir siparişin başlığı — durum, tarih, toplam."),
-            new PlannedTable("order_items", "Siparişin satırları; ürün başına miktar ve o anki fiyat."),
+            new PlannedTable("products", "The things you sell."),
+            new PlannedTable("orders", "One order header — status, date, total."),
+            new PlannedTable("order_items", "The lines of an order; quantity and the price at the time."),
         },
         [ProjectArchetype.Marketplace] = new[]
         {
-            new PlannedTable("sellers", "Ürün/hizmet sunan satıcılar."),
-            new PlannedTable("listings", "Bir satıcının yayınladığı ürün/hizmet."),
-            new PlannedTable("orders", "Alıcının verdiği sipariş."),
-            new PlannedTable("payouts", "Platformun satıcıya yaptığı ödeme — alıcının ödemesinden AYRI."),
+            new PlannedTable("sellers", "The people offering products or services."),
+            new PlannedTable("listings", "A product or service published by a seller."),
+            new PlannedTable("orders", "An order placed by a buyer."),
+            new PlannedTable("payouts", "What the platform pays the seller — SEPARATE from what the buyer paid."),
         },
         [ProjectArchetype.Saas] = new[]
         {
-            new PlannedTable("tenants", "Her müşteri kuruluş — verinin izole edildiği birim."),
-            new PlannedTable("subscriptions", "Tenant'ın planı ve dönemi."),
+            new PlannedTable("tenants", "Each customer organisation — the unit data is isolated by."),
+            new PlannedTable("subscriptions", "A tenant's plan and billing period."),
         },
         [ProjectArchetype.Erp] = new[]
         {
-            new PlannedTable("stock_movements", "Stok hareketi kaydı — tek bir miktar kolonu değil, defter."),
-            new PlannedTable("invoices", "Fatura başlığı."),
-            new PlannedTable("invoice_items", "Fatura satırları."),
+            new PlannedTable("stock_movements", "A stock movement record — a ledger, not a single quantity column."),
+            new PlannedTable("invoices", "Invoice header."),
+            new PlannedTable("invoice_items", "Invoice lines."),
         },
         [ProjectArchetype.Game] = new[]
         {
-            new PlannedTable("players", "Oyuncu hesabı."),
-            new PlannedTable("player_progress", "Oyuncunun ilerlemesi — seviye/puan."),
+            new PlannedTable("players", "Player account."),
+            new PlannedTable("player_progress", "How far a player has got — level and score."),
         },
         [ProjectArchetype.Social] = new[]
         {
-            new PlannedTable("posts", "Kullanıcı gönderileri."),
-            new PlannedTable("follows", "Yönlü takip ilişkisi — kimin kimi takip ettiği."),
+            new PlannedTable("posts", "What users publish."),
+            new PlannedTable("follows", "A directed follow — who follows whom."),
         },
         [ProjectArchetype.Fintech] = new[]
         {
-            new PlannedTable("accounts", "Bakiyesi olan hesap."),
-            new PlannedTable("ledger_entries", "Ekle-only defter kaydı; bakiye BURADAN türetilir, ayrı bir kolonda tutulmaz."),
+            new PlannedTable("accounts", "An account that holds a balance."),
+            new PlannedTable("ledger_entries", "Append-only ledger record; the balance is DERIVED from here, never kept in its own column."),
         },
         [ProjectArchetype.Healthcare] = new[]
         {
-            new PlannedTable("patients", "Hasta kaydı."),
-            new PlannedTable("encounters", "Hastanın her başvurusu/görüşmesi — geçmiş korunur, üzerine yazılmaz."),
+            new PlannedTable("patients", "Patient record."),
+            new PlannedTable("encounters", "Every visit or consultation — history is kept, never overwritten."),
         },
         [ProjectArchetype.Education] = new[]
         {
-            new PlannedTable("courses", "Ders tanımı."),
-            new PlannedTable("course_offerings", "Bir dönemde açılan ders — eğitmen, tarih, kontenjan."),
-            new PlannedTable("enrolments", "Öğrencinin bir offering'e kaydı."),
+            new PlannedTable("courses", "The course definition."),
+            new PlannedTable("course_offerings", "A course run in a given term — teacher, dates, capacity."),
+            new PlannedTable("enrolments", "A student signed up to one offering."),
         },
         [ProjectArchetype.Logistics] = new[]
         {
-            new PlannedTable("shipments", "Sevkiyat başlığı."),
-            new PlannedTable("shipment_events", "Sevkiyatın taradığı her nokta — güncel durum bunlardan türetilir."),
+            new PlannedTable("shipments", "Shipment header."),
+            new PlannedTable("shipment_events", "Every scan point — current status is derived from these."),
         },
         [ProjectArchetype.Iot] = new[]
         {
-            new PlannedTable("devices", "Cihaz meta verisi — küçük ve sabit."),
-            new PlannedTable("readings", "Ölçüm — en büyük tablo, cihaz+zamana göre anahtarlı."),
+            new PlannedTable("devices", "Device metadata — small and stable."),
+            new PlannedTable("readings", "The measurements — the biggest table, keyed by device and time."),
         },
         [ProjectArchetype.Booking] = new[]
         {
-            new PlannedTable("resources", "Rezerve edilebilir şey — oda, koltuk, saat."),
-            new PlannedTable("reservations", "Rezervasyon — kaynak+zaman aralığı benzersiz olmalı, çifte rezervasyonu önler."),
+            new PlannedTable("resources", "The bookable thing — a room, a seat, an hour."),
+            new PlannedTable("reservations", "A booking — resource plus time range must be unique, which is what prevents double booking."),
         },
         [ProjectArchetype.Crm] = new[]
         {
-            new PlannedTable("contacts", "Kişi kaydı."),
-            new PlannedTable("accounts", "Kişinin bağlı olduğu kuruluş — kişi hesap değiştirebilir."),
-            new PlannedTable("activities", "Görüşme/not/e-posta — tek bir zaman çizelgesi tablosu."),
+            new PlannedTable("contacts", "Person record."),
+            new PlannedTable("accounts", "The organisation a contact belongs to — people change employers."),
+            new PlannedTable("activities", "Calls, notes and emails — one timeline table."),
         },
         [ProjectArchetype.Cms] = new[]
         {
-            new PlannedTable("content_items", "Sayfa/makale — durumu (taslak/yayında) taşır."),
-            new PlannedTable("revisions", "Her yayının geçmişi — üzerine yazmak son kopyayı kaybettirir."),
+            new PlannedTable("content_items", "Pages and articles — carries the draft/published status."),
+            new PlannedTable("revisions", "The history of each publish — overwriting loses the previous copy."),
         },
     };
 
@@ -134,20 +134,20 @@ public static class PlanBuilder
     private static void ApplyCoreAnswers(List<PlannedTable> tables, IReadOnlyDictionary<string, string> answers)
     {
         var auth = answers.GetValueOrDefault("auth", "");
-        if (auth.Contains("basit"))
+        if (auth.Contains("simple"))
         {
-            tables.Add(new PlannedTable("users", "Kullanıcı hesabı — e-posta + şifre."));
+            tables.Add(new PlannedTable("users", "User account — email + password."));
         }
-        else if (auth.Contains("roller"))
+        else if (auth.Contains("roles"))
         {
-            tables.Add(new PlannedTable("users", "Kullanıcı hesabı."));
-            tables.Add(new PlannedTable("roles", "Rol tanımı."));
-            tables.Add(new PlannedTable("permissions", "Rolün yapabildiği eylemler."));
+            tables.Add(new PlannedTable("users", "User account."));
+            tables.Add(new PlannedTable("roles", "Role definition."));
+            tables.Add(new PlannedTable("permissions", "What a role is allowed to do."));
         }
 
-        if (answers.GetValueOrDefault("environment", "").Contains("Üretim"))
+        if (answers.GetValueOrDefault("environment", "").Contains("Production"))
         {
-            tables.Add(new PlannedTable("audit_logs", "Üretimde kim ne değiştirdi kaydı — denetim için."));
+            tables.Add(new PlannedTable("audit_logs", "Who changed what in production — the audit trail."));
         }
     }
 
@@ -157,69 +157,73 @@ public static class PlanBuilder
         [ProjectArchetype.Ecommerce] = a =>
         {
             var extra = new List<PlannedTable>();
-            if (a.GetValueOrDefault("variants", "").Contains("varyantlı"))
+            if (a.GetValueOrDefault("variants", "").Contains("with variants"))
             {
                 extra.Add(new PlannedTable("product_variants",
-                    a.GetValueOrDefault("variants.followup", "").Contains("paylaşırlar")
-                        ? "Beden/renk gibi varyantlar — stok burada tutulur, fiyat üründen paylaşılır."
-                        : "Beden/renk gibi varyantlar — stok, fiyat ve SKU burada tutulur, üründe değil."));
+                    a.GetValueOrDefault("variants.followup", "").Contains("share")
+                        ? "Variants like size and colour — stock lives here, price is shared from the product."
+                        : "Variants like size and colour — stock, price and SKU live here, not on the product."));
             }
             var payment = a.GetValueOrDefault("payment", "");
-            if (payment.Contains("Ödeme"))
-                extra.Add(new PlannedTable("payments", "Ödeme kaydı — siparişten AYRI, bir siparişin birden çok ödemesi olabilir."));
-            if (payment.Contains("kargo"))
+            if (payment.Contains("payment"))
+                extra.Add(new PlannedTable("payments", "Payment record — SEPARATE from the order, since one order can have several payments."));
+            if (payment.Contains("shipment"))
             {
-                if (a.GetValueOrDefault("payment.followup", "").Contains("firma"))
-                    extra.Add(new PlannedTable("shipment_tracking", "Kargo firması takip numarası ve durumu."));
+                if (a.GetValueOrDefault("payment.followup", "").Contains("carrier"))
+                    extra.Add(new PlannedTable("shipment_tracking", "Carrier tracking number and status."));
                 else
-                    extra.Add(new PlannedTable("shipment_status", "Sadece durum: hazırlanıyor/kargoda/teslim edildi."));
+                    extra.Add(new PlannedTable("shipment_status", "Status only: preparing / shipped / delivered."));
             }
             return extra;
         },
         [ProjectArchetype.Saas] = a =>
         {
             var extra = new List<PlannedTable>();
-            if (a.GetValueOrDefault("tenancy", "").Contains("tenant kolonu"))
+            if (a.GetValueOrDefault("tenancy", "").Contains("tenant column"))
                 extra.Add(new PlannedTable("invoices",
-                    a.GetValueOrDefault("tenancy.followup", "").Contains("kullanıcı")
-                        ? "Fatura kullanıcı başına kesiliyor."
-                        : "Fatura tenant başına kesiliyor."));
+                    a.GetValueOrDefault("tenancy.followup", "").Contains("Per user")
+                        ? "Invoices are issued per user."
+                        : "Invoices are issued per tenant."));
             return extra;
         },
         [ProjectArchetype.Game] = a =>
         {
             var extra = new List<PlannedTable>();
             var mp = a.GetValueOrDefault("multiplayer", "");
-            if (mp.Contains("lonca") || mp.Contains("takım"))
+            if (mp.Contains("guild") || mp.Contains("team"))
             {
                 var followUp = a.GetValueOrDefault("multiplayer.followup", "");
-                if (followUp.Contains("Lonca"))
-                    extra.Add(new PlannedTable("guilds", "Kalıcı, büyük oyuncu grubu."));
-                else if (followUp.Contains("Takım"))
-                    extra.Add(new PlannedTable("teams", "Geçici, küçük maç grubu."));
+                if (followUp.Contains("Guild"))
+                    extra.Add(new PlannedTable("guilds", "A permanent, large group of players."));
+                else if (followUp.Contains("Team"))
+                    extra.Add(new PlannedTable("teams", "A temporary, small match group."));
                 else
                 {
-                    extra.Add(new PlannedTable("guilds", "Kalıcı, büyük oyuncu grubu."));
-                    extra.Add(new PlannedTable("teams", "Geçici, küçük maç grubu."));
+                    extra.Add(new PlannedTable("guilds", "A permanent, large group of players."));
+                    extra.Add(new PlannedTable("teams", "A temporary, small match group."));
                 }
             }
-            if (mp.Contains("eşleştirme"))
-                extra.Add(new PlannedTable("matches", "Bir eşleştirmenin sonucu."));
-            var progress = a.GetValueOrDefault("progress", "");
-            if (progress.Contains("eşya"))
-                extra.Add(new PlannedTable("inventory_items", "Oyuncunun eşyaları — oyuncu × eşya sayısıyla büyür, dar tutulmalı."));
-            if (progress.Contains("görev"))
-                extra.Add(new PlannedTable("quest_progress", "Oyuncunun görev ilerlemesi."));
+            if (mp.Contains("matchmaking"))
+                extra.Add(new PlannedTable("matches", "The result of one match."));
+
+            // Soru kimliği "progression"; burası "progress" okuyordu, yani cevap HİÇ
+            // bulunamıyor ve envanter/görev tabloları kullanıcı ne seçerse seçsin
+            // plana hiç girmiyordu.
+            var progress = a.GetValueOrDefault("progression", "");
+            if (progress.Contains("Inventory"))
+                extra.Add(new PlannedTable("inventory_items", "What a player owns — grows with players × items, so keep it narrow."));
+            if (progress.Contains("quests"))
+                extra.Add(new PlannedTable("quest_progress", "How far a player has got in each quest."));
             return extra;
         },
         [ProjectArchetype.Erp] = a =>
         {
             var extra = new List<PlannedTable>();
-            if (a.GetValueOrDefault("companies", "").Contains("Çoklu"))
+            if (a.GetValueOrDefault("companies", "").Contains("Multiple"))
             {
-                extra.Add(a.GetValueOrDefault("companies.followup", "").Contains("ayrı")
-                    ? new PlannedTable("warehouses", "Şirket başına ayrı depo — stok_movements buradan anahtarlanır.")
-                    : new PlannedTable("warehouses", "Tüm şirketlerin paylaştığı ortak depo havuzu."));
+                extra.Add(a.GetValueOrDefault("companies.followup", "").Contains("Separate")
+                    ? new PlannedTable("warehouses", "A separate warehouse per company — stock_movements is keyed from here.")
+                    : new PlannedTable("warehouses", "One shared warehouse pool across all companies."));
             }
             return extra;
         },
@@ -237,45 +241,45 @@ public static class PlanBuilder
     {
         [ProjectArchetype.Game] = new[]
         {
-            ("multiplayer", "lonca", new ClarifyingQuestion(
+            ("multiplayer", "guild", new ClarifyingQuestion(
                 "multiplayer.followup",
-                "Lonca mı takım mı?",
-                new[] { "Lonca (kalıcı, büyük)", "Takım (geçici, küçük)", "İkisi de" },
-                "Lonca kalıcı ve büyük bir grup, takım geçici ve küçük bir maç grubu — ikisi farklı tablo demek.",
-                "İkisi de")),
+                "Guilds or teams?",
+                new[] { "Guild (permanent, large)", "Team (temporary, small)", "Both" },
+                "A guild is a permanent, large group; a team is a temporary, small match group — they are different tables.",
+                "Both")),
         },
         [ProjectArchetype.Ecommerce] = new[]
         {
-            ("payment", "kargo", new ClarifyingQuestion(
+            ("payment", "shipment", new ClarifyingQuestion(
                 "payment.followup",
-                "Kargo firmasıyla entegre mi, yalnızca durum mu?",
-                new[] { "Yalnızca durum (hazırlanıyor/kargoda/teslim edildi)", "Kargo firması API'siyle entegre (takip no, firma)" },
-                "Firma entegrasyonu takip numarası ve firma adı için ayrı bir tablo gerektiriyor; yalnızca durum tek bir kolonla çözülür.",
-                "Yalnızca durum (hazırlanıyor/kargoda/teslim edildi)")),
-            ("variants", "varyantlı", new ClarifyingQuestion(
+                "Integrated with the carrier, or status only?",
+                new[] { "Status only (preparing / shipped / delivered)", "Integrated with the carrier API (tracking number, carrier)" },
+                "Carrier integration needs its own table for the tracking number and carrier name; status alone fits in a single column.",
+                "Status only (preparing / shipped / delivered)")),
+            ("variants", "with variants", new ClarifyingQuestion(
                 "variants.followup",
-                "Varyantların kendi fiyatı/SKU'su olacak mı?",
-                new[] { "Evet, kendi SKU ve fiyatları var", "Hayır, ürünün fiyatını paylaşırlar" },
-                "Kendi fiyatı olan varyant product_variants'a price/SKU kolonu ekliyor; paylaşılan fiyatta bu kolonlar üründe kalır.",
-                "Evet, kendi SKU ve fiyatları var")),
+                "Will variants have their own price and SKU?",
+                new[] { "Yes, their own SKU and price", "No, they share the product's price" },
+                "Variants with their own price add price/SKU columns to product_variants; with a shared price those columns stay on the product.",
+                "Yes, their own SKU and price")),
         },
         [ProjectArchetype.Saas] = new[]
         {
-            ("tenancy", "tenant kolonu", new ClarifyingQuestion(
+            ("tenancy", "tenant column", new ClarifyingQuestion(
                 "tenancy.followup",
-                "Faturalama tenant başına mı, kullanıcı başına mı?",
-                new[] { "Tenant başına (tek fatura, tüm kullanıcılar dahil)", "Kullanıcı başına (koltuk bazlı)" },
-                "İkisi farklı bir invoices şeması gerektiriyor — biri tenant'a, diğeri kullanıcıya bağlanıyor.",
-                "Tenant başına (tek fatura, tüm kullanıcılar dahil)")),
+                "Is billing per tenant or per user?",
+                new[] { "Per tenant (one invoice covering all users)", "Per user (seat based)" },
+                "The two need different invoices schemas — one hangs off the tenant, the other off the user.",
+                "Per tenant (one invoice covering all users)")),
         },
         [ProjectArchetype.Erp] = new[]
         {
-            ("companies", "Çoklu", new ClarifyingQuestion(
+            ("companies", "Multiple", new ClarifyingQuestion(
                 "companies.followup",
-                "Stok tüm şirketler arasında ortak mı, şirket başına ayrı mı?",
-                new[] { "Ortak stok havuzu", "Şirket başına ayrı stok" },
-                "Ortak havuzda tek bir depo tüm şirketleri besler; ayrı stokta her şirketin kendi deposu ve stock_movements anahtarı olur — sonradan ayırmak mevcut hareketleri şirkete göre bölmeyi gerektirir.",
-                "Şirket başına ayrı stok")),
+                "Is stock shared across companies, or separate per company?",
+                new[] { "One shared stock pool", "Separate stock per company" },
+                "A shared pool feeds every company from one warehouse; separate stock gives each company its own warehouse and stock_movements key — splitting later means dividing existing movements by company.",
+                "Separate stock per company")),
         },
     };
 
@@ -384,7 +388,7 @@ public static class PlanBuilder
         {
             if (answers.ContainsKey(q.Id)) continue;
             if (string.IsNullOrWhiteSpace(q.DefaultOption)) continue;
-            notes.Add($"{q.Text} — varsayılan: {q.DefaultOption}");
+            notes.Add($"{q.Text} — default: {q.DefaultOption}");
         }
         return notes;
     }

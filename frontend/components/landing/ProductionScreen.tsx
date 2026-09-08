@@ -51,7 +51,7 @@ export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
       <div className="w-full max-w-md glass-panel rounded-[var(--radius-modal)] p-5 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-content-primary">
-            {isRunning ? 'Şema üretiliyor' : 'Tamamlandı'}
+            {isRunning ? 'Generating schema' : 'Done'}
           </h2>
           {/* Kullanıcı işi kapatabilmeli — uzun bir üretimde ekranda
               hapsolmamalı. Akış hâlâ sürüyorsa da kapatma engellenmiyor;
@@ -104,7 +104,7 @@ export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
             onClick={onClose}
             className="w-full mt-5 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 rounded-[var(--radius-card)] text-sm transition-colors"
           >
-            Devam et
+            Continue
           </button>
         )}
       </div>
