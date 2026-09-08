@@ -61,6 +61,21 @@ services:
       - Auth__CrossSiteCookie=false
       # Production'da SSRF koruması AÇIK (dev .env'deki true değerini ez).
       - Executor__AllowPrivateHosts=false
+      # ── Namines Vault ─────────────────────────────────────────────────────
+      # Yedek dosyalarının at-rest şifreleme anahtarı. Security__ConnectionEncryptionKey
+      # ile AYNI OLMAMALI: aynı anahtar, birinin sızmasını ikisinin sızması yapardı.
+      # YALNIZCA yerel geliştirme değeri — gerçek dağıtımda `openssl rand -base64 32`.
+      - Vault__BackupEncryptionKey=dev-only-vault-backup-key-change-me-32ch
+      # Yedekler KALICI volume'de durmalı. Varsayılan yol konteynerin kendi
+      # dosya sisteminde olurdu ve konteyner yeniden yaratıldığında bütün
+      # yedekler giderdi — yani yedekleme tam da lazım olduğu anda yok olurdu.
+      - Vault__StoragePath=/app/data/vault-backups
+      #
+      # ⚠️ Bu compose'da yedekleme ÇALIŞMAZ: pg_dump/pg_restore geçici bir
+      # konteynerde koşuyor ve backend'in Docker daemon'una erişimi yok
+      # (aşağıdaki volumes bloğunda docker.sock bilinçli olarak verilmiyor).
+      # Seçenekler ve gerekçeleri: namines-vault/02-ERISIM-VE-DEPLOY.md §2.
+      # `GET /api/vault/health` bu durumu açıkça söyler.
       # G7: control DB artık PostgreSQL. Container ağında servis adıyla erişilir.
       - ConnectionStrings__DefaultConnection=Host=namines-control-db;Port=5432;Database=namines_control;Username=namines;Password=namines_dev_only_change_in_prod
     depends_on:

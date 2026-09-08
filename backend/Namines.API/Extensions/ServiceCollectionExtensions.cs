@@ -122,6 +122,10 @@ public static class ServiceCollectionExtensions
         services.AddNaminesVault();
         services.AddScoped<VaultService>();
 
+        // Zamanlanmis yedekler (V4). Kapali bir zamanlamasi olan proje icin
+        // hicbir sey yapmaz; acilista tek bir sorgudan ibaret.
+        services.AddHostedService<VaultScheduleBackgroundService>();
+
         // Arka Plan Docker Sweeper (Sunucu Kilitlenmesi Önleyici)
         services.AddHostedService<DockerSweeperBackgroundService>();
 

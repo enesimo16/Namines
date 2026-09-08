@@ -104,6 +104,175 @@ public sealed class PostgresBackupProvider : IBackupProvider, IDisposable
         }
     }
 
+    public async Task<string?> ProbeAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _docker.System.PingAsync(ct);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            // Mesaj doğrudan kullanıcıya/operatöre gidiyor; "neden" kadar
+            // "ne yapmalı" da söylenmeli, yoksa çıplak bir soket hatası kalır.
+            return "Docker daemon is not reachable, so backups cannot run. " +
+                   "The API needs access to a Docker daemon to launch pg_dump/pg_restore " +
+                   $"(see namines-vault/02-ERISIM-VE-DEPLOY.md). Underlying error: {Truncate(ex.Message)}";
+        }
+    }
+
+    /// <summary>Doğrulama sunucusunun içindeki sabitler — dışarı hiç açılmıyor.</summary>
+    private const string VerifyPassword = "namines-verify";
+    private const string VerifyDatabase = "namines_verify";
+
+    /// <summary>
+    /// Dump'ı, YALNIZCA bu iş için ayağa kaldırılan boş bir PostgreSQL
+    /// sunucusuna geri yükleyerek doğrular.
+    ///
+    /// <b>Ağa hiç açılmıyor:</b> port yayınlanmıyor ve komutlar konteynerin
+    /// İÇİNDE çalıştırılıyor (docker exec). Doğrulama sunucusu bu yüzden
+    /// dışarıdan erişilebilir bir yüzey değil; sabit parolası da bu sebeple
+    /// zararsız — konteynerin dışına çıkmıyor.
+    /// </summary>
+    public async Task<string?> VerifyAsync(Stream source, CancellationToken ct)
+    {
+        await EnsureImageAsync(ct);
+
+        var temp = Path.Combine(Path.GetTempPath(), $"namines-verify-{Guid.NewGuid():N}.dump");
+        string? containerId = null;
+
+        try
+        {
+            await using (var file = File.Create(temp))
+            {
+                await source.CopyToAsync(file, ct);
+            }
+
+            var created = await _docker.Containers.CreateContainerAsync(new CreateContainerParameters
+            {
+                Image = _image,
+                Env = new List<string>
+                {
+                    $"POSTGRES_PASSWORD={VerifyPassword}",
+                    $"POSTGRES_DB={VerifyDatabase}",
+                },
+                // HostConfig boş: port yayını, bind ve ekstra host YOK.
+                HostConfig = new HostConfig(),
+            }, ct);
+            containerId = created.ID;
+
+            await _docker.Containers.StartContainerAsync(containerId, new ContainerStartParameters(), ct);
+
+            if (!await WaitUntilReadyAsync(containerId, ct))
+                return "The verification database did not become ready in time.";
+
+            await UploadAsync(containerId, temp, ct);
+
+            // --exit-on-error: ilk hatada dur. Doğrulamanın tamamı bu bayrağa
+            // dayanıyor — hataları yutan bir geri yükleme, bozuk bir dump'ı
+            // "doğrulandı" diye işaretlerdi.
+            var (exitCode, output) = await ExecAsync(containerId, new[]
+            {
+                "pg_restore", "--no-owner", "--no-acl", "--exit-on-error",
+                "-h", VerifyHost, "-U", "postgres", "-d", VerifyDatabase, ContainerDumpPath,
+            }, ct);
+
+            return exitCode == 0 ? null : Truncate(output);
+        }
+        catch (Exception ex)
+        {
+            return Truncate(ex.Message);
+        }
+        finally
+        {
+            TryDeleteTemp(temp);
+
+            if (containerId is not null)
+            {
+                try
+                {
+                    await _docker.Containers.RemoveContainerAsync(
+                        containerId,
+                        // Force: sunucu hâlâ çalışıyor. Volumes: verisi de gitsin,
+                        // yoksa her doğrulama diskte bir birim bırakırdı.
+                        new ContainerRemoveParameters { Force = true, RemoveVolumes = true },
+                        CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Vault: dogrulama konteyneri {Id} silinemedi.", containerId);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Hazırlık kontrolünün yapıldığı adres — konteynerin İÇİNDEN, TCP üzerinden.
+    ///
+    /// <b>Unix soketi DEĞİL ve bu farkın bedeli canlı denemede görüldü:</b> postgres
+    /// imajı ilk açılışta veritabanını kurmak için geçici bir sunucu başlatır, sonra
+    /// onu KAPATIP asıl sunucuyu açar. O geçici sunucu yalnızca unix soketini
+    /// dinler; soket üzerinden bakan bir hazırlık kontrolü onu "hazır" görür ve
+    /// hemen ardından <c>pg_restore</c> "the database system is shutting down"
+    /// hatasıyla düşer. TCP'yi yalnızca asıl sunucu dinlediği için bu ayrım
+    /// bekleyişi doğru yere koyuyor.
+    /// </summary>
+    private const string VerifyHost = "127.0.0.1";
+
+    /// <summary>
+    /// Sunucu bağlantı kabul edene kadar bekler.
+    ///
+    /// Sabit bir bekleme yerine <c>pg_isready</c> yoklanıyor: sabit süre ya
+    /// gereksiz yavaşlatır ya da yavaş bir makinede erken pes eder.
+    /// </summary>
+    private async Task<bool> WaitUntilReadyAsync(string containerId, CancellationToken ct)
+    {
+        // 60 × 500ms = 30 sn. Boş bir postgres saniyeler içinde hazır olur;
+        // bu tavan yalnızca yüklü bir makinede pes etmemek için.
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            var (exitCode, _) = await ExecAsync(
+                containerId,
+                new[] { "pg_isready", "-h", VerifyHost, "-U", "postgres", "-d", VerifyDatabase },
+                ct);
+
+            if (exitCode == 0) return true;
+            await Task.Delay(500, ct);
+        }
+
+        return false;
+    }
+
+    /// <summary>Çalışan konteynerin içinde komut çalıştırır; çıkış kodunu ve çıktısını döndürür.</summary>
+    private async Task<(long ExitCode, string Output)> ExecAsync(
+        string containerId, IList<string> command, CancellationToken ct)
+    {
+        var exec = await _docker.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
+        {
+            Cmd = command,
+            AttachStdout = true,
+            AttachStderr = true,
+        }, ct);
+
+        using (var stream = await _docker.Exec.StartAndAttachContainerExecAsync(exec.ID, tty: false, ct))
+        {
+            var stdout = new MemoryStream();
+            var stderr = new MemoryStream();
+            await stream.CopyOutputToAsync(Stream.Null, stdout, stderr, ct);
+
+            var inspect = await _docker.Exec.InspectContainerExecAsync(exec.ID, ct);
+
+            stdout.Position = 0;
+            stderr.Position = 0;
+            // Hata metni çoğu araçta stderr'de; ikisi birleştiriliyor ki
+            // kullanıcıya dönen sebep hangi akışa yazıldığına bağlı olmasın.
+            var text = await new StreamReader(stdout).ReadToEndAsync(ct)
+                       + await new StreamReader(stderr).ReadToEndAsync(ct);
+
+            return (inspect.ExitCode, text);
+        }
+    }
+
     private void TryDeleteTemp(string path)
     {
         try

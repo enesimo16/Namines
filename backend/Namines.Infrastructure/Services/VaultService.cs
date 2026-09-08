@@ -1,8 +1,10 @@
 using System;
 using System.IO;
 using System.IO.Pipelines;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
@@ -52,6 +54,12 @@ public class VaultService
     }
 
     public string StoreDescription => _store.Description;
+
+    /// <summary>Hangi motorun yedeklenebildiği ("PostgreSQL").</summary>
+    public string Engine => _provider.Engine;
+
+    /// <summary>Yedeklemenin şu an çalışabilir durumda olup olmadığı; engel varsa açıklaması.</summary>
+    public Task<string?> ProbeAsync(CancellationToken ct) => _provider.ProbeAsync(ct);
 
     /// <summary>
     /// Yedek alır.
@@ -186,6 +194,89 @@ public class VaultService
         await TryDeleteAsync(backup.StorageKey);
         _context.VaultBackups.Remove(backup);
         await _context.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Yedeğin gerçekten geri yüklenebildiğini kanıtlar (V5).
+    ///
+    /// Kullanıcının veritabanına dokunmaz; sağlayıcı bunu geçici, boş bir
+    /// sunucuda yapar. Sonuç yedeğin üzerine yazılır.
+    /// </summary>
+    public async Task<VaultResult> VerifyAsync(VaultBackup backup, CancellationToken ct)
+    {
+        if (backup.Status != VaultBackupStatus.Succeeded)
+            return new VaultResult(false, "Only a successful backup can be verified.");
+
+        try
+        {
+            await using var encrypted = await _store.OpenAsync(backup.StorageKey, ct)
+                ?? throw new InvalidOperationException("The backup file is missing from storage.");
+
+            // Şifre çözme de doğrulamanın parçası: etiketi tutmayan bir dosya
+            // buraya kadar bile gelemez ve bu da geçerli bir "bozuk" cevabıdır.
+            var error = await RunVerifyPipelineAsync(encrypted, ct);
+
+            backup.VerifiedAt = error is null ? DateTime.UtcNow : null;
+            backup.VerifyError = error;
+        }
+        catch (Exception ex)
+        {
+            backup.VerifiedAt = null;
+            backup.VerifyError = Shorten(ex.Message);
+            _logger.LogWarning(ex, "Vault: {BackupId} dogrulanamadi.", backup.Id);
+        }
+
+        await _context.SaveChangesAsync(CancellationToken.None);
+
+        return backup.VerifiedAt is not null
+            ? new VaultResult(true, BackupId: backup.Id)
+            : new VaultResult(false, backup.VerifyError);
+    }
+
+    /// <summary>
+    /// Saklama politikası: en yeni <paramref name="retainCount"/> OTOMATİK
+    /// yedek kalır, daha eskiler silinir.
+    ///
+    /// <b>Elle alınan ve geri yükleme öncesi yedeklere dokunulmuyor.</b>
+    /// Kullanıcının bilerek aldığı ya da bir geri yüklemenin tek geri dönüşü
+    /// olan bir yedeği otomatik bir temizliğin silmesi, temizliğin çözdüğünden
+    /// çok daha büyük bir sorun olurdu.
+    /// </summary>
+    public async Task<int> ApplyRetentionAsync(string projectId, int retainCount, CancellationToken ct)
+    {
+        if (retainCount < 1) return 0;
+
+        var expired = await _context.VaultBackups
+            .Where(b => b.ProjectId == projectId && b.Kind == VaultBackupKind.Scheduled)
+            .OrderByDescending(b => b.CreatedAt)
+            .Skip(retainCount)
+            .ToListAsync(ct);
+
+        foreach (var backup in expired)
+        {
+            await TryDeleteAsync(backup.StorageKey);
+            _context.VaultBackups.Remove(backup);
+        }
+
+        if (expired.Count > 0) await _context.SaveChangesAsync(ct);
+        return expired.Count;
+    }
+
+    /// <summary>Şifreli akışı çözüp sağlayıcının doğrulamasına verir.</summary>
+    private async Task<string?> RunVerifyPipelineAsync(Stream encrypted, CancellationToken ct)
+    {
+        string? error = null;
+
+        await RunPipelineAsync(
+            produce: stream => encrypted.CopyToAsync(stream, ct),
+            transform: (input, output) => _cipher.DecryptAsync(input, output, ct),
+            consume: async stream =>
+            {
+                error = await _provider.VerifyAsync(stream, ct);
+                return 0L;
+            });
+
+        return error;
     }
 
     /// <summary>Şifreli akışı olduğu gibi çağırana verir (indirme).</summary>

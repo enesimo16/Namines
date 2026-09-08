@@ -15,7 +15,8 @@ import type { DeskSession } from './api';
 const API = process.env.NAMINES_API ?? 'http://localhost:5000';
 
 export type VaultBackupStatus = 'Running' | 'Succeeded' | 'Failed';
-export type VaultBackupKind = 'Manual' | 'PreRestore';
+export type VaultBackupKind = 'Manual' | 'PreRestore' | 'Scheduled';
+export type VaultCadence = 'Daily' | 'Weekly';
 
 export interface VaultBackup {
   id: string;
@@ -28,6 +29,33 @@ export interface VaultBackup {
   createdAt: string;
   completedAt: string | null;
   store: string;
+  /** Yedeğin gerçekten geri yüklenebildiğinin kanıtlandığı an; null ise kanıtlanmadı. */
+  verifiedAt: string | null;
+  verifyError: string | null;
+}
+
+export interface VaultSchedule {
+  enabled: boolean;
+  cadence: VaultCadence;
+  /** Saat UTC — sunucunun saat dilimi değişse de zamanlama kaymasın diye. */
+  hourUtc: number;
+  dayOfWeek: number | null;
+  retainCount: number;
+  lastRunAt: string | null;
+}
+
+/**
+ * Vault'un çalışabilir durumda olup olmadığı.
+ *
+ * Yedekleme, API'nin bir Docker daemon'una erişmesine bağlı ve bu erişim
+ * dağıtıma göre değişiyor. Bunu ekranda söylemezsek, eksikliğin anlaşıldığı
+ * ilk an kullanıcının ilk yedek denemesi olur — yani en kötü an.
+ */
+export interface VaultHealth {
+  ok: boolean;
+  engine: string;
+  store: string;
+  problem: string | null;
 }
 
 export interface VaultBackupList {
@@ -75,6 +103,9 @@ export const vaultApi = {
   list: async (session: DeskSession): Promise<VaultBackupList> =>
     (await call(`/api/vault/${encodeURIComponent(session.projectId)}/backups`, session)).json(),
 
+  health: async (session: DeskSession): Promise<VaultHealth> =>
+    (await call('/api/vault/health', session)).json(),
+
   restores: async (session: DeskSession): Promise<VaultRestore[]> =>
     (await call(`/api/vault/${encodeURIComponent(session.projectId)}/restores`, session)).json(),
 
@@ -102,6 +133,28 @@ export const vaultApi = {
       session,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmDatabaseName }) },
     )).json(),
+
+  verify: async (session: DeskSession, backupId: string): Promise<{ verified: boolean; verifiedAt: string }> =>
+    (await call(
+      `/api/vault/${encodeURIComponent(session.projectId)}/backups/${encodeURIComponent(backupId)}/verify`,
+      session, { method: 'POST' },
+    )).json(),
+
+  schedule: async (session: DeskSession): Promise<VaultSchedule> =>
+    (await call(`/api/vault/${encodeURIComponent(session.projectId)}/schedule`, session)).json(),
+
+  saveSchedule: async (session: DeskSession, schedule: VaultSchedule): Promise<VaultSchedule> =>
+    (await call(`/api/vault/${encodeURIComponent(session.projectId)}/schedule`, session, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: schedule.enabled,
+        cadence: schedule.cadence,
+        hourUtc: schedule.hourUtc,
+        dayOfWeek: schedule.dayOfWeek,
+        retainCount: schedule.retainCount,
+      }),
+    })).json(),
 
   download: async (session: DeskSession, backupId: string): Promise<{ blob: Blob; fileName: string }> => {
     const res = await call(
