@@ -91,7 +91,7 @@ public sealed record GatewayRpcRequest(
 /// </param>
 public sealed record GatewayQueryRequest(
     string ConnectionString, string DbType, string Sql,
-    bool ReadOnly = true);
+    bool ReadOnly = true, string? ProjectId = null);
 
 /// <param name="Execute">
 /// Üretilen SQL çalıştırılsın mı? Varsayılan <b>false</b>: doğal dilden üretilen
@@ -101,7 +101,7 @@ public sealed record GatewayQueryRequest(
 /// </param>
 public sealed record GatewayNlQueryRequest(
     string ConnectionString, string DbType, string Question,
-    bool Execute = false);
+    bool Execute = false, string? ProjectId = null);
 
 /// <summary>
 /// G14 — Minimal Gateway. Şemadan otomatik salt-okunur REST (liste + detay).
@@ -1001,9 +1001,12 @@ public class GatewayController : ControllerBase
     [HttpPost("query")]
     public async Task<IActionResult> Query([FromBody] GatewayQueryRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.Sql))
-            return BadRequest(new { message = "Connection string and SQL are required." });
+        if (string.IsNullOrWhiteSpace(request.Sql))
+            return BadRequest(new { message = "SQL is required." });
 
+        // Yetki kontrolü bağlantı kontrolünden ÖNCE: ham SQL hakkı olmayan bir
+        // anahtar, "bağlantı dizesi eksik" (400) cevabı alıyordu. Yanlış cevap —
+        // bağlantıyı düzeltmek yetkiyi vermez ve arayan yanlış yeri arar.
         var (allowed, failure, key) = await AuthorizeForSqlAsync(cancellationToken);
         if (!allowed) return failure!;
 
@@ -1011,6 +1014,16 @@ public class GatewayController : ControllerBase
         // "her şeyi oku" demek, "her şeyi değiştir" demek değil.
         if (!request.ReadOnly && key is not null && !key.CanWrite)
             return StatusCode(403, new { message = "This API key may run read-only SQL only." });
+
+        // list/detail gibi projeye kayıtlı şifreli bağlantıyı da çözer. Önceden
+        // yalnızca gövdedeki dizeyi kabul ediyordu: bağlantısını Namines'e emanet
+        // etmiş bir kullanıcı, ham SQL için onu tekrar ağa çıkarmak zorundaydı.
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, key,
+            forWrite: !request.ReadOnly, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
 
         // Salt-okunur sorgular kaydedilmiyor: bir raporlama panelinin her
         // yenilenmesini denetim kaydına yazmak, gerçek değişiklikleri gürültünün
@@ -1020,7 +1033,7 @@ public class GatewayController : ControllerBase
             return await ExecuteAsync(async () =>
             {
                 var result = await _gateway.QueryAsync(
-                    request.ConnectionString, request.DbType, request.Sql, true, cancellationToken);
+                    connectionString, effectiveDbType, request.Sql, true, cancellationToken);
                 return Ok(result);
             });
         }
@@ -1028,7 +1041,7 @@ public class GatewayController : ControllerBase
         return await AuditedAsync(key, GatewayWriteKind.Sql, null, null, null, cancellationToken, async () =>
         {
             var result = await _gateway.QueryAsync(
-                request.ConnectionString, request.DbType, request.Sql, false, cancellationToken);
+                connectionString, effectiveDbType, request.Sql, false, cancellationToken);
 
             return (Ok(result), result.AffectedRows);
         });
@@ -1050,8 +1063,8 @@ public class GatewayController : ControllerBase
     public async Task<IActionResult> NaturalLanguageQuery(
         [FromBody] GatewayNlQueryRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.Question))
-            return BadRequest(new { message = "Connection string and question are required." });
+        if (string.IsNullOrWhiteSpace(request.Question))
+            return BadRequest(new { message = "A question is required." });
 
         var (allowed, failure, key) = await AuthorizeForSqlAsync(cancellationToken);
         if (!allowed) return failure!;
@@ -1163,10 +1176,19 @@ public class GatewayController : ControllerBase
             });
         }
 
+        // Bağlantı ancak burada gerekiyor: SQL'i yalnızca GÖRMEK isteyen çağıran
+        // (Execute=false, varsayılan) bağlantı dizesi vermek zorunda kalmasın.
+        var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
+            request.ConnectionString, request.DbType, request.ProjectId, key,
+            forWrite: false, cancellationToken);
+        if (connectionFailure is not null) return connectionFailure;
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return BadRequest(new { message = "No connection: send a connection string, or store one for the project first." });
+
         return await ExecuteAsync(async () =>
         {
             var result = await _gateway.QueryAsync(
-                request.ConnectionString, request.DbType, sql, readOnly: true, cancellationToken);
+                connectionString, effectiveDbType, sql, readOnly: true, cancellationToken);
 
             return Ok(new { sql, kind = "read", executed = true, result.Rows, result.Truncated });
         });
