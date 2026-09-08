@@ -87,7 +87,10 @@ public class SchemaController : ControllerBase
             {
                 q.Id,
                 q.Text,
-                q.Options,
+                // Seçenek artık {id,label}: istemci id'yi geri gönderiyor, plan
+                // kuralları id'ye bakıyor. Görünen metnin değişmesi kuralları
+                // bozmuyor (bkz. PlanBuilder.Is).
+                Options = q.Options.Select(o => new { o.Id, o.Label }),
                 q.Why,
                 q.DefaultOption,
             }),
@@ -126,7 +129,7 @@ public class SchemaController : ControllerBase
             {
                 plan.FollowUp.Id,
                 plan.FollowUp.Text,
-                plan.FollowUp.Options,
+                Options = plan.FollowUp.Options.Select(o => new { o.Id, o.Label }),
                 plan.FollowUp.Why,
                 plan.FollowUp.DefaultOption,
             },

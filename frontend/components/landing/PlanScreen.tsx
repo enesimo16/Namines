@@ -79,16 +79,16 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
             <div className="flex flex-wrap gap-1.5 mb-6">
               {plan.followUp.options.map(option => (
                 <button
-                  key={option}
+                  key={option.id}
                   type="button"
-                  onClick={() => setFollowUpChoice(prev => (prev === option ? null : option))}
+                  onClick={() => setFollowUpChoice(prev => (prev === option.id ? null : option.id))}
                   className={`px-2.5 py-1.5 rounded-[var(--radius-control)] text-xs font-medium transition-all border ${
-                    followUpChoice === option
+                    followUpChoice === option.id
                       ? 'bg-white/[0.10] text-content-primary border-white/30'
                       : 'text-content-muted border-white/10 hover:text-content-primary hover:bg-white/[0.04]'
                   }`}
                 >
-                  {option}
+                  {option.label}
                 </button>
               ))}
             </div>

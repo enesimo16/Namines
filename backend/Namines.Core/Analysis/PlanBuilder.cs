@@ -133,23 +133,63 @@ public static class PlanBuilder
     /// </summary>
     private static void ApplyCoreAnswers(List<PlannedTable> tables, IReadOnlyDictionary<string, string> answers)
     {
-        var auth = answers.GetValueOrDefault("auth", "");
-        if (auth.Contains("simple"))
+        if (Is(answers, "auth", "simple"))
         {
             tables.Add(new PlannedTable("users", "User account — email + password."));
         }
-        else if (auth.Contains("roles"))
+        else if (Is(answers, "auth", "roles"))
         {
             tables.Add(new PlannedTable("users", "User account."));
             tables.Add(new PlannedTable("roles", "Role definition."));
             tables.Add(new PlannedTable("permissions", "What a role is allowed to do."));
         }
 
-        if (answers.GetValueOrDefault("environment", "").Contains("Production"))
+        if (Is(answers, "environment", "production"))
         {
             tables.Add(new PlannedTable("audit_logs", "Who changed what in production — the audit trail."));
         }
     }
+
+    /// <summary>
+    /// Bir soruya verilen cevap, belirtilen seçenek kimliklerinden biri mi?
+    ///
+    /// <b>Eşitlik, <c>Contains</c> değil.</b> Kurallar önce görünen seçenek
+    /// metninin içinde parça arıyordu (<c>Contains("basit")</c>); bu, bir
+    /// seçeneğin yazımını düzeltmenin tablo planlamasını sessizce bozması
+    /// demekti — metinler çevrilirken on dokuz parçanın hepsi elle
+    /// senkronlanmak zorunda kaldı. Kimlik sabittir, metin serbesttir.
+    ///
+    /// Eski istemcilerin gönderdiği görünen metin de kabul ediliyor
+    /// (bkz. <see cref="ClarifyingQuestion.ResolveOptionId"/>).
+    /// </summary>
+    private static bool Is(
+        IReadOnlyDictionary<string, string> answers, string questionId, params string[] optionIds)
+    {
+        var raw = answers.GetValueOrDefault(questionId, "");
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+
+        var resolved = QuestionsById.Value.TryGetValue(questionId, out var question)
+            ? question.ResolveOptionId(raw) ?? raw
+            : raw;
+
+        return optionIds.Contains(resolved, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Soru kimliği → soru. Cevabı seçenek kimliğine çevirmek için gerekli;
+    /// takip soruları da (<see cref="Ambiguities"/>) buraya dahil.
+    ///
+    /// <b><see cref="Lazy{T}"/> şart:</b> statik alanlar metin sırasına göre
+    /// ilkleniyor ve bu alan <see cref="Ambiguities"/>'ten ÖNCE geliyor. Doğrudan
+    /// bir sözlük olsaydı <see cref="Ambiguities"/> henüz null olurdu ve tip
+    /// ilklenirken patlardı — derleyici bunu yakalamıyor.
+    /// </summary>
+    private static readonly Lazy<Dictionary<string, ClarifyingQuestion>> QuestionsById = new(() =>
+        Enum.GetValues<ProjectArchetype>()
+            .SelectMany(ClarifyingQuestions.For)
+            .Concat(Ambiguities.Values.SelectMany(rules => rules.Select(r => r.FollowUp)))
+            .GroupBy(q => q.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal));
 
     /// <summary>İş türüne özel cevapların tabloya etkisi.</summary>
     private static readonly Dictionary<ProjectArchetype, Func<IReadOnlyDictionary<string, string>, List<PlannedTable>>> ConditionalTables = new()
@@ -157,19 +197,18 @@ public static class PlanBuilder
         [ProjectArchetype.Ecommerce] = a =>
         {
             var extra = new List<PlannedTable>();
-            if (a.GetValueOrDefault("variants", "").Contains("with variants"))
+            if (Is(a, "variants", "variants"))
             {
                 extra.Add(new PlannedTable("product_variants",
-                    a.GetValueOrDefault("variants.followup", "").Contains("share")
+                    Is(a, "variants.followup", "shared-price")
                         ? "Variants like size and colour — stock lives here, price is shared from the product."
                         : "Variants like size and colour — stock, price and SKU live here, not on the product."));
             }
-            var payment = a.GetValueOrDefault("payment", "");
-            if (payment.Contains("payment"))
+            if (Is(a, "payment", "payments", "payments-shipping"))
                 extra.Add(new PlannedTable("payments", "Payment record — SEPARATE from the order, since one order can have several payments."));
-            if (payment.Contains("shipment"))
+            if (Is(a, "payment", "payments-shipping"))
             {
-                if (a.GetValueOrDefault("payment.followup", "").Contains("carrier"))
+                if (Is(a, "payment.followup", "carrier"))
                     extra.Add(new PlannedTable("shipment_tracking", "Carrier tracking number and status."));
                 else
                     extra.Add(new PlannedTable("shipment_status", "Status only: preparing / shipped / delivered."));
@@ -179,9 +218,9 @@ public static class PlanBuilder
         [ProjectArchetype.Saas] = a =>
         {
             var extra = new List<PlannedTable>();
-            if (a.GetValueOrDefault("tenancy", "").Contains("tenant column"))
+            if (Is(a, "tenancy", "tenant-column"))
                 extra.Add(new PlannedTable("invoices",
-                    a.GetValueOrDefault("tenancy.followup", "").Contains("Per user")
+                    Is(a, "tenancy.followup", "per-user")
                         ? "Invoices are issued per user."
                         : "Invoices are issued per tenant."));
             return extra;
@@ -189,13 +228,11 @@ public static class PlanBuilder
         [ProjectArchetype.Game] = a =>
         {
             var extra = new List<PlannedTable>();
-            var mp = a.GetValueOrDefault("multiplayer", "");
-            if (mp.Contains("guild") || mp.Contains("team"))
+            if (Is(a, "multiplayer", "groups", "matchmaking"))
             {
-                var followUp = a.GetValueOrDefault("multiplayer.followup", "");
-                if (followUp.Contains("Guild"))
+                if (Is(a, "multiplayer.followup", "guild"))
                     extra.Add(new PlannedTable("guilds", "A permanent, large group of players."));
-                else if (followUp.Contains("Team"))
+                else if (Is(a, "multiplayer.followup", "team"))
                     extra.Add(new PlannedTable("teams", "A temporary, small match group."));
                 else
                 {
@@ -203,25 +240,24 @@ public static class PlanBuilder
                     extra.Add(new PlannedTable("teams", "A temporary, small match group."));
                 }
             }
-            if (mp.Contains("matchmaking"))
+            if (Is(a, "multiplayer", "matchmaking"))
                 extra.Add(new PlannedTable("matches", "The result of one match."));
 
-            // Soru kimliği "progression"; burası "progress" okuyordu, yani cevap HİÇ
-            // bulunamıyor ve envanter/görev tabloları kullanıcı ne seçerse seçsin
-            // plana hiç girmiyordu.
-            var progress = a.GetValueOrDefault("progression", "");
-            if (progress.Contains("Inventory"))
+            // Soru kimliği "progression"; burası bir ara "progress" okuyordu, yani
+            // cevap HİÇ bulunamıyor ve envanter/görev tabloları kullanıcı ne seçerse
+            // seçsin plana girmiyordu.
+            if (Is(a, "progression", "inventory", "inventory-quests"))
                 extra.Add(new PlannedTable("inventory_items", "What a player owns — grows with players × items, so keep it narrow."));
-            if (progress.Contains("quests"))
+            if (Is(a, "progression", "inventory-quests"))
                 extra.Add(new PlannedTable("quest_progress", "How far a player has got in each quest."));
             return extra;
         },
         [ProjectArchetype.Erp] = a =>
         {
             var extra = new List<PlannedTable>();
-            if (a.GetValueOrDefault("companies", "").Contains("Multiple"))
+            if (Is(a, "companies", "multi", "multi-branch"))
             {
-                extra.Add(a.GetValueOrDefault("companies.followup", "").Contains("Separate")
+                extra.Add(Is(a, "companies.followup", "separate")
                     ? new PlannedTable("warehouses", "A separate warehouse per company — stock_movements is keyed from here.")
                     : new PlannedTable("warehouses", "One shared warehouse pool across all companies."));
             }
@@ -237,49 +273,70 @@ public static class PlanBuilder
     /// geldiğinde anlamlı oluyor. "Çok oyunculu" cevabı tek başına loncalı mı
     /// takımlı mı belli etmiyor — ikisi çok farklı tablo demek.
     /// </summary>
-    private static readonly Dictionary<ProjectArchetype, (string QuestionId, string AnswerContains, ClarifyingQuestion FollowUp)[]> Ambiguities = new()
+    private static readonly Dictionary<ProjectArchetype, (string QuestionId, string[] TriggerOptionIds, ClarifyingQuestion FollowUp)[]> Ambiguities = new()
     {
         [ProjectArchetype.Game] = new[]
         {
-            ("multiplayer", "guild", new ClarifyingQuestion(
+            ("multiplayer", new[] { "groups", "matchmaking" }, new ClarifyingQuestion(
                 "multiplayer.followup",
                 "Guilds or teams?",
-                new[] { "Guild (permanent, large)", "Team (temporary, small)", "Both" },
+                new ClarifyingOption[]
+                {
+                    new("guild", "Guild (permanent, large)"),
+                    new("team", "Team (temporary, small)"),
+                    new("both", "Both"),
+                },
                 "A guild is a permanent, large group; a team is a temporary, small match group — they are different tables.",
-                "Both")),
+                "both")),
         },
         [ProjectArchetype.Ecommerce] = new[]
         {
-            ("payment", "shipment", new ClarifyingQuestion(
+            ("payment", new[] { "payments-shipping" }, new ClarifyingQuestion(
                 "payment.followup",
                 "Integrated with the carrier, or status only?",
-                new[] { "Status only (preparing / shipped / delivered)", "Integrated with the carrier API (tracking number, carrier)" },
+                new ClarifyingOption[]
+                {
+                    new("status-only", "Status only (preparing / shipped / delivered)"),
+                    new("carrier", "Integrated with the carrier API (tracking number, carrier)"),
+                },
                 "Carrier integration needs its own table for the tracking number and carrier name; status alone fits in a single column.",
-                "Status only (preparing / shipped / delivered)")),
-            ("variants", "with variants", new ClarifyingQuestion(
+                "status-only")),
+            ("variants", new[] { "variants" }, new ClarifyingQuestion(
                 "variants.followup",
                 "Will variants have their own price and SKU?",
-                new[] { "Yes, their own SKU and price", "No, they share the product's price" },
+                new ClarifyingOption[]
+                {
+                    new("own-price", "Yes, their own SKU and price"),
+                    new("shared-price", "No, they share the product's price"),
+                },
                 "Variants with their own price add price/SKU columns to product_variants; with a shared price those columns stay on the product.",
-                "Yes, their own SKU and price")),
+                "own-price")),
         },
         [ProjectArchetype.Saas] = new[]
         {
-            ("tenancy", "tenant column", new ClarifyingQuestion(
+            ("tenancy", new[] { "tenant-column" }, new ClarifyingQuestion(
                 "tenancy.followup",
                 "Is billing per tenant or per user?",
-                new[] { "Per tenant (one invoice covering all users)", "Per user (seat based)" },
+                new ClarifyingOption[]
+                {
+                    new("per-tenant", "Per tenant (one invoice covering all users)"),
+                    new("per-user", "Per user (seat based)"),
+                },
                 "The two need different invoices schemas — one hangs off the tenant, the other off the user.",
-                "Per tenant (one invoice covering all users)")),
+                "per-tenant")),
         },
         [ProjectArchetype.Erp] = new[]
         {
-            ("companies", "Multiple", new ClarifyingQuestion(
+            ("companies", new[] { "multi", "multi-branch" }, new ClarifyingQuestion(
                 "companies.followup",
                 "Is stock shared across companies, or separate per company?",
-                new[] { "One shared stock pool", "Separate stock per company" },
+                new ClarifyingOption[]
+                {
+                    new("shared", "One shared stock pool"),
+                    new("separate", "Separate stock per company"),
+                },
                 "A shared pool feeds every company from one warehouse; separate stock gives each company its own warehouse and stock_movements key — splitting later means dividing existing movements by company.",
-                "Separate stock per company")),
+                "separate")),
         },
     };
 
@@ -327,13 +384,12 @@ public static class PlanBuilder
         ClarifyingQuestion? followUp = null;
         if (round < MaxRounds && Ambiguities.TryGetValue(archetype, out var rules))
         {
-            foreach (var (questionId, answerContains, question) in rules)
+            foreach (var (questionId, triggerOptionIds, question) in rules)
             {
                 // Zaten cevaplanmış bir takip sorusu tekrar sorulmuyor.
                 if (answers.ContainsKey(question.Id)) continue;
 
-                var given = answers.GetValueOrDefault(questionId, "");
-                if (given.Contains(answerContains, StringComparison.OrdinalIgnoreCase))
+                if (Is(answers, questionId, triggerOptionIds))
                 {
                     followUp = question;
                     break; // Bir turda en fazla bir ek soru — art arda sorgulamak diyaloğu yorar.
@@ -388,7 +444,9 @@ public static class PlanBuilder
         {
             if (answers.ContainsKey(q.Id)) continue;
             if (string.IsNullOrWhiteSpace(q.DefaultOption)) continue;
-            notes.Add($"{q.Text} — default: {q.DefaultOption}");
+            // Kullanıcı kimliği değil metni görmeli: "default: medium" değil
+            // "default: Medium (thousands)".
+            notes.Add($"{q.Text} — default: {q.LabelFor(q.DefaultOption)}");
         }
         return notes;
     }

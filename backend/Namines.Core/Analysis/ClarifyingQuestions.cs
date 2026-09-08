@@ -4,6 +4,21 @@ using System.Linq;
 
 namespace Namines.Core.Analysis;
 
+/// <param name="Id">
+/// Cevabın DEĞERİ — istemci bunu geri gönderir ve plan kuralları buna bakar.
+///
+/// <b>Neden ayrı bir kimlik var:</b> önce cevap olarak seçeneğin GÖRÜNEN METNİ
+/// gidiyordu ve <see cref="Namines.Core.Analysis.PlanBuilder"/> kuralları o metnin
+/// içinde parça arıyordu (<c>answers["auth"].Contains("basit")</c>). Yani bir
+/// seçeneğin yazımını düzeltmek, hiçbir uyarı vermeden tablo planlamasını
+/// bozuyordu — metinler İngilizceye çevrilirken tam olarak bu oldu, on dokuz
+/// eşleşme parçasının hepsi elle senkronlanmak zorunda kaldı.
+///
+/// Kimlik kısa ve sabit; metin serbestçe değişebilir.
+/// </param>
+/// <param name="Label">Kullanıcıya gösterilen metin. Serbestçe değiştirilebilir.</param>
+public sealed record ClarifyingOption(string Id, string Label);
+
 /// <param name="Id">Cevabı geri gönderirken kullanılan anahtar.</param>
 /// <param name="Text">Kullanıcıya sorulan soru.</param>
 /// <param name="Options">
@@ -19,13 +34,35 @@ namespace Namines.Core.Analysis;
 /// Gerekçesiz soru, doldurulacak bir form gibi hissettiriyor. "Neden
 /// soruyorsun" cevabı görünürse kullanıcı düşünerek cevaplıyor.
 /// </param>
-/// <param name="DefaultOption">Kullanıcı atlarsa varsayılacak cevap.</param>
+/// <param name="DefaultOption">
+/// Kullanıcı atlarsa varsayılacak cevabın <see cref="ClarifyingOption.Id"/>'si.
+/// </param>
 public sealed record ClarifyingQuestion(
     string Id,
     string Text,
-    IReadOnlyList<string> Options,
+    IReadOnlyList<ClarifyingOption> Options,
     string Why,
-    string? DefaultOption = null);
+    string? DefaultOption = null)
+{
+    /// <summary>Bir seçenek kimliğinin gösterilecek metni; bilinmiyorsa kimliğin kendisi.</summary>
+    public string LabelFor(string? optionId) =>
+        Options.FirstOrDefault(o => o.Id == optionId)?.Label ?? optionId ?? string.Empty;
+
+    /// <summary>
+    /// Gelen cevabı seçenek kimliğine çevirir.
+    ///
+    /// <b>Metin de kabul ediliyor</b> çünkü dağıtım sırasında elindeki eski
+    /// istemci hâlâ görünen metni gönderiyor olabilir; o istekleri reddetmek,
+    /// kullanıcıya sebepsiz boş bir plan göstermek olurdu.
+    /// </summary>
+    public string? ResolveOptionId(string? answer)
+    {
+        if (string.IsNullOrWhiteSpace(answer)) return null;
+        if (Options.Any(o => o.Id == answer)) return answer;
+        return Options.FirstOrDefault(o =>
+            string.Equals(o.Label, answer, StringComparison.OrdinalIgnoreCase))?.Id;
+    }
+}
 
 /// <summary>
 /// İlk prompt'tan sonra sorulacak sorular — <b>AI KULLANMADAN.</b>
@@ -60,23 +97,38 @@ public static class ClarifyingQuestions
         new(
             Id: "scale",
             Text: "How much data will this hold?",
-            Options: new[] { "Small (a few hundred rows)", "Medium (thousands)", "Large (millions)" },
+            Options: new ClarifyingOption[]
+            {
+                new("small", "Small (a few hundred rows)"),
+                new("medium", "Medium (thousands)"),
+                new("large", "Large (millions)"),
+            },
             Why: "Large data needs an index strategy, pagination and archive tables; on a small project those are needless complexity.",
-            DefaultOption: "Medium (thousands)"),
+            DefaultOption: "medium"),
 
         new(
             Id: "environment",
             Text: "Where will this run?",
-            Options: new[] { "Experiment / learning", "Internal use", "Production (real customers)" },
+            Options: new ClarifyingOption[]
+            {
+                new("experiment", "Experiment / learning"),
+                new("internal", "Internal use"),
+                new("production", "Production (real customers)"),
+            },
             Why: "Production needs an audit trail, soft deletes and timestamps; on a throwaway project those slow you down.",
-            DefaultOption: "Production (real customers)"),
+            DefaultOption: "production"),
 
         new(
             Id: "auth",
             Text: "Will people sign in?",
-            Options: new[] { "No", "Yes, simple (email + password)", "Yes, with roles and permissions" },
+            Options: new ClarifyingOption[]
+            {
+                new("none", "No"),
+                new("simple", "Yes, simple (email + password)"),
+                new("roles", "Yes, with roles and permissions"),
+            },
             Why: "A role/permission model means three or four extra tables; adding it later means changing foreign keys that already exist.",
-            DefaultOption: "Yes, simple (email + password)"),
+            DefaultOption: "simple"),
     };
 
     /// <summary>İş türüne özel sorular.</summary>
@@ -85,141 +137,243 @@ public static class ClarifyingQuestions
         [ProjectArchetype.Ecommerce] = new[]
         {
             new ClarifyingQuestion("variants", "Do products come in variants (size, colour)?",
-                new[] { "No, one product is one row", "Yes, with variants" },
+                new ClarifyingOption[]
+                {
+                    new("none", "No, one product is one row"),
+                    new("variants", "Yes, with variants"),
+                },
                 "Variants split the product table in two and move stock down to the variant level — adding them later means migrating stock data.",
-                "Yes, with variants"),
+                "variants"),
             new ClarifyingQuestion("payment", "Should payments and shipping be part of the schema?",
-                new[] { "Orders only", "Also payment records", "Payments + shipment tracking" },
+                new ClarifyingOption[]
+                {
+                    new("orders-only", "Orders only"),
+                    new("payments", "Also payment records"),
+                    new("payments-shipping", "Payments + shipment tracking"),
+                },
                 "Payment and shipping have their own lifecycles; folding them into the order breaks the moment one order has two payments.",
-                "Also payment records"),
+                "payments"),
         },
 
         [ProjectArchetype.Saas] = new[]
         {
             new ClarifyingQuestion("tenancy", "How are customers kept apart?",
-                new[] { "Single customer (no separation)", "A tenant column on every table", "A separate schema per customer" },
+                new ClarifyingOption[]
+                {
+                    new("single", "Single customer (no separation)"),
+                    new("tenant-column", "A tenant column on every table"),
+                    new("schema-per-tenant", "A separate schema per customer"),
+                },
                 "This decision touches EVERY table, and changing it later means rewriting the whole schema.",
-                "A tenant column on every table"),
+                "tenant-column"),
             new ClarifyingQuestion("billing", "Should subscriptions and billing be in the schema?",
-                new[] { "No", "Plans + subscriptions", "Plans + subscriptions + usage metering" },
+                new ClarifyingOption[]
+                {
+                    new("none", "No"),
+                    new("plans", "Plans + subscriptions"),
+                    new("plans-usage", "Plans + subscriptions + usage metering"),
+                },
                 "Usage-based billing means a high-volume metering table — its indexes have to be right from day one.",
-                "Plans + subscriptions"),
+                "plans"),
         },
 
         [ProjectArchetype.Erp] = new[]
         {
             new ClarifyingQuestion("companies", "Will there be more than one company or branch?",
-                new[] { "Single company", "Multiple companies", "Multiple companies + branches" },
+                new ClarifyingOption[]
+                {
+                    new("single", "Single company"),
+                    new("multi", "Multiple companies"),
+                    new("multi-branch", "Multiple companies + branches"),
+                },
                 "Multiple companies add a separating column to nearly every table; adding it later means splitting existing data.",
-                "Single company"),
+                "single"),
             new ClarifyingQuestion("accounting", "Will accounting be integrated?",
-                new[] { "No", "Account balance tracking", "Full double-entry ledger" },
+                new ClarifyingOption[]
+                {
+                    new("none", "No"),
+                    new("balances", "Account balance tracking"),
+                    new("double-entry", "Full double-entry ledger"),
+                },
                 "A double-entry ledger needs append-only records — a different design from ordinary tables.",
-                "Account balance tracking"),
+                "balances"),
         },
 
         [ProjectArchetype.Game] = new[]
         {
             new ClarifyingQuestion("progression", "How is player progress stored?",
-                new[] { "Simple (level + score)", "Inventory + items", "Inventory + quests + achievements" },
+                new ClarifyingOption[]
+                {
+                    new("simple", "Simple (level + score)"),
+                    new("inventory", "Inventory + items"),
+                    new("inventory-quests", "Inventory + quests + achievements"),
+                },
                 "Inventory means a lot of rows per player; the shape of the progress table drives the whole game.",
-                "Inventory + items"),
+                "inventory"),
             new ClarifyingQuestion("multiplayer", "Is it multiplayer?",
-                new[] { "Single player", "Multiplayer (guild/team)", "Multiplayer + matchmaking" },
+                new ClarifyingOption[]
+                {
+                    new("single", "Single player"),
+                    new("groups", "Multiplayer (guild/team)"),
+                    new("matchmaking", "Multiplayer + matchmaking"),
+                },
                 "Guilds and matchmaking add player-to-player relation tables; in single player they just sit there empty.",
-                "Single player"),
+                "single"),
         },
 
         [ProjectArchetype.Social] = new[]
         {
             new ClarifyingQuestion("graph", "How do users connect?",
-                new[] { "Follow (one way)", "Friendship (mutual, approved)", "Both" },
+                new ClarifyingOption[]
+                {
+                    new("follow", "Follow (one way)"),
+                    new("friendship", "Friendship (mutual, approved)"),
+                    new("both", "Both"),
+                },
                 "One-way follows and approved friendships are different table shapes; changing later means converting every relation row.",
-                "Follow (one way)"),
+                "follow"),
             new ClarifyingQuestion("media", "Will posts carry media?",
-                new[] { "Text only", "Text + images", "Text + images + video" },
+                new ClarifyingOption[]
+                {
+                    new("text", "Text only"),
+                    new("images", "Text + images"),
+                    new("video", "Text + images + video"),
+                },
                 "Media means its own table and file references; embedding it in the post breaks as soon as one post has several files.",
-                "Text + images"),
+                "images"),
         },
 
         [ProjectArchetype.Fintech] = new[]
         {
             new ClarifyingQuestion("ledger", "How is money movement stored?",
-                new[] { "A simple balance column", "Transaction history + derived balance", "Double-entry ledger" },
+                new ClarifyingOption[]
+                {
+                    new("balance-column", "A simple balance column"),
+                    new("transactions", "Transaction history + derived balance"),
+                    new("double-entry", "Double-entry ledger"),
+                },
                 "Keeping the balance in a column loses money under concurrent transactions — one of the most expensive bugs to fix later.",
-                "Transaction history + derived balance"),
+                "transactions"),
             new ClarifyingQuestion("currency", "Will there be more than one currency?",
-                new[] { "Single currency", "Multiple currencies" },
+                new ClarifyingOption[]
+                {
+                    new("single", "Single currency"),
+                    new("multi", "Multiple currencies"),
+                },
                 "Multiple currencies add a unit and an exchange-rate record to every amount; adding it later means converting every amount.",
-                "Single currency"),
+                "single"),
         },
 
         [ProjectArchetype.Healthcare] = new[]
         {
             new ClarifyingQuestion("records", "How detailed are patient records?",
-                new[] { "Basics + appointments", "Diagnosis and treatment history", "Full medical record + prescriptions" },
+                new ClarifyingOption[]
+                {
+                    new("basics", "Basics + appointments"),
+                    new("history", "Diagnosis and treatment history"),
+                    new("full", "Full medical record + prescriptions"),
+                },
                 "Medical records need immutable history and a who-did-what trail — a different design from an ordinary table.",
-                "Diagnosis and treatment history"),
+                "history"),
             new ClarifyingQuestion("privacy", "Should personal health data be masked?",
-                new[] { "No", "Yes, flag the sensitive columns" },
+                new ClarifyingOption[]
+                {
+                    new("none", "No"),
+                    new("flag-sensitive", "Yes, flag the sensitive columns"),
+                },
                 "Flagged columns can be masked in the API; flagging later means the data has already been read.",
-                "Yes, flag the sensitive columns"),
+                "flag-sensitive"),
         },
 
         [ProjectArchetype.Education] = new[]
         {
             new ClarifyingQuestion("structure", "How is the teaching structured?",
-                new[] { "Courses + students", "Courses + lessons + assignments", "Courses + lessons + assignments + exams + grades" },
+                new ClarifyingOption[]
+                {
+                    new("courses", "Courses + students"),
+                    new("lessons", "Courses + lessons + assignments"),
+                    new("exams", "Courses + lessons + assignments + exams + grades"),
+                },
                 "Grades and exams need their own assessment model; squeezing them into the course table breaks on the second exam.",
-                "Courses + lessons + assignments"),
+                "lessons"),
         },
 
         [ProjectArchetype.Logistics] = new[]
         {
             new ClarifyingQuestion("tracking", "How detailed is tracking?",
-                new[] { "Status only", "Status + location history", "Status + location + vehicle/driver" },
+                new ClarifyingOption[]
+                {
+                    new("status", "Status only"),
+                    new("location", "Status + location history"),
+                    new("fleet", "Status + location + vehicle/driver"),
+                },
                 "Location history is a high-volume time series; get its indexes wrong and it slows down within months.",
-                "Status + location history"),
+                "location"),
         },
 
         [ProjectArchetype.Iot] = new[]
         {
             new ClarifyingQuestion("volume", "How often do readings arrive?",
-                new[] { "A few per hour", "A few per minute", "A few per second" },
+                new ClarifyingOption[]
+                {
+                    new("hourly", "A few per hour"),
+                    new("per-minute", "A few per minute"),
+                    new("per-second", "A few per second"),
+                },
                 "High frequency means partitioning the readings table and archiving old data.",
-                "A few per minute"),
+                "per-minute"),
         },
 
         [ProjectArchetype.Booking] = new[]
         {
             new ClarifyingQuestion("resource", "What is being booked?",
-                new[] { "One kind of resource (room/table)", "Several kinds of resources", "Resource + staff together" },
+                new ClarifyingOption[]
+                {
+                    new("single-kind", "One kind of resource (room/table)"),
+                    new("many-kinds", "Several kinds of resources"),
+                    new("with-staff", "Resource + staff together"),
+                },
                 "Different resource kinds do not fit one table; adding staff means checking availability on both sides.",
-                "One kind of resource (room/table)"),
+                "single-kind"),
         },
 
         [ProjectArchetype.Crm] = new[]
         {
             new ClarifyingQuestion("pipeline", "Will you track a sales process?",
-                new[] { "Contacts and companies only", "Deals + stages", "Deals + stages + activity history" },
+                new ClarifyingOption[]
+                {
+                    new("contacts", "Contacts and companies only"),
+                    new("deals", "Deals + stages"),
+                    new("deals-activity", "Deals + stages + activity history"),
+                },
                 "Stage history is its own table; a single column on the deal leaves 'which stage was this deal in, and when' unanswerable.",
-                "Deals + stages"),
+                "deals"),
         },
 
         [ProjectArchetype.Cms] = new[]
         {
             new ClarifyingQuestion("versioning", "Should content keep a version history?",
-                new[] { "No", "Yes, draft + published", "Yes, full version history" },
+                new ClarifyingOption[]
+                {
+                    new("none", "No"),
+                    new("draft-published", "Yes, draft + published"),
+                    new("full-history", "Yes, full version history"),
+                },
                 "Version history splits the content table in two; adding it later means migrating the content you already have.",
-                "Yes, draft + published"),
+                "draft-published"),
         },
 
         [ProjectArchetype.Marketplace] = new[]
         {
             new ClarifyingQuestion("payouts", "Will seller payouts be tracked?",
-                new[] { "No", "Commission + earnings", "Commission + earnings + payout history" },
+                new ClarifyingOption[]
+                {
+                    new("none", "No"),
+                    new("commission", "Commission + earnings"),
+                    new("commission-history", "Commission + earnings + payout history"),
+                },
                 "Earnings are a separate money flow from the order; folding them into the order table breaks on refunds and partial payments.",
-                "Commission + earnings"),
+                "commission"),
         },
     };
 
@@ -263,7 +417,9 @@ public static class ClarifyingQuestions
             var answer = answered ? answers![question.Id] : question.DefaultOption;
             if (string.IsNullOrWhiteSpace(answer)) continue;
 
-            lines.Add($"{question.Text} → {answer}");
+            // Modele KİMLİK değil METİN gidiyor: "tenant-column" bir dil modeline
+            // hiçbir şey anlatmaz, "A tenant column on every table" anlatır.
+            lines.Add($"{question.Text} → {question.LabelFor(question.ResolveOptionId(answer) ?? answer)}");
         }
 
         return lines.Count == 0 ? string.Empty : string.Join("\n", lines);
