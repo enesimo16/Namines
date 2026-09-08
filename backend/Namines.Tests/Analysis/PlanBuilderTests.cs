@@ -14,6 +14,78 @@ public class PlanBuilderTests
 {
     private static readonly Dictionary<string, string> NoAnswers = new();
 
+    // ── Cevaplar seçenek KİMLİĞİ taşıyor, görünen metin değil ────────────────
+
+    /// <summary>
+    /// Kural motoru artık seçeneğin kimliğine bakıyor.
+    ///
+    /// BULUNMA YERİ: metinler Türkçeden İngilizceye çevrilirken. Kurallar
+    /// <c>answers["auth"].Contains("basit")</c> gibi GÖRÜNEN METNİN içinde parça
+    /// arıyordu, dolayısıyla seçenek metinlerini değiştirmek on dokuz eşleşme
+    /// parçasını da aynı anda değiştirmeyi gerektirdi — biri unutulsaydı tablo
+    /// planlaması hiçbir uyarı vermeden bozulacaktı.
+    /// </summary>
+    [Fact]
+    public void Option_ids_drive_the_rules()
+    {
+        var plan = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string> { ["auth"] = "simple" }, round: 1);
+
+        Assert.Contains(plan.Tables, t => t.Name == "users");
+    }
+
+    /// <summary>
+    /// Dağıtım sırasında elindeki eski istemci hâlâ görünen metni gönderiyor
+    /// olabilir; o istekleri reddetmek kullanıcıya sebepsiz boş bir plan
+    /// göstermek olurdu.
+    /// </summary>
+    [Fact]
+    public void Labels_from_an_older_client_still_resolve()
+    {
+        var byId = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string> { ["auth"] = "roles" }, round: 1);
+        var byLabel = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string> { ["auth"] = "Yes, with roles and permissions" }, round: 1);
+
+        Assert.Equal(byId.Tables.Select(t => t.Name), byLabel.Tables.Select(t => t.Name));
+        Assert.Contains(byId.Tables, t => t.Name == "permissions");
+    }
+
+    /// <summary>
+    /// Kısmi metin eşleşmesi ARTIK saymıyor. Eski <c>Contains</c> mantığında
+    /// "not simple at all" cevabı <c>Contains("simple")</c>'ı geçiyor ve kullanıcı
+    /// giriş istemediğini söylemesine rağmen users tablosu ekleniyordu.
+    /// </summary>
+    [Fact]
+    public void A_partial_text_match_no_longer_counts_as_an_answer()
+    {
+        var plan = PlanBuilder.Build(ProjectArchetype.Ecommerce,
+            new Dictionary<string, string> { ["auth"] = "not simple at all" }, round: 1);
+
+        Assert.DoesNotContain(plan.Tables, t => t.Name == "users");
+    }
+
+    /// <summary>
+    /// Her sorunun varsayılanı, o sorunun seçeneklerinden birinin KİMLİĞİ olmalı.
+    /// Metin bırakılmış bir varsayılan sessizce hiçbir kurala uymaz ve kullanıcı
+    /// hiçbir şey cevaplamadığında plan eksik çıkar.
+    /// </summary>
+    [Fact]
+    public void Every_default_option_points_at_a_real_option_id()
+    {
+        foreach (var archetype in Enum.GetValues<ProjectArchetype>())
+        {
+            foreach (var q in ClarifyingQuestions.For(archetype))
+            {
+                if (q.DefaultOption is null) continue;
+
+                Assert.True(q.Options.Any(o => o.Id == q.DefaultOption),
+                    $"'{q.Id}' sorusunun varsayılanı ('{q.DefaultOption}') seçenek kimlikleri arasında yok: " +
+                    string.Join(", ", q.Options.Select(o => o.Id)));
+            }
+        }
+    }
+
     [Fact]
     public void The_same_answers_always_produce_the_same_plan()
     {

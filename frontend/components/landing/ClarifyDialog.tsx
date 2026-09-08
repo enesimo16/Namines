@@ -68,10 +68,10 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {q.options.map(option => {
-                  const isSelected = answers[q.id] === option;
+                  const isSelected = answers[q.id] === option.id;
                   return (
                     <button
-                      key={option}
+                      key={option.id}
                       type="button"
                       disabled={isGenerating}
                       onClick={() =>
@@ -81,7 +81,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
                           // yolu olmazsa kullanıcı diyaloğu kapatmak zorunda kalır.
                           const next = { ...prev };
                           if (isSelected) delete next[q.id];
-                          else next[q.id] = option;
+                          else next[q.id] = option.id;
                           return next;
                         })
                       }
@@ -91,7 +91,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
                           : 'text-content-muted border-line hover:text-content-primary hover:bg-surface-700/40'
                       }`}
                     >
-                      {option}
+                      {option.label}
                     </button>
                   );
                 })}

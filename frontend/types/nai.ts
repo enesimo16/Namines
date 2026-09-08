@@ -2,11 +2,23 @@
  * Netleştirme akışı ve Namines AI modelleri (new-phase/36 §3).
  */
 
+/**
+ * Bir cevap seçeneği.
+ *
+ * `id` cevabın DEĞERİ, `label` ekranda görünen metin. Önce cevap olarak metin
+ * gönderiliyordu ve sunucudaki plan kuralları o metnin içinde parça arıyordu —
+ * yani bir seçeneğin yazımını düzeltmek tablo planlamasını sessizce bozuyordu.
+ */
+export interface ClarifyingOption {
+  id: string;
+  label: string;
+}
+
 /** Kullanıcıya sorulan tek bir netleştirici soru. */
 export interface ClarifyingQuestion {
   id: string;
   text: string;
-  options: string[];
+  options: ClarifyingOption[];
   /**
    * Sorunun neden sorulduğu. Gerekçesiz soru, doldurulacak bir form gibi
    * hissettiriyor — kullanıcı yarıda bırakıyor.
