@@ -12,6 +12,18 @@ public enum GatewayWriteKind
     Import,
     Rpc,
     Sql,
+
+    /// <summary>
+    /// Maskeli kolon içeren bir tablodan OKUMA.
+    ///
+    /// <b>Neden yalnızca maskeli tablolar:</b> her okumayı kaydetmek kaydı
+    /// kullanılamaz hâle getirir (bir liste ekranı saniyede onlarca okuma yapar).
+    /// Maskeleme konulmuş bir kolon ise, sahibinin "bu veri hassas" dediği kolondur —
+    /// ona kimin ne zaman eriştiği tam da tutulması gereken kayıttır.
+    ///
+    /// Enum'un SONUNA eklendi: mevcut kayıtların sayısal değerleri kaymasın.
+    /// </summary>
+    Read,
 }
 
 /// <summary>

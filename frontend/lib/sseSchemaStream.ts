@@ -27,6 +27,12 @@ export interface StreamError {
   retryAfterSeconds?: string;
   /** HTTP durumu SSE bağlantısı kurulmadan önce başarısız olduysa dolu. */
   httpStatus?: number;
+  /**
+   * Makine tarafından okunabilir hata kodu (ör. `AI_NOT_CONFIGURED`).
+   * Sunucudaki kurulum eksikliğini geçici bir arızadan ayırır: birine
+   * "tekrar dene" demek doğru, diğerine yanlış yönlendirme.
+   */
+  code?: string;
 }
 
 interface StreamCallbacks {
@@ -75,14 +81,16 @@ export async function streamSchemaGeneration(
   if (!response.ok || !contentType.includes('text/event-stream')) {
     let message = `Request failed (${response.status}).`;
     let retryAfterSeconds: string | undefined;
+    let code: string | undefined;
     try {
       const body = await response.json();
       message = body?.message || message;
       retryAfterSeconds = body?.retryAfterSeconds;
+      code = body?.code;
     } catch {
       // Gövde JSON değilse varsayılan mesaj kalır.
     }
-    callbacks.onError({ message, retryAfterSeconds, httpStatus: response.status });
+    callbacks.onError({ message, retryAfterSeconds, httpStatus: response.status, code });
     return;
   }
 

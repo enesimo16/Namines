@@ -275,6 +275,14 @@ public class GatewayController : ControllerBase
         var masked = await _context.MaskedColumnsAsync(key.ProjectId, tableName, ct);
         if (masked.Count == 0) return rows;
 
+        // Hassas kolon okundu — kaydet. Denetim kaydı ÖNCEDEN yalnızca yazmaları
+        // tutuyordu: maskeli e-postaları kimin çektiği hiçbir yerde görünmüyordu,
+        // oysa maskelemeyi koymanın sebebi tam olarak o kolonun hassas olması.
+        await _context.RecordAuditAsync(
+            key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+            GatewayWriteKind.Read, tableName, rowKey: null, columns: masked,
+            affectedRows: rows.Count, succeeded: true, ct);
+
         var secret = MaskingSecret(key.ProjectId);
         var lookup = new HashSet<string>(masked, StringComparer.OrdinalIgnoreCase);
 

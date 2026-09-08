@@ -175,7 +175,17 @@ public class ChangeRequestController : ControllerBase
         // G16 — new-phase/29-DATABASE-CHANGE-REVIEW.md §3: Safe risk, proje bunu açıkça
         // opt-in etmişse insan onayı beklemeden Approved olarak açılır. Diğer her risk
         // seviyesi (Risky dahil) her zaman PendingReview'dan başlar.
-        var autoApprove = impact.OverallRisk == RiskLevel.Safe && project.AutoApproveSafeChanges;
+        //
+        // previousVersion KOŞULU ŞART: ilk talepte karşılaştırılacak bir taban yok,
+        // yani boş şemaya karşı diff alınıyor ve her şey "eklendi" görünüyor — tablo
+        // silen bir talep bile Safe çıkıyor. Otomatik onay açıkken bu, bir projedeki
+        // ilk yıkıcı değişikliğin insan görmeden onaylanması demekti.
+        //
+        // Taban yoksa risk seviyesi bir şey KANITLAMIYOR; kanıtlanmamış güvenliği
+        // onaya çevirmek bu ürünün tam olarak önlemek için var olduğu şey.
+        var autoApprove = previousVersion is not null
+                       && impact.OverallRisk == RiskLevel.Safe
+                       && project.AutoApproveSafeChanges;
         var now = DateTime.UtcNow;
 
         var changeRequest = new ChangeRequest
