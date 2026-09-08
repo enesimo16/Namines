@@ -14,6 +14,7 @@ import Logs from './Logs';
 import Analytics from './Analytics';
 import SqlConsole from './SqlConsole';
 import ApiKeys from './ApiKeys';
+import Vault from './Vault';
 import Members from './Members';
 import BulkDeleteConfirm, { BULK_DELETE_THRESHOLD } from './BulkDeleteConfirm';
 import { deploymentsApi } from '../lib/deployments';
@@ -407,6 +408,8 @@ export default function Desk({
           <SqlConsole session={session} isOwner={isOwner} allowDeskSql={allowDeskSql} onToggled={onDeskSqlToggled} />
         ) : view === 'apikeys' ? (
           <ApiKeys session={session} isOwner={isOwner} />
+        ) : view === 'vault' ? (
+          <Vault session={session} isOwner={isOwner} />
         ) : view === 'members' ? (
           <Members session={session} />
         ) : (

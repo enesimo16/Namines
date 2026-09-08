@@ -28,6 +28,8 @@ namespace Namines.Infrastructure.Data
         public DbSet<TeamInvite> TeamInvites { get; set; } = null!;
         public DbSet<DeskHandoffToken> DeskHandoffTokens { get; set; } = null!;
         public DbSet<CrossDatabaseRelation> CrossDatabaseRelations { get; set; } = null!;
+        public DbSet<VaultBackup> VaultBackups { get; set; } = null!;
+        public DbSet<VaultRestore> VaultRestores { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -338,6 +340,14 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<CrossDatabaseRelation>()
                 .HasIndex(r => r.TargetProjectId);
+
+            // Yedek listesi her zaman "bu projenin, en yenisi ustte" seklinde
+            // okunuyor; tek kolon indeksi siralamayi kapsamazdi.
+            builder.Entity<VaultBackup>()
+                .HasIndex(b => new { b.ProjectId, b.CreatedAt });
+
+            builder.Entity<VaultRestore>()
+                .HasIndex(r => new { r.ProjectId, r.StartedAt });
         }
     }
 }

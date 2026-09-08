@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Database, Search, ChevronsUpDown, LayoutGrid, Workflow, Table2, Terminal,
   GitBranch, ScrollText, BarChart3, Users, KeyRound, PanelLeftClose, PanelLeftOpen,
-  LogOut, ExternalLink, LifeBuoy, ArrowLeftRight, Lock, Menu, Check, Plug,
+  LogOut, ExternalLink, LifeBuoy, ArrowLeftRight, Lock, Menu, Check, Plug, Archive,
 } from 'lucide-react';
 import { type DeskView, VIEW_LABELS, decodeSessionUser, initialsOf } from '../lib/nav';
 import type { DeskTable } from '../lib/schema';
@@ -42,6 +42,7 @@ const NAV_GROUPS: { label: string; items: NavEntry[] }[] = [
       { view: 'deployments', icon: GitBranch, needsProject: true },
       { view: 'logs', icon: ScrollText, needsProject: true },
       { view: 'analytics', icon: BarChart3, needsProject: true },
+      { view: 'vault', icon: Archive, needsProject: true },
     ],
   },
   {
