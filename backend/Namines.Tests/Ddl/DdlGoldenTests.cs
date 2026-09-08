@@ -23,7 +23,7 @@ namespace Namines.Tests.Ddl;
 /// </summary>
 public class DdlGoldenTests
 {
-    /// <summary>Golden dosyası üretilen motorlar (Db2/Firebird/Spanner/Redshift başka bir üreticiye takma ad).</summary>
+    /// <summary>Golden dosyası üretilen motorlar — desteklenen motorların tamamı.</summary>
     private static readonly DatabaseType[] Engines =
     [
         DatabaseType.MSSQL,

@@ -22,6 +22,7 @@ public static class SchemaFixtures
         yield return ("04-self-referencing", SelfReferencing());
         yield return ("05-multi-cascade-path", MultiCascadePath());
         yield return ("06-indexes-constraints", IndexesAndConstraints());
+        yield return ("07-timestamp-default", TimestampDefault());
     }
 
     public static DatabaseSchema ByName(string name) =>
@@ -284,6 +285,28 @@ public static class SchemaFixtures
     // ── Yardımcılar ───────────────────────────────────────────────────────────
     // StableUuid açıkça veriliyor: modelin varsayılanı Guid.NewGuid() olduğu için
     // aksi halde her çalıştırmada değişir ve snapshot testleri anlamsızlaşır.
+
+    // ── 07 — Zaman tipleri + veritabanı üretimli varsayılan ───────────────────
+    // Amaç: kanonik TIMESTAMP/DATETIME'ın her motorda ÇALIŞTIRILABİLİR bir tipe
+    // çevrildiğini sabitlemek.
+    //
+    // 01-06 fixture'larının hepsi DATETIME2 kullanıyordu, bu yüzden T-SQL'in
+    // "timestamp = rowversion" tuzağı hiçbir golden dosyada görünmüyordu — oysa
+    // şablonların ve AI çıktısının varsayılan zaman tipi TIMESTAMP. Sonuç: SQL Server
+    // seçen kullanıcı çalıştırılamayan DDL alıyordu.
+    public static DatabaseSchema TimestampDefault() => new()
+    {
+        SchemaId = "fixture-07",
+        Name = "TimestampDefault",
+        Tables =
+        {
+            Table("t_event", "events",
+                Col("c_event_id", "id", "INT", isPk: true),
+                Col("c_event_name", "name", "VARCHAR", length: 120),
+                Col("c_event_created", "created_at", "TIMESTAMP", defaultValue: "CURRENT_TIMESTAMP"),
+                Col("c_event_seen", "last_seen_at", "DATETIME", isNullable: true))
+        }
+    };
 
     private static SchemaTable Table(string id, string name, params SchemaColumn[] columns) => new()
     {

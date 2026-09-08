@@ -33,7 +33,7 @@ namespace Namines.Infrastructure.Services;
 /// (DockerBackupService'in kullandığı) doğrudan yeniden kullan.
 ///
 /// MSSQL/PostgreSQL/MySQL: gerçek ephemeral container. SQLite: dosya tabanlı, container
-/// gerekmez. Diğer motorlar (Oracle/MariaDB/Db2/Firebird/Spanner/Redshift): resmi bir profil
+/// gerekmez. Diğer motorlar (Oracle/MariaDB): resmi bir profil
 /// yok — <see cref="TestRunResult.Supported"/>=false ile dürüstçe işaretlenir (G5 de yalnızca
 /// Postgres/MSSQL/MySQL'i gerçek container'a karşı doğrulamıştı, aynı sınır burada da geçerli).
 /// </summary>

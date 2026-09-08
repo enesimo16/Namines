@@ -18,10 +18,6 @@ const DB_PLACEHOLDERS: Record<string, string> = {
   SQLite:     'e.g., Data Source=./mydb.sqlite;',
   Oracle:     'e.g., Data Source=localhost:1521/ORCL;User Id=myUser;Password=myPassword;',
   MariaDB:    'e.g., Server=localhost;Port=3306;Database=myDb;Uid=myUser;Pwd=myPassword;',
-  Db2:        'e.g., Server=myAddress:50000;Database=myDataBase;UID=myUsername;PWD=myPassword;',
-  Firebird:   'e.g., User=SYSDBA;Password=masterkey;Database=localhost:C:/Db/myDb.fdb;',
-  Spanner:    'e.g., Project=my-project;Instance=my-instance;Database=my-db;',
-  Redshift:   'e.g., Server=my-cluster.redshift.amazonaws.com;Database=myDb;User=myUser;Password=myPassword;Port=5439;',
 };
 
 export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushModalProps) {
@@ -137,10 +133,6 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                   <option value="SQLite">SQLite</option>
                   <option value="Oracle">Oracle</option>
                   <option value="MariaDB">MariaDB</option>
-                  <option value="Db2">IBM Db2</option>
-                  <option value="Firebird">Firebird</option>
-                  <option value="Spanner">Google Spanner</option>
-                  <option value="Redshift">Amazon Redshift</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
                   <svg className="w-3.5 h-3.5 text-content-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

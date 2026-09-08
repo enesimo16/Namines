@@ -6,7 +6,24 @@ import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../ty
 import { schemaToFlow } from '../lib/schemaToFlow';
 import { getLayoutedNodes } from '../lib/autoLayout';
 
-export type DbType = 'MSSQL' | 'PostgreSQL' | 'MySQL' | 'SQLite' | 'Oracle' | 'MariaDB' | 'Db2' | 'Firebird' | 'Spanner' | 'Redshift';
+// Db2/Firebird/Spanner/Redshift kaldırıldı: arka uçta kendi DDL üreticileri yoktu,
+// istekler sessizce Oracle/SQLite/PostgreSQL üreticisine düşüyordu.
+export type DbType = 'MSSQL' | 'PostgreSQL' | 'MySQL' | 'SQLite' | 'Oracle' | 'MariaDB';
+
+export const DEFAULT_PROJECT_NAME = 'Untitled Project';
+
+/**
+ * Adı hâlâ "kullanıcı bir isim vermedi" anlamına mı geliyor?
+ *
+ * 'Yeni Proje' listede duruyor çünkü varsayılan ad İngilizceye çevrildi ve
+ * DAHA ÖNCE kaydedilmiş projeler o adı taşıyor. Listeden çıkarırsak onlar
+ * "kullanıcının seçtiği isim" sayılır ve şema yüklenirken adı ezilmez —
+ * yani eski projeler yeni şemayı aldıklarında yanlış başlıkla kalırdı.
+ */
+const PLACEHOLDER_PROJECT_NAMES = [DEFAULT_PROJECT_NAME, 'Yeni Proje', 'Shared Room Project'];
+
+const isPlaceholderProjectName = (name: string): boolean =>
+  name.trim() === '' || PLACEHOLDER_PROJECT_NAMES.includes(name);
 
 // ── UUID üretici ──────────────────────────────────────────────────────────────
 const genId = (): string =>
@@ -149,7 +166,7 @@ export const useSchemaStore = create<SchemaState>()(
       // Hafif state — persist edilir
       isGenerating: false,
       naiModel: 'nai',
-      projectName: 'Yeni Proje',
+      projectName: DEFAULT_PROJECT_NAME,
       dbType: 'MSSQL',
       promptHistory: [],
 
@@ -181,7 +198,7 @@ export const useSchemaStore = create<SchemaState>()(
         schema: null,
         nodes: [],
         edges: [],
-        projectName: 'Yeni Proje',
+        projectName: DEFAULT_PROJECT_NAME,
         dbType: 'MSSQL',
         isGenerating: false,
         isEditMode: false,
@@ -236,15 +253,15 @@ export const useSchemaStore = create<SchemaState>()(
           ? nodes.map(n => nodePositions[n.id] ? { ...n, position: nodePositions[n.id] } : n)
           : getLayoutedNodes(nodes, edges);
 
-        const currentName = get().projectName || 'Yeni Proje';
-        const isCustomName = currentName !== 'Yeni Proje' && currentName !== 'Shared Room Project' && currentName.trim() !== '';
+        const currentName = get().projectName || DEFAULT_PROJECT_NAME;
+        const isCustomName = !isPlaceholderProjectName(currentName);
 
         // We preserve the current name if preserveProjectName is true, OR if it's not explicitly false AND we already have a custom name set.
         const shouldPreserve = preserveProjectName === true || (preserveProjectName !== false && isCustomName);
 
         const newProjectName = shouldPreserve
           ? currentName
-          : ((schema.name && schema.name !== 'Yeni Proje' && schema.name !== 'Shared Room Project' && schema.name.trim() !== '')
+          : ((schema.name && !isPlaceholderProjectName(schema.name))
             ? schema.name
             : currentName);
 
@@ -567,7 +584,7 @@ export const useSchemaStore = create<SchemaState>()(
 
       importFromVision: (visionSchema) => {
         const state = get();
-        const currentSchema = state.schema || { schemaId: genId(), name: 'Yeni Proje', tables: [], relations: [] };
+        const currentSchema = state.schema || { schemaId: genId(), name: DEFAULT_PROJECT_NAME, tables: [], relations: [] };
 
         // Güvenli: AI/vision çıktısı dizi olmayabilir (obje/null) → forEach patlamasın.
         const rawTables = visionSchema.tables || (visionSchema as any).Tables;

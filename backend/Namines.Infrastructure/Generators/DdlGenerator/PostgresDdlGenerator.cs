@@ -39,7 +39,7 @@ public class PostgresDdlGenerator : IDdlGenerator
                 if (enumType is not null) type = enumType;
                 else if (generated && rawType == "INT") type = "SERIAL";
                 else if (generated && rawType == "BIGINT") type = "BIGSERIAL";
-                else type = TypeSql.Map(col.Type, col.Length, DatabaseType.PostgreSQL);
+                else type = TypeSql.Map(col.Type, col.Length, col.Scale, DatabaseType.PostgreSQL);
 
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.PostgreSQL);

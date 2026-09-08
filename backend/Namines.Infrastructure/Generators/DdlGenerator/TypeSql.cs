@@ -29,15 +29,15 @@ internal static class TypeSql
     /// Dönen değer, uzunluk/hassasiyet varsa parantezi de içerir — çağıran taraf
     /// ayrıca bir "(length)" eklememelidir.
     /// </summary>
-    public static string Map(string canonicalType, int? length, DatabaseType engine)
+    public static string Map(string canonicalType, int? length, int? scale, DatabaseType engine)
     {
         var t = (canonicalType ?? string.Empty).Trim().ToUpperInvariant();
 
         return engine switch
         {
-            DatabaseType.MSSQL => Mssql(t, length),
-            DatabaseType.PostgreSQL => Postgres(t, length),
-            DatabaseType.MySQL or DatabaseType.MariaDB => MySqlFamily(t, length),
+            DatabaseType.MSSQL => Mssql(t, length, scale),
+            DatabaseType.PostgreSQL => Postgres(t, length, scale),
+            DatabaseType.MySQL or DatabaseType.MariaDB => MySqlFamily(t, length, scale),
             _ => WithLength(t, length) // SQLite/Oracle buraya gelmez, kendi eşlemeleri var
         };
     }
@@ -45,21 +45,38 @@ internal static class TypeSql
     private static string WithLength(string type, int? length) =>
         length.HasValue ? $"{type}({length})" : type;
 
+    /// <summary>
+    /// DECIMAL/NUMERIC için hassasiyet + ölçek. Ölçek verilmemişse çıktı ESKİSİYLE
+    /// aynı kalır — mevcut golden dosyalar bozulmasın diye.
+    /// </summary>
+    private static string WithPrecision(string type, int? precision, int? scale) =>
+        precision.HasValue && scale.HasValue ? $"{type}({precision},{scale})"
+                                             : WithLength(type, precision);
+
     // ── MSSQL ────────────────────────────────────────────────────────────────
     // Çoğu kanonik tip zaten native T-SQL'dir (NVARCHAR, NTEXT, IMAGE, UNIQUEIDENTIFIER
     // hâlâ geçerli T-SQL tipleridir — bilinçli olarak dokunulmadı, mevcut golden
-    // dosyalar bozulmasın diye). Yalnızca T-SQL'de HİÇ VAR OLMAYAN 4 tip aliaslanır.
-    private static string Mssql(string t, int? length) => t switch
+    // dosyalar bozulmasın diye).
+    private static string Mssql(string t, int? length, int? scale) => t switch
     {
+        "DECIMAL" or "NUMERIC" => WithPrecision(t, length, scale),
         "BOOLEAN" => "BIT",
         "UUID" => "UNIQUEIDENTIFIER",
         "BLOB" => "VARBINARY(MAX)",
         "JSON" => "NVARCHAR(MAX)",
+
+        // T-SQL'de "timestamp" bir tarih tipi DEĞİL — rowversion'ın eski adı, yani
+        // veritabanının ürettiği 8 baytlık satır sürümü. DEFAULT da alamaz, bu yüzden
+        // olduğu gibi yazmak yalnızca yanlış tip değil, çalıştırılamayan DDL üretiyordu.
+        // DATETIME de deprecated; ikisi de DATETIME2'ye çekiliyor.
+        // Bkz. TypeMappingTests.Mssql_maps_date_time_types_to_datetime2.
+        "TIMESTAMP" or "DATETIME" => "DATETIME2",
+
         _ => WithLength(t, length)
     };
 
     // ── PostgreSQL ───────────────────────────────────────────────────────────
-    private static string Postgres(string t, int? length) => t switch
+    private static string Postgres(string t, int? length, int? scale) => t switch
     {
         "INT" => "integer",
         "BIGINT" => "bigint",
@@ -71,7 +88,7 @@ internal static class TypeSql
         "DATETIME" or "DATETIME2" or "TIMESTAMP" => "timestamp",
         "DATE" => "date",
         "TIME" => "time",
-        "DECIMAL" or "NUMERIC" => WithLength("numeric", length),
+        "DECIMAL" or "NUMERIC" => WithPrecision("numeric", length, scale),
         "FLOAT" => "double precision",
         "REAL" => "real",
         "BIT" or "BOOLEAN" => "boolean",
@@ -82,12 +99,12 @@ internal static class TypeSql
     };
 
     // ── MySQL / MariaDB ──────────────────────────────────────────────────────
-    private static string MySqlFamily(string t, int? length) => t switch
+    private static string MySqlFamily(string t, int? length, int? scale) => t switch
     {
         "NVARCHAR" => WithLength("VARCHAR", length),   // MySQL'de ayrı bir NVARCHAR yok, tablo utf8mb4
         "NTEXT" => "TEXT",
         "DATETIME2" => "DATETIME",
-        "NUMERIC" => WithLength("DECIMAL", length),
+        "NUMERIC" or "DECIMAL" => WithPrecision("DECIMAL", length, scale),
         "REAL" => "DOUBLE",
         "BIT" or "BOOLEAN" => "TINYINT(1)",            // MySQL boolean konvansiyonu
         "UNIQUEIDENTIFIER" or "UUID" => "CHAR(36)",
