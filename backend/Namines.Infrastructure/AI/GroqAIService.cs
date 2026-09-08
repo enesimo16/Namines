@@ -48,6 +48,8 @@ public class GroqAIService : IAIService
 {
     private readonly HttpClient _httpClient;
     private readonly string _modelName;
+    private const string MissingApiKeySentinel = "MISSING_API_KEY";
+
     private readonly string _groqApiKey;   // Per-request inject edilir — DefaultRequestHeaders'a yazılmaz
     private readonly IConfiguration _configuration;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -67,7 +69,11 @@ public class GroqAIService : IAIService
         var apiKey = configuration["Groq:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            apiKey = "MISSING_API_KEY";
+            // Kurucuda fırlatmak yerine işaretle: bu servis, AI gerektirmeyen uçlar
+            // (lint, derleme, dokümantasyon) için de DI'dan çözülüyor; kurulumu eksik
+            // bir sunucuda uygulamanın tamamını düşürmek doğru olmazdı.
+            // Gerçek çağrı anında AiNotConfiguredException'a dönüşür (bkz. PostAsync).
+            apiKey = MissingApiKeySentinel;
         }
 
         // API key sadece private field'da tutulur.
@@ -308,11 +314,21 @@ public class GroqAIService : IAIService
             var httpContext = _httpContextAccessor.HttpContext;
             var config = httpContext?.RequestServices.GetService(typeof(IConfiguration)) as IConfiguration;
             var geminiApiKey = config?["Gemini:ApiKey"] ?? "";
+            if (string.IsNullOrWhiteSpace(geminiApiKey))
+                throw new AiNotConfiguredException("Gemini");
+
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", geminiApiKey);
             request.RequestUri = new Uri("https://generativelanguage.googleapis.com/v1beta/openai/" + relativeUri);
         }
         else
         {
+            // Anahtar yoksa ağa HİÇ çıkma. Önceden "MISSING_API_KEY" gerçek bir istek
+            // olarak Groq'a gidiyordu: ~10 saniye bekleniyor, dış servise gereksiz yük
+            // biniyor ve sonuç yine hata oluyordu — üstelik genel bir 500 olarak, yani
+            // arayüz onu "beklenmedik hata" sayıp sessizce yutuyordu.
+            if (_groqApiKey == MissingApiKeySentinel)
+                throw new AiNotConfiguredException("Groq");
+
             // Standart Groq isteği: key per-request inject edilir (DefaultRequestHeaders KULLANILMAZ)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groqApiKey);
         }

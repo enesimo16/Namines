@@ -226,6 +226,13 @@ export default function NewProjectPage() {
               : 'Your daily AI budget is used up. It resets tomorrow.',
             'warning'
           );
+        } else if (error.code === 'AI_NOT_CONFIGURED' || error.httpStatus === 503) {
+          // Kurulum eksikliği, geçici arıza değil — "tekrar deneyin" demek yanlış
+          // yönlendirme olurdu, kullanıcı aynı duvara tekrar çarpardı.
+          showToast(
+            error.message || 'AI is not configured on this server yet.',
+            'warning',
+          );
         } else {
           showToast('An error occurred while generating the schema. Please try again.', 'error');
         }
@@ -436,11 +443,7 @@ export default function NewProjectPage() {
                      dbType === 'MySQL' ? 'MySQL' :
                      dbType === 'SQLite' ? 'SQLite' :
                      dbType === 'Oracle' ? 'Oracle' :
-                     dbType === 'MariaDB' ? 'MariaDB' :
-                     dbType === 'Db2' ? 'IBM Db2' :
-                     dbType === 'Firebird' ? 'Firebird' :
-                     dbType === 'Spanner' ? 'Google Spanner' :
-                     dbType === 'Redshift' ? 'Amazon Redshift' : dbType}
+                     dbType === 'MariaDB' ? 'MariaDB' : dbType}
                   </span>
                   <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 shrink-0 ml-1.5 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -453,11 +456,7 @@ export default function NewProjectPage() {
                       { value: 'MySQL', label: 'MySQL' },
                       { value: 'SQLite', label: 'SQLite' },
                       { value: 'Oracle', label: 'Oracle' },
-                      { value: 'MariaDB', label: 'MariaDB' },
-                      { value: 'Db2', label: 'IBM Db2' },
-                      { value: 'Firebird', label: 'Firebird' },
-                      { value: 'Spanner', label: 'Google Spanner' },
-                      { value: 'Redshift', label: 'Amazon Redshift' }
+                      { value: 'MariaDB', label: 'MariaDB' }
                     ].map(db => {
                       const isSelected = dbType === db.value;
                       return (

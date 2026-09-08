@@ -56,7 +56,17 @@ export default function ChangeRequestListPage() {
     }
     changeRequestService.listForProject(activeProjectId)
       .then(setItems)
-      .catch(() => setError('Failed to load change requests.'));
+      .catch((err) => {
+        // 404 = proje sunucuda henüz YOK, arıza değil. Şablon açıldıktan hemen
+        // sonra bu sayfaya gelindiğinde otomatik kaydetme daha tamamlanmamış
+        // oluyor ve kullanıcı ilk temasta hata ekranı görüyordu; oysa saniyeler
+        // içinde senkron bitiyor ve yenileyince her şey yerli yerinde.
+        if (err?.response?.status === 404) {
+          setItems([]);
+          return;
+        }
+        setError('Failed to load change requests.');
+      });
 
     authService.getCloudProjects()
       .then(projects => {

@@ -108,7 +108,10 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 c.CHARACTER_MAXIMUM_LENGTH,
                 c.IS_NULLABLE,
                 CASE WHEN pk.COLUMN_NAME IS NOT NULL THEN 'PRI' ELSE '' END AS COLUMN_KEY,
-                CASE WHEN fk.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS IS_FK
+                CASE WHEN fk.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS IS_FK,
+                c.COLUMN_DEFAULT,
+                c.NUMERIC_PRECISION,
+                c.NUMERIC_SCALE
             FROM INFORMATION_SCHEMA.TABLES t
             JOIN INFORMATION_SCHEMA.COLUMNS c
                 ON c.TABLE_SCHEMA = t.TABLE_SCHEMA AND c.TABLE_NAME = t.TABLE_NAME
@@ -147,7 +150,10 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 c.character_maximum_length AS CHARACTER_MAXIMUM_LENGTH,
                 c.is_nullable  AS IS_NULLABLE,
                 CASE WHEN pk.column_name IS NOT NULL THEN 'PRI' ELSE '' END AS COLUMN_KEY,
-                CASE WHEN fk.column_name IS NOT NULL THEN 1 ELSE 0 END AS IS_FK
+                CASE WHEN fk.column_name IS NOT NULL THEN 1 ELSE 0 END AS IS_FK,
+                c.column_default AS COLUMN_DEFAULT,
+                c.numeric_precision AS NUMERIC_PRECISION,
+                c.numeric_scale AS NUMERIC_SCALE
             FROM information_schema.columns c
             LEFT JOIN (
                 SELECT ku.table_name, ku.column_name
@@ -197,7 +203,158 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY src.relname, sk.ord
             """;
 
-        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql);
+        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql, LoadPostgresConstraintsAsync);
+    }
+
+    /// <summary>
+    /// UNIQUE / CHECK kısıtlarını ve index'leri okur.
+    ///
+    /// <b>Neden ayrı ve neden yalnızca PostgreSQL:</b> bu bilgi kolon sorgusunda yok;
+    /// üstelik her motorun katalog yapısı farklı. İlişkilerde de aynı kademeli yol
+    /// izlenmişti — desteklenmeyen motorda liste boş kalır, uydurma kısıt üretilmez.
+    ///
+    /// Kısıtı destekleyen index'ler (PK/UNIQUE'in arkasındaki örtük index) DIŞARIDA
+    /// bırakılıyor: aksi hâlde aynı kısıt hem UNIQUE hem CREATE INDEX olarak iki kez
+    /// üretilir ve DDL "relation already exists" ile patlar.
+    /// </summary>
+    private static async Task LoadPostgresConstraintsAsync(
+        DbConnection conn,
+        Dictionary<string, SchemaTable> tables,
+        CancellationToken ct)
+    {
+        const string constraintSql = """
+            SELECT rel.relname   AS table_name,
+                   con.contype   AS kind,
+                   con.conname   AS constraint_name,
+                   pg_get_constraintdef(con.oid) AS definition,
+                   COALESCE(
+                       (SELECT string_agg(att.attname, ',' ORDER BY k.ord)
+                        FROM unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord)
+                        JOIN pg_attribute att
+                          ON att.attrelid = con.conrelid AND att.attnum = k.attnum),
+                       '') AS column_names
+            FROM pg_constraint con
+            JOIN pg_class     rel ON rel.oid = con.conrelid
+            JOIN pg_namespace ns  ON ns.oid  = rel.relnamespace
+            WHERE ns.nspname = 'public' AND con.contype IN ('u', 'c')
+            ORDER BY rel.relname, con.conname
+            """;
+
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = constraintSql;
+            cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+
+            await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SingleResult, ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var tableName = reader.GetString(0);
+                var kind      = reader.GetValue(1)?.ToString();
+                var name      = reader.GetString(2);
+                var definition = reader.GetString(3);
+                var columns   = reader.GetString(4);
+
+                if (!tables.TryGetValue(tableName, out var table)) continue;
+
+                if (kind == "u")
+                {
+                    var columnIds = ResolveColumnIds(table, columns);
+                    if (columnIds.Count == 0) continue;
+
+                    table.Uniques.Add(new SchemaUnique
+                    {
+                        Id         = Guid.NewGuid().ToString(),
+                        StableUuid = SchemaIdentity.ForTable($"{tableName}.{name}"),
+                        Name       = name,
+                        ColumnIds  = columnIds,
+                    });
+                }
+                else if (kind == "c")
+                {
+                    // "CHECK ((views >= 0))" → "(views >= 0)"; üreticiler CHECK sözcüğünü
+                    // kendileri yazıyor, iki kez yazmak geçersiz DDL olurdu.
+                    const string prefix = "CHECK ";
+                    var expression = definition.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                        ? definition[prefix.Length..].Trim()
+                        : definition;
+
+                    table.Checks.Add(new SchemaCheck
+                    {
+                        Id         = Guid.NewGuid().ToString(),
+                        StableUuid = SchemaIdentity.ForTable($"{tableName}.{name}"),
+                        Name       = name,
+                        Expression = expression,
+                    });
+                }
+            }
+        }
+
+        const string indexSql = """
+            SELECT rel.relname AS table_name,
+                   cls.relname AS index_name,
+                   idx.indisunique AS is_unique,
+                   COALESCE(
+                       (SELECT string_agg(att.attname, ',' ORDER BY k.ord)
+                        FROM unnest(idx.indkey::int[]) WITH ORDINALITY AS k(attnum, ord)
+                        JOIN pg_attribute att
+                          ON att.attrelid = idx.indrelid AND att.attnum = k.attnum),
+                       '') AS column_names
+            FROM pg_index idx
+            JOIN pg_class     cls ON cls.oid = idx.indexrelid
+            JOIN pg_class     rel ON rel.oid = idx.indrelid
+            JOIN pg_namespace ns  ON ns.oid  = rel.relnamespace
+            WHERE ns.nspname = 'public'
+              AND NOT idx.indisprimary
+              AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conindid = idx.indexrelid)
+            ORDER BY rel.relname, cls.relname
+            """;
+
+        await using var indexCmd = conn.CreateCommand();
+        indexCmd.CommandText = indexSql;
+        indexCmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+
+        await using var indexReader = await indexCmd.ExecuteReaderAsync(CommandBehavior.SingleResult, ct);
+        while (await indexReader.ReadAsync(ct))
+        {
+            var tableName = indexReader.GetString(0);
+            var indexName = indexReader.GetString(1);
+            var isUnique  = indexReader.GetBoolean(2);
+            var columns   = indexReader.GetString(3);
+
+            if (!tables.TryGetValue(tableName, out var table)) continue;
+
+            var columnIds = ResolveColumnIds(table, columns);
+            if (columnIds.Count == 0) continue;
+
+            table.Indexes.Add(new SchemaIndex
+            {
+                Id         = Guid.NewGuid().ToString(),
+                StableUuid = SchemaIdentity.ForTable($"{tableName}.{indexName}"),
+                Name       = indexName,
+                IsUnique   = isUnique,
+                Columns    = [.. columnIds.Select(id => new SchemaIndexColumn { ColumnId = id })],
+            });
+        }
+    }
+
+    /// <summary>
+    /// Virgülle ayrılmış kolon adlarını tablodaki kolon Id'lerine çevirir. Bir ad
+    /// eşleşmezse (ifade tabanlı index gibi) TÜM kısıt atlanır — yarım bir kısıt,
+    /// hiç olmayandan daha yanıltıcıdır.
+    /// </summary>
+    private static List<string> ResolveColumnIds(SchemaTable table, string commaSeparatedNames)
+    {
+        if (string.IsNullOrWhiteSpace(commaSeparatedNames)) return [];
+
+        var ids = new List<string>();
+        foreach (var name in commaSeparatedNames.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var column = table.Columns.FirstOrDefault(
+                c => string.Equals(c.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (column is null) return [];
+            ids.Add(column.Id);
+        }
+        return ids;
     }
 
     // ── MySQL / MariaDB ───────────────────────────────────────────────────────
@@ -214,7 +371,10 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 c.CHARACTER_MAXIMUM_LENGTH,
                 c.IS_NULLABLE,
                 CASE WHEN c.COLUMN_KEY = 'PRI' THEN 'PRI' ELSE '' END AS COLUMN_KEY,
-                CASE WHEN c.COLUMN_KEY = 'MUL' THEN 1 ELSE 0 END AS IS_FK
+                CASE WHEN c.COLUMN_KEY = 'MUL' THEN 1 ELSE 0 END AS IS_FK,
+                c.COLUMN_DEFAULT,
+                c.NUMERIC_PRECISION,
+                c.NUMERIC_SCALE
             FROM information_schema.COLUMNS c
             JOIN information_schema.TABLES t
                 ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
@@ -240,7 +400,16 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 c.CHAR_LENGTH  AS CHARACTER_MAXIMUM_LENGTH,
                 c.NULLABLE     AS IS_NULLABLE,
                 CASE WHEN p.COLUMN_NAME IS NOT NULL THEN 'PRI' ELSE '' END AS COLUMN_KEY,
-                CASE WHEN f.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS IS_FK
+                CASE WHEN f.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS IS_FK,
+                -- ALL_TAB_COLUMNS.DATA_DEFAULT bir LONG kolonu ve LONG okuma
+                -- sağlayıcıya göre farklı davranıyor; burada gerçek bir Oracle'a
+                -- karşı doğrulanamadığı için BİLEREK boş bırakılıyor. Yanlış okuyup
+                -- introspection'ın tamamını düşürmektense varsayılanı eksik
+                -- bırakmak daha az zarar verir. Hassasiyet/ölçek normal kolonlar,
+                -- onlar okunuyor.
+                CAST(NULL AS VARCHAR2(4000)) AS COLUMN_DEFAULT,
+                c.DATA_PRECISION AS NUMERIC_PRECISION,
+                c.DATA_SCALE     AS NUMERIC_SCALE
             FROM ALL_TAB_COLUMNS c
             JOIN ALL_OBJECTS o
                 ON o.OBJECT_NAME = c.TABLE_NAME AND o.OWNER = c.OWNER AND o.OBJECT_TYPE = 'TABLE'
@@ -277,12 +446,17 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     /// 0=kaynak tablo · 1=kaynak kolon · 2=hedef tablo · 3=hedef kolon
     /// 4=ON DELETE kuralı · 5=ON UPDATE kuralı (4-5 null olabilir).
     /// </param>
+    /// <param name="constraintLoader">
+    /// İSTEĞE BAĞLI üçüncü adım: UNIQUE/CHECK kısıtlarını ve index'leri doldurur.
+    /// Verilmezse bu listeler boş kalır (motor bazında kademeli açılabilsin diye).
+    /// </param>
     private static async Task<DatabaseSchema> BuildSchemaAsync(
         DbConnection conn,
         string sql,
         string schemaName,
         CancellationToken ct,
-        string? relationSql = null)
+        string? relationSql = null,
+        Func<DbConnection, Dictionary<string, SchemaTable>, CancellationToken, Task>? constraintLoader = null)
     {
         var tables = new Dictionary<string, SchemaTable>(StringComparer.OrdinalIgnoreCase);
 
@@ -304,6 +478,26 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 var columnKey  = reader.IsDBNull(5) ? string.Empty : reader.GetString(5);
                 var isFk       = !reader.IsDBNull(6) && Convert.ToInt32(reader.GetValue(6)) == 1;
 
+                // 7-9 opsiyonel: eski çağrılar (test sahteleri dahil) 7 kolon döndürebilir.
+                var rawDefault = reader.FieldCount > 7 && !reader.IsDBNull(7)
+                    ? reader.GetValue(7)?.ToString()
+                    : null;
+                var precision  = reader.FieldCount > 8 && !reader.IsDBNull(8)
+                    ? Convert.ToInt32(reader.GetValue(8))
+                    : (int?)null;
+                var scale      = reader.FieldCount > 9 && !reader.IsDBNull(9)
+                    ? Convert.ToInt32(reader.GetValue(9))
+                    : (int?)null;
+
+                var canonicalType = NormalizeType(dataType);
+
+                // DECIMAL/NUMERIC'te uzunluk CHARACTER_MAXIMUM_LENGTH'te değil
+                // NUMERIC_PRECISION'da durur. Ölçeği 0 olan bir sayı zaten tam sayıdır;
+                // "(10,0)" yazmak gürültü olurdu, o yüzden yalnızca >0 taşınıyor.
+                var isNumeric = canonicalType is "DECIMAL";
+                var length = isNumeric ? (maxLen ?? precision) : maxLen;
+                var columnScale = isNumeric && scale is > 0 ? scale : null;
+
                 if (!tables.TryGetValue(tableName, out var table))
                 {
                     table = new SchemaTable
@@ -320,8 +514,10 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                     Id         = Guid.NewGuid().ToString(),
                     Name       = columnName,
                     StableUuid = SchemaIdentity.ForColumn(tableName, columnName),
-                    Type       = NormalizeType(dataType),
-                    Length     = maxLen,
+                    Type         = canonicalType,
+                    Length       = length,
+                    Scale        = columnScale,
+                    DefaultValue = NormalizeDefault(rawDefault),
                     IsPK       = columnKey == "PRI",
                     IsFK       = isFk,
                     IsNullable = nullable.Equals("YES", StringComparison.OrdinalIgnoreCase)
@@ -333,6 +529,9 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         var relations = relationSql is null
             ? []
             : await LoadRelationsAsync(conn, relationSql, tables, ct);
+
+        if (constraintLoader is not null)
+            await constraintLoader(conn, tables, ct);
 
         return new DatabaseSchema
         {
@@ -417,6 +616,60 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             "RESTRICT"    => ReferentialAction.Restrict,
             _             => ReferentialAction.NoAction,
         };
+
+    // ── Varsayılan değer normalleştirme ───────────────────────────────────────
+
+    /// <summary>
+    /// Motorların döndürdüğü ham varsayılanı, yeniden derlenebilir bir ifadeye çevirir.
+    ///
+    /// <b>Neden gerekli:</b> ham değer motora göre süsleniyor — PostgreSQL
+    /// <c>'pending'::character varying</c>, SQL Server <c>((0))</c> döndürür. Bunları
+    /// olduğu gibi DDL'e yazmak başka bir motorda çalışmaz.
+    ///
+    /// <b>Otomatik artan atlanır:</b> PostgreSQL'de <c>nextval('..._seq'::regclass)</c>
+    /// bir varsayılan değil, SERIAL'in kendisidir; taşımak <c>SERIAL DEFAULT nextval(...)</c>
+    /// gibi kendini tekrar eden ve var olmayan bir diziye işaret eden DDL üretirdi.
+    /// Aynı gerekçe SQL Server <c>IDENTITY</c> ve MySQL <c>AUTO_INCREMENT</c> için de geçerli.
+    /// </summary>
+    internal static string? NormalizeDefault(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var value = raw.Trim();
+
+        if (value.Contains("nextval(", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("AUTO_INCREMENT", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("IDENTITY", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        // SQL Server varsayılanları parantezle sarar: ((0)) → 0, (getdate()) → getdate().
+        // Fonksiyon çağrısının kendi parantezini yemesin diye yalnızca DIŞ sarmalayıcı
+        // parantezler soyuluyor.
+        while (value.Length > 2 && value[0] == '(' && value[^1] == ')' && IsWrappingPair(value))
+            value = value[1..^1].Trim();
+
+        // PostgreSQL tip niteleyicisi: 'pending'::character varying → 'pending'
+        var castIndex = value.IndexOf("::", StringComparison.Ordinal);
+        if (castIndex > 0) value = value[..castIndex].Trim();
+
+        return value.Length == 0 ? null : value;
+    }
+
+    /// <summary>İlk '(' gerçekten son ')' ile mi eşleşiyor — "(a)+(b)" yanlışlıkla soyulmasın.</summary>
+    private static bool IsWrappingPair(string value)
+    {
+        var depth = 0;
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (value[i] == '(') depth++;
+            else if (value[i] == ')')
+            {
+                depth--;
+                if (depth == 0) return i == value.Length - 1;
+            }
+        }
+        return false;
+    }
 
     // ── Tip normalleştirme ────────────────────────────────────────────────────
     // Ham DB tipini (varchar, int4, NUMBER vb.) frontend'in gösterdiği kısa

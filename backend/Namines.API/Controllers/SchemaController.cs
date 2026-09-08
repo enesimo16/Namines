@@ -400,6 +400,13 @@ public class SchemaController : ControllerBase
                 Response.Headers.RetryAfter = ex.RetryAfterSeconds;
                 return StatusCode(429, new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
             }
+            // Sunucuda anahtar yok: 500 değil 503. Arayüz 500'ü "beklenmedik" sayıp
+            // yutuyordu; bu ise gösterilebilir, eyleme çevrilebilir bir mesaj.
+            catch (AiNotConfiguredException ex)
+            {
+                await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
+                return StatusCode(503, new { code = "AI_NOT_CONFIGURED", message = ex.Message });
+            }
         }
 
         // ── Akış yolu ────────────────────────────────────────────────────────
@@ -438,6 +445,11 @@ public class SchemaController : ControllerBase
         {
             await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
             await WriteEventAsync("error", new { message = ex.Message, retryAfterSeconds = ex.RetryAfterSeconds });
+        }
+        catch (AiNotConfiguredException ex)
+        {
+            await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
+            await WriteEventAsync("error", new { code = "AI_NOT_CONFIGURED", message = ex.Message });
         }
 
         return new EmptyResult();
