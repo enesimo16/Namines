@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Data.Common;
 using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
@@ -133,7 +133,8 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY t.TABLE_NAME, c.ORDINAL_POSITION
             """;
 
-        return await BuildSchemaAsync(conn, sql, conn.Database, ct);
+        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql: null,
+            (c, t, token) => LoadCatalogAsync(c, t, MssqlCatalog, "MSSQL", token));
     }
 
     // ── PostgreSQL ────────────────────────────────────────────────────────────
@@ -203,26 +204,24 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY src.relname, sk.ord
             """;
 
-        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql, LoadPostgresConstraintsAsync);
+        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql,
+            (c, t, token) => LoadCatalogAsync(c, t, PostgresCatalog, "PostgreSQL", token));
     }
 
     /// <summary>
-    /// UNIQUE / CHECK kısıtlarını ve index'leri okur.
+    /// Bir motorun UNIQUE/CHECK ve index kataloğunu okuyan iki sorgu.
     ///
-    /// <b>Neden ayrı ve neden yalnızca PostgreSQL:</b> bu bilgi kolon sorgusunda yok;
-    /// üstelik her motorun katalog yapısı farklı. İlişkilerde de aynı kademeli yol
-    /// izlenmişti — desteklenmeyen motorda liste boş kalır, uydurma kısıt üretilmez.
-    ///
-    /// Kısıtı destekleyen index'ler (PK/UNIQUE'in arkasındaki örtük index) DIŞARIDA
-    /// bırakılıyor: aksi hâlde aynı kısıt hem UNIQUE hem CREATE INDEX olarak iki kez
-    /// üretilir ve DDL "relation already exists" ile patlar.
+    /// Satır şekli motordan bağımsız, böylece eşleme kodu tek bir yerde duruyor:
+    /// <list type="bullet">
+    /// <item><b>Constraints:</b> 0=tablo · 1=tür ('u'/'c') · 2=ad · 3=tanım · 4=virgüllü kolon adları</item>
+    /// <item><b>Indexes:</b> 0=tablo · 1=index adı · 2=benzersiz mi · 3=virgüllü kolon adları</item>
+    /// </list>
+    /// Bir motor birini veremiyorsa o alan <c>null</c> bırakılır.
     /// </summary>
-    private static async Task LoadPostgresConstraintsAsync(
-        DbConnection conn,
-        Dictionary<string, SchemaTable> tables,
-        CancellationToken ct)
-    {
-        const string constraintSql = """
+    private sealed record CatalogQueries(string? Constraints, string? Indexes);
+
+    private static readonly CatalogQueries PostgresCatalog = new(
+        Constraints: """
             SELECT rel.relname   AS table_name,
                    con.contype   AS kind,
                    con.conname   AS constraint_name,
@@ -238,8 +237,212 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             JOIN pg_namespace ns  ON ns.oid  = rel.relnamespace
             WHERE ns.nspname = 'public' AND con.contype IN ('u', 'c')
             ORDER BY rel.relname, con.conname
-            """;
+            """,
+        Indexes: """
+            SELECT rel.relname AS table_name,
+                   cls.relname AS index_name,
+                   idx.indisunique AS is_unique,
+                   COALESCE(
+                       (SELECT string_agg(att.attname, ',' ORDER BY k.ord)
+                        FROM unnest(idx.indkey::int[]) WITH ORDINALITY AS k(attnum, ord)
+                        JOIN pg_attribute att
+                          ON att.attrelid = idx.indrelid AND att.attnum = k.attnum),
+                       '') AS column_names
+            FROM pg_index idx
+            JOIN pg_class     cls ON cls.oid = idx.indexrelid
+            JOIN pg_class     rel ON rel.oid = idx.indrelid
+            JOIN pg_namespace ns  ON ns.oid  = rel.relnamespace
+            WHERE ns.nspname = 'public'
+              AND NOT idx.indisprimary
+              AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conindid = idx.indexrelid)
+            ORDER BY rel.relname, cls.relname
+            """);
 
+    /// <remarks>
+    /// <c>CHECK_CONSTRAINTS</c> görünümü MySQL 8.0.16 / MariaDB 10.2 ile geldi;
+    /// daha eski bir sunucuda bu sorgu hata verir ve <see cref="LoadCatalogAsync"/>
+    /// uyarı loglayıp kısıtsız devam eder.
+    /// </remarks>
+    private static readonly CatalogQueries MySqlCatalog = new(
+        Constraints: """
+            SELECT tc.TABLE_NAME AS table_name,
+                   CASE tc.CONSTRAINT_TYPE WHEN 'UNIQUE' THEN 'u' ELSE 'c' END AS kind,
+                   tc.CONSTRAINT_NAME AS constraint_name,
+                   COALESCE(cc.CHECK_CLAUSE, '') AS definition,
+                   COALESCE(
+                       (SELECT GROUP_CONCAT(ku.COLUMN_NAME ORDER BY ku.ORDINAL_POSITION SEPARATOR ',')
+                        FROM information_schema.KEY_COLUMN_USAGE ku
+                        WHERE ku.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+                          AND ku.CONSTRAINT_NAME   = tc.CONSTRAINT_NAME
+                          AND ku.TABLE_NAME        = tc.TABLE_NAME),
+                       '') AS column_names
+            FROM information_schema.TABLE_CONSTRAINTS tc
+            LEFT JOIN information_schema.CHECK_CONSTRAINTS cc
+                   ON cc.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+                  AND cc.CONSTRAINT_NAME   = tc.CONSTRAINT_NAME
+            WHERE tc.TABLE_SCHEMA = DATABASE()
+              AND tc.CONSTRAINT_TYPE IN ('UNIQUE', 'CHECK')
+            ORDER BY tc.TABLE_NAME, tc.CONSTRAINT_NAME
+            """,
+        // Kısıtı destekleyen index'ler dışarıda: UNIQUE zaten kısıt olarak geliyor,
+        // ikinci kez CREATE INDEX olarak üretmek "duplicate key name" ile patlar.
+        Indexes: """
+            SELECT s.TABLE_NAME AS table_name,
+                   s.INDEX_NAME AS index_name,
+                   CASE WHEN s.NON_UNIQUE = 0 THEN 1 ELSE 0 END AS is_unique,
+                   GROUP_CONCAT(s.COLUMN_NAME ORDER BY s.SEQ_IN_INDEX SEPARATOR ',') AS column_names
+            FROM information_schema.STATISTICS s
+            WHERE s.TABLE_SCHEMA = DATABASE()
+              AND s.INDEX_NAME <> 'PRIMARY'
+              AND NOT EXISTS (
+                  SELECT 1 FROM information_schema.TABLE_CONSTRAINTS tc
+                  WHERE tc.TABLE_SCHEMA    = s.TABLE_SCHEMA
+                    AND tc.TABLE_NAME      = s.TABLE_NAME
+                    AND tc.CONSTRAINT_NAME = s.INDEX_NAME)
+            GROUP BY s.TABLE_NAME, s.INDEX_NAME, s.NON_UNIQUE
+            ORDER BY s.TABLE_NAME, s.INDEX_NAME
+            """);
+
+    /// <remarks>
+    /// <c>STRING_AGG</c> SQL Server 2017 ile geldi; daha eskisinde sorgu hata verir
+    /// ve kısıtsız devam edilir (bkz. <see cref="LoadCatalogAsync"/>).
+    /// </remarks>
+    private static readonly CatalogQueries MssqlCatalog = new(
+        Constraints: """
+            SELECT t.name AS table_name,
+                   'u'    AS kind,
+                   kc.name AS constraint_name,
+                   ''      AS definition,
+                   STRING_AGG(c.name, ',') WITHIN GROUP (ORDER BY ic.key_ordinal) AS column_names
+            FROM sys.key_constraints kc
+            JOIN sys.tables  t  ON t.object_id = kc.parent_object_id
+            JOIN sys.index_columns ic ON ic.object_id = kc.parent_object_id AND ic.index_id = kc.unique_index_id
+            JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+            WHERE kc.type = 'UQ' AND SCHEMA_NAME(t.schema_id) = SCHEMA_NAME()
+            GROUP BY t.name, kc.name
+            UNION ALL
+            SELECT t.name AS table_name,
+                   'c'    AS kind,
+                   cc.name AS constraint_name,
+                   cc.definition AS definition,
+                   '' AS column_names
+            FROM sys.check_constraints cc
+            JOIN sys.tables t ON t.object_id = cc.parent_object_id
+            WHERE SCHEMA_NAME(t.schema_id) = SCHEMA_NAME()
+            """,
+        Indexes: """
+            SELECT t.name AS table_name,
+                   i.name AS index_name,
+                   CAST(i.is_unique AS int) AS is_unique,
+                   STRING_AGG(c.name, ',') WITHIN GROUP (ORDER BY ic.key_ordinal) AS column_names
+            FROM sys.indexes i
+            JOIN sys.tables t ON t.object_id = i.object_id
+            JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+            JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+            WHERE i.is_primary_key = 0
+              AND i.is_unique_constraint = 0
+              AND i.type_desc <> 'HEAP'
+              AND i.name IS NOT NULL
+              AND ic.is_included_column = 0
+              AND SCHEMA_NAME(t.schema_id) = SCHEMA_NAME()
+            GROUP BY t.name, i.name, i.is_unique
+            ORDER BY t.name, i.name
+            """);
+
+    /// <remarks>
+    /// CHECK kısıtları BİLEREK dışarıda: <c>ALL_CONSTRAINTS.SEARCH_CONDITION</c> bir
+    /// LONG kolonu ve LONG okuma sağlayıcıya göre farklı davranıyor —
+    /// <c>DATA_DEFAULT</c> ile aynı gerekçe. Gerçek bir Oracle'a karşı
+    /// doğrulanmadan okumak, çalışan introspection'ı riske atmak olurdu.
+    /// UNIQUE ve index'ler normal kolonlardan geliyor, onlar okunuyor.
+    /// </remarks>
+    private static readonly CatalogQueries OracleCatalog = new(
+        Constraints: """
+            SELECT ac.TABLE_NAME AS table_name,
+                   'u'           AS kind,
+                   ac.CONSTRAINT_NAME AS constraint_name,
+                   ''            AS definition,
+                   LISTAGG(acc.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY acc.POSITION) AS column_names
+            FROM ALL_CONSTRAINTS ac
+            JOIN ALL_CONS_COLUMNS acc
+              ON acc.CONSTRAINT_NAME = ac.CONSTRAINT_NAME AND acc.OWNER = ac.OWNER
+            WHERE ac.CONSTRAINT_TYPE = 'U'
+              AND ac.OWNER = SYS_CONTEXT('USERENV','CURRENT_SCHEMA')
+            GROUP BY ac.TABLE_NAME, ac.CONSTRAINT_NAME
+            """,
+        Indexes: """
+            SELECT ai.TABLE_NAME AS table_name,
+                   ai.INDEX_NAME AS index_name,
+                   CASE ai.UNIQUENESS WHEN 'UNIQUE' THEN 1 ELSE 0 END AS is_unique,
+                   LISTAGG(aic.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY aic.COLUMN_POSITION) AS column_names
+            FROM ALL_INDEXES ai
+            JOIN ALL_IND_COLUMNS aic
+              ON aic.INDEX_NAME = ai.INDEX_NAME AND aic.INDEX_OWNER = ai.OWNER
+            WHERE ai.OWNER = SYS_CONTEXT('USERENV','CURRENT_SCHEMA')
+              AND NOT EXISTS (
+                  SELECT 1 FROM ALL_CONSTRAINTS ac
+                  WHERE ac.OWNER = ai.OWNER
+                    AND ac.INDEX_NAME = ai.INDEX_NAME
+                    AND ac.CONSTRAINT_TYPE IN ('P', 'U'))
+            GROUP BY ai.TABLE_NAME, ai.INDEX_NAME, ai.UNIQUENESS
+            """);
+
+    /// <summary>
+    /// UNIQUE / CHECK kısıtlarını ve index'leri okur.
+    ///
+    /// <b>Neden ayrı bir adım:</b> bu bilgi kolon sorgusunda yok ve her motorun
+    /// katalog yapısı farklı. Motor başına yalnızca SQL değişiyor; eşleme ortak.
+    ///
+    /// Kısıtı destekleyen index'ler (PK/UNIQUE'in arkasındaki örtük index) DIŞARIDA
+    /// bırakılıyor: aksi hâlde aynı kısıt hem UNIQUE hem CREATE INDEX olarak iki kez
+    /// üretilir ve DDL "relation already exists" ile patlar.
+    ///
+    /// <b>Katalog sorgusu patlarsa introspection DÜŞMÜYOR</b> — uyarı loglanıp
+    /// kısıtsız devam ediliyor. Katalog görünümleri sürüme göre değişiyor (ör.
+    /// <c>information_schema.CHECK_CONSTRAINTS</c> MySQL 8.0.16 öncesinde yok,
+    /// <c>STRING_AGG</c> SQL Server 2017 öncesinde yok). Eski bir sunucuda tek bir
+    /// eksik görünüm yüzünden "veritabanını hiç okuyamadım" demek, bugüne kadar
+    /// zaten okunmayan bir bilgi için çalışan özelliği bozmak olurdu.
+    /// </summary>
+    private async Task LoadCatalogAsync(
+        DbConnection conn,
+        Dictionary<string, SchemaTable> tables,
+        CatalogQueries queries,
+        string engine,
+        CancellationToken ct)
+    {
+        if (queries.Constraints is not null)
+        {
+            try
+            {
+                await LoadConstraintRowsAsync(conn, queries.Constraints, tables, ct);
+            }
+            catch (DbException ex)
+            {
+                _logger.LogWarning(ex,
+                    "{Engine}: UNIQUE/CHECK katalogu okunamadi, kisitsiz devam ediliyor.", engine);
+            }
+        }
+
+        if (queries.Indexes is null) return;
+
+        try
+        {
+            await LoadIndexRowsAsync(conn, queries.Indexes, tables, ct);
+        }
+        catch (DbException ex)
+        {
+            _logger.LogWarning(ex,
+                "{Engine}: index katalogu okunamadi, index'siz devam ediliyor.", engine);
+        }
+    }
+
+    private static async Task LoadConstraintRowsAsync(
+        DbConnection conn,
+        string constraintSql,
+        Dictionary<string, SchemaTable> tables,
+        CancellationToken ct)
+    {
         await using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = constraintSql;
@@ -251,8 +454,11 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 var tableName = reader.GetString(0);
                 var kind      = reader.GetValue(1)?.ToString();
                 var name      = reader.GetString(2);
-                var definition = reader.GetString(3);
-                var columns   = reader.GetString(4);
+
+                // NULL'a dayanıklı: Oracle boş metni NULL sayar, yani sorgudaki
+                // '' AS definition oradan NULL olarak döner ve GetString patlardı.
+                var definition = reader.IsDBNull(3) ? string.Empty : reader.GetString(3);
+                var columns   = reader.IsDBNull(4) ? string.Empty : reader.GetString(4);
 
                 if (!tables.TryGetValue(tableName, out var table)) continue;
 
@@ -289,26 +495,14 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             }
         }
 
-        const string indexSql = """
-            SELECT rel.relname AS table_name,
-                   cls.relname AS index_name,
-                   idx.indisunique AS is_unique,
-                   COALESCE(
-                       (SELECT string_agg(att.attname, ',' ORDER BY k.ord)
-                        FROM unnest(idx.indkey::int[]) WITH ORDINALITY AS k(attnum, ord)
-                        JOIN pg_attribute att
-                          ON att.attrelid = idx.indrelid AND att.attnum = k.attnum),
-                       '') AS column_names
-            FROM pg_index idx
-            JOIN pg_class     cls ON cls.oid = idx.indexrelid
-            JOIN pg_class     rel ON rel.oid = idx.indrelid
-            JOIN pg_namespace ns  ON ns.oid  = rel.relnamespace
-            WHERE ns.nspname = 'public'
-              AND NOT idx.indisprimary
-              AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conindid = idx.indexrelid)
-            ORDER BY rel.relname, cls.relname
-            """;
+    }
 
+    private static async Task LoadIndexRowsAsync(
+        DbConnection conn,
+        string indexSql,
+        Dictionary<string, SchemaTable> tables,
+        CancellationToken ct)
+    {
         await using var indexCmd = conn.CreateCommand();
         indexCmd.CommandText = indexSql;
         indexCmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
@@ -318,8 +512,12 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         {
             var tableName = indexReader.GetString(0);
             var indexName = indexReader.GetString(1);
-            var isUnique  = indexReader.GetBoolean(2);
-            var columns   = indexReader.GetString(3);
+
+            // GetBoolean YALNIZCA PostgreSQL'de doğru: MySQL/MSSQL/Oracle bu alanı
+            // 0/1 sayı olarak döndürüyor ve GetBoolean orada InvalidCastException verir.
+            var isUnique  = !indexReader.IsDBNull(2) && Convert.ToBoolean(
+                                indexReader.GetValue(2) is bool b ? b : Convert.ToInt32(indexReader.GetValue(2)) != 0);
+            var columns   = indexReader.IsDBNull(3) ? string.Empty : indexReader.GetString(3);
 
             if (!tables.TryGetValue(tableName, out var table)) continue;
 
@@ -383,7 +581,8 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION
             """;
 
-        return await BuildSchemaAsync(conn, sql, conn.Database, ct);
+        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql: null,
+            (c, t, token) => LoadCatalogAsync(c, t, MySqlCatalog, "MySQL", token));
     }
 
     // ── Oracle ────────────────────────────────────────────────────────────────
@@ -431,7 +630,8 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY c.TABLE_NAME, c.COLUMN_ID
             """;
 
-        return await BuildSchemaAsync(conn, sql, conn.DataSource, ct);
+        return await BuildSchemaAsync(conn, sql, conn.DataSource, ct, relationSql: null,
+            (c, t, token) => LoadCatalogAsync(c, t, OracleCatalog, "Oracle", token));
     }
 
     // ── Shared result builder ─────────────────────────────────────────────────
