@@ -4,12 +4,27 @@ import { useCallback, useEffect, useState } from 'react';
 import { type DeskSession } from '../lib/api';
 import {
   vaultApi, VaultError, formatSize, formatDuration,
-  type VaultBackup, type VaultRestore,
+  type VaultBackup, type VaultRestore, type VaultSchedule, type VaultHealth,
 } from '../lib/vault';
 import PageHead from './PageHead';
 
+/** Haftalık zamanlamada gün adları — dizideki sıra sunucudaki 0=Pazar ile aynı. */
+const DAY_NAMES = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+
+const KIND_LABELS: Record<VaultBackup['kind'], string> = {
+  Manual: 'Elle',
+  Scheduled: 'Otomatik',
+  PreRestore: 'Geri yükleme öncesi',
+};
+
 /**
  * Namines Vault — yedekleme ekranı.
+ *
+ * <b>Vault'un kendi sitesi yok</b>: bir arka uç modülü ve kullanıcıya bakan tek
+ * yüzü bu görünüm. Gerekçesi ve deploy şartları
+ * <c>namines-vault/02-ERISIM-VE-DEPLOY.md</c>'de.
  *
  * <b>Geri yükleme, Desk'teki en yıkıcı işlem:</b> hedef veritabanının mevcut
  * nesnelerini siler. Bu yüzden tek tıkla tetiklenmiyor — kullanıcı veritabanının
@@ -28,16 +43,24 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
+  const [schedule, setSchedule] = useState<VaultSchedule | null>(null);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [health, setHealth] = useState<VaultHealth | null>(null);
 
   // Onay kutusu: hangi yedek ve kullanıcının o ana kadar yazdığı ad.
   const [confirming, setConfirming] = useState<{ backup: VaultBackup; typed: string } | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [list, history] = await Promise.all([vaultApi.list(session), vaultApi.restores(session)]);
+      const [list, history, plan, status] = await Promise.all([
+        vaultApi.list(session), vaultApi.restores(session),
+        vaultApi.schedule(session), vaultApi.health(session),
+      ]);
       setBackups(list.backups);
       setStore(list.store);
       setRestores(history);
+      setSchedule(plan);
+      setHealth(status);
       setError(null);
     } catch (err) {
       setError(err instanceof VaultError ? err.message : 'Yedekler okunamadı.');
@@ -59,6 +82,36 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       setError(err instanceof VaultError ? err.message : 'Yedek alınamadı.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleVerify(backup: VaultBackup) {
+    setRowBusyId(backup.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await vaultApi.verify(session, backup.id);
+      setNotice('Yedek doğrulandı: geçici bir sunucuya geri yüklenip çalıştığı kanıtlandı.');
+    } catch (err) {
+      // Doğrulamanın BAŞARISIZ olması bir arayüz hatası değil, gerçek bir bulgu:
+      // yedek bozuk. Bu yüzden mesaj bastırılmıyor, listeye de yazılıyor.
+      setError(err instanceof VaultError ? err.message : 'Doğrulanamadı.');
+    } finally {
+      setRowBusyId(null);
+      await reload();
+    }
+  }
+
+  async function handleSaveSchedule(next: VaultSchedule) {
+    setSavingSchedule(true);
+    setError(null);
+    try {
+      setSchedule(await vaultApi.saveSchedule(session, next));
+      setNotice('Otomatik yedek ayarı kaydedildi.');
+    } catch (err) {
+      setError(err instanceof VaultError ? err.message : 'Ayar kaydedilemedi.');
+    } finally {
+      setSavingSchedule(false);
     }
   }
 
@@ -130,11 +183,22 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
           her geri yüklemeden önce mevcut hâlin yedeği otomatik alınır.
         </>}
         actions={
-          <button className="btn btn-primary" disabled={busy} onClick={handleCreate}>
+          <button
+            className="btn btn-primary"
+            disabled={busy || health?.ok === false}
+            title={health?.problem ?? undefined}
+            onClick={handleCreate}
+          >
             {busy ? 'Çalışıyor…' : 'Şimdi yedek al'}
           </button>
         }
       />
+
+      {/* Engel varsa EN USTTE: kullanici "neden calismiyor" diye tahmin
+          yurutmek zorunda kalmasin. */}
+      {health && !health.ok && (
+        <div className="notice notice-error">{health.problem}</div>
+      )}
 
       {error && <div className="notice notice-error">{error}</div>}
       {notice && <div className="notice">{notice}</div>}
@@ -142,6 +206,88 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       {/* Yedeklerin NEREDE durduğu gizlenecek bir ayrıntı değil: v1 sunucu
           diskini kullanıyor ve kullanıcı bunu bilmeden yedeğe güvenmemeli. */}
       {store && <div className="notice">Yedekler burada saklanıyor: <code>{store}</code></div>}
+
+      {schedule && (
+        <div className="grid-wrap" style={{ padding: 10, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={schedule.enabled}
+              disabled={!isOwner || savingSchedule}
+              onChange={e => handleSaveSchedule({ ...schedule, enabled: e.target.checked })}
+            />
+            Otomatik yedek
+          </label>
+
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="vault-cadence">Sıklık</label>
+            <select
+              id="vault-cadence"
+              value={schedule.cadence}
+              disabled={!isOwner || savingSchedule}
+              onChange={e => setSchedule({
+                ...schedule,
+                cadence: e.target.value as typeof schedule.cadence,
+                // Haftalığa geçerken bir gün seçili olmak zorunda; sunucu
+                // günsüz haftalık ayarı zaten reddediyor.
+                dayOfWeek: e.target.value === 'Weekly' ? (schedule.dayOfWeek ?? 0) : null,
+              })}
+            >
+              <option value="Daily">Her gün</option>
+              <option value="Weekly">Haftada bir</option>
+            </select>
+          </div>
+
+          {schedule.cadence === 'Weekly' && (
+            <div className="field" style={{ margin: 0 }}>
+              <label htmlFor="vault-day">Gün</label>
+              <select
+                id="vault-day"
+                value={schedule.dayOfWeek ?? 0}
+                disabled={!isOwner || savingSchedule}
+                onChange={e => setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })}
+              >
+                {DAY_NAMES.map((name, index) => <option key={name} value={index}>{name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="field" style={{ margin: 0 }}>
+            {/* Saat UTC: sunucunun saat dilimi değişse de zamanlama kaymasın. */}
+            <label htmlFor="vault-hour">Saat (UTC)</label>
+            <select
+              id="vault-hour"
+              value={schedule.hourUtc}
+              disabled={!isOwner || savingSchedule}
+              onChange={e => setSchedule({ ...schedule, hourUtc: Number(e.target.value) })}
+            >
+              {HOURS.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+            </select>
+          </div>
+
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="vault-retain">Saklanacak yedek</label>
+            <input
+              id="vault-retain" type="number" min={1} max={60} style={{ width: 80 }}
+              value={schedule.retainCount}
+              disabled={!isOwner || savingSchedule}
+              onChange={e => setSchedule({ ...schedule, retainCount: Number(e.target.value) })}
+            />
+          </div>
+
+          <button className="btn" disabled={!isOwner || savingSchedule}
+                  onClick={() => handleSaveSchedule(schedule)}>
+            {savingSchedule ? 'Kaydediliyor…' : 'Ayarı kaydet'}
+          </button>
+
+          <span style={{ fontSize: 12.5, opacity: 0.75 }}>
+            {/* Saklama politikasının YALNIZCA otomatik yedekleri sildiğini söylemek
+                şart: kullanıcı elle aldığı yedeğin de silineceğini sanmasın. */}
+            Saklama sayısı yalnızca otomatik yedekleri sınırlar; elle aldıklarınıza dokunulmaz.
+            {schedule.lastRunAt && ` Son otomatik yedek: ${new Date(schedule.lastRunAt).toLocaleString('tr-TR')}.`}
+          </span>
+        </div>
+      )}
 
       {confirming && (
         <div className="notice notice-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -179,14 +325,14 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
             <thead>
               <tr>
                 <th>Tarih</th><th>Tür</th><th>Motor</th><th>Boyut</th>
-                <th>Süre</th><th>Durum</th><th style={{ textAlign: 'right' }}>İşlem</th>
+                <th>Süre</th><th>Durum</th><th>Doğrulama</th><th style={{ textAlign: 'right' }}>İşlem</th>
               </tr>
             </thead>
             <tbody>
               {backups.map(b => (
                 <tr key={b.id}>
                   <td>{new Date(b.createdAt).toLocaleString('tr-TR')}</td>
-                  <td>{b.kind === 'PreRestore' ? 'Geri yükleme öncesi' : 'Elle'}</td>
+                  <td>{KIND_LABELS[b.kind]}</td>
                   <td>{b.engine}</td>
                   <td>{b.status === 'Succeeded' ? formatSize(b.sizeBytes) : '—'}</td>
                   <td>{formatDuration(b.createdAt, b.completedAt) ?? '—'}</td>
@@ -198,7 +344,25 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
                       : <span title={b.error ?? undefined}>Başarısız</span>}
                   </td>
                   <td>
+                    {/* Üç ayrı hâl: kanıtlandı / bozuk çıktı / henüz denenmedi.
+                        Son ikisini birleştirmek, bozuk bir yedeği "sadece
+                        doğrulanmamış" gibi gösterirdi. */}
+                    {b.verifiedAt ? (
+                      <span title={`Doğrulandı: ${new Date(b.verifiedAt).toLocaleString('tr-TR')}`}>✓ Doğrulandı</span>
+                    ) : b.verifyError ? (
+                      <span title={b.verifyError}>✗ Bozuk</span>
+                    ) : '—'}
+                  </td>
+                  <td>
                     <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                      {/* Doğrulama geçici bir sunucuda yapılıyor, projenin
+                          veritabanına dokunmuyor — bu yüzden Owner şartı yok. */}
+                      {b.status === 'Succeeded' && (
+                        <button className="btn btn-sm" disabled={rowBusyId === b.id || busy}
+                                onClick={() => handleVerify(b)}>
+                          {rowBusyId === b.id ? 'Deneniyor…' : 'Doğrula'}
+                        </button>
+                      )}
                       {b.status === 'Succeeded' && isOwner && (
                         <>
                           <button className="btn btn-sm" disabled={rowBusyId === b.id || busy}

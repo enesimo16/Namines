@@ -4,7 +4,16 @@
 > sorusunu cevaplıyor; bu doküman **nasıl** sorusunu — iş paketleri, dosya
 > dosya yapı, veri modeli, API sözleşmesi ve her adımın kabul kanıtı.
 >
-> **Durum:** kod yok. Ön koşul: Desk v2 bitti.
+> **Durum:** **V0–V5 tamamlandı ve canlı doğrulandı.** Erişim modeli ve deploy
+> şartları için [`02-ERISIM-VE-DEPLOY.md`](02-ERISIM-VE-DEPLOY.md).
+>
+> Planla arasındaki iki bilinçli fark, aşağıdaki iş paketlerinde de not edildi:
+> yedekler S3 yerine **sunucu diskinde** (`IBackupStore` arkasında, sağlayıcı
+> seçimi hâlâ açık karar) ve kayıt yazımı `IVaultRecordStore` yerine
+> **`Namines.Infrastructure`'daki `VaultService`** üzerinden — modül sınırı
+> yine de korunuyor, `Namines.Vault` `Namines.Infrastructure`'ı görmüyor.
+>
+> Kalanlar: MySQL (V6), kısmi geri yükleme, nesne depo uygulaması.
 >
 > **Biçim:** `namines_desk/10-DESK-V2-YOL-HARITASI.md` ile aynı — numaralı iş
 > paketi, her birinde *bugünkü durum → yapılacak → kabul kriteri*.

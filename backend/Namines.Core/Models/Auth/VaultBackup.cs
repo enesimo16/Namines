@@ -27,6 +27,17 @@ public enum VaultBackupKind
     /// bir işlem olurdu. Bu tür ayrı tutuluyor ki listede karışmasın.
     /// </summary>
     PreRestore,
+
+    /// <summary>
+    /// Zamanlamanın otomatik aldığı yedek.
+    ///
+    /// <b>Saklama politikası YALNIZCA bu türü siler.</b> Elle alınan ve geri
+    /// yükleme öncesi yedekler kullanıcının bilinçli kararlarıdır; onları
+    /// otomatik bir temizliğe kurban etmek kabul edilemez.
+    ///
+    /// Enum'un SONUNA eklendi: mevcut kayıtların sayısal değerleri kaymasın.
+    /// </summary>
+    Scheduled,
 }
 
 /// <summary>
@@ -75,4 +86,20 @@ public class VaultBackup
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? CompletedAt { get; set; }
+
+    /// <summary>
+    /// Yedeğin GERÇEKTEN geri yüklenebildiğinin kanıtlandığı an.
+    ///
+    /// <b>Neden ayrı bir alan:</b> "yedek alındı" ile "yedek işe yarar" aynı şey
+    /// değil. Bir dump bozuk, eksik ya da çözülemez olabilir ve bu yalnızca geri
+    /// yüklemeye çalışıldığında anlaşılır — yani felaket anında. Doğrulama, o
+    /// denemeyi felaketten ÖNCE, kullanıcının veritabanına dokunmadan yapıyor.
+    ///
+    /// null: henüz doğrulanmadı. Doğrulanmamış bir yedek geçersiz değil,
+    /// yalnızca kanıtlanmamış — arayüz ikisini ayırt ediyor.
+    /// </summary>
+    public DateTime? VerifiedAt { get; set; }
+
+    /// <summary>Doğrulama denendiyse ve BAŞARISIZ olduysa nedeni.</summary>
+    public string? VerifyError { get; set; }
 }

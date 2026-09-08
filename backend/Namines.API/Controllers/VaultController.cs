@@ -19,6 +19,12 @@ namespace Namines.API.Controllers;
 /// </param>
 public sealed record RestoreBackupRequest(string ConfirmDatabaseName);
 
+/// <param name="Cadence">"Daily" veya "Weekly".</param>
+/// <param name="DayOfWeek">Haftalıkta 0 (Pazar) – 6. Günlükte yok sayılır.</param>
+/// <param name="RetainCount">Saklanacak otomatik yedek sayısı.</param>
+public sealed record SaveScheduleRequest(
+    bool Enabled, string Cadence, int HourUtc, int? DayOfWeek, int RetainCount);
+
 /// <summary>
 /// Namines Vault — yedekleme ve geri yükleme uçları.
 ///
@@ -50,7 +56,21 @@ public class VaultController : ControllerBase
     /// </summary>
     [HttpGet("health")]
     [AllowAnonymous]
-    public IActionResult Health() => Ok(new { ok = true, store = _vault.StoreDescription });
+    public async Task<IActionResult> Health(CancellationToken ct)
+    {
+        var problem = await _vault.ProbeAsync(ct);
+
+        // 200 döndürülüyor, 503 değil: uç ÇALIŞIYOR ve doğru cevabı veriyor —
+        // cevap "yedekleme şu an çalışamaz". Bunu bir hata koduna çevirmek,
+        // sağlık kontrolünü okunamaz kılardı.
+        return Ok(new
+        {
+            ok = problem is null,
+            engine = _vault.Engine,
+            store = _vault.StoreDescription,
+            problem,
+        });
+    }
 
     /// <summary>Projenin yedekleri, en yenisi üstte.</summary>
     [HttpGet("{projectId}/backups")]
@@ -75,6 +95,8 @@ public class VaultController : ControllerBase
                 createdAt = b.CreatedAt,
                 completedAt = b.CompletedAt,
                 store = b.StoreDescription,
+                verifiedAt = b.VerifiedAt,
+                verifyError = b.VerifyError,
             })
             .ToListAsync(ct);
 
@@ -196,6 +218,110 @@ public class VaultController : ControllerBase
 
         await _vault.DeleteAsync(backup, ct);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Yedeğin gerçekten geri yüklenebildiğini kanıtlar (V5).
+    ///
+    /// Doğrulama geçici ve boş bir sunucuda yapılır; projenin veritabanına
+    /// dokunulmaz. Bu yüzden Owner değil, Editor yetkisi yetiyor.
+    /// </summary>
+    [HttpPost("{projectId}/backups/{backupId}/verify")]
+    public async Task<IActionResult> Verify(string projectId, string backupId, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (userId is null) return Unauthorized();
+        if (!await _context.CanEditAsync(projectId, userId, ct)) return Forbid();
+
+        var backup = await FindBackupAsync(projectId, backupId, ct);
+        if (backup is null) return NotFound();
+
+        var result = await _vault.VerifyAsync(backup, ct);
+        return result.Ok
+            ? Ok(new { verified = true, verifiedAt = backup.VerifiedAt })
+            : BadRequest(new { error = result.Error });
+    }
+
+    /// <summary>Projenin otomatik yedek ayarı. Ayar yoksa kapalı varsayılan döner.</summary>
+    [HttpGet("{projectId}/schedule")]
+    public async Task<IActionResult> GetSchedule(string projectId, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (userId is null) return Unauthorized();
+        if (!await _context.CanViewAsync(projectId, userId, ct)) return Forbid();
+
+        var schedule = await _context.VaultSchedules.FirstOrDefaultAsync(s => s.ProjectId == projectId, ct);
+
+        // Ayar yoksa 404 DEĞİL: "bu projede otomatik yedek kapalı" geçerli bir
+        // durum ve arayüzün iki ayrı hâl (yok / kapalı) yönetmesi gereksiz.
+        return Ok(new
+        {
+            enabled = schedule?.Enabled ?? false,
+            cadence = (schedule?.Cadence ?? VaultCadence.Daily).ToString(),
+            hourUtc = schedule?.HourUtc ?? 3,
+            dayOfWeek = schedule?.DayOfWeek,
+            retainCount = schedule?.RetainCount ?? 7,
+            lastRunAt = schedule?.LastRunAt,
+        });
+    }
+
+    /// <summary>
+    /// Otomatik yedek ayarını kaydeder.
+    ///
+    /// Yönetim yetkisi (Admin+): zamanlama, projenin diskini ve yedek geçmişini
+    /// kalıcı olarak etkileyen bir ayar, tekil bir veri düzenlemesi değil.
+    /// </summary>
+    [HttpPut("{projectId}/schedule")]
+    public async Task<IActionResult> SaveSchedule(
+        string projectId, [FromBody] SaveScheduleRequest request, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (userId is null) return Unauthorized();
+        if (!await _context.CanManageMembersAsync(projectId, userId, ct)) return Forbid();
+
+        if (!Enum.TryParse<VaultCadence>(request.Cadence, ignoreCase: true, out var cadence))
+            return BadRequest(new { error = "Cadence must be 'Daily' or 'Weekly'." });
+
+        if (request.HourUtc is < 0 or > 23)
+            return BadRequest(new { error = "HourUtc must be between 0 and 23." });
+
+        if (cadence == VaultCadence.Weekly && request.DayOfWeek is not (>= 0 and <= 6))
+            return BadRequest(new { error = "A weekly schedule needs DayOfWeek between 0 (Sunday) and 6." });
+
+        // Üst sınır bilinçli: saklama sayısı doğrudan disk kullanımıdır ve v1
+        // yedekleri sunucu diskinde tutuyor. Sınırsız bir sayı, tek bir projenin
+        // diski doldurmasına izin vermek olurdu.
+        if (request.RetainCount is < 1 or > 60)
+            return BadRequest(new { error = "RetainCount must be between 1 and 60." });
+
+        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        if (project is null) return NotFound();
+
+        var schedule = await _context.VaultSchedules.FirstOrDefaultAsync(s => s.ProjectId == projectId, ct);
+        if (schedule is null)
+        {
+            schedule = new VaultSchedule { ProjectId = projectId, OrganizationId = project.OrganizationId };
+            _context.VaultSchedules.Add(schedule);
+        }
+
+        schedule.Enabled = request.Enabled;
+        schedule.Cadence = cadence;
+        schedule.HourUtc = request.HourUtc;
+        schedule.DayOfWeek = cadence == VaultCadence.Weekly ? request.DayOfWeek : null;
+        schedule.RetainCount = request.RetainCount;
+        schedule.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new
+        {
+            enabled = schedule.Enabled,
+            cadence = schedule.Cadence.ToString(),
+            hourUtc = schedule.HourUtc,
+            dayOfWeek = schedule.DayOfWeek,
+            retainCount = schedule.RetainCount,
+            lastRunAt = schedule.LastRunAt,
+        });
     }
 
     /// <summary>

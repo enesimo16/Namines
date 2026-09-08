@@ -30,6 +30,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<CrossDatabaseRelation> CrossDatabaseRelations { get; set; } = null!;
         public DbSet<VaultBackup> VaultBackups { get; set; } = null!;
         public DbSet<VaultRestore> VaultRestores { get; set; } = null!;
+        public DbSet<VaultSchedule> VaultSchedules { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -348,6 +349,13 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<VaultRestore>()
                 .HasIndex(r => new { r.ProjectId, r.StartedAt });
+
+            // Proje basina EN FAZLA bir zamanlama. Ikinci bir satir, ayni proje
+            // icin gunde iki yedek demek olurdu -- ve hangisinin gecerli oldugu
+            // hicbir yerden anlasilmazdi.
+            builder.Entity<VaultSchedule>()
+                .HasIndex(s => s.ProjectId)
+                .IsUnique();
         }
     }
 }

@@ -43,4 +43,30 @@ public interface IBackupProvider
     /// Çağıranın onay ve ön yedek sorumluluğu vardır; bu katman onu doğrulamaz.
     /// </summary>
     Task RestoreAsync(RestoreSpec spec, Stream source, CancellationToken ct);
+
+    /// <summary>
+    /// Dump'ın gerçekten geri yüklenebildiğini kanıtlar.
+    ///
+    /// <b>Kullanıcının veritabanına DOKUNMAZ.</b> Geri yükleme, o iş için
+    /// ayağa kaldırılan boş ve geçici bir sunucuya yapılır; iş bitince sunucu
+    /// da silinir.
+    ///
+    /// <b>Neden dosyayı okumak yetmiyor:</b> bir dump'ın başlığı geçerli olup
+    /// içeriği bozuk olabilir. Tek gerçek kanıt, onu baştan sona uygulamaktır —
+    /// yani felaket anında yapılacak işi, felaketten önce yapmak.
+    /// </summary>
+    /// <returns>Hata metni; <c>null</c> ise doğrulama başarılı.</returns>
+    Task<string?> VerifyAsync(Stream source, CancellationToken ct);
+
+    /// <summary>
+    /// Sağlayıcının çalışabilecek durumda olup olmadığını söyler.
+    ///
+    /// <b>Neden var:</b> Vault'un çalışması Docker daemon'una erişime bağlı ve
+    /// bu erişim dağıtıma göre değişiyor (bkz. <c>02-ERISIM-VE-DEPLOY.md</c>).
+    /// Bu olmadan, eksikliğin anlaşıldığı ilk an kullanıcının ilk yedek
+    /// denemesi olurdu — yani en kötü an. Sağlık ucu bunu deploy'dan hemen
+    /// sonra tek bir istekle söylüyor.
+    /// </summary>
+    /// <returns>Engelin açıklaması; <c>null</c> ise hazır.</returns>
+    Task<string?> ProbeAsync(CancellationToken ct);
 }
