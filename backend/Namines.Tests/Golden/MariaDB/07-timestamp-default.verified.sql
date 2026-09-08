@@ -1,0 +1,8 @@
+﻿CREATE TABLE IF NOT EXISTS `events` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(120) NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_seen_at` DATETIME NULL,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

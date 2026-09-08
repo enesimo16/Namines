@@ -310,10 +310,6 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                   <option value="SQLite">SQLite</option>
                   <option value="Oracle">Oracle</option>
                   <option value="MariaDB">MariaDB</option>
-                  <option value="Db2">IBM Db2</option>
-                  <option value="Firebird">Firebird</option>
-                  <option value="Spanner">Google Spanner</option>
-                  <option value="Redshift">Amazon Redshift</option>
                 </select>
               </div>
 

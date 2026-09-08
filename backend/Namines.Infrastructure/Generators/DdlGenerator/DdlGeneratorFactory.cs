@@ -21,10 +21,10 @@ public class DdlGeneratorFactory : IDdlGeneratorFactory
             DatabaseType.SQLite     => new SqliteDdlGenerator(),
             DatabaseType.Oracle     => new OracleDdlGenerator(),
             DatabaseType.MariaDB    => new MariaDbDdlGenerator(),
-            DatabaseType.Db2        => new OracleDdlGenerator(),
-            DatabaseType.Firebird   => new SqliteDdlGenerator(),
-            DatabaseType.Spanner    => new PostgresDdlGenerator(),
-            DatabaseType.Redshift   => new PostgresDdlGenerator(),
+
+            // Yeni bir motor eklerken kendi üreticisini yaz — var olan bir üreticiye
+            // takma ad vermek sessizce yanlış DDL üretir (Db2/Firebird/Spanner/Redshift
+            // tam olarak böyle kaldırıldı, bkz. DatabaseType).
             _ => throw new NotImplementedException($"DDL generator for {dbType} is not implemented.")
         };
     }

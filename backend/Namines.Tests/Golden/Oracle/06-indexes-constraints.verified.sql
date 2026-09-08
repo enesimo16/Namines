@@ -1,10 +1,10 @@
 ﻿CREATE TABLE "Users" (
     "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
     "Email" NVARCHAR2(255) NOT NULL,
-    "CountryCode" CHAR(2) NOT NULL DEFAULT 'TR',
+    "CountryCode" CHAR(2) DEFAULT 'TR' NOT NULL,
     "Age" NUMBER(10) NULL,
-    "CreatedAt" NVARCHAR2(255) NOT NULL,
-    "DeletedAt" NVARCHAR2(255) NULL,
+    "CreatedAt" TIMESTAMP NOT NULL,
+    "DeletedAt" TIMESTAMP NULL,
     CONSTRAINT "PK_Users" PRIMARY KEY ("Id"),
     CONSTRAINT "UQ_Users_Email" UNIQUE ("Email"),
     CONSTRAINT "CK_Users_Age" CHECK ("Age" IS NULL OR "Age" >= 0)

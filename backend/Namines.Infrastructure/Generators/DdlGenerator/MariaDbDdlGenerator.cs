@@ -31,7 +31,7 @@ public class MariaDbDdlGenerator : IDdlGenerator
                 // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
                 // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
                 var sqlType = EnumSql.ColumnType(col, schema, DatabaseType.MariaDB)
-                              ?? TypeSql.Map(col.Type, col.Length, DatabaseType.MariaDB);
+                              ?? TypeSql.Map(col.Type, col.Length, col.Scale, DatabaseType.MariaDB);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.MariaDB);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue)

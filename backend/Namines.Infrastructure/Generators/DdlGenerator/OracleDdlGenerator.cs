@@ -33,7 +33,7 @@ public class OracleDdlGenerator : IDdlGenerator
                 // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
                 // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
                 var oracleType = EnumSql.ColumnType(col, schema, DatabaseType.Oracle)
-                              ?? MapToOracleType(col.Type, col.Length);
+                              ?? MapToOracleType(col.Type, col.Length, col.Scale);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.Oracle);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue)
@@ -55,7 +55,11 @@ public class OracleDdlGenerator : IDdlGenerator
 
                 lines.Add(generatedDef is not null
                     ? $"    \"{col.Name}\" {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.Oracle) ? oracleType + " " : string.Empty)}{generatedDef}"
-                    : $"    \"{col.Name}\" {oracleType}{identityStr}{collate} {nullStr}{defaultStr}");
+                    // Oracle'da sıra bağlayıcı: tip DEFAULT ifade NOT NULL.
+                    // Ters sıra ORA-00907 ile reddedilir; diğer beş motorda ise
+                    // "NOT NULL DEFAULT" geçerli, o yüzden yalnızca burası farklı.
+                    // Bkz. TypeMappingTests.Oracle_puts_default_before_not_null.
+                    : $"    \"{col.Name}\" {oracleType}{identityStr}{collate}{defaultStr} {nullStr}");
             }
 
             // Inline PK constraint
@@ -112,20 +116,27 @@ public class OracleDdlGenerator : IDdlGenerator
     private static bool IsNumericType(string type) =>
         type.ToUpperInvariant() is "INT" or "INTEGER" or "NUMBER" or "BIGINT" or "SMALLINT";
 
-    private static string MapToOracleType(string type, int? length)
+    private static string MapToOracleType(string type, int? length, int? scale = null)
     {
         return type.ToUpperInvariant() switch
         {
             "INT" or "INTEGER" or "SMALLINT" or "TINYINT" => "NUMBER(10)",
             "BIGINT"                                        => "NUMBER(19)",
-            "DECIMAL" or "NUMERIC"                          => length.HasValue ? $"NUMBER({length})" : "NUMBER(18,4)",
+            "DECIMAL" or "NUMERIC"                          => (length, scale) switch
+            {
+                (int p, int s) => $"NUMBER({p},{s})",
+                (int p, null)  => $"NUMBER({p})",
+                _              => "NUMBER(18,4)"
+            },
             "FLOAT" or "REAL"                               => "BINARY_FLOAT",
             "DOUBLE"                                        => "BINARY_DOUBLE",
             "VARCHAR"                                       => $"VARCHAR2({length ?? 255})",
             "NVARCHAR"                                      => $"NVARCHAR2({length ?? 255})",
             "CHAR"                                          => $"CHAR({length ?? 1})",
             "TEXT" or "NTEXT"                               => "CLOB",
-            "DATETIME" or "TIMESTAMP"                       => "TIMESTAMP",
+            // DATETIME2 buraya eklenmeden önce listede olmadığı için son satırdaki
+            // NVARCHAR2(255)'e düşüyordu: tarih kolonu sessizce METİN oluyordu.
+            "DATETIME" or "DATETIME2" or "TIMESTAMP"        => "TIMESTAMP",
             "DATE"                                          => "DATE",
             "TIME"                                          => "INTERVAL DAY TO SECOND",
             "BIT" or "BOOLEAN"                              => "NUMBER(1)",

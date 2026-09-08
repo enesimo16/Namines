@@ -1,0 +1,8 @@
+﻿CREATE TABLE [events] (
+    [id] INT IDENTITY(1,1) NOT NULL,
+    [name] VARCHAR(120) NOT NULL,
+    [created_at] DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    [last_seen_at] DATETIME2 NULL
+    , CONSTRAINT [PK_events] PRIMARY KEY CLUSTERED ([id])
+);
+

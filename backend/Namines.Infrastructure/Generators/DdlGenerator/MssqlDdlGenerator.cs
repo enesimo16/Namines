@@ -25,7 +25,7 @@ public class MssqlDdlGenerator : IDdlGenerator
                 // Enum'a bağlı kolon kendi tipini enum'dan alır; motorun karşılığı
                 // yoksa metin tipine + CHECK'e düşer (bkz. EnumSql).
                 var sqlType = EnumSql.ColumnType(col, schema, DatabaseType.MSSQL)
-                              ?? TypeSql.Map(col.Type, col.Length, DatabaseType.MSSQL);
+                              ?? TypeSql.Map(col.Type, col.Length, col.Scale, DatabaseType.MSSQL);
                 var nullStr = col.IsNullable ? "NULL" : "NOT NULL";
                 var defaultValue = DefaultValueSql.Translate(col.DefaultValue, DatabaseType.MSSQL);
                 var defaultStr = !string.IsNullOrWhiteSpace(defaultValue) ? $" DEFAULT {defaultValue}" : "";

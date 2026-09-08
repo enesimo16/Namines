@@ -1,0 +1,8 @@
+﻿CREATE TABLE `events` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(120) NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_seen_at` DATETIME NULL
+    , PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+

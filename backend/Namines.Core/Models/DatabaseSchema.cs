@@ -71,6 +71,19 @@ public class SchemaColumn
     public string StableUuid { get; set; } = Guid.NewGuid().ToString();
     public string Type { get; set; } = string.Empty;
     public int? Length { get; set; }
+
+    /// <summary>
+    /// DECIMAL/NUMERIC için ondalık basamak sayısı. <see cref="Length"/> hassasiyeti
+    /// (toplam basamak), bu ise ölçeği taşır: <c>NUMERIC(10,2)</c> → Length=10, Scale=2.
+    ///
+    /// <b>Neden gerekli:</b> ölçek yoksa <c>NUMERIC(10,2)</c> bir para kolonu
+    /// <c>numeric(10)</c> olarak yeniden üretiliyordu — yani tam sayıya yuvarlanıyordu.
+    /// Canlı veritabanından içe aktarıp geri derleyen herkes kuruşları kaybediyordu.
+    ///
+    /// Eski kayıtlarda alan yok → <c>null</c> → önceki davranış aynen korunur.
+    /// </summary>
+    public int? Scale { get; set; }
+
     public bool IsPK { get; set; }
     public bool IsFK { get; set; }
     public bool IsNullable { get; set; }

@@ -15,10 +15,6 @@ const DB_OPTIONS: { id: DbType; label: string }[] = [
   { id: 'SQLite',     label: 'SQLite'     },
   { id: 'Oracle',     label: 'Oracle'     },
   { id: 'MariaDB',    label: 'MariaDB'    },
-  { id: 'Db2',        label: 'IBM Db2'    },
-  { id: 'Firebird',   label: 'Firebird'   },
-  { id: 'Spanner',    label: 'Google Spanner' },
-  { id: 'Redshift',   label: 'Amazon Redshift' },
 ];
 
 export default function DbTypeSelector({ selectedDb, onSelect, disabled }: DbTypeSelectorProps) {
