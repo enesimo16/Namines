@@ -168,29 +168,15 @@ public static class PlanBuilder
         var raw = answers.GetValueOrDefault(questionId, "");
         if (string.IsNullOrWhiteSpace(raw)) return false;
 
-        var resolved = QuestionsById.Value.TryGetValue(questionId, out var question)
+        var resolved = QuestionsById.TryGetValue(questionId, out var question)
             ? question.ResolveOptionId(raw) ?? raw
             : raw;
 
         return optionIds.Contains(resolved, StringComparer.Ordinal);
     }
 
-    /// <summary>
-    /// Soru kimliği → soru. Cevabı seçenek kimliğine çevirmek için gerekli;
-    /// takip soruları da (<see cref="Ambiguities"/>) buraya dahil.
-    ///
-    /// <b><see cref="Lazy{T}"/> şart:</b> statik alanlar metin sırasına göre
-    /// ilkleniyor ve bu alan <see cref="Ambiguities"/>'ten ÖNCE geliyor. Doğrudan
-    /// bir sözlük olsaydı <see cref="Ambiguities"/> henüz null olurdu ve tip
-    /// ilklenirken patlardı — derleyici bunu yakalamıyor.
-    /// </summary>
-    private static readonly Lazy<Dictionary<string, ClarifyingQuestion>> QuestionsById = new(() =>
-        Enum.GetValues<ProjectArchetype>()
-            .SelectMany(ClarifyingQuestions.For)
-            .Concat(Ambiguities.Values.SelectMany(rules => rules.Select(r => r.FollowUp)))
-            .GroupBy(q => q.Id, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal));
-
+    // QuestionsById buraya DEĞİL, Ambiguities'in ALTINA konuldu: statik alanlar
+    // metin sırasına göre ilkleniyor ve bu sözlük Ambiguities'i okuyor.
     /// <summary>İş türüne özel cevapların tabloya etkisi.</summary>
     private static readonly Dictionary<ProjectArchetype, Func<IReadOnlyDictionary<string, string>, List<PlannedTable>>> ConditionalTables = new()
     {
@@ -339,6 +325,22 @@ public static class PlanBuilder
                 "separate")),
         },
     };
+
+    /// <summary>
+    /// Soru kimliği → soru. Cevabı seçenek kimliğine çevirmek için gerekli;
+    /// takip soruları da (<see cref="Ambiguities"/>) buraya dahil.
+    ///
+    /// <b>Bildirim sırası bağlayıcı:</b> statik alanlar metin sırasına göre
+    /// ilkleniyor, bu yüzden <see cref="Ambiguities"/>'in ALTINDA duruyor.
+    /// Yukarı taşınırsa <see cref="Ambiguities"/> henüz null olur ve tip
+    /// ilklenirken patlar.
+    /// </summary>
+    private static readonly Dictionary<string, ClarifyingQuestion> QuestionsById =
+        Enum.GetValues<ProjectArchetype>()
+            .SelectMany(ClarifyingQuestions.For)
+            .Concat(Ambiguities.Values.SelectMany(rules => rules.Select(r => r.FollowUp)))
+            .GroupBy(q => q.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
     /// <summary>
     /// Cevaplardan deterministik bir plan üretir.

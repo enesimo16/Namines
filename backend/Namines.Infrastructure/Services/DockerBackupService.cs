@@ -308,16 +308,6 @@ public class DockerBackupService : IDockerService, IDisposable
         }
     }
 
-    public Task<DualSandboxResult> RunDualSandboxAsync(string jobId, string sqlContent, string appPyContent, DatabaseType dbType, Action<string> onProgress, DatabaseSchema schema)
-    {
-        throw new NotSupportedException("Dual Sandbox is no longer supported in the stabilized backup-only pipeline. Use CoderAIPackager to generate the project ZIP package instead.");
-    }
-
-    public Task CleanupSandboxAsync(string jobId)
-    {
-        return Task.CompletedTask;
-    }
-
     private async Task<(int ExitCode, string Output)> ExecuteCommandAsync(string containerId, string[] cmd, CancellationToken cancellationToken = default)
     {
         var execCreate = await _client.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters

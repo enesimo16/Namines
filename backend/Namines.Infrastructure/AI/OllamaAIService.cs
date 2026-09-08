@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
@@ -325,87 +325,6 @@ public class OllamaAIService : IAIService
             pythonResponse = pythonResponse.Substring(0, pythonResponse.Length - 3);
 
         return pythonResponse.Trim();
-    }
-
-    public async Task<string> FixStreamlitAppAsync(string originalCode, string errorLogs, DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType)
-    {
-        originalCode = TruncateForPrompt(SanitizeText(originalCode), 12000);
-        errorLogs = ExtractRelevantErrorTail(SanitizeText(errorLogs), 3000);
-        var schemaJson = TruncateForPrompt(SerializeSchemaForPrompt(schema), 6000);
-        var systemPrompt = "Fix a crashing Streamlit Python app. Return only plain Python code.";
-        var userPrompt = $@"Aşağıdaki Streamlit uygulaması hata veriyor. Hatalı kodu, hata günlüklerini ve veritabanı şemasını inceleyerek çalışan bir sürüm üret.
-
-KURALLAR:
-1. Sadece düz Python kodu döndür.
-2. Markdown, açıklama veya kod dışı metin ekleme.
-3. Mevcut çalışan yapıyı mümkün olduğunca koru.
-4. Hata günlüklerindeki asıl sebebi düzelt.
-5. Çıktı ```python ile başlayıp ``` ile bitsin.
-
-VERİTABANI ŞEMASI:
-IMPORTANT: Ignore any earlier instruction about wrapping output in code fences. Return plain Python only.
-
-DATABASE CONNECTION:
-{BuildConnectionContext(dbType)}
-
-{schemaJson}
-
-HATA GÜNLÜKLERİ:
-{errorLogs}
-
-HATALI KOD:
-{originalCode}";
-
-        userPrompt = $@"Fix the Streamlit app using the error tail and schema.
-
-Rules:
-- Return only plain Python code.
-- No markdown, explanations, or code fences.
-- Preserve existing behavior where possible.
-- Use host db for database connections.
-- Do not add imports requiring missing packages.
-
-Database:
-{BuildConnectionContext(dbType)}
-
-Schema JSON:
-{schemaJson}
-
-Error tail:
-{errorLogs}
-
-Code:
-{originalCode}";
-
-        var payload = new
-        {
-            model = "qwen2.5-coder",
-            messages = new[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = userPrompt }
-            },
-            stream = false,
-            options = new { temperature = 0.1 }
-        };
-
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        using var response = await _httpClient.PostAsync("chat", content);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Ollama API Error ({response.StatusCode}): {errorContent}");
-        }
-
-        var responseString = await response.Content.ReadAsStringAsync();
-        var responseObject = JsonSerializer.Deserialize<JsonElement>(responseString);
-        var pythonResponse = responseObject.GetProperty("message").GetProperty("content").GetString();
-
-        if (string.IsNullOrWhiteSpace(pythonResponse))
-            throw new Exception("Received empty response from Ollama for Streamlit fix.");
-
-        return StripMarkdownCodeFence(pythonResponse);
     }
 
     private static string StripMarkdownCodeFence(string value)
