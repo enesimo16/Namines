@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
@@ -1015,70 +1015,6 @@ public class GroqAIService : IAIService
             pythonResponse = pythonResponse.Substring(0, pythonResponse.Length - 3);
 
         return pythonResponse.Trim();
-    }
-
-    public async Task<string> FixStreamlitAppAsync(string originalCode, string errorLogs, DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType)
-    {
-        originalCode = TruncateForPrompt(SanitizeText(originalCode), 12000);
-        errorLogs = ExtractRelevantErrorTail(SanitizeText(errorLogs), 3000);
-        var schemaJson = TruncateForPrompt(SerializeSchemaForPrompt(schema), 6000);
-        var systemPrompt = "Fix a crashing Streamlit Python app. Return only plain Python code.";
-        var tableCount = schema.Tables?.Count ?? 0;
-
-        var userPrompt = $@"Fix the Streamlit app using the error tail and schema.
- 
-Rules:
-- Return only plain Python code.
-- No markdown, explanations, or code fences.
-- Preserve existing behavior where possible.
-- Use host db for database connections.
-- Do not add imports requiring missing packages.
- 
-Database:
-{BuildConnectionContext(dbType)}
- 
-Schema JSON:
-{schemaJson}
- 
-Error tail:
-{errorLogs}
- 
-Code:
-{originalCode}";
-
-        var payload = new
-        {
-            model = await ResolveModelNameAsync(null, "Scaffolding"),
-            messages = new[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = userPrompt }
-            },
-            temperature = 0.1,
-            max_tokens = CalculateMaxTokens(tableCount)
-        };
-
-        using var response = await PostAsync("chat/completions", payload);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
-                errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new AiRateLimitException(GetRetryAfterSeconds(response, errorContent), errorContent);
-            }
-            ThrowForFailure(response, errorContent);
-        }
-
-        var responseString = await response.Content.ReadAsStringAsync();
-        var responseObject = JsonSerializer.Deserialize<JsonElement>(responseString);
-        var pythonResponse = responseObject.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-
-        if (string.IsNullOrWhiteSpace(pythonResponse))
-            throw new Exception("Received empty response from Groq AI for Streamlit fix.");
-
-        return StripMarkdownCodeFence(pythonResponse);
     }
 
     private static string StripMarkdownCodeFence(string value)

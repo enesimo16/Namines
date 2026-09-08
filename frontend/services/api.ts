@@ -10,7 +10,6 @@ import { CodeExtractionResponse } from '../types/codeSchema';
 import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
-import { useSchemaStore } from '../store/useSchemaStore';
 import { useToastStore } from '../store/useToastStore';
 import { API_BASE_URL } from '../lib/apiConfig';
 
@@ -187,11 +186,6 @@ export const schemaService = {
     return response.data;
   },
 
-  runDockerSandbox: async (schema: DatabaseSchema, dbType: string): Promise<string> => {
-    const response = await api.post('/docker/run', { schema, dbType });
-    return response.data.jobId;
-  },
-
   transcribeVoice: async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('audio', file);
@@ -206,12 +200,12 @@ export const schemaService = {
     return response.data.sql;
   },
 
-  generatePdf: async (schema: DatabaseSchema, projectName: string, language: string = 'tr'): Promise<Blob> => {
+  generatePdf: async (schema: DatabaseSchema, projectName: string, language: string = 'en'): Promise<Blob> => {
     const response = await api.post('/documentation/pdf', { schema, projectName, language }, { responseType: 'blob' });
     return response.data;
   },
 
-  generateReadme: async (schema: DatabaseSchema, language: string = 'tr'): Promise<string> => {
+  generateReadme: async (schema: DatabaseSchema, language: string = 'en'): Promise<string> => {
     const response = await api.post(`/documentation/readme?language=${language}`, schema);
     return response.data.readme;
   },
@@ -222,18 +216,10 @@ export const schemaService = {
   }
 };
 
-export const coderAIService = {
-  generate: async (schema: DatabaseSchema, dbType: string, enhanceWithAI: boolean = false): Promise<string> => {
-    const response = await api.post('/coderai/generate', { schema, dbType, enhanceWithAI });
-    return response.data.jobId;
-  },
-  cleanup: async (jobId: string): Promise<void> => {
-    await api.delete(`/coderai/sandbox/${jobId}`);
-  },
-  getStreamUrl: (jobId: string): string => {
-    return `${api.defaults.baseURL}/coderai/stream/${jobId}`;
-  }
-};
+// coderAIService KALDIRILDI: tek tüketicisi DownloadHubPanel'di ve o bileşen
+// hiçbir yerden import edilmiyordu. `cleanup` ayrıca var olmayan bir route'a
+// (/coderai/sandbox/{jobId}) gidiyordu — çağrılsa 404 dönerdi.
+// Backend'deki /api/coderai/* uçları duruyor (dış istemcisi olabilir).
 
 export const aiDbaService = {
   analyze: async (schema: DatabaseSchema, dbType: string): Promise<any> => {
