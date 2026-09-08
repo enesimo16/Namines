@@ -67,10 +67,10 @@ public class ProjectMemberController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (!await _context.CanViewAsync(projectId, userId, ct))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
 
         var orgId = await ResolveOrgIdAsync(projectId, ct);
-        if (orgId is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (orgId is null) return NotFound(new { error = "Project not found." });
 
         var members = await _context.OrganizationMembers
             .Where(m => m.OrganizationId == orgId)
@@ -89,22 +89,22 @@ public class ProjectMemberController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (!await _context.CanManageMembersAsync(projectId, userId, ct))
-            return NotFound(new { error = "Proje bulunamadı veya üye yönetme yetkiniz yok." });
+            return NotFound(new { error = "Project not found, or you do not have permission to manage members." });
 
         if (string.IsNullOrWhiteSpace(request.Email))
-            return BadRequest(new { error = "E-posta zorunludur." });
+            return BadRequest(new { error = "An email address is required." });
 
         var invitee = await _userManager.FindByEmailAsync(request.Email.Trim());
         if (invitee is null)
-            return NotFound(new { error = "Bu e-posta ile kayıtlı bir kullanıcı yok. (Davet akışı henüz yok — kullanıcı önce kaydolmalı.)" });
+            return NotFound(new { error = "No user is registered with this email. (Invites are not available yet - the user must sign up first.)" });
 
         var orgId = await ResolveOrgIdAsync(projectId, ct);
-        if (orgId is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (orgId is null) return NotFound(new { error = "Project not found." });
 
         var already = await _context.OrganizationMembers
             .AnyAsync(m => m.OrganizationId == orgId && m.UserId == invitee.Id, ct);
         if (already)
-            return Conflict(new { error = "Bu kullanıcı zaten ekipte." });
+            return Conflict(new { error = "This user is already on the team." });
 
         await _context.OrganizationMembers.AddAsync(new OrganizationMember
         {
@@ -125,14 +125,14 @@ public class ProjectMemberController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (!await _context.CanManageMembersAsync(projectId, userId, ct))
-            return NotFound(new { error = "Proje bulunamadı veya üye yönetme yetkiniz yok." });
+            return NotFound(new { error = "Project not found, or you do not have permission to manage members." });
 
         var orgId = await ResolveOrgIdAsync(projectId, ct);
-        if (orgId is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (orgId is null) return NotFound(new { error = "Project not found." });
 
         var member = await _context.OrganizationMembers
             .FirstOrDefaultAsync(m => m.OrganizationId == orgId && m.UserId == memberUserId, ct);
-        if (member is null) return NotFound(new { error = "Üye bulunamadı." });
+        if (member is null) return NotFound(new { error = "Member not found." });
 
         // Son Owner'ı düşürme — org sahipsiz kalırsa üye yönetimi kilitlenir.
         if (member.Role == OrgRole.Owner && request.Role != OrgRole.Owner)
@@ -140,7 +140,7 @@ public class ProjectMemberController : ControllerBase
             var ownerCount = await _context.OrganizationMembers
                 .CountAsync(m => m.OrganizationId == orgId && m.Role == OrgRole.Owner, ct);
             if (ownerCount <= 1)
-                return Conflict(new { error = "Son sahibin rolü düşürülemez — önce başka bir sahip atayın." });
+                return Conflict(new { error = "The last owner's role cannot be lowered - assign another owner first." });
         }
 
         member.Role = request.Role;
@@ -155,21 +155,21 @@ public class ProjectMemberController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (!await _context.CanManageMembersAsync(projectId, userId, ct))
-            return NotFound(new { error = "Proje bulunamadı veya üye yönetme yetkiniz yok." });
+            return NotFound(new { error = "Project not found, or you do not have permission to manage members." });
 
         var orgId = await ResolveOrgIdAsync(projectId, ct);
-        if (orgId is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (orgId is null) return NotFound(new { error = "Project not found." });
 
         var member = await _context.OrganizationMembers
             .FirstOrDefaultAsync(m => m.OrganizationId == orgId && m.UserId == memberUserId, ct);
-        if (member is null) return NotFound(new { error = "Üye bulunamadı." });
+        if (member is null) return NotFound(new { error = "Member not found." });
 
         if (member.Role == OrgRole.Owner)
         {
             var ownerCount = await _context.OrganizationMembers
                 .CountAsync(m => m.OrganizationId == orgId && m.Role == OrgRole.Owner, ct);
             if (ownerCount <= 1)
-                return Conflict(new { error = "Son sahip ekipten çıkarılamaz." });
+                return Conflict(new { error = "The last owner cannot be removed from the team." });
         }
 
         _context.OrganizationMembers.Remove(member);

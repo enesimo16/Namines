@@ -12,7 +12,7 @@ import { authService } from '../services/api';
 const naminesStore = localforage.createInstance({
   name: 'namines-v2',
   storeName: 'projects',
-  description: 'Namines proje geçmişi (IndexedDB)',
+  description: 'Namines project history (IndexedDB)',
 });
 
 /**

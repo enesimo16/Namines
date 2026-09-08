@@ -54,7 +54,7 @@ namespace Namines.API.Controllers
 
             var existingUser = await _userManager.FindByEmailAsync(model.Email);
             if (existingUser != null)
-                return BadRequest(new { Message = "Bu e-posta adresiyle kayıtlı bir kullanıcı zaten mevcut." });
+                return BadRequest(new { Message = "An account with this email already exists." });
 
             // All new users start as Free (Individual) tier.
             // Pro (Corporate) status is ONLY granted by the Stripe payment webhook
@@ -74,7 +74,7 @@ namespace Namines.API.Controllers
             if (!result.Succeeded)
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                return BadRequest(new { Message = $"Kayıt başarısız: {errors}" });
+                return BadRequest(new { Message = $"Registration failed: {errors}" });
             }
 
             // Automatically provision a default UserAIPolicy for this user
@@ -128,7 +128,7 @@ namespace Namines.API.Controllers
             var user = await _userManager.FindByEmailAsync(model.Email);
             if (user == null || !await _userManager.CheckPasswordAsync(user, model.Password))
             {
-                return Unauthorized(new { Message = "E-posta veya şifre hatalı." });
+                return Unauthorized(new { Message = "Incorrect email or password." });
             }
 
             var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == user.Id);
@@ -217,14 +217,14 @@ namespace Namines.API.Controllers
         public async Task<IActionResult> ExchangeDeskHandoffToken([FromBody] DeskHandoffExchangeRequest request, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(request.Token))
-                return BadRequest(new { Message = "Token gerekli." });
+                return BadRequest(new { Message = "A token is required." });
 
             var userId = await _context.ExchangeDeskHandoffTokenAsync(request.Token, ct);
             if (userId is null)
-                return Unauthorized(new { Message = "Geçersiz, süresi dolmuş ya da zaten kullanılmış jeton." });
+                return Unauthorized(new { Message = "The token is invalid, expired, or already used." });
 
             var user = await _userManager.FindByIdAsync(userId);
-            if (user is null) return Unauthorized(new { Message = "Kullanıcı bulunamadı." });
+            if (user is null) return Unauthorized(new { Message = "User not found." });
 
             var jwt = GenerateJwtToken(user);
             return Ok(new { token = jwt });

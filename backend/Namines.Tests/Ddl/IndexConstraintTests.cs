@@ -1,4 +1,4 @@
-using Namines.Core.Enums;
+﻿using Namines.Core.Enums;
 using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Tests.Fixtures;
 
@@ -115,7 +115,7 @@ public class IndexConstraintTests
         // Bu motorlarda kısmi index yok; çıktıda açıklama olarak görünmeli.
         var ddl = Ddl(engine);
 
-        Assert.Contains("kısmi index desteklemiyor", ddl);
+        Assert.Contains("partial indexes are not supported by", ddl);
         Assert.DoesNotContain("WHERE \"DeletedAt\" IS NULL;", ddl, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -138,7 +138,7 @@ public class IndexConstraintTests
     {
         var ddl = Ddl(engine);
 
-        Assert.Contains("desteklemiyor", ddl);
+        Assert.Contains("not supported by", ddl);
     }
 
     [Fact]

@@ -54,19 +54,19 @@ export default function DataDictionaryPreview({ schema, projectName }: DataDicti
 
   const translations = {
     tr: {
-      noTables: "Tablo Bulunamadı",
-      noTablesDesc: "Veri sözlüğünü görüntülemek için lütfen tasarım tuvaline gidip tablolar oluşturun.",
-      downloadPdf: "PDF İndir (.pdf)",
-      columns: "kolon",
-      relations: "ilişki",
-      colName: "Sütun Adı",
-      colType: "Tip",
-      colConstraints: "Kısıtlar",
-      colNullable: "Null?",
-      colDefault: "Varsayılan",
-      yes: "EVET",
-      no: "HAYIR",
-      fileTitle: "veri_sozlugu.pdf"
+      noTables: "No Tables Found",
+      noTablesDesc: "Go back to the diagram editor and create some tables first to view the data dictionary.",
+      downloadPdf: "Download PDF (.pdf)",
+      columns: "columns",
+      relations: "relations",
+      colName: "Column Name",
+      colType: "Type",
+      colConstraints: "Constraints",
+      colNullable: "Nullable",
+      colDefault: "Default",
+      yes: "YES",
+      no: "NO",
+      fileTitle: "data_dictionary.pdf"
     },
     en: {
       noTables: "No Tables Found",

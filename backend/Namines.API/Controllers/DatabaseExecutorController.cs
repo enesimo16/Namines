@@ -25,7 +25,7 @@ public class DatabaseExecutorController : ControllerBase
     public async Task<IActionResult> TestConnection([FromBody] ExecutorRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.ConnectionString))
-            return BadRequest("Bağlantı dizesi (Connection string) boş olamaz.");
+            return BadRequest("The connection string cannot be empty.");
 
         var success = await _executor.TestConnectionAsync(request.ConnectionString, request.DbType);
         
@@ -33,16 +33,16 @@ public class DatabaseExecutorController : ControllerBase
         request.ConnectionString = null;
 
         if (success)
-            return Ok(new { success = true, message = "Bağlantı başarılı!" });
+            return Ok(new { success = true, message = "Connection successful." });
         else
-            return BadRequest(new { success = false, message = "Bağlantı başarısız. Lütfen bilgileri kontrol edin." });
+            return BadRequest(new { success = false, message = "Connection failed. Check the connection details and try again." });
     }
 
     [HttpPost("execute")]
     public async Task<IActionResult> ExecuteScript([FromBody] ExecutorRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.Script))
-            return BadRequest("Connection string veya çalıştırılacak script boş olamaz.");
+            return BadRequest("The connection string and the script to run cannot be empty.");
 
         var result = await _executor.ExecuteScriptAsync(request.ConnectionString, request.Script, request.DbType);
 
@@ -50,7 +50,7 @@ public class DatabaseExecutorController : ControllerBase
         request.ConnectionString = null;
 
         if (result.Success)
-            return Ok(new { success = true, message = $"{result.StatementsExecuted} işlem başarıyla çalıştırıldı." });
+            return Ok(new { success = true, message = $"{result.StatementsExecuted} statements executed successfully." });
         else
             return BadRequest(new { success = false, message = result.ErrorMessage, statementsExecuted = result.StatementsExecuted });
     }

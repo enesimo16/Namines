@@ -82,22 +82,22 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (string.IsNullOrWhiteSpace(request.ProjectId) || string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { error = "ProjectId ve Name zorunludur." });
+            return BadRequest(new { error = "ProjectId and Name are required." });
 
         if (!await UserOwnsProjectAsync(request.ProjectId, userId))
-            return NotFound(new { error = "Proje bulunamadı veya bu kullanıcıya ait değil." });
+            return NotFound(new { error = "Project not found, or it does not belong to this user." });
 
         var nameTaken = await _context.Branches
             .AnyAsync(b => b.ProjectId == request.ProjectId && b.Name == request.Name);
         if (nameTaken)
-            return Conflict(new { error = $"'{request.Name}' adında bir branch bu projede zaten var." });
+            return Conflict(new { error = $"A branch named '{request.Name}' already exists in this project." });
 
         if (request.ParentBranchId is not null)
         {
             var parentExists = await _context.Branches
                 .AnyAsync(b => b.Id == request.ParentBranchId && b.ProjectId == request.ProjectId);
             if (!parentExists)
-                return BadRequest(new { error = "ParentBranchId bu projede bulunamadı." });
+                return BadRequest(new { error = "ParentBranchId was not found in this project." });
         }
 
         var branch = new Branch
@@ -146,7 +146,7 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (!await UserOwnsProjectAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı veya bu kullanıcıya ait değil." });
+            return NotFound(new { error = "Project not found, or it does not belong to this user." });
 
         var branches = await _context.Branches
             .Where(b => b.ProjectId == projectId)
@@ -187,7 +187,7 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (!await UserOwnsProjectAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı veya bu kullanıcıya ait değil." });
+            return NotFound(new { error = "Project not found, or it does not belong to this user." });
 
         // Yarışa karşı sertleştirilmiş tek kopya — bkz. BranchProvisioning.
         var branch = await _context.GetOrCreateDefaultBranchAsync(projectId, userId);
@@ -202,14 +202,14 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (string.IsNullOrWhiteSpace(request.SchemaJson))
-            return BadRequest(new { error = "SchemaJson boş olamaz." });
+            return BadRequest(new { error = "SchemaJson cannot be empty." });
 
         var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId);
-        if (branch is null) return NotFound(new { error = "Branch bulunamadı." });
+        if (branch is null) return NotFound(new { error = "Branch not found." });
         if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch bulunamadı." });
+            return NotFound(new { error = "Branch not found." });
         if (branch.ClosedAt is not null)
-            return Conflict(new { error = "Kapatılmış bir branch'e yeni versiyon eklenemez." });
+            return Conflict(new { error = "A new version cannot be added to a closed branch." });
 
         short tableCount = 0;
         try
@@ -219,7 +219,7 @@ public class BranchController : ControllerBase
         }
         catch (JsonException)
         {
-            return BadRequest(new { error = "SchemaJson geçerli bir DatabaseSchema değil." });
+            return BadRequest(new { error = "SchemaJson is not a valid DatabaseSchema." });
         }
 
         var lastVersion = await _context.SchemaVersions
@@ -265,9 +265,9 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId);
-        if (branch is null) return NotFound(new { error = "Branch bulunamadı." });
+        if (branch is null) return NotFound(new { error = "Branch not found." });
         if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch bulunamadı." });
+            return NotFound(new { error = "Branch not found." });
 
         // SchemaJson kasıtlı olarak dışarıda bırakılıyor — liste görünümü büyük blob'ları
         // taşımamalı, tek bir versiyonun içeriği ayrı uç noktadan çekilir.
@@ -298,9 +298,9 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var version = await _context.SchemaVersions.FirstOrDefaultAsync(v => v.Id == versionId);
-        if (version is null) return NotFound(new { error = "Versiyon bulunamadı." });
+        if (version is null) return NotFound(new { error = "Version not found." });
         if (!await UserOwnsProjectAsync(version.ProjectId, userId))
-            return NotFound(new { error = "Versiyon bulunamadı." });
+            return NotFound(new { error = "Version not found." });
 
         return Ok(version);
     }
@@ -328,9 +328,9 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (branch is null) return NotFound(new { error = "Branch bulunamadı." });
+        if (branch is null) return NotFound(new { error = "Branch not found." });
         if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch bulunamadı." });
+            return NotFound(new { error = "Branch not found." });
 
         var latest = await _context.SchemaVersions
             .Where(v => v.BranchId == branchId)
@@ -340,7 +340,7 @@ public class BranchController : ControllerBase
         // Şemasız bir branch için boş bir veritabanı açmak kaynak harcar ve
         // kullanıcıya hiçbir şey vermez.
         if (latest is null)
-            return BadRequest(new { error = "Bu branch'te henüz bir şema sürümü yok." });
+            return BadRequest(new { error = "This branch has no schema version yet." });
 
         // ── Plan kotası (06 §10) ─────────────────────────────────────────────
         // Kontrol, container AÇILMADAN önce: kotayı aştıktan sonra kapatmak, açılış
@@ -358,7 +358,7 @@ public class BranchController : ControllerBase
         }
         catch (JsonException)
         {
-            return BadRequest(new { error = "Branch şeması okunamadı." });
+            return BadRequest(new { error = "The branch schema could not be read." });
         }
 
         try
@@ -388,13 +388,13 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (branch is null) return NotFound(new { error = "Branch bulunamadı." });
+        if (branch is null) return NotFound(new { error = "Branch not found." });
         if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch bulunamadı." });
+            return NotFound(new { error = "Branch not found." });
 
         var database = await _databases.GetAsync(branchId, cancellationToken);
         return database is null
-            ? NotFound(new { error = "Bu branch'in canlı veritabanı yok." })
+            ? NotFound(new { error = "This branch has no live database." })
             : Ok(Describe(database));
     }
 
@@ -411,9 +411,9 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (branch is null) return NotFound(new { error = "Branch bulunamadı." });
+        if (branch is null) return NotFound(new { error = "Branch not found." });
         if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch bulunamadı." });
+            return NotFound(new { error = "Branch not found." });
 
         var latest = await _context.SchemaVersions
             .Where(v => v.BranchId == branchId)
@@ -421,7 +421,7 @@ public class BranchController : ControllerBase
             .FirstOrDefaultAsync(cancellationToken);
 
         if (latest is null)
-            return BadRequest(new { error = "Bu branch'te henüz bir şema sürümü yok." });
+            return BadRequest(new { error = "This branch has no schema version yet." });
 
         DatabaseSchema schema;
         try
@@ -431,7 +431,7 @@ public class BranchController : ControllerBase
         }
         catch (JsonException)
         {
-            return BadRequest(new { error = "Branch şeması okunamadı." });
+            return BadRequest(new { error = "The branch schema could not be read." });
         }
 
         // Üst sınır bilinçli: tek istekle branch veritabanını şişirmek kolay olmamalı.
@@ -455,9 +455,9 @@ public class BranchController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (branch is null) return NotFound(new { error = "Branch bulunamadı." });
+        if (branch is null) return NotFound(new { error = "Branch not found." });
         if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch bulunamadı." });
+            return NotFound(new { error = "Branch not found." });
 
         await _databases.DestroyAsync(branchId, cancellationToken);
         return NoContent();

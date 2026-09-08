@@ -1,4 +1,4 @@
-using Namines.Infrastructure.Services;
+﻿using Namines.Infrastructure.Services;
 
 namespace Namines.Tests.Services;
 
@@ -28,7 +28,7 @@ public class GraphQlSchemaParserTests
 
         Assert.Single(result);
         Assert.Equal("Product", result[0].Name);
-        Assert.Contains("2 alan", result[0].Reason);
+        Assert.Contains("2 fields", result[0].Reason);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class GraphQlSchemaParserTests
         var result = GraphQlSchemaParser.Parse(json);
 
         var product = result.Single(t => t.Name == "Product");
-        Assert.Contains("1 ilişki", product.Reason);
+        Assert.Contains("1 candidate relations", product.Reason);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class GraphQlSchemaParserTests
         var result = GraphQlSchemaParser.Parse(json);
 
         var product = result.Single(t => t.Name == "Product");
-        Assert.Contains("1 ilişki", product.Reason);
+        Assert.Contains("1 candidate relations", product.Reason);
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class GraphQlSchemaParserTests
 
         var result = GraphQlSchemaParser.Parse(json);
 
-        Assert.All(result, t => Assert.Contains("tahmin", t.Reason));
+        Assert.All(result, t => Assert.Contains("(estimated)", t.Reason));
     }
 
     [Fact]

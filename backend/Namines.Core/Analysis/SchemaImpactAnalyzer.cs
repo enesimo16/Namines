@@ -1,4 +1,4 @@
-using Namines.Core.Enums;
+﻿using Namines.Core.Enums;
 using Namines.Core.Models;
 
 namespace Namines.Core.Analysis;
@@ -44,12 +44,12 @@ public static class SchemaImpactAnalyzer
 
             affectedTables.Add(new AffectedTable(oldTable.Name, ChangeKind.Removed, Array.Empty<string>()));
             breakingChanges.Add(new BreakingChange(
-                $"'{oldTable.Name}' tablosu kaldırıldı.", BreakingChangeKind.TableRemoved,
+                $"Table '{oldTable.Name}' was removed.", BreakingChangeKind.TableRemoved,
                 TableName: oldTable.Name,
-                SuggestedMitigation: "Tabloyu kaldırmadan önce bağımlı API/uygulama kodunu güncelleyin."));
-            dataLossRisks.Add(new DataLossRisk(oldTable.Name, null, "Tablo ve içindeki tüm satırlar kalıcı olarak silinir."));
+                SuggestedMitigation: "Update the API and application code that depends on it before dropping the table."));
+            dataLossRisks.Add(new DataLossRisk(oldTable.Name, null, "The table and every row in it are permanently deleted."));
             lockRisks.Add(new MigrationLockRisk("DROP TABLE", LockSeverity.Brief, oldTable.Name));
-            irreversibleReasons.Add($"'{oldTable.Name}' DROP TABLE geri alınamaz (yedekten geri yükleme gerekir).");
+            irreversibleReasons.Add($"DROP TABLE on '{oldTable.Name}' cannot be undone — recovery means restoring from a backup.");
         }
 
         foreach (var newTable in newTables)
@@ -66,10 +66,10 @@ public static class SchemaImpactAnalyzer
             {
                 affectedTables.Add(new AffectedTable(newTable.Name, ChangeKind.RenamedFrom, changedColumns, oldTable.Name));
                 breakingChanges.Add(new BreakingChange(
-                    $"'{oldTable.Name}' tablosu '{newTable.Name}' olarak yeniden adlandırıldı.",
+                    $"Table '{oldTable.Name}' was renamed to '{newTable.Name}'.",
                     BreakingChangeKind.TableRenamed,
                     TableName: newTable.Name,
-                    SuggestedMitigation: "Eski adı bir view/synonym olarak geçici süre koruyun."));
+                    SuggestedMitigation: "Keep the old name alive as a view or synonym for a transition period."));
                 lockRisks.Add(new MigrationLockRisk("RENAME TABLE", LockSeverity.Brief, newTable.Name));
             }
             else if (changedColumns.Count > 0)
@@ -103,7 +103,7 @@ public static class SchemaImpactAnalyzer
             var toName = newTablesById2.TryGetValue(rel.TargetTableId, out var t) ? t.Name : rel.TargetTableId;
             affectedRelations.Add(new AffectedRelation(rel.Id, ChangeKind.Added, fromName, toName));
             lockRisks.Add(new MigrationLockRisk("ADD FOREIGN KEY", LockSeverity.Blocking, fromName,
-                "Mümkünse NOT VALID ile ekleyip ayrı bir VALIDATE CONSTRAINT adımıyla doğrulayın (kilitsiz)."));
+                "Where the engine allows it, add the key NOT VALID and validate it in a separate VALIDATE CONSTRAINT step — that path takes no lock."));
 
             // ── 5. Eksik index önerisi — yeni FK kolonunda kapsayan index var mı? ──
             if (newTablesById2.TryGetValue(rel.SourceTableId, out var sourceTable))
@@ -113,7 +113,7 @@ public static class SchemaImpactAnalyzer
                 {
                     indexSuggestions.Add(new MissingIndexSuggestion(
                         sourceTable.Name, sourceCol.Name,
-                        "Yabancı anahtar kolonunda index yok — JOIN ve ON DELETE/UPDATE kontrolleri tam tablo taraması yapar."));
+                        "The foreign key column has no index, so JOINs and ON DELETE/UPDATE checks will scan the whole table."));
                 }
             }
         }
@@ -162,12 +162,12 @@ public static class SchemaImpactAnalyzer
 
             changed.Add(oldCol.Name);
             breakingChanges.Add(new BreakingChange(
-                $"'{newTable.Name}.{oldCol.Name}' kolonu kaldırıldı.", BreakingChangeKind.ColumnRemoved,
+                $"Column '{newTable.Name}.{oldCol.Name}' was removed.", BreakingChangeKind.ColumnRemoved,
                 TableName: newTable.Name, ColumnName: oldCol.Name,
-                SuggestedMitigation: "Önce _deprecated_ öneki ile yeniden adlandırıp bir süre koruyun, sonra silin."));
-            dataLossRisks.Add(new DataLossRisk(newTable.Name, oldCol.Name, "Kolon ve içindeki tüm değerler kalıcı olarak silinir."));
+                SuggestedMitigation: "Rename it with a _deprecated_ prefix first, leave it in place for a while, then drop it."));
+            dataLossRisks.Add(new DataLossRisk(newTable.Name, oldCol.Name, "The column and every value in it are permanently deleted."));
             lockRisks.Add(new MigrationLockRisk("DROP COLUMN", LockSeverity.Brief, newTable.Name));
-            irreversibleReasons.Add($"'{newTable.Name}.{oldCol.Name}' DROP COLUMN geri alınamaz (veri gider).");
+            irreversibleReasons.Add($"DROP COLUMN on '{newTable.Name}.{oldCol.Name}' cannot be undone — the data goes with it.");
         }
 
         foreach (var newCol in newTable.Columns)
@@ -178,10 +178,10 @@ public static class SchemaImpactAnalyzer
                 if (!newCol.IsNullable && string.IsNullOrWhiteSpace(newCol.DefaultValue))
                 {
                     breakingChanges.Add(new BreakingChange(
-                        $"'{newTable.Name}.{newCol.Name}' DEFAULT değeri olmadan NOT NULL eklendi.",
+                        $"'{newTable.Name}.{newCol.Name}' was added NOT NULL with no DEFAULT.",
                         BreakingChangeKind.NotNullWithoutDefault,
                         TableName: newTable.Name, ColumnName: newCol.Name,
-                        SuggestedMitigation: "Bir DEFAULT değeri tanımlayın veya kolonu önce nullable ekleyip sonra doldurun."));
+                        SuggestedMitigation: "Give it a DEFAULT, or add the column nullable first and backfill it before tightening the constraint."));
                     lockRisks.Add(new MigrationLockRisk("ADD COLUMN NOT NULL (no default)", LockSeverity.Blocking, newTable.Name));
                 }
                 else
@@ -197,10 +197,10 @@ public static class SchemaImpactAnalyzer
             {
                 colChanged = true;
                 breakingChanges.Add(new BreakingChange(
-                    $"'{newTable.Name}.{oldCol.Name}' kolonu '{newCol.Name}' olarak yeniden adlandırıldı.",
+                    $"Column '{newTable.Name}.{oldCol.Name}' was renamed to '{newCol.Name}'.",
                     BreakingChangeKind.ColumnRenamed,
                     TableName: newTable.Name, ColumnName: newCol.Name,
-                    SuggestedMitigation: "Expand-contract deseni kullanın: yeni kolon ekle → çift yazma → eskiyi bırak."));
+                    SuggestedMitigation: "Use the expand-contract pattern: add the new column, write to both for a while, then drop the old one."));
                 lockRisks.Add(new MigrationLockRisk("RENAME COLUMN", LockSeverity.Brief, newTable.Name));
             }
 
@@ -214,12 +214,12 @@ public static class SchemaImpactAnalyzer
                 if (narrowing)
                 {
                     breakingChanges.Add(new BreakingChange(
-                        $"'{newTable.Name}.{newCol.Name}' tipi daraltıldı ({oldCol.Type}{FormatLength(oldCol.Length)} → {newCol.Type}{FormatLength(newCol.Length)}).",
+                        $"'{newTable.Name}.{newCol.Name}' was narrowed ({oldCol.Type}{FormatLength(oldCol.Length)} → {newCol.Type}{FormatLength(newCol.Length)}).",
                         BreakingChangeKind.TypeNarrowed,
                         TableName: newTable.Name, ColumnName: newCol.Name,
-                        SuggestedMitigation: "Mevcut verinin yeni tipe/uzunluğa sığdığını önce doğrulayın."));
-                    dataLossRisks.Add(new DataLossRisk(newTable.Name, newCol.Name, "Mevcut değerler yeni tip/uzunluğa sığmazsa kesilir veya dönüşüm başarısız olur."));
-                    irreversibleReasons.Add($"'{newTable.Name}.{newCol.Name}' tip daraltma veri kaybına yol açabilir, güvenli geri alma garanti edilemez.");
+                        SuggestedMitigation: "Check that the existing data fits the new type and length before running this."));
+                    dataLossRisks.Add(new DataLossRisk(newTable.Name, newCol.Name, "Values that do not fit the new type or length are truncated, or the conversion fails outright."));
+                    irreversibleReasons.Add($"Narrowing '{newTable.Name}.{newCol.Name}' can lose data, so a safe rollback cannot be guaranteed.");
                 }
                 lockRisks.Add(new MigrationLockRisk("ALTER TYPE", narrowing ? LockSeverity.Blocking : LockSeverity.Blocking, newTable.Name));
             }
@@ -228,7 +228,7 @@ public static class SchemaImpactAnalyzer
             {
                 colChanged = true;
                 lockRisks.Add(new MigrationLockRisk("SET NOT NULL", LockSeverity.Blocking, newTable.Name,
-                    "NULL değer içeren satır olmadığını önce doğrulayın (tam tablo taraması gerektirir)."));
+                    "Confirm no row holds NULL first — that check scans the whole table."));
             }
             else if (!oldCol.IsNullable && newCol.IsNullable)
             {
@@ -259,7 +259,7 @@ public static class SchemaImpactAnalyzer
                 if (oldIndexIds.Contains(idx.StableUuid)) continue;
                 affectedIndexes.Add(new AffectedIndex(newTable.Name, idx.Name, ChangeKind.Added));
                 lockRisks.Add(new MigrationLockRisk("CREATE INDEX", LockSeverity.Blocking, newTable.Name,
-                    "PostgreSQL'de CONCURRENTLY, SQL Server Enterprise'da WITH (ONLINE=ON) kullanın."));
+                    "Use CONCURRENTLY on PostgreSQL, or WITH (ONLINE=ON) on SQL Server Enterprise."));
             }
         }
 
@@ -277,7 +277,7 @@ public static class SchemaImpactAnalyzer
                 if (newIndexIds.Contains(idx.StableUuid)) continue;
                 affectedIndexes.Add(new AffectedIndex(oldTable.Name, idx.Name, ChangeKind.Removed));
                 lockRisks.Add(new MigrationLockRisk("DROP INDEX", LockSeverity.Brief, oldTable.Name,
-                    "Sorgu planlarını index kaldırılmadan önce kontrol edin — performans regresyonuna yol açabilir."));
+                    "Review the query plans before dropping the index; removing it can cause a performance regression."));
             }
         }
     }

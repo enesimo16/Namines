@@ -84,10 +84,10 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
 
         if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { error = "Anahtar için bir ad gerekli." });
+            return BadRequest(new { error = "A name is required for the key." });
 
         // Sıfır ya da negatif bir limit anahtarı tamamen kullanılamaz kılardı; bunu
         // "limit yok" saymak da yanlış olurdu, o yüzden açıkça reddediliyor.
@@ -150,7 +150,7 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
 
         var keys = await _context.GatewayApiKeys
             .Where(k => k.ProjectId == projectId)
@@ -196,9 +196,9 @@ public class GatewayKeyController : ControllerBase
         // gerekçe). Görüyor ama Admin değilse 403 + AÇIK sebep: kabul kriteri 5
         // "yetkisiz kullanıcı açıklayıcı mesaj görür, boş liste değil".
         if (!await _context.CanViewAsync(projectId, userId, ct))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
         if (!await CanManageAsync(projectId, userId))
-            return StatusCode(403, new { error = "Bu bölüm için yönetici (Admin) yetkisi gerekiyor." });
+            return StatusCode(403, new { error = "Admin permission is required for this section." });
 
         var (entries, totalCount) = await _context.AuditTrailAsync(
             projectId, from, to, kinds, tableName, succeeded, page, pageSize, ct);
@@ -244,9 +244,9 @@ public class GatewayKeyController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (!await _context.CanViewAsync(projectId, userId, ct))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
         if (!await CanManageAsync(projectId, userId))
-            return StatusCode(403, new { error = "Bu bölüm için yönetici (Admin) yetkisi gerekiyor." });
+            return StatusCode(403, new { error = "Admin permission is required for this section." });
 
         var effectiveTo = to ?? DateTime.UtcNow;
         var effectiveFrom = from ?? effectiveTo.AddDays(-7);
@@ -280,11 +280,11 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
 
         var key = await _context.GatewayApiKeys
             .FirstOrDefaultAsync(k => k.Id == keyId && k.ProjectId == projectId, ct);
-        if (key is null) return NotFound(new { error = "Anahtar bulunamadı." });
+        if (key is null) return NotFound(new { error = "Key not found." });
 
         // Silinmez, işaretlenir: "ne zaman iptal edildi" sorusu cevapsız kalmasın.
         key.RevokedAt ??= DateTime.UtcNow;
@@ -305,7 +305,7 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
 
         var permissions = await _context.GatewayTablePermissions
             .Where(p => p.ProjectId == projectId)
@@ -332,10 +332,10 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
 
         if (string.IsNullOrWhiteSpace(request.TableName))
-            return BadRequest(new { error = "Tablo adı gerekli." });
+            return BadRequest(new { error = "A table name is required." });
 
         var existing = await _context.GatewayTablePermissions
             .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.TableName == request.TableName, ct);
@@ -386,13 +386,13 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
 
         if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.DbType))
-            return BadRequest(new { error = "Bağlantı dizesi ve motor türü gerekli." });
+            return BadRequest(new { error = "A connection string and engine type are required." });
 
         var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
-        if (project is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (project is null) return NotFound(new { error = "Project not found." });
 
         // SSRF: kaydetmeden ÖNCE. Reddedilecek bir hedefi şifreleyip saklamak,
         // sonra her istekte reddetmek; hatayı kullanıcıdan bir adım uzaklaştırırdı.
@@ -468,10 +468,10 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı." });
+            return NotFound(new { error = "Project not found." });
 
         var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
-        if (project is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (project is null) return NotFound(new { error = "Project not found." });
 
         project.EncryptedConnectionString = null;
         project.ConnectionDbType = null;
@@ -497,12 +497,12 @@ public class GatewayKeyController : ControllerBase
         // 404: proje hiç görünmüyor (Viewer bile değilsin) — var olan projectId'leri
         // sızdırmama gerekçesi diğer uçlarla aynı. Görüyor ama Owner değilsen 403.
         var role = await _context.GetRoleAsync(projectId, userId, ct);
-        if (role is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (role is null) return NotFound(new { error = "Project not found." });
         if (role != OrgRole.Owner)
-            return StatusCode(403, new { error = "Yalnızca proje sahibi (Owner) SQL konsolunu açıp kapatabilir." });
+            return StatusCode(403, new { error = "Only the project owner can enable or disable the SQL console." });
 
         var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
-        if (project is null) return NotFound(new { error = "Proje bulunamadı." });
+        if (project is null) return NotFound(new { error = "Project not found." });
 
         project.AllowDeskSql = request.Enabled;
         project.UpdatedAt = DateTime.UtcNow;

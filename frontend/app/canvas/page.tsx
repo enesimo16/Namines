@@ -187,7 +187,7 @@ export default function CanvasPage() {
       label: 'Undo',
       description: 'Undo the last change (Ctrl+Z)',
       icon: <Undo2 className="w-4 h-4" />,
-      keywords: ['undo', 'geri al', 'ctrl z'],
+      keywords: ['undo', 'revert', 'ctrl z'],
       onSelect: undo,
     },
     {
@@ -195,7 +195,7 @@ export default function CanvasPage() {
       label: 'Redo',
       description: 'Redo the undone change (Ctrl+Shift+Z)',
       icon: <Redo2 className="w-4 h-4" />,
-      keywords: ['redo', 'ileri al', 'ctrl y'],
+      keywords: ['redo', 'reapply', 'ctrl y'],
       onSelect: redo,
     },
     {
@@ -203,7 +203,7 @@ export default function CanvasPage() {
       label: 'Search Tables & Columns',
       description: 'Find a table or column on the canvas (Ctrl+F)',
       icon: <Search className="w-4 h-4" />,
-      keywords: ['search', 'find', 'ara', 'bul'],
+      keywords: ['search', 'find', 'locate'],
       onSelect: () => setIsSearchOpen(true),
     },
     {

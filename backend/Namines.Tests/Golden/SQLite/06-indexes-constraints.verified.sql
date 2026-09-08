@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "Users" (
 
 CREATE INDEX "IX_Users_CountryCode_CreatedAt" ON "Users" ("CountryCode", "CreatedAt" DESC);
 CREATE UNIQUE INDEX "UX_Users_Email_Active" ON "Users" ("Email") WHERE "DeletedAt" IS NULL;
-CREATE INDEX "IX_Users_CreatedAt" ON "Users" ("CreatedAt") /* INCLUDE (Email) — SQLite desteklemiyor */;
+CREATE INDEX "IX_Users_CreatedAt" ON "Users" ("CreatedAt") /* INCLUDE (Email) — not supported by SQLite */;
 
 CREATE TABLE IF NOT EXISTS "Orders" (
     "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

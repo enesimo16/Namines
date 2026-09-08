@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Namines.Core.Enums;
 using Namines.Core.Models;
@@ -85,13 +85,13 @@ public static class EngineConversionAnalyzer
         TableName: table.Name,
         ColumnId: column.Id,
         ColumnName: column.Name,
-        Description: $"'{table.Name}.{column.Name}' bir dizi (PostgreSQL '{column.Type}[]'). " +
-                     "Hedef motor dizi tipini desteklemiyor.",
+        Description: $"'{table.Name}.{column.Name}' is an array (PostgreSQL '{column.Type}[]'). " +
+                     "The target engine has no array type.",
         Options: new[]
         {
-            new ConversionOption("child_table", "Ayrı bir alt tabloya taşı (ilişkisel, sorgulanabilir)", DataLossRisk: false),
-            new ConversionOption("json_text", "Metin kolonunda JSON olarak sakla (sorgulanamaz hale gelir)", DataLossRisk: true),
-            new ConversionOption("manual", "Elle çözeceğim (şema değişmeden kalır)", DataLossRisk: false),
+            new ConversionOption("child_table", "Move it into a child table (relational, and still queryable)", DataLossRisk: false),
+            new ConversionOption("json_text", "Store it as JSON in a text column (you lose the ability to query it)", DataLossRisk: true),
+            new ConversionOption("manual", "I will handle it myself (the schema stays as it is)", DataLossRisk: false),
         });
 
     /// <summary>
@@ -106,7 +106,7 @@ public static class EngineConversionAnalyzer
 
         if (target == DatabaseType.Oracle)
             return CollationFindingFor(table, column,
-                $"'{table.Name}.{column.Name}' bir collation belirtiyor ('{name}'). Oracle üreticisi collation hiç yazmıyor.",
+                $"'{table.Name}.{column.Name}' specifies a collation ('{name}'). The Oracle generator never emits collations.",
                 allowMap: false);
 
         if (target is DatabaseType.PostgreSQL or DatabaseType.SQLite)
@@ -116,8 +116,8 @@ public static class EngineConversionAnalyzer
         if (!hasIllegalChar) return null; // Zaten çıplak bir tanımlayıcı, sorun yok.
 
         return CollationFindingFor(table, column,
-            $"'{table.Name}.{column.Name}' collation'ı ('{name}') {target} için geçersiz karakterler içeriyor " +
-            "(o motor COLLATE'den sonra çıplak bir tanımlayıcı bekler).",
+            $"'{table.Name}.{column.Name}' has a collation ('{name}') that is not valid for {target} " +
+            "— that engine expects a bare identifier after COLLATE.",
             allowMap: true);
     }
 
@@ -125,9 +125,9 @@ public static class EngineConversionAnalyzer
     {
         var options = new List<ConversionOption>();
         if (allowMap)
-            options.Add(new ConversionOption("map", "En yakın bilinen karşılığa çevir (yaklaşık, kontrol edin)", DataLossRisk: true));
-        options.Add(new ConversionOption("drop", "Collation'ı kaldır, motorun varsayılanını kullan (sıralama/karşılaştırma davranışı değişebilir)", DataLossRisk: true));
-        options.Add(new ConversionOption("manual", "Elle çözeceğim (şema değişmeden kalır)", DataLossRisk: false));
+            options.Add(new ConversionOption("map", "Map it to the closest known equivalent (approximate — review the result)", DataLossRisk: true));
+        options.Add(new ConversionOption("drop", "Drop the collation and use the engine default (sorting and comparison may change)", DataLossRisk: true));
+        options.Add(new ConversionOption("manual", "I will handle it myself (the schema stays as it is)", DataLossRisk: false));
 
         return new ConversionFinding(
             Id: $"{table.Id}.{column.Id}.collation",
@@ -147,10 +147,10 @@ public static class EngineConversionAnalyzer
         TableName: table.Name,
         ColumnId: column.Id,
         ColumnName: column.Name,
-        Description: $"'{table.Name}.{column.Name}' hem hesaplanan hem birincil anahtar. SQLite ikisini birden kabul etmiyor.",
+        Description: $"'{table.Name}.{column.Name}' is both computed and a primary key. SQLite will not accept both.",
         Options: new[]
         {
-            new ConversionOption("plain_column", "Hesaplanan ifadeyi kaldır, sıradan bir kolon yap (uygulama değeri kendi yazmalı)", DataLossRisk: true),
-            new ConversionOption("manual", "Elle çözeceğim (tabloya ayrı bir anahtar kolonu ekleyeceğim)", DataLossRisk: false),
+            new ConversionOption("plain_column", "Drop the computed expression and make it an ordinary column (your app writes the value)", DataLossRisk: true),
+            new ConversionOption("manual", "I will handle it myself (I'll add a separate key column)", DataLossRisk: false),
         });
 }

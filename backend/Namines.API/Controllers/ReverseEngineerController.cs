@@ -35,7 +35,7 @@ public class ReverseEngineerController : ControllerBase
         if (image == null || image.Length == 0)
         {
             _logger.LogWarning("ReverseEngineer: Yüklenen resim boş veya geçersiz.");
-            return BadRequest(new { error = "Lütfen geçerli bir görsel yükleyin." });
+            return BadRequest(new { error = "Upload a valid image." });
         }
 
         // Validate format/content type
@@ -43,14 +43,14 @@ public class ReverseEngineerController : ControllerBase
         if (!AllowedContentTypes.Contains(contentType))
         {
             _logger.LogWarning("ReverseEngineer: Desteklenmeyen resim formatı: {ContentType}", contentType);
-            return BadRequest(new { error = "Desteklenmeyen görsel formatı. Sadece JPEG, PNG veya WebP yükleyebilirsiniz." });
+            return BadRequest(new { error = "Unsupported image format. Upload a JPEG, PNG, or WebP file." });
         }
 
         // Validate file size
         if (image.Length > MaxFileSizeBytes)
         {
             _logger.LogWarning("ReverseEngineer: Dosya boyutu limiti aşıldı ({Size} bytes).", image.Length);
-            return BadRequest(new { error = "Görsel boyutu 10MB sınırını aşamaz." });
+            return BadRequest(new { error = "The image cannot be larger than 10MB." });
         }
 
         _logger.LogInformation("ReverseEngineer: Görsel analiz talebi alındı. Dosya Adı: {FileName}, Boyut: {Size} bytes", 
@@ -115,7 +115,7 @@ public class ReverseEngineerController : ControllerBase
             if (parsedSchema == null || parsedSchema.Tables == null || parsedSchema.Tables.Count == 0)
             {
                 _logger.LogWarning("ReverseEngineer: AI görselden geçerli bir şema üretemedi.");
-                return BadRequest(new { error = "Görselden tablo yapısı çözümlenemedi. Lütfen çizgilerin ve yazıların net olduğundan emin olun." });
+                return BadRequest(new { error = "No table structure could be read from the image. Make sure the lines and text are clear." });
             }
 
             return Ok(parsedSchema);
@@ -123,7 +123,7 @@ public class ReverseEngineerController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "ReverseEngineer: Görsel çözümleme sırasında hata oluştu.");
-            return StatusCode(500, new { error = $"Beyaz tahta çözümleme hatası: {ex.Message}" });
+            return StatusCode(500, new { error = $"Whiteboard analysis failed: {ex.Message}" });
         }
     }
 }

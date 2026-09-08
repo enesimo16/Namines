@@ -54,17 +54,16 @@ public static class SharedHostingExporter
             ddl = ddl.Replace(") ENGINE=InnoDB;", ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
         var header = new StringBuilder();
-        header.AppendLine("-- Namines — paylaşımlı barındırma için üretildi (second-phase/13-DAGITIM-HEDEFLERI.md)");
-        header.AppendLine("-- Bu dosya bir veritabanının VAR OLDUĞUNU varsayar; CREATE DATABASE içermez.");
-        header.AppendLine("-- Panelinizde önce boş bir veritabanı oluşturup phpMyAdmin ile bu dosyayı içe aktarın.");
+        header.AppendLine("-- Namines — generated for shared hosting (second-phase/13-DAGITIM-HEDEFLERI.md)");
+        header.AppendLine("-- This file assumes the database ALREADY EXISTS; it contains no CREATE DATABASE.");
+        header.AppendLine("-- Create an empty database in your panel first, then import this file via phpMyAdmin.");
 
         if (schema.Tables.Any(t => t.Checks.Count > 0))
         {
             header.AppendLine("--");
-            header.AppendLine("-- NOT: CHECK kısıtları yalnızca MySQL 8.0.16+ / MariaDB 10.2+ üzerinde");
-            header.AppendLine("-- UYGULANIR. Paylaşımlı barındırmada hâlâ yaygın olan MySQL 5.7 bu");
-            header.AppendLine("-- sözdizimini KABUL EDER ama sessizce YOK SAYAR — hedef panelin motor");
-            header.AppendLine("-- sürümünü önceden kontrol edin.");
+            header.AppendLine("-- NOTE: CHECK constraints are ENFORCED only on MySQL 8.0.16+ / MariaDB 10.2+.");
+            header.AppendLine("-- MySQL 5.7, still common on shared hosting, ACCEPTS this syntax but silently");
+            header.AppendLine("-- IGNORES it — check the engine version of the target panel beforehand.");
         }
         header.AppendLine();
 
@@ -113,51 +112,52 @@ public static class SharedHostingExporter
     {
         var panelName = target == DatabaseType.MariaDB ? "MariaDB" : "MySQL";
         var sb = new StringBuilder();
-        sb.AppendLine($"Namines — {panelName} paylaşımlı barındırma paketi");
+        sb.AppendLine($"Namines — {panelName} shared hosting package");
         sb.AppendLine("=========================================");
         sb.AppendLine();
-        sb.AppendLine("1. Panelinize girin (Plesk / cPanel / DirectAdmin).");
-        sb.AppendLine("2. Veritabanları bölümünden BOŞ bir veritabanı oluşturun (Namines bunu");
-        sb.AppendLine("   sizin için oluşturmaz — paylaşımlı barındırmada bu yetki genelde yok).");
-        sb.AppendLine("3. \"Veritabanını Yönet\" / phpMyAdmin bağlantısını açın.");
-        sb.AppendLine("4. \"İçe Aktar\" (Import) sekmesine gidin.");
+        sb.AppendLine("1. Sign in to your hosting panel (Plesk / cPanel / DirectAdmin).");
+        sb.AppendLine("2. In the Databases section, create an EMPTY database (Namines does not");
+        sb.AppendLine("   create it for you — shared hosting rarely grants that permission).");
+        sb.AppendLine("3. Open the \"Manage Database\" / phpMyAdmin link.");
+        sb.AppendLine("4. Go to the \"Import\" tab.");
         if (isSplit)
         {
-            sb.AppendLine("5. Bu pakette BİRDEN FAZLA .sql dosyası var (dosya boyutu sınırını aşmamak");
-            sb.AppendLine("   için bölündü) — dosyaları numara sırasına göre (part1, part2, ...) TEK TEK");
-            sb.AppendLine("   içe aktarın. Sırayı değiştirmeyin.");
+            sb.AppendLine("5. This package contains MULTIPLE .sql files (split to stay under the file");
+            sb.AppendLine("   size limit) — import them ONE BY ONE in numerical order (part1, part2,");
+            sb.AppendLine("   ...). Do not change the order.");
         }
         else
         {
-            sb.AppendLine("5. schema.sql dosyasını seçip içe aktarın.");
+            sb.AppendLine("5. Select schema.sql and import it.");
         }
         sb.AppendLine();
-        sb.AppendLine("Dikkat:");
-        sb.AppendLine("- Karakter kümesi: dosya utf8mb4 kullanır. Panel varsayılanı farklıysa");
-        sb.AppendLine("  (latin1/utf8) içe aktarma sırasında karakter kümesini utf8mb4 olarak");
-        sb.AppendLine("  seçin — aksi hâlde Türkçe karakterler bozulabilir.");
-        sb.AppendLine("- Bu dosyayı Namines üretti ama ÇALIŞTIRMADI. Doğruluğunu içe aktarmadan");
-        sb.AppendLine("  önce gözden geçirin.");
+        sb.AppendLine("Please note:");
+        sb.AppendLine("- Character set: the file uses utf8mb4. If your panel defaults to something");
+        sb.AppendLine("  else (latin1/utf8), select utf8mb4 as the character set during import —");
+        sb.AppendLine("  otherwise non-ASCII characters may be corrupted.");
+        sb.AppendLine("- Namines generated this file but did NOT execute it. Review it for");
+        sb.AppendLine("  correctness before importing.");
         return sb.ToString();
     }
 
     private const string SqliteInstructions =
-        "Namines — Mobil (SQLite) paketi\n" +
+        "Namines — Mobile (SQLite) package\n" +
         "=================================\n\n" +
-        "schema.db  — uygulamanızın asset/kaynak klasörüne gömebileceğiniz, hazır\n" +
-        "             oluşturulmuş bir SQLite veritabanı (tablolar dahil, veri yok).\n" +
-        "schema.sql — aynı şemanın düz metin DDL'i, ileride migration yazarken referans.\n\n" +
-        "Bu dosyayı Namines üretti ama hiçbir cihaza yüklemedi/çalıştırmadı — bunu\n" +
-        "uygulamanızın kendi paketleme adımına siz eklersiniz.\n\n" +
-        "Örnek (iOS/Swift, Bundle içine gömülü .db'yi ilk açılışta kopyalama):\n" +
+        "schema.db  — a ready-built SQLite database (tables included, no data) that you\n" +
+        "             can embed in your application's asset/resource folder.\n" +
+        "schema.sql — the plain-text DDL of the same schema, for reference when you write\n" +
+        "             migrations later.\n\n" +
+        "Namines generated this file but never installed or executed it on any device —\n" +
+        "wiring it into your application's own packaging step is up to you.\n\n" +
+        "Example (iOS/Swift, copying the bundled .db on first launch):\n" +
         "  let bundled = Bundle.main.url(forResource: \"schema\", withExtension: \"db\")!\n" +
         "  try FileManager.default.copyItem(at: bundled, to: destinationURL)\n\n" +
-        "Örnek (Android/Kotlin, assets içinden kopyalama):\n" +
+        "Example (Android/Kotlin, copying from assets):\n" +
         "  assets.open(\"schema.db\").use { input -> destFile.outputStream().use { input.copyTo(it) } }\n\n" +
-        "Örnek (Flutter, sqflite ile):\n" +
+        "Example (Flutter, with sqflite):\n" +
         "  final bytes = await rootBundle.load('assets/schema.db');\n" +
         "  await File(path).writeAsBytes(bytes.buffer.asUint8List());\n\n" +
-        "Şemayı sonradan değiştirirseniz bu dosyayı yeniden üretip PAKETİNİZDEKİ\n" +
-        "eskisinin yerine koyun — Namines cihazlardaki var olan .db'leri migrate etmez,\n" +
-        "bu uygulamanızın kendi migration mantığının işi.\n";
+        "If you change the schema later, regenerate this file and replace the old one IN\n" +
+        "YOUR PACKAGE — Namines does not migrate .db files already on devices; that is\n" +
+        "your application's own migration logic.\n";
 }

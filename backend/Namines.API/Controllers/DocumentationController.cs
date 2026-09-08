@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -39,10 +39,10 @@ public class DocumentationController : ControllerBase
     public async Task<IActionResult> GeneratePdf([FromBody] PdfRequest request)
     {
         if (request?.Schema == null)
-            return BadRequest("Schema bilgisi eksik.");
+            return BadRequest("Schema information is missing.");
 
         var projectName = string.IsNullOrWhiteSpace(request.ProjectName)
-            ? (request.Schema.Name ?? "Namines Projesi")
+            ? (request.Schema.Name ?? "Namines Project")
             : request.ProjectName;
 
         bool forceDeterministic = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
@@ -86,7 +86,7 @@ public class DocumentationController : ControllerBase
         }
 
         // 2) PDF üret
-        var language = string.IsNullOrWhiteSpace(request.Language) ? "tr" : request.Language;
+        var language = string.IsNullOrWhiteSpace(request.Language) ? "en" : request.Language;
         var pdfBytes = _docGenerator.GeneratePdf(request.Schema, projectSummary, language);
 
         var fileName = $"{projectName.Replace(" ", "_")}_DataDictionary.pdf";
@@ -115,5 +115,7 @@ public class PdfRequest
 {
     public DatabaseSchema Schema { get; set; } = new();
     public string ProjectName { get; set; } = string.Empty;
-    public string Language { get; set; } = "tr";
+    // Urunun arayuzu Ingilizce; dili belirtmeyen bir cagirana Turkce PDF donmek
+// tutarsizdi. Turkce hala destekleniyor, ama acikca istenmesi gerekiyor.
+    public string Language { get; set; } = "en";
 }

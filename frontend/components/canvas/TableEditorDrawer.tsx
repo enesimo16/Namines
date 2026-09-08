@@ -111,7 +111,7 @@ export default function TableEditorDrawer() {
     if (!draft) return;
     const firstCol = draft.columns[0];
     if (!firstCol) {
-      showToast('Index eklemek için önce en az bir kolon ekleyin.', 'error');
+      showToast('Add at least one column before adding an index.', 'error');
       return;
     }
     const newIndex: SchemaIndex = {
@@ -176,7 +176,7 @@ export default function TableEditorDrawer() {
       isUnique: false,
     }));
     setDraft({ ...draft, indexes: [...(draft.indexes ?? []), ...added] });
-    showToast(`${added.length} yabancı anahtar index'i eklendi.`, 'success');
+    showToast(`Added ${added.length} foreign key index${added.length === 1 ? '' : 'es'}.`, 'success');
   };
 
   /**
@@ -184,31 +184,31 @@ export default function TableEditorDrawer() {
    * şemaya girer ve hata ancak DDL derlemesinde ortaya çıkar.
    */
   const validate = (t: SchemaTable): string | null => {
-    if (!t.name.trim()) return 'Tablo adı boş olamaz.';
+    if (!t.name.trim()) return 'Table name cannot be empty.';
 
-    if (t.columns.length === 0) return 'Tablo en az bir kolon içermeli.';
+    if (t.columns.length === 0) return 'A table must have at least one column.';
 
     const emptyCol = t.columns.find(c => !c.name.trim());
-    if (emptyCol) return 'Kolon adı boş olamaz.';
+    if (emptyCol) return 'Column name cannot be empty.';
 
     const seen = new Set<string>();
     for (const c of t.columns) {
       const key = c.name.trim().toLowerCase();
-      if (seen.has(key)) return `'${c.name}' kolonu birden fazla kez tanımlanmış. Kolon adları benzersiz olmalı.`;
+      if (seen.has(key)) return `Column '${c.name}' is defined more than once. Column names must be unique.`;
       seen.add(key);
     }
 
-    if (!t.columns.some(c => c.isPK)) return 'Tablonun en az bir birincil anahtarı (PK) olmalı.';
+    if (!t.columns.some(c => c.isPK)) return 'A table must have at least one primary key (PK).';
 
     // Index doğrulaması — kolonsuz index geçersiz SQL üretir.
     const emptyIndex = (t.indexes ?? []).find(ix => ix.columns.length === 0);
-    if (emptyIndex) return 'Her index en az bir kolon içermeli.';
+    if (emptyIndex) return 'Every index must contain at least one column.';
 
     // Aynı kolon setine sahip yinelenen index'ler disk ve yazma maliyeti üretir.
     const indexKeys = new Set<string>();
     for (const ix of t.indexes ?? []) {
       const key = ix.columns.map(c => c.columnId).join(',') + (ix.isUnique ? ':u' : '');
-      if (indexKeys.has(key)) return 'Aynı kolon setine sahip birden fazla index var.';
+      if (indexKeys.has(key)) return 'Multiple indexes share the same column set.';
       indexKeys.add(key);
     }
 
@@ -519,9 +519,9 @@ export default function TableEditorDrawer() {
               <div>
                 <div className="flex items-center justify-between mb-2.5">
                   <div>
-                    <h3 className="text-xs font-semibold text-content-primary">Index'ler</h3>
+                    <h3 className="text-xs font-semibold text-content-primary">Indexes</h3>
                     <p className="text-[10px] text-content-subtle mt-0.5">
-                      Sorgu performansı için. FK kolonlarında index önerilir.
+                      For query performance. An index on FK columns is recommended.
                     </p>
                   </div>
                   <button
@@ -529,7 +529,7 @@ export default function TableEditorDrawer() {
                     className={`text-[11px] px-2 py-1.5 rounded-[var(--radius-control)] flex items-center gap-1 ${inputClass} hover:border-content-primary/20 text-content-primary`}
                   >
                     <Plus className="w-3 h-3" />
-                    Index ekle
+                    Add index
                   </button>
                 </div>
 
@@ -538,15 +538,16 @@ export default function TableEditorDrawer() {
                     <AlertTriangle className="w-3.5 h-3.5 text-content-secondary shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] text-content-secondary">
-                        {unindexedFkColumns.map(c => c.name).join(', ')} yabancı anahtar
-                        {unindexedFkColumns.length > 1 ? ' kolonlarında' : ' kolonunda'} index yok.
-                        Bu, sorgu planında tam tablo taramasına yol açar.
+                        Foreign key {unindexedFkColumns.length > 1 ? 'columns' : 'column'}{' '}
+                        {unindexedFkColumns.map(c => c.name).join(', ')}{' '}
+                        {unindexedFkColumns.length > 1 ? 'have' : 'has'} no index.
+                        This leads to a full table scan in the query plan.
                       </p>
                       <button
                         onClick={handleAddMissingFkIndexes}
                         className="mt-1.5 text-[11px] text-accent-text hover:text-content-primary underline underline-offset-2"
                       >
-                        Eksik index'leri ekle
+                        Add the missing indexes
                       </button>
                     </div>
                   </div>
@@ -562,7 +563,7 @@ export default function TableEditorDrawer() {
                         <input
                           value={ix.name ?? ''}
                           onChange={e => handleIndexChange(ix.id, 'name', e.target.value)}
-                          placeholder="(ad otomatik türetilir)"
+                          placeholder="(name is derived automatically)"
                           className={`flex-1 min-w-0 px-2 py-1 text-xs font-mono ${inputClass}`}
                         />
                         <label className="flex items-center gap-1.5 text-[10px] text-content-muted shrink-0 cursor-pointer">
@@ -576,7 +577,7 @@ export default function TableEditorDrawer() {
                         </label>
                         <button
                           onClick={() => handleDeleteIndex(ix.id)}
-                          aria-label="Index'i sil"
+                          aria-label="Delete index"
                           className="p-1 rounded-[var(--radius-control)] text-content-subtle hover:text-danger-text hover:bg-danger-subtle transition-colors shrink-0"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -596,7 +597,7 @@ export default function TableEditorDrawer() {
                                   : 'bg-surface-800 border-content-primary/10 text-content-subtle hover:text-content-primary'
                               }`}
                             >
-                              {col.name || '(adsız)'}
+                              {col.name || '(unnamed)'}
                             </button>
                           );
                         })}
@@ -605,14 +606,14 @@ export default function TableEditorDrawer() {
                       <input
                         value={ix.where ?? ''}
                         onChange={e => handleIndexChange(ix.id, 'where', e.target.value)}
-                        placeholder="Kısmi index koşulu — ör. DeletedAt IS NULL"
+                        placeholder="Partial index condition — e.g. DeletedAt IS NULL"
                         className={`mt-2 w-full px-2 py-1 text-[10px] font-mono ${inputClass}`}
                       />
                     </div>
                   ))}
 
                   {(draft.indexes ?? []).length === 0 && unindexedFkColumns.length === 0 && (
-                    <p className="text-[11px] text-content-subtle py-1">Henüz index tanımlanmadı.</p>
+                    <p className="text-[11px] text-content-subtle py-1">No indexes defined yet.</p>
                   )}
                 </div>
               </div>

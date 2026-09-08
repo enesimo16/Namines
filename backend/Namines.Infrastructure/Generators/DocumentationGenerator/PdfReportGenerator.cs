@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -13,10 +14,12 @@ public class PdfReportGenerator
     /// <summary>
     /// Kapak sayfası + AI yönetici özeti + tablo detaylarından oluşan kurumsal PDF üretir.
     /// </summary>
-    public byte[] Generate(DatabaseSchema schema, string projectSummary, string language = "tr")
+    /// <param name="language">
+    /// Çağıran taraflarla uyum için korunuyor. Rapor artık tek dilde (İngilizce)
+    /// üretiliyor — ürünün geri kalanıyla aynı dil.
+    /// </param>
+    public byte[] Generate(DatabaseSchema schema, string projectSummary, string language = "en")
     {
-        bool isEn = "en".Equals(language, StringComparison.OrdinalIgnoreCase);
-
         var document = Document.Create(container =>
         {
             // ── Kapak Sayfası ───────────────────────────────────────────────
@@ -27,7 +30,7 @@ public class PdfReportGenerator
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(x => x.FontSize(10).FontFamily(Fonts.Arial));
 
-                page.Content().Element(x => ComposeCoverPage(x, schema, projectSummary, isEn));
+                page.Content().Element(x => ComposeCoverPage(x, schema, projectSummary));
             });
 
             // ── İçerik Sayfaları ────────────────────────────────────────────
@@ -38,9 +41,9 @@ public class PdfReportGenerator
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(x => x.FontSize(10).FontFamily(Fonts.Arial));
 
-                page.Header().Element(x => ComposeContentHeader(x, isEn));
-                page.Content().Element(x => ComposeContent(x, schema, isEn));
-                page.Footer().Element(x => ComposeFooter(x, isEn));
+                page.Header().Element(x => ComposeContentHeader(x));
+                page.Content().Element(x => ComposeContent(x, schema));
+                page.Footer().Element(x => ComposeFooter(x));
             });
         });
 
@@ -50,7 +53,7 @@ public class PdfReportGenerator
     // ─────────────────────────────────────────────────────────────────────────
     // KAPAK SAYFASI
     // ─────────────────────────────────────────────────────────────────────────
-    private void ComposeCoverPage(IContainer container, DatabaseSchema schema, string projectSummary, bool isEn)
+    private void ComposeCoverPage(IContainer container, DatabaseSchema schema, string projectSummary)
     {
         container.Column(col =>
         {
@@ -71,16 +74,16 @@ public class PdfReportGenerator
                          .FontColor("#a5b4fc");   // indigo-300
 
                    header.Item()
-                         .Text(isEn ? "Database Architecture & Data Dictionary" : "Veritabanı Mimarisi & Veri Sözlüğü")
+                         .Text("Database Architecture & Data Dictionary")
                          .FontSize(14)
                          .FontColor("#c7d2fe");   // indigo-200
 
                    // Tarih
-                   string dateLabel = isEn ? "Generation Date" : "Oluşturma Tarihi";
-                   string dateFormat = isEn ? "MMMM dd, yyyy HH:mm" : "dd MMMM yyyy HH:mm";
+                   string dateLabel = "Generation Date";
+                   string dateFormat = "MMMM dd, yyyy HH:mm";
                    header.Item()
                          .PaddingTop(16)
-                         .Text($"{dateLabel}: {DateTime.Now.ToString(dateFormat)}")
+                         .Text($"{dateLabel}: {DateTime.Now.ToString(dateFormat, CultureInfo.InvariantCulture)}")
                          .FontSize(10)
                          .FontColor("#6366f1");   // indigo-500
                });
@@ -94,7 +97,7 @@ public class PdfReportGenerator
 
                    // Proje adı
                    body.Item()
-                       .Text(schema.Name ?? (isEn ? "Untitled Schema" : "İsimsiz Şema"))
+                       .Text(schema.Name ?? "Untitled Schema")
                        .FontSize(28)
                        .Bold()
                        .FontColor("#1e1b4b");
@@ -103,11 +106,11 @@ public class PdfReportGenerator
                    body.Item()
                        .Row(row =>
                        {
-                           StatCard(row.RelativeItem(), isEn ? "Total Tables" : "Toplam Tablo", schema.Tables.Count.ToString(), "#6366f1");
+                           StatCard(row.RelativeItem(), "Total Tables", schema.Tables.Count.ToString(), "#6366f1");
                            row.ConstantItem(12);
-                           StatCard(row.RelativeItem(), isEn ? "Total Relations" : "Toplam İlişki", schema.Relations.Count.ToString(), "#8b5cf6");
+                           StatCard(row.RelativeItem(), "Total Relations", schema.Relations.Count.ToString(), "#8b5cf6");
                            row.ConstantItem(12);
-                           StatCard(row.RelativeItem(), isEn ? "Total Columns" : "Toplam Kolon",
+                           StatCard(row.RelativeItem(), "Total Columns",
                                schema.Tables.Sum(t => t.Columns.Count).ToString(), "#06b6d4");
                        });
 
@@ -119,7 +122,7 @@ public class PdfReportGenerator
 
                    // Yönetici Özeti başlığı
                    body.Item()
-                       .Text(isEn ? "EXECUTIVE SUMMARY" : "YÖNETİCİ ÖZETİ")
+                       .Text("EXECUTIVE SUMMARY")
                        .FontSize(10)
                        .Bold()
                        .FontColor("#6366f1")
@@ -137,7 +140,7 @@ public class PdfReportGenerator
                    else
                    {
                        body.Item()
-                           .Text(isEn ? "This report was automatically generated by Namines." : "Bu rapor Namines tarafından otomatik olarak oluşturulmuştur.")
+                           .Text("This report was generated automatically by Namines.")
                            .FontSize(10)
                            .FontColor("#6b7280")
                            .Italic();
@@ -150,7 +153,7 @@ public class PdfReportGenerator
                .Background("#f5f3ff")  // indigo-50
                .PaddingHorizontal(40)
                .AlignMiddle()
-               .Text(isEn ? "Namines · AI-Powered Database Design Tool" : "Namines · Yapay Zeka Destekli Veritabanı Tasarım Aracı")
+               .Text("Namines · AI-Powered Database Design Tool")
                .FontSize(8)
                .FontColor("#6366f1");
         });
@@ -174,7 +177,7 @@ public class PdfReportGenerator
     // ─────────────────────────────────────────────────────────────────────────
     // İÇERİK SAYFASI HEADER
     // ─────────────────────────────────────────────────────────────────────────
-    private void ComposeContentHeader(IContainer container, bool isEn)
+    private void ComposeContentHeader(IContainer container)
     {
         container
             .BorderBottom(1)
@@ -185,12 +188,12 @@ public class PdfReportGenerator
                 row.RelativeItem().Column(col =>
                 {
                     col.Item().Text("NAMINES").FontSize(16).Bold().FontColor("#4f46e5");
-                    col.Item().Text(isEn ? "Data Dictionary" : "Veri Sözlüğü (Data Dictionary)").FontSize(9).FontColor("#94a3b8");
+                    col.Item().Text("Data Dictionary").FontSize(9).FontColor("#94a3b8");
                 });
                 row.ConstantItem(120)
                    .AlignRight()
                    .AlignBottom()
-                   .Text($"{DateTime.Now:dd MMM yyyy}")
+                   .Text(DateTime.Now.ToString("dd MMM yyyy", CultureInfo.InvariantCulture))
                    .FontSize(9)
                    .FontColor("#94a3b8");
             });
@@ -199,21 +202,21 @@ public class PdfReportGenerator
     // ─────────────────────────────────────────────────────────────────────────
     // İÇERİK (Tablo Detayları)
     // ─────────────────────────────────────────────────────────────────────────
-    private void ComposeContent(IContainer container, DatabaseSchema schema, bool isEn)
+    private void ComposeContent(IContainer container, DatabaseSchema schema)
     {
         container.PaddingVertical(1, Unit.Centimetre).Column(column =>
         {
             column.Spacing(20);
 
-            string schemaLabel = isEn ? "Schema" : "Şema";
+            string schemaLabel = "Schema";
             column.Item()
-                  .Text($"{schemaLabel}: {schema.Name ?? (isEn ? "Untitled Schema" : "İsimsiz Şema")}")
+                  .Text($"{schemaLabel}: {schema.Name ?? "Untitled Schema"}")
                   .FontSize(18)
                   .SemiBold()
                   .FontColor("#1e1b4b");
 
-            string tablesCountLabel = isEn ? "Total Tables" : "Toplam Tablo";
-            string relationsCountLabel = isEn ? "Total Relations" : "Toplam İlişki";
+            string tablesCountLabel = "Total Tables";
+            string relationsCountLabel = "Total Relations";
             column.Item()
                   .Row(row =>
                   {
@@ -221,7 +224,7 @@ public class PdfReportGenerator
                       row.RelativeItem().Text($"{relationsCountLabel}: {schema.Relations.Count}").FontSize(11);
                   });
 
-            string tableLabel = isEn ? "Table" : "Tablo";
+            string tableLabel = "Table";
             foreach (var table in schema.Tables)
             {
                 column.Item()
@@ -251,13 +254,13 @@ public class PdfReportGenerator
                     tableContainer.Header(header =>
                     {
                         header.Cell().Background("#ede9fe").PaddingVertical(5).PaddingHorizontal(4)
-                              .Text(isEn ? "Column Name" : "Kolon Adı").SemiBold().FontSize(9).FontColor("#4338ca");
+                              .Text("Column Name").SemiBold().FontSize(9).FontColor("#4338ca");
                         header.Cell().Background("#ede9fe").PaddingVertical(5).PaddingHorizontal(4)
-                              .Text(isEn ? "Data Type" : "Veri Tipi").SemiBold().FontSize(9).FontColor("#4338ca");
+                              .Text("Data Type").SemiBold().FontSize(9).FontColor("#4338ca");
                         header.Cell().Background("#ede9fe").PaddingVertical(5).PaddingHorizontal(4)
-                              .Text(isEn ? "Nullable?" : "Null?").SemiBold().FontSize(9).FontColor("#4338ca");
+                              .Text("Nullable?").SemiBold().FontSize(9).FontColor("#4338ca");
                         header.Cell().Background("#ede9fe").PaddingVertical(5).PaddingHorizontal(4)
-                              .Text(isEn ? "Constraints (PK/FK)" : "Tür (PK/FK)").SemiBold().FontSize(9).FontColor("#4338ca");
+                              .Text("Constraints (PK/FK)").SemiBold().FontSize(9).FontColor("#4338ca");
                     });
 
                     bool isOdd = false;
@@ -265,7 +268,7 @@ public class PdfReportGenerator
                     {
                         var desc = col.IsPK ? "Primary Key" : (col.IsFK ? "Foreign Key" : "");
                         var lengthStr = col.Length.HasValue ? $"({col.Length})" : "";
-                        var nullStr = col.IsNullable ? (isEn ? "Yes" : "Evet") : (isEn ? "No" : "Hayır");
+                        var nullStr = col.IsNullable ? "Yes" : "No";
                         var rowBg = isOdd ? "#fafaf9" : "#ffffff";
                         isOdd = !isOdd;
 
@@ -284,7 +287,7 @@ public class PdfReportGenerator
     // ─────────────────────────────────────────────────────────────────────────
     // FOOTER
     // ─────────────────────────────────────────────────────────────────────────
-    private void ComposeFooter(IContainer container, bool isEn)
+    private void ComposeFooter(IContainer container)
     {
         container
             .BorderTop(1)
@@ -293,13 +296,13 @@ public class PdfReportGenerator
             .Row(row =>
             {
                 row.RelativeItem()
-                   .Text(isEn ? "Namines — Automatically Generated" : "Namines — Otomatik Üretilmiştir")
+                   .Text("Namines — Automatically Generated")
                    .FontSize(8)
                    .FontColor("#94a3b8");
 
                 row.ConstantItem(80).AlignRight().Text(x =>
                 {
-                    x.Span(isEn ? "Page " : "Sayfa ").FontSize(8).FontColor("#94a3b8");
+                    x.Span("Page ").FontSize(8).FontColor("#94a3b8");
                     x.CurrentPageNumber().FontSize(8).FontColor("#6366f1");
                     x.Span(" / ").FontSize(8).FontColor("#94a3b8");
                     x.TotalPages().FontSize(8).FontColor("#6366f1");
