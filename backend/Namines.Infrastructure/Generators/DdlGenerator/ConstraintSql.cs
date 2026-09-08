@@ -130,7 +130,7 @@ internal static class ConstraintSql
             }
             else if (!string.IsNullOrWhiteSpace(index.Method))
             {
-                sb.AppendLine($"-- NOT: '{index.Method}' index yöntemi {engine} tarafından desteklenmiyor, varsayılan kullanıldı.");
+                sb.AppendLine($"-- NOTE: index method '{index.Method}' is not supported by {engine}; the default was used.");
             }
 
             sb.Append($"CREATE {unique}INDEX {quote(name)} ON {quote(table.Name)}{usingBefore} ({colList}){usingAfter}");
@@ -144,7 +144,7 @@ internal static class ConstraintSql
                     if (SupportsIncludeColumns(engine))
                         sb.Append($" INCLUDE ({string.Join(", ", includeCols.Select(c => quote(c.Name)))})");
                     else
-                        sb.Append($" /* INCLUDE ({string.Join(", ", includeCols.Select(c => c.Name))}) — {engine} desteklemiyor */");
+                        sb.Append($" /* INCLUDE ({string.Join(", ", includeCols.Select(c => c.Name))}) — not supported by {engine} */");
                 }
             }
 
@@ -159,7 +159,7 @@ internal static class ConstraintSql
                 {
                     // Koşulu düşürmek index'i SESSİZCE farklı bir şeye çevirirdi.
                     // Kullanıcının bunu görmesi gerekir.
-                    sb.Append($" /* WHERE {index.Where.Trim()} — {engine} kısmi index desteklemiyor */");
+                    sb.Append($" /* WHERE {index.Where.Trim()} — partial indexes are not supported by {engine} */");
                 }
             }
 

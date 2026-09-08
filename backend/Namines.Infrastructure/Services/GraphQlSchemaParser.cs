@@ -88,8 +88,8 @@ public static class GraphQlSchemaParser
                 if (fieldCount == 0) continue; // Alanı olmayan tip anlamsız bir varlık adayı.
 
                 var reason = relationCount > 0
-                    ? $"GraphQL tipi — {fieldCount} alan, {relationCount} ilişki adayı (tahmin)"
-                    : $"GraphQL tipi — {fieldCount} alan (tahmin)";
+                    ? $"GraphQL type — {fieldCount} fields, {relationCount} candidate relations (estimated)"
+                    : $"GraphQL type — {fieldCount} fields (estimated)";
 
                 results.Add(new PlannedTable(name, reason));
             }

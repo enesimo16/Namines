@@ -108,7 +108,7 @@ export default function CompilePage() {
       form.submit();
       document.body.removeChild(form);
     } catch {
-      showToast('Namines Desk açılamadı. Lütfen tekrar deneyin.', 'error');
+      showToast('Could not open Namines Desk. Please try again.', 'error');
     } finally {
       setOpeningDesk(false);
     }
@@ -297,10 +297,10 @@ export default function CompilePage() {
             onClick={openNaminesDesk}
             disabled={openingDesk}
             className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 mt-1 lg:mt-2 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10 disabled:opacity-50"
-            title="Namines Desk — veritabaniniz icin barindirilan CRUD arayuzu (ayri uygulama)"
+            title="Namines Desk — a hosted CRUD interface for your database (separate app)"
           >
             <PanelsTopLeft className="w-3.5 h-3.5 shrink-0" />
-            <span className="lg:truncate">{openingDesk ? 'Açılıyor…' : 'Namines Desk'}</span>
+            <span className="lg:truncate">{openingDesk ? 'Opening…' : 'Namines Desk'}</span>
             <span className="text-micro font-bold uppercase tracking-wider text-accent-text bg-accent-subtle px-1.5 py-0.5 rounded-full shrink-0">beta</span>
             <ExternalLink className="w-3 h-3 shrink-0 ml-auto opacity-60" />
           </button>

@@ -467,15 +467,15 @@ function QuotaBottomRightAlert({ remainingPercent, show }: QuotaAlertProps) {
   let borderClass = "border-content-primary/10";
 
   if (remainingPercent === 0) {
-    message = "Token bitti — minimum AI aktif. Tüm ücretsiz özellikler açık.";
+    message = "Out of tokens — minimum AI is active. All free features stay available.";
     dotColor = "bg-danger";
     borderClass = "border-danger/30";
   } else if (remainingPercent <= 10) {
-    message = `AI token: %${remainingPercent} kaldı — birazdan minimum AI'ya geçilecek.`;
+    message = `AI tokens: ${remainingPercent}% left — switching to minimum AI soon.`;
     dotColor = "bg-danger";
     borderClass = "border-danger/30";
   } else {
-    message = `AI token: %${remainingPercent} kaldı.`;
+    message = `AI tokens: ${remainingPercent}% left.`;
     dotColor = "bg-content-muted";
     borderClass = "border-content-primary/10";
   }

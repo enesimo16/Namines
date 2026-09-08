@@ -88,8 +88,8 @@ public static class OpenApiSchemaParser
                 if (fieldCount == 0) continue;
 
                 var reason = relationCount > 0
-                    ? $"OpenAPI şeması — {fieldCount} alan, {relationCount} ilişki adayı (tahmin)"
-                    : $"OpenAPI şeması — {fieldCount} alan (tahmin)";
+                    ? $"OpenAPI schema — {fieldCount} fields, {relationCount} candidate relations (estimated)"
+                    : $"OpenAPI schema — {fieldCount} fields (estimated)";
 
                 results.Add(new PlannedTable(entry.Name, reason));
             }

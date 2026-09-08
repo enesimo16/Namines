@@ -33,7 +33,7 @@ public class FeedbackController : ControllerBase
     {
         var message = request.Message?.Trim() ?? string.Empty;
         if (message.Length < 3)
-            return BadRequest(new { message = "Geri bildirim çok kısa." });
+            return BadRequest(new { message = "Your feedback is too short." });
         if (message.Length > 4000)
             message = message.Substring(0, 4000);
 
@@ -55,6 +55,6 @@ public class FeedbackController : ControllerBase
         await _context.Feedbacks.AddAsync(feedback);
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Geri bildiriminiz için teşekkürler!" });
+        return Ok(new { message = "Thanks for your feedback." });
     }
 }

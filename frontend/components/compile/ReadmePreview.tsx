@@ -69,7 +69,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
       URL.revokeObjectURL(url);
       
       const successMsg = lang === 'tr' 
-        ? "README.md başarıyla indirildi!" 
+        ? "README.md successfully downloaded!"
         : "README.md successfully downloaded!";
       showToast(successMsg, "success");
     } catch (error) {

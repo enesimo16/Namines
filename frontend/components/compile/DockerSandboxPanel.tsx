@@ -180,7 +180,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
   const handleGenerate = async () => {
     if (!isAuthenticated) {
       setStatus('error');
-      setLogs(['🔒 Docker sandbox için giriş yapmanız gerekiyor.']);
+      setLogs(['🔒 You need to sign in to use the Docker sandbox.']);
       return;
     }
     eventSourceRef.current?.close();

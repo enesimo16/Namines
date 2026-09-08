@@ -54,7 +54,7 @@ public class DockerController : ControllerBase
     public IActionResult RunDockerSandbox([FromBody] CompileRequest request)
     {
         if (request?.Schema == null)
-            return BadRequest(new { message = "Şema bulunamadı. Lütfen önce bir şema oluşturun." });
+            return BadRequest(new { message = "No schema found. Create a schema first." });
 
         // DDL üretimi job kaydından ÖNCE yapılır: desteklenmeyen bir DbType burada
         // exception atarsa geriye "Starting" durumunda asılı kalan bir job kalmasın.
@@ -67,7 +67,7 @@ public class DockerController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Docker sandbox için DDL üretilemedi. DbType={DbType}", request.DbType);
-            return BadRequest(new { message = $"'{request.DbType}' için DDL üretilemedi: {ex.Message}" });
+            return BadRequest(new { message = $"DDL could not be generated for '{request.DbType}': {ex.Message}" });
         }
 
         var jobId = Guid.NewGuid().ToString();
@@ -223,11 +223,11 @@ public class DockerController : ControllerBase
     public IActionResult DownloadBackup(string jobId)
     {
         if (!IsValidJobId(jobId))
-            return BadRequest(new { message = "Geçersiz iş kimliği." });
+            return BadRequest(new { message = "Invalid job id." });
 
         var job = _jobManager.GetJob(jobId);
         if (job == null)
-            return NotFound(new { message = "Bu sandbox işi bulunamadı veya süresi doldu. Lütfen sandbox'ı yeniden çalıştırın." });
+            return NotFound(new { message = "This sandbox job was not found or has expired. Run the sandbox again." });
 
         if (job.UserId != null && job.UserId != CurrentUserId)
             return Forbid();
@@ -251,6 +251,6 @@ public class DockerController : ControllerBase
             return File(stream, mime, $"namines_backup_{jobId}{ext}");
         }
 
-        return NotFound(new { message = "Yedek dosyası bulunamadı. Sandbox tamamlanmamış olabilir veya dosya saklama süresi (2 saat) dolmuş olabilir." });
+        return NotFound(new { message = "Backup file not found. The sandbox may not have finished, or the file retention window (2 hours) has passed." });
     }
 }

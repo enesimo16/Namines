@@ -48,14 +48,14 @@ export const generateFlowchart = (schema: DatabaseSchema) => {
 
 export const generateMindmap = (schema: DatabaseSchema) => {
   let code = 'mindmap\n';
-  code += `  root((${sanitize(schema.name || 'Veritabani')}))\n`;
+  code += `  root((${sanitize(schema.name || 'Database')}))\n`;
   schema.tables.forEach(t => {
     code += `    ${sanitize(t.name)}\n`;
     t.columns.slice(0, 5).forEach(c => {
       code += `      ${sanitize(c.name)}\n`;
     });
     if (t.columns.length > 5) {
-      code += `      ...ve_${t.columns.length - 5}_daha\n`;
+      code += `      ...and_${t.columns.length - 5}_more\n`;
     }
   });
   return code;
@@ -65,7 +65,7 @@ export const generateStateDiagram = (schema: DatabaseSchema) => {
   let code = 'stateDiagram-v2\n';
   schema.tables.forEach(t => {
     code += `  state ${sanitize(t.name)} {\n`;
-    code += `    [*] --> Aktif_${sanitize(t.name)}\n`;
+    code += `    [*] --> Active_${sanitize(t.name)}\n`;
     code += `  }\n`;
   });
   schema.relations.forEach(r => {
@@ -81,44 +81,44 @@ export const generateStateDiagram = (schema: DatabaseSchema) => {
 export const generateSequenceDiagram = (schema: DatabaseSchema) => {
   let code = 'sequenceDiagram\n';
   code += '  autonumber\n';
-  code += '  actor Kullanici as Kullanıcı (Client)\n';
+  code += '  actor User as User (Client)\n';
   code += '  participant API as Backend API\n';
   schema.tables.forEach(t => {
     code += `  participant DB_${sanitize(t.name)} as DB: ${t.name}\n`;
   });
   schema.tables.forEach(t => {
-    code += `  Kullanici->>API: HTTP Request (${t.name} Sorgusu)\n`;
+    code += `  User->>API: HTTP Request (${t.name} Query)\n`;
     code += `  API->>DB_${sanitize(t.name)}: SELECT * FROM ${t.name}\n`;
     code += `  DB_${sanitize(t.name)}-->>API: Rowset Result\n`;
-    code += `  API-->>Kullanici: JSON Response\n`;
+    code += `  API-->>User: JSON Response\n`;
   });
   return code;
 };
 
 export const generateGanttChart = (schema: DatabaseSchema) => {
   let code = 'gantt\n';
-  code += `  title ${schema.name || 'Veritabanı'} Projesi Yol Haritası\n`;
+  code += `  title ${schema.name || 'Database'} Project Roadmap\n`;
   code += '  dateFormat  YYYY-MM-DD\n';
-  code += '  section Tasarım Fazı\n';
-  code += `  Şema Tasarımı          :active, d1, 2026-05-01, 7d\n`;
-  code += '  Linter & Normalizasyon : d2, after d1, 3d\n';
-  code += '  section Veritabanı Kurulumu\n';
+  code += '  section Design Phase\n';
+  code += `  Schema Design          :active, d1, 2026-05-01, 7d\n`;
+  code += '  Linter & Normalization : d2, after d1, 3d\n';
+  code += '  section Database Setup\n';
   schema.tables.forEach((t, idx) => {
-    code += `  ${t.name} Tablosu Kurulumu : d3_${idx}, after d2, 2d\n`;
+    code += `  ${t.name} Table Setup : d3_${idx}, after d2, 2d\n`;
   });
   code += '  section Test & Seeding\n';
-  code += '  Mock Veri Üretimi      : d4, after d2, 4d\n';
-  code += '  Entegrasyon Testleri   : d5, after d4, 5d\n';
+  code += '  Mock Data Generation   : d4, after d2, 4d\n';
+  code += '  Integration Tests      : d5, after d4, 5d\n';
   return code;
 };
 
 export const generatePieChart = (schema: DatabaseSchema) => {
-  let code = `pie title ${schema.name || 'Veritabanı'} Tablo Kolon Yoğunluğu\n`;
+  let code = `pie title ${schema.name || 'Database'} Table Column Density\n`;
   schema.tables.forEach(t => {
     code += `  "${t.name}" : ${t.columns.length}\n`;
   });
   if (schema.tables.length === 0) {
-    code += '  "Tablo Yok" : 1\n';
+    code += '  "No Tables" : 1\n';
   }
   return code;
 };
@@ -144,39 +144,39 @@ export const generateGitGraph = (schema: DatabaseSchema) => {
 
 export const generateUserJourney = (schema: DatabaseSchema) => {
   let code = 'journey\n';
-  code += `  title ${schema.name || 'Veritabanı'} Veri Yaşam Döngüsü\n`;
-  code += '  section Kullanıcı Kaydı\n';
-  code += '    Formu Doldurma: 5: Kullanıcı\n';
-  code += '    Şifre Hashleme: 4: API Servisi\n';
+  code += `  title ${schema.name || 'Database'} Data Lifecycle\n`;
+  code += '  section User Registration\n';
+  code += '    Filling the Form: 5: User\n';
+  code += '    Password Hashing: 4: API Service\n';
   if (schema.tables.some(t => t.name.toLowerCase().includes('user') || t.name.toLowerCase().includes('uye'))) {
-    code += '    Kullanıcı Tablosuna Yazma: 5: DB Engine\n';
+    code += '    Writing to the User Table: 5: DB Engine\n';
   }
-  code += '  section Veri Sorgulama\n';
-  code += '    Dashboard Görüntüleme: 5: Kullanıcı\n';
-  code += '    İlişkili Veri Joinleme: 4: DB Engine\n';
-  code += '    Önbellek (Cache) Kontrolü: 3: Redis / API\n';
+  code += '  section Data Querying\n';
+  code += '    Viewing the Dashboard: 5: User\n';
+  code += '    Joining Related Data: 4: DB Engine\n';
+  code += '    Cache Lookup: 3: Redis / API\n';
   return code;
 };
 
 export const generateTimeline = (schema: DatabaseSchema) => {
   let code = 'timeline\n';
-  code += `  title ${schema.name || 'Veritabanı'} Sürüm Kronolojisi\n`;
-  code += '  Tasarım Aşaması : Proje Başlangıcı : Şema Tasarımı\n';
+  code += `  title ${schema.name || 'Database'} Release Timeline\n`;
+  code += '  Design Phase : Project Kickoff : Schema Design\n';
   schema.tables.forEach((t, idx) => {
-    code += `  Sürüm v1.${idx + 1} : ${t.name} Eklendi : ${t.columns.length} Sütun Tanımlandı\n`;
+    code += `  Release v1.${idx + 1} : ${t.name} Added : ${t.columns.length} Columns Defined\n`;
   });
   return code;
 };
 
 export const generateQuadrantChart = (schema: DatabaseSchema) => {
   let code = 'quadrantChart\n';
-  code += '  title Tablo Kompleksite & Kullanım Analizi\n';
-  code += '  x-axis Düşük İlişki Sayısı --> Yüksek İlişki Sayısı\n';
-  code += '  y-axis Az Sütun Sayısı --> Çok Sütun Sayısı\n';
-  code += '  quadrant-1 Kritik Çekirdek Tablolar\n';
-  code += '  quadrant-2 Detay Veri Tabloları\n';
-  code += '  quadrant-3 Ara/Geçici Tablolar\n';
-  code += '  quadrant-4 Tanım/Look-up Tabloları\n';
+  code += '  title Table Complexity & Usage Analysis\n';
+  code += '  x-axis Few Relations --> Many Relations\n';
+  code += '  y-axis Few Columns --> Many Columns\n';
+  code += '  quadrant-1 Critical Core Tables\n';
+  code += '  quadrant-2 Detail Data Tables\n';
+  code += '  quadrant-3 Junction/Temporary Tables\n';
+  code += '  quadrant-4 Reference/Look-up Tables\n';
   schema.tables.forEach((t, idx) => {
     const relCount = schema.relations.filter(r => r.sourceTableId === t.id || r.targetTableId === t.id).length;
     const xVal = Math.min(0.9, Math.max(0.1, relCount / 5));
@@ -191,7 +191,7 @@ export const generateRequirementDiagram = (schema: DatabaseSchema) => {
   schema.tables.forEach((t, idx) => {
     code += `  requirement req_${sanitize(t.name)} {\n`;
     code += `    id: ${100 + idx}\n`;
-    code += `    text: "${t.name} tablosunun veri bütünlüğü ve ilişkisel bütünlüğü korunmalıdır."\n`;
+    code += `    text: "Data integrity and referential integrity of the ${t.name} table must be preserved."\n`;
     code += `    risk: ${t.columns.some(c => c.isPK) ? 'medium' : 'low'}\n`;
     code += `    verifymethod: Test\n`;
     code += `  }\n`;

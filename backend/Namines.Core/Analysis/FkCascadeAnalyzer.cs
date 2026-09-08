@@ -64,8 +64,8 @@ public static class FkCascadeAnalyzer
             {
                 issues.Add(new CascadeIssue(
                     CascadeIssueKind.SetNullOnNotNullColumn,
-                    $"'{sourceTable.Name}.{sourceCol.Name}' ON DELETE SET NULL kullanıyor ama kolon NOT NULL. " +
-                    "Kolonu nullable yapın veya davranışı değiştirin.",
+                    $"'{sourceTable.Name}.{sourceCol.Name}' uses ON DELETE SET NULL, but the column is NOT NULL. " +
+                    "Make the column nullable, or pick a different delete action.",
                     rel.Id, sourceTable.Name));
             }
 
@@ -73,8 +73,8 @@ public static class FkCascadeAnalyzer
             {
                 issues.Add(new CascadeIssue(
                     CascadeIssueKind.SetDefaultWithoutDefaultValue,
-                    $"'{sourceTable.Name}.{sourceCol.Name}' ON DELETE SET DEFAULT kullanıyor ama kolonun " +
-                    "DEFAULT değeri tanımlı değil.",
+                    $"'{sourceTable.Name}.{sourceCol.Name}' uses ON DELETE SET DEFAULT, but the column has no " +
+                    "DEFAULT value to fall back to.",
                     rel.Id, sourceTable.Name));
             }
         }
@@ -99,8 +99,8 @@ public static class FkCascadeAnalyzer
             {
                 issues.Add(new CascadeIssue(
                     CascadeIssueKind.CascadeCycle,
-                    $"'{node}' tablosu cascade döngüsünün parçası. SQL Server bunu reddeder; " +
-                    "diğer motorlarda beklenmeyen zincirleme silme üretir.",
+                    $"Table '{node}' sits in a cascade cycle. SQL Server rejects this outright; " +
+                    "other engines accept it and delete further than you expect.",
                     FromTable: node));
             }
         }
@@ -115,10 +115,10 @@ public static class FkCascadeAnalyzer
             {
                 issues.Add(new CascadeIssue(
                     CascadeIssueKind.MultipleCascadePaths,
-                    $"'{start}' tablosundan '{target}' tablosuna {count} ayrı cascade yolu var. " +
+                    $"There are {count} separate cascade paths from '{start}' to '{target}'. " +
                     (engine == DatabaseType.MSSQL
-                        ? "SQL Server bu DDL'i reddeder (Msg 1785). İlişkilerden birini NO ACTION yapın."
-                        : "Bu şema SQL Server'a taşınamaz ve zincirleme silme davranışı öngörülemez hale gelir."),
+                        ? "SQL Server rejects this DDL (Msg 1785). Set one of the relations to NO ACTION."
+                        : "This schema cannot move to SQL Server, and the cascade order here is unpredictable."),
                     FromTable: start, ToTable: target));
             }
         }

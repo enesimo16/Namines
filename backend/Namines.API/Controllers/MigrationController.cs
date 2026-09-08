@@ -27,7 +27,7 @@ public class MigrationController : ControllerBase
         if (request == null || string.IsNullOrWhiteSpace(request.DbContextCode))
         {
             _logger.LogWarning("Migration: ParseDbContext için geçersiz istek veya boş DbContext kodu");
-            return BadRequest(new { error = "DbContext kodu boş olamaz" });
+            return BadRequest(new { error = "DbContext code cannot be empty." });
         }
 
         _logger.LogInformation("Migration: C# DbContext parse işlemi başlatıldı. Veritabanı Tipi: {DbType}", request.DbType);
@@ -40,7 +40,7 @@ public class MigrationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Migration: DbContext parse işlemi sırasında beklenmeyen hata");
-            return StatusCode(500, new { error = $"DbContext parse hatası: {ex.Message}" });
+            return StatusCode(500, new { error = $"Failed to parse DbContext: {ex.Message}" });
         }
     }
 
@@ -50,7 +50,7 @@ public class MigrationController : ControllerBase
         if (request == null)
         {
             _logger.LogWarning("Migration: CalculateDiff için geçersiz istek (null request)");
-            return BadRequest(new { error = "Şemalar boş olamaz" });
+            return BadRequest(new { error = "Schemas cannot be empty." });
         }
 
         _logger.LogInformation("Migration: Lokal şema karşılaştırma işlemi başlatıldı.");
@@ -64,7 +64,7 @@ public class MigrationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Migration: Şema karşılaştırma sırasında hata oluştu");
-            return StatusCode(500, new { error = $"Şema karşılaştırma hatası: {ex.Message}" });
+            return StatusCode(500, new { error = $"Schema comparison failed: {ex.Message}" });
         }
     }
 
@@ -74,7 +74,7 @@ public class MigrationController : ControllerBase
         if (request == null)
         {
             _logger.LogWarning("Migration: GenerateMigration için geçersiz istek (null request)");
-            return BadRequest(new { error = "Migration isteği boş olamaz" });
+            return BadRequest(new { error = "The migration request cannot be empty." });
         }
 
         _logger.LogInformation("Migration: C# EF Core Migration kod üretimi başlatıldı. Hedef Veritabanı: {DbType}", request.DbType);
@@ -87,7 +87,7 @@ public class MigrationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Migration: Migration üretimi sırasında hata oluştu");
-            return StatusCode(500, new { error = $"Migration kod üretim hatası: {ex.Message}" });
+            return StatusCode(500, new { error = $"Migration code generation failed: {ex.Message}" });
         }
     }
 }

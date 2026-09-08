@@ -120,13 +120,13 @@ public sealed class SchemaAgentPipeline
         if (budgetRounds < 1)
             throw new InvalidOperationException("There is not enough AI budget left to generate a schema.");
 
-        progress?.Report(AgentStep.Draft("Taslak üretiliyor..."));
+        progress?.Report(AgentStep.Draft("Generating draft…"));
         var schema = await _source.DraftAsync(prompt, engine, cancellationToken);
         var rounds = 1;
         progress?.Report(AgentStep.Draft(
-            $"Taslak üretildi — {schema.Tables.Count} tablo, {schema.Relations.Count} ilişki"));
+            $"Draft generated — {schema.Tables.Count} tables, {schema.Relations.Count} relations"));
 
-        progress?.Report(AgentStep.Inspect($"{engine} üzerinde derleniyor..."));
+        progress?.Report(AgentStep.Inspect($"Compiling on {engine}…"));
         var findings = Inspect(schema, engine);
 
         while (findings.Count > 0 && rounds < budgetRounds)
@@ -137,11 +137,11 @@ public sealed class SchemaAgentPipeline
             foreach (var finding in findings)
                 progress?.Report(AgentStep.Finding(finding));
 
-            progress?.Report(AgentStep.Repair($"Düzeltiliyor (tur {rounds}/{budgetRounds - 1})..."));
+            progress?.Report(AgentStep.Repair($"Repairing (round {rounds}/{budgetRounds - 1})…"));
             var repaired = await _source.RepairAsync(schema, findings, engine, cancellationToken);
             rounds++;
 
-            progress?.Report(AgentStep.Inspect($"{engine} üzerinde yeniden derleniyor..."));
+            progress?.Report(AgentStep.Inspect($"Recompiling on {engine}…"));
             var afterRepair = Inspect(repaired, engine);
 
             // İyileşme YOKSA dur. Model aynı bulgularla dönüyorsa bir tur daha
@@ -161,7 +161,7 @@ public sealed class SchemaAgentPipeline
         }
 
         if (findings.Count == 0)
-            progress?.Report(AgentStep.Clean($"{engine} üzerinde temiz — bulgu kalmadı"));
+            progress?.Report(AgentStep.Clean($"Clean on {engine} — no findings left"));
 
         return new SchemaAgentResult(schema, findings, Portability(schema, engine), rounds);
     }

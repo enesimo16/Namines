@@ -44,17 +44,17 @@ public sealed class AesGcmConnectionSecretProtector : IConnectionSecretProtector
         if (string.IsNullOrWhiteSpace(secret))
         {
             throw new InvalidOperationException(
-                "Security:ConnectionEncryptionKey tanımlı değil. Bağlantı dizelerini şifrelemeden " +
-                "saklamak, veritabanı erişimini düz metin bırakırdı — bu yüzden servis sessizce " +
-                "devre dışı kalmak yerine açıkça durur. En az 32 karakterlik yüksek entropili bir " +
-                "değer verin (ör. `openssl rand -base64 32`).");
+                "Security:ConnectionEncryptionKey is not configured. Storing connection strings " +
+                "unencrypted would leave database access in plain text — so the service fails " +
+                "loudly instead of silently disabling itself. Provide a high-entropy value of at " +
+                "least 32 characters (e.g. `openssl rand -base64 32`).");
         }
 
         if (secret.Length < 32)
         {
             throw new InvalidOperationException(
-                "Security:ConnectionEncryptionKey en az 32 karakter olmalı. Kısa/zayıf bir sır, " +
-                "şifrelemeyi kağıt üzerinde var ama pratikte kırılabilir hâle getirir.");
+                "Security:ConnectionEncryptionKey must be at least 32 characters. A short or weak " +
+                "secret makes the encryption exist on paper while remaining breakable in practice.");
         }
 
         // PBKDF2: yapılandırmadan gelen metin bir parola olabilir. Doğrudan SHA-256
@@ -97,7 +97,7 @@ public sealed class AesGcmConnectionSecretProtector : IConnectionSecretProtector
 
         var parts = ciphertext.Split(':', 4);
         if (parts.Length != 4 || parts[0] != Version)
-            throw new CryptographicException("Şifreli bağlantı dizesinin biçimi tanınmıyor.");
+            throw new CryptographicException("The format of the encrypted connection string is not recognized.");
 
         var nonce  = Convert.FromBase64String(parts[1]);
         var tag    = Convert.FromBase64String(parts[2]);

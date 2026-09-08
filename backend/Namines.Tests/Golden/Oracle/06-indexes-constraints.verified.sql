@@ -11,8 +11,8 @@
 );
 
 CREATE INDEX "IX_Users_CountryCode_CreatedAt" ON "Users" ("CountryCode", "CreatedAt" DESC);
-CREATE UNIQUE INDEX "UX_Users_Email_Active" ON "Users" ("Email") /* WHERE "DeletedAt" IS NULL — Oracle kısmi index desteklemiyor */;
-CREATE INDEX "IX_Users_CreatedAt" ON "Users" ("CreatedAt") /* INCLUDE (Email) — Oracle desteklemiyor */;
+CREATE UNIQUE INDEX "UX_Users_Email_Active" ON "Users" ("Email") /* WHERE "DeletedAt" IS NULL — partial indexes are not supported by Oracle */;
+CREATE INDEX "IX_Users_CreatedAt" ON "Users" ("CreatedAt") /* INCLUDE (Email) — not supported by Oracle */;
 
 CREATE TABLE "Orders" (
     "Id" NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,

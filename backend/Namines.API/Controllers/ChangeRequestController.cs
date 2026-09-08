@@ -97,11 +97,11 @@ public class ChangeRequestController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (string.IsNullOrWhiteSpace(request.ProjectId) || string.IsNullOrWhiteSpace(request.SchemaJson))
-            return BadRequest(new { error = "ProjectId ve SchemaJson zorunludur." });
+            return BadRequest(new { error = "ProjectId and SchemaJson are required." });
 
         // 05 §6: şema yazma/CR açma → Editor ve üstü.
         if (!await _context.CanEditAsync(request.ProjectId, userId))
-            return NotFound(new { error = "Proje bulunamadı veya bu kullanıcıya ait değil." });
+            return NotFound(new { error = "Project not found, or it does not belong to this user." });
         var project = await _context.CloudProjects.FirstAsync(p => p.Id == request.ProjectId);
 
         DatabaseSchema headSchema;
@@ -112,7 +112,7 @@ public class ChangeRequestController : ControllerBase
         }
         catch (JsonException)
         {
-            return BadRequest(new { error = "SchemaJson geçerli bir DatabaseSchema değil." });
+            return BadRequest(new { error = "SchemaJson is not a valid DatabaseSchema." });
         }
 
         // Yarışa karşı sertleştirilmiş tek kopya — bkz. BranchProvisioning.
@@ -245,7 +245,7 @@ public class ChangeRequestController : ControllerBase
 
         // Onay zorunluluğunu GEVŞETEN bir ayar — Editor'a bırakılmaz, Admin/Owner gerekir.
         if (!await _context.CanManageMembersAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı veya bu kullanıcıya ait değil." });
+            return NotFound(new { error = "Project not found, or it does not belong to this user." });
         var project = await _context.CloudProjects.FirstAsync(p => p.Id == projectId);
 
         project.AutoApproveSafeChanges = request.Enabled;
@@ -265,11 +265,11 @@ public class ChangeRequestController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var cr = await _context.ChangeRequests.FirstOrDefaultAsync(c => c.Id == id);
-        if (cr is null) return NotFound(new { error = "Change request bulunamadı." });
+        if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
         if (!await _context.CanViewAsync(cr.ProjectId, userId))
-            return NotFound(new { error = "Change request bulunamadı." });
+            return NotFound(new { error = "Change request not found." });
         var project = await _context.CloudProjects.FirstAsync(p => p.Id == cr.ProjectId);
 
         var entries = await _context.ChangeRequestAuditLogs
@@ -302,11 +302,11 @@ public class ChangeRequestController : ControllerBase
             .Include(c => c.BaseVersion)
             .Include(c => c.Approvals).ThenInclude(a => a.User)
             .FirstOrDefaultAsync(c => c.Id == id);
-        if (cr is null) return NotFound(new { error = "Change request bulunamadı." });
+        if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
         if (!await _context.CanViewAsync(cr.ProjectId, userId))
-            return NotFound(new { error = "Change request bulunamadı." });
+            return NotFound(new { error = "Change request not found." });
         var project = await _context.CloudProjects.FirstAsync(p => p.Id == cr.ProjectId);
 
         var impact = JsonSerializer.Deserialize<ImpactReport>(cr.ImpactReportJson);
@@ -403,7 +403,7 @@ public class ChangeRequestController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         if (!await _context.CanViewAsync(projectId, userId))
-            return NotFound(new { error = "Proje bulunamadı veya bu kullanıcıya ait değil." });
+            return NotFound(new { error = "Project not found, or it does not belong to this user." });
 
         var entities = await _context.ChangeRequests
             .Include(c => c.Branch)
@@ -444,7 +444,7 @@ public class ChangeRequestController : ControllerBase
         var cr = await _context.ChangeRequests
             .Include(c => c.Approvals)
             .FirstOrDefaultAsync(c => c.Id == id);
-        if (cr is null) return NotFound(new { error = "Change request bulunamadı." });
+        if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // Oylama bir YAZMA eylemi — 05 §6'da viewer "yorum yapabilir" ama onaylayamaz.
         // Bu kontrol sayesinde artık org'un BAŞKA bir Editor/Admin üyesi de buraya
@@ -452,7 +452,7 @@ public class ChangeRequestController : ControllerBase
         // uygulanabilir hâle geliyor (önceden yalnızca proje sahibi erişebildiği için
         // kural matematiksel olarak imkânsızdı).
         if (!await _context.CanEditAsync(cr.ProjectId, userId))
-            return NotFound(new { error = "Change request bulunamadı." });
+            return NotFound(new { error = "Change request not found." });
 
         var approvedCountBefore = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Approved);
         var alreadyVoted = cr.Approvals.Any(a => a.UserId == userId);
@@ -468,9 +468,9 @@ public class ChangeRequestController : ControllerBase
         switch (evaluation.Outcome)
         {
             case ChangeRequestApprovalPolicy.VoteOutcome.RejectedAlreadyResolved:
-                return Conflict(new { error = "Bu change request zaten karara bağlanmış." });
+                return Conflict(new { error = "This change request has already been decided." });
             case ChangeRequestApprovalPolicy.VoteOutcome.RejectedAlreadyVoted:
-                return Conflict(new { error = "Bu change request için zaten oy kullandınız." });
+                return Conflict(new { error = "You have already voted on this change request." });
             case ChangeRequestApprovalPolicy.VoteOutcome.RejectedSelfApprovalNotAllowed:
                 return Forbid();
         }
@@ -532,11 +532,11 @@ public class ChangeRequestController : ControllerBase
         var cr = await _context.ChangeRequests
             .Include(c => c.HeadVersion)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
-        if (cr is null) return NotFound(new { error = "Change request bulunamadı." });
+        if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // Gerçek container açıyor (pahalı) — Viewer tetikleyemez.
         if (!await _context.CanEditAsync(cr.ProjectId, userId, cancellationToken))
-            return NotFound(new { error = "Change request bulunamadı." });
+            return NotFound(new { error = "Change request not found." });
         var project = await _context.CloudProjects.FirstAsync(p => p.Id == cr.ProjectId, cancellationToken);
 
         var headSchema = JsonSerializer.Deserialize<DatabaseSchema>(cr.HeadVersion.SchemaJson, SchemaJsonOptions) ?? new DatabaseSchema();
@@ -570,11 +570,11 @@ public class ChangeRequestController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var cr = await _context.ChangeRequests.FirstOrDefaultAsync(c => c.Id == id);
-        if (cr is null) return NotFound(new { error = "Change request bulunamadı." });
+        if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
         if (!await _context.CanViewAsync(cr.ProjectId, userId))
-            return NotFound(new { error = "Change request bulunamadı." });
+            return NotFound(new { error = "Change request not found." });
         var project = await _context.CloudProjects.FirstAsync(p => p.Id == cr.ProjectId);
 
         var impact = JsonSerializer.Deserialize<ImpactReport>(cr.ImpactReportJson)

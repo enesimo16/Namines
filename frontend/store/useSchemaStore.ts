@@ -479,37 +479,37 @@ export const useSchemaStore = create<SchemaState>()(
        */
       connectColumns: (connection) => {
         const state = get();
-        if (!state.schema) return { ok: false, reason: 'Şema yüklü değil.' };
+        if (!state.schema) return { ok: false, reason: 'No schema is loaded.' };
         set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
 
         const { source, target, sourceHandle, targetHandle } = connection;
         if (!source || !target || !sourceHandle || !targetHandle)
-          return { ok: false, reason: 'Bağlantı için kaynak ve hedef kolonu seçin.' };
+          return { ok: false, reason: 'Pick a source and a target column for the relation.' };
 
         if (source === target)
-          return { ok: false, reason: 'Bir tabloyu kendisine bağlamak için ilişkiyi manuel düzenleyin.' };
+          return { ok: false, reason: 'To link a table to itself, edit the relation manually.' };
 
         const sourceTable = state.schema.tables.find(t => t.id === source);
         const targetTable = state.schema.tables.find(t => t.id === target);
         if (!sourceTable || !targetTable)
-          return { ok: false, reason: 'Tablo bulunamadı.' };
+          return { ok: false, reason: 'Table not found.' };
 
         // React Flow handle id'leri kolon id'sidir (schemaToFlow bu şekilde üretir).
         const sourceColumn = sourceTable.columns.find(c => c.id === sourceHandle);
         const targetColumn = targetTable.columns.find(c => c.id === targetHandle);
         if (!sourceColumn || !targetColumn)
-          return { ok: false, reason: 'Kolon bulunamadı.' };
+          return { ok: false, reason: 'Column not found.' };
 
         // Hedef bir anahtar olmalı: FK yalnızca PK/UNIQUE bir kolonu işaret edebilir.
         if (!targetColumn.isPK)
-          return { ok: false, reason: `İlişki birincil anahtara kurulmalı. '${targetTable.name}.${targetColumn.name}' bir PK değil.` };
+          return { ok: false, reason: `A relation must point at a primary key. '${targetTable.name}.${targetColumn.name}' is not one.` };
 
         const alreadyExists = state.schema.relations.some(r =>
           r.sourceTableId === source && r.sourceColumnId === sourceHandle &&
           r.targetTableId === target && r.targetColumnId === targetHandle
         );
         if (alreadyExists)
-          return { ok: false, reason: 'Bu ilişki zaten mevcut.' };
+          return { ok: false, reason: 'This relation already exists.' };
 
         const newRelation: SchemaRelation = {
           id: genId(),
@@ -542,7 +542,7 @@ export const useSchemaStore = create<SchemaState>()(
         });
 
         set({ schema: newSchema, nodes: finalNodes, edges: newEdges });
-        return { ok: true, reason: `${sourceTable.name}.${sourceColumn.name} → ${targetTable.name}.${targetColumn.name} ilişkisi kuruldu.` };
+        return { ok: true, reason: `Created relation ${sourceTable.name}.${sourceColumn.name} → ${targetTable.name}.${targetColumn.name}.` };
       },
 
       /**
@@ -592,7 +592,7 @@ export const useSchemaStore = create<SchemaState>()(
         const visionTables = Array.isArray(rawTables) ? rawTables : [];
         const visionRelations = Array.isArray(rawRelations) ? rawRelations : [];
         if (visionTables.length === 0) {
-          throw new Error('İçe aktarılacak geçerli tablo bulunamadı. Görsel/şema net değilse tekrar deneyin.');
+          throw new Error('No valid table found to import. If the image or schema is unclear, try again.');
         }
 
         // Calculate Y-offset so new nodes are placed below existing nodes

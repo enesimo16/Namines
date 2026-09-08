@@ -1,4 +1,4 @@
-using Namines.Infrastructure.Services;
+﻿using Namines.Infrastructure.Services;
 
 namespace Namines.Tests.Services;
 
@@ -47,8 +47,8 @@ public class OpenApiSchemaParserTests
         var result = OpenApiSchemaParser.Parse(json);
 
         var product = result.Single(t => t.Name == "Product");
-        Assert.Contains("3 alan", product.Reason);
-        Assert.Contains("1 ilişki", product.Reason);
+        Assert.Contains("3 fields", product.Reason);
+        Assert.Contains("1 candidate relations", product.Reason);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class OpenApiSchemaParserTests
         var result = OpenApiSchemaParser.Parse(json);
 
         var product = result.Single(t => t.Name == "Product");
-        Assert.Contains("1 ilişki", product.Reason);
+        Assert.Contains("1 candidate relations", product.Reason);
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class OpenApiSchemaParserTests
         var result = OpenApiSchemaParser.Parse(json);
 
         var product = result.Single(t => t.Name == "Product");
-        Assert.DoesNotContain("ilişki", product.Reason);
+        Assert.DoesNotContain("candidate relations", product.Reason);
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public class OpenApiSchemaParserTests
 
         var result = OpenApiSchemaParser.Parse(json);
 
-        Assert.All(result, t => Assert.Contains("tahmin", t.Reason));
+        Assert.All(result, t => Assert.Contains("(estimated)", t.Reason));
     }
 
     [Theory]

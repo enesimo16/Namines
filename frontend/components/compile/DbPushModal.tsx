@@ -39,7 +39,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
     if (!isAuthenticated) {
       resetState();
       setTestSuccess(false);
-      setDeployMessage({ text: 'Bu özellik için giriş yapmanız gerekiyor.', isError: true });
+      setDeployMessage({ text: 'You need to sign in to use this feature.', isError: true });
       return;
     }
     setIsTesting(true);
@@ -70,7 +70,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
   const handleDeploy = async () => {
     if (!connectionString.trim() || !sqlScript.trim()) return;
     if (!isAuthenticated) {
-      setDeployMessage({ text: 'Bu özellik için giriş yapmanız gerekiyor.', isError: true });
+      setDeployMessage({ text: 'You need to sign in to use this feature.', isError: true });
       return;
     }
     setIsDeploying(true);

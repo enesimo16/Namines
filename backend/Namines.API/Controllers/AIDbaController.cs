@@ -33,7 +33,7 @@ public class AIDbaController : ControllerBase
         if (request?.Schema == null)
         {
             _logger.LogWarning("AIDba: Geçersiz istek - Schema null");
-            return BadRequest(new { error = "Schema boş olamaz" });
+            return BadRequest(new { error = "Schema cannot be empty." });
         }
 
         _logger.LogInformation("AIDba: Şema analiz talebi alındı. Şema: {Name}, DbType: {DbType}", request.Schema.Name, request.DbType);
@@ -78,7 +78,7 @@ public class AIDbaController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "AIDba: Analiz sırasında bir hata oluştu");
-            return StatusCode(500, new { error = $"Analiz hatası: {ex.Message}" });
+            return StatusCode(500, new { error = $"Analysis failed: {ex.Message}" });
         }
     }
 }
