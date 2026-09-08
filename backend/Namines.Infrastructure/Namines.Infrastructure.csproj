@@ -2,6 +2,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+    <!-- Tek yonlu: Vault, Infrastructure'i GORMEZ. Yedekleme modulunun
+         veritabanina/kimlige bagimli hale gelmesini derleyici engelliyor. -->
+    <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
   </ItemGroup>
 
   <ItemGroup>

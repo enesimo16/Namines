@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MODÜL SINIRI, DERLEYİCİ TARAFINDAN ZORLANIYOR.
+         Burada YALNIZCA Namines.Core var; Namines.Infrastructure referansı
+         BİLİNÇLİ OLARAK YOK. Vault'un veritabanına yazması gerektiğinde
+         Namines.Core'daki bir arayüz (IVaultRecordStore) üzerinden geçer,
+         uygulaması Infrastructure'da yaşar.
+
+         Ayrı bir csproj olmasının sebebi tam olarak bu: Infrastructure'ın iç
+         tiplerine yanlışlıkla bağlanmak bir derleme HATASI olsun, yalnızca
+         bir disiplin meselesi değil (namines-vault/01-INSA-PLANI.md §V0). -->
+    <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- pg_dump/pg_restore'u taşınabilir biçimde çalıştırmak için resmî
+         postgres imajı kullanılıyor. docker.sock MOUNT EDİLMEZ — host'un
+         daemon'una uzaktan konuşulur (AGENTS.md'nin kesin kuralı). -->
+    <PackageReference Include="Docker.DotNet" Version="3.125.15" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Namines.Tests" />
+  </ItemGroup>
+
+</Project>

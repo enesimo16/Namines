@@ -15,11 +15,12 @@ export type DeskView =
   | 'analytics'
   | 'sql'
   | 'apikeys'
+  | 'vault'
   | 'members';
 
 /** Proje bağlamı gerektiren görünümler — proje seçilmeden açılamazlar. */
 export const PROJECT_VIEWS: DeskView[] = [
-  'canvas', 'data', 'deployments', 'logs', 'analytics', 'sql', 'apikeys', 'members',
+  'canvas', 'data', 'deployments', 'logs', 'analytics', 'sql', 'apikeys', 'vault', 'members',
 ];
 
 /** Üst şeritteki ekmek kırıntısında ve sayfa başlığında kullanılan adlar. */
@@ -32,6 +33,7 @@ export const VIEW_LABELS: Record<DeskView, string> = {
   analytics: 'Analitik',
   sql: 'SQL konsolu',
   apikeys: 'API anahtarları',
+  vault: 'Yedekler',
   members: 'Ekip',
 };
 

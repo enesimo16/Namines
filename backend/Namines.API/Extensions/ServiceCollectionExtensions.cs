@@ -13,6 +13,7 @@ using Namines.Infrastructure.Generators.PrismaGenerator;
 using Namines.Infrastructure.Generators.DocumentationGenerator;
 using Namines.Infrastructure.Realtime;
 using Namines.Infrastructure.Services;
+using Namines.Vault.DependencyInjection;
 using Namines.API.Services;
 using StackExchange.Redis;
 
@@ -114,6 +115,12 @@ public static class ServiceCollectionExtensions
         // (bkz. AesGcmConnectionSecretProtector) — sessizce şifresiz saklamaz.
         services.AddSingleton<Namines.Core.Security.IConnectionSecretProtector,
                               Namines.Infrastructure.Security.AesGcmConnectionSecretProtector>();
+
+        // Namines Vault — yedekleme/geri yükleme. Modülün kendi kayıtları
+        // (sağlayıcı, depo, şifreleme) tek bir uzantıda; VaultService ise
+        // veritabanına dokunduğu için scoped.
+        services.AddNaminesVault();
+        services.AddScoped<VaultService>();
 
         // Arka Plan Docker Sweeper (Sunucu Kilitlenmesi Önleyici)
         services.AddHostedService<DockerSweeperBackgroundService>();
