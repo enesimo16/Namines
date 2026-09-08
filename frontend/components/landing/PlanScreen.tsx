@@ -60,16 +60,16 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
       <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto glass-panel rounded-[var(--radius-modal)] p-5 sm:p-6">
         {isLoading || !plan ? (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-content-muted">
-            <Loader2 className="w-4 h-4 animate-spin" /> Planlanıyor…
+            <Loader2 className="w-4 h-4 animate-spin" /> Planning…
           </div>
         ) : plan.followUp ? (
           // ── Tek bir takip sorusu — belirsizliği çözmeden plan kesin değil ──
           <div>
             <div className="flex items-center gap-2 mb-1">
               <HelpCircle className="w-4 h-4 text-content-muted" />
-              <h2 className="text-lg font-semibold text-content-primary">Bir şey daha</h2>
+              <h2 className="text-lg font-semibold text-content-primary">One more thing</h2>
             </div>
-            <p className="text-xs text-content-muted mb-4">Bu, planı belirginleştirecek.</p>
+            <p className="text-xs text-content-muted mb-4">This will sharpen the plan.</p>
 
             <p className="text-sm text-content-primary font-medium mb-1">{plan.followUp.text}</p>
             <p className="flex items-start gap-1.5 text-[11px] text-content-muted mb-3 leading-snug">
@@ -95,14 +95,14 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
 
             <div className="flex items-center justify-between">
               <button type="button" onClick={onCancel} className="text-xs text-content-muted hover:text-content-primary transition-colors">
-                Vazgeç
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={handleFollowUpSubmit}
                 className="bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-[var(--radius-card)] text-sm transition-all"
               >
-                Devam
+                Continue
               </button>
             </div>
           </div>
@@ -114,7 +114,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
               <h2 className="text-lg font-semibold text-content-primary">Plan</h2>
             </div>
             <p className="text-xs text-content-muted mb-4">
-              {plan.tables.length} tablo kuracağım. Onaylarsan üretim bu planla başlar.
+              I will create {plan.tables.length} tables. Approving starts generation with this plan.
             </p>
 
             <div className="flex flex-col gap-2 mb-4">
@@ -129,7 +129,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
             {plan.assumptions.length > 0 && (
               <div className="border border-white/10 rounded-[var(--radius-control)] p-3 mb-5 bg-white/[0.03]">
                 <p className="text-[10px] uppercase tracking-wider text-content-subtle font-semibold mb-1.5">
-                  Cevaplamadıkların için varsayılan kullanıldı
+                  Defaults used for the questions you skipped
                 </p>
                 <ul className="flex flex-col gap-1">
                   {plan.assumptions.map(a => (
@@ -146,7 +146,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
                 disabled={isGenerating}
                 className="flex items-center gap-1.5 text-xs text-content-muted hover:text-content-primary transition-colors disabled:opacity-50"
               >
-                <ArrowLeft className="w-3.5 h-3.5" /> Geri
+                <ArrowLeft className="w-3.5 h-3.5" /> Back
               </button>
               <button
                 type="button"
@@ -155,7 +155,7 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
                 className="flex items-center gap-2 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2 px-4 rounded-[var(--radius-card)] text-sm transition-all disabled:opacity-50"
               >
                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                Onayla ve üret
+                Approve and generate
               </button>
             </div>
           </div>

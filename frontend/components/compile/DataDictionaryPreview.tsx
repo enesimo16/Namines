@@ -17,7 +17,9 @@ type Lang = 'tr' | 'en';
 export default function DataDictionaryPreview({ schema, projectName }: DataDictionaryPreviewProps) {
   const showToast = useToastStore(state => state.showToast);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [lang, setLang] = useState<Lang>('tr');
+  // Arayüzün geri kalanı İngilizce; varsayılanı 'tr' bırakmak, dil seçicisini
+  // fark etmeyen herkese Türkçe bir veri sözlüğü gösteriyordu. Seçici duruyor.
+  const [lang, setLang] = useState<Lang>('en');
 
   const handleDownloadPdf = async () => {
     if (!schema) return;
