@@ -19,6 +19,8 @@ import BulkDeleteConfirm, { BULK_DELETE_THRESHOLD } from './BulkDeleteConfirm';
 import { deploymentsApi } from '../lib/deployments';
 
 const PAGE_SIZE = 25;
+/** Sabit referans — `loadRows`'un useCallback kimliği her render'da değişmesin. */
+const NO_FILTERS: GatewayFilter[] = [];
 /** D5 §4.1 — yoklama aralığı. WebSocket değil: SignalR hub'ı şu an canvas
  * işbirliği için yapılandırılmış, Desk'i ona bağlamak ayrı bir iş. */
 const VERSION_POLL_MS = 30_000;
@@ -82,10 +84,36 @@ export default function Desk({
 
   // D4 §2.2 — sıralama + filtre. Gateway zaten destekliyor (Filters/OrderByColumn/
   // SortDirection); bu tamamen bir arayüz durumu, backend değişikliği gerekmiyor.
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<GatewaySortDirection>('Asc');
-  const [filterDraft, setFilterDraft] = useState<Record<string, { min?: string; max?: string; eq?: string }>>({});
-  const [appliedFilters, setAppliedFilters] = useState<GatewayFilter[]>([]);
+  //
+  // <b>Ölçütler HANGİ TABLOYA ait olduklarıyla birlikte tutuluyor.</b> Önceden
+  // ayrı state'lerdi ve tablo değişince bir EFEKT onları sıfırlıyordu; efekt
+  // sıfırlamayı bir sonraki render'a bıraktığı için ilk istek ESKİ tablonun
+  // sıralama/filtresiyle gidiyordu. Yeni tabloda o kolon yoksa Gateway 400
+  // döndürüyor, hata şeridi yanıp sönüyor ve her tablo geçişi iki istek
+  // harcıyordu. Ölçütü tabloya bağlayıp TÜRETMEK bu yarışı tamamen kaldırıyor:
+  // ilk render'da zaten doğru değerler okunuyor.
+  const [criteria, setCriteria] = useState<{
+    table: string | null;
+    sortColumn: string | null;
+    sortDir: GatewaySortDirection;
+    filters: GatewayFilter[];
+    draft: Record<string, { min?: string; max?: string; eq?: string }>;
+  }>({ table: null, sortColumn: null, sortDir: 'Asc', filters: NO_FILTERS, draft: {} });
+
+  const criteriaApply = criteria.table === active;
+  const sortColumn = criteriaApply ? criteria.sortColumn : null;
+  const sortDir = criteriaApply ? criteria.sortDir : 'Asc';
+  const appliedFilters = criteriaApply ? criteria.filters : NO_FILTERS;
+  const filterDraft = criteriaApply ? criteria.draft : {};
+
+  const setFilterDraft = useCallback((
+    update: (prev: Record<string, { min?: string; max?: string; eq?: string }>) => Record<string, { min?: string; max?: string; eq?: string }>,
+  ) => {
+    setCriteria(prev => {
+      const base = prev.table === active ? prev : { ...prev, table: active, sortColumn: null, sortDir: 'Asc' as GatewaySortDirection, filters: NO_FILTERS, draft: {} };
+      return { ...base, draft: update(base.draft) };
+    });
+  }, [active]);
   const [exporting, setExporting] = useState(false);
   // Filtre paneli VARSAYILAN KAPALI: her kolon icin bir kutu ciziliyor ve
   // 15 kolonlu bir tabloda bu, verinin kendisini ekrandan itip cikaran bir
@@ -94,14 +122,10 @@ export default function Desk({
 
   const table = tables?.find(t => t.name === active) ?? null;
 
-  // Tablo değişince sıralama/filtre sıfırlanır — önceki tablonun kolon adları
-  // bu tabloda anlamsız (hatta aynı adlı farklı tipte bir kolona yanlışlıkla
-  // uygulanabilirdi).
+  // Sıralama/filtre sıfırlaması ARTIK BURADA DEĞİL — `criteria` tabloya bağlı
+  // olduğu için türetiliyor (yukarı bkz.). Burada yalnızca seçim temizleniyor;
+  // seçim hiçbir isteği beslemediği için efekt gecikmesi zararsız.
   useEffect(() => {
-    setSortColumn(null);
-    setSortDir('Asc');
-    setFilterDraft({});
-    setAppliedFilters([]);
     setSelectedPks(new Set());
   }, [active]);
 
@@ -176,10 +200,20 @@ export default function Desk({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, loadRows]);
 
+  /** Ölçütü DAİMA aktif tabloya bağlayarak yazar — kısmi/karışık bir duruma düşmesin. */
+  function updateCriteria(patch: Partial<{ sortColumn: string | null; sortDir: GatewaySortDirection; filters: GatewayFilter[] }>) {
+    setCriteria(prev => {
+      const base = prev.table === active
+        ? prev
+        : { table: active, sortColumn: null, sortDir: 'Asc' as GatewaySortDirection, filters: NO_FILTERS, draft: {} };
+      return { ...base, table: active, ...patch };
+    });
+  }
+
   function toggleSort(columnName: string) {
-    if (sortColumn !== columnName) { setSortColumn(columnName); setSortDir('Asc'); return; }
-    if (sortDir === 'Asc') { setSortDir('Desc'); return; }
-    setSortColumn(null); setSortDir('Asc');
+    if (sortColumn !== columnName) { updateCriteria({ sortColumn: columnName, sortDir: 'Asc' }); return; }
+    if (sortDir === 'Asc') { updateCriteria({ sortDir: 'Desc' }); return; }
+    updateCriteria({ sortColumn: null, sortDir: 'Asc' });
   }
 
   function applyFilters() {
@@ -198,7 +232,7 @@ export default function Desk({
         built.push({ column: c.name, operator: 'Like', values: [`%${d.eq}%`] });
       }
     }
-    setAppliedFilters(built);
+    updateCriteria({ filters: built });
   }
 
   async function handleExport(format: 'csv' | 'json') {
@@ -295,12 +329,23 @@ export default function Desk({
     if (selectedPks.size === 0) return;
     if (selectedPks.size < BULK_DELETE_THRESHOLD) {
       if (!confirm(`${selectedPks.size} satır kalıcı olarak silinecek. Emin misiniz?`)) return;
-      void executeBulkDelete();
+      // Hata BURADA yakalanıyor: bu yol `BulkDeleteConfirm`'den geçmiyor, yani
+      // modalın kendi try/catch'i devrede değil. Yakalanmadığında silme
+      // başarısız oluyor, hiçbir uyarı çıkmıyor ve satırlar seçili kaldığı için
+      // kullanıcı "sildim ama liste yenilenmedi" sanıyordu.
+      void executeBulkDelete().catch(err => {
+        setError(err instanceof Error ? err.message : 'Silinemedi.');
+      });
       return;
     }
     setConfirmingBulkDelete(true);
   }
 
+  /**
+   * Hatayı BİLEREK yukarı fırlatır: 10+ seçimde çağıran `BulkDeleteConfirm`,
+   * mesajı kendi modalinde göstermek için bunu bekliyor. 10'un altındaki yol
+   * ise `requestBulkDelete` içinde yakalıyor.
+   */
   async function executeBulkDelete() {
     if (!table) return;
     const pk = primaryKey(table);
@@ -460,7 +505,7 @@ export default function Desk({
               })}
               <button className="btn btn-sm btn-primary" onClick={applyFilters}>Filtrele</button>
               {appliedFilters.length > 0 && (
-                <button className="btn btn-sm" onClick={() => { setFilterDraft({}); setAppliedFilters([]); }}>Temizle</button>
+                <button className="btn btn-sm" onClick={() => setCriteria({ table: active, sortColumn, sortDir, filters: NO_FILTERS, draft: {} })}>Temizle</button>
               )}
             </div>
           )}

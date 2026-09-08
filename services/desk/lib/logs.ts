@@ -12,7 +12,15 @@ import type { DeskSession } from './api';
 
 const API = process.env.NAMINES_API ?? 'http://localhost:5000';
 
-export type GatewayWriteKind = 'create' | 'update' | 'delete' | 'import' | 'rpc' | 'sql';
+/**
+ * `read` sonradan eklendi: denetim kaydı artık MASKELİ kolon içeren tablolardan
+ * yapılan okumaları da tutuyor (bkz. GatewayController.MaskAsync). Maskeleme
+ * konulmuş bir kolon, sahibinin "bu veri hassas" dediği kolondur — ona kimin
+ * eriştiği tam da kaydedilmesi gereken şey. Her okuma değil, yalnızca bunlar:
+ * bir liste ekranının saniyede onlarca okumasını kaydetmek kaydı kullanılamaz
+ * hâle getirirdi.
+ */
+export type GatewayWriteKind = 'create' | 'update' | 'delete' | 'import' | 'rpc' | 'sql' | 'read';
 
 export interface AuditLogEntry {
   id: string;
@@ -53,6 +61,7 @@ export async function fetchAuditLog(
   // (yanıttaki küçük-harfli `kind` alanı yalnızca GÖSTERİM için; bu ayrı).
   const kindToServerName: Record<GatewayWriteKind, string> = {
     create: 'Create', update: 'Update', delete: 'Delete', import: 'Import', rpc: 'Rpc', sql: 'Sql',
+    read: 'Read',
   };
   for (const k of filters?.kinds ?? []) params.append('kinds', kindToServerName[k]);
 

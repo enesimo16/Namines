@@ -116,9 +116,16 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
           onClick={async () => {
             if (!confirm('SQL konsolunu bu proje için kapatmak istiyor musunuz?')) return;
             setToggling(true);
+            setError(null);
             try {
               await setDeskSqlEnabled(session, false);
               onToggled();
+            } catch (err) {
+              // Bu catch OLMADAN kapatma sessizce başarısız oluyordu: kullanıcı
+              // konsolun kapandığını sanıyor, oysa sunucuda AÇIK kalıyor.
+              // Hassas bir yüzeyin durumu hakkında yanlış bilgi vermek,
+              // hatayı göstermemekten çok daha kötü.
+              setError(err instanceof Error ? err.message : 'Kapatılamadı.');
             } finally {
               setToggling(false);
             }

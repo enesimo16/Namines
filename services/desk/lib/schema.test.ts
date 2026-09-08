@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   fieldKind, displayColumn, primaryKey, isEditable,
   insertableColumns, editableColumns, normalizeValue, formatCell,
+  isRequired, formatForInput,
   type DeskColumn, type DeskTable,
 } from './schema';
 
@@ -199,5 +200,89 @@ describe('formatCell', () => {
   it('diğer değerler String()e çevrilir', () => {
     expect(formatCell(42)).toBe('42');
     expect(formatCell('hello')).toBe('hello');
+  });
+});
+
+describe('insertableColumns — kimlik kararı sunucunun', () => {
+  it('isIdentity=true olan birincil anahtar formda GÖSTERİLMEZ', () => {
+    const t = table([col({ name: 'id', type: 'int4', isPK: true, isIdentity: true }), col({ name: 'ad' })]);
+    expect(insertableColumns(t).map(c => c.name)).toEqual(['ad']);
+  });
+
+  it('isIdentity=false olan TAMSAYI birincil anahtar formda GÖSTERİLİR', () => {
+    // BULUNMA YERİ: eski kural "PK + tamsayı ⇒ otomatik" idi ve dışarıdan
+    // atanan bir sipariş numarasını girmeyi imkânsız kılıyordu — alan hiç
+    // görünmüyor, INSERT NOT NULL ihlaliyle düşüyordu.
+    const t = table([col({ name: 'order_no', type: 'int4', isPK: true, isIdentity: false }), col({ name: 'ad' })]);
+    expect(insertableColumns(t).map(c => c.name)).toEqual(['order_no', 'ad']);
+  });
+
+  it('isIdentity göndermeyen ESKİ backend eski davranışta kalır', () => {
+    // Sürüm uyuşmazlığında her ekleme formunun birden "id gir" istemesini
+    // engelliyor.
+    const t = table([col({ name: 'id', type: 'int4', isPK: true }), col({ name: 'ad' })]);
+    expect(insertableColumns(t).map(c => c.name)).toEqual(['ad']);
+  });
+
+  it('metin birincil anahtar her zaman gösterilir', () => {
+    const t = table([col({ name: 'kod', type: 'varchar', isPK: true })]);
+    expect(insertableColumns(t).map(c => c.name)).toEqual(['kod']);
+  });
+});
+
+describe('normalizeValue — boolean', () => {
+  it('dokunulmamış NOT NULL boolean "false" gönderir, boş string DEĞİL', () => {
+    // Ekranda işaretsiz kutu "false" gösteriyor; '' göndermek veritabanına
+    // `invalid input syntax for type boolean: ""` dedirtiyordu.
+    expect(normalizeValue(col({ type: 'boolean', isNullable: false }), '')).toBe('false');
+  });
+
+  it('nullable boolean boş bırakılırsa null kalır', () => {
+    expect(normalizeValue(col({ type: 'boolean', isNullable: true }), '')).toBeNull();
+  });
+
+  it('işaretlenmiş kutu olduğu gibi geçer', () => {
+    expect(normalizeValue(col({ type: 'boolean', isNullable: false }), 'true')).toBe('true');
+  });
+});
+
+describe('isRequired', () => {
+  it('NOT NULL ama veritabanı varsayılanı olan alan ZORUNLU DEĞİL', () => {
+    expect(isRequired(col({ isNullable: false, hasDefault: true }))).toBe(false);
+  });
+
+  it('NOT NULL ve varsayılansız alan zorunlu', () => {
+    expect(isRequired(col({ isNullable: false }))).toBe(true);
+  });
+
+  it('nullable alan hiçbir zaman zorunlu değil', () => {
+    expect(isRequired(col({ isNullable: true, hasDefault: false }))).toBe(false);
+  });
+});
+
+describe('formatForInput', () => {
+  it('mikrosaniyeli zaman damgası datetime-local biçimine indirgenir', () => {
+    // BULUNMA YERİ: datetime-local bunu ayrıştıramayınca alan BOŞ görünüyor,
+    // kullanıcı başka bir alanı düzenleyip kaydedince zaman damgası siliniyordu.
+    expect(formatForInput(col({ type: 'timestamp' }), '2026-09-08T12:08:43.629717'))
+      .toBe('2026-09-08T12:08:43');
+  });
+
+  it('boşlukla ayrılmış zaman damgası da kabul edilir', () => {
+    expect(formatForInput(col({ type: 'timestamp' }), '2026-09-08 12:08:43'))
+      .toBe('2026-09-08T12:08:43');
+  });
+
+  it('tarih alanındaki saat bileşeni atılır', () => {
+    expect(formatForInput(col({ type: 'date' }), '2026-09-08T00:00:00')).toBe('2026-09-08');
+  });
+
+  it('ayrıştırılamayan değer OLDUĞU GİBİ bırakılır — tahmin edip bozmaktansa', () => {
+    expect(formatForInput(col({ type: 'timestamp' }), 'bilinmeyen')).toBe('bilinmeyen');
+  });
+
+  it('metin alanına dokunulmaz', () => {
+    expect(formatForInput(col({ type: 'varchar' }), '2026-09-08T12:08:43.629717'))
+      .toBe('2026-09-08T12:08:43.629717');
   });
 });

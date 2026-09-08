@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   type DeskTable, type DeskColumn,
   fieldKind, normalizeValue, insertableColumns, editableColumns, primaryKey,
+  isRequired, formatForInput,
 } from '../lib/schema';
 
 /** D4 §2.1 — FK açılır listesi sonucu: seçenekler, ya da eşik aşıldı, ya da hiç denenmedi. */
@@ -43,7 +44,9 @@ export default function RowForm({
     const seed: Record<string, string> = {};
     for (const c of columns) {
       const raw = initial?.[c.name];
-      seed[c.name] = raw === null || raw === undefined ? '' : String(raw);
+      // Ham değer doğrudan input'a verilemez: date/datetime alanları kendi
+      // biçimlerini istiyor, aksi hâlde alan sessizce boş görünüyor.
+      seed[c.name] = raw === null || raw === undefined ? '' : formatForInput(c, String(raw));
     }
     return seed;
   });
@@ -98,9 +101,9 @@ function Field({ column, value, onChange, fetchFkOptions }: {
   fetchFkOptions: (targetTable: string) => Promise<FkOptionsResult>;
 }) {
   const kind = fieldKind(column);
-  // NOT NULL alan zorunlu. Boş bırakılırsa veritabanı zaten reddederdi; formda
-  // işaretlemek, hatayı sunucuya gitmeden göstermeyi mümkün kılıyor.
-  const required = !column.isNullable;
+  // NOT NULL alan zorunlu — ama veritabanı tarafında bir varsayılanı varsa
+  // değil: sunucunun zaten üreteceği bir değeri kullanıcıya yazdırmak gereksiz.
+  const required = isRequired(column);
 
   const label = (
     <label htmlFor={`f-${column.name}`}>
