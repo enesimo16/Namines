@@ -68,7 +68,7 @@ public class GroundService
             // "sildim" bildiğini geri getirirdi — geri alma AYRI ve açık bir işlem.
             if (existing.Status == GroundStatus.PendingDelete)
                 return new GroundResult(false,
-                    "Bu projenin yönetilen veritabanı silinmeyi bekliyor. Önce silme işlemini geri alın.");
+                    "This project's managed database is pending deletion. Cancel the deletion first.");
 
             return new GroundResult(true, Database: existing);
         }
@@ -104,7 +104,7 @@ public class GroundService
 
             return winner is not null
                 ? new GroundResult(true, Database: winner)
-                : new GroundResult(false, "Yönetilen veritabanı kaydı oluşturulamadı.");
+                : new GroundResult(false, "The managed database record could not be created.");
         }
 
         try
@@ -153,7 +153,7 @@ public class GroundService
     public async Task<GroundResult> RequestDeleteAsync(GroundDatabase record, CancellationToken ct)
     {
         if (record.Status == GroundStatus.Deleted)
-            return new GroundResult(false, "Bu veritabanı zaten silinmiş.");
+            return new GroundResult(false, "This database has already been deleted.");
 
         record.Status = GroundStatus.PendingDelete;
         record.DeleteRequestedAt = DateTime.UtcNow;
@@ -184,12 +184,12 @@ public class GroundService
         GroundDatabase record, IDatabaseProvider provider, CancellationToken ct)
     {
         if (record.Status != GroundStatus.PendingDelete)
-            return new GroundResult(false, "Bu veritabanı için bekleyen bir silme yok.");
+            return new GroundResult(false, "There is no pending deletion for this database.");
 
         var project = await _context.CloudProjects
             .FirstOrDefaultAsync(p => p.Id == record.ProjectId, ct);
 
-        if (project is null) return new GroundResult(false, "Proje bulunamadı.");
+        if (project is null) return new GroundResult(false, "Project not found.");
 
         try
         {
@@ -277,13 +277,49 @@ public class GroundService
     }
 
     /// <summary>
+    /// Kaynağın kullanım ölçümleri.
+    ///
+    /// <b>Sayılar sağlayıcıdan OKUNUR, tahmin edilmez</b>
+    /// (<c>00-GENEL-BAKIS.md</c> §9 madde 4). Sağlayıcı bir değeri vermiyorsa
+    /// alan <c>null</c> kalır ve arayüz onu "—" gösterir; sıfır yazmak
+    /// "ölçüldü ve sıfır çıktı" demek olurdu.
+    /// </summary>
+    public async Task<DatabaseMetrics> GetMetricsAsync(GroundDatabase record, CancellationToken ct)
+    {
+        // Silinmiş bir kaynağı ölçmeye çalışmak, sağlayıcıda kaçınılmaz bir
+        // hataya koşmak demek — durum zaten cevabı veriyor.
+        if (record.Status is GroundStatus.Deleted or GroundStatus.Failed)
+            return new DatabaseMetrics(null, null);
+
+        var provider = FindProvider(record.Provider);
+        if (provider is null) return new DatabaseMetrics(null, null);
+
+        try
+        {
+            return await provider.GetMetricsAsync(
+                new ProvisionedDatabase(
+                    record.ProviderProjectId ?? string.Empty,
+                    record.ProviderBranchId,
+                    record.Region ?? string.Empty,
+                    ConnectionString: string.Empty),
+                ct);
+        }
+        catch (Exception ex)
+        {
+            // Ölçüm alınamaması kaynağı geçersiz kılmaz; "bilinmiyor" dönülüyor.
+            _logger.LogWarning(ex, "Ground: {ProjectId} olcumleri okunamadi.", record.ProjectId);
+            return new DatabaseMetrics(null, null);
+        }
+    }
+
+    /// <summary>
     /// Plan kotası. Aşılmışsa kullanıcıya gösterilecek mesaj, aşılmamışsa null.
     /// </summary>
     private async Task<string?> IsQuotaExceededAsync(
         CloudProject project, string userId, CancellationToken ct)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        if (user is null) return "Kullanıcı bulunamadı.";
+        if (user is null) return "User not found.";
 
         var tier = PlanQuotas.Resolve(user.SubscriptionStatus, user.PlanCode, user.IsDev);
         var limit = PlanQuotas.For(tier).ManagedDatabases;
@@ -296,9 +332,9 @@ public class GroundService
         if (!PlanQuotas.IsExceeded(limit, current)) return null;
 
         return limit == 0
-            ? "Yönetilen veritabanı ücretsiz planda bulunmuyor. Kendi PostgreSQL sunucunuzu " +
-              "bağlayabilir ya da planınızı yükseltebilirsiniz."
-            : PlanQuotas.LimitMessage(tier, "yönetilen veritabanı", limit);
+            ? "Managed databases are not included in the free plan. You can connect your own " +
+              "PostgreSQL server, or upgrade your plan."
+            : PlanQuotas.LimitMessage(tier, "managed database", limit);
     }
 
     private static string Shorten(string message)

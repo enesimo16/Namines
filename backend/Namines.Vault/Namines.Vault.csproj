@@ -23,6 +23,7 @@
     <!-- pg_dump/pg_restore'u taşınabilir biçimde çalıştırmak için resmî
          postgres imajı kullanılıyor. docker.sock MOUNT EDİLMEZ — host'un
          daemon'una uzaktan konuşulur (AGENTS.md'nin kesin kuralı). -->
+    <PackageReference Include="AWSSDK.S3" Version="3.7.413" />
     <PackageReference Include="Docker.DotNet" Version="3.125.15" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />

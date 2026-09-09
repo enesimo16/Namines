@@ -77,6 +77,15 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
         var profile = ContainerProfiles.GetProfile(dbType);
         var containerId = (string?)null;
 
+        // Bellek kontrolü ÖNCE: yetersizse konteyner açılıp hemen ölüyor ve
+        // hata "hazır olamadı" gibi görünüyordu — asıl sebep (ve çözümü)
+        // kullanıcıdan gizli kalıyordu. Şimdi hiç denemeden söylüyoruz.
+        if (await DescribeMemoryShortfallAsync(profile, ct) is { } shortfall)
+        {
+            stopwatch.Stop();
+            return new TestRunResult(true, false, shortfall, null, stopwatch.ElapsedMilliseconds);
+        }
+
         try
         {
             var localImages = await _client.Images.ListImagesAsync(new ImagesListParameters { All = true }, ct);
@@ -108,7 +117,16 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
             if (!isReady)
             {
                 stopwatch.Stop();
-                return new TestRunResult(true, false, "Database container failed to become ready within the timeout.", null, stopwatch.ElapsedMilliseconds);
+                // Konteynerin KENDİ logu neden çalışmadığını söylüyor; onu
+                // yutup "zaman aşımı" demek, kullanıcıyı tek gerçek ipucundan
+                // mahrum bırakmaktı (canlı denemede tam olarak bu yaşandı:
+                // sebep bellek yetersizliğiydi ve mesajda hiç görünmüyordu).
+                var reason = await ReadContainerLogTailAsync(containerId);
+                var detail = string.IsNullOrWhiteSpace(reason) ? string.Empty : $" Container log: {reason}";
+
+                return new TestRunResult(true, false,
+                    $"Database container failed to become ready within the timeout.{detail}",
+                    null, stopwatch.ElapsedMilliseconds);
             }
 
             using var tarStream = DockerTarFile.SingleFile("schema.sql", ddl);
@@ -132,7 +150,9 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
             {
                 DatabaseType.MSSQL => new[] { "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C", "-b", "-d", "naminesdb", "-i", "/tmp/schema.sql" },
                 DatabaseType.PostgreSQL => new[] { "sh", "-c", "PGPASSWORD=Namines_Secure123! psql -U postgres -d naminesdb -f /tmp/schema.sql -v ON_ERROR_STOP=1" },
-                DatabaseType.MySQL => new[] { "sh", "-c", "mysql -u root -p\"Namines_Secure123!\" naminesdb < /tmp/schema.sql" },
+                // Hazırlık kontrolüyle AYNI yolu kullanmalı: biri soket biri TCP olsaydı,
+                // kontrolün kanıtladığı sunucu ile şemanın gittiği sunucu farklı olabilirdi.
+                DatabaseType.MySQL => new[] { "sh", "-c", MySqlClient + " naminesdb < /tmp/schema.sql" },
                 _ => throw new NotSupportedException()
             };
             var (schemaExit, schemaOut) = await ExecuteCommandAsync(containerId, schemaCmd, ct);
@@ -166,16 +186,87 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
         }
     }
 
+    /// <summary>
+    /// Docker sunucusunun belleği motorun şartını karşılıyor mu.
+    /// </summary>
+    /// <returns>
+    /// Yetersizse kullanıcıya gösterilecek açıklama; yeterliyse (ya da
+    /// ölçülemiyorsa) <c>null</c>.
+    /// </returns>
+    private async Task<string?> DescribeMemoryShortfallAsync(ContainerProfile profile, CancellationToken ct)
+    {
+        if (profile.MinimumMemoryBytes <= 0) return null;
+
+        long available;
+        try
+        {
+            var info = await _client.System.GetSystemInfoAsync(ct);
+            available = info.MemTotal;
+        }
+        catch
+        {
+            // Ölçemiyorsak ENGELLEMİYORUZ: yanlış bir tahminle çalışabilecek
+            // bir işi reddetmek, denemekten daha kötü.
+            return null;
+        }
+
+        if (available <= 0 || available >= profile.MinimumMemoryBytes) return null;
+
+        const long megabyte = 1024 * 1024;
+        return $"The {profile.Image} engine needs at least {profile.MinimumMemoryBytes / megabyte} MB of memory, " +
+               $"but the Docker host only has {available / megabyte} MB. Raise the memory allocated to Docker " +
+               "(Docker Desktop → Settings → Resources) and try again.";
+    }
+
+    /// <summary>Konteynerin son log satırları — hata sebebini kullanıcıya taşımak için.</summary>
+    private async Task<string> ReadContainerLogTailAsync(string containerId)
+    {
+        try
+        {
+            using var logs = await _client.Containers.GetContainerLogsAsync(
+                containerId, tty: false,
+                new ContainerLogsParameters { ShowStdout = true, ShowStderr = true, Tail = "5" },
+                CancellationToken.None);
+
+            var (stdout, stderr) = await logs.ReadOutputToEndAsync(CancellationToken.None);
+            var text = (stdout + stderr).Replace('\n', ' ').Replace('\r', ' ').Trim();
+
+            return text.Length <= 400 ? text : text[..400] + "…";
+        }
+        catch
+        {
+            // Log okunamıyorsa asıl mesaj yine dönüyor; burada susmak doğru.
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// MySQL istemci komutu — <b>TCP üzerinden</b>.
+    ///
+    /// Hem hazırlık kontrolü hem şema uygulaması buradan geçiyor: ikisinin
+    /// farklı yol kullanması, kontrolün kanıtladığı sunucudan başka bir
+    /// sunucuya yazmak demek olurdu.
+    /// </summary>
+    private const string MySqlClient =
+        "mysql --protocol=TCP -h 127.0.0.1 -u root -p\"Namines_Secure123!\"";
+
     private async Task<bool> WaitForReadyAsync(string containerId, DatabaseType dbType, CancellationToken ct)
     {
         string[] checkCmd = dbType switch
         {
             DatabaseType.PostgreSQL => new[] { "pg_isready", "-U", "postgres" },
-            // mysqladmin ping döner 0 döner ama MySQL 8'in iki-aşamalı başlangıcındaki (init server ->
+            // mysqladmin ping 0 döner ama MySQL 8'in iki-aşamalı başlangıcındaki (init server ->
             // restart -> gerçek server) GEÇİCİ sunucuya karşı da başarılı olabiliyor — gerçek kimlik
             // doğrulamalı bir sorgu çalıştırmak asıl sunucunun hazır olduğunu KANITLAR (ampirik olarak
             // doğrulandı: ping "hazır" derken mysql client "Access denied" veriyordu).
-            DatabaseType.MySQL => new[] { "sh", "-c", "mysql -u root -p\"Namines_Secure123!\" -e 'SELECT 1;'" },
+            //
+            // <b>TCP üzerinden, unix soketi DEĞİL — ve bu fark ölçüldü:</b> kimlik doğrulamalı
+            // sorgu bile soket üzerinden GEÇİCİ sunucuya bağlanıp başarılı olabiliyordu; hemen
+            // ardından asıl sunucu için yapılan yeniden başlatmada soket kayboluyor ve şema
+            // uygulama adımı "Can't connect to local MySQL server through socket" ile düşüyordu.
+            // Init sunucusu --skip-networking ile açıldığı için TCP'yi YALNIZCA asıl sunucu
+            // dinliyor; kontrolü oraya taşımak yarışı tamamen kapatıyor.
+            DatabaseType.MySQL => new[] { "sh", "-c", MySqlClient + " -e 'SELECT 1;'" },
             DatabaseType.MSSQL => new[] { "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Namines_Secure123!", "-C", "-b", "-Q", "SELECT 1" },
             _ => new[] { "echo", "ready" }
         };

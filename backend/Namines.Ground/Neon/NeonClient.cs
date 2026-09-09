@@ -64,8 +64,8 @@ public sealed class NeonClient : INeonClient
     {
         if (!IsConfigured)
             return Task.FromResult<string?>(
-                "Ground:Neon:ApiKey tanımlı değil, bu yüzden Neon üzerinde veritabanı " +
-                "açılamaz. neon.tech hesabınızdan bir API anahtarı alıp bu değeri verin.");
+                "Ground:Neon:ApiKey is not configured, so no database can be created on " +
+                "Neon. Create an API key in your neon.tech account and set this value.");
 
         return PingAsync(ct);
     }
@@ -79,11 +79,11 @@ public sealed class NeonClient : INeonClient
             using var response = await _http.GetAsync("projects?limit=1", ct);
             return response.IsSuccessStatusCode
                 ? null
-                : $"Neon API'sine erişilemedi ({(int)response.StatusCode}).";
+                : $"The Neon API could not be reached ({(int)response.StatusCode}).";
         }
         catch (Exception ex)
         {
-            return $"Neon API'sine erişilemedi: {ex.Message}";
+            return $"The Neon API could not be reached: {ex.Message}";
         }
     }
 
@@ -99,19 +99,19 @@ public sealed class NeonClient : INeonClient
         };
 
         using var response = await _http.PostAsJsonAsync("projects", payload, Json, ct);
-        await EnsureSuccessAsync(response, "Neon projesi oluşturulamadı", ct);
+        await EnsureSuccessAsync(response, "Could not create the Neon project", ct);
 
         var body = await response.Content.ReadFromJsonAsync<CreateProjectResponse>(Json, ct)
-            ?? throw new InvalidOperationException("Neon boş bir yanıt döndürdü.");
+            ?? throw new InvalidOperationException("Neon returned an empty response.");
 
         // Bağlantı adresi olmadan açılmış bir proje işe yaramaz; sessizce
         // "başarılı" saymak, kullanılamaz bir kaynağı Active işaretlemek olurdu.
         var uri = body.ConnectionUris?.FirstOrDefault()?.ConnectionUri
             ?? throw new InvalidOperationException(
-                "Neon proje oluşturdu ama bağlantı adresi döndürmedi.");
+                "Neon created the project but returned no connection URI.");
 
         return new NeonProject(
-            ProjectId: body.Project?.Id ?? throw new InvalidOperationException("Neon proje kimliği döndürmedi."),
+            ProjectId: body.Project?.Id ?? throw new InvalidOperationException("Neon returned no project id."),
             BranchId: body.Branch?.Id ?? string.Empty,
             RegionId: body.Project.RegionId ?? regionId ?? Region,
             ConnectionUri: uri);
@@ -124,7 +124,7 @@ public sealed class NeonClient : INeonClient
         // 404 = kaynak yok. Silmenin istenen son durumu bu, dolayısıyla başarı.
         if (response.StatusCode == HttpStatusCode.NotFound) return;
 
-        await EnsureSuccessAsync(response, "Neon projesi silinemedi", ct);
+        await EnsureSuccessAsync(response, "Could not delete the Neon project", ct);
     }
 
     public async Task<NeonUsage> GetUsageAsync(string projectId, CancellationToken ct)

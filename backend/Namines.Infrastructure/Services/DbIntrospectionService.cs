@@ -133,7 +133,37 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY t.TABLE_NAME, c.ORDINAL_POSITION
             """;
 
-        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql: null,
+        // Yabanci anahtarlar -- MySQL'deki ayni bosluk: bu sorgu olmadan sema
+        // hic iliski icermiyordu.
+        //
+        // sys.foreign_keys kullaniliyor, INFORMATION_SCHEMA degil: silme/guncelleme
+        // davranisi (delete_referential_action_desc) yalnizca sys katalogunda var
+        // ve bilesik anahtarlarda kolon SIRASI ancak burada garanti.
+        //
+        // ⚠️ CANLI DOGRULANMADI: SQL Server bu makinede calistirilamiyor
+        // (Docker VM 1.9 GB, motor en az 2000 MB istiyor). MySQL karsiligi
+        // gercek bir MySQL'e karsi test edildi; bu sorgu ayni deseni izliyor
+        // ama gercek bir sunucuya karsi kosulana kadar VARSAYIM.
+        const string relationSql = """
+            SELECT  src.name  AS source_table,
+                    sc.name   AS source_column,
+                    tgt.name  AS target_table,
+                    tc.name   AS target_column,
+                    REPLACE(fk.delete_referential_action_desc, '_', ' ') AS on_delete,
+                    REPLACE(fk.update_referential_action_desc, '_', ' ') AS on_update
+            FROM sys.foreign_keys fk
+            JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+            JOIN sys.tables  src ON src.object_id = fk.parent_object_id
+            JOIN sys.tables  tgt ON tgt.object_id = fk.referenced_object_id
+            JOIN sys.columns sc  ON sc.object_id = fkc.parent_object_id
+                                AND sc.column_id = fkc.parent_column_id
+            JOIN sys.columns tc  ON tc.object_id = fkc.referenced_object_id
+                                AND tc.column_id = fkc.referenced_column_id
+            WHERE SCHEMA_NAME(src.schema_id) = SCHEMA_NAME()
+            ORDER BY src.name, fk.name, fkc.constraint_column_id
+            """;
+
+        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql,
             (c, t, token) => LoadCatalogAsync(c, t, MssqlCatalog, "MSSQL", token));
     }
 
@@ -570,7 +600,16 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 c.IS_NULLABLE,
                 CASE WHEN c.COLUMN_KEY = 'PRI' THEN 'PRI' ELSE '' END AS COLUMN_KEY,
                 CASE WHEN c.COLUMN_KEY = 'MUL' THEN 1 ELSE 0 END AS IS_FK,
-                c.COLUMN_DEFAULT,
+                -- AUTO_INCREMENT, MySQL'de COLUMN_DEFAULT'ta DEGIL EXTRA'da durur.
+                -- Okunmadigi icin Identity hep null kaliyordu; boylece disaridan
+                -- atanan bir tamsayi birincil anahtar da "otomatik" varsayiliyordu
+                -- ve veritabaninin onu ezmesi sessiz bir veri kaybi olurdu.
+                --
+                -- Isaret COLUMN_DEFAULT alanina yaziliyor cunku ortak satir
+                -- sozlesmesi orayi okuyor; NormalizeDefault onu zaten null'a
+                -- geri ceviriyor, yani uydurma bir varsayilan deger olusmuyor.
+                CASE WHEN c.EXTRA LIKE '%auto_increment%'
+                     THEN 'AUTO_INCREMENT' ELSE c.COLUMN_DEFAULT END AS COLUMN_DEFAULT,
                 c.NUMERIC_PRECISION,
                 c.NUMERIC_SCALE
             FROM information_schema.COLUMNS c
@@ -581,7 +620,31 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION
             """;
 
-        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql: null,
+        // Yabanci anahtarlar. Bu sorgu OLMADAN semada HIC iliski cikmiyordu:
+        // kolonlar IsFK=true isaretleniyor ama Relations bos kaliyordu, yani
+        // Canvas hicbir cizgi cizmiyor ve semadan DDL yeniden uretildiginde
+        // butun yabanci anahtarlar SESSIZCE kayboluyordu.
+        //
+        // REFERENTIAL_CONSTRAINTS, KEY_COLUMN_USAGE'a ekleniyor cunku
+        // ON DELETE/ON UPDATE davranisi yalnizca orada var.
+        const string relationSql = """
+            SELECT ku.TABLE_NAME            AS source_table,
+                   ku.COLUMN_NAME           AS source_column,
+                   ku.REFERENCED_TABLE_NAME AS target_table,
+                   ku.REFERENCED_COLUMN_NAME AS target_column,
+                   rc.DELETE_RULE           AS on_delete,
+                   rc.UPDATE_RULE           AS on_update
+            FROM information_schema.KEY_COLUMN_USAGE ku
+            JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
+                   ON rc.CONSTRAINT_SCHEMA = ku.CONSTRAINT_SCHEMA
+                  AND rc.CONSTRAINT_NAME   = ku.CONSTRAINT_NAME
+                  AND rc.TABLE_NAME        = ku.TABLE_NAME
+            WHERE ku.TABLE_SCHEMA = DATABASE()
+              AND ku.REFERENCED_TABLE_NAME IS NOT NULL
+            ORDER BY ku.TABLE_NAME, ku.CONSTRAINT_NAME, ku.ORDINAL_POSITION
+            """;
+
+        return await BuildSchemaAsync(conn, sql, conn.Database, ct, relationSql,
             (c, t, token) => LoadCatalogAsync(c, t, MySqlCatalog, "MySQL", token));
     }
 
@@ -630,7 +693,31 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             ORDER BY c.TABLE_NAME, c.COLUMN_ID
             """;
 
-        return await BuildSchemaAsync(conn, sql, conn.DataSource, ct, relationSql: null,
+        // Yabanci anahtarlar -- MySQL/MSSQL'deki ayni bosluk.
+        //
+        // Oracle'da ON UPDATE YOK (dil bunu desteklemiyor), bu yuzden sabit
+        // 'NO ACTION' donuyor. Bos birakmak "bilinmiyor" demek olurdu; oysa
+        // burada cevap kesin.
+        //
+        // ⚠️ CANLI DOGRULANMADI: Oracle imaji bu makinede yok ve diskte yeri
+        // yok. MSSQL icin yazilan notun aynisi burada da gecerli.
+        const string relationSql = """
+            SELECT  ac.TABLE_NAME       AS source_table,
+                    acc.COLUMN_NAME     AS source_column,
+                    rac.TABLE_NAME      AS target_table,
+                    racc.COLUMN_NAME    AS target_column,
+                    ac.DELETE_RULE      AS on_delete,
+                    'NO ACTION'         AS on_update
+            FROM user_constraints ac
+            JOIN user_cons_columns acc  ON acc.CONSTRAINT_NAME = ac.CONSTRAINT_NAME
+            JOIN user_constraints rac   ON rac.CONSTRAINT_NAME = ac.R_CONSTRAINT_NAME
+            JOIN user_cons_columns racc ON racc.CONSTRAINT_NAME = rac.CONSTRAINT_NAME
+                                       AND racc.POSITION = acc.POSITION
+            WHERE ac.CONSTRAINT_TYPE = 'R'
+            ORDER BY ac.TABLE_NAME, ac.CONSTRAINT_NAME, acc.POSITION
+            """;
+
+        return await BuildSchemaAsync(conn, sql, conn.DataSource, ct, relationSql,
             (c, t, token) => LoadCatalogAsync(c, t, OracleCatalog, "Oracle", token));
     }
 

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { type DeskSession } from '../lib/api';
+import { formatSize } from '../lib/format';
 import {
   groundApi, GroundError, daysUntilPurge,
-  type GroundDatabase, type GroundProvider,
+  type GroundDatabase, type GroundProvider, type GroundMetrics,
 } from '../lib/ground';
 import PageHead from './PageHead';
 
@@ -26,6 +27,7 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
   const [busy, setBusy] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [confirming, setConfirming] = useState(false);
+  const [metrics, setMetrics] = useState<GroundMetrics | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -35,6 +37,18 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       setProviders(list);
       setDatabase(record);
       setError(null);
+
+      // Ölçüm AYRI çağrı ve hatası yutuluyor: sağlayıcıya gerçek bir sorgu
+      // gidiyor, oradaki bir aksaklık ekranın tamamını çökertmemeli.
+      if (record && record.status !== 'Deleted') {
+        try {
+          setMetrics(await groundApi.metrics(session));
+        } catch {
+          setMetrics(null);
+        }
+      } else {
+        setMetrics(null);
+      }
     } catch (err) {
       setError(err instanceof GroundError ? err.message : 'Yönetilen veritabanı bilgisi okunamadı.');
       setProviders([]);
@@ -109,6 +123,16 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
               </tr>
               <tr><th>Bölge</th><td>{database.region ?? '—'}</td></tr>
               <tr><th>Açılış</th><td>{new Date(database.createdAt).toLocaleString('tr-TR')}</td></tr>
+              {/* null = BILINMIYOR, sifir degil. "0 B" yazmak bos bir
+                  veritabani izlenimi verirdi. */}
+              <tr>
+                <th>Kullanılan alan</th>
+                <td>{metrics?.storageBytes != null ? formatSize(metrics.storageBytes) : '—'}</td>
+              </tr>
+              <tr>
+                <th>Açık bağlantı</th>
+                <td>{metrics?.activeConnections ?? '—'}</td>
+              </tr>
               {database.error && (
                 <tr><th>Hata</th><td>{database.error}</td></tr>
               )}

@@ -48,6 +48,18 @@ export interface GroundDatabase {
   graceDays: number;
 }
 
+/**
+ * Kaynağın kullanım ölçümleri.
+ *
+ * `null` = BİLİNMİYOR (sağlayıcı vermiyor ya da okunamadı), sıfır değil.
+ * Sıfır göstermek "ölçüldü ve sıfır çıktı" demek olurdu — kullanıcı boş bir
+ * veritabanı sanırdı.
+ */
+export interface GroundMetrics {
+  storageBytes: number | null;
+  activeConnections: number | null;
+}
+
 export class GroundError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
@@ -98,6 +110,9 @@ export const groundApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ confirmProjectName }),
     })).json(),
+
+  metrics: async (session: DeskSession): Promise<GroundMetrics> =>
+    (await call(`/api/ground/${encodeURIComponent(session.projectId)}/metrics`, session)).json(),
 
   cancelDelete: async (session: DeskSession): Promise<GroundDatabase> =>
     (await call(`/api/ground/${encodeURIComponent(session.projectId)}/cancel-delete`, session, {
