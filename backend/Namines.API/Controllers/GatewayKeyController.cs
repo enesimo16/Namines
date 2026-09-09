@@ -473,6 +473,31 @@ public class GatewayKeyController : ControllerBase
         var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
         if (project is null) return NotFound(new { error = "Project not found." });
 
+        // Namines Ground'un YÖNETTİĞİ bir veritabanının bağlantısı buradan
+        // koparılamaz.
+        //
+        // <b>İki ayrı sebep, ikisi de tek başına yeterli:</b>
+        // (1) Kaynak silinmez, yalnızca görünmez olur — sunucuda (Neon'da ise
+        //     faturalanarak) durmaya devam eder ve Ground kaydı hâlâ "Active"
+        //     der. Kimsenin ulaşamadığı ama yaşayan bir kaynak kalır.
+        // (2) Ground'un silme akışındaki iki güvenlik önlemini atlar: proje
+        //     adını elle yazma onayı ve 7 günlük geri alma penceresi. Yıkıcı
+        //     bir işlemin daha zayıf bir kapıdan yapılabilmesi, güçlü kapıyı
+        //     anlamsız kılar.
+        var managed = await _context.GroundDatabases
+            .FirstOrDefaultAsync(g => g.ProjectId == projectId, ct);
+
+        if (managed is not null &&
+            managed.Status is GroundStatus.Provisioning or GroundStatus.Active or GroundStatus.PendingDelete)
+        {
+            return BadRequest(new
+            {
+                error = "This project's database is managed by Namines Ground. Remove it from the " +
+                        "Hosting screen instead — that path deletes the actual database and gives " +
+                        "you a recovery window.",
+            });
+        }
+
         project.EncryptedConnectionString = null;
         project.ConnectionDbType = null;
         project.UpdatedAt = DateTime.UtcNow;
