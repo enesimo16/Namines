@@ -15,6 +15,7 @@ import Analytics from './Analytics';
 import SqlConsole from './SqlConsole';
 import ApiKeys from './ApiKeys';
 import Vault from './Vault';
+import Ground from './Ground';
 import Members from './Members';
 import BulkDeleteConfirm, { BULK_DELETE_THRESHOLD } from './BulkDeleteConfirm';
 import { deploymentsApi } from '../lib/deployments';
@@ -356,6 +357,12 @@ export default function Desk({
     setConfirmingBulkDelete(false);
     await loadRows(table.name, page);
   }
+
+  // Barındırma görünümü şemaya BAĞLI DEĞİL ve olmamalı: Ground'un işi projeye
+  // ilk veritabanını vermek, dolayısıyla tam da şemanın okunamadığı durumda
+  // açılabilmeli. Aşağıdaki hata kapısına takılsaydı, kullanıcı "bağlantı yok"
+  // ekranıyla "bağlantı açan ekran" arasında kilitlenirdi.
+  if (view === 'ground') return <Ground session={session} isOwner={isOwner} />;
 
   if (error && !tables) {
     return (

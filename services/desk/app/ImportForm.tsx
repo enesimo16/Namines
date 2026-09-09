@@ -13,11 +13,20 @@ import { DESK_DB_ENGINES } from '../lib/auth';
  * yanlış kimlik bilgisiyle erişilemeyen sunucu arasında kör bırakırdı.
  */
 export default function ImportForm({
-  projectName, onCancel, onSubmit,
+  projectName, onCancel, onSubmit, onUseGround,
 }: {
   projectName: string;
   onCancel: () => void;
   onSubmit: (connectionString: string, dbType: string) => Promise<void>;
+  /**
+   * "Namines Ground ile oluştur" seçilirse çağrılır.
+   *
+   * <b>Neden burada:</b> bu pencere, kullanıcıya "bu projenin veritabanı
+   * nerede" diye sorulan TEK yer. Ground'un işi ise projeye ilk veritabanını
+   * vermek — ama Desk bağlantısı olmayan bir projeyi açtırmıyor, dolayısıyla
+   * Ground tam da ihtiyaç duyan projeler için erişilemez kalırdı.
+   */
+  onUseGround: () => void;
 }) {
   const [connectionString, setConnectionString] = useState('');
   const [dbType, setDbType] = useState<string>(DESK_DB_ENGINES[0]);
@@ -60,6 +69,14 @@ export default function ImportForm({
             placeholder="Host=...;Port=...;Database=...;Username=...;Password=..."
             onChange={e => setConnectionString(e.target.value)}
           />
+        </div>
+
+        <div className="notice" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span>Elinizde bir veritabanı yok mu? Namines sizin için bir tane açabilir.</span>
+          <button type="button" className="btn btn-sm" style={{ alignSelf: 'flex-start' }}
+                  disabled={busy} onClick={onUseGround}>
+            Namines Ground ile oluştur
+          </button>
         </div>
 
         <div className="dialog-actions">

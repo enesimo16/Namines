@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Namines.Core.Models.Auth;
 
 namespace Namines.Infrastructure.Services;
 
@@ -24,14 +25,6 @@ public class GroundPurgeBackgroundService : BackgroundService
     /// </summary>
     private static readonly TimeSpan PollInterval = TimeSpan.FromHours(1);
 
-    /// <summary>
-    /// Varsayılan bekleme penceresi (<c>02-V1-KARARLARI.md</c> §2.2).
-    ///
-    /// 7 gün: daha kısası (24 saat) tatildeki bir ekibi kurtaramaz, daha uzunu
-    /// (30 gün) silinmiş sayılan kaynağın faturasını aylarca sürdürür.
-    /// </summary>
-    private const int DefaultGraceDays = 7;
-
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<GroundPurgeBackgroundService> _logger;
@@ -50,7 +43,7 @@ public class GroundPurgeBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var graceDays = _configuration.GetValue("Ground:DeleteGraceDays", DefaultGraceDays);
+        var graceDays = _configuration.GetValue("Ground:DeleteGraceDays", GroundDefaults.DeleteGraceDays);
         _logger.LogInformation(
             "Ground silme isi basladi (bekleme penceresi: {Days} gun).", graceDays);
 

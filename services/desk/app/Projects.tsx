@@ -17,11 +17,13 @@ const NAMINES_FRONTEND = process.env.NAMINES_FRONTEND ?? 'http://localhost:3000'
  * TÜRETİLİYOR, hiçbiri uydurma değil), altında filtrelenebilir proje ızgarası.
  */
 export default function Projects({
-  projects, error, onSelect, onImported, token,
+  projects, error, onSelect, onImported, onUseGround, token,
 }: {
   projects: DeskProject[] | null;
   error: string | null;
   onSelect: (projectId: string) => void;
+  /** Bağlantısı olmayan bir proje için Ground görünümüne geçmek. */
+  onUseGround: (projectId: string) => void;
   onImported: () => void;
   token: string;
 }) {
@@ -181,6 +183,7 @@ export default function Projects({
         <ImportForm
           projectName={importing.name}
           onCancel={() => setImporting(null)}
+          onUseGround={() => { const id = importing.id; setImporting(null); onUseGround(id); }}
           onSubmit={async (connectionString, dbType) => {
             await setProjectConnection(token, importing.id, connectionString, dbType);
             setImporting(null);
