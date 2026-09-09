@@ -114,7 +114,14 @@ public class GroundController : ControllerBase
 
         // null "bilinmiyor" demek ve arayuz onu "—" gosteriyor; sifira
         // cevirmek "olculdu ve sifir cikti" olurdu.
-        return Ok(new { storageBytes = metrics.StorageBytes, activeConnections = metrics.ActiveConnections });
+        return Ok(new
+        {
+            storageBytes = metrics.StorageBytes,
+            activeConnections = metrics.ActiveConnections,
+            // Yalnizca UYARI -- veritabani KAPATILMIYOR/kisitlanmiyor. Bkz.
+            // GroundService.GetStorageWarningAsync'in kendi yorumu.
+            storageWarning = await _ground.GetStorageWarningAsync(record, metrics, ct),
+        });
     }
 
     /// <summary>
