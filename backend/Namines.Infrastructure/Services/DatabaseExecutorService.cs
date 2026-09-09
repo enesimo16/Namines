@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.Common;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
@@ -20,6 +21,15 @@ namespace Namines.Infrastructure.Services;
 
 public class DatabaseExecutorService : IDatabaseExecutor
 {
+    /// <summary>
+    /// Tek bir SQL ifadesinin calisabilecegi en uzun sure.
+    ///
+    /// Buyuk bir tabloda ALTER dakikalar surebilir, bu yuzden Gateway'in 15
+    /// saniyelik sorgu zaman asimindan uzun; ama sinirsiz DEGIL -- sinirsiz
+    /// olsaydi tek bir betik baglanti havuzundaki bir yuvayi sureleyebilirdi.
+    /// </summary>
+    private const int StatementTimeoutSeconds = 120;
+
     // SSRF koruması: varsayılan olarak private/loopback hedefler reddedilir.
     // Yerel geliştirmede appsettings.Development.json → "Executor:AllowPrivateHosts": true ile açılabilir.
     private readonly bool _allowPrivateHosts;
@@ -88,13 +98,14 @@ public class DatabaseExecutorService : IDatabaseExecutor
         }
     }
 
-    public async Task<bool> TestConnectionAsync(string connectionString, DatabaseType dbType)
+    public async Task<bool> TestConnectionAsync(
+        string connectionString, DatabaseType dbType, CancellationToken cancellationToken = default)
     {
         try
         {
             ValidateConnectionTarget(connectionString, dbType);
             await using var connection = CreateConnection(connectionString, dbType);
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
             return connection.State == ConnectionState.Open;
         }
         catch
@@ -103,16 +114,33 @@ public class DatabaseExecutorService : IDatabaseExecutor
         }
     }
 
-    public async Task<ExecutionResult> ExecuteScriptAsync(string connectionString, string ddlScript, DatabaseType dbType)
+    /// <summary>
+    /// Betigi hedef veritabaninda calistirir.
+    ///
+    /// <b>Zaman asimi ACIKCA veriliyor:</b> varsayilan CommandTimeout surucuden
+    /// suruc uye degisiyor ve bazilarinda cok uzun. Buyuk bir tabloya ALTER
+    /// calistiran bir betik, sinirsiz zaman asimiyla istegi ve baglanti
+    /// havuzundaki bir yuvayi dakikalarca tutabilirdi.
+    ///
+    /// <b>Iptal edilebilir:</b> istemci vazgectiginde is sunucuda devam etmesin.
+    /// </summary>
+    public async Task<ExecutionResult> ExecuteScriptAsync(
+        string connectionString, string ddlScript, DatabaseType dbType,
+        CancellationToken cancellationToken = default)
     {
+        // DDL her motorda transaction'a girmiyor: MySQL/MariaDB/Oracle ortuk
+        // commit yapar. Basarisizlikta cagirana "kismi uygulama mumkun" demek
+        // zorundayiz, aksi halde arayuz verilmeyen bir garanti gosterir.
+        var ddlIsTransactional = dbType is DatabaseType.PostgreSQL or DatabaseType.MSSQL or DatabaseType.SQLite;
+
         int statementsExecuted = 0;
         try
         {
             ValidateConnectionTarget(connectionString, dbType);
             await using var connection = CreateConnection(connectionString, dbType);
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
 
-            await using var transaction = await connection.BeginTransactionAsync();
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
             try
             {
@@ -125,26 +153,63 @@ public class DatabaseExecutorService : IDatabaseExecutor
                     await using var command = connection.CreateCommand();
                     command.Transaction = transaction;
                     command.CommandText = cmdText;
-                    
+
                     // Oracle requires CommandType.Text
                     command.CommandType = CommandType.Text;
+                    command.CommandTimeout = StatementTimeoutSeconds;
 
-                    await command.ExecuteNonQueryAsync();
+                    await command.ExecuteNonQueryAsync(cancellationToken);
                     statementsExecuted++;
                 }
 
-                await transaction.CommitAsync();
+                await transaction.CommitAsync(cancellationToken);
                 return new ExecutionResult(true, null, statementsExecuted);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
-                return new ExecutionResult(false, $"Error executing script at statement {statementsExecuted + 1}: {ex.Message}", statementsExecuted);
+                // Geri alma en iyi caba: motor DDL'i zaten commit'lediyse bu
+                // cagri sessizce hicbir seyi geri almaz -- PartialApplyPossible
+                // tam olarak bunu cagirana bildiriyor.
+                //
+                // CancellationToken.None ile: istek iptal edildigi icin buraya
+                // dustuysek, iptal edilmis bir token'la geri alma denemek
+                // geri almayi da iptal ederdi.
+                try { await transaction.RollbackAsync(CancellationToken.None); } catch { /* baglanti dusmus olabilir */ }
+
+                // Iptal disariya birakiliyor: asagidaki handler onu dogru
+                // sebeple raporluyor.
+                if (ex is OperationCanceledException && cancellationToken.IsCancellationRequested) throw;
+
+                return new ExecutionResult(
+                    false,
+                    // Baglanti KURULDUKTAN sonraki hata: surucu mesaji korunuyor,
+                    // cunku cagiran hedefe erisebildigini zaten biliyor ve
+                    // "42. ifadede sozdizimi hatasi" bilgisi olmadan betigini
+                    // duzeltemez. Kesif degeri yok, tanisal degeri yuksek.
+                    DbConnectionFailure.DescribeStatementFailure(ex, statementsExecuted + 1),
+                    statementsExecuted,
+                    PartialApplyPossible: !ddlIsTransactional && statementsExecuted > 0);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Iptal bir BAGLANTI HATASI DEGIL; oyle raporlamak kullaniciya
+            // yanlis sebep gosterirdi. Istisna yeniden firlatilmiyor cunku
+            // cagiran (controller) bu sonucu denetim kaydina yaziyor: yarida
+            // kesilmis bir DDL kismen uygulanmis olabilir ve tam da o durumun
+            // iz birakmasi gerekiyor.
+            return new ExecutionResult(
+                false,
+                "The request was cancelled before the script finished. Part of it may already be applied.",
+                statementsExecuted,
+                PartialApplyPossible: statementsExecuted > 0);
         }
         catch (Exception ex)
         {
-            return new ExecutionResult(false, $"Connection error: {ex.Message}", 0);
+            // Baglanti KURULAMADI: surucunun ham mesaji hedef host/port bilgisi
+            // tasidigi icin ISTEMCIYE DONMEZ. Ayni karar GatewayKeyController'da
+            // da veriliyor; siniflandirici ortak.
+            return new ExecutionResult(false, DbConnectionFailure.Classify(ex), 0);
         }
     }
 

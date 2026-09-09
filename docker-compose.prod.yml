@@ -1,0 +1,141 @@
+# Namines — ÜRETİM yığını.
+#
+# `docker-compose.yml` YEREL GELİŞTİRME içindir ve kendi başında bunu açıkça
+# söyler: portlar localhost'a açık, DB parolası depoda, `ASPNETCORE_ENVIRONMENT`
+# Development, migration açılışta koşuyor. Bu dosya o yığının üretim karşılığı.
+#
+# ── NEDEN AYRI BİR DOSYA ───────────────────────────────────────────────────────
+# Denetim (docs/audit/10-devops-deployment-audit.md, DEVOPS-001) şunu buldu:
+# depoda çalıştırılabilir tek dağıtım tanımı geliştirme yığınıydı. "Web üzerinde
+# yayında" bir ürünün dağıtımı depoda tanımlı değilse, o dağıtım tek bir kişinin
+# belleğinde yaşar — sunucu kaybedilirse yeniden kurulamaz, staging açılamaz,
+# hangi ayarlarla çalıştığı denetlenemez.
+#
+# ── KULLANIM ───────────────────────────────────────────────────────────────────
+#   1. `.env.example`'ı `.env`'e kopyalayın ve ZORUNLU alanları doldurun.
+#   2. Migration'ları AYRI çalıştırın (aşağıdaki `migrate` profili):
+#        docker compose -f docker-compose.prod.yml --profile migrate run --rm namines-migrate
+#   3. Yığını açın:
+#        docker compose -f docker-compose.prod.yml up -d
+#
+# ── TLS ────────────────────────────────────────────────────────────────────────
+# Bu dosya TLS SONLANDIRMIYOR. Önünde bir reverse proxy (Caddy, nginx, Traefik)
+# ya da bir PaaS load balancer'ı olduğu varsayılıyor. Uygulama
+# `UseForwardedHeaders` ile `X-Forwarded-Proto` başlığını okuyor; proxy'nin o
+# başlığı GÖNDERDİĞİNDEN ve dışarıdan gelen sahte kopyasını EZDİĞİNDEN emin olun
+# — aksi hâlde saldırgan `X-Forwarded-Proto: https` göndererek auth cookie'sinin
+# `Secure` davranışını yanıltabilir.
+
+services:
+  namines-control-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      # Parola DEPODA DEĞİL .env'de. Tanımsızsa compose açılışta durur —
+      # sessizce varsayılan bir parolaya düşmek, kimlik doğrulamasız bir
+      # veritabanını üretimde açmak demekti.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
+      POSTGRES_USER: ${POSTGRES_USER:-namines}
+      POSTGRES_DB: ${POSTGRES_DB:-namines_control}
+    volumes:
+      - namines-control-db-data:/var/lib/postgresql/data
+    # Port DIŞARI AÇILMIYOR. Geliştirme yığını 15432'yi host'a bağlıyor;
+    # üretimde veritabanına yalnızca uygulama ağı üzerinden erişilir.
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-namines} -d ${POSTGRES_DB:-namines_control}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  # Migration'ları uygulamadan AYIRAN tek seferlik iş.
+  #
+  # Geliştirmede migration'lar API açılışında koşuyor. Üretimde bu üç sorun
+  # üretir: (1) geri alınamaz bir şema değişikliği deploy anında, onay adımı
+  # olmadan uygulanır; (2) iki instance aynı anda açılırsa yarışırlar;
+  # (3) geri alma (rollback) eski sürümü yeni şemaya karşı çalışmak zorunda
+  # bırakır. Ayrı bir adım, migration'ı görünür ve kasıtlı hâle getiriyor.
+  namines-migrate:
+    profiles: ["migrate"]
+    build:
+      context: ./backend
+      dockerfile: Namines.API/Dockerfile
+    env_file: [.env]
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    # `--migrate`: migration'ları uygular ve uygulamayı BAŞLATMADAN çıkar.
+    # Bu bayrak Program.cs'de zaten vardı; üretim yığını onu kullanıyor.
+    command: ["--migrate"]
+    depends_on:
+      namines-control-db:
+        condition: service_healthy
+    restart: "no"
+
+  namines-backend:
+    build:
+      context: ./backend
+      dockerfile: Namines.API/Dockerfile
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      # Development DIŞINDA her ortamda Jwt:Key ZORUNLU (Program.cs fail-closed).
+      # Bu satır olmadan uygulama açılmaz — istenen davranış budur.
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      # Migration ayrı adımda (yukarıdaki `migrate` profili) koşuyor.
+      # Kapalıyken uygulama bekleyen migration VARSA açılmayı reddediyor —
+      # sessizce eski şemaya karşı çalışmak, en kötü arıza biçimi olurdu.
+      - Database__MigrateOnStartup=false
+    expose:
+      - "8080"
+    # Yalnızca reverse proxy'nin eriştiği port. Doğrudan internete AÇMAYIN;
+    # TLS ve rate limit proxy katmanında sonlanır.
+    ports:
+      - "127.0.0.1:5000:8080"
+    depends_on:
+      namines-control-db:
+        condition: service_healthy
+    healthcheck:
+      # /health/ready control DB'yi de kontrol ediyor; /health/live yalnızca
+      # sürecin ayakta olduğunu söyler. Trafik almaya hazır olmak için ready.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          # Vault yedekleme ve eject üretimi bellek tüketebilir. Limit olmadan
+          # bir işlem host'u OOM'a sürükleyip yanındaki her şeyi düşürür.
+          memory: 2g
+
+  namines-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Tarayıcıdan görünen API adresi — build sırasında GÖMÜLÜYOR, bu yüzden
+        # ortam başına yeniden build gerekir. `/api` EKLEMEYİN: istemci onu
+        # kendisi ekliyor.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL zorunludur (or. https://api.ornek.com)}
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      namines-backend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+volumes:
+  namines-control-db-data:

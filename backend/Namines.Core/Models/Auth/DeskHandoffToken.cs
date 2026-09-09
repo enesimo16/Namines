@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
 namespace Namines.Core.Models.Auth;
@@ -29,6 +30,8 @@ public class DeskHandoffToken
 
     /// <summary>Ham değerin SHA-256 özeti — TeamInvite ile aynı gerekçe: ham saklansaydı
     /// veritabanı yedeğine erişen herkes birinin oturumunu Desk'te açabilirdi.</summary>
+    /// <remarks>[JsonIgnore]: devir jetonunun hash'i dışarı verilmez.</remarks>
+    [JsonIgnore]
     public string TokenHash { get; set; } = null!;
 
     public string UserId { get; set; } = null!;

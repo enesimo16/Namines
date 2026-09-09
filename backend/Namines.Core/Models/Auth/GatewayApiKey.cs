@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
 namespace Namines.Core.Models.Auth;
@@ -28,6 +29,9 @@ public class GatewayApiKey
     /// <summary>Anahtarın ilk parçası — gösterim ve arama için. Gizli değildir.</summary>
     public string Prefix { get; set; } = null!;
 
+    /// <remarks>[JsonIgnore]: hash bile olsa dışarı verilmez — çevrimdışı
+    /// kaba kuvvet için başlangıç noktası olurdu.</remarks>
+    [JsonIgnore]
     public string KeyHash { get; set; } = null!;
 
     /// <summary>

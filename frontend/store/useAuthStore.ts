@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { csrfHeaders } from '../lib/csrf';
 
 import { useQuotaStore } from './useQuotaStore';
 import { useMultiplayerStore } from './useMultiplayerStore';
@@ -44,7 +45,11 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         // Sunucudaki httpOnly cookie'yi de temizle.
-        fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+        fetch(`${API_BASE_URL}/auth/logout`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: csrfHeaders,
+        }).catch(() => {});
         set({ token: null, user: null, isAuthenticated: false });
         useQuotaStore.getState().reset();
 

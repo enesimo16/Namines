@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Key, Save, Shield, User, CreditCard, HelpCircle, LogOut, Check, Lock, Plus, Trash2, Copy, BarChart3, ChevronDown, SlidersHorizontal, ArrowLeft, Database } from 'lucide-react';
+import { X, Key, Save, Shield, User, CreditCard, HelpCircle, LogOut, Check, Lock, BarChart3, ChevronDown, SlidersHorizontal, ArrowLeft, Database } from 'lucide-react';
 import { useAIPolicyStore, AIPolicy, AiAdvancedSettings } from '../../../store/useAIPolicyStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -63,13 +63,6 @@ function upgradeLabel(plan: string, price: PriceView, interval: BillingInterval)
 interface AIPreferencesModalProps {
   isOpen: boolean;
   onClose: () => void;
-}
-
-interface ApiToken {
-  id: string;
-  name: string;
-  token: string;
-  createdAt: string;
 }
 
 interface CustomSelectOption<T> {
@@ -249,7 +242,19 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'ai' | 'pricing' | 'help' | 'analytics'>('profile');
   const [localPolicy, setLocalPolicy] = useState<AIPolicy>({ ...policy });
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [isAdvancedUnlocked, setIsAdvancedUnlocked] = useState(false);
+
+  // Modal her acildiginda acik SSS maddesi kapaniyor.
+  //
+  // Bu, efekt icinde `setOpenFaq(null)` olarak yaziliydi; efekt icindeki
+  // SENKRON setState fazladan bir render turu tetikliyor (React bunu
+  // "cascading render" diye isaretliyor). React'in bu durum icin onerdigi
+  // desen, degisimi RENDER sirasinda yakalamak: acilis anini bir onceki
+  // degerle karsilastirip yalnizca gecis aninda sifirla.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) setOpenFaq(null);
+  }
   const [showAdvancedScreen, setShowAdvancedScreen] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
@@ -290,10 +295,30 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   const [statsDbaAudits, setStatsDbaAudits] = useState(0);
   const [statsMockRecords, setStatsMockRecords] = useState(0);
 
-  // Token Operations States
-  const [tokens, setTokens] = useState<ApiToken[]>([]);
-  const [newTokenName, setNewTokenName] = useState('');
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+
+  /**
+   * Sunucudan gelen gelişmiş tercihleri forma yansıtır.
+   *
+   * Kullandığı `useEffect`'ten ÖNCE tanımlı olması bilinçli: sonrasında
+   * tanımlandığında lint "bildiriminden önce erişiliyor" diyordu. Çalışma
+   * zamanında sorun çıkmıyordu (efekt render'dan sonra koşar) ama sıralama
+   * değiştiği gün çıkacaktı. İhtiyaç duyduğu setState'lerin hepsi yukarıda.
+   */
+  function applyAdvanced(a?: AiAdvancedSettings) {
+    if (!a) return;
+    setSeedDomain(a.seedDomain);
+    setDocLevel(a.docLevel);
+    setScaffoldVersion(a.scaffoldVersion);
+    setDbaSeverity(a.dbaSeverity);
+    setTemperature(a.temperature);
+    setPromptStyle(a.promptStyle);
+    setNamingConvention(a.namingConvention);
+    setFkAction(a.fkAction);
+    setMaxTokens(a.maxTokens);
+    setAutoIndex(a.autoIndex);
+    setSqlPrettyPrint(a.sqlPrettyPrint);
+  }
+
 
   useEffect(() => {
     if (isOpen) {
@@ -308,8 +333,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       if (isAuthenticated) {
         fetchQuota();
       }
-      setOpenFaq(null);
-      setIsAdvancedUnlocked(false);
 
       if (isAuthenticated) {
         authService.getProfile()
@@ -356,23 +379,15 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       setSqlPrettyPrint(localStorage.getItem('namines-ai-sql-pretty') || 'true');
       setAutoIndex(localStorage.getItem('namines-ai-auto-index') || 'true');
 
+      // Kaldirilan sahte jeton ozelliginin biraktigi veri temizleniyor: jetonlar
+      // hicbir zaman gecerli degildi, birakilmasi kullaniciyi yaniltmaya devam ederdi.
+      try { localStorage.removeItem('namines-api-tokens'); } catch { /* private mode */ }
+
       setStatsSchemas(Number(localStorage.getItem('namines-stats-schemas') || '0'));
       setStatsAiRequests(Number(localStorage.getItem('namines-stats-ai-requests') || '0'));
       setStatsDbaAudits(Number(localStorage.getItem('namines-stats-dba-audits') || '0'));
       setStatsMockRecords(Number(localStorage.getItem('namines-stats-mock-records') || '0'));
 
-      const storedTokens = localStorage.getItem('namines-api-tokens');
-      if (storedTokens) {
-        try {
-          setTokens(JSON.parse(storedTokens));
-        } catch {
-          setTokens([]);
-        }
-      } else {
-        setTokens([]);
-      }
-      setGeneratedToken(null);
-      setNewTokenName('');
 
       // Fiyat listesi giriş gerektirmiyor — çıkış yapmış biri de ne ödeyeceğini
       // görebilmeli.
@@ -402,9 +417,12 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       if (data.redirect === 'portal') {
         await handleManageSubscription();
       } else if (data.url) {
-        window.location.href = data.url;
+        // `location.href = ...` yerine `assign(...)`: lint kuralı href'e
+        // atamayı "değiştirilemez değere yazma" olarak işaretliyor ve haklı —
+        // assign() aynı işi yapan açık API.
+        window.location.assign(data.url);
       }
-    } catch (err) {
+    } catch {
       showToast('Checkout could not be initiated. Please try again.', 'error');
     } finally {
       setIsUpgrading(false);
@@ -468,54 +486,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
     }
   };
 
-  const handleGenerateToken = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTokenName.trim()) {
-      showToast('Please enter a name for the token.', 'warning');
-      return;
-    }
-    const rawToken = 'nam_pat_' + Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-    const newToken: ApiToken = {
-      id: Math.random().toString(36).substring(2, 9),
-      name: newTokenName.trim(),
-      token: rawToken,
-      createdAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-    };
-    const updated = [...tokens, newToken];
-    setTokens(updated);
-    localStorage.setItem('namines-api-tokens', JSON.stringify(updated));
-    setGeneratedToken(rawToken);
-    setNewTokenName('');
-    showToast('Personal access token created.', 'success');
-  };
 
-  const handleRevokeToken = (id: string) => {
-    const updated = tokens.filter(t => t.id !== id);
-    setTokens(updated);
-    localStorage.setItem('namines-api-tokens', JSON.stringify(updated));
-    showToast('Token revoked successfully.', 'info');
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    showToast('Copied to clipboard.', 'success');
-  };
-
-  /** Sunucudan gelen gelişmiş tercihleri forma yansıtır. */
-  const applyAdvanced = (a?: AiAdvancedSettings) => {
-    if (!a) return;
-    setSeedDomain(a.seedDomain);
-    setDocLevel(a.docLevel);
-    setScaffoldVersion(a.scaffoldVersion);
-    setDbaSeverity(a.dbaSeverity);
-    setTemperature(a.temperature);
-    setPromptStyle(a.promptStyle);
-    setNamingConvention(a.namingConvention);
-    setFkAction(a.fkAction);
-    setMaxTokens(a.maxTokens);
-    setAutoIndex(a.autoIndex);
-    setSqlPrettyPrint(a.sqlPrettyPrint);
-  };
 
   /** Formdaki gelişmiş tercihleri sunucuya gidecek şekle çevirir. */
   const collectAdvanced = (): AiAdvancedSettings => ({
@@ -544,7 +515,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
       showToast('AI Routing and advanced settings updated.', 'success');
       onClose();
-    } catch (err) {
+    } catch {
       showToast('Failed to save AI Policies.', 'error');
     }
   };
@@ -565,7 +536,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       a: (
         <div className="space-y-4 text-content-secondary">
           <p className="text-[10px] text-content-muted">
-            Free members receive a daily <strong className="text-content-primary">100% cloud credit bar</strong>. Daily usage is calculated based on the base cost of the AI feature and the selected AI Model's routing multiplier. If credits are exhausted, features automatically fall back to the local engine to ensure uninterrupted usage.
+            Free members receive a daily <strong className="text-content-primary">100% cloud credit bar</strong>. Daily usage is calculated based on the base cost of the AI feature and the selected AI Model&apos;s routing multiplier. If credits are exhausted, features automatically fall back to the local engine to ensure uninterrupted usage.
           </p>
 
           <div className="space-y-2">
@@ -921,89 +892,27 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                       </div>
                     </div>
 
-                    {/* Personal Access Tokens */}
-                    <div className={`${cardClass} p-5 space-y-4`}>
+                    {/* API anahtarlari BILEREK burada YONETILMIYOR.
+                        Buradaki eski ekran jetonu tarayicida Math.random() ile
+                        uretip yalnizca localStorage'a yaziyordu: sunucuya hic
+                        gitmiyor, hicbir yerde dogrulanmiyor ve "revoke" hicbir
+                        seyi iptal etmiyordu -- tutulmayan bir guvenlik sozu.
+                        Gercek anahtar sistemi Gateway'de (sunucuda uretilen,
+                        hash'i saklanan, tablo bazli izinli, denetim kaydi
+                        tutulan anahtarlar). Kullanici oraya yonlendiriliyor. */}
+                    <div className={`${cardClass} p-5 space-y-3`}>
                       <div className="flex items-center gap-2 border-b border-content-primary/10 pb-3">
                         <Key className="w-4 h-4 text-content-muted" />
-                        <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">Personal Access Tokens</h4>
+                        <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">API Keys</h4>
                       </div>
-
-                      <form onSubmit={handleGenerateToken} className="space-y-3">
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Generate New Token</span>
-                          <p className="text-[10px] text-content-subtle leading-normal">Authenticate programmatic tools or webhook requests with unique API tokens.</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={newTokenName}
-                            onChange={(e) => setNewTokenName(e.target.value)}
-                            placeholder="e.g., CI/CD deploy runner"
-                            className={`flex-1 ${inputClass}`}
-                          />
-                          <button type="submit" className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer ${primaryBtnClass}`}>
-                            <Plus className="w-4 h-4" />
-                            <span>Generate</span>
-                          </button>
-                        </div>
-                      </form>
-
-                      {generatedToken && (
-                        <div className="bg-surface-600 rounded-[var(--radius-control)] p-4 space-y-2.5">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-semibold text-content-primary">Token Generated Successfully</span>
-                            <button
-                              type="button"
-                              onClick={() => copyToClipboard(generatedToken)}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-white/[0.06] hover:bg-white/[0.1] rounded-[var(--radius-control)] text-[10px] font-semibold text-content-secondary transition-colors cursor-pointer"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy Token</span>
-                            </button>
-                          </div>
-                          <div className="font-mono text-xs bg-surface-800 p-2.5 rounded-[var(--radius-control)] select-all text-content-secondary break-all">
-                            {generatedToken}
-                          </div>
-                          <p className="text-[10px] text-content-subtle font-medium">Make sure to copy this access token. It will not be shown again.</p>
-                        </div>
-                      )}
-
-                      <div className="space-y-2.5 pt-2">
-                        <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Active Tokens</span>
-                        {tokens.length === 0 ? (
-                          <p className="text-xs text-content-subtle italic">No access tokens active.</p>
-                        ) : (
-                          <div className="bg-surface-600 rounded-[var(--radius-control)] overflow-hidden">
-                            <table className="w-full text-left border-collapse text-xs">
-                              <thead>
-                                <tr className="border-b border-content-primary/10 text-content-subtle font-bold tracking-wider text-micro uppercase">
-                                  <th className="py-2.5 px-4">Name</th>
-                                  <th className="py-2.5 px-4">Created</th>
-                                  <th className="py-2.5 px-4 text-right">Action</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-content-primary/8">
-                                {tokens.map((tok) => (
-                                  <tr key={tok.id} className="hover:bg-white/[0.03] text-content-primary">
-                                    <td className="py-3 px-4 font-semibold">{tok.name}</td>
-                                    <td className="py-3 px-4 text-content-subtle">{tok.createdAt}</td>
-                                    <td className="py-2.5 px-4 text-right">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRevokeToken(tok.id)}
-                                        className="p-1.5 text-content-muted hover:text-danger-text hover:bg-danger-text/10 rounded-[var(--radius-control)] transition-colors cursor-pointer"
-                                        title="Revoke Token"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
+                      <p className="text-xs text-content-secondary leading-relaxed">
+                        API keys are managed per project, not per account &mdash; each key carries its own
+                        table-level read/write permissions and its own audit trail.
+                      </p>
+                      <p className="text-[10px] text-content-subtle leading-normal">
+                        Open your project in Namines Desk and go to <span className="font-semibold text-content-secondary">API Keys</span> to
+                        create, scope, or revoke a key.
+                      </p>
                     </div>
 
                     <button

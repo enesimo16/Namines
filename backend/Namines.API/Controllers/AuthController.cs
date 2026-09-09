@@ -122,14 +122,44 @@ namespace Namines.API.Controllers
             });
         }
 
+        /// <summary>
+        /// Giriş.
+        ///
+        /// <b>Hesap kilitleme AÇIK.</b> Önceden yalnızca
+        /// <c>CheckPasswordAsync</c> çağrılıyordu; o metot başarısız denemeyi
+        /// SAYMAZ, dolayısıyla Identity'nin kilitleme mekanizması hiç devreye
+        /// girmiyordu ve parola deneme sayısı sınırsızdı. IP başına rate limit
+        /// tek başına yetmiyor: dağıtık bir saldırı IP değiştirerek onu geçer,
+        /// ama hesap kilidi hesabın kendisini korur.
+        /// </summary>
         [HttpPost("login")]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("sensitive")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto model)
         {
             var user = await _userManager.FindByEmailAsync(model.Email);
-            if (user == null || !await _userManager.CheckPasswordAsync(user, model.Password))
+
+            // Kullanıcı yoksa da aynı mesaj: farklı cevap vermek, hangi
+            // e-postaların kayıtlı olduğunu sızdıran bir numaralandırma
+            // aracına dönerdi.
+            if (user is null)
+                return Unauthorized(new { Message = "Incorrect email or password." });
+
+            if (await _userManager.IsLockedOutAsync(user))
+                return Unauthorized(new
+                {
+                    Message = "This account is temporarily locked after too many failed sign-in attempts. Try again later.",
+                });
+
+            if (!await _userManager.CheckPasswordAsync(user, model.Password))
             {
+                // Başarısızlığı KAYDET — kilitleme buna dayanıyor.
+                await _userManager.AccessFailedAsync(user);
                 return Unauthorized(new { Message = "Incorrect email or password." });
             }
+
+            // Başarılı girişte sayaç sıfırlanır; aksi hâlde aylar içinde biriken
+            // yanlış denemeler doğru parolayla giren kullanıcıyı kilitlerdi.
+            await _userManager.ResetAccessFailedCountAsync(user);
 
             var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == user.Id);
             if (quota == null)
@@ -474,6 +504,18 @@ namespace Namines.API.Controllers
             return Ok(new { message = "Profile updated successfully." });
         }
 
+        /// <summary>
+        /// Jetondaki SecurityStamp kopyasının claim adı. Doğrulama tarafı
+        /// (<c>SecurityStampValidation</c>) aynı sabiti kullanıyor.
+        /// </summary>
+        internal const string SecurityStampClaimType = "sstamp";
+
+        /// <summary>
+        /// Yalnızca Development'ta devreye giren imzalama anahtarı. Program.cs
+        /// diğer ortamlarda anahtar tanımsızsa uygulamayı başlatmıyor.
+        /// </summary>
+        internal const string DevFallbackJwtKey = "NaminesDevFallbackKey_Change_In_Production_Min32Chars!";
+
         // JWT'yi httpOnly cookie olarak yazar → token JS'e (localStorage) sızmaz, XSS ile çalınamaz.
         private const string AuthCookieName = "namines_token";
         private const int AuthCookieDays = 7;
@@ -507,6 +549,13 @@ namespace Namines.API.Controllers
         private void SetAuthCookie(string token)
             => Response.Cookies.Append(AuthCookieName, token, BuildAuthCookieOptions());
 
+        /// <summary>
+        /// Bu tarayıcıdaki oturumu kapatır.
+        ///
+        /// <b>Yalnızca cookie'yi siler.</b> Jetonun kendisi süresi dolana kadar
+        /// geçerli kalır — bu, JWT'nin doğası. Bir jetonun ÇALINDIĞINDAN
+        /// şüpheleniyorsanız <see cref="RevokeAllSessions"/> kullanın.
+        /// </summary>
         [HttpPost("logout")]
         public IActionResult Logout()
         {
@@ -514,6 +563,41 @@ namespace Namines.API.Controllers
             // tarayıcı cookie'yi silmez — bu yüzden aynı options üzerinden gidiyoruz.
             Response.Cookies.Delete(AuthCookieName, BuildAuthCookieOptions(forExpiry: true));
             return Ok(new { Message = "Logged out." });
+        }
+
+        /// <summary>
+        /// TÜM oturumları geçersiz kılar — bu cihaz dahil.
+        ///
+        /// Kullanıcının <c>SecurityStamp</c>'ini yeniliyor. Daha önce çıkarılmış
+        /// her jetonun içindeki damga kopyası artık eşleşmeyeceği için
+        /// (<see cref="Namines.API.Extensions.SecurityStampValidation"/>) hepsi
+        /// süresi dolmadan reddedilecek.
+        ///
+        /// <b>Bu, jeton hırsızlığına verilebilecek tek gerçek cevap.</b> Önceden
+        /// böyle bir cevap yoktu: tek seçenek imzalama anahtarını değiştirip
+        /// bütün kullanıcıları çıkışa zorlamaktı.
+        ///
+        /// İptalin devreye girmesi damga önbelleği kadar (60 sn) gecikebilir.
+        /// </summary>
+        [Authorize]
+        [HttpPost("revoke-all-sessions")]
+        public async Task<IActionResult> RevokeAllSessions()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId is null) return Unauthorized();
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null) return Unauthorized();
+
+            var result = await _userManager.UpdateSecurityStampAsync(user);
+            if (!result.Succeeded)
+                return StatusCode(500, new { Message = "Sessions could not be revoked. Try again." });
+
+            // Bu tarayıcının cookie'si de siliniyor: kullanıcı "tüm oturumları
+            // kapat" dediğinde burada oturumda kalması kafa karıştırıcı olurdu.
+            Response.Cookies.Delete(AuthCookieName, BuildAuthCookieOptions(forExpiry: true));
+
+            return Ok(new { Message = "All sessions revoked. Sign in again on every device." });
         }
 
         private string GenerateJwtToken(ApplicationUser user)
@@ -524,6 +608,15 @@ namespace Namines.API.Controllers
                 new Claim(ClaimTypes.Name, user.UserName ?? ""),
                 new Claim(ClaimTypes.Email, user.Email ?? ""),
                 new Claim("type", user.Type.ToString().ToLowerInvariant()),
+
+                // Jeton iptalinin dayanagi. ASP.NET Identity, parola degisimi ve
+                // "tum oturumlari kapat" gibi islemlerde SecurityStamp'i
+                // yeniliyor; jetondaki kopya artik eslesmeyecegi icin o jeton
+                // suresi DOLMADAN gecersiz oluyor.
+                //
+                // Bu olmadan calinmis bir jetonu iptal etmenin tek yolu imzalama
+                // anahtarini degistirmekti -- yani HERKESI cikisa zorlamak.
+                new Claim(SecurityStampClaimType, user.SecurityStamp ?? string.Empty),
             };
 
             if (!string.IsNullOrEmpty(user.CompanyName))
@@ -531,9 +624,11 @@ namespace Namines.API.Controllers
                 claims.Add(new Claim("companyName", user.CompanyName));
             }
 
-            var secretKey = _configuration["Jwt:Key"];
-            if (string.IsNullOrWhiteSpace(secretKey))
-                secretKey = "NaminesDevFallbackKey_Change_In_Production_Min32Chars!";
+            // Fallback anahtar burada TEKRARLANMIYOR: Program.cs, Development
+            // disinda Jwt:Key tanimsizsa uygulamayi hic baslatmiyor. Ikinci bir
+            // kopya, o kapinin ilerideki bir degisiklikte sessizce atlanmasini
+            // mumkun kilardi.
+            var secretKey = _configuration["Jwt:Key"] ?? DevFallbackJwtKey;
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var expires = DateTime.UtcNow.AddDays(7);

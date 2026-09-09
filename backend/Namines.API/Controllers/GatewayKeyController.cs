@@ -425,7 +425,7 @@ public class GatewayKeyController : ControllerBase
             // Yine de kapsam dışı KALMASIN diye (02-PROJECTS.md §4: "sunucunun HAM
             // mesajı" değil ama "bir hata oluştu" da değil) birkaç GÜVENLİ kategoriye
             // ayrıştırılıyor — sürücü metninin kendisi asla geri yansıtılmadan.
-            return BadRequest(new { error = ClassifyConnectionFailure(ex) });
+            return BadRequest(new { error = DbConnectionFailure.Classify(ex) });
         }
 
         project.EncryptedConnectionString = _protector.Protect(request.ConnectionString);
@@ -437,30 +437,6 @@ public class GatewayKeyController : ControllerBase
         return Ok(new { projectId, dbType = request.DbType, connected = true });
     }
 
-    /// <summary>
-    /// Bir bağlantı denemesi neden başarısız oldu — sürücünün HAM mesajını hiç
-    /// okuyucuya yansıtmadan birkaç güvenli kategoriye ayırır. Yalnızca ex.Message'ın
-    /// KENDİSİNİ okur (dahili karar için), asla geri döndürmez.
-    /// </summary>
-    private static string ClassifyConnectionFailure(Exception ex)
-    {
-        var m = ex.Message;
-        if (m.Contains("password", StringComparison.OrdinalIgnoreCase) ||
-            m.Contains("authentication", StringComparison.OrdinalIgnoreCase) ||
-            m.Contains("login failed", StringComparison.OrdinalIgnoreCase))
-            return "Authentication failed. Check the username and password in the connection string.";
-
-        if (m.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
-            ex is TimeoutException)
-            return "Connection timed out. Check the host, port, and firewall rules.";
-
-        if (m.Contains("database", StringComparison.OrdinalIgnoreCase) &&
-            (m.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ||
-             m.Contains("cannot open", StringComparison.OrdinalIgnoreCase)))
-            return "The database name in the connection string was not found on the server.";
-
-        return "Could not connect to the database. Check the connection string and network access.";
-    }
 
     [HttpDelete("project/{projectId}/connection")]
     public async Task<IActionResult> ClearProjectConnection(string projectId, CancellationToken ct)

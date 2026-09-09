@@ -909,6 +909,68 @@ namespace Namines.Infrastructure.Migrations
                     b.ToTable("SchemaVersions");
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.SqlExecutionAudit", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("ContainsDestructiveKeyword")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DbType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("PartialApplyPossible")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ProjectId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ScriptHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ScriptLength")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ScriptPreview")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("StatementsExecuted")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TargetDatabase")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TargetHost")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("SqlExecutionAudits");
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
                 {
                     b.Property<string>("Id")

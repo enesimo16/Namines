@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import EmptyState from './EmptyState';
 import {
   deskApi, DeskApiError, type DeskRow, type DeskSession,
   type GatewayFilter, type GatewaySortDirection,
@@ -523,9 +524,15 @@ export default function Desk({
           {loading ? (
             <div className="empty">Yükleniyor…</div>
           ) : !table ? (
-            <div className="empty">Soldan bir tablo seçin.</div>
+            <EmptyState
+              title="Bir tablo seçin"
+              description="Soldaki listeden bir tablo seçtiğinizde satırları burada görünür; buradan düzenleyebilir, ekleyebilir ve silebilirsiniz."
+            />
           ) : rows.length === 0 ? (
-            <div className="empty">Bu tabloda kayıt yok.</div>
+            <EmptyState
+              title="Bu tabloda kayıt yok"
+              description="Tablo boş. Yukarıdaki &quot;Yeni satır&quot; ile ilk kaydı ekleyebilir veya bir CSV içe aktarabilirsiniz."
+            />
           ) : (
             <>
               <div className="grid-wrap">

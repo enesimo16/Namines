@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import EmptyState from './EmptyState';
 import { type DeskSession } from '../lib/api';
 import { formatSize } from '../lib/format';
 import {
@@ -205,7 +206,16 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
           {!providers ? (
             <div className="empty">Yükleniyor…</div>
           ) : providers.length === 0 ? (
-            <div className="empty">Kayıtlı sağlayıcı yok.</div>
+            <EmptyState
+              title="Kayıtlı sağlayıcı yok"
+              description={
+                <>
+                  Ground, projeniz için yönetilen bir veritabanı açar. Sunucuda hiçbir sağlayıcı
+                  yapılandırılmamış — yöneticinizin <code>Ground__*</code> ayarlarını tanımlaması
+                  gerekiyor.
+                </>
+              }
+            />
           ) : (
             <div className="grid-wrap">
               <table>

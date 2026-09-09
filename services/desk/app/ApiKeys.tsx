@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import EmptyState from './EmptyState';
 import { type DeskSession } from '../lib/api';
 import { apiKeysApi, ApiKeysError, type GatewayApiKeySummary } from '../lib/apiKeys';
 import PageHead from './PageHead';
@@ -125,7 +126,16 @@ export default function ApiKeys({ session, isOwner }: { session: DeskSession; is
       {!keys ? (
         <div className="empty">Yükleniyor…</div>
       ) : keys.length === 0 ? (
-        <div className="empty">Bu projede henüz bir API anahtarı yok.</div>
+        <EmptyState
+          title="Henüz API anahtarı yok"
+          description={
+            <>
+              API anahtarı, bu projenin verisine <strong>uygulamalarınızın</strong> erişmesini sağlar —
+              her anahtar tablo bazında okuma/yazma izni taşır ve yaptığı her yazma işlemi
+              kaydedilir. Yukarıdaki formdan ilk anahtarı oluşturun.
+            </>
+          }
+        />
       ) : (
         <div className="grid-wrap">
           <table>

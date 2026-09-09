@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
 namespace Namines.Core.Models.Auth;
@@ -28,6 +29,8 @@ public class TeamInvite
     /// dahil) her ekibe katılabilirdi. Aynı gerekçe Gateway anahtarlarında da
     /// geçerli ve orada da özet saklanıyor.
     /// </summary>
+    /// <remarks>[JsonIgnore]: davet jetonunun hash'i dışarı verilmez.</remarks>
+    [JsonIgnore]
     public string TokenHash { get; set; } = null!;
 
     public string OrganizationId { get; set; } = null!;

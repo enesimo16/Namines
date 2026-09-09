@@ -759,11 +759,24 @@ public sealed class GatewayService : IGatewayService
             throw new ArgumentException($"'{identifier}' is not a valid SQL identifier.", paramName);
     }
 
+    /// <summary>
+    /// Tanımlayıcıyı motorun sınırlayıcısıyla sarar.
+    ///
+    /// <b>Sınırlayıcı ayrıca KAÇIRILIYOR</b> ve bu derinlemesine savunma:
+    /// bugün buraya yalnızca <see cref="ValidateIdentifierOrThrow"/>'dan geçen
+    /// değerler geliyor ve o regex <c>]</c>, <c>`</c>, <c>"</c> karakterlerine
+    /// izin vermiyor — yani kaçırma şu an gereksiz.
+    ///
+    /// Gereksiz ama var, çünkü güvenlik tek bir regex satırına bağlı kalmamalı:
+    /// birisi Unicode ya da boşluklu tablo adlarını desteklemek için o regex'i
+    /// gevşettiği gün, enjeksiyon sessizce açılır ve hiçbir test bunu yakalamaz.
+    /// Kaçırma o değişikliği yapan kişiyi korur.
+    /// </summary>
     internal static string Quote(string dbType, string identifier) => dbType.ToUpperInvariant() switch
     {
-        "MSSQL" or "SQLSERVER" => $"[{identifier}]",
-        "MYSQL" or "MARIADB" => $"`{identifier}`",
-        "POSTGRESQL" or "POSTGRES" or "ORACLE" or "SQLITE" => $"\"{identifier}\"",
+        "MSSQL" or "SQLSERVER" => $"[{identifier.Replace("]", "]]")}]",
+        "MYSQL" or "MARIADB" => $"`{identifier.Replace("`", "``")}`",
+        "POSTGRESQL" or "POSTGRES" or "ORACLE" or "SQLITE" => $"\"{identifier.Replace("\"", "\"\"")}\"",
         _ => throw new NotSupportedException($"Database type '{dbType}' is not supported by the Gateway."),
     };
 

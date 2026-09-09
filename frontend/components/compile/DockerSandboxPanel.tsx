@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { DatabaseSchema } from '../../types/schema';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { csrfHeaders } from '../../lib/csrf';
 import {
   Download, X, RefreshCw, Database, Rocket, Play,
   Terminal, XCircle, CheckCircle2, AlertTriangle, Info,
@@ -192,7 +193,7 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
       const response = await fetch(`${API_BASE_URL}/docker/run`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ schema, dbType }),
       });
 
