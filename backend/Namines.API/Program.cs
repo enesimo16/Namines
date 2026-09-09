@@ -9,6 +9,7 @@ using Namines.API.Extensions;
 using Namines.API.Middleware;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+using Namines.Core.Security;
 using Namines.Infrastructure.Observability;
 using Serilog;
 using Serilog.Events;
@@ -547,6 +548,30 @@ try
         catch (Exception ex)
         {
             Log.Error(ex, "Sahip hesabı tohumlanamadı; uygulama sahip hesabı olmadan devam ediyor.");
+        }
+
+        // Canlı bir veritabanına bağlı hazır deneme projesi — YALNIZCA Development.
+        //
+        // Desk'in, Gateway'in ve Vault'un çekirdek akışları canlı bağlantı
+        // olmadan denenemiyor; onu her temiz kurulumda elle kurmak unutulmaya
+        // açık, tekrarlayan bir işti. Üretimde kendiliğinden veritabanı
+        // yaratmak ise kabul edilemez — bu yüzden ortam kapısı burada.
+        if (app.Environment.IsDevelopment())
+        {
+            try
+            {
+                await Namines.API.Services.DevSandboxSeeder.SeedAsync(
+                    ownerScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
+                    app.Configuration,
+                    ownerScope.ServiceProvider.GetRequiredService<IConnectionSecretProtector>(),
+                    ownerScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger(nameof(Namines.API.Services.DevSandboxSeeder)));
+            }
+            catch (Exception ex)
+            {
+                // Dev hesabıyla aynı ilke: bir kolaylık, çalışma şartı değil.
+                Log.Error(ex, "Deneme projesi tohumlanamadı; uygulama onsuz devam ediyor.");
+            }
         }
     }
 
