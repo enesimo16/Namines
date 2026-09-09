@@ -13,6 +13,7 @@ using Namines.Core.Security;
 using Namines.Infrastructure.Observability;
 using Serilog;
 using Serilog.Events;
+using System.Linq;
 using System.Text;
 using System.Threading.RateLimiting;
 using HealthChecks.UI.Client;
@@ -146,30 +147,76 @@ try
     var controlDbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
         ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
     builder.Services.AddDbContext<AuthDbContext>(options =>
-        options.UseNpgsql(controlDbConnectionString));
+        options.UseNpgsql(controlDbConnectionString, npgsql =>
+            // Gecici ag hatalari bulut ortamlarinda olagan; bunlarda istegi
+            // dusurmek yerine yeniden denemek dogru.
+            //
+            // YALNIZCA control DB icin. Kullanicinin veritabanina giden
+            // yollarda (DatabaseExecutorService, GatewayService) bu ISTENMEZ:
+            // yarim uygulanmis bir DDL'i yeniden denemek, "zaten var"
+            // hatalarina ya da daha kotusune yol acar. O yollar EF Core
+            // kullanmadigi icin bu ayar oralara sizmiyor.
+            npgsql.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorCodesToAdd: null)));
 
     // Configure Identity Core
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     {
+        // NIST SP 800-63B: karmaşıklık kuralları yerine UZUNLUK.
+        // Karmaşıklık zorunlulukları kullanıcıyı `Parola1!` gibi tahmin
+        // edilebilir kalıplara iter; uzunluk gerçek entropi ekler.
         options.Password.RequireDigit = false;
-        options.Password.RequiredLength = 8;
+        options.Password.RequiredLength = 12;
         options.Password.RequireNonAlphanumeric = false;
         options.Password.RequireUppercase = false;
         options.Password.RequireLowercase = false;
+
+        // Kaba kuvvete karşı hesap kilitleme. AuthController.Login artık
+        // AccessFailedAsync çağırıyor; bu ayarlar olmadan o çağrı hiçbir işe
+        // yaramazdı.
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddEntityFrameworkStores<AuthDbContext>()
     .AddDefaultTokenProviders();
 
     // Configure JWT Authentication
+    //
+    // Bu fallback anahtar DEPODA ve GitHub'da AÇIK. Onunla imzalanan bir JWT'yi
+    // herkes üretebilir — yani kullanıldığı her ortamda kimlik doğrulaması
+    // fiilen yoktur.
+    const string DevFallbackJwtKey = "NaminesDevFallbackKey_Change_In_Production_Min32Chars!";
+
     var secretKey = builder.Configuration["Jwt:Key"];
+
+    // Kapı `IsProduction()` DEĞİL `IsDevelopment()` üzerinden: ortam adı
+    // `Staging`, `prod`, küçük harfli `production` ya da konteynerde unutulmuş
+    // bir değer olduğunda `IsProduction()` false döner ve uygulama sessizce
+    // herkesin bildiği anahtarla imzalamaya başlardı. Varsayılan güvenli tarafta
+    // olmalı: Development DIŞINDA anahtar zorunlu.
     if (string.IsNullOrWhiteSpace(secretKey))
     {
-        // Production'da fail-closed: sabit fallback key ile JWT sahteciliğini engelle.
-        if (builder.Environment.IsProduction())
-            throw new InvalidOperationException("Jwt:Key production ortamında zorunludur (env var JWT__KEY veya appsettings.secrets.json).");
+        if (!builder.Environment.IsDevelopment())
+            throw new InvalidOperationException(
+                $"Jwt:Key '{builder.Environment.EnvironmentName}' ortamında zorunludur " +
+                "(env var JWT__KEY veya appsettings.secrets.json).");
 
-        secretKey = "NaminesDevFallbackKey_Change_In_Production_Min32Chars!";
-        Log.Warning("Jwt:Key tanımlanmamış — geliştirme fallback key'i kullanılıyor. Production'da mutlaka ortam değişkeni ile override edin.");
+        secretKey = DevFallbackJwtKey;
+        Log.Warning("Jwt:Key tanımlanmamış — geliştirme fallback key'i kullanılıyor. Development DIŞINDA uygulama açılmaz.");
+    }
+    // Anahtar VERİLMİŞ ama fallback'in kopyası olabilir: .env dosyaları kopyala-
+    // yapıştır ile çoğaldığı için bu, tanımsız bırakmaktan daha olası bir hata.
+    // Tanımsızlık kontrolü onu yakalayamaz, bu yüzden ayrıca karşılaştırılıyor.
+    else if (!builder.Environment.IsDevelopment() &&
+             string.Equals(secretKey, DevFallbackJwtKey, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Jwt:Key, depoda açıkça yazılı olan geliştirme anahtarıyla aynı. " +
+            "Bu anahtarla imzalanan jetonları herkes üretebilir — gerçek bir anahtar üretin " +
+            "(ör. `openssl rand -base64 48`).");
     }
 
     builder.Services.AddAuthentication(options =>
@@ -203,7 +250,10 @@ try
                 }
                 return Task.CompletedTask;
             }
-        };
+        // Jeton iptali: jetondaki SecurityStamp kopyası ile kullanıcının güncel
+        // damgası karşılaştırılıyor. Bu olmadan çalınmış bir jetonu iptal etmenin
+        // tek yolu imzalama anahtarını değiştirip HERKESİ çıkışa zorlamaktı.
+        }.AddSecurityStampValidation();
     });
 
     // Add services to the container.
@@ -519,9 +569,36 @@ try
     }
     else
     {
-        Log.Information(
-            "Startup migration atlandı (Database:MigrateOnStartup=false). " +
-            "Şemanın güncel olduğundan emin olun — `--migrate` ile ayrı çalıştırın.");
+        // Migration kapalıysa şemanın gerçekten güncel olduğu DOĞRULANIYOR.
+        //
+        // Önceden yalnızca bir bilgi satırı yazılıyordu ve uygulama devam
+        // ediyordu. Bu, üretimdeki en sinsi arıza biçimini mümkün kılar:
+        // deploy'da migration adımı atlanır, uygulama eski şemaya karşı
+        // açılır ve hata ancak eksik kolona dokunan İLK istekte — çoğu zaman
+        // saatler sonra, rastgele bir kullanıcıda — ortaya çıkar.
+        //
+        // Development'ta uyarıyla geçiliyor: geliştirici migration'ı henüz
+        // uygulamamış olabilir ve uygulamanın hiç açılmaması işi zorlaştırır.
+        using var scope = app.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var pending = dbContext.Database.GetPendingMigrations().ToList();
+
+        if (pending.Count == 0)
+        {
+            Log.Information("Startup migration atlandı (Database:MigrateOnStartup=false); şema güncel.");
+        }
+        else if (app.Environment.IsDevelopment())
+        {
+            Log.Warning(
+                "{Count} migration uygulanmamış: {Migrations}. `dotnet run -- --migrate` çalıştırın.",
+                pending.Count, string.Join(", ", pending));
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"{pending.Count} migration uygulanmamış ({string.Join(", ", pending)}). " +
+                "Uygulama eski bir şemaya karşı açılmayacak — deploy hattında `--migrate` adımını çalıştırın.");
+        }
     }
 
     if (migrateOnly)
@@ -591,6 +668,12 @@ try
 
     app.UseWebSockets();
     app.UseCors("AllowNextJs");
+
+    // CORS'tan SONRA: preflight (OPTIONS) isteklerinin CORS tarafından
+    // cevaplanması gerekiyor; ondan önce çalışsaydı tarayıcı preflight'ı
+    // reddedilmiş sanardı. Authentication'dan ÖNCE: cookie'nin varlığı yeterli,
+    // jetonun çözülmesini beklemeye gerek yok.
+    app.UseMiddleware<CsrfProtectionMiddleware>();
 
     app.UseAuthentication();
     app.UseAuthorization();

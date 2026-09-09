@@ -42,6 +42,20 @@ jobs:
       - name: Restore
         run: dotnet restore backend/Namines.sln
 
+      # Bilinen CVE'li bir paket, kodda hiçbir hata olmadan sistemi savunmasız
+      # bırakır — ve yalnızca birisi bakarsa fark edilir. Bu adım "birisi"nin
+      # yerine geçiyor. Uyarı değil HATA: görmezden gelinen bir uyarı, olmayan
+      # bir kontroldür.
+      - name: Bağımlılık güvenlik taraması (NuGet)
+        run: |
+          set -uo pipefail
+          out=$(dotnet list backend/Namines.sln package --vulnerable --include-transitive 2>&1)
+          echo "$out"
+          if echo "$out" | grep -qiE '(Critical|High)'; then
+            echo "::error::Yüksek/kritik seviyede güvenlik açığı olan paket var."
+            exit 1
+          fi
+
       - name: Build
         run: dotnet build backend/Namines.sln --no-restore --configuration Release
 
@@ -109,6 +123,34 @@ jobs:
 
           echo "CLI çıkış kodları doğru."
 
+      # "Başarılı!" yazan bir koşu hiçbir şey kanıtlamayabilir.
+      #
+      # Bu depoda bir kez yaşandı: derlemenin ardından koşan `docker info`
+      # yüklü makinede zaman aşımına uğradı, prob "Docker yok" dedi ve
+      # 127 integration testi SESSİZCE atlandı — suite yine yeşil yandı.
+      # Yeşil ama hiçbir şey kanıtlamayan bir koşu, kırmızıdan tehlikelidir.
+      #
+      # CI'da Docker her zaman vardır, dolayısıyla burada atlama beklenmiyor.
+      # Eşik 0 değil çünkü ortama bağlı birkaç meşru atlama olabilir; ama
+      # onlarca atlama, testlerin koşmadığı anlamına gelir.
+      - name: Atlanan test sayısı eşiği
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          MAX_SKIPPED=5
+          total=0
+          for f in $(find . -name '*.trx'); do
+            # .trx özeti: <Counters ... skipped="N" .../>  (notExecuted da olabilir)
+            n=$(grep -oE '(skipped|notExecuted)="[0-9]+"' "$f" | grep -oE '[0-9]+' | paste -sd+ - | bc 2>/dev/null || echo 0)
+            total=$((total + ${n:-0}))
+          done
+          echo "Atlanan test toplamı: $total (eşik: $MAX_SKIPPED)"
+          if [ "$total" -gt "$MAX_SKIPPED" ]; then
+            echo "::error::$total test atlandı (eşik $MAX_SKIPPED). Muhtemelen Docker ya da bir motor yoktu — bu koşu bir şey kanıtlamıyor."
+            exit 1
+          fi
+
       - name: Test sonuçlarını yükle
         if: always()
         uses: actions/upload-artifact@v4
@@ -144,6 +186,9 @@ jobs:
       # log'dan net görünsün.
       - name: Typecheck
         run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Bağımlılık güvenlik taraması (npm)
+        run: npm audit --audit-level=high
 
       - name: Build
         run: npm run build

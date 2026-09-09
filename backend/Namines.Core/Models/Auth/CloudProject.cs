@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
 namespace Namines.Core.Models.Auth
@@ -39,6 +40,14 @@ namespace Namines.Core.Models.Auth
         /// <b>Buraya asla düz metin yazılmaz.</b> Yazan tek yer
         /// <c>GatewayKeyController.SetProjectConnection</c>.
         /// </summary>
+        /// <remarks>
+        /// <b>[JsonIgnore] — bu alan hiçbir API yanıtında yer almamalı.</b>
+        /// Bugün her uç yanıtını elle projekte ediyor (anonim nesne), yani
+        /// sızıntı yok. Ama bu, her yazan kişinin hatırlamasına bağlı bir
+        /// güvence: tek bir <c>return Ok(project)</c> yeter. Öznitelik, kazayı
+        /// dikkate bırakmak yerine serileştirici seviyesinde imkânsız kılıyor.
+        /// </remarks>
+        [JsonIgnore]
         public string? EncryptedConnectionString { get; set; }
 
         /// <summary>

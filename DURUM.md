@@ -113,6 +113,81 @@ CI'da Docker'a yeterli bellek verilmeli — orada atlanan test bir uyarıdır.
 
 ---
 
+## Kapsamlı denetim ve düzeltme turu (2026-09-09)
+
+Projenin tamamı denetlendi — mimari, backend, frontend, veritabanı, güvenlik,
+kimlik/yetki, performans, güvenilirlik, DevOps, test, UI/UX, erişilebilirlik,
+ürün ve teknik borç. 28 rapor: [`docs/audit/`](docs/audit/).
+
+**Sonuç:** 54 bulgu. Kod kalitesi 72/100, üretime hazırlık 64/100, karar
+**ALMOST** — mimari sağlam, engel altı noktasal açıktı.
+
+Ardından düzeltmeler uygulandı:
+
+| | Denetimde | Şimdi |
+|---|---|---|
+| Açık P0 | 6 | **0** |
+| Açık P1 | 19 | 8 |
+| Backend testi | 1.480 | **1.505** |
+| Güvenlik puanı | 62 | **84** |
+| Üretime hazırlık | 64 | **79** |
+
+**Kapatılan kritik açıklar:**
+- JWT fallback anahtarı yalnızca `IsProduction()` ile kapalıydı — `Staging`
+  ya da unutulmuş bir ortam adında depoda yazılı anahtarla imzalanıyordu.
+- Mermaid `securityLevel: 'loose'` + `dangerouslySetInnerHTML` → paylaşılan
+  şemada saklı XSS.
+- "Personal Access Token" özelliği **sahteydi**: tarayıcıda `Math.random()`,
+  sunucuya hiç gitmiyor, "revoke" hiçbir şeyi iptal etmiyordu.
+- `/api/executor/execute` keyfi SQL'i denetimsiz çalıştırıyordu — ürünün kendi
+  ChangeRequest yönetişim zincirinin yanından geçerek. Artık `SqlExecutionAudit`.
+- Cross-site cookie dağıtımında CSRF koruması yoktu → `CsrfProtectionMiddleware`.
+- Üretim dağıtım tanımı depoda yoktu → `docker-compose.prod.yml`.
+
+**Ayrıca:** jeton iptali (`POST /api/auth/revoke-all-sessions`), hesap
+kilitleme, 12 karakter parola, `Billing` rol tuzağı, executor zaman aşımı,
+DDL kısmi-uygulama uyarısı, `[JsonIgnore]`, CI'da bağımlılık taraması ve
+atlanan test eşiği.
+
+**Denetimin kendi yanlış pozitifleri (dürüstlük kaydı):** iki bulgu geri
+çekildi — `pageSize` tavanı zaten vardı, Desk gezinmesi zaten "Yedekler" /
+"Barındırma" diyordu. Bir yeni bulgu çıktı: `npm run lint` CI'da hiç koşmuyor
+ve 129 hata birikmiş (FE-008).
+
+**STOP SHIP listesi TEMİZ.** Son madde de kapandı:
+[`deploy/URETIM-CALISTIRMA.md`](deploy/URETIM-CALISTIRMA.md) şifreleme
+anahtarlarının nasıl saklanacağını, rotation'ın nasıl yapılacağını (eski
+anahtarı SAKLAYARAK) ve `Vault:BackupEncryptionKey` kaybolursa geçmiş yedeklerin
+tamamının kalıcı olarak okunamaz hâle geleceğini yazıyor.
+
+**Rakip verisi toplandı.** İlk denetimde web araçları çalışmadığı için boş
+bırakılmıştı; resmî fiyat sayfaları tarayıcıyla okundu:
+
+| Rakip | Ücretsiz | İlk ücretli |
+|---|---|---|
+| **Bytebase** (baş rakip) | 20 kullanıcı, 10 instance | $20/kullanıcı/ay |
+| **Atlas** | Sınırlı | $9/geliştirici/ay |
+| **Supabase** | 500 MB, 2 proje | $25/ay |
+
+**En net ticari fark, doğrulandı:** Bytebase onay iş akışını ve risk
+değerlendirmesini **Enterprise'a** (fiyat sorulacak) saklıyor; Namines ikisini
+de temel üründe veriyor.
+
+**Geri çekilen iddia:** MCP sunucusu farklılaştırıcı değil — Bytebase onu
+ücretsiz katmanda veriyor.
+
+**Acı gerçek:** Sorgu geçmişi, kaydedilmiş sorgular ve veri dışa aktarma,
+üçü de Bytebase'in ücretsiz katmanında; Namines'te hiçbiri yok. Bunlar eksik
+özellik değil temel beklenti — öncelikleri yükseltildi.
+
+**Denetim sırasında bulunan bir sürpriz:** `.gitignore` bütün `*.md`
+dosyalarını yok sayıyor ve bir allowlist tutuyordu. 28 denetim raporu ve
+üretim kılavuzu yazıldı; `git status` **hiçbirini göstermedi**. Yalnızca
+`git check-ignore` ile fark edildi. `docs/` ve `deploy/` açıldı, tuzak
+`.gitignore`'a not düşüldü (DOC-005).
+
+---
+
 ## Nerede kaldık (son oturum)
 
 **Bitti:** Vault artık **çok motorlu**. Tek sağlayıcı yerine motor başına bir

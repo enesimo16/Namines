@@ -1,4 +1,5 @@
 'use client';
+import { csrfHeaders } from '@/lib/csrf';
 
 import React, { useState } from 'react';
 import { Database, X, Loader2, Eye, EyeOff, AlertTriangle } from 'lucide-react';
@@ -51,7 +52,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
       const res = await fetch(`${API_BASE_URL}/dbintrospect`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders },
         body: JSON.stringify({ connectionString: connectionString.trim(), dbType }),
       });
 

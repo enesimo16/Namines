@@ -21,6 +21,47 @@ namespace Namines.Core.Models.Auth
     }
 
     /// <summary>
+    /// <see cref="OrgRole"/> karşılaştırmaları.
+    ///
+    /// <b>Sayısal karşılaştırma (<c>role &gt;= OrgRole.Admin</c>) KULLANMAYIN.</b>
+    /// <see cref="OrgRole.Billing"/> sayısal olarak 4, yani <see cref="OrgRole.Owner"/>
+    /// (3) dâhil her şeyden büyük — ama yetki tablosunda hiyerarşinin İÇİNDE
+    /// değil, yanında duran ayrı bir rol. Sıralama karşılaştırması, yalnızca
+    /// faturaya bakması gereken bir kullanıcıya sessizce Owner'dan fazla yetki
+    /// verirdi.
+    ///
+    /// Enum değerini değiştirmek (ör. 100 yapmak) veritabanında saklanan mevcut
+    /// satırları geçersiz kılacağı için tercih edilmedi; bunun yerine güvenli
+    /// karşılaştırma tek bir yerde toplandı.
+    ///
+    /// Bugün depoda hiçbir sıralama karşılaştırması yok (tarandı) — bu yardımcı,
+    /// ilk yazacak kişinin doğru olanı bulması için var.
+    /// </summary>
+    public static class OrgRoleExtensions
+    {
+        /// <summary>Hiyerarşiye dâhil roller, yetki artan sırayla.</summary>
+        private static readonly OrgRole[] Hierarchy =
+            { OrgRole.Viewer, OrgRole.Editor, OrgRole.Admin, OrgRole.Owner };
+
+        /// <summary>
+        /// <paramref name="role"/>, <paramref name="minimum"/> kadar veya daha
+        /// fazla yetkiye sahip mi. <see cref="OrgRole.Billing"/> hiyerarşinin
+        /// dışında olduğu için her zaman <c>false</c> döner.
+        /// </summary>
+        public static bool IsAtLeast(this OrgRole role, OrgRole minimum)
+        {
+            var roleIndex = Array.IndexOf(Hierarchy, role);
+            var minimumIndex = Array.IndexOf(Hierarchy, minimum);
+
+            // -1: rol hiyerarşide değil (Billing). Sayısal olarak büyük olması
+            // onu üstün yapmaz; kapı kapalı kalır.
+            if (roleIndex < 0 || minimumIndex < 0) return false;
+
+            return roleIndex >= minimumIndex;
+        }
+    }
+
+    /// <summary>
     /// Projelerin sahiplik ve yetki sınırı. Önceden `CloudProject.UserId` tek
     /// sahipti; bu yüzden new-phase/29 §3'teki "Destructive/Breaking → 2 FARKLI
     /// kişi onaylamalı" kuralı uygulanamıyordu (bkz. CHECKLIST G18) — projeye

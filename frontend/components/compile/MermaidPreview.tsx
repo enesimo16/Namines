@@ -15,7 +15,16 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
     mermaid.initialize({
       startOnLoad: false,
       theme: 'dark',
-      securityLevel: 'loose',
+      // 'strict' — 'loose' DEĞİL. Diyagram metni şemadan türüyor: tablo ve
+      // kolon adları, yani kullanıcının (ve AI'ın) yazdığı metin. 'loose' modda
+      // Mermaid etiketlerdeki HTML'i sanitize etmiyor ve tıklama işleyicilerine
+      // izin veriyor; üretilen SVG de aşağıda dangerouslySetInnerHTML ile
+      // basıldığı için bu doğrudan XSS demek.
+      //
+      // Şemalar /share/[token] ile PAYLAŞILABİLDİĞİ için bu saklı bir XSS
+      // olurdu: bir kullanıcının şeması, onu görüntüleyen başkasının
+      // tarayıcısında kod çalıştırırdı.
+      securityLevel: 'strict',
       fontFamily: 'sans-serif'
     });
   }, []);

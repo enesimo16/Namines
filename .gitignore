@@ -159,6 +159,26 @@ docker-compose.local.yml
 # Ne bittigini ve neyin KANITLANDIGINI ayiran durum belgesi -- devir teslimin
 # kendisi, bu yuzden depoda olmali.
 !DURUM.md
+# Denetim raporlari (docs/audit/) ve dagitim kilavuzlari (deploy/).
+!docs/**/*.md
+!deploy/*.md
+
+# ---------------------------------------------------------------------------
+# UYARI -- bu bolumun yapisal tuzagi
+#
+# `*.md` + allowlist deseni, YENI bir belgenin depoya girmesini SESSIZCE
+# engelliyor: dosyayi yazarsiniz, `git status` onu hic gostermez, commit
+# atarsiniz ve belge yalnizca sizin makinenizde kalir. Hata mesaji yok.
+#
+# Bu tam olarak yasandi: 28 denetim raporu ve uretim calistirma kilavuzu
+# yazildi ve `git status` hicbirini listelemedi. Yalnizca `git check-ignore`
+# ile fark edildi.
+#
+# YENI BIR .md KLASORU EKLERKEN buraya bir `!yol/**/*.md` satiri eklemeyi
+# unutmayin. Daha iyi bir cozum, `*.md` yerine yalnizca URETILEN markdown'lari
+# (ornegin `**/node_modules/**/*.md`) yok saymaktir -- varsayilanin "takip et"
+# olmasi, unutmayi zararsiz hale getirir.
+# ---------------------------------------------------------------------------
 
 # Ajan araci yapilandirmasi -- gelistiricinin kendi makinesine ait, urune ait
 # degil. Depoda durmasi, kullanilan araci herkese duyurmaktan baska bir sey

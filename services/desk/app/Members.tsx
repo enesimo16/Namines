@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import EmptyState from './EmptyState';
 import { type DeskSession } from '../lib/api';
 import { fetchMembers, MembersError, type ProjectMember } from '../lib/members';
 import PageHead from './PageHead';
@@ -44,7 +45,16 @@ export default function Members({ session }: { session: DeskSession }) {
       {!members ? (
         <div className="empty">Yükleniyor…</div>
       ) : members.length === 0 ? (
-        <div className="empty">Bu projede üye yok.</div>
+        <EmptyState
+          title="Bu projede başka üye yok"
+          description={
+            <>
+              Ekip arkadaşlarınızı davet ederek şema değişikliklerini birlikte inceleyebilir ve
+              onaylayabilirsiniz. Riskli değişiklikler için ikinci bir onay, tek başına
+              çalışırken alınamayan bir güvencedir.
+            </>
+          }
+        />
       ) : (
         <div className="grid-wrap">
           <table>

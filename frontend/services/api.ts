@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { csrfHeaders } from '@/lib/csrf';
 import { DatabaseSchema } from '../types/schema';
 import { SchemaDiffResult, MigrationResult } from '../types/migration';
 import { ChangeRequestSummary, ChangeRequestDetail, ApprovalDecision, ChangeRequestStatus, AffectedCodeScanResult, ChangeRequestAuditEntry } from '../types/changeRequest';
@@ -33,6 +34,10 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    // CSRF: cookie ile kimlik doğrulanan yazma istekleri bu başlık olmadan
+    // sunucuda 403 alır. Güvenli metotlarda zararsız, bu yüzden istisna
+    // yapmak yerine hepsine ekleniyor — unutulacak bir yer kalmasın.
+    ...csrfHeaders,
   },
   // httpOnly auth cookie'sinin isteklerle gönderilmesi için (cookie tabanlı JWT).
   withCredentials: true,

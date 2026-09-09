@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './apiConfig';
+import { csrfHeaders } from './csrf';
 import { DatabaseSchema } from '../types/schema';
 
 /**
@@ -62,7 +63,7 @@ export async function streamSchemaGeneration(
   try {
     response = await fetch(`${API_BASE_URL}/schema/generate`, {
       method: 'POST',
-      headers: { Accept: 'text/event-stream' },
+      headers: { Accept: 'text/event-stream', ...csrfHeaders },
       body: formData,
       credentials: 'include',
       signal,

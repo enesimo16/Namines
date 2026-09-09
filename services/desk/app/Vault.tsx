@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import EmptyState from './EmptyState';
 import { type DeskSession } from '../lib/api';
 import { formatSize } from '../lib/format';
 import {
@@ -327,7 +328,17 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       {!backups ? (
         <div className="empty">Yükleniyor…</div>
       ) : backups.length === 0 ? (
-        <div className="empty">Bu projenin henüz bir yedeği yok.</div>
+        <EmptyState
+          title="Henüz yedek alınmadı"
+          description={
+            <>
+              Yedekler şifrelenerek saklanır ve geri yüklenebilirlikleri temiz bir sunucuya
+              gerçekten geri yüklenerek <strong>kanıtlanır</strong>. Yukarıdaki
+              &quot;Şimdi yedek al&quot; düğmesiyle ilkini oluşturun, ya da düzenli yedek için
+              zamanlamayı açın.
+            </>
+          }
+        />
       ) : (
         <div className="grid-wrap">
           <table>

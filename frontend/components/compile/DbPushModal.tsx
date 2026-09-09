@@ -4,6 +4,7 @@ import { X, Database, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { API_BASE_URL } from '../../lib/apiConfig';
+import { csrfHeaders } from '../../lib/csrf';
 
 interface DbPushModalProps {
   open: boolean;
@@ -48,7 +49,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
       const response = await fetch(`${API_BASE_URL}/executor/test-connection`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ connectionString, dbType }),
       });
       const data = await response.json();
@@ -79,14 +80,25 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
       const response = await fetch(`${API_BASE_URL}/executor/execute`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ connectionString, dbType, script: sqlScript }),
       });
       const data = await response.json();
       if (response.ok && data.success) {
         setDeployMessage({ text: data.message || 'Successfully applied!', isError: false });
       } else {
-        setDeployMessage({ text: data.message || 'Deployment failed.', isError: true });
+        // Kismi uygulama uyarisi GIZLENMEZ. Sunucu betigi tek transaction'da
+        // calistiriyor, ama MySQL/MariaDB/Oracle DDL'i ortuk commit'ler — yani
+        // "geri alindi" demek o motorlarda yalan olurdu. Kullanici veritabaninin
+        // yarim kalmis olabilecegini bilmeden devam ederse, ikinci denemesi
+        // "zaten var" hatalarina carpar ve nedenini anlayamaz.
+        const partial = data.partialApplyPossible
+          ? ` Warning: this engine commits DDL outside the transaction, so the first ${data.statementsExecuted ?? 0} statement(s) may already be applied. Check the database before retrying.`
+          : '';
+        setDeployMessage({
+          text: (data.message || 'Deployment failed.') + partial,
+          isError: true,
+        });
       }
     } catch {
       setDeployMessage({ text: 'An error occurred during deployment.', isError: true });

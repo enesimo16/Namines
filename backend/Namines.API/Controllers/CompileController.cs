@@ -23,6 +23,18 @@ namespace Namines.API.Controllers;
 /// <param name="Text">Ham `.nsl` metni.</param>
 public sealed record NslParseRequest(string Text, DatabaseType DbType = DatabaseType.PostgreSQL);
 
+/// <remarks>
+/// <b>Kimlik doğrulaması BİLEREK yok:</b> buradaki uçlar saf dönüşüm —
+/// girdiden çıktı üretiyorlar, kalıcı durum yazmıyor ve hiçbir veritabanına
+/// bağlanmıyorlar. Anonim deneme (<c>/demo</c>, <c>/compile</c>) ürünün
+/// dönüşüm hunisinin parçası.
+///
+/// <b>Ama ucuz değiller:</b> <c>eject</c> bir proje iskeleti üretip ZIP'liyor.
+/// Kimliksiz bir çağıran bunu sınırsız tekrarlayabilirdi; rate limit olmadan
+/// bu, CPU ve bellek üzerinden hizmet dışı bırakma demekti. Limit kimlik
+/// varsa kullanıcıya, yoksa IP'ye göre bölünüyor (bkz. Program.cs).
+/// </remarks>
+[EnableRateLimiting("sensitive")]
 [ApiController]
 [Route("api/[controller]")]
 public class CompileController : ControllerBase

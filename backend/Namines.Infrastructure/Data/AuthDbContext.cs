@@ -33,6 +33,13 @@ namespace Namines.Infrastructure.Data
         public DbSet<VaultSchedule> VaultSchedules { get; set; } = null!;
         public DbSet<GroundDatabase> GroundDatabases { get; set; } = null!;
 
+        /// <summary>
+        /// `/api/executor/execute` uzerinden calistirilan her SQL betiginin kaydi.
+        /// Bu uc, urunun ChangeRequest yonetisim zincirinin disindan gectigi icin
+        /// izlenebilirligin tek kaynagi bu tablo.
+        /// </summary>
+        public DbSet<SqlExecutionAudit> SqlExecutionAudits { get; set; } = null!;
+
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
         }
@@ -342,6 +349,19 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<CrossDatabaseRelation>()
                 .HasIndex(r => r.TargetProjectId);
+
+            // Denetim kaydi iki soruyla okunuyor: "bu kullanici ne yapti" ve
+            // "son donemde neler oldu". Ikisi de zaman sirali oldugu icin
+            // indeksler CreatedAt'i kapsiyor -- tek kolonluk bir indeks
+            // siralamayi disarida birakirdi.
+            builder.Entity<SqlExecutionAudit>()
+                .HasIndex(a => new { a.UserId, a.CreatedAt });
+
+            builder.Entity<SqlExecutionAudit>()
+                .HasIndex(a => a.CreatedAt);
+
+            builder.Entity<SqlExecutionAudit>()
+                .HasIndex(a => a.ProjectId);
 
             // Yedek listesi her zaman "bu projenin, en yenisi ustte" seklinde
             // okunuyor; tek kolon indeksi siralamayi kapsamazdi.
