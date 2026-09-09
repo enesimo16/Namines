@@ -53,7 +53,8 @@ export interface VaultSchedule {
  */
 export interface VaultHealth {
   ok: boolean;
-  engine: string;
+  /** Vault'un yedekleyebildigi motorlar — tek bir motor degil, kayitli saglayicilardan turetilen liste. */
+  engines: string[];
   store: string;
   problem: string | null;
 }

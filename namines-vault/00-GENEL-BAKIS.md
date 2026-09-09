@@ -183,13 +183,15 @@ yazar. Desk'in toplu silme deseninin (10+ satırda "SİL" yazma zorunluluğu)
 | Motor | Araç | Nokta-zamanlı geri yükleme | v1 destek |
 |---|---|---|---|
 | PostgreSQL | `pg_dump` / `pg_restore` | Sağlayıcı PITR sunuyorsa (Neon: ✔) | ✔ |
-| MySQL / MariaDB | `mysqldump` | Yalnızca binlog varsa | ❌ v1 |
-| SQL Server | `sqlcmd` + `BACKUP DATABASE` | `.bak` + log restore ile mümkün | ❌ v1 |
-| Oracle | `expdp`/`impdp` | Kurumsal lisans gerektirebilir | ❌ v1 |
+| MySQL / MariaDB | `mysqldump` | Yalnızca binlog varsa | ✔ (canlı doğrulandı) |
+| SQL Server | `sqlcmd` + `BACKUP DATABASE` | `.bak` + log restore ile mümkün | ❌ kalıcı — dosya SUNUCUNUN diskine yazılır, istemciye akıtılamaz |
+| Oracle | `expdp`/`impdp` | Kurumsal lisans gerektirebilir | ❌ kalıcı — `expdp` sunucu tarafı dizinlere yazar |
 | SQLite | Dosya kopyası | Anlamsız (tek dosya) | ❌ v1 — zaten dosya bazlı, Vault'a ihtiyacı yok |
 
 **Kural (third-phase §6.3 ile aynı):** yazıp canlı doğrulanmayan motor
-"destekleniyor" sayılmaz. v1 yalnızca PostgreSQL'i "✔" işaretler.
+"destekleniyor" sayılmaz. Bugün "✔" olanlar: PostgreSQL, MySQL, MariaDB —
+üçü de gerçek sunuculara karşı yedek → boz → geri yükle → bağımsız kontrol
+zincirinden geçti.
 
 ---
 

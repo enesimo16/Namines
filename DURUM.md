@@ -27,7 +27,10 @@
 | Zamanlanmış yedek (V4) | ✅ | İki API instance aynı anda uyandı → **tek** yedek alındı |
 | Saklama politikası | ✅ | `retain=1` ile eski otomatik yedek silindi, elle alınanlara dokunulmadı |
 | Nesne depo (S3/MinIO) | ✅ | Gerçek MinIO: yedek nesne olarak yazıldı, ondan geri yüklendi, doğrulandı |
-| MySQL/MSSQL/Oracle yedek | ❌ | v1 yalnızca PostgreSQL — yazılıp doğrulanmayan motor "destekleniyor" sayılmaz |
+| MySQL yedek/geri yükleme | ✅ | Yedek → veriyi boz → geri yükle → bağımsız `mysql` ile satır, tetikleyici ve yabancı anahtar kontrolü |
+| MariaDB yedek/geri yükleme | ✅ | Aynı zincir MariaDB 10.6 sunucusunda tekrarlandı |
+| Motorlar arası geri yükleme engeli | ✅ | MySQL yedeği MariaDB bağlantısına geri yüklenmek istendi → reddedildi |
+| MSSQL / Oracle yedek | ❌ | **Mimari sınır, eksiklik değil:** `BACKUP DATABASE TO DISK` ve `expdp` dosyayı sunucunun kendi diskine yazar; istemciye akıtılabilen çıktı vermezler. Namines dosyayı kendi tarafına çekemediği için şifreleyemez, nesne depoya koyamaz, geri yüklenebilirliğini kanıtlayamaz. |
 | Kısmi (tek tablo) geri yükleme | ❌ | v2 |
 
 **Deploy şartı:** API'nin Docker daemon'una erişimi gerekiyor; bugünkü
@@ -91,7 +94,7 @@ kullanıcıya bakan tek yüzleri Desk içindeki görünümler. Gerekçe:
 
 | Paket | Sonuç |
 |---|---|
-| `Namines.Tests` (birim) | 1320+ geçiyor |
+| `Namines.Tests` | 1480 geçiyor, 3 atlanıyor (13 dk) |
 | `Namines.Tests` (entegrasyon) | Gerçek konteynerlere karşı geçiyor; MSSQL'e bağlı olanlar **gerekçesiyle atlanıyor** |
 | `Namines.Tests.RunTests` | 15 geçiyor, 2 atlanıyor (MSSQL) |
 | Desk (vitest) | 99 geçiyor |
@@ -107,6 +110,36 @@ CI'da Docker'a yeterli bellek verilmeli — orada atlanan test bir uyarıdır.
 > suite yine "Başarılı!" yazdı. Yeşil ama hiçbir şey kanıtlamayan bir koşu,
 > kırmızı bir koşudan daha tehlikeli. Prob artık 30 saniye bekliyor ve bir kez
 > yeniden deniyor, ama sayıya bakma alışkanlığı yerini tutmaz.
+
+---
+
+## Nerede kaldık (son oturum)
+
+**Bitti:** Vault artık **çok motorlu**. Tek sağlayıcı yerine motor başına bir
+sağlayıcı kayıtlı; `GET /api/vault/health` desteklenen motorları **liste**
+olarak dönüyor ve Desk bunu ekranda gösteriyor.
+
+MySQL ve MariaDB **canlı doğrulandı** — ikisinde de zincirin tamamı:
+yedek → veriyi boz → geri yükle → **bağımsız** bir `mysql` oturumunda satır,
+tetikleyici ve yabancı anahtar kontrolü. Motorlar arası geri yükleme denendi ve
+reddedildi. Doğrulama akışı (temiz sunucuya gerçek restore) ikisinde de geçti.
+Kullanılan deneme veritabanları, projeler, yedekler ve konteynerler silindi.
+
+Yol boyunca çıkan gerçek hata: **MariaDB istemcisi `--column-statistics`
+bayrağını tanımıyor**, ilk yedek denemesi düştü. Bayrak artık istemciye göre
+veriliyor ve regresyonun testi yazıldı.
+
+**Sıradaki iş — Vault:**
+
+| # | Konu | Not |
+|---|---|---|
+| 1 | Yedekleme sırasında ilerleme göstergesi | İstek şu an yedek bitene kadar açık kalıyor; büyük veritabanında arka plan işine taşınmalı |
+| 2 | Kısmi (tek tablo) geri yükleme | v2 kapsamı |
+| 3 | Geri yükleme sonrası otomatik doğrulama | Bugün elle tetikleniyor (`POST .../verify`) |
+
+**Sıradaki iş — Ground:** Free plan için kendi barındırdığımız 1 veritabanı ve
+boyut **uyarısı** duruyor (kısıtlama YOK — kararı böyle verildi). Neon ek bir
+seçenek olarak canlı doğrulandı. Supabase'e taşıma henüz açılmadı.
 
 ---
 

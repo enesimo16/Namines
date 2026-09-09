@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Namines.Vault.Abstractions;
 using Namines.Vault.Providers;
 using Namines.Vault.Storage;
@@ -35,7 +36,26 @@ public static class VaultServiceCollectionExtensions
                 ? new FileSystemBackupStore(configuration)
                 : new S3BackupStore(configuration);
         });
+        // Motor başına bir sağlayıcı. Liste burada; VaultService desteklenen
+        // motorları bu kayıtlardan TÜRETİYOR, ayrıca bir yerde yazmıyor.
         services.AddSingleton<IBackupProvider, PostgresBackupProvider>();
+
+        // MySQL ve MariaDB aynı sınıfın iki kaydı: araçlar ve protokol aynı,
+        // yalnızca imaj ve motor adı farklı. İmajların AYRI olması bilinçli —
+        // MySQL 8 istemcisiyle MariaDB'ye dump almak kimlik doğrulama ve
+        // sürüm-özel deyimler yüzünden sessizce bozuk çıktı verebiliyor.
+        services.AddSingleton<IBackupProvider>(sp => new MySqlFamilyBackupProvider(
+            engine: "MySQL",
+            image: sp.GetRequiredService<IConfiguration>()["Vault:MySqlImage"] ?? "mysql:8.0",
+            hasColumnStatisticsFlag: true,
+            logger: sp.GetRequiredService<ILogger<MySqlFamilyBackupProvider>>()));
+
+        services.AddSingleton<IBackupProvider>(sp => new MySqlFamilyBackupProvider(
+            engine: "MariaDB",
+            image: sp.GetRequiredService<IConfiguration>()["Vault:MariaDbImage"] ?? "mariadb:10.6",
+            // MariaDB istemcisi --column-statistics bayrağını tanımıyor.
+            hasColumnStatisticsFlag: false,
+            logger: sp.GetRequiredService<ILogger<MySqlFamilyBackupProvider>>()));
 
         return services;
     }
