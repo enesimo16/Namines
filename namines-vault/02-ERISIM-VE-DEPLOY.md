@@ -88,6 +88,35 @@ Kısa cevap: **zamanlanmış yedekler otomatik çalışır, ama üç şart sağl
 | Eski otomatik yedeklerin temizlenmesi | Saklama sayısı aşıldığında |
 | Çoklu instance'ta tek yedek | Koşullu `UPDATE` ile satır kapma — instance sayısından bağımsız |
 
+### Desteklenen motorlar
+
+| Motor | Araçlar | İstemci imajı (varsayılan) |
+|---|---|---|
+| PostgreSQL | `pg_dump` / `pg_restore` | `Vault__PostgresImage` — `postgres:17-alpine` |
+| MySQL | `mysqldump` / `mysql` | `Vault__MySqlImage` — `mysql:8.0` |
+| MariaDB | `mysqldump` / `mysql` | `Vault__MariaDbImage` — `mariadb:10.6` |
+
+Araçlar API sunucusuna **kurulmuyor**; her yedek/geri yükleme, istemciyi
+taşıyan kısa ömürlü bir konteynerde çalışıyor.
+
+**İmaj etiketi sunucu sürümünden küçük olmamalı:** eski bir istemci yeni bir
+sunucuyu reddeder — ve bu iyi, sessizce eksik dump almaktansa.
+
+**MySQL ve MariaDB için imajlar AYRI** ve bu bilinçli: MySQL 8 istemcisiyle
+MariaDB'ye dump almak (ya da tersi) kimlik doğrulama eklentisi ve sürüm-özel
+deyimler yüzünden sessizce eksik/bozuk çıktı verebiliyor. Ayrıca MariaDB
+istemcisi `--column-statistics` bayrağını hiç tanımıyor; canlı denemede dump
+daha ilk adımda bu yüzden düştü.
+
+Hangi motorların desteklendiği `GET /api/vault/health` cevabındaki `engines`
+alanında ve Vault ekranında **yazıyor** — desteklenmeyen bir motorda kullanıcı
+bunu ilk yedek denemesinde öğrenmemeli.
+
+**Bir yedek yalnızca KENDİ motoruna geri yüklenebilir.** Motor, yedek kaydına
+yazılıyor; proje sonradan başka bir motora taşınırsa geri yükleme reddediliyor.
+Sebep: uyuşmayan bir geri yükleme, `--clean` hedefin nesnelerini düşürdükten
+sonra sözdizimi hatalarıyla durup veritabanını boş bırakabilirdi.
+
 ### Sağlanması GEREKEN üç şart
 
 **1. `Vault__BackupEncryptionKey` tanımlı olmalı.**
@@ -185,7 +214,9 @@ görüyorsanız 3. şart sağlanmamış demektir.
 
 | Sınır | Durum |
 |---|---|
-| Yalnızca PostgreSQL | Bilinçli. Yazılıp canlı doğrulanmamış bir motor "destekleniyor" sayılmaz. MySQL v6'da. |
+| ~~Yalnızca PostgreSQL~~ | **Kapatıldı:** MySQL ve MariaDB eklendi, ikisi de canlı doğrulandı (yedek → veriyi boz → geri yükle → bağımsız istemciyle satır/tetikleyici/yabancı anahtar kontrolü). MSSQL ve Oracle **kapsam dışı** — sebebi aşağıda. |
+| MSSQL ve Oracle yok | Mimari, eksiklik değil. `BACKUP DATABASE TO DISK` ve `expdp`, dosyayı **sunucunun kendi diskine** yazar; istemci tarafına akıtılabilen bir çıktı vermezler. Namines yedeği kendi tarafına çekemediği için şifreleyemez, nesne depoya koyamaz ve geri yüklenebilirliğini kanıtlayamaz. Sunucu diskine dosya bırakan bir "yedek" ise Vault'un vaadini karşılamaz. |
+| SQLite yok | Aynı sınıf sınır. SQLite bir sunucu değil, **dosya**: uzaktan bir bağlantı dizesiyle erişilemiyor. Namines kullanıcının veritabanına ağ üzerinden bağlanıyor; SQLite'ta bağlanılacak bir uç yok. |
 | ~~Yedekler sunucu diskinde~~ | **Kapatıldı:** S3 uyumlu nesne depo eklendi ve gerçek MinIO'ya karşı doğrulandı. Disk artık nesne depo yapılandırılmamışsa devreye giren geri düşüş. |
 | Kısmi geri yükleme yok | Tek tablo değil, veritabanının tamamı geri yüklenir |
 | Kaçırılan çalıştırma telafi edilmez | Bilinçli: sunucu iki gün kapalı kaldıysa açılışta iki yedek almak diski doldurmaktan başka işe yaramaz |

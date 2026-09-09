@@ -208,6 +208,14 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
           diskini kullanıyor ve kullanıcı bunu bilmeden yedeğe güvenmemeli. */}
       {store && <div className="notice">Yedekler burada saklanıyor: <code>{store}</code></div>}
 
+      {/* Hangi motorların yedeklenebildiği ekranda YAZIYOR: aksi halde
+          desteklenmeyen bir motorda kullanıcı bunu ancak ilk yedek denemesi
+          hataya düştüğünde öğrenirdi. Liste sunucudaki kayıtlı
+          sağlayıcılardan geliyor, burada elle tutulmuyor. */}
+      {health && health.engines.length > 0 && (
+        <div className="notice">Yedeklenebilen motorlar: <code>{health.engines.join(', ')}</code></div>
+      )}
+
       {schedule && (
         <div className="grid-wrap" style={{ padding: 10, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>

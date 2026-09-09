@@ -66,7 +66,10 @@ public class VaultController : ControllerBase
         return Ok(new
         {
             ok = problem is null,
-            engine = _vault.Engine,
+            // Desteklenen motorlar LİSTE olarak dönüyor: tek bir "engine" alanı,
+            // Vault birden çok motor yedekleyebildiği andan itibaren yanlış
+            // bilgi olurdu. Liste kayıtlı sağlayıcılardan türetiliyor.
+            engines = _vault.SupportedEngines,
             store = _vault.StoreDescription,
             problem,
         });

@@ -30,7 +30,7 @@ public class VaultService
     private readonly AuthDbContext _context;
     private readonly IConnectionSecretProtector _protector;
     private readonly IDbHostAccessPolicy _hostPolicy;
-    private readonly IBackupProvider _provider;
+    private readonly IEnumerable<IBackupProvider> _providers;
     private readonly IBackupStore _store;
     private readonly BackupCipher _cipher;
     private readonly ILogger<VaultService> _logger;
@@ -39,7 +39,7 @@ public class VaultService
         AuthDbContext context,
         IConnectionSecretProtector protector,
         IDbHostAccessPolicy hostPolicy,
-        IBackupProvider provider,
+        IEnumerable<IBackupProvider> providers,
         IBackupStore store,
         BackupCipher cipher,
         ILogger<VaultService> logger)
@@ -47,7 +47,7 @@ public class VaultService
         _context = context;
         _protector = protector;
         _hostPolicy = hostPolicy;
-        _provider = provider;
+        _providers = providers;
         _store = store;
         _cipher = cipher;
         _logger = logger;
@@ -55,11 +55,38 @@ public class VaultService
 
     public string StoreDescription => _store.Description;
 
-    /// <summary>Hangi motorun yedeklenebildiği ("PostgreSQL").</summary>
-    public string Engine => _provider.Engine;
+    /// <summary>
+    /// Yedeklenebilen motorlar.
+    ///
+    /// <b>Liste kayıtlı sağlayıcılardan türetiliyor, elle yazılmıyor:</b> sabit
+    /// bir liste, bir sağlayıcı eklendiğinde/çıkarıldığında güncellenmeyi
+    /// unutulacak ikinci bir gerçek kaynağı olurdu — kullanıcıya var olmayan
+    /// bir motoru vaat etmek ya da var olanı gizlemek.
+    /// </summary>
+    public IReadOnlyList<string> SupportedEngines =>
+        _providers.Select(p => p.Engine).OrderBy(e => e, StringComparer.OrdinalIgnoreCase).ToList();
 
-    /// <summary>Yedeklemenin şu an çalışabilir durumda olup olmadığı; engel varsa açıklaması.</summary>
-    public Task<string?> ProbeAsync(CancellationToken ct) => _provider.ProbeAsync(ct);
+    /// <summary>Bir motorun sağlayıcısı; yoksa null.</summary>
+    public IBackupProvider? FindProvider(string? engine) =>
+        engine is null
+            ? null
+            : _providers.FirstOrDefault(p => string.Equals(p.Engine, engine, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Yedeklemenin şu an çalışabilir durumda olup olmadığı; engel varsa açıklaması.
+    ///
+    /// Sağlayıcıların hepsi aynı Docker daemon'una bağlı, dolayısıyla biri
+    /// engelliyse hepsi engelli — ilk bulunan engel yeterli cevap.
+    /// </summary>
+    public async Task<string?> ProbeAsync(CancellationToken ct)
+    {
+        foreach (var provider in _providers)
+        {
+            if (await provider.ProbeAsync(ct) is { } problem) return problem;
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Yedek alır.
@@ -73,13 +100,20 @@ public class VaultService
         if (!TryResolveConnection(project, out var connectionString, out var error))
             return new VaultResult(false, error);
 
+        // TryResolveConnection sağlayıcının varlığını zaten doğruladı; burada
+        // yalnızca aynı kararı tekrar okuyoruz.
+        var provider = FindProvider(project.ConnectionDbType)!;
+
         var record = new VaultBackup
         {
             ProjectId = project.Id,
             OrganizationId = project.OrganizationId,
             CreatedByUserId = userId,
             DatabaseName = project.Name,
-            Engine = _provider.Engine,
+            // Motor KAYDA yazılıyor: geri yükleme sırasında doğru sağlayıcı
+            // buradan seçiliyor. Projenin bağlantısı sonradan başka bir motora
+            // taşınsa bile eski yedek kendi motoruyla geri yüklenebilmeli.
+            Engine = provider.Engine,
             Kind = kind,
             StoreDescription = _store.Description,
             // Anahtarda proje ve zaman var: depodaki dosya, kayda bakmadan da
@@ -94,7 +128,7 @@ public class VaultService
         {
             var spec = new BackupSpec(connectionString!, project.Name);
             record.SizeBytes = await RunPipelineAsync(
-                produce: stream => _provider.BackupAsync(spec, stream, ct),
+                produce: stream => provider.BackupAsync(spec, stream, ct),
                 transform: (input, output) => _cipher.EncryptAsync(input, output, ct),
                 consume: stream => _store.PutAsync(record.StorageKey, stream, ct));
 
@@ -137,6 +171,22 @@ public class VaultService
         if (!TryResolveConnection(project, out var connectionString, out var error))
             return new VaultResult(false, error);
 
+        // Yedeğin motoru ile hedefin motoru AYNI olmak zorunda.
+        //
+        // Bir PostgreSQL dump'ı MySQL'e uygulanamaz; denenirse araç yüzlerce
+        // sözdizimi hatası verir ve --clean çoktan hedefin nesnelerini
+        // düşürmüş olabilir. Yani kontrol olmadan, uyuşmayan bir geri yükleme
+        // hedefi BOŞALTIP doldurmadan bırakabilirdi.
+        var provider = FindProvider(backup.Engine);
+        if (provider is null)
+            return new VaultResult(false,
+                $"No backup provider is registered for {backup.Engine}, so this backup cannot be restored.");
+
+        if (!string.Equals(project.ConnectionDbType, backup.Engine, StringComparison.OrdinalIgnoreCase))
+            return new VaultResult(false,
+                $"This backup was taken from {backup.Engine} but the project now points at " +
+                $"{project.ConnectionDbType}. Restoring across engines is not possible.");
+
         var preRestore = await BackupAsync(project, userId, VaultBackupKind.PreRestore, ct);
         if (!preRestore.Ok)
             return new VaultResult(false,
@@ -165,7 +215,7 @@ public class VaultService
                 transform: (input, output) => _cipher.DecryptAsync(input, output, ct),
                 consume: async stream =>
                 {
-                    await _provider.RestoreAsync(spec, stream, ct);
+                    await provider.RestoreAsync(spec, stream, ct);
                     return 0L;
                 });
 
@@ -207,6 +257,14 @@ public class VaultService
         if (backup.Status != VaultBackupStatus.Succeeded)
             return new VaultResult(false, "Only a successful backup can be verified.");
 
+        // Doğrulama, YEDEĞİN motoruyla yapılıyor — projenin şu anki motoruyla
+        // değil. Bir PostgreSQL yedeği, proje sonradan MySQL'e taşınmış olsa
+        // bile kendi motorunda doğrulanabilmeli.
+        var provider = FindProvider(backup.Engine);
+        if (provider is null)
+            return new VaultResult(false,
+                $"No backup provider is registered for {backup.Engine}, so this backup cannot be verified.");
+
         try
         {
             await using var encrypted = await _store.OpenAsync(backup.StorageKey, ct)
@@ -214,7 +272,7 @@ public class VaultService
 
             // Şifre çözme de doğrulamanın parçası: etiketi tutmayan bir dosya
             // buraya kadar bile gelemez ve bu da geçerli bir "bozuk" cevabıdır.
-            var error = await RunVerifyPipelineAsync(encrypted, ct);
+            var error = await RunVerifyPipelineAsync(provider, encrypted, ct);
 
             backup.VerifiedAt = error is null ? DateTime.UtcNow : null;
             backup.VerifyError = error;
@@ -263,7 +321,8 @@ public class VaultService
     }
 
     /// <summary>Şifreli akışı çözüp sağlayıcının doğrulamasına verir.</summary>
-    private async Task<string?> RunVerifyPipelineAsync(Stream encrypted, CancellationToken ct)
+    private async Task<string?> RunVerifyPipelineAsync(
+        IBackupProvider provider, Stream encrypted, CancellationToken ct)
     {
         string? error = null;
 
@@ -272,7 +331,7 @@ public class VaultService
             transform: (input, output) => _cipher.DecryptAsync(input, output, ct),
             consume: async stream =>
             {
-                error = await _provider.VerifyAsync(stream, ct);
+                error = await provider.VerifyAsync(stream, ct);
                 return 0L;
             });
 
@@ -337,11 +396,20 @@ public class VaultService
             return false;
         }
 
-        // v1 yalnızca PostgreSQL: yazılıp canlı doğrulanmamış bir motoru
-        // "destekleniyor" göstermek, kullanıcıya olmayan bir yedek vaat etmektir.
-        if (!string.Equals(project.ConnectionDbType, "PostgreSQL", StringComparison.OrdinalIgnoreCase))
+        // Kapı artık sabit bir motor listesi değil, KAYITLI SAĞLAYICILAR.
+        //
+        // Sabit bir liste, sağlayıcı eklendiğinde güncellenmeyi unutulacak
+        // ikinci bir gerçek kaynağı olurdu; bu hâliyle "destekleniyor" demek
+        // ile "gerçekten çalıştıracak kodu var" aynı şey.
+        //
+        // Desteklenmeyen motorlar (MSSQL, Oracle) bilinçli: ikisinin de yedek
+        // dosyası SUNUCUNUN diskine yazılıyor (BACKUP DATABASE TO DISK / expdp
+        // dizinleri), yani istemci tarafından çekilemiyor — mimari bir engel,
+        // eksik bir uygulama değil. Ayrıntı: 02-ERISIM-VE-DEPLOY.md.
+        if (FindProvider(project.ConnectionDbType) is null)
         {
-            error = $"Vault v1 supports PostgreSQL only (this project uses {project.ConnectionDbType}).";
+            error = $"Vault cannot back up {project.ConnectionDbType} yet. " +
+                    $"Supported engines: {string.Join(", ", SupportedEngines)}.";
             return false;
         }
 

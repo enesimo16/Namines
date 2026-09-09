@@ -13,7 +13,10 @@
 > **`Namines.Infrastructure`'daki `VaultService`** üzerinden — modül sınırı
 > yine de korunuyor, `Namines.Vault` `Namines.Infrastructure`'ı görmüyor.
 >
-> Kalanlar: MySQL (V6), kısmi geri yükleme, nesne depo uygulaması.
+> Kalanlar: kısmi geri yükleme, ilerleme göstergesi.
+>
+> **Güncel:** V6 (ikinci motor) **kapandı** — MySQL ve MariaDB eklendi ve
+> ikisi de canlı doğrulandı. Nesne depo (S3/MinIO) da kapandı.
 >
 > **Biçim:** `namines_desk/10-DESK-V2-YOL-HARITASI.md` ile aynı — numaralı iş
 > paketi, her birinde *bugünkü durum → yapılacak → kabul kriteri*.
@@ -30,7 +33,8 @@ V3  Geri yükleme            — en riskli adım; onay akışı ve "önce yedek"
 V4  Zamanlanmış yedek       — BackgroundService + cron
 V5  Bütünlük doğrulama      — alınan yedeği gerçekten geri yükleyip kanıtlama
 ────────────────────────────
-V6+ İkinci motor (MySQL), kısmi geri yükleme, webhook — V0-V5 kanıtlanmadan başlanmaz
+V6  İkinci motor (MySQL + MariaDB) — BİTTİ, canlı doğrulandı
+V7+ Kısmi geri yükleme, ilerleme göstergesi, webhook
 ```
 
 **Neden bu sıra:** V0-V3 tek bir yürüyen iskelet oluşturuyor — yedek alınabiliyor,
