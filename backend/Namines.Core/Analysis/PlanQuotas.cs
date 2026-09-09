@@ -72,15 +72,20 @@ public sealed record PlanLimits(
     int DailyAiTokens = 20_000,
     int GatewayRequestsPerMinute = 60,
     int TeamSeats = 1,
-    int CrossDatabaseRelations = 3);
+    int CrossDatabaseRelations = 3,
+    int ManagedDatabases = 0);
 
 /// <summary>
 /// Plan başına kaynak sınırları.
 ///
-/// <b>Yalnızca VAR OLAN kaynaklar için sınır tanımlı.</b> Doküman §10 managed DB,
-/// veri hacmi, yedek saklama, bölge seçimi ve Bridge agent için de sınır veriyor;
+/// <b>Yalnızca VAR OLAN kaynaklar için sınır tanımlı.</b> Doküman §10 veri
+/// hacmi, yedek saklama, bölge seçimi ve Bridge agent için de sınır veriyor;
 /// bunların hiçbiri henüz kodda yok. Olmayan bir özelliğe kota koymak, uygulanmayan
 /// bir kuralı "uygulanıyor" diye kaydetmek olurdu.
+///
+/// <see cref="PlanLimits.ManagedDatabases"/> tam da bu sebeple SONRADAN eklendi:
+/// Namines Ground gerçekten var olduğu an kota da meşrulaştı
+/// (<c>namines-ground/02-V1-KARARLARI.md</c> §2.1).
 /// </summary>
 public static class PlanQuotas
 {
@@ -96,13 +101,21 @@ public static class PlanQuotas
         PlanTier.Free => new PlanLimits(
             BranchDatabases: 0, EphemeralRunsPerDay: 3, ByodbConnections: 1,
             DailyAiTokens: 20_000, GatewayRequestsPerMinute: 60, TeamSeats: 1,
-            CrossDatabaseRelations: 3),
+            CrossDatabaseRelations: 3,
+            // Namines Ground: ucretsiz katmanda BIZIM actigimiz yonetilen
+            // veritabani yok -- her biri gercek ve surekli bir maliyet
+            // (BranchDatabases: 0 ile birebir ayni gerekce). Kullanicinin
+            // KENDI sunucusunu baglamasi ise her planda serbest; kota yalnizca
+            // bizim actigimiz kaynaga ait.
+            ManagedDatabases: 0),
 
         // Pro sınırsız DEĞİL: AI gerçek para harcıyor, "sınırsız" demek tek bir
         // kullanıcının aylık ücretinin kat kat üstünde fatura üretebilmesi demek.
         PlanTier.Pro => new PlanLimits(2, 20, 3,
             DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600, TeamSeats: 1,
-            CrossDatabaseRelations: 25),
+            CrossDatabaseRelations: 25,
+            // BranchDatabases ile hizali: bir uretim + bir hazirlik ortami.
+            ManagedDatabases: 2),
 
         // Team'de DailyAiTokens KOLTUK BAŞINA pay: 3 koltuk × 200.000 = 600.000
         // günlük ekip havuzu. Pro ile aynı sayı olması bilinçli — bir Team koltuğu
@@ -114,13 +127,15 @@ public static class PlanQuotas
         // tavan var (bkz. AiQuotaService).
         PlanTier.Team => new PlanLimits(20, -1, 20,
             DailyAiTokens: 200_000, GatewayRequestsPerMinute: 3_000, TeamSeats: 3,
-            CrossDatabaseRelations: 100),
+            CrossDatabaseRelations: 100,
+            ManagedDatabases: 20),
 
         // Enterprise sözleşmeyle belirlenir; bu değerler tavan değil, sözleşme
         // yapılandırılana kadar geçerli bir başlangıç.
         PlanTier.Enterprise => new PlanLimits(-1, -1, -1,
             DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000, TeamSeats: -1,
-            CrossDatabaseRelations: -1),
+            CrossDatabaseRelations: -1,
+            ManagedDatabases: -1),
 
         // Sahip hesabında sınır yok. Token tavanı -1 DEĞİL, int.MaxValue:
         // -1 "sınırsız" anlamına gelen sayaç alanları için doğru ama günlük
@@ -129,7 +144,8 @@ public static class PlanQuotas
         // hesap hiçbir şey yapamazdı.
         PlanTier.Dev => new PlanLimits(-1, -1, -1,
             DailyAiTokens: int.MaxValue, GatewayRequestsPerMinute: int.MaxValue, TeamSeats: -1,
-            CrossDatabaseRelations: -1),
+            CrossDatabaseRelations: -1,
+            ManagedDatabases: -1),
 
         _ => For(PlanTier.Free),
     };

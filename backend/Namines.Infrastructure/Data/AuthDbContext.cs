@@ -31,6 +31,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<VaultBackup> VaultBackups { get; set; } = null!;
         public DbSet<VaultRestore> VaultRestores { get; set; } = null!;
         public DbSet<VaultSchedule> VaultSchedules { get; set; } = null!;
+        public DbSet<GroundDatabase> GroundDatabases { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -355,6 +356,16 @@ namespace Namines.Infrastructure.Data
             // hicbir yerden anlasilmazdi.
             builder.Entity<VaultSchedule>()
                 .HasIndex(s => s.ProjectId)
+                .IsUnique();
+
+            // Proje basina EN FAZLA bir yonetilen veritabani.
+            //
+            // Bu indeks IDEMPOTANSIN DAYANAGI: "Barindir"a iki kez basmak iki
+            // kaynak acar, ikincisinin kaydi birincinin uzerine yazilir ve
+            // birincisi kimsenin bilmedigi ama faturalanan bir kaynak olarak
+            // kalirdi. Ikinci istek veritabani seviyesinde reddediliyor.
+            builder.Entity<GroundDatabase>()
+                .HasIndex(g => g.ProjectId)
                 .IsUnique();
         }
     }

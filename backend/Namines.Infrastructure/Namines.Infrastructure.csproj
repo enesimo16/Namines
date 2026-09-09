@@ -5,6 +5,8 @@
     <!-- Tek yonlu: Vault, Infrastructure'i GORMEZ. Yedekleme modulunun
          veritabanina/kimlige bagimli hale gelmesini derleyici engelliyor. -->
     <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
+    <!-- Ayni tek yonlu kural: Ground da Infrastructure'i GORMEZ. -->
+    <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />
   </ItemGroup>
 
   <ItemGroup>
