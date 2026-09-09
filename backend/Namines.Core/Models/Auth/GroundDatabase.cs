@@ -3,6 +3,26 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Namines.Core.Models.Auth;
 
+/// <summary>Ground'un yapılandırılabilir varsayılanları.</summary>
+public static class GroundDefaults
+{
+    /// <summary>
+    /// Silme isteğiyle kalıcı silme arasındaki bekleme penceresi, gün
+    /// (<c>Ground:DeleteGraceDays</c> ile değiştirilebilir).
+    ///
+    /// <b>7 gün:</b> bir veritabanının yanlışlıkla silindiği çoğu zaman ancak
+    /// birileri onu kullanmayı denediğinde anlaşılır — bu da hafta sonunu
+    /// kapsayabilir. Daha kısası (24 saat) tatildeki bir ekibi kurtaramaz,
+    /// daha uzunu (30 gün) silinmiş sayılan kaynağın faturasını aylarca
+    /// sürdürür.
+    ///
+    /// <b>Tek kaynak:</b> hem silme işi hem arayüzün geri sayımı buradan
+    /// okuyor. İki yerde yazılsaydı, biri değiştiğinde arayüz kullanıcıya
+    /// yanlış bir süre gösterirdi.
+    /// </summary>
+    public const int DeleteGraceDays = 7;
+}
+
 /// <summary>Yönetilen bir veritabanının yaşam döngüsündeki durumu.</summary>
 public enum GroundStatus
 {

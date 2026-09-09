@@ -156,6 +156,21 @@ export default function Page() {
     setView('canvas');
   }
 
+  /**
+   * Bağlantısı OLMAYAN bir projeyi Ground görünümünde açar.
+   *
+   * `selectProject` şema görünümüne düşürüyor; oysa buraya gelen kullanıcının
+   * elinde henüz veritabanı yok. Ground, projeye ilk veritabanını veren yer —
+   * ayrı bir giriş olmadan tam da ihtiyaç duyan projeler için erişilemez
+   * kalırdı.
+   */
+  function useGroundFor(id: string) {
+    setProjectId(id);
+    setActiveTable(null);
+    setTables(null);
+    setView('ground');
+  }
+
   if (!token) {
     return (
       <div className="gate">
@@ -235,6 +250,7 @@ export default function Page() {
           error={projectsError}
           token={token}
           onSelect={selectProject}
+          onUseGround={useGroundFor}
           onImported={loadProjects}
         />
       ) : (

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Ground.Abstractions;
@@ -36,12 +37,16 @@ public class GroundController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly GroundService _ground;
+    private readonly IConfiguration _configuration;
 
-    public GroundController(AuthDbContext context, GroundService ground)
+    public GroundController(AuthDbContext context, GroundService ground, IConfiguration configuration)
     {
         _context = context;
         _ground = ground;
+        _configuration = configuration;
     }
+
+    private int GraceDays => _configuration.GetValue("Ground:DeleteGraceDays", GroundDefaults.DeleteGraceDays);
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -180,7 +185,7 @@ public class GroundController : ControllerBase
     /// Kaydı dışa açarken sağlayıcı kimliklerini de veriyor: kullanıcının
     /// kaynağı sağlayıcının kendi panelinde bulabilmesi gerekir.
     /// </summary>
-    private static object Describe(GroundDatabase record) => new
+    private object Describe(GroundDatabase record) => new
     {
         id = record.Id,
         projectId = record.ProjectId,
@@ -192,5 +197,8 @@ public class GroundController : ControllerBase
         createdAt = record.CreatedAt,
         deleteRequestedAt = record.DeleteRequestedAt,
         deletedAt = record.DeletedAt,
+        // Arayuzun geri sayimi gosterebilmesi icin: kullanici silmeye kac gun
+        // kaldigini gormeden geri alma firsatini degerlendiremezdi.
+        graceDays = GraceDays,
     };
 }
