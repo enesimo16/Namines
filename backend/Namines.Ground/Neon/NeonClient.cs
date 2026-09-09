@@ -18,11 +18,9 @@ namespace Namines.Ground.Neon;
 /// <b>API anahtarı YALNIZCA sunucuda</b> (<c>00-GENEL-BAKIS.md</c> §5 madde 4):
 /// hiçbir istemci, hiçbir koşulda görmez. Ground bir vekil olarak davranır.
 ///
-/// <b>Bu sınıf canlı Neon'a karşı DENENMEDİ</b> — depoda API anahtarı yok
-/// (<c>02-V1-KARARLARI.md</c> §1). Sözleşmesi sahte istemciyle test edilen
-/// <see cref="NeonProvider"/> üzerinden doğrulanıyor, ama ağ davranışı
-/// (alan adları, hata gövdeleri, sayfalama) gerçek bir çağrıyla
-/// karşılaşana kadar <b>varsayım</b> olarak kalıyor.
+/// <b>Canlı Neon'a karşı doğrulandı</b> (2026-09-09): gerçek proje açıldı,
+/// bağlantı adresi doğru biçimde döndü, kimlikle silindi. Yol boyunca
+/// <c>org_id</c> zorunluluğu ortaya çıktı — bkz. <see cref="OrgId"/>.
 /// </summary>
 public sealed class NeonClient : INeonClient
 {
@@ -58,6 +56,22 @@ public sealed class NeonClient : INeonClient
 
     private string Region => _configuration["Ground:Neon:Region"] ?? DefaultRegion;
 
+    /// <summary>
+    /// Neon organizasyon kimliği.
+    ///
+    /// <b>Canlı denemede öğrenildi:</b> Neon iki tür API anahtarı veriyor —
+    /// kişisel hesap anahtarı ve ORGANİZASYON anahtarı. Organizasyon
+    /// anahtarıyla proje LİSTELEMEK ve OLUŞTURMAK <c>org_id</c> olmadan
+    /// <c>400 "org_id is required"</c> ile reddediliyor; kişisel anahtarda
+    /// bu alan yok ve gerekmiyor. Tek istemcinin ikisini de desteklemesi için
+    /// alan opsiyonel: tanımlıysa gönderilir, değilse hiç eklenmez.
+    ///
+    /// Tek bir projeyi kimliğiyle OKUMAK/SİLMEK bu alana ihtiyaç duymuyor —
+    /// yalnızca "hangi organizasyonun projelerine bakıyorum" belirsizliği
+    /// olan uçlarda gerekiyor. Bu da canlı denenerek doğrulandı.
+    /// </summary>
+    private string? OrgId => _configuration["Ground:Neon:OrgId"] is { Length: > 0 } id ? id : null;
+
     public bool IsConfigured => ApiKey is not null;
 
     public Task<string?> ProbeAsync(CancellationToken ct)
@@ -76,7 +90,8 @@ public sealed class NeonClient : INeonClient
         {
             // Proje listesi en ucuz kimlik doğrulama kontrolü: yan etkisi yok
             // ve anahtarın geçerli olup olmadığını kesin söyler.
-            using var response = await _http.GetAsync("projects?limit=1", ct);
+            var query = OrgId is { } orgId ? $"projects?limit=1&org_id={Uri.EscapeDataString(orgId)}" : "projects?limit=1";
+            using var response = await _http.GetAsync(query, ct);
             return response.IsSuccessStatusCode
                 ? null
                 : $"The Neon API could not be reached ({(int)response.StatusCode}).";
@@ -89,12 +104,17 @@ public sealed class NeonClient : INeonClient
 
     public async Task<NeonProject> CreateProjectAsync(string name, string? regionId, CancellationToken ct)
     {
+        // org_id PROJE NESNESİNİN İÇİNDE gidiyor, sorgu dizesinde değil —
+        // liste/oluşturma uçları arasındaki bu tutarsızlık canlı denemede
+        // ölçüldü. Null ise Json seçenekleri (WhenWritingNull) onu hiç
+        // yazmıyor, kişisel anahtarlı hesaplarda gövde değişmeden kalıyor.
         var payload = new
         {
             project = new
             {
                 name,
                 region_id = regionId ?? Region,
+                org_id = OrgId,
             },
         };
 

@@ -11,13 +11,13 @@ namespace Namines.Ground.Neon;
 /// <summary>
 /// Neon üzerinde yönetilen PostgreSQL açan sağlayıcı.
 ///
-/// <b>CANLI KANITLANMADI.</b> Depoda Neon API anahtarı yok
-/// (<c>02-V1-KARARLARI.md</c> §1), dolayısıyla bu sağlayıcı gerçek bir
-/// kaynağa karşı hiç çalıştırılmadı. İş mantığı sahte bir
-/// <see cref="INeonClient"/> ile test edildi, ama <c>00-GENEL-BAKIS.md</c> §9
-/// madde 2'nin kuralı gereği ("kanıt = çalışan komut + görülen çıktı")
-/// <b>"çalışıyor" sayılmıyor</b> — ve bu, <see cref="Capabilities"/>
-/// üzerinden arayüze kadar taşınıyor.
+/// <b>Canlı kanıtlandı</b> (2026-09-09, <c>00-GENEL-BAKIS.md</c> §9 madde 2'nin
+/// kuralına göre): gerçek proje açıldı, Namines'in KENDİ şifreli bağlantısıyla
+/// yazılan bir tablo bağımsız bir <c>psql</c> oturumunda görüldü — ve tersi:
+/// bağımsız `psql`'in oluşturduğu tablo Namines'in <c>gateway/schema</c>
+/// ucundan göründü, yani ikisi AYNI veritabanına konuşuyor. İdempotans (ikinci
+/// provizyon aynı kaydı döndü), silme isteği (kaynak PendingDelete'te dururken
+/// bozulmadı) ve kalıcı silme (Neon'da proje 404'e düştü) ayrıca doğrulandı.
 /// </summary>
 public sealed class NeonProvider : IDatabaseProvider
 {
@@ -37,12 +37,10 @@ public sealed class NeonProvider : IDatabaseProvider
         // KULLANMIYOR; "var" demek olmayan bir düğme vaat etmek olurdu.
         SupportsBranching: false,
         SupportsRegionChoice: true,
-        IsLiveVerified: false,
+        IsLiveVerified: true,
         ResponsibilityNote:
-            "The database is created on Neon and operated by Neon. " +
-            "WARNING: this provider has not yet been exercised against a live Neon " +
-            "account — verify it on your own account before trusting it with " +
-            "production data.");
+            "The database is created on Neon and operated by Neon. Neon's own " +
+            "service level and availability apply.");
 
     public Task<string?> ProbeAsync(CancellationToken ct) => _client.ProbeAsync(ct);
 
