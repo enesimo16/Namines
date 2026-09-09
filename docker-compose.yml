@@ -70,6 +70,15 @@ services:
       # dosya sisteminde olurdu ve konteyner yeniden yaratıldığında bütün
       # yedekler giderdi — yani yedekleme tam da lazım olduğu anda yok olurdu.
       - Vault__StoragePath=/app/data/vault-backups
+      # Nesne depo (S3 uyumlu). Vault__S3__Bucket TANIMLIYSA yedekler diske
+      # DEGIL buraya yazilir; sunucu diskinin uc sorunu (dolma, instance'lar
+      # arasi paylasilamama, sunucu yeniden kurulunca kaybolma) boylece
+      # ortadan kalkar. Ayni ayarlar hem AWS S3 hem MinIO icin gecerli.
+      # Bu yerel yigitta bilincli olarak BOS: tek instance ve tek makine.
+      # - Vault__S3__Bucket=namines-backups
+      # - Vault__S3__AccessKey=...
+      # - Vault__S3__SecretKey=...
+      # - Vault__S3__ServiceUrl=http://minio:9000
       #
       # ⚠️ Bu compose'da yedekleme ÇALIŞMAZ: pg_dump/pg_restore geçici bir
       # konteynerde koşuyor ve backend'in Docker daemon'una erişimi yok

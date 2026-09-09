@@ -26,7 +26,7 @@ public class BranchTestRunnerServiceTests
         Assert.True(result.DurationMs > 0);
     }
 
-    [RequiresDockerFact]
+    [RequiresEngineFact(DatabaseType.MSSQL)]
     public async Task Valid_schema_succeeds_against_real_mssql()
     {
         using var runner = CreateRunner();
@@ -36,7 +36,7 @@ public class BranchTestRunnerServiceTests
         Assert.True(result.Success, result.EngineMessage);
     }
 
-    [RequiresDockerFact]
+    [RequiresEngineFact(DatabaseType.MSSQL)]
     public async Task Multi_cascade_path_is_rejected_by_real_mssql_with_raw_engine_message()
     {
         using var runner = CreateRunner();

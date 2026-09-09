@@ -117,13 +117,29 @@ Seçenekler, tercih sırasıyla:
   tamamını ele geçirir.
 
 **3. Yedeklerin durduğu yer KALICI olmalı.**
-v1 sunucu diskini kullanıyor (`Vault__StoragePath`). Konteyner içinde varsayılan
-yol geçicidir: **konteyner yeniden yaratıldığında bütün yedekler gider.** Bu,
-yedeklemenin tam da işe yaraması gereken anda yok olması demek.
 
-Bugünkü compose'da `namines-app-data` adında bir volume zaten var; `Vault__StoragePath`
-onun altında bir yola verilmeli. Kalıcı çözüm nesne depo (S3/MinIO) — `IBackupStore`
-arkasında ikinci uygulama olarak gelecek; sağlayıcı seçimi hâlâ açık karar.
+**Önerilen: nesne depo.** `Vault__S3__Bucket` tanımlıysa yedekler diske değil
+oraya yazılır ve sunucu diskinin üç sorunu birden ortadan kalkar: disk yedek
+boyutuyla dolmuyor, birden fazla instance aynı dosyayı görüyor, sunucu yeniden
+kurulsa da yedekler kalıyor.
+
+> **"S3 mi MinIO mu" sorusu düştü.** MinIO S3 protokolünü konuşuyor, dolayısıyla
+> tek uygulama (`S3BackupStore`) ikisini de karşılıyor — ayrı iki sınıf yazmak
+> aynı protokolü iki kez uygulamak olurdu. MinIO ve diğer S3 uyumlu sunucular
+> için `Vault__S3__ServiceUrl` verilir; gerçek AWS için boş bırakılıp `Region`
+> verilir.
+>
+> Canlı doğrulandı (gerçek MinIO): yedek nesne olarak yazıldı, veri bozulduktan
+> sonra o nesneden geri yüklendi ve doğrulama da nesne deposundan okuyarak geçti.
+
+**Nesne depo yoksa sunucu diski** (`Vault__StoragePath`). Konteyner içinde
+varsayılan yol geçicidir: **konteyner yeniden yaratıldığında bütün yedekler
+gider** — yani yedekleme tam da işe yaraması gereken anda yok olur. Bugünkü
+compose'da `namines-app-data` volume'u zaten var ve `Vault__StoragePath` onun
+altına verilmiş durumda.
+
+Hangi deponun kullanıldığı `GET /api/vault/health` ve Vault ekranında açıkça
+yazıyor — kullanıcı bunu bilmeden yedeğe güvenmemeli.
 
 ### Deploy kontrol listesi
 
@@ -131,8 +147,18 @@ arkasında ikinci uygulama olarak gelecek; sağlayıcı seçimi hâlâ açık ka
 # 1) Yedek şifreleme anahtarı — baglanti anahtarindan FARKLI
 Vault__BackupEncryptionKey=$(openssl rand -base64 32)
 
-# 2) Yedekler kalıcı bir volume'de dursun
-Vault__StoragePath=/data/vault-backups
+# 2) Yedekler KALICI bir yerde dursun.
+#    Önerilen: nesne depo (S3 ya da MinIO — ikisi de aynı ayarlar).
+Vault__S3__Bucket=namines-backups
+Vault__S3__AccessKey=...
+Vault__S3__SecretKey=...
+#    MinIO / S3 uyumlu sunucu için:
+Vault__S3__ServiceUrl=http://minio:9000
+#    Gerçek AWS için ServiceUrl'i BOŞ bırak ve bölgeyi ver:
+# Vault__S3__Region=eu-central-1
+#
+#    Nesne depo yoksa geri düşüş: kalıcı bir volume altındaki dizin.
+Vault__StoragePath=/app/data/vault-backups
 
 # 3) pg_dump imaj etiketi sunucu sürümüne eşit ya da ondan YENİ olmalı
 #    (eski bir pg_dump yeni bir sunucuyu reddeder — ve bu iyi:
@@ -160,7 +186,7 @@ görüyorsanız 3. şart sağlanmamış demektir.
 | Sınır | Durum |
 |---|---|
 | Yalnızca PostgreSQL | Bilinçli. Yazılıp canlı doğrulanmamış bir motor "destekleniyor" sayılmaz. MySQL v6'da. |
-| Yedekler sunucu diskinde | `IBackupStore` arkasında; S3/MinIO ikinci uygulama olarak gelecek |
+| ~~Yedekler sunucu diskinde~~ | **Kapatıldı:** S3 uyumlu nesne depo eklendi ve gerçek MinIO'ya karşı doğrulandı. Disk artık nesne depo yapılandırılmamışsa devreye giren geri düşüş. |
 | Kısmi geri yükleme yok | Tek tablo değil, veritabanının tamamı geri yüklenir |
 | Kaçırılan çalıştırma telafi edilmez | Bilinçli: sunucu iki gün kapalı kaldıysa açılışta iki yedek almak diski doldurmaktan başka işe yaramaz |
 | Yedekleme sırasında ilerleme göstergesi yok | İstek, yedek bitene kadar açık kalır. Büyük veritabanlarında arka plan işine taşınmalı. |

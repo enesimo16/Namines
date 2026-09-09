@@ -55,9 +55,9 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
         SupportsRegionChoice: false,
         IsLiveVerified: true,
         ResponsibilityNote:
-            "Veritabanı sizin kendi PostgreSQL sunucunuzda açılır. Yedekleme, " +
-            "erişilebilirlik ve kapasite sizin sorumluluğunuzdadır — Namines bu " +
-            "sunucu için hizmet seviyesi taahhüdü vermez.");
+            "The database is created on your own PostgreSQL server. Backups, " +
+            "availability and capacity are your responsibility — Namines gives no " +
+            "service level commitment for this server.");
 
     /// <summary>
     /// Yönetici bağlantısı — <c>CREATE DATABASE</c>/<c>CREATE ROLE</c> yetkisi olan.
@@ -83,9 +83,9 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
     public Task<string?> ProbeAsync(CancellationToken ct) =>
         string.IsNullOrWhiteSpace(AdminConnectionString)
             ? Task.FromResult<string?>(
-                "Ground:LocalPostgres:AdminConnectionString tanımlı değil, bu yüzden " +
-                "yönetilen veritabanı açılamaz. CREATE DATABASE ve CREATE ROLE yetkisi " +
-                "olan bir PostgreSQL bağlantısı verin.")
+                "Ground:LocalPostgres:AdminConnectionString is not configured, so no managed " +
+                "database can be created. Provide a PostgreSQL connection that has CREATE " +
+                "DATABASE and CREATE ROLE privileges.")
             : PingAsync(ct);
 
     private async Task<string?> PingAsync(CancellationToken ct)
@@ -98,7 +98,7 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
         }
         catch (Exception ex)
         {
-            return $"Yönetilen veritabanı sunucusuna bağlanılamadı: {Shorten(ex.Message)}";
+            return $"Could not connect to the managed database server: {Shorten(ex.Message)}";
         }
     }
 
@@ -106,7 +106,7 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
     {
         var admin = AdminConnectionString
             ?? throw new InvalidOperationException(
-                "Ground:LocalPostgres:AdminConnectionString tanımlı değil.");
+                "Ground:LocalPostgres:AdminConnectionString is not configured.");
 
         var databaseName = BuildIdentifier("namines_db_", spec.ProjectId);
         var roleName = BuildIdentifier("namines_app_", spec.ProjectId);
@@ -221,7 +221,7 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
     {
         var admin = AdminConnectionString
             ?? throw new InvalidOperationException(
-                "Ground:LocalPostgres:AdminConnectionString tanımlı değil.");
+                "Ground:LocalPostgres:AdminConnectionString is not configured.");
 
         await using var connection = new NpgsqlConnection(admin);
         await connection.OpenAsync(ct);

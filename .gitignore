@@ -156,6 +156,9 @@ docker-compose.local.yml
 !UI_UX_PRODUCT_AUDIT.md
 !VERCEL_DESIGN_ADAPTATION.md
 !Vercel-Inspired UI-UX Analysis & Project Adaptation Task.md
+# Ne bittigini ve neyin KANITLANDIGINI ayiran durum belgesi -- devir teslimin
+# kendisi, bu yuzden depoda olmali.
+!DURUM.md
 
 # Ajan araci yapilandirmasi -- gelistiricinin kendi makinesine ait, urune ait
 # degil. Depoda durmasi, kullanilan araci herkese duyurmaktan baska bir sey

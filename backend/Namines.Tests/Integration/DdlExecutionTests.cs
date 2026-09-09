@@ -45,10 +45,10 @@ public class DdlExecutionTests
             new PostgreSqlBuilder("postgres:17-alpine").Build();
 
         public Task InitializeAsync() =>
-            DockerAvailable.Value ? _container.StartAsync() : Task.CompletedTask;
+            EngineAvailable.For(DatabaseType.PostgreSQL) ? _container.StartAsync() : Task.CompletedTask;
 
         public Task DisposeAsync() =>
-            DockerAvailable.Value ? _container.DisposeAsync().AsTask() : Task.CompletedTask;
+            EngineAvailable.For(DatabaseType.PostgreSQL) ? _container.DisposeAsync().AsTask() : Task.CompletedTask;
 
         public static TheoryData<string> Fixtures()
         {
@@ -143,11 +143,15 @@ public class DdlExecutionTests
         private readonly MsSqlContainer _container =
             new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
 
+        // EngineAvailable, DockerAvailable'dan DAHA DAR: Docker çalışıyor olsa
+        // bile makine bu motoru barındıramıyorsa konteyner ayağa kalkmıyor ve
+        // FIXTURE hatası bütün teoriyi kırmızıya çeviriyordu — öznitelikteki
+        // atlama tek başına yetmiyor, çünkü InitializeAsync ondan ÖNCE koşuyor.
         public Task InitializeAsync() =>
-            DockerAvailable.Value ? _container.StartAsync() : Task.CompletedTask;
+            EngineAvailable.For(DatabaseType.MSSQL) ? _container.StartAsync() : Task.CompletedTask;
 
         public Task DisposeAsync() =>
-            DockerAvailable.Value ? _container.DisposeAsync().AsTask() : Task.CompletedTask;
+            EngineAvailable.For(DatabaseType.MSSQL) ? _container.DisposeAsync().AsTask() : Task.CompletedTask;
 
         public static TheoryData<string> Fixtures()
         {
@@ -156,7 +160,7 @@ public class DdlExecutionTests
             return data;
         }
 
-        [RequiresDockerTheory]
+        [RequiresEngineTheory(DatabaseType.MSSQL)]
         [MemberData(nameof(Fixtures))]
         public async Task Generated_ddl_executes(string fixtureName)
         {
@@ -191,7 +195,7 @@ public class DdlExecutionTests
         /// Bu test iddiayı kanıta çevirir: eski davranışı (her FK'ya CASCADE) yeniden
         /// üretip gerçek SQL Server'a gönderir ve Msg 1785 aldığını doğrular.
         /// </summary>
-        [RequiresDockerFact]
+        [RequiresEngineFact(DatabaseType.MSSQL)]
         public async Task Cascade_on_every_fk_is_rejected_with_msg_1785()
         {
             var schema = SchemaFixtures.MultiCascadePath();
@@ -217,7 +221,7 @@ public class DdlExecutionTests
         }
 
         /// <summary>Aynı şema, YENİ varsayılanla (NO ACTION) sorunsuz çalışmalı.</summary>
-        [RequiresDockerFact]
+        [RequiresEngineFact(DatabaseType.MSSQL)]
         public async Task Same_schema_with_default_no_action_succeeds()
         {
             var ddl = Ddl(SchemaFixtures.MultiCascadePath(), DatabaseType.MSSQL);
@@ -248,10 +252,10 @@ public class DdlExecutionTests
             new MySqlBuilder("mysql:8.4").Build();
 
         public Task InitializeAsync() =>
-            DockerAvailable.Value ? _container.StartAsync() : Task.CompletedTask;
+            EngineAvailable.For(DatabaseType.MySQL) ? _container.StartAsync() : Task.CompletedTask;
 
         public Task DisposeAsync() =>
-            DockerAvailable.Value ? _container.DisposeAsync().AsTask() : Task.CompletedTask;
+            EngineAvailable.For(DatabaseType.MySQL) ? _container.DisposeAsync().AsTask() : Task.CompletedTask;
 
         public static TheoryData<string> Fixtures()
         {
@@ -260,7 +264,7 @@ public class DdlExecutionTests
             return data;
         }
 
-        [RequiresDockerTheory]
+        [RequiresEngineTheory(DatabaseType.MySQL)]
         [MemberData(nameof(Fixtures))]
         public async Task Generated_ddl_executes(string fixtureName)
         {

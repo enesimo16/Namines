@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { type DeskSession } from '../lib/api';
+import { formatSize } from '../lib/format';
 import {
-  vaultApi, VaultError, formatSize, formatDuration,
+  vaultApi, VaultError, formatDuration,
   type VaultBackup, type VaultRestore, type VaultSchedule, type VaultHealth,
 } from '../lib/vault';
 import PageHead from './PageHead';

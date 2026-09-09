@@ -39,10 +39,10 @@ public sealed class NeonProvider : IDatabaseProvider
         SupportsRegionChoice: true,
         IsLiveVerified: false,
         ResponsibilityNote:
-            "Veritabanı Neon'da açılır ve Neon tarafından işletilir. " +
-            "DİKKAT: Bu sağlayıcı henüz canlı bir Neon hesabına karşı " +
-            "denenmedi — üretim verisiyle kullanmadan önce kendi hesabınızda " +
-            "doğrulayın.");
+            "The database is created on Neon and operated by Neon. " +
+            "WARNING: this provider has not yet been exercised against a live Neon " +
+            "account — verify it on your own account before trusting it with " +
+            "production data.");
 
     public Task<string?> ProbeAsync(CancellationToken ct) => _client.ProbeAsync(ct);
 

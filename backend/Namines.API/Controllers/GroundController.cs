@@ -93,6 +93,31 @@ public class GroundController : ControllerBase
     }
 
     /// <summary>
+    /// Kaynağın kullanım ölçümleri.
+    ///
+    /// <b>Ayrı bir uç</b>, kaydın içinde değil: ölçüm sağlayıcıya gidip
+    /// gerçek bir sorgu çalıştırıyor. Kayıt okunan her yerde bunu yapmak,
+    /// proje listesini açmayı sağlayıcı çağrısına bağımlı kılardı.
+    /// </summary>
+    [HttpGet("{projectId}/metrics")]
+    public async Task<IActionResult> Metrics(string projectId, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (userId is null) return Unauthorized();
+        if (!await _context.CanViewAsync(projectId, userId, ct)) return Forbid();
+
+        var record = await _context.GroundDatabases
+            .FirstOrDefaultAsync(g => g.ProjectId == projectId, ct);
+        if (record is null) return NotFound();
+
+        var metrics = await _ground.GetMetricsAsync(record, ct);
+
+        // null "bilinmiyor" demek ve arayuz onu "—" gosteriyor; sifira
+        // cevirmek "olculdu ve sifir cikti" olurdu.
+        return Ok(new { storageBytes = metrics.StorageBytes, activeConnections = metrics.ActiveConnections });
+    }
+
+    /// <summary>
     /// Projeye yönetilen bir veritabanı açar.
     ///
     /// <b>Owner şartı:</b> barındırılan ve faturalanan bir kaynak açmak, Desk'in
@@ -108,7 +133,7 @@ public class GroundController : ControllerBase
 
         var provider = _ground.FindProvider(request?.Provider ?? string.Empty);
         if (provider is null)
-            return BadRequest(new { error = "Böyle bir sağlayıcı yok." });
+            return BadRequest(new { error = "No such provider." });
 
         if (await provider.ProbeAsync(ct) is { } problem)
             return BadRequest(new { error = problem });
@@ -122,8 +147,8 @@ public class GroundController : ControllerBase
         if (!alreadyManaged && !string.IsNullOrWhiteSpace(project.EncryptedConnectionString))
             return BadRequest(new
             {
-                error = "Bu projede zaten bir veritabanı bağlantısı var. Yönetilen bir " +
-                        "veritabanı açmak onun yerini alırdı; önce mevcut bağlantıyı kaldırın.",
+                error = "This project already has a database connection. Provisioning a managed " +
+                        "database would replace it; remove the existing connection first.",
             });
 
         var result = await _ground.ProvisionAsync(project, userId, provider, ct);
@@ -147,7 +172,7 @@ public class GroundController : ControllerBase
         if (project is null) return NotFound();
 
         if (!string.Equals(request?.ConfirmProjectName?.Trim(), project.Name, StringComparison.Ordinal))
-            return BadRequest(new { error = $"Onaylamak için proje adını birebir yazın ({project.Name})." });
+            return BadRequest(new { error = $"Type the project name exactly ({project.Name}) to confirm." });
 
         var record = await _context.GroundDatabases
             .FirstOrDefaultAsync(g => g.ProjectId == projectId, ct);
@@ -173,7 +198,7 @@ public class GroundController : ControllerBase
 
         var provider = _ground.FindProvider(record.Provider);
         if (provider is null)
-            return BadRequest(new { error = $"'{record.Provider}' sağlayıcısı artık kayıtlı değil." });
+            return BadRequest(new { error = $"The '{record.Provider}' provider is no longer registered." });
 
         var result = await _ground.CancelDeleteAsync(record, provider, ct);
         return result.Ok
