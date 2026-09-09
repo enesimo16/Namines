@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MODÜL SINIRI, DERLEYİCİ TARAFINDAN ZORLANIYOR.
+         Burada YALNIZCA Namines.Core var; Namines.Infrastructure referansı
+         BİLİNÇLİ OLARAK YOK (namines-ground/01-INSA-PLANI.md §G0).
+
+         Ayrı bir csproj olmasının sebebi tam olarak bu: Infrastructure'ın iç
+         tiplerine yanlışlıkla bağlanmak bir derleme HATASI olsun, yalnızca
+         bir disiplin meselesi değil. Ground'un veritabanına yazması gereken
+         yerler (kayıt, kota) Infrastructure'daki GroundService'in işi. -->
+    <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Npgsql: LocalPostgresProvider gerçek CREATE DATABASE / CREATE ROLE
+         çalıştırıyor. Neon tarafında HTTP dışında bir bağımlılık yok —
+         NeonClient IHttpClientFactory ile besleniyor. -->
+    <PackageReference Include="Npgsql" Version="8.0.5" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Namines.Tests" />
+  </ItemGroup>
+
+</Project>

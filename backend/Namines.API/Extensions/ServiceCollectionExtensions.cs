@@ -14,6 +14,7 @@ using Namines.Infrastructure.Generators.DocumentationGenerator;
 using Namines.Infrastructure.Realtime;
 using Namines.Infrastructure.Services;
 using Namines.Vault.DependencyInjection;
+using Namines.Ground.DependencyInjection;
 using Namines.API.Services;
 using StackExchange.Redis;
 
@@ -121,6 +122,13 @@ public static class ServiceCollectionExtensions
         // veritabanına dokunduğu için scoped.
         services.AddNaminesVault();
         services.AddScoped<VaultService>();
+
+        // Namines Ground -- yonetilen veritabani.
+        services.AddNaminesGround();
+        services.AddScoped<GroundService>();
+
+        // Bekleme penceresi dolan yonetilen veritabanlarini kalici olarak siler.
+        services.AddHostedService<GroundPurgeBackgroundService>();
 
         // Zamanlanmis yedekler (V4). Kapali bir zamanlamasi olan proje icin
         // hicbir sey yapmaz; acilista tek bir sorgudan ibaret.
