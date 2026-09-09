@@ -58,6 +58,14 @@ export interface GroundDatabase {
 export interface GroundMetrics {
   storageBytes: number | null;
   activeConnections: number | null;
+  /**
+   * Plan eşiği aşıldıysa gösterilecek uyarı; yoksa null.
+   *
+   * Yalnızca UYARI — veritabanı hiçbir şekilde kısıtlanmıyor. PostgreSQL'de
+   * bir veritabanının yazmasını boyuta göre durdurmanın standart bir yolu
+   * yok; olanı (rolden yetki almak) kullanıcının uygulamasını kırardı.
+   */
+  storageWarning: string | null;
 }
 
 export class GroundError extends Error {

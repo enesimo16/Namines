@@ -65,6 +65,17 @@ public enum PlanTier
 /// demek. Ücretsiz katmanda birkaç tanesi "gör ve anla"ya yeter; mikroservis
 /// filosunu haritalamak ödeyen kullanıcının işi.
 /// </param>
+/// <param name="ManagedDatabaseStorageWarningBytes">
+/// Namines Ground'un kendi barındırdığı (LocalPostgres) bir veritabanı bu
+/// boyutu aşarsa kullanıcıya UYARI gösterilir. -1 = uyarı yok.
+///
+/// <b>Bilerek yalnızca uyarı, kısıtlama değil</b> — PostgreSQL'de bir
+/// veritabanının yazmasını disk boyutuna göre durdurmanın standart bir yolu
+/// yok; olan yol (rolden yazma yetkisini geri almak) kullanıcının
+/// UYGULAMASINI kırar, sessizce başarısız isteklere yol açar. Ölçülmeden
+/// otomatik bir kısıtlama koymak, yanlış anda kullanıcının verisine
+/// erişimini kesme riskini taşırdı. Uyarı, kısıtlamadan önceki dürüst adım.
+/// </param>
 public sealed record PlanLimits(
     int BranchDatabases,
     int EphemeralRunsPerDay,
@@ -73,7 +84,8 @@ public sealed record PlanLimits(
     int GatewayRequestsPerMinute = 60,
     int TeamSeats = 1,
     int CrossDatabaseRelations = 3,
-    int ManagedDatabases = 0);
+    int ManagedDatabases = 0,
+    long ManagedDatabaseStorageWarningBytes = -1);
 
 /// <summary>
 /// Plan başına kaynak sınırları.
@@ -102,12 +114,19 @@ public static class PlanQuotas
             BranchDatabases: 0, EphemeralRunsPerDay: 3, ByodbConnections: 1,
             DailyAiTokens: 20_000, GatewayRequestsPerMinute: 60, TeamSeats: 1,
             CrossDatabaseRelations: 3,
-            // Namines Ground: ucretsiz katmanda BIZIM actigimiz yonetilen
-            // veritabani yok -- her biri gercek ve surekli bir maliyet
-            // (BranchDatabases: 0 ile birebir ayni gerekce). Kullanicinin
-            // KENDI sunucusunu baglamasi ise her planda serbest; kota yalnizca
-            // bizim actigimiz kaynaga ait.
-            ManagedDatabases: 0),
+            // Namines Ground: ucretsiz kullaniciya bile KENDI barindirdigimiz
+            // (LocalPostgres) bir veritabani icin ZEMIN -- Ground'un kendisi
+            // Supabase gibi bir sey olmak icin var; bunu Free'de tamamen
+            // kapatmak Ground'u yalnizca odeyen kullanicinin gordugu bir
+            // ozellige indirger. 1: BranchDatabases: 0'in aksine bu bizim
+            // isletmedigimiz gecici bir container degil, tek bir kalici
+            // veritabani -- maliyeti bir ekleme sorgusu kadar dusuk.
+            ManagedDatabases: 1,
+            // 500 MB: gercek bir deneme/kucuk proje icin yeterli, sunucu
+            // diskini tek bir ucretsiz kullanicinin doldurmasina izin
+            // vermeyecek kadar dar. Kisitlama degil UYARI -- bkz. yukaridaki
+            // parametre yorumu.
+            ManagedDatabaseStorageWarningBytes: 500L * 1024 * 1024),
 
         // Pro sınırsız DEĞİL: AI gerçek para harcıyor, "sınırsız" demek tek bir
         // kullanıcının aylık ücretinin kat kat üstünde fatura üretebilmesi demek.

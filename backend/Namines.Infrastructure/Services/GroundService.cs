@@ -313,6 +313,39 @@ public class GroundService
     }
 
     /// <summary>
+    /// Boyut planın uyarı eşiğini aşmış mı — aşmışsa kullanıcıya gösterilecek
+    /// mesaj, aşmamışsa (ya da plan uyarı tanımlamıyorsa) null.
+    ///
+    /// <b>Yalnızca UYARI, kısıtlama değil</b> (<c>PlanLimits.ManagedDatabaseStorageWarningBytes</c>'in
+    /// kendi yorumu): PostgreSQL'de bir veritabanının yazmasını disk boyutuna
+    /// göre durdurmanın standart bir yolu yok; olan yol kullanıcının
+    /// uygulamasını kırardı. Bu yüzden burada hiçbir şey KAPATILMIYOR — yalnızca
+    /// log'a ve arayüze bir mesaj düşüyor.
+    /// </summary>
+    public async Task<string?> GetStorageWarningAsync(
+        GroundDatabase record, DatabaseMetrics metrics, CancellationToken ct)
+    {
+        if (metrics.StorageBytes is not { } bytes) return null;
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == record.CreatedByUserId, ct);
+        if (user is null) return null;
+
+        var tier = PlanQuotas.Resolve(user.SubscriptionStatus, user.PlanCode, user.IsDev);
+        var threshold = PlanQuotas.For(tier).ManagedDatabaseStorageWarningBytes;
+
+        if (threshold <= 0 || bytes < threshold) return null;
+
+        // Operatör tarafında da görünsün: kullanıcı ekranı hiç açmazsa bile
+        // bu, sunucu diskinin kimin yüzünden büyüdüğünü gösteren tek iz olur.
+        _logger.LogWarning(
+            "Ground: {ProjectId} {Bytes} bayta ulaşti, plan esigi {Threshold} bayt.",
+            record.ProjectId, bytes, threshold);
+
+        return $"This database has grown past the {threshold / 1024 / 1024} MB guideline for your plan. " +
+               "It keeps working — nothing is restricted — but consider upgrading or trimming data.";
+    }
+
+    /// <summary>
     /// Plan kotası. Aşılmışsa kullanıcıya gösterilecek mesaj, aşılmamışsa null.
     /// </summary>
     private async Task<string?> IsQuotaExceededAsync(

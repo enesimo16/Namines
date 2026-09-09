@@ -46,7 +46,9 @@
 | Silme + geri alma | ✅ | PendingDelete → bağlantı kalktı, veritabanı durdu → geri alma → yeniden bağlanıldı |
 | Kalıcı silme (bekleme penceresi) | ✅ | Pencere 0'a çekildi → veritabanı ve rol sunucudan gitti |
 | Kullanım ölçümleri | ✅ | Gerçek sayılar (7.7 MB, 1 bağlantı) PostgreSQL'den okundu |
-| Plan kotası | 🟡 | Kod ve testi var; kota aşımı senaryosu canlı denenmedi |
+| Plan kotası (sayı) | 🟡 | Kod ve testi var; kota aşımı senaryosu canlı denenmedi |
+| Free plan barındırma hakkı | ✅ | Free artık 0 değil **1** — Ground kendi Supabase'imiz olma iddiasıyla ücretsiz kullanıcıya da zemin veriyor |
+| Boyut uyarısı (Free, 500 MB) | ✅ | Gerçek DB 789 MB'a şişirildi → uyarı geldi (`storageWarning`) → **yazma hâlâ çalışıyor** (kısıtlama yok, yalnızca bilgilendirme) |
 | **Neon sağlayıcısı** | ✅ | **2026-09-09 canlı kanıtlandı.** Provizyon → Namines'in kendi şifreli bağlantısıyla yazılan tablo bağımsız `psql`'de göründü (ve tersi) → idempotans → silme → kalıcı silme sonrası Neon'da proje 404'e düştü |
 | Copy-on-write branch | ❌ | v2 |
 | Çok bölgeli | ❌ | v2 |

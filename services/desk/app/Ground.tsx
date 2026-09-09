@@ -110,6 +110,13 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
         </div>
       )}
 
+      {/* Yalnizca UYARI: veritabani kisitlanmiyor, kapatilmiyor. Kullanici
+          "neden verime erisemiyorum" diye sormaz -- yalnizca "bunu bilmelisin"
+          diyoruz. */}
+      {metrics?.storageWarning && (
+        <div className="notice">{metrics.storageWarning}</div>
+      )}
+
       {database && database.status !== 'Deleted' ? (
         <div className="grid-wrap">
           <table>
