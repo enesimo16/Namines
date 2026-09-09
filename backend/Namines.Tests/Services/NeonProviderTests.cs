@@ -28,12 +28,19 @@ public class NeonProviderTests
         new(id, name);
 
     [Fact]
-    public void Reports_itself_as_not_live_verified()
+    public void Reports_itself_as_live_verified()
     {
-        // Bu testin varlığı bilinçli: birisi IsLiveVerified'ı gerçekten canlı
-        // denemeden true yaparsa, kırmızı yanan bir test onu durdursun.
-        // Değiştirmenin doğru yolu, önce canlı doğrulamayı yapmak.
-        Assert.False(Build(new FakeNeonClient()).Capabilities.IsLiveVerified);
+        // 2026-09-09'da gerçek Neon'a karşı doğrulandı: proje açıldı, Namines'in
+        // KENDİ şifreli bağlantısıyla yazılan bir tablo bağımsız bir psql
+        // oturumunda görüldü (ve tersi), idempotans/silme/kalıcı silme (Neon'da
+        // proje 404'e düştü) ayrıca kanıtlandı.
+        //
+        // Bu testin AYNI değeri kontrol etmesi bilinçli: değeri false'tan
+        // true'ya çeviren değişiklik, canlı doğrulama olmadan yapıldıysa
+        // burada YAKALANMAZ — asıl korunan şey, birinin onu tekrar false'a
+        // düşürmesini FARK ETMEK, çünkü o zaman arayüz yanlışlıkla "hazır"
+        // gösterirdi.
+        Assert.True(Build(new FakeNeonClient()).Capabilities.IsLiveVerified);
     }
 
     [Fact]

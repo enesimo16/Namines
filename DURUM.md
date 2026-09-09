@@ -47,7 +47,7 @@
 | Kalıcı silme (bekleme penceresi) | ✅ | Pencere 0'a çekildi → veritabanı ve rol sunucudan gitti |
 | Kullanım ölçümleri | ✅ | Gerçek sayılar (7.7 MB, 1 bağlantı) PostgreSQL'den okundu |
 | Plan kotası | 🟡 | Kod ve testi var; kota aşımı senaryosu canlı denenmedi |
-| **Neon sağlayıcısı** | ⚪ | **API anahtarı yok.** 7 birim testi sahte istemciyle geçiyor; canlı Neon'a karşı HİÇ çalıştırılmadı ve arayüz bunu "⚠ Canlı denenmedi" diye yazıyor |
+| **Neon sağlayıcısı** | ✅ | **2026-09-09 canlı kanıtlandı.** Provizyon → Namines'in kendi şifreli bağlantısıyla yazılan tablo bağımsız `psql`'de göründü (ve tersi) → idempotans → silme → kalıcı silme sonrası Neon'da proje 404'e düştü |
 | Copy-on-write branch | ❌ | v2 |
 | Çok bölgeli | ❌ | v2 |
 
@@ -111,7 +111,7 @@ CI'da Docker'a yeterli bellek verilmeli — orada atlanan test bir uyarıdır.
 
 | # | Konu | Neden gerekli |
 |---|---|---|
-| 1 | **`NEON_API_KEY`** | Neon sağlayıcısı canlı doğrulanamıyor. Anahtar gelince provizyon → bağımsız `psql` → silme turu koşulacak |
-| 2 | Docker Desktop belleği (≥ 3 GB) | MSSQL'e bağlı testler ve "Run Tests"in MSSQL yolu bu makinede hiç çalışamıyor |
-| 3 | Stripe fiyat kimlikleri | Ödeme akışı yapılandırılmamış |
-| 4 | Üretimde nesne depo bilgileri | `Vault__S3__*` — yoksa yedekler sunucu diskinde kalır |
+| 1 | Docker Desktop belleği (≥ 3 GB) | MSSQL'e bağlı testler ve "Run Tests"in MSSQL yolu bu makinede hiç çalışamıyor |
+| 2 | Stripe fiyat kimlikleri | Ödeme akışı yapılandırılmamış |
+| 3 | Üretimde nesne depo bilgileri | `Vault__S3__*` — yoksa yedekler sunucu diskinde kalır |
+| 4 | Neon organizasyonu — genişleme planlanırsa | Test hesabı bir **organizasyon** anahtarı; başka bir Neon hesabına geçilirse `Ground__Neon__OrgId`'nin de güncellenmesi gerekir (kişisel hesap anahtarında bu alan boş bırakılmalı) |
