@@ -3,9 +3,9 @@
 > ## ✅ DURUM (2026-09-09)
 > | Bulgu | Durum |
 > |---|---|
-> | AUTH-001 Jeton iptali yok | 🟡 **Açık** — `SecurityStamp` claim'i ayrı bir iş |
+> | AUTH-001 Jeton iptali yok | ✅ `sstamp` claim + `SecurityStampValidation` + `POST /auth/revoke-all-sessions` |
 > | AUTH-002 Kaba kuvvet / kilitleme | ✅ Kilitleme açıldı (5 deneme / 15 dk) + login `sensitive` rate limit'e alındı |
-> | AUTH-003 MFA yok | 🟡 Açık — P2 |
+> | AUTH-003 MFA yok | ✅ **TOTP + kurtarma kodları** (10.09.2026, canlı doğrulandı) |
 > | AUTHZ-001 `Billing` enum tuzağı | ✅ `OrgRoleExtensions.IsAtLeast` eklendi, testlerle sabitlendi |
 > | AUTHZ-002 IDOR taraması | ✅ Açık bulunamadı (değişiklik gerekmedi) |
 > | AUTHZ-003 Gateway izin modeli | ✅ Zaten güçlüydü |
@@ -15,12 +15,14 @@
 
 | Öğe | Durum | Konum |
 |---|---|---|
-| Şema | JWT Bearer | `Program.cs:175-206` |
+| Şema | JWT Bearer | `Program.cs` |
+| **MFA** | **TOTP + 8 kurtarma kodu** | `AuthController` `mfa/*` |
+| **Jeton iptali** | **`sstamp` claim'i, 60 sn önbellek** | `SecurityStampValidation.cs` |
 | Jeton taşıyıcı | `Authorization` header **veya** `namines_token` httpOnly cookie | `Program.cs:196-205` |
 | `localStorage`'da JWT | **YOK** — bilinçli | `frontend/store/useAuthStore.ts:74` |
 | Issuer / Audience / Lifetime / Signing key doğrulaması | Dördü de **açık** | `Program.cs:182-190` |
 | Parola hash | ASP.NET Identity (PBKDF2) | `AddEntityFrameworkStores<AuthDbContext>` |
-| Parola politikası | 8 karakter, karmaşıklık kuralı yok | `Program.cs:155-158` |
+| Parola politikası | **12 karakter + HIBP sızdırılmış-parola kontrolü**; karmaşıklık kuralı bilerek yok (NIST 800-63B) | `Program.cs`, `PwnedPasswordValidator.cs` |
 
 **Güçlü yan:** JWT'nin `localStorage`'a yazılmaması ve cookie fallback'i,
 XSS'in doğrudan jeton hırsızlığına dönmesini engelliyor. Bu tercih kodda
@@ -95,6 +97,76 @@ Kayıt/giriş akışında çok faktörlü doğrulama yok. Bir veritabanı yönet
 **Recommendation:** ASP.NET Identity TOTP sağlayıcısı zaten pakette
 (`AddDefaultTokenProviders`). Uç + UI işi.
 **Effort:** M · **Priority:** P2
+
+### ✅ Yapıldı (10.09.2026)
+
+Yeni uçlar — `AuthController`:
+
+| Uç | Ne yapıyor |
+|---|---|
+| `POST /api/auth/mfa/setup` | Anahtar üretir, `otpauth://` URI'si döner. **Etkinleştirmez** |
+| `POST /api/auth/mfa/enable` | Kodu doğrular, açar, **8 kurtarma kodu** döner (bir kez) |
+| `POST /api/auth/mfa/disable` | **Geçerli kod zorunlu** — çalınmış jeton MFA'yı kapatamaz |
+| `GET /api/auth/mfa/status` | Açık mı, kaç kurtarma kodu kaldı |
+
+`login` artık isteğe bağlı `twoFactorCode` alıyor.
+
+#### Alınan tasarım kararları
+
+**Ayrı bir "MFA jetonu" adımı yok.** İki aşamalı akışta sunucu, parolası
+doğrulanmış ama MFA'sı tamamlanmamış kullanıcı için ikinci bir jeton türü
+üretmek zorunda kalır — o jeton da çalınabilir, saklanmalı, süresi
+yönetilmeli. Kodu aynı istekte almak o yüzeyi tamamen ortadan kaldırıyor.
+
+**MFA sorgusu paroladan SONRA.** Önce sorulsaydı, parolayı bilmeyen biri bile
+bir hesapta MFA açık olup olmadığını öğrenirdi — hedef seçmeye yarayan bilgi.
+
+**Yanlış MFA kodu kilitleme sayacına yazılıyor.** Aksi hâlde parolası sızmış
+bir hesapta saldırgan altı haneyi sınırsız deneyebilirdi; bir milyon olasılık +
+sınırsız deneme = kırılmış MFA.
+
+**Kurulum, doğrulanana kadar etkinleştirmiyor.** Doğrulamadan açmak,
+kullanıcıyı kuramadığı bir uygulamaya bağlayıp hesabından kilitleyebilirdi.
+
+**Kapatma geçerli kod istiyor.** Yalnızca oturum yeterli olsaydı MFA kendi
+kendini savunamazdı.
+
+#### ⚠️ Canlı denemede yakalanan gerçek hata
+
+Kurtarma kodları **çalışmıyordu**. Sebep: `NormalizeCode` tireleri siliyordu
+(TOTP için doğru — uygulamalar kodu "123 456" gösteriyor), ama Identity
+kurtarma kodlarını `xxxxx-xxxxx` biçiminde üretip **aynen saklıyor**.
+
+Sonuç, kurtarma kodlarının var olma sebebinin tam tersiydi: **telefonunu
+kaybeden kullanıcı hesabına hiç giremiyordu.**
+
+Birim testleri geçiyordu. Hatayı yalnızca gerçek bir TOTP üretip uçtan uca
+akışı çalıştırmak gösterdi. Düzeltme: TOTP için tam normalleştirme, kurtarma
+kodu için yalnızca `Trim()`.
+
+Regresyon testi: `MfaTests.Kurtarma_kodu_bicimi_NormalizeCode_ile_BOZULUR`.
+
+#### Canlı doğrulama — 12 adım (2026-09-10)
+
+Gerçek TOTP kodu üretilerek (RFC 6238, standart kütüphane, harici bağımlılık yok):
+
+| # | Adım | Sonuç |
+|---|---|---|
+| 1-2 | Kayıt + kurulum | ✅ anahtar ve `otpauth://` URI'si |
+| 3 | Yanlış kodla etkinleştirme | ✅ reddedildi |
+| 4 | Gerçek TOTP ile etkinleştirme | ✅ açıldı, 8 kurtarma kodu |
+| 5 | Kodsuz giriş | ✅ 401 `requiresTwoFactor: true` |
+| 6 | Yanlış kodla giriş | ✅ reddedildi |
+| 7 | Doğru kodla giriş | ✅ jeton |
+| 8 | **Kurtarma koduyla giriş** | ✅ jeton |
+| 9 | Aynı kurtarma kodu ikinci kez | ✅ reddedildi (tek kullanımlık) |
+| 10 | Durum | ✅ açık, **7 kod kaldı** (tüketildiği kanıtı) |
+| 11 | Gerçek kodla kapatma | ✅ |
+| 12 | Kapandıktan sonra kodsuz giriş | ✅ jeton |
+
+**Kalan iş:** arayüz. Uçlar hazır ve doğrulanmış, ama Desk/frontend'de MFA
+kurulum ekranı **yok**. Kullanıcı bugün bu özelliği ancak API'yi doğrudan
+çağırarak kullanabilir.
 
 ---
 

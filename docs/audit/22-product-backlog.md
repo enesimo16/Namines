@@ -72,7 +72,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | B-27 | Security | SSRF: çözülen IP'ye bağlan / egress allowlist | SEC-006 | M |
 | ~~B-28~~ | Security | ✅ 12 karakter yapıldı; **sızdırılmış-parola listesi (HIBP) hâlâ açık** | SEC-007 | S |
 | ~~B-29~~ | Security | ✅ Üç motorda da sınırlayıcı kaçırılıyor + testler | 06 §son | S |
-| B-30 | Security | MFA (TOTP) | F-09 | M |
+| ~~B-30~~ | Security | ✅ TOTP + kurtarma kodları, **12 adım canlı doğrulandı**. ⚠️ Arayüz henüz yok (B-62) | F-09 | M |
 | ~~B-31~~ | Database | ✅ Prod compose'da `migrate` profili + bekleyen migration'da fail-fast | DB-003, TD-007 | M |
 | B-32 | Stability | Optimistic concurrency (`RowVersion`) | REL-003a, TD-009 | M |
 | ~~B-33~~ | Stability | ✅ 3 deneme / 5 sn — **yalnızca** control DB | REL-004 | XS |
@@ -114,10 +114,13 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ID | Kategori | İş | Kaynak | Efor | Öncelik |
 |---|---|---|---|---|---|
 | B-57 | Frontend | 128 eslint hatasını temizle, sonra CI'a `npm run lint` ekle | FE-008 | L | P1 |
-| B-58 | Security | Sızdırılmış-parola (HIBP) kontrolü | SEC-007 | S | P2 |
+| ~~B-58~~ | Security | ✅ HIBP k-anonimlik kontrolü; **canlı doğrulandı** (`Password123456` → 42.513 sızıntı → red) | SEC-007 | S | P2 |
 | B-59 | Testing | `SecurityStampValidation` için entegrasyon testi | B-09 | S | P2 |
 | ~~B-60~~ | Docs | ✅ `.gitignore` yeni belgeleri yutuyordu — `docs/`, `deploy/` açıldı | DOC-005 | XS | P1 |
 | B-61 | Docs | `*.md` yok sayma politikasını tersine çevir (varsayılan: takip et) | DOC-005 | S | P2 |
+| B-62 | UX | **MFA kurulum arayüzü** (QR + kurtarma kodları) — uçlar hazır | AUTH-003 | M | P1 |
+| B-63 | Security | `DockerController.StreamLogs`'a `[Authorize]` + `EventSource withCredentials` — **çözüm hazır, doğrulanmadı** | 29 | XS | P2 |
+| ~~B-23~~ | Architecture | ✅ Refactor yerine **konvansiyon testi**: yetkisiz uç eklenince build kırılıyor | ARCH-002 | S | P1 |
 
 ---
 

@@ -42,4 +42,10 @@
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Saf fonksiyonlarin (or. PwnedPasswordValidator.FindCount) testten
+         cagrilabilmesi icin. Diger modullerde de ayni desen kullaniliyor. -->
+    <InternalsVisibleTo Include="Namines.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -157,6 +157,34 @@ namespace Namines.API.Controllers
                 return Unauthorized(new { Message = "Incorrect email or password." });
             }
 
+            // ── MFA kapısı ────────────────────────────────────────────────
+            //
+            // Parola doğrulandıktan SONRA. Önce sorulsaydı, parolayı bilmeyen
+            // biri bile bir hesapta MFA açık olup olmadığını öğrenirdi — hedef
+            // seçmesine yarayan bir bilgi.
+            if (user.TwoFactorEnabled)
+            {
+                if (string.IsNullOrWhiteSpace(model.TwoFactorCode))
+                {
+                    // Sayaç SIFIRLANMIYOR: parola doğru ama giriş tamamlanmadı.
+                    return Unauthorized(new
+                    {
+                        requiresTwoFactor = true,
+                        Message = "Enter the 6-digit code from your authenticator app.",
+                    });
+                }
+
+                if (!await VerifyTwoFactorAsync(user, model.TwoFactorCode))
+                {
+                    // Yanlış MFA kodu da kilitleme sayacına yazılıyor. Aksi
+                    // hâlde parolası sızmış bir hesapta saldırgan altı haneyi
+                    // sınırsız deneyebilirdi — bir milyon olasılık, sınırsız
+                    // deneme demek kırılmış MFA demek.
+                    await _userManager.AccessFailedAsync(user);
+                    return Unauthorized(new { Message = "Incorrect email or password." });
+                }
+            }
+
             // Başarılı girişte sayaç sıfırlanır; aksi hâlde aylar içinde biriken
             // yanlış denemeler doğru parolayla giren kullanıcıyı kilitlerdi.
             await _userManager.ResetAccessFailedCountAsync(user);
@@ -600,6 +628,187 @@ namespace Namines.API.Controllers
             return Ok(new { Message = "All sessions revoked. Sign in again on every device." });
         }
 
+        // -- Cok faktorlu dogrulama (TOTP) -------------------------------------
+        //
+        // Saglayici ASP.NET Identity'nin kendi authenticator'i
+        // (`AddDefaultTokenProviders` ile zaten kayitli). Ne yeni bir paket ne
+        // de yeni bir tablo gerekti: `TwoFactorEnabled` ve authenticator
+        // anahtari IdentityUser'da hazir duruyordu.
+
+        /// <summary>Kurtarma kodu sayisi -- telefon kaybedildiginde tek cikis yolu.</summary>
+        private const int RecoveryCodeCount = 8;
+
+        /// <summary>
+        /// MFA kurulumunu baslatir: paylasilan anahtari ve QR icin `otpauth://`
+        /// URI'sini dondurur. <b>Henuz ETKINLESTIRMEZ</b> -- kullanici bir kod
+        /// uretip dogrulayana kadar hesap eskisi gibi calisir.
+        ///
+        /// Bu ayrim onemli: dogrulamadan etkinlestirmek, kullaniciyi kuramadigi
+        /// bir uygulamaya bagimli hale getirip hesabindan kilitleyebilirdi.
+        /// </summary>
+        [Authorize]
+        [HttpPost("mfa/setup")]
+        public async Task<IActionResult> StartMfaSetup()
+        {
+            var user = await GetCurrentUserAsync();
+            if (user is null) return Unauthorized();
+
+            if (user.TwoFactorEnabled)
+                return BadRequest(new { Message = "Two-factor authentication is already enabled." });
+
+            // Her kurulum denemesinde YENI anahtar: yarim kalmis bir kurulumun
+            // anahtari, kullanicinin telefonunda kalip sonraki kurulumla
+            // cakisabilirdi.
+            await _userManager.ResetAuthenticatorKeyAsync(user);
+            var key = await _userManager.GetAuthenticatorKeyAsync(user);
+
+            if (string.IsNullOrEmpty(key))
+                return StatusCode(500, new { Message = "Could not generate an authenticator key." });
+
+            return Ok(new
+            {
+                sharedKey = FormatAuthenticatorKey(key),
+                // otpauth:// bicimi tum kimlik dogrulayici uygulamalarinin ortak dili.
+                otpauthUri = BuildOtpauthUri(user.Email ?? user.UserName ?? "user", key),
+            });
+        }
+
+        /// <summary>
+        /// Kurulumu tamamlar: kullanicinin urettigi kod dogrulanirsa MFA acilir
+        /// ve kurtarma kodlari <b>bir kez</b> gosterilir.
+        /// </summary>
+        [Authorize]
+        [HttpPost("mfa/enable")]
+        public async Task<IActionResult> EnableMfa([FromBody] MfaCodeRequest request)
+        {
+            var user = await GetCurrentUserAsync();
+            if (user is null) return Unauthorized();
+
+            if (user.TwoFactorEnabled)
+                return BadRequest(new { Message = "Two-factor authentication is already enabled." });
+
+            var code = NormalizeCode(request.Code);
+            var valid = await _userManager.VerifyTwoFactorTokenAsync(
+                user, _userManager.Options.Tokens.AuthenticatorTokenProvider, code);
+
+            if (!valid)
+                return BadRequest(new { Message = "That code is not valid. Check your device clock and try again." });
+
+            await _userManager.SetTwoFactorEnabledAsync(user, true);
+
+            // Kurtarma kodlari OLMADAN MFA acmak, telefonunu kaybeden
+            // kullaniciyi hesabindan kalici olarak kilitlemek demek.
+            var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, RecoveryCodeCount);
+
+            return Ok(new
+            {
+                Message = "Two-factor authentication is on. Save these recovery codes -- they are shown only once.",
+                recoveryCodes,
+            });
+        }
+
+        /// <summary>
+        /// MFA'yi kapatir. <b>Gecerli bir kod ZORUNLU</b> -- yalnizca oturum
+        /// yeterli olsaydi, calinmis bir jeton MFA'yi kapatip korumayi ortadan
+        /// kaldirirdi; yani MFA kendi kendini savunamazdi.
+        /// </summary>
+        [Authorize]
+        [HttpPost("mfa/disable")]
+        public async Task<IActionResult> DisableMfa([FromBody] MfaCodeRequest request)
+        {
+            var user = await GetCurrentUserAsync();
+            if (user is null) return Unauthorized();
+
+            if (!user.TwoFactorEnabled)
+                return BadRequest(new { Message = "Two-factor authentication is not enabled." });
+
+            if (!await VerifyTwoFactorAsync(user, request.Code))
+            {
+                await _userManager.AccessFailedAsync(user);
+                return BadRequest(new { Message = "That code is not valid." });
+            }
+
+            await _userManager.SetTwoFactorEnabledAsync(user, false);
+            await _userManager.ResetAuthenticatorKeyAsync(user);
+
+            return Ok(new { Message = "Two-factor authentication is off." });
+        }
+
+        /// <summary>MFA durumu -- arayuzun ne gosterecegine karar vermesi icin.</summary>
+        [Authorize]
+        [HttpGet("mfa/status")]
+        public async Task<IActionResult> MfaStatus()
+        {
+            var user = await GetCurrentUserAsync();
+            if (user is null) return Unauthorized();
+
+            return Ok(new
+            {
+                enabled = user.TwoFactorEnabled,
+                recoveryCodesLeft = user.TwoFactorEnabled
+                    ? await _userManager.CountRecoveryCodesAsync(user)
+                    : 0,
+            });
+        }
+
+        /// <summary>
+        /// Kodu dogrular. Once TOTP, olmazsa kurtarma kodu denenir.
+        ///
+        /// Kurtarma kodu <b>tek kullanimlik</b>: Identity onu dogrular dogrulamaz
+        /// listeden siliyor. Bu yuzden siralama onemli -- TOTP once denenmezse,
+        /// normal bir giris kurtarma kodlarini tuketebilirdi.
+        /// </summary>
+        private async Task<bool> VerifyTwoFactorAsync(ApplicationUser user, string? code)
+        {
+            if (string.IsNullOrWhiteSpace(code)) return false;
+
+            // TOTP icin bosluk VE tire temizleniyor: kimlik dogrulayici
+            // uygulamalari kodu "123 456" diye gosteriyor.
+            var totpCode = NormalizeCode(code);
+            if (totpCode.Length > 0 && await _userManager.VerifyTwoFactorTokenAsync(
+                    user, _userManager.Options.Tokens.AuthenticatorTokenProvider, totpCode))
+                return true;
+
+            // Kurtarma kodu icin YALNIZCA bosluk temizleniyor -- TIRE KORUNUYOR.
+            //
+            // Identity kurtarma kodlarini "xxxxx-xxxxx" bicimde uretip AYNEN
+            // sakliyor. Tireyi silmek, dogru kodu yanlis gosteriyordu: canli
+            // denemede kullanici kurtarma koduyla giris YAPAMIYORDU -- yani
+            // telefonunu kaybedeni hesabindan kilitleyen, tam da kurtarma
+            // kodlarinin onlemek icin var oldugu durum.
+            var recoveryCode = code.Trim();
+            var recovery = await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, recoveryCode);
+            return recovery.Succeeded;
+        }
+
+        private async Task<ApplicationUser?> GetCurrentUserAsync()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return userId is null ? null : await _userManager.FindByIdAsync(userId);
+        }
+
+        /// <summary>
+        /// Kimlik dogrulayici uygulamalari kodu bosluklu gosterir ("123 456");
+        /// kullanici kopyalayip yapistirdiginda bosluk gelir. Temizlenmezse
+        /// dogru kod yanlis sayilirdi.
+        /// </summary>
+        internal static string NormalizeCode(string? code) =>
+            code?.Replace(" ", string.Empty).Replace("-", string.Empty).Trim() ?? string.Empty;
+
+        /// <summary>Anahtari elle girilebilir hale getirir: dorderli gruplar.</summary>
+        internal static string FormatAuthenticatorKey(string key)
+        {
+            var result = new StringBuilder();
+            for (var i = 0; i < key.Length; i += 4)
+                result.Append(key, i, Math.Min(4, key.Length - i)).Append(' ');
+
+            return result.ToString().TrimEnd().ToLowerInvariant();
+        }
+
+        internal static string BuildOtpauthUri(string account, string key) =>
+            $"otpauth://totp/Namines:{Uri.EscapeDataString(account)}" +
+            $"?secret={key}&issuer=Namines&digits=6";
+
         private string GenerateJwtToken(ApplicationUser user)
         {
             var claims = new List<Claim>
@@ -658,9 +867,25 @@ namespace Namines.API.Controllers
     {
         public string Email { get; set; } = null!;
         public string Password { get; set; } = null!;
+
+        /// <summary>
+        /// Kimlik doğrulayıcı uygulamasından gelen 6 haneli kod ya da bir
+        /// kurtarma kodu. Yalnızca hesapta MFA açıksa gerekli.
+        ///
+        /// <b>Ayrı bir "MFA jetonu" adımı BİLEREK yok.</b> İki aşamalı akışta
+        /// sunucu, parolası doğrulanmış ama MFA'sı tamamlanmamış kullanıcı için
+        /// ikinci bir jeton türü üretmek zorunda kalır — ve o jeton da
+        /// çalınabilir, saklanmalı, süresi yönetilmeli. Kodu aynı istekte
+        /// almak o yüzeyi tamamen ortadan kaldırıyor: istemci ilk denemede
+        /// `requiresTwoFactor` cevabını alıp kodu ekleyerek tekrar deniyor.
+        /// </summary>
+        public string? TwoFactorCode { get; set; }
     }
 
     public sealed record DeskHandoffExchangeRequest(string Token);
+
+    /// <param name="Code">6 haneli TOTP kodu ya da bir kurtarma kodu.</param>
+    public sealed record MfaCodeRequest(string? Code);
 
     public class SyncProjectDto
     {
