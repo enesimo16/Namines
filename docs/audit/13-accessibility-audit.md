@@ -143,9 +143,80 @@ Bu, sıfırdan bir çözüm geliştirmeden uyum argümanı kazandırır.
 
 Aşağıdakiler bu oturumda **yapılamadı** ve yapılmalı:
 
+### ✅ Renk kontrastı ÖLÇÜLDÜ (10.09.2026) — B-42 kısmen
+
+Ölçüm tarayıcıda, `oklch()` → lineer sRGB → WCAG bağıl parlaklık dönüşümüyle
+yapıldı. **Yöntem doğrulandı:** siyah/beyaz için 21.00:1 döndürüyor.
+
+> **İlk denemem yanlıştı ve 717 "hata" üretti.** Palet Tailwind 4 ile
+> `oklch()` kullanıyor; benim ayrıştırıcım `rgb()` varsayıyordu ve
+> `oklch(0.95 0.004 250)` değerlerini RGB sanıp neredeyse her öğe için
+> 1.00:1 hesaplıyordu. Ekran-okuyucu-özel metinler de sayıma girmişti.
+> Bu sayı **hiç rapor edilmedi** — dönüşüm düzeltilip yöntem bilinen
+> değerlerle sınandıktan sonra ölçüm tekrarlandı.
+
+#### İki SİSTEMİK hata bulundu ve düzeltildi
+
+**1) Açık temada semantik metin token'ları BEYAZ oluyordu** (ciddi)
+
+Açık tema `--ui-bg-l`'yi %98.5 yapıyor, ama semantik metin token'larını
+override etmiyordu. O token'lar koyu tema için yazılmış formülü kullanıyor:
+
+```
+--success-text: oklch(calc(var(--ui-bg-l) + 55%) …)
+   %98.5 + %55 = %153.5  →  kırpılır  →  oklch(100%) = BEYAZ
+```
+
+Yani açık temada beyaza yakın yüzey üstünde **beyaz metin**. Ölçülen:
+
+| Token | Önce | Sonra | En koyu açık yüzeyde (`--surface-600`) |
+|---|---|---|---|
+| `--success-text` | **1.07:1** | **7.36:1** | 4.55:1 ✅ |
+| `--danger-text` | **1.01:1** | **7.38:1** | 4.56:1 ✅ |
+
+**135 çağrı noktası** etkileniyordu (`text-success-text`, `text-danger-text`).
+Düzeltme: açık temaya mutlak değerli override eklendi (`globals.css`).
+"+%55" formülü zemin koyu olduğunda doğru; açık temada metnin
+**koyulaşması** gerekiyor.
+
+**2) Zemin token'ları METİN olarak kullanılıyordu**
+
+| Sorun | Ölçülen | Doğru token | Ölçülen |
+|---|---|---|---|
+| `text-success` (L=%52, bir ZEMİN tonu) | 3.47:1 | `text-success-text` | 7.02:1 |
+| `bg-accent` + `text-surface-900` | 3.15:1 | `bg-accent` + `text-accent-on` | 6.25:1 |
+
+İkincisi **yalnızca koyu temada** hatalıydı: `--surface-900` temayla dönüyor
+(koyu temada neredeyse siyah), aksan dönmüyor. Açık temada aynı sınıf
+6.40:1 veriyordu — bu yüzden hata tek temada görünüyor ve kolayca gözden
+kaçıyordu. Çözüm: temayla DÖNMEYEN yeni bir `--accent-on` token'ı
+(beyaza yakın; aksan her iki temada da orta-koyu olduğu için ikisinde de
+geçiyor).
+
+38 + 14 = **52 çağrı noktası** düzeltildi.
+
+#### Ölçüm sonucu
+
+| Sayfa | Tema | Ölçülen öğe | Başarısız |
+|---|---|---|---|
+| `/canvas` | koyu | 426 | **0** ✅ |
+| `/security` | koyu | 82 | **0** ✅ |
+| `/new` | koyu | 7 | **0** ✅ |
+| `/` (açılış) | koyu | 296 | **0** ✅ (düzeltmeden önce 10) |
+| `/` (açılış) | **açık** | 300 | **78** ❌ |
+
+#### Açık kalan: açılış sayfası AÇIK TEMA (78 hata)
+
+Baskın sebep `--namines-gradient-headline`: %78-84 açıklıkta oklch tonları,
+koyu zemin için tasarlanmış. Açık temada başlıklar 1.59-1.69:1'e düşüyor.
+Bu bir token yanlışı değil, **açılış sayfasının açık temada hiç
+tasarlanmamış** olması — ayrı bir tasarım işi, tek satırlık düzeltmesi yok.
+
+### Hâlâ DENETLENMEYEN kontroller
+
 | Kontrol | Nasıl | Süre |
 |---|---|---|
-| Renk kontrastı (WCAG AA 4.5:1) | Lighthouse / axe DevTools | 1 saat |
+
 | Klavye ile tam gezinme | Elle: sadece Tab/Enter/Esc | 2 saat |
 | Odak görünürlüğü (`:focus-visible`) | Elle + CSS taraması | 1 saat |
 | Ekran okuyucu ile ana akış | NVDA / VoiceOver | Yarım gün |

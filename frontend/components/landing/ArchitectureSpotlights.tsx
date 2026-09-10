@@ -97,15 +97,15 @@ export default function ArchitectureSpotlights() {
           </p>
           <ul className="flex flex-col gap-2 mt-2 text-xs font-mono text-content-secondary">
             <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-success-text shrink-0" />
               <span>Zero orphaned foreign key definitions</span>
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-success-text shrink-0" />
               <span>Automated indexing recommendation for query filters</span>
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-success-text shrink-0" />
               <span>Cross-engine type compatibility guarantees</span>
             </li>
           </ul>
@@ -131,7 +131,7 @@ export default function ArchitectureSpotlights() {
             <div className="flex flex-col gap-3 font-mono text-xs">
               {/* Finding 1 */}
               <div className="rounded-[var(--radius-card)] border border-surface-500/80 bg-surface-800/80 p-3.5 flex items-start gap-3">
-                <span className="px-1.5 py-0.5 rounded-[var(--radius-control)] text-[10px] font-bold bg-success/20 text-success shrink-0 mt-0.5">
+                <span className="px-1.5 py-0.5 rounded-[var(--radius-control)] text-[10px] font-bold bg-success/20 text-success-text shrink-0 mt-0.5">
                   OPTIMAL
                 </span>
                 <div className="flex flex-col gap-1">
@@ -188,12 +188,12 @@ export default function ArchitectureSpotlights() {
               <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2.5 flex flex-col gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 1</span>
                 <span className="font-bold text-content-primary">AST Diff</span>
-                <span className="text-[10px] text-success">Passed</span>
+                <span className="text-[10px] text-success-text">Passed</span>
               </div>
               <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2.5 flex flex-col gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 2</span>
                 <span className="font-bold text-content-primary">Ephemeral Docker</span>
-                <span className="text-[10px] text-success">Verified DDL</span>
+                <span className="text-[10px] text-success-text">Verified DDL</span>
               </div>
               <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2.5 flex flex-col gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 3</span>
@@ -206,12 +206,12 @@ export default function ArchitectureSpotlights() {
             <div className="rounded-[var(--radius-card)] border border-surface-500/80 bg-surface-800/80 p-4 font-mono text-xs flex flex-col gap-2">
               <div className="flex items-center justify-between text-[11px] text-content-subtle pb-2 border-b border-surface-500/50">
                 <span>migrations/20260907_add_orders_currency.sql</span>
-                <span className="text-success font-bold">+2 lines</span>
+                <span className="text-success-text font-bold">+2 lines</span>
               </div>
-              <div className="text-success leading-relaxed">
+              <div className="text-success-text leading-relaxed">
                 + ALTER TABLE &quot;orders&quot; ADD COLUMN IF NOT EXISTS &quot;currency&quot; varchar(3) DEFAULT &apos;USD&apos;;
               </div>
-              <div className="text-success leading-relaxed">
+              <div className="text-success-text leading-relaxed">
                 + CREATE INDEX CONCURRENTLY IF NOT EXISTS &quot;idx_orders_currency&quot; ON &quot;orders&quot; (&quot;currency&quot;);
               </div>
               <div className="text-content-subtle text-[11px] pt-1">
@@ -234,7 +234,7 @@ export default function ArchitectureSpotlights() {
               <span>Pre-execution dry run on ephemeral Docker containers</span>
             </div>
             <div className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-4 h-4 text-success-text shrink-0 mt-0.5" />
               <span>Zero-lock DDL: CONCURRENTLY and lock-timeout guards applied</span>
             </div>
           </div>
@@ -332,7 +332,7 @@ export default function ArchitectureSpotlights() {
             <div className="rounded-[var(--radius-card)] border border-surface-500/80 bg-surface-800/50 p-4 font-mono text-xs flex flex-col gap-2">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-content-muted">Production Catalog AST Sync:</span>
-                <span className="text-success font-bold">0 Drift Detected</span>
+                <span className="text-success-text font-bold">0 Drift Detected</span>
               </div>
               <div className="w-full bg-surface-700 h-1.5 rounded-full overflow-hidden">
                 <div className="bg-success h-full w-full" />
@@ -357,7 +357,7 @@ export default function ArchitectureSpotlights() {
               <span>Multiplayer cursor presence backed by SignalR</span>
             </div>
             <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-success shrink-0" />
+              <Database className="w-4 h-4 text-success-text shrink-0" />
               <span>Continuous catalog introspection detects out-of-band drift</span>
             </div>
           </div>

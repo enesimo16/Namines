@@ -86,6 +86,10 @@ public class ApiControllerConventionTests
     {
         "AuthorizeAsync(",
         "AuthorizeForSqlAsync(",
+        // SQL konsolunun yan defterleri (gecmis, kaydedilmis sorgular) bu
+        // kapiyi kullaniyor: Owner rolu + `AllowDeskSql`. DeskSql ucuyla
+        // AYNI kurallar -- konsolu kullanamayan biri gecmisini de gormemeli.
+        "RequireDeskSqlOwnerAsync(",
         "ResolveKeyAsync(",
         "CurrentUserId",
         "GetRoleAsync(",

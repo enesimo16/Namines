@@ -297,7 +297,7 @@ export default function Header() {
                     />
                     <button
                       onClick={commitEdit}
-                      className="text-success hover:text-success-text p-1"
+                      className="text-success-text hover:text-success-text p-1"
                       aria-label="Save"
                     >
                       <Check className="w-4 h-4" />
@@ -337,7 +337,7 @@ export default function Header() {
               </button>
               <Link
                 href="/new"
-                className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-surface-900 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm shadow-accent/15"
+                className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm shadow-accent/15"
               >
                 Get Started
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -378,7 +378,7 @@ export default function Header() {
                   logout();
                   showToast('Logged out successfully.', 'info');
                 }}
-                className="tap-44 p-1.5 text-content-muted hover:text-danger hover:bg-danger-subtle rounded-full transition-all duration-200 cursor-pointer ml-0 sm:ml-1.5 active:scale-95 shrink-0"
+                className="tap-44 p-1.5 text-content-muted hover:text-danger-text hover:bg-danger-subtle rounded-full transition-all duration-200 cursor-pointer ml-0 sm:ml-1.5 active:scale-95 shrink-0"
                 title="Log Out"
                 aria-label="Log Out"
               >

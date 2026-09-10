@@ -1,19 +1,24 @@
 # 22 — Ürün backlog'u
 
-> ## ✅ DURUM (2026-09-09): **P0'ların 6/6'sı** ve P1'lerin 11/19'u kapandı
+> ## ✅ DURUM (2026-09-10): **45 kapandı, 19 açık**
 >
-> **Kapanan (22 madde):** B-01…B-11, B-13, B-14, B-16, B-17, B-19, B-25, B-28,
-> B-29, B-31, B-33, B-34, B-49, B-50.
+> P0'ların 6/6'sı kapalı.
 >
 > **Geri çekilen yanlış pozitifler (2):**
 > - **B-24** — `pageSize` tavanı zaten vardı (`Math.Clamp(1, 200)`).
 > - **B-54** — Desk gezinmesi zaten "Yedekler" / "Barındırma" diyor.
 >
-> **Açık kalan P1'ler:** B-12 (MSSQL/Oracle FK canlı doğrulama), B-15 (frontend
-> testleri), B-18 (TLS mimarisi belgesi), B-20 (demo→hesap), B-21/B-22 (sorgu
-> geçmişi/kayıt), B-26 (Ground strateji kararı).
+> **10.09.2026'da kapananlar:**
+> B-39, B-41, B-46, B-52, B-53, B-59, B-61, B-64 (altyapı/güvenlik/erişilebilirlik)
+> ve B-21, B-22 (sorgu geçmişi + kaydedilmiş sorgular, canlı doğrulandı).
 >
-> Yeni regresyon testleri: `SecurityHardeningTests.cs` (23 test).
+> **Açık kalan P1'ler:** B-12 (MSSQL/Oracle FK canlı doğrulama — Docker/disk
+> engeli), B-15 (frontend store testleri), B-20 (demo→hesap), B-26 (Ground
+> strateji kararı), B-57 (eslint).
+>
+> Yeni regresyon testleri: `SecurityHardeningTests.cs` (23),
+> `SecurityStampValidationTests.cs` (7), `DockerServiceConstructionTests.cs` (5),
+> `SqlWorkbenchServiceTests.cs` (18).
 
 
 Tüm bulgular tek listede. **P0 = üretime çıkmadan önce**, P1 = yüksek,
@@ -56,8 +61,8 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-18~~ | DevOps | ✅ `deploy/URETIM-CALISTIRMA.md` §3 — proxy gereklilikleri ve cross-site kararı |
 | ~~B-19~~ | UX | ✅ `EmptyState` bileşeni + 5 ince ekran (3'ü zaten iyiydi) | UX-001, F-05 | S |
 | B-20 | UX | Demo → hesap geçişinde işi koru | UX-002, F-06 | M |
-| B-21 | Feature | Sorgu geçmişi | F-01 | S |
-| B-22 | Feature | Kaydedilmiş sorgular | F-02 | S |
+| ~~B-21~~ | Feature | ~~Sorgu geçmişi~~ ✅ CANLI DOĞRULANDI | F-01 | S |
+| ~~B-22~~ | Feature | ~~Kaydedilmiş sorgular~~ ✅ CANLI DOĞRULANDI | F-02 | S |
 | ~~B-23~~ | Architecture | ✅ **Karar değişti:** refactor yerine konvansiyon testi — yetkisiz uç eklenince build kırılıyor. Filtre işi BACK-004 (Gateway bölme) ile birlikte yapılacak | ARCH-002, TD-002 | S |
 | ~~B-24~~ | Performance | ❌ **Geri çekildi** — tavan zaten vardı (`Math.Clamp(1,200)`) | PERF-007 | XS |
 | ~~B-25~~ | Backend | ✅ `[EnableRateLimiting("sensitive")]` | BACK-002 | XS |
@@ -78,18 +83,18 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-33~~ | Stability | ✅ 3 deneme / 5 sn — **yalnızca** control DB | REL-004 | XS |
 | ~~B-34~~ | Stability | ✅ Prod compose'da `deploy.resources.limits` | REL-005 | S |
 | B-35 | Performance | Vault yedeğini arka plan işine taşı (202 Accepted) | PERF-003 | M |
-| B-36 | Performance | `mermaid` + `sql.js` dinamik import (önce ölç) | PERF-004 | S |
+| ~~B-36~~ | Performance | ~~`mermaid` + `sql.js` dinamik import (önce ölç)~~ ✅ ÖLÇÜLDÜ: `/compile` 1830→1268 KB. CANLI DOĞRULANDI | PERF-004 | S |
 | B-37 | Architecture | `ScaffolderService`'i böl | ARCH-003, TD-003 | M |
 | B-38 | Architecture | `AIPreferencesModal`'ı böl + tipli tercih modülü | FE-002, TD-004 | M |
 | ~~B-39~~ | Frontend | ~~`DbPushModal`'ı merkezi API istemcisine taşı~~ ✅ `executorService` | FE-005 | S |
 | B-40 | Testing | E2E: tek uçtan uca akış (Playwright) | TEST-005 | M |
 | ~~B-41~~ | A11y | ~~Form alanlarına etiket (51 input)~~ ✅ 117/118 (kalan 1 = yorum içi, yanlış pozitif) | A11Y-001 | M |
-| B-42 | A11y | Kontrast + klavye + ekran okuyucu denetimi | 13 | M |
+| B-42 | A11y | Kontrast + klavye + ekran okuyucu denetimi — 🟡 **kontrast ÖLÇÜLDÜ ve 2 sistemik hata düzeltildi** (koyu tema 4 sayfada 811/811 geçiyor); klavye, ekran okuyucu ve açılış sayfasının AÇIK teması (78 hata) açık | 13 | M |
 | B-43 | Feature | Kısmi (tek tablo) geri yükleme | F-07 | M |
 | B-44 | Feature | CSV/JSON dışa aktarma + `CanExport` izni | F-08 | M |
 | B-45 | Feature | Supabase sağlayıcısı | F-10 | M |
 | ~~B-46~~ | Build | ~~Docker.DotNet sürüm çatışmasını çöz~~ ✅ etkisiz kılındı (Lazy) + teşhis düzeltildi | TD-005, BACK-006 | M |
-| B-47 | DevOps | İleriye uyumlu migration kuralı + geri alma prosedürü | DEVOPS-005 | M |
+| ~~B-47~~ | DevOps | ~~İleriye uyumlu migration kuralı + geri alma prosedürü~~ ✅ kural + prosedür + **testle zorlanıyor** (`MigrationCompatibilityTests`) | DEVOPS-005 | M |
 | ~~B-48~~ | Docs | ✅ `deploy/URETIM-CALISTIRMA.md` | 25 | M |
 
 ---
@@ -100,11 +105,11 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 |---|---|---|---|---|
 | ~~B-49~~ | Security | ✅ Yanıltıcı kod ve yorum kaldırıldı | SEC-008 | XS |
 | ~~B-50~~ | Frontend | ✅ `removeConsole` ({ exclude: error, warn }) | FE-006 | XS |
-| B-51 | Performance | `templates.ts` dinamik import | PERF-005 | S |
+| ~~B-51~~ | Performance | ~~`templates.ts` dinamik import~~ ✅ ÖLÇÜLDÜ: `/canvas` 1653→1551 KB. CANLI DOĞRULANDI | PERF-005 | S |
 | ~~B-52~~ | Database | ~~Kararsız sayfalamayı API sözleşmesinde işaretle~~ ✅ `GatewayListResult.StablePagination` | DB-005 | S |
 | ~~B-53~~ | A11y | ~~`.nsl` yolunu erişilebilir alternatif olarak belgele~~ ✅ `docs/ERISILEBILIRLIK.md` | A11Y-003 | XS |
 | ~~B-54~~ | UX | ❌ **Geri çekildi** — Desk gezinmesi zaten "Yedekler"/"Barındırma" diyor | 12 | XS |
-| B-55 | Product | Mobil hedefini açıkça belirle ve yaz | Senaryo 7 | XS |
+| ~~B-55~~ | Product | ~~Mobil hedefini açıkça belirle ve yaz~~ ✅ ÖLÇÜLDÜ + `docs/MOBIL-HEDEFI.md` (öneri, onay bekliyor) | Senaryo 7 | XS |
 | B-56 | i18n | Çok dil altyapısı — **ve iki uygulamanın dilini birleştir** (`frontend` İngilizce, `desk` Türkçe) | 24, UX-004 | M |
 
 ---

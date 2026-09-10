@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -33,7 +34,21 @@ import {
 } from 'lucide-react';
 
 import CommandPalette, { PaletteAction } from '../../components/canvas/CommandPalette';
-import SchemaTemplateGallery from '../../components/canvas/SchemaTemplateGallery';
+/**
+ * Sablon galerisi DINAMIK yukleniyor (B-51 / PERF-005).
+ *
+ * OLCUM: `lib/templates.ts` 88 KB kaynak ve derlemede sql.js ile ayni chunk'a
+ * dusuyordu -- `/canvas` rotasinin 1653 KB'lik ilk yuklemesindeki EN BUYUK
+ * parca (385 KB). Oysa galeri bir modal: acilmadan hicbir sablona ihtiyac yok
+ * ve tuvale giren cogu kullanici hic acmiyor.
+ *
+ * `ssr: false` cunku bilesen zaten `'use client'` ve `isOpen` false iken
+ * `null` donuyor -- sunucuda uretilecek bir cikti yok.
+ */
+const SchemaTemplateGallery = dynamic(
+  () => import('../../components/canvas/SchemaTemplateGallery'),
+  { ssr: false },
+);
 import CanvasSearch from '../../components/canvas/CanvasSearch';
 import KeyboardShortcutsModal from '../../components/canvas/KeyboardShortcutsModal';
 import TableNode from '../../components/canvas/nodes/TableNode';

@@ -144,7 +144,7 @@ export default function OrbitingClosingCTA() {
           <div className="mt-2">
             <Link
               href="/new"
-              className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-surface-900 font-bold py-3.5 px-8 rounded-[var(--radius-control)] transition-all text-xs uppercase tracking-wider shadow-xl shadow-accent/20 hover:scale-105 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-accent-on font-bold py-3.5 px-8 rounded-[var(--radius-control)] transition-all text-xs uppercase tracking-wider shadow-xl shadow-accent/20 hover:scale-105 active:scale-95"
             >
               <span>Deploy your schema for free</span>
               <ArrowRight className="w-4 h-4" />

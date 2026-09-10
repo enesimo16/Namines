@@ -221,7 +221,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
         {errorMsg && (
           <div className="mb-3 px-3 py-2 rounded-[var(--radius-control)] bg-danger-subtle border border-danger/30 text-danger-text text-xs font-medium flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-danger" />
+            <AlertTriangle className="w-4 h-4 shrink-0 text-danger-text" />
             <span>{errorMsg}</span>
           </div>
         )}

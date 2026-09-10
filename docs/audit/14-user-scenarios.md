@@ -124,6 +124,29 @@ sorunu hem de kullanıcı için okunmaz.
 demek, her şeyi yarım yamalak duyarlı yapmaktan iyidir. Bugün bu karar yazılı
 değil.
 
+### ✅ Yazıldı (10.09.2026) — B-55
+
+[`docs/MOBIL-HEDEFI.md`](../MOBIL-HEDEFI.md) — yüzey yüzey hedef tablosu,
+gerekçeler ve kararın gerektirdiği işler. Konum: **tuval masaüstü, Desk
+mobil.** Belge onay bekleyen bir ÖNERİ olarak işaretli; karar ürün sahibinin.
+
+**ÖLÇÜLDÜ (375×812 tarayıcı emülasyonu) — "değerlendirilemedi" artık geçerli
+değil:**
+
+| Ölçüm | Sonuç |
+|---|---|
+| Sayfa yatay kaydırma | Yok (`scrollWidth` 375 = viewport) |
+| Tuval render | Çalışıyor — 25 düğüm çizildi |
+| **44×44 px altı dokunma hedefi** | **26 / 28 görünür düğme** |
+
+**Beklenmeyen bulgu:** Düzen mobilde **bozulmuyor**. Asıl engel dokunma hedefi
+boyutu — ekran "doğru görünüyor" ama parmakla isabetli kullanılamıyor. Bu,
+"mobil çalışıyor" sanılmasının en kolay yolu ve tam da bu yüzden kararın
+yazılı olması gerekiyordu.
+
+Gerçek cihazda (iOS Safari / Android Chrome) denenmedi; emülasyon `100vh`,
+güvenli alan ve sanal klavye davranışını yansıtmıyor.
+
 ---
 
 ## Senaryo 8 (ek) — Ekip üyesi ilk kez katılıyor

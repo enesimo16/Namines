@@ -80,7 +80,7 @@ export default function StackRibbon() {
           </h2>
           <Link
             href="/demo"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-surface-900 font-bold text-xs uppercase tracking-wider transition-all shadow-lg hover:scale-105 cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold text-xs uppercase tracking-wider transition-all shadow-lg hover:scale-105 cursor-pointer"
           >
             <span>View Blueprints</span>
             <ArrowRight className="w-3.5 h-3.5" />

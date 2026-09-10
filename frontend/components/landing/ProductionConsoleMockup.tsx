@@ -23,7 +23,7 @@ function ServiceCard({ name, badge, metrics, sparklineD }: ServiceCardProps) {
           <span className="w-1.5 h-1.5 rounded-full bg-success" />
           {name}
         </span>
-        <span className="text-[11px] font-mono text-success flex items-center gap-1">
+        <span className="text-[11px] font-mono text-success-text flex items-center gap-1">
           <CheckCircle2 className="w-3 h-3" />
           {badge}
         </span>

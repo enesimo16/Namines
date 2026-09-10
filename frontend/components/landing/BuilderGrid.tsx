@@ -352,7 +352,7 @@ export default function BuilderGrid() {
           </div>
           <Link
             href="/demo"
-            className="px-4 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-surface-900 font-bold text-xs uppercase tracking-wider transition-colors shrink-0 cursor-pointer"
+            className="px-4 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold text-xs uppercase tracking-wider transition-colors shrink-0 cursor-pointer"
           >
             Launch Playground
           </Link>
@@ -424,8 +424,8 @@ export default function BuilderGrid() {
                   >
                     {copiedCode ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-success" />
-                        <span className="text-success font-semibold">Copied!</span>
+                        <Check className="w-3.5 h-3.5 text-success-text" />
+                        <span className="text-success-text font-semibold">Copied!</span>
                       </>
                     ) : (
                       <>
@@ -458,7 +458,7 @@ export default function BuilderGrid() {
                 </button>
                 <Link
                   href={activeFeature.actionHref}
-                  className="inline-flex items-center gap-2 px-5 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-surface-900 text-xs font-bold transition-all shadow-md cursor-pointer"
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all shadow-md cursor-pointer"
                 >
                   <span>{activeFeature.actionLabel}</span>
                   <ArrowRight className="w-3.5 h-3.5" />

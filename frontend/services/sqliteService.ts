@@ -1,4 +1,3 @@
-import initSqlJs from 'sql.js';
 import localforage from 'localforage';
 
 let SQL: any = null;
@@ -9,16 +8,48 @@ let dbInstance: any = null;
  * sql.js WASM kütüphanesini yükler.
  * - In-flight promise CACHE'lenir → eşzamanlı çağrılar tek init'i paylaşır (yarış/"Setup Error" önlenir).
  * - Önce YEREL bundled /sql-wasm.wasm denenir (güvenilir, offline çalışır); sonra CDN fallback.
+ *
+ * **Kütüphanenin kendisi de DİNAMİK yükleniyor (B-51/PERF-005).** Statik import
+ * sql.js'i `/canvas`'ın ilk yüklemesine sokuyordu: ölçüm, sql.js + şablonları
+ * taşıyan tek chunk'ın **385 KB** olduğunu ve rotanın 1653 KB'lık ilk
+ * yüklemesinin en büyük parçası olduğunu gösterdi. Oysa bu kod yalnızca SQL
+ * Explorer paneli açıldığında çalışıyor — tuvale giren çoğu kullanıcı hiç
+ * açmıyor.
+ *
+ * `initDb()` zaten async ve panel zaten bir yükleniyor durumu gösteriyordu,
+ * yani gecikme kullanıcıya YENİ bir bekleme olarak görünmüyor.
  */
 async function getSqlInstance() {
   if (SQL) return SQL;
   if (sqlPromise) return sqlPromise;
 
   const version = '1.14.1';
+
+  // WASM dosya adi SABIT ve `locateFile`'a gelen `file` argumani BILEREK
+  // yok sayiliyor.
+  //
+  // NEDEN — canli calistirmada yakalanan gercek ariza: sql.js'in package
+  // `exports` alani iki giris noktasi tanimliyor ve ikisi FARKLI wasm adi
+  // istiyor:
+  //     "browser" -> dist/sql-wasm-browser.js  ->  sql-wasm-browser.wasm
+  //     "default" -> dist/sql-wasm.js          ->  sql-wasm.wasm
+  // `public/` klasorunde yalnizca `sql-wasm.wasm` var. Statik import
+  // "default"a, dinamik import ise "browser"a cozuluyordu; sonuc
+  // `GET /sql-wasm-browser.wasm 404` ve emscripten'in
+  // "both async and sync fetching of the wasm failed" hatasi. Konsol
+  // hic acilmiyordu.
+  //
+  // Iki dosya BAYT BAYT AYNI (sha256 438c88f6…), yani adi sabitlemek bir
+  // taviz degil: paketleyicinin hangi girisi sectigine olan gizli bagimliligi
+  // ORTADAN KALDIRIYOR. Bu bagimlilik degisiklikten once de vardi, yalnizca
+  // gorunmuyordu.
+  const WASM_FILE = 'sql-wasm.wasm';
+
   sqlPromise = (async () => {
+    const initSqlJs = (await import('sql.js')).default;
     // Try 1: local public folder (bundled — en güvenilir)
     try {
-      SQL = await initSqlJs({ locateFile: (file: string) => `/${file}` });
+      SQL = await initSqlJs({ locateFile: () => `/${WASM_FILE}` });
       console.log('✔ sql.js loaded from local /public');
       return SQL;
     } catch (errLocal) {
@@ -26,7 +57,7 @@ async function getSqlInstance() {
     }
     // Try 2: jsdelivr CDN
     try {
-      SQL = await initSqlJs({ locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/sql.js@${version}/dist/${file}` });
+      SQL = await initSqlJs({ locateFile: () => `https://cdn.jsdelivr.net/npm/sql.js@${version}/dist/${WASM_FILE}` });
       console.log('✔ sql.js loaded from jsdelivr CDN');
       return SQL;
     } catch (err1) {
@@ -34,7 +65,7 @@ async function getSqlInstance() {
     }
     // Try 3: unpkg CDN
     try {
-      SQL = await initSqlJs({ locateFile: (file: string) => `https://unpkg.com/sql.js@${version}/dist/${file}` });
+      SQL = await initSqlJs({ locateFile: () => `https://unpkg.com/sql.js@${version}/dist/${WASM_FILE}` });
       console.log('✔ sql.js loaded from unpkg CDN');
       return SQL;
     } catch (err2) {

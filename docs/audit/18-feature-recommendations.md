@@ -17,6 +17,35 @@
 Kullanıcıya özel saklanmalı, `PiiRedactionEnricher` mantığı düşünülmeli.
 **Efor:** S · **Öncelik:** **P1**
 
+### ✅ Yapıldı (10.09.2026)
+
+`SqlQueryHistoryEntry` + `SqlWorkbenchService` + `GET/DELETE
+/api/gateway/desk-sql/history`. Desk SQL konsolunda "Geçmiş" sekmesi.
+
+**Neden `GatewayAuditEntry` yetmedi:** O tablo, "değerler saklanmıyor" ilkesi
+gereği **SQL metnini bilerek saklamıyor**. Denetim kaydı için doğru karar, ama
+"20 dakika önce çalıştırdığım sorguyu bulamıyorum" problemini çözemez. İki
+tablonun amacı farklı: biri **hesap verebilirlik**, diğeri **kullanıcının
+kendi belleği**.
+
+**Gizlilik kararları — hepsi ölçülebilir:**
+
+| Karar | Neden |
+|---|---|
+| Kayıt **yalnızca çalıştıran** kullanıcıya görünür; proje Owner'ı bile başkasının geçmişini göremez | Bir meslektaşın hangi müşteriyi aradığı, projeye sahip olmakla kazanılan bir bilgi değil |
+| Kullanıcı geçmişini **silebilir**; denetim kaydı silinmez | Zorunlu olmayan hassas veriyi tutmakta ısrar etmek gereksiz risk |
+| Kullanıcı+proje başına **100 kayıt**, her yazmada budanır | Sınırsız büyüyen tablo = sonsuza kadar biriken hassas metin. Arka plan işine bırakmak, iş çalışmadığında sınırın sessizce yok olması demekti |
+| 8000 karakterden uzun SQL kırpılır ve **kırpıldığı söylenir** (`truncated`) | Sessizce kırpılmış bir sorguyu kopyalayıp çalıştıran kullanıcı, farklı bir sorgu çalıştırdığını fark etmezdi |
+| Uçlar `DeskSql` ile **aynı kapılardan** geçer (Owner + `AllowDeskSql`) | Ayrı/gevşek bir kural, konsolu kapatmanın hiçbir şeyi kapatmadığı bir arka kapı açardı |
+
+**Başarısız sorgu da kaydediliyor** — kullanıcının aradığı çoğu zaman tam odur.
+
+**CANLI DOĞRULANDI** (gerçek API + gerçek PostgreSQL): başarılı sorgu (1 satır,
+43 ms), var olmayan tablo (`42P01 … does not exist`) ve **engellenen `DELETE`
+denemesi** ("Only SELECT/WITH/EXPLAIN/SHOW…") — üçü de geçmişte, en yenisi
+üstte. Kimlik doğrulamasız çağrı 401, olmayan proje 404.
+18 birim testi (gizlilik izolasyonu ve budama dahil).
+
 ---
 
 ## F-02 — Kaydedilmiş sorgular
@@ -29,6 +58,35 @@ Kullanıcıya özel saklanmalı, `PiiRedactionEnricher` mantığı düşünülme
 5. **Değer mi?** Evet, F-01 ile aynı altyapı.
 
 **Efor:** S (F-01'den sonra) · **Öncelik:** P1
+
+### ✅ Yapıldı (10.09.2026)
+
+`SavedQuery` + `GET/POST/DELETE /api/gateway/desk-sql/saved`. Konsolda
+"Kayıtlı" sekmesi ve "Sorguyu kaydet" düğmesi.
+
+**Neden geçmişle aynı tabloda değil:** Fark bir alan değil, bir **söz**.
+Geçmiş kendiliğinden birikir ve kendiliğinden silinir (100 kayıt); kaydedilmiş
+sorgu kullanıcının "bunu sakla" dediği şeydir ve **silinmez**. İkisini tek
+tabloda bir `IsSaved` bayrağıyla birleştirmek, temizlik mantığının bir gün o
+bayrağı atlamasına ve kasten saklanan sorgunun kaybolmasına bir adım kalması
+demekti.
+
+**Aynı ad = güncelleme, hata değil.** Hata dönmek kullanıcıyı önce silmeye
+zorlardı; "kaydet"e ikinci kez basmak en doğal düzeltme hareketidir. Garantiyi
+veritabanı veriyor: `(UserId, ProjectId, Name)` unique.
+
+**Silmede `UserId` de koşulda:** id'yi bilen biri başkasının kaydını silemez ve
+"bulunamadı" ile "senin değil" arasında ayrım yapılmıyor — ikincisi o id'nin
+var olduğunu doğrulardı.
+
+**Paylaşım BİLEREK eklenmedi** — alan olarak da. Paylaşılan bir sorgu,
+başkasının çalıştıracağı bir metin demek; kimin ne çalıştırabileceği kararı
+Owner kapısına bağlı ve o kapıyı dolaylı açan bir özelliği ölçmeden eklemek
+doğru değil. Kullanılmayan bir `IsShared` sütunu da "paylaşım var" izlenimi
+verirdi.
+
+**CANLI DOĞRULANDI:** kaydet → aynı adla tekrar (aynı `id`, güncellenmiş SQL)
+→ liste (tek kayıt) → boş ad reddi (400) → sil (204) → tekrar sil (404).
 
 ---
 

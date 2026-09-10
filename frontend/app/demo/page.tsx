@@ -283,7 +283,7 @@ function DemoContent() {
             <div className="flex items-center gap-2">
               <Link
                 href="/new"
-                className="inline-flex items-center gap-2 rounded-[var(--radius-card)] bg-accent px-4 py-2.5 text-xs font-bold text-surface-900 transition-all hover:bg-accent-hover"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-card)] bg-accent px-4 py-2.5 text-xs font-bold text-accent-on transition-all hover:bg-accent-hover"
               >
                 <Wand2 className="h-3.5 w-3.5" />
                 Describe your own with AI
@@ -611,7 +611,7 @@ function DemoContent() {
                               e.stopPropagation();
                               handleOpenInEditor(blueprint);
                             }}
-                            className="flex-1 flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-accent px-3 py-2 text-xs font-bold text-surface-900 hover:bg-accent-hover transition-colors cursor-pointer"
+                            className="flex-1 flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-accent px-3 py-2 text-xs font-bold text-accent-on hover:bg-accent-hover transition-colors cursor-pointer"
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                             <span>Open</span>
@@ -639,7 +639,7 @@ function DemoContent() {
           </div>
           <Link
             href="/new"
-            className="flex items-center gap-2 rounded-[var(--radius-card)] bg-accent px-5 py-2.5 text-xs font-bold text-surface-900 transition-all hover:bg-accent-hover"
+            className="flex items-center gap-2 rounded-[var(--radius-card)] bg-accent px-5 py-2.5 text-xs font-bold text-accent-on transition-all hover:bg-accent-hover"
           >
             <Wand2 className="h-4 w-4" />
             Create with AI Copilot
@@ -677,7 +677,7 @@ function DemoContent() {
                       onClick={() => setEngine(e)}
                       className={`rounded-[var(--radius-control)] px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer ${
                         engine === e
-                          ? 'bg-accent text-surface-900'
+                          ? 'bg-accent text-accent-on'
                           : 'text-content-muted hover:text-content-primary'
                       }`}
                     >
@@ -689,7 +689,7 @@ function DemoContent() {
                 <button
                   type="button"
                   onClick={() => handleOpenInEditor(activeBlueprint)}
-                  className="flex items-center gap-1.5 rounded-[var(--radius-card)] bg-accent px-4 py-1.5 text-xs font-bold text-surface-900 hover:bg-accent-hover cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-[var(--radius-card)] bg-accent px-4 py-1.5 text-xs font-bold text-accent-on hover:bg-accent-hover cursor-pointer"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   <span>Open in Canvas</span>
@@ -783,7 +783,7 @@ function DemoContent() {
                 <div className="flex h-[65vh] flex-col overflow-hidden rounded-[var(--radius-card)] border border-surface-600 bg-surface-800">
                   <div className="grid grid-cols-3 gap-px border-b border-surface-600 bg-surface-600 text-center">
                     <div className="bg-surface-800 py-3">
-                      <p className="text-xl font-bold text-danger">{counts.errors}</p>
+                      <p className="text-xl font-bold text-danger-text">{counts.errors}</p>
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-content-subtle">Errors</p>
                     </div>
                     <div className="bg-surface-800 py-3">
@@ -807,7 +807,7 @@ function DemoContent() {
                       const Icon = g.severity === 'info' ? Info : AlertTriangle;
                       const color =
                         g.severity === 'error'
-                          ? 'text-danger'
+                          ? 'text-danger-text'
                           : g.severity === 'warning'
                           ? 'text-warning-text'
                           : 'text-content-muted';
@@ -897,7 +897,7 @@ function DemoContent() {
                           const Icon = g.severity === 'info' ? Info : AlertTriangle;
                           const color =
                             g.severity === 'error'
-                              ? 'text-danger'
+                              ? 'text-danger-text'
                               : g.severity === 'warning'
                               ? 'text-warning-text'
                               : 'text-content-muted';
