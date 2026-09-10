@@ -11,7 +11,7 @@
 >
 > **Açık kalan P1'ler:** B-12 (MSSQL/Oracle FK canlı doğrulama), B-15 (frontend
 > testleri), B-18 (TLS mimarisi belgesi), B-20 (demo→hesap), B-21/B-22 (sorgu
-> geçmişi/kayıt), B-23 (Gateway bölme), B-26 (Ground strateji kararı).
+> geçmişi/kayıt), B-26 (Ground strateji kararı).
 >
 > Yeni regresyon testleri: `SecurityHardeningTests.cs` (23 test).
 
@@ -58,7 +58,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | B-20 | UX | Demo → hesap geçişinde işi koru | UX-002, F-06 | M |
 | B-21 | Feature | Sorgu geçmişi | F-01 | S |
 | B-22 | Feature | Kaydedilmiş sorgular | F-02 | S |
-| B-23 | Architecture | Gateway yetki kontrolünü filtreye taşı | ARCH-002, TD-002 | L |
+| ~~B-23~~ | Architecture | ✅ **Karar değişti:** refactor yerine konvansiyon testi — yetkisiz uç eklenince build kırılıyor. Filtre işi BACK-004 (Gateway bölme) ile birlikte yapılacak | ARCH-002, TD-002 | S |
 | ~~B-24~~ | Performance | ❌ **Geri çekildi** — tavan zaten vardı (`Math.Clamp(1,200)`) | PERF-007 | XS |
 | ~~B-25~~ | Backend | ✅ `[EnableRateLimiting("sensitive")]` | BACK-002 | XS |
 | B-26 | Product | Ground'un konumunu yeniden belirle (strateji kararı) | RW-02 | — |
@@ -120,7 +120,6 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | B-61 | Docs | `*.md` yok sayma politikasını tersine çevir (varsayılan: takip et) | DOC-005 | S | P2 |
 | B-62 | UX | **MFA kurulum arayüzü** (QR + kurtarma kodları) — uçlar hazır | AUTH-003 | M | P1 |
 | B-63 | Security | `DockerController.StreamLogs`'a `[Authorize]` + `EventSource withCredentials` — **çözüm hazır, doğrulanmadı** | 29 | XS | P2 |
-| ~~B-23~~ | Architecture | ✅ Refactor yerine **konvansiyon testi**: yetkisiz uç eklenince build kırılıyor | ARCH-002 | S | P1 |
 
 ---
 
