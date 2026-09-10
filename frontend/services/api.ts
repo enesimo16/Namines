@@ -433,6 +433,39 @@ export const authService = {
     return response.data;
   },
 
+  /**
+   * Cok faktorlu dogrulama (TOTP).
+   *
+   * Merkezi istemci uzerinden gidiyor (ham `fetch` DEGIL): 401 yonlendirmesi,
+   * CSRF basligi ve cookie gonderimi burada tek yerde tanimli.
+   */
+  mfa: {
+    status: async (): Promise<{ enabled: boolean; recoveryCodesLeft: number }> => {
+      const response = await api.get('/auth/mfa/status');
+      return response.data;
+    },
+
+    /**
+     * Kurulumu baslatir. Donen `sharedKey` KULLANICININ SIRRI --
+     * hicbir ucuncu tarafa (or. bir QR uretme servisine) gonderilmemeli.
+     */
+    setup: async (): Promise<{ sharedKey: string; otpauthUri: string }> => {
+      const response = await api.post('/auth/mfa/setup');
+      return response.data;
+    },
+
+    /** Dogrulanirsa MFA'yi acar ve kurtarma kodlarini BIR KEZ dondurur. */
+    enable: async (code: string): Promise<{ message: string; recoveryCodes: string[] }> => {
+      const response = await api.post('/auth/mfa/enable', { code });
+      return response.data;
+    },
+
+    disable: async (code: string): Promise<{ message: string }> => {
+      const response = await api.post('/auth/mfa/disable', { code });
+      return response.data;
+    },
+  },
+
   login: async (email: string, password: string): Promise<any> => {
     const response = await api.post('/auth/login', { email, password });
     return response.data;

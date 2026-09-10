@@ -76,7 +76,12 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
         controller = new AbortController();
         timeoutId = setTimeout(() => controller?.abort(), 2000);
 
-        fetch(`${API_BASE_URL}/docker/stream/${saved.jobId}`, { signal: controller.signal })
+        // credentials: auth cookie'si olmadan uc artik 401 donuyor (bkz. asagidaki
+        // EventSource notu).
+        fetch(`${API_BASE_URL}/docker/stream/${saved.jobId}`, {
+          signal: controller.signal,
+          credentials: 'include',
+        })
           .then(res => {
             clearTimeout(timeoutId);
             if (cancelled) return; // unmount sonrası setState/connectSse'yi engelle
@@ -126,7 +131,15 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
   const connectSse = (newJobId: string) => {
     eventSourceRef.current?.close();
-    const sse = new EventSource(`${API_BASE_URL}/docker/stream/${newJobId}`);
+    // withCredentials: auth cookie'sini gonder.
+    //
+    // EventSource `Authorization` basligi gonderemez -- bu yuzden uc uzun sure
+    // kimlik dogrulamasiz kaldi ve GUID jobId bir "capability URL" gorevi
+    // gordu. Ama EventSource COOKIE gonderebiliyor ve bu uygulamada kimlik
+    // zaten httpOnly cookie'de. Sunucu tarafi artik [Authorize] tasiyor.
+    const sse = new EventSource(`${API_BASE_URL}/docker/stream/${newJobId}`, {
+      withCredentials: true,
+    });
     eventSourceRef.current = sse;
 
     sse.onmessage = (e) => {
