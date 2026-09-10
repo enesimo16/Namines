@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Sparkles, Wand2, Moon, Sun } from 'lucide-react';
+import { ArrowRight, Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Wand2, Moon, Sun } from 'lucide-react';
 import MarkdownLite from '../../common/MarkdownLite';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useHomeThemeStore } from '../../../store/useHomeThemeStore';

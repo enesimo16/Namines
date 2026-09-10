@@ -1,12 +1,11 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ReactFlow,
   Background,
-  Controls,
   MiniMap,
   Panel,
   ReactFlowProvider,
@@ -15,7 +14,6 @@ import {
   type Connection
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-
 
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAIDba } from '../../hooks/useAIDba';
@@ -135,8 +133,6 @@ export default function CanvasPage() {
   const activeProject = projects.find(p => p.id === activeProjectId);
   const branches = activeProject?.branches || [];
   const currentBranchName = activeProject?.currentBranch || 'main';
-
-
 
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false);
@@ -594,7 +590,6 @@ export default function CanvasPage() {
           onClose={() => setIsSearchOpen(false)}
         />
       </ReactFlowProvider>
-
 
       <TableEditorDrawer />
       <SqlExplorerPanel />

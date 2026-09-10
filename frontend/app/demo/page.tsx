@@ -17,9 +17,8 @@ import {
   Layers,
   Loader2,
   Search,
-  ShieldCheck,
   Wand2,
-  X,
+  X
 } from 'lucide-react';
 import { schemaToFlow } from '../../lib/schemaToFlow';
 import {

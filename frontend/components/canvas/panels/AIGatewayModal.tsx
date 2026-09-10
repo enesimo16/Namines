@@ -46,7 +46,7 @@ export default function AIGatewayModal() {
             <div className="space-y-1">
               <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">AI Operations Restricted</h4>
               <p className="text-[11px] text-content-muted leading-relaxed font-semibold">
-                You are currently accessing the canvas as a <strong className="text-accent-text">Guest</strong>. The feature <span className="text-content-secondary font-mono font-bold">"{featureName || 'AI Agent'}"</span> requires an authenticated account.
+                You are currently accessing the canvas as a <strong className="text-accent-text">Guest</strong>. The feature <span className="text-content-secondary font-mono font-bold">&quot;{featureName || 'AI Agent'}&quot;</span> requires an authenticated account.
               </p>
             </div>
           </div>

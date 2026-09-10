@@ -78,7 +78,7 @@ export default function AlternativeCompareModal({ current, alternative, onKeepCu
           <p className="text-[11px] text-content-subtle mt-5 flex items-start gap-1.5">
             <ArrowRightLeft className="w-3 h-3 mt-0.5 shrink-0" />
             Both were generated fresh from your original prompt — any manual edits you made
-            to the current schema since then aren't reflected in the alternative.
+            to the current schema since then aren&apos;t reflected in the alternative.
           </p>
         </div>
 

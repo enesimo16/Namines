@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Moon, Sun, Terminal, Database, CheckCircle2, ArrowUpRight } from 'lucide-react';
+import { Moon, Sun, Terminal, ArrowUpRight } from 'lucide-react';
 import { useHomeThemeStore } from '../../store/useHomeThemeStore';
 import Logo from './Logo';
 
