@@ -392,7 +392,68 @@ olurdu.
 Ayrıca kullanıcı bulunamadığında da aynı mesaj dönüyor — farklı cevap, kayıtlı
 e-postaları sızdıran bir numaralandırma aracı olurdu.
 
-**Sızdırılmış-parola listesi (HIBP) kontrolü hâlâ yok** — ayrı bir iş.
+### ✅ Tamamlandı (10.09.2026) — sızdırılmış parola kontrolü
+
+`Namines.API/Security/PwnedPasswordValidator.cs` — Have I Been Pwned aralık
+API'si, `IPasswordValidator<ApplicationUser>` olarak kayıtlı. Identity'nin
+**bütün** parola yollarında (kayıt, değiştirme, sıfırlama) kendiliğinden
+çalışıyor; her çağrı noktasına elle eklemek gerekmiyor ve biri unutulamıyor.
+
+**Parola sunucudan çıkmıyor (k-anonimlik):** SHA-1'in yalnızca ilk 5 karakteri
+gönderiliyor, API ~2.000 hash döndürüyor, eşleştirme yerelde yapılıyor.
+`Add-Padding: true` ile yanıt boyutu sabitleniyor (trafik analizine karşı).
+
+#### Canlı doğrulama (2026-09-10, gerçek API + gerçek kayıt akışı)
+
+| Parola | Uzunluk | Sızıntı | Sonuç |
+|---|---|---|---|
+| `Password123456` | 14 | **42.513** | ❌ Reddedildi |
+| `correct horse battery staple` | 28 | 391 | ❌ Reddedildi |
+| `Parola1!` | 8 | 21.753 | ❌ Reddedildi (uzunluktan da düşerdi) |
+| `Qz4!wR8@tY2#uI6&oP` | 18 | 0 | ✅ Kabul edildi |
+
+**İlk satır bu özelliğin neden gerektiğinin kanıtı:** 14 karakter, yani 12
+karakterlik uzunluk kuralını **geçiyor** — ve kırk iki bin sızıntıda var.
+Uzunluk tek başına yetmiyordu.
+
+**İkinci satır da öğretici:** 28 karakterlik ünlü bir parola bile listede.
+
+#### ⚠️ Bu iş sırasında yakalanan gerçek bir hata
+
+İlk uygulama **tamamen ölüydü ve sessizdi**: kod derlendi, 7 birim testi geçti,
+uygulama açıldı — ama her istek `"BaseAddress must be set"` ile fail-open'a
+düşüp **her parolayı kabul etti.**
+
+Sebep: `AddPasswordValidator<T>`, T'yi Identity'nin kendi kaydıyla oluşturuyor,
+`AddHttpClient<T>`'nin tipli fabrikasıyla **değil**. Kurucuya isimsiz varsayılan
+`HttpClient` düşüyor ve `BaseAddress`'i yok.
+
+Yalnızca **gerçek bir kayıt denemesi** bunu gösterdi. Bu, `AGENTS.md`'deki
+dersin bir kez daha doğrulanması: *"testler geçiyor" hiçbir şey kanıtlamıyor.*
+
+**Alınan önlemler:**
+- Adlandırılmış istemciye (`IHttpClientFactory.CreateClient`) geçildi
+- Fail-open logu `Warning` → **`Error`** seviyesine çıkarıldı: sessizce devre
+  dışı kalan bir güvenlik kontrolü gürültü yapmalı
+- Gerekçe koda yazıldı, tekrar keşfedilmesin
+
+#### Yan bulgu: kültür hatası
+
+İlk çalışan sürüm mesajı `"42.513 known data breaches"` diye üretti — İngilizce
+cümlenin ortasında Türkçe biçimli sayı. `AGENTS.md` bu depoda bir Türkçe kültür
+hatasının **üretime kadar gittiğini** kaydediyor. `CultureInfo.InvariantCulture`
+ile düzeltildi → `42,513`.
+
+#### Fail-open kararı
+
+Ağ hatasında parola **kabul ediliyor**. Gerekçe: kapalı kalsaydı HIBP'nin
+kesintisi Namines'in kayıt akışını durdururdu — üçüncü bir tarafın çalışma
+süresine kimlik sistemini bağlamak, engellediği riskten büyük bir risk.
+
+Air-gapped kurulumlar için `Security:PwnedPasswordCheck:Enabled=false`.
+
+**Testler:** `PwnedPasswordTests.cs` (7 test — ayrıştırma, CRLF, padding,
+büyük/küçük harf, bozuk satır).
 
 ---
 

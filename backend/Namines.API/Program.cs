@@ -7,6 +7,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Namines.API.Extensions;
 using Namines.API.Middleware;
+using Namines.API.Security;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Namines.Core.Security;
@@ -181,7 +182,25 @@ try
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddEntityFrameworkStores<AuthDbContext>()
-    .AddDefaultTokenProviders();
+    .AddDefaultTokenProviders()
+    // Sizdirilmis parola kontrolu. IPasswordValidator olarak kayitli oldugu
+    // icin Identity'nin BUTUN parola yollarinda (kayit, parola degistirme,
+    // sifirlama) kendiliginden calisiyor -- her cagri noktasina elle eklemek
+    // gerekmiyor ve biri unutulamiyor.
+    .AddPasswordValidator<PwnedPasswordValidator>();
+
+// HIBP aralik API'si. ADLANDIRILMIS istemci -- tipli istemci DEGIL.
+//
+// AddHttpClient<T> T'yi kendi fabrikasiyla olustururken, AddPasswordValidator<T>
+// T'yi Identity'nin kaydiyla olusturuyor ve o kayit tipli fabrikayi bilmiyor:
+// kurucuya isimsiz varsayilan HttpClient dusuyor, BaseAddress bos kaliyor ve
+// kontrol her istekte sessizce fail-open'a gidiyor. Canli denemede oldu.
+builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
+{
+    client.BaseAddress = new Uri("https://api.pwnedpasswords.com/");
+    // HIBP User-Agent ZORUNLU tutuyor; gondermeyen istekler reddedilebiliyor.
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("Namines-PasswordCheck");
+});
 
     // Configure JWT Authentication
     //
