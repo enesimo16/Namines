@@ -3,8 +3,23 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, Database, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { API_BASE_URL } from '../../lib/apiConfig';
-import { csrfHeaders } from '../../lib/csrf';
+import { executorService } from '../../services/api';
+
+/**
+ * Merkezi API istemcisi basarisiz HTTP durumlarinda firlatiyor; sunucunun
+ * govdesi hatanin uzerinde tasiniyor. Bu iki yardimci onu tipli sekilde
+ * okuyor -- `any` kullanmadan ve her cagri noktasinda tekrarlamadan.
+ */
+type ExecutorErrorBody = {
+  message?: string;
+  statementsExecuted?: number;
+  partialApplyPossible?: boolean;
+};
+
+const serverBody = (err: unknown): ExecutorErrorBody | undefined =>
+  (err as { response?: { data?: ExecutorErrorBody } })?.response?.data;
+
+const serverMessage = (err: unknown): string | undefined => serverBody(err)?.message;
 
 interface DbPushModalProps {
   open: boolean;
@@ -23,7 +38,7 @@ const DB_PLACEHOLDERS: Record<string, string> = {
 
 export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushModalProps) {
   const { dbType, setDbType } = useSchemaStore();
-  const { token, isAuthenticated } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const [connectionString, setConnectionString] = useState('');
   const [isTesting, setIsTesting] = useState(false);
   const [testSuccess, setTestSuccess] = useState<boolean | null>(null);
@@ -46,23 +61,18 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
     setIsTesting(true);
     resetState();
     try {
-      const response = await fetch(`${API_BASE_URL}/executor/test-connection`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', ...csrfHeaders, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ connectionString, dbType }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setTestSuccess(true);
-        setDeployMessage({ text: 'Connection successful!', isError: false });
-      } else {
-        setTestSuccess(false);
-        setDeployMessage({ text: data.message || 'Connection failed.', isError: true });
-      }
-    } catch {
+      const data = await executorService.testConnection(connectionString, dbType);
+      setTestSuccess(true);
+      setDeployMessage({ text: data.message || 'Connection successful!', isError: false });
+    } catch (err) {
+      // Sunucunun SINIFLANDIRILMIS mesajı gövdede geliyor (ör. "Authentication
+      // failed. Check the username and password") ve kullanıcıya gösterilmeli —
+      // "bir hata oluştu" demek onu çözümsüz bırakırdı.
       setTestSuccess(false);
-      setDeployMessage({ text: 'Could not reach server or an error occurred.', isError: true });
+      setDeployMessage({
+        text: serverMessage(err) ?? 'Could not reach server or an error occurred.',
+        isError: true,
+      });
     } finally {
       setIsTesting(false);
     }
@@ -77,31 +87,23 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
     setIsDeploying(true);
     setDeployMessage(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/executor/execute`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', ...csrfHeaders, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ connectionString, dbType, script: sqlScript }),
+      const data = await executorService.execute(connectionString, dbType, sqlScript);
+      setDeployMessage({ text: data.message || 'Successfully applied!', isError: false });
+    } catch (err) {
+      // Kısmi uygulama uyarısı GİZLENMEZ. Sunucu betiği tek transaction'da
+      // çalıştırıyor, ama MySQL/MariaDB/Oracle DDL'i örtük commit'liyor — yani
+      // "geri alındı" demek o motorlarda yalan olurdu. Kullanıcı veritabanının
+      // yarım kalmış olabileceğini bilmeden devam ederse, ikinci denemesi
+      // "zaten var" hatalarına çarpar ve nedenini anlayamaz.
+      const body = serverBody(err);
+      const partial = body?.partialApplyPossible
+        ? ` Warning: this engine commits DDL outside the transaction, so the first ${body.statementsExecuted ?? 0} statement(s) may already be applied. Check the database before retrying.`
+        : '';
+
+      setDeployMessage({
+        text: (body?.message ?? 'An error occurred during deployment.') + partial,
+        isError: true,
       });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setDeployMessage({ text: data.message || 'Successfully applied!', isError: false });
-      } else {
-        // Kismi uygulama uyarisi GIZLENMEZ. Sunucu betigi tek transaction'da
-        // calistiriyor, ama MySQL/MariaDB/Oracle DDL'i ortuk commit'ler — yani
-        // "geri alindi" demek o motorlarda yalan olurdu. Kullanici veritabaninin
-        // yarim kalmis olabilecegini bilmeden devam ederse, ikinci denemesi
-        // "zaten var" hatalarina carpar ve nedenini anlayamaz.
-        const partial = data.partialApplyPossible
-          ? ` Warning: this engine commits DDL outside the transaction, so the first ${data.statementsExecuted ?? 0} statement(s) may already be applied. Check the database before retrying.`
-          : '';
-        setDeployMessage({
-          text: (data.message || 'Deployment failed.') + partial,
-          isError: true,
-        });
-      }
-    } catch {
-      setDeployMessage({ text: 'An error occurred during deployment.', isError: true });
     } finally {
       setIsDeploying(false);
     }

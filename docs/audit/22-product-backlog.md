@@ -81,7 +81,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | B-36 | Performance | `mermaid` + `sql.js` dinamik import (önce ölç) | PERF-004 | S |
 | B-37 | Architecture | `ScaffolderService`'i böl | ARCH-003, TD-003 | M |
 | B-38 | Architecture | `AIPreferencesModal`'ı böl + tipli tercih modülü | FE-002, TD-004 | M |
-| B-39 | Frontend | `DbPushModal`'ı merkezî API istemcisine taşı | FE-005 | S |
+| ~~B-39~~ | Frontend | ~~`DbPushModal`'ı merkezi API istemcisine taşı~~ ✅ `executorService` | FE-005 | S |
 | B-40 | Testing | E2E: tek uçtan uca akış (Playwright) | TEST-005 | M |
 | B-41 | A11y | Form alanlarına etiket (51 input) | A11Y-001 | M |
 | B-42 | A11y | Kontrast + klavye + ekran okuyucu denetimi | 13 | M |
@@ -101,8 +101,8 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-49~~ | Security | ✅ Yanıltıcı kod ve yorum kaldırıldı | SEC-008 | XS |
 | ~~B-50~~ | Frontend | ✅ `removeConsole` ({ exclude: error, warn }) | FE-006 | XS |
 | B-51 | Performance | `templates.ts` dinamik import | PERF-005 | S |
-| B-52 | Database | Kararsız sayfalamayı API sözleşmesinde işaretle | DB-005 | S |
-| B-53 | A11y | `.nsl` yolunu erişilebilir alternatif olarak belgele | A11Y-003 | XS |
+| ~~B-52~~ | Database | ~~Kararsız sayfalamayı API sözleşmesinde işaretle~~ ✅ `GatewayListResult.StablePagination` | DB-005 | S |
+| ~~B-53~~ | A11y | ~~`.nsl` yolunu erişilebilir alternatif olarak belgele~~ ✅ `docs/ERISILEBILIRLIK.md` | A11Y-003 | XS |
 | ~~B-54~~ | UX | ❌ **Geri çekildi** — Desk gezinmesi zaten "Yedekler"/"Barındırma" diyor | 12 | XS |
 | B-55 | Product | Mobil hedefini açıkça belirle ve yaz | Senaryo 7 | XS |
 | B-56 | i18n | Çok dil altyapısı — **ve iki uygulamanın dilini birleştir** (`frontend` İngilizce, `desk` Türkçe) | 24, UX-004 | M |
@@ -117,7 +117,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-58~~ | Security | ✅ HIBP k-anonimlik kontrolü; **canlı doğrulandı** (`Password123456` → 42.513 sızıntı → red) | SEC-007 | S | P2 |
 | B-59 | Testing | `SecurityStampValidation` için entegrasyon testi | B-09 | S | P2 |
 | ~~B-60~~ | Docs | ✅ `.gitignore` yeni belgeleri yutuyordu — `docs/`, `deploy/` açıldı | DOC-005 | XS | P1 |
-| B-61 | Docs | `*.md` yok sayma politikasını tersine çevir (varsayılan: takip et) | DOC-005 | S | P2 |
+| ~~B-61~~ | Docs | ~~`*.md` yok sayma politikasını tersine çevir~~ ✅ varsayılan artık takip et | DOC-005 | S | P2 |
 | ~~B-62~~ | UX | ✅ MFA bölümü (elle anahtar + `otpauth://` + kurtarma kodları). **QR görüntüsü yok** — sırrı 3. tarafa göndermemek için; yerel QR B-64 | AUTH-003 | M | P1 |
 | B-64 | UX | MFA için **yerel** QR üretimi (kütüphane kararı) + authenticated dalın elle teyidi | AUTH-003 | S | P2 |
 | ~~B-63~~ | Security | ✅ `[Authorize]` + `withCredentials`; **canlı doğrulandı** (cookiesiz 401, cookie ile 404) | 29 | XS | P2 |

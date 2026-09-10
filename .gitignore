@@ -138,47 +138,23 @@ docker-compose.local.yml
 # =========================
 # Markdown Files
 # =========================
-*.md
-!README.md
-!README.tr.md
-!frontend/README.md
-!AGENTS.md
-!FRONTEND.md
-!new-phase/*.md
-!second-phase/*.md
-!third-phase/*.md
-!namines_desk/*.md
-!namines-ground/*.md
-!namines-vault/*.md
-!graphify-memory/*.md
-# Tasarim denetimi ve Vercel uyarlamasi -- namines_desk/08 bunlara ATIF YAPIYOR,
-# depoda olmamalari kirik referans birakiyordu.
-!UI_UX_PRODUCT_AUDIT.md
-!VERCEL_DESIGN_ADAPTATION.md
-!Vercel-Inspired UI-UX Analysis & Project Adaptation Task.md
-# Ne bittigini ve neyin KANITLANDIGINI ayiran durum belgesi -- devir teslimin
-# kendisi, bu yuzden depoda olmali.
-!DURUM.md
-# Denetim raporlari (docs/audit/) ve dagitim kilavuzlari (deploy/).
-!docs/**/*.md
-!deploy/*.md
-
-# ---------------------------------------------------------------------------
-# UYARI -- bu bolumun yapisal tuzagi
 #
-# `*.md` + allowlist deseni, YENI bir belgenin depoya girmesini SESSIZCE
-# engelliyor: dosyayi yazarsiniz, `git status` onu hic gostermez, commit
-# atarsiniz ve belge yalnizca sizin makinenizde kalir. Hata mesaji yok.
+# POLITIKA TERSINE CEVRILDI (DOC-005). Onceden `*.md` yok sayilip bir allowlist
+# tutuluyordu ve o desen YENI bir belgenin depoya girmesini SESSIZCE
+# engelliyordu: dosyayi yazardiniz, `git status` onu hic gostermezdi, commit
+# atardiniz ve belge yalnizca sizin makinenizde kalirdi. Hata mesaji yok.
 #
-# Bu tam olarak yasandi: 28 denetim raporu ve uretim calistirma kilavuzu
-# yazildi ve `git status` hicbirini listelemedi. Yalnizca `git check-ignore`
+# Bu gercekten yasandi: 28 denetim raporu ve uretim calistirma kilavuzu
+# yazildi ve `git status` HICBIRINI listelemedi. Yalnizca `git check-ignore`
 # ile fark edildi.
 #
-# YENI BIR .md KLASORU EKLERKEN buraya bir `!yol/**/*.md` satiri eklemeyi
-# unutmayin. Daha iyi bir cozum, `*.md` yerine yalnizca URETILEN markdown'lari
-# (ornegin `**/node_modules/**/*.md`) yok saymaktir -- varsayilanin "takip et"
-# olmasi, unutmayi zararsiz hale getirir.
-# ---------------------------------------------------------------------------
+# Artik varsayilan TAKIP ET. Yalnizca URETILEN markdown yok sayiliyor --
+# unutmak zararsiz, cunku unutulan sey takip edilir.
+**/node_modules/**/*.md
+**/.next/**/*.md
+**/bin/**/*.md
+**/obj/**/*.md
+
 
 # Ajan araci yapilandirmasi -- gelistiricinin kendi makinesine ait, urune ait
 # degil. Depoda durmasi, kullanilan araci herkese duyurmaktan baska bir sey

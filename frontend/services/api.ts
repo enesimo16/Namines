@@ -427,6 +427,49 @@ export const scaffolderService = {
   }
 };
 
+/**
+ * Kullanicinin KENDI veritabanina karsi baglanti denemesi ve DDL uygulama.
+ *
+ * Merkezi istemciden gecmesi onemli: ham `fetch` cagrilari 401 yonlendirmesini,
+ * CSRF basligini, cookie gonderimini ve zaman asimini kaciriyor. Bu iki cagri
+ * tam da urunun EN TEHLIKELI ucuna gidiyor (keyfi SQL) -- oradaki bir eksik
+ * baslik, en kotu yerde sessiz bir arizaya donusur.
+ */
+export const executorService = {
+  testConnection: async (
+    connectionString: string,
+    dbType: string,
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/executor/test-connection', { connectionString, dbType });
+    return response.data;
+  },
+
+  /**
+   * `partialApplyPossible`: MySQL/MariaDB/Oracle DDL'i ortuk commit'ler, yani
+   * basarisizlikta "geri alindi" demek o motorlarda YALAN olur. Sunucu bunu
+   * bildiriyor; arayuz gostermek zorunda.
+   */
+  execute: async (
+    connectionString: string,
+    dbType: string,
+    script: string,
+    projectId?: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    statementsExecuted?: number;
+    partialApplyPossible?: boolean;
+  }> => {
+    const response = await api.post('/executor/execute', {
+      connectionString,
+      dbType,
+      script,
+      projectId,
+    });
+    return response.data;
+  },
+};
+
 export const authService = {
   register: async (email: string, password: string, username?: string, type?: string, companyName?: string): Promise<any> => {
     const response = await api.post('/auth/register', { email, password, username, type, companyName });

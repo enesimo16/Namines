@@ -11,8 +11,25 @@ namespace Namines.Core.Models;
 /// </summary>
 public sealed record GatewayRow(IReadOnlyDictionary<string, object?> Values);
 
+/// <param name="StablePagination">
+/// Sayfalamanin KARARLI olup olmadigi.
+///
+/// <b>Neden sozlesmede:</b> `ORDER BY` olmadan `LIMIT/OFFSET` sayfalamasi
+/// hicbir motorda kararli sayilmaz -- Postgres bir UPDATE/VACUUM sonrasi ya da
+/// paralel taramada satir sirasini degistirebilir. Sonuc: "sonraki sayfa" ayni
+/// satiri tekrar gosterip baska birini HIC gostermez.
+///
+/// Sunucu bunu zaten biliyor ve `BuildListSql` yorumunda yaziyor, ama uyariyi
+/// "cagiran (UI) kullaniciyi uyarir" diye BIRAKIYORDU: dogruluk garantisi
+/// arayuzun hatirlamasina baglanmis oluyordu. Bir alan olarak dondugunde
+/// istemci onu gormezden gelmeyi SECEBILIR ama artik bilmediğini soyleyemez.
+///
+/// <c>false</c> ise: siralama kolonu verilmemis, sayfalar arasinda satir
+/// tekrari/atlamasi mumkun.
+/// </param>
 public sealed record GatewayListResult(
     IReadOnlyList<GatewayRow> Rows,
     int Page,
     int PageSize,
-    long TotalCount);
+    long TotalCount,
+    bool StablePagination = true);

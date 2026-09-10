@@ -90,7 +90,12 @@ public sealed class GatewayService : IGatewayService
 
         await ApplyExpandsAsync(conn, dbType, rows, expands, cancellationToken);
 
-        return new GatewayListResult(rows, page, pageSize, totalCount);
+        // StablePagination: siralama kolonu YOKSA sayfalama kararli degil ve
+        // bunu cagirana SOYLUYORUZ. Onceden bu bilgi yalnizca BuildListSql'in
+        // yorumunda duruyordu ve "UI hatirlar" varsayimina dayaniyordu.
+        return new GatewayListResult(
+            rows, page, pageSize, totalCount,
+            StablePagination: orderByColumn is not null);
     }
 
     /// <summary>08 §5: sorgu maliyeti tavanı. Aşan istek kırpılmaz, REDDEDİLİR —
