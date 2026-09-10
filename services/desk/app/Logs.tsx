@@ -104,15 +104,15 @@ export default function Logs({ session }: { session: DeskSession }) {
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', margin: '14px 0 8px' }}>
           Tablo
         </div>
-        <input type="text" value={tableName} placeholder="ör. customers"
+        <input aria-label="Tablo" type="text" value={tableName} placeholder="ör. customers"
                onChange={e => { setPage(1); setTableName(e.target.value); }} style={{ width: '100%' }} />
 
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', margin: '14px 0 8px' }}>
           Zaman aralığı
         </div>
-        <input type="datetime-local" value={from} onChange={e => { setPage(1); setFrom(e.target.value); }}
+        <input type="datetime-local" aria-label="Zaman aralığı başlangıcı" value={from} onChange={e => { setPage(1); setFrom(e.target.value); }}
                style={{ width: '100%', marginBottom: 6 }} />
-        <input type="datetime-local" value={to} onChange={e => { setPage(1); setTo(e.target.value); }} style={{ width: '100%' }} />
+        <input type="datetime-local" aria-label="Zaman aralığı bitişi" value={to} onChange={e => { setPage(1); setTo(e.target.value); }} style={{ width: '100%' }} />
 
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', margin: '14px 0 8px' }}>
           Sonuç

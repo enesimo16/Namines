@@ -8,7 +8,7 @@
 > | BACK-003 Tutarsız hata politikası | ✅ Ortak `DbConnectionFailure` |
 > | BACK-004 Controller boyutları | 🟡 Açık — `GatewayController` bölme işi (P1, L) |
 > | BACK-005 Async disiplini | Bulgu yoktu |
-> | BACK-006 Docker.DotNet çatışması | 🟡 Açık — P2 |
+> | BACK-006 Docker.DotNet çatışması | ✅ Etkisiz kılındı — teşhis düzeltildi |
 > | BACK-007 Şifreleme | Bulgu yoktu |
 
 **Ölçüm:** 62.183 satır C#, 9 proje, 33 controller.
@@ -136,39 +136,89 @@ doğru tercih.
 
 ## BACK-006 — Docker.DotNet sürüm çatışması (test projesinde)
 
-### Finding
-`Namines.Vault` → `Docker.DotNet 3.125.15`.
-`Namines.Tests` → `Testcontainers.* 4.13.0`, bu da Docker.DotNet **4.x** getiriyor.
-Test bin klasöründe 4.x kazanıyor.
+### Finding (TEŞHİS DÜZELTİLDİ — 10.09.2026)
+
+İlk teşhis **eksikti**: "Testcontainers Docker.DotNet 4.x getiriyor" denmişti.
+Ölçüm bunu doğrulamadı. Gerçek neden:
+
+```
+$ dotnet list backend/Namines.Tests package --include-transitive | grep -i docker
+  > Docker.DotNet                     3.125.15
+  > Docker.DotNet.Enhanced            4.3.3      ← Testcontainers 4.13'ten
+```
+
+İki **farklı paket kimliği**, ama ikisi de `Docker.DotNet.dll` adında bir
+derleme üretiyor:
+
+```
+~/.nuget/packages/docker.dotnet/3.125.15/lib/netstandard2.0/Docker.DotNet.dll
+~/.nuget/packages/docker.dotnet.enhanced/4.3.3/lib/net8.0/Docker.DotNet.dll
+```
+
+NuGet bunu çatışma olarak **göremiyor** (kimlikler farklı). Çıktı klasöründe
+yüksek derleme sürümü kazanıyor:
+
+```
+$ (Get-Item backend/Namines.Tests/bin/Debug/net8.0/Docker.DotNet.dll).VersionInfo.FileVersion
+4.3.3.1
+```
+
+Ve forkta tür **yeniden adlandırılmış** — `Docker.DotNet.xml` içinde
+`DockerClientConfiguration` yok, yerine `DockerConfiguration` var.
+
+**Bu ayrım önemli:** Sorun bir sürüm aralığı çatışması olmadığı için, denetimin
+önerdiği "test projesinde sürümü sabitle" yolu işe **yaramazdı** — iki dosya
+adı hâlâ aynı olurdu.
 
 ### Location
 `backend/Namines.Vault/Namines.Vault.csproj:27`,
 `backend/Namines.Tests/Namines.Tests.csproj:16-19`
 
-### Current State
-Bu oturumda **gerçekten patladı**:
-`TypeLoadException: Could not load type 'Docker.DotNet.DockerClientConfiguration'
-from assembly 'Docker.DotNet, Version=4.3.0.0'` — bir sağlayıcı nesnesi
-kurulduğu anda.
+### Yapıldı (10.09.2026)
 
-Geçici olarak Docker istemcisi `Lazy<T>` yapılarak testler kurtarıldı (ki bu
-kendi başına doğru bir tasarım), ama **çatışma duruyor**: testte Docker'a
-gerçekten dokunan bir Vault yolu yazıldığı gün yeniden patlayacak.
+`Namines.Vault`'ta zaten doğru kabul edilen `Lazy<T>` deseni,
+`Namines.Infrastructure`'daki **dört** servise de uygulandı — hepsi istemciyi
+kurucuda oluşturuyordu, yani Docker'a hiç dokunmayan bir testte bile
+patlıyorlardı:
 
-### Severity
-**MEDIUM** — gizli, tetiklendiğinde kafa karıştırıcı.
+| Dosya | Önce | Sonra |
+|---|---|---|
+| `DockerBackupService.cs:27` | kurucuda | `Lazy<DockerClient>` |
+| `BranchDatabaseProvisioner.cs:109` | kurucuda | `Lazy<DockerClient>` |
+| `BranchTestRunnerService.cs:52` | kurucuda | `Lazy<DockerClient>` |
+| `DockerSweeperBackgroundService.cs:51` | kurucuda | `Lazy<DockerClient>` |
 
-### Recommendation
-İki yoldan biri:
-- `Namines.Vault`'u Docker.DotNet 4.x'e taşı (API değişiklikleri var; Vault'un
-  canlı doğrulanmış akışlarının yeniden kanıtlanması gerekir), ya da
-- Test projesinde açık bir `<PackageReference>` ile sürümü sabitle ve
-  binding redirect ile tek sürüme zorla.
+`Dispose` de istemciyi **zorla kurmuyor**
+(`if (_clientLazy.IsValueCreated) …`) — aksi hâlde temizlik, kaçınılan
+istisnayı tam da nesne atılırken geri getirirdi.
 
-Birincisi doğru, ikincisi ucuz. Karar bilinçli verilmeli.
+**Yan kazanç (üretim):** DI kapsayıcısı bu nesneleri kurarken artık Docker
+yapılandırmasını çözmüyor. Önceden bozuk bir Docker kurulumu, Docker'ı hiç
+kullanmayacak istekler için bile uygulamayı **başlatmıyordu**.
+
+**Regresyon testi:** `backend/Namines.Tests/Services/DockerServiceConstructionTests.cs`
+(5 test). Düzeltmeden ÖNCEKİ kodda çalıştırılarak doğrulandı: dosya
+`git stash` ile geri alındığında test **başarısız** oluyor. Yani test
+gerçekten bu hatayı ölçüyor.
+
+### Kalan iş — BİLİNÇLİ ERTELEME
+
+Derleme adı çatışmasının kendisi **duruyor**; etkisiz kılındı, kaldırılmadı.
+Kalıcı çözüm üretim kodunu 4.x forkuna taşımak
+(`DockerClientConfiguration` → `DockerConfiguration`, 5 dosya).
+
+**Neden bu oturumda yapılmadı:** Geçişin doğruluğu ancak **canlı Docker** ile
+kanıtlanabilir (yedekleme/geri yükleme akışları), Docker bu oturumda
+kullanılamıyordu. Kanıtlanmamış bir geçiş, kanıtlanmış bir arızadan kötüdür.
+
+**Bugünkü etki:** Yok. Üretim çıktısında yalnızca 3.125.15 var; çatışma
+test klasörüne özgü ve artık orada da bir istisnaya dönüşmüyor.
+
+**Tetikleyici:** Testte Docker'a *gerçekten* dokunan bir yol yazıldığı gün
+geçiş zorunlu hâle gelir. O gün için ölçüm ve yol yukarıda hazır.
 
 ### Effort
-M · ### Priority P2
+M (geçiş) · ### Priority P3 (etkisi kalmadı)
 
 ---
 

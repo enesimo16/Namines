@@ -121,6 +121,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
           <label className="text-content-secondary text-sm font-medium">Connection string</label>
           <div className="relative">
             <textarea
+              aria-label="Connection string"
               value={connectionString}
               onChange={e => { setConnectionString(e.target.value); setError(null); }}
               placeholder={PLACEHOLDERS[dbType] ?? ''}

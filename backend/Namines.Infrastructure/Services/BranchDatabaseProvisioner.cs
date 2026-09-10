@@ -48,7 +48,35 @@ namespace Namines.Infrastructure.Services;
 /// </summary>
 public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDisposable
 {
-    private readonly DockerClient _client;
+    /// <summary>
+    /// Docker istemcisi İLK KULLANIMDA kuruluyor, kurucuda değil.
+    ///
+    /// <b>Neden:</b> Kurucuda kurmak, bu servisi YARATMANIN Docker
+    /// yapılandırmasını çözmeyi gerektirmesi demekti. İki somut sonucu vardı:
+    ///
+    /// 1. <b>Test edilemezlik.</b> Test projesi Testcontainers üzerinden
+    ///    <c>Docker.DotNet.Enhanced</c> paketini çekiyor; o paket de
+    ///    <c>Docker.DotNet.dll</c> adında bir derleme üretiyor ve çıktı klasöründe
+    ///    3.x sürümünün üzerine yazıyor. Yeni sürümde
+    ///    <c>DockerClientConfiguration</c> türü <c>DockerConfiguration</c> olarak
+    ///    yeniden adlandırılmış -- yani bu sınıfı testte kurmak
+    ///    <c>TypeLoadException</c> fırlatıyordu. Şimdi Docker'a dokunmayan yollar
+    ///    test edilebiliyor.
+    /// 2. <b>Açılışta çökme.</b> DI kapsayıcısı bu nesneyi kurarken hata alırsa
+    ///    uygulama, Docker'ı hiç kullanmayacak istekler için bile başlamıyordu.
+    ///
+    /// Aynı desen <c>Namines.Vault.ContainerBackupProvider</c>'da zaten doğru
+    /// kabul edilmişti; burası onunla hizalandı.
+    /// </summary>
+    private readonly Lazy<DockerClient> _clientLazy = new(() =>
+    {
+        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
+            ? "npipe://./pipe/docker_engine"
+            : "unix:///var/run/docker.sock";
+        return new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+    });
+
+    private DockerClient Docker => _clientLazy.Value;
     private readonly IDdlGeneratorFactory _ddlFactory;
     private readonly IServiceScopeFactory? _scopeFactory;
     private readonly ISmartSeedService? _seedService;
@@ -102,11 +130,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
         _scopeFactory = scopeFactory;
         _seedService = seedService;
         _logger = logger;
-
-        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
-            ? "npipe://./pipe/docker_engine"
-            : "unix:///var/run/docker.sock";
-        _client = new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+
     }
 
     public static bool IsEngineSupported(DatabaseType engine) =>
@@ -139,7 +163,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 
         await EnsureImageAsync(profile, cancellationToken);
 
-        var create = await _client.Containers.CreateContainerAsync(new CreateContainerParameters
+        var create = await Docker.Containers.CreateContainerAsync(new CreateContainerParameters
         {
             Name = NamePrefix + Sanitize(branchId),
             Image = $"{profile.Image}:{profile.Tag}",
@@ -178,7 +202,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 
         try
         {
-            await _client.Containers.StartContainerAsync(create.ID, new ContainerStartParameters(), cancellationToken);
+            await Docker.Containers.StartContainerAsync(create.ID, new ContainerStartParameters(), cancellationToken);
 
             var port = await ResolveHostPortAsync(create.ID, profile.ContainerPort, cancellationToken);
             var database = new BranchDatabase(
@@ -270,7 +294,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
         if (string.IsNullOrWhiteSpace(seed.SqlScript)) return 0;
 
         using var tar = DockerTarFile.SingleFile("seed.sql", seed.SqlScript);
-        await _client.Containers.ExtractArchiveToContainerAsync(
+        await Docker.Containers.ExtractArchiveToContainerAsync(
             container.ID, new ContainerPathStatParameters { Path = "/tmp" }, tar, cancellationToken);
 
         var command = database.Engine switch
@@ -305,7 +329,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 
     public async Task<IReadOnlyList<string>> ListOpenBranchIdsAsync(CancellationToken cancellationToken = default)
     {
-        var containers = await _client.Containers.ListContainersAsync(
+        var containers = await Docker.Containers.ListContainersAsync(
             new ContainersListParameters { All = true }, cancellationToken);
 
         return containers
@@ -324,7 +348,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 
     public async Task<int> SweepExpiredAsync(CancellationToken cancellationToken = default)
     {
-        var containers = await _client.Containers.ListContainersAsync(
+        var containers = await Docker.Containers.ListContainersAsync(
             new ContainersListParameters { All = true }, cancellationToken);
 
         var removed = 0;
@@ -352,7 +376,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
     private async Task<ContainerListResponse?> FindContainerAsync(string branchId, CancellationToken ct)
     {
         var expected = "/" + NamePrefix + Sanitize(branchId);
-        var containers = await _client.Containers.ListContainersAsync(
+        var containers = await Docker.Containers.ListContainersAsync(
             new ContainersListParameters { All = true }, ct);
 
         return containers.FirstOrDefault(c =>
@@ -364,7 +388,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
     {
         try
         {
-            await _client.Containers.RemoveContainerAsync(
+            await Docker.Containers.RemoveContainerAsync(
                 containerId, new ContainerRemoveParameters { Force = true, RemoveVolumes = true }, ct);
         }
         catch (DockerApiException ex)
@@ -376,18 +400,18 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 
     private async Task EnsureImageAsync(BranchProfile profile, CancellationToken ct)
     {
-        var images = await _client.Images.ListImagesAsync(new ImagesListParameters { All = true }, ct);
+        var images = await Docker.Images.ListImagesAsync(new ImagesListParameters { All = true }, ct);
         var tag = $"{profile.Image}:{profile.Tag}";
         if (images.Any(i => i.RepoTags is not null && i.RepoTags.Contains(tag))) return;
 
-        await _client.Images.CreateImageAsync(
+        await Docker.Images.CreateImageAsync(
             new ImagesCreateParameters { FromImage = profile.Image, Tag = profile.Tag },
             new AuthConfig(), new Progress<JSONMessage>(), ct);
     }
 
     private async Task<int> ResolveHostPortAsync(string containerId, int containerPort, CancellationToken ct)
     {
-        var inspect = await _client.Containers.InspectContainerAsync(containerId, ct);
+        var inspect = await Docker.Containers.InspectContainerAsync(containerId, ct);
         var key = $"{containerPort}/tcp";
 
         if (inspect.NetworkSettings?.Ports is not null &&
@@ -459,7 +483,7 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
         if (string.IsNullOrWhiteSpace(ddl)) return;
 
         using var tar = DockerTarFile.SingleFile("schema.sql", ddl);
-        await _client.Containers.ExtractArchiveToContainerAsync(
+        await Docker.Containers.ExtractArchiveToContainerAsync(
             containerId, new ContainerPathStatParameters { Path = "/tmp" }, tar, ct);
 
         if (engine == DatabaseType.MSSQL)
@@ -502,16 +526,16 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
 
     private async Task<(int ExitCode, string Output)> ExecAsync(string containerId, string[] command, CancellationToken ct)
     {
-        var exec = await _client.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
+        var exec = await Docker.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
         {
             AttachStdout = true,
             AttachStderr = true,
             Cmd = command,
         }, ct);
 
-        using var stream = await _client.Exec.StartAndAttachContainerExecAsync(exec.ID, false, ct);
+        using var stream = await Docker.Exec.StartAndAttachContainerExecAsync(exec.ID, false, ct);
         var (stdout, stderr) = await stream.ReadOutputToEndAsync(ct);
-        var inspect = await _client.Exec.InspectContainerExecAsync(exec.ID, ct);
+        var inspect = await Docker.Exec.InspectContainerExecAsync(exec.ID, ct);
 
         return ((int)inspect.ExitCode, string.IsNullOrWhiteSpace(stderr) ? stdout : stdout + stderr);
     }
@@ -599,5 +623,8 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
     internal static string Sanitize(string value) =>
         new(value.Select(c => char.IsLetterOrDigit(c) || c is '_' or '.' or '-' ? c : '-').ToArray());
 
-    public void Dispose() => _client.Dispose();
+    public void Dispose()
+    {
+        if (_clientLazy.IsValueCreated) _clientLazy.Value.Dispose();
+    }
 }

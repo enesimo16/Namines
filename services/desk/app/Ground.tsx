@@ -174,7 +174,7 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
               Silme hemen olmaz; bekleme penceresi boyunca geri alabilirsiniz. Devam etmek
               için proje adını yazın.
             </span>
-            <input type="text" value={confirmText} style={{ maxWidth: 280 }}
+            <input type="text" aria-label="Onay için proje adı" value={confirmText} style={{ maxWidth: 280 }}
                    onChange={e => setConfirmText(e.target.value)} />
             <div className="row-actions">
               <button className="btn btn-danger" disabled={busy || !confirmText.trim()}

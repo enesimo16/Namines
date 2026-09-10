@@ -224,6 +224,7 @@ export default function RegionalPromptPanel() {
         )}
 
         <input
+          aria-label="Prompt for the selected tables"
           ref={inputRef}
           id="regional-prompt-input"
           type="text"

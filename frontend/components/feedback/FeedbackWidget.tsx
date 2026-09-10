@@ -94,6 +94,7 @@ export default function FeedbackWidget() {
           </div>
 
           <textarea
+            aria-label="Feedback message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={3}
@@ -103,6 +104,7 @@ export default function FeedbackWidget() {
           />
 
           <input
+            aria-label="Email (optional)"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

@@ -55,6 +55,13 @@ kapalı olur.
 
 ## TD-005 — Docker.DotNet sürüm çatışması
 
+**GÜNCELLEME 10.09.2026 — etkisiz kılındı.** Teşhis düzeltildi: bu bir sürüm
+aralığı çatışması değil, iki farklı paketin (`Docker.DotNet` 3.125.15 ve
+Testcontainers'ın çektiği `Docker.DotNet.Enhanced` 4.3.3) **aynı derleme adını**
+üretmesi. Dört Infrastructure servisinde Docker istemcisi `Lazy<T>` yapıldı;
+regresyon testi `DockerServiceConstructionTests` (düzeltmeden önceki kodda
+başarısız olduğu doğrulandı). Ayrıntı: `03-backend-audit.md` → BACK-006.
+
 **Neden var:** `Namines.Vault` 3.125.15 kullanıyor; `Testcontainers` 4.13 →
 Docker.DotNet 4.x getiriyor. Test bin klasöründe 4.x kazanıyor.
 

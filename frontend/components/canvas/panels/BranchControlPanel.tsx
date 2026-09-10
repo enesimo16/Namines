@@ -292,6 +292,7 @@ export default function BranchControlPanel() {
           {showCreateInput ? (
             <form onSubmit={handleCreateBranch} className="flex gap-1">
               <input
+                aria-label="Branch name"
                 type="text"
                 placeholder="Branch name..."
                 value={newBranchName}
@@ -321,6 +322,7 @@ export default function BranchControlPanel() {
             <div className="mt-2 pt-2 border-t border-surface-600/80">
               <label className="text-micro font-extrabold text-content-subtle block mb-1 uppercase tracking-wide">Compare Branch</label>
               <select
+                aria-label="Compare Branch"
                 value={compareBranchName || ''}
                 onChange={(e) => setCompareBranchName(e.target.value || null)}
                 className="w-full bg-surface-800 border border-surface-500 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-secondary focus:outline-none focus:border-white/25"

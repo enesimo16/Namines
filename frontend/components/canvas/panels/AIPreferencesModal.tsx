@@ -6,6 +6,7 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { useQuotaStore } from '../../../store/useQuotaStore';
 import api, { authService, BillingInterval, PlanPricing } from '../../../services/api';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
+import MfaQrCode from './MfaQrCode';
 
 type PriceView = { amount: number; total: number; available: boolean } | null;
 
@@ -829,35 +830,35 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">Full Name</label>
-                        <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Doe" className={inputClass} />
+                        <input aria-label="Full Name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Doe" className={inputClass} />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">Company / Organization</label>
-                        <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Corp" className={inputClass} />
+                        <input aria-label="Company / Organization" type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Corp" className={inputClass} />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">Location</label>
-                        <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Istanbul, Turkey" className={inputClass} />
+                        <input aria-label="Location" type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Istanbul, Turkey" className={inputClass} />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">GitHub Profile URL</label>
-                        <input type="text" value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="https://github.com/username" className={inputClass} />
+                        <input aria-label="GitHub Profile URL" type="text" value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="https://github.com/username" className={inputClass} />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">LinkedIn Profile URL</label>
-                        <input type="text" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/username" className={inputClass} />
+                        <input aria-label="LinkedIn Profile URL" type="text" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/username" className={inputClass} />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">Twitter / X Profile URL</label>
-                        <input type="text" value={twitterUrl} onChange={(e) => setTwitterUrl(e.target.value)} placeholder="https://x.com/username" className={inputClass} />
+                        <input aria-label="Twitter / X Profile URL" type="text" value={twitterUrl} onChange={(e) => setTwitterUrl(e.target.value)} placeholder="https://x.com/username" className={inputClass} />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
                         <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">Portfolio Website</label>
-                        <input type="text" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://myportfolio.com" className={inputClass} />
+                        <input aria-label="Portfolio Website" type="text" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://myportfolio.com" className={inputClass} />
                       </div>
                       <div className="space-y-1.5 md:col-span-2">
                         <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">Short Bio</label>
-                        <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Full-stack developer passionate about databases and scalable architecture..." rows={3} className={`${inputClass} resize-none`} />
+                        <textarea aria-label="Short Bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Full-stack developer passionate about databases and scalable architecture..." rows={3} className={`${inputClass} resize-none`} />
                       </div>
                     </div>
 
@@ -976,13 +977,13 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </div>
 
                     {/* Cok faktorlu dogrulama.
-                        QR GORUNTUSU YOK ve bu bilincli: bir QR uretmek icin
-                        sirri ucuncu bir servise gondermek gerekirdi (or.
-                        chart API'leri) -- yani MFA sirrini disariya vermek.
-                        Yerel uretim bir kutuphane gerektiriyor; onun yerine
-                        elle girilebilir anahtar ve otpauth:// baglantisi
-                        veriliyor. Mobilde baglantiya dokunmak kimlik
-                        dogrulayici uygulamayi aciyor. */}
+                        QR kodu TAMAMEN TARAYICIDA uretiliyor (MfaQrCode) --
+                        sir hicbir ucuncu tarafa gitmiyor. Hazir chart API'leri
+                        otpauth baglantisini URL'de disariya gonderdigi icin
+                        kullanilamaz: MFA kurarken sirri bir yabanciya vermek
+                        kurulumun amacini yok eder.
+                        Elle girilebilir anahtar KALDIRILMADI: QR uretimi
+                        basarisiz olursa ya da kamera yoksa tek yol o. */}
                     <div className={`${cardClass} p-5 space-y-4`}>
                       <div className="flex items-center gap-2 border-b border-content-primary/10 pb-3">
                         <Shield className="w-4 h-4 text-content-muted" />
@@ -1050,6 +1051,10 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                         <form onSubmit={handleMfaEnable} className="space-y-3">
                           <p className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">
                             Step 1 — add this key to your authenticator app
+                          </p>
+                          <MfaQrCode otpauthUri={mfaSetup.otpauthUri} />
+                          <p className="text-[10px] text-content-subtle leading-normal">
+                            Scan the code, or type the key below by hand.
                           </p>
                           <div className="font-mono text-xs bg-surface-800 p-2.5 rounded-[var(--radius-control)] select-all text-content-secondary break-all">
                             {mfaSetup.sharedKey}

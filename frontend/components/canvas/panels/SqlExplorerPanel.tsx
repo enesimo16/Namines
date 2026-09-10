@@ -315,6 +315,7 @@ export default function SqlExplorerPanel() {
           </div>
 
           <textarea
+            aria-label="SQL Query"
             value={sqlQuery}
             onChange={(e) => setSqlQuery(e.target.value)}
             placeholder="SELECT * FROM Users LIMIT 10;"

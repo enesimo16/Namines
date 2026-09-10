@@ -267,6 +267,7 @@ export default function TableEditorDrawer() {
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-bold tracking-wider text-content-subtle uppercase">Table Name</label>
                 <input
+                  aria-label="Table Name"
                   value={draft.name}
                   onChange={e => handleTableNameChange(e.target.value)}
                   className={`w-full px-3 py-2.5 text-sm ${inputClass}`}
@@ -335,6 +336,7 @@ export default function TableEditorDrawer() {
                       </div>
 
                       <input
+                        aria-label="Column name"
                         value={col.name}
                         onChange={e => handleColumnChange(col.id, 'name', e.target.value)}
                         className={`flex-1 min-w-0 px-2 py-1.5 text-xs font-mono ${inputClass}`}
@@ -343,6 +345,7 @@ export default function TableEditorDrawer() {
                       />
 
                       <select
+                        aria-label={`${col.name || 'Column'} data type`}
                         value={col.type}
                         onChange={e => handleColumnChange(col.id, 'type', e.target.value)}
                         className={`w-24 flex-shrink-0 px-1.5 py-1.5 text-[11px] appearance-none cursor-pointer ${inputClass}`}
@@ -561,6 +564,7 @@ export default function TableEditorDrawer() {
                     >
                       <div className="flex items-center gap-1.5 mb-2">
                         <input
+                          aria-label="Index name"
                           value={ix.name ?? ''}
                           onChange={e => handleIndexChange(ix.id, 'name', e.target.value)}
                           placeholder="(name is derived automatically)"
@@ -604,6 +608,7 @@ export default function TableEditorDrawer() {
                       </div>
 
                       <input
+                        aria-label="Partial index condition"
                         value={ix.where ?? ''}
                         onChange={e => handleIndexChange(ix.id, 'where', e.target.value)}
                         placeholder="Partial index condition — e.g. DeletedAt IS NULL"

@@ -21,8 +21,25 @@
 
 ## A11Y-001 — Form alanlarının çoğunda programatik etiket yok
 
-### Finding
-51 `<input>` öğesine karşılık yalnızca **5** `htmlFor` kullanımı var.
+### Finding (SAYIM DÜZELTİLDİ — 10.09.2026)
+
+İlk sayım **eksikti**: "51 `<input>`, 5 `htmlFor`". Yalnızca `htmlFor`
+sayılmıştı; `aria-label` ve **saran `<label>`** (örtük etiketleme) de tam
+geçerli yollar ve depoda ikisi de kullanılıyordu.
+
+Her etiketi tek tek açan bir ölçümle gerçek tablo:
+
+```
+TOPLAM form alanı: 118   (input + textarea + select, frontend + desk)
+ETİKETLİ         :  41
+    aria-label               33
+    örtük <label>            19   ← ilk sayımda hiç görülmedi
+    id<->htmlFor             21
+    etiketsiz tür (hidden…)   6
+ETİKETSİZ        :  77
+```
+
+Yani sorun gerçekti (77 alan), ama **51/5 tablosu iki yönden de yanlıştı**.
 
 ### Location
 `frontend/` genelinde; en yoğun form alanları
@@ -44,10 +61,53 @@ kullanıcılar için hedef alanı küçülüyor (2.5.5 ile ilişkili).
 satılamaz. Avrupa'da EAA (European Accessibility Act) kapsamı genişliyor.
 
 ### Severity **HIGH** (uyum açısından) / MEDIUM (bugünkü kullanıcı için)
-### Recommendation
-Her form alanına ya `<label htmlFor={id}>` ya da `aria-label` ekle. Bu,
-mekanik ve bölünebilir bir iş — bileşen bileşen ilerlenebilir.
-### Effort M · ### Priority P2
+### Yapıldı (10.09.2026) — 117 / 118
+
+```
+ETİKETLİ         : 117
+    aria-label               67
+    örtük <label>            23
+    id<->htmlFor             21
+    etiketsiz tür             6
+ETİKETSİZ        :   1
+```
+
+Kalan **1** tanesi `components/compile/PanelKit.tsx:45` ve **gerçek bir alan
+değil** — bir açıklama yorumunun içinde geçen `` `<select>` `` metni.
+Ölçüm betiğinin yanlış pozitifi; kod değişikliği gerekmiyor.
+
+#### Bu işte yapılan bir hata ve neden geri alındı
+
+İlk deneme etiketleri **placeholder metninden** üretti (38 alan). Sonuç
+yarısında yanlıştı:
+
+| Üretilen etiket | Alanın gerçek adı |
+|---|---|
+| `aria-label="John Doe"` | Full Name |
+| `aria-label="600"` | Session timeout (saniye) |
+| `aria-label="https://github.com/username"` | GitHub Profile URL |
+| `aria-label="ör. customers"` | Tablo |
+| `aria-label="public class AppDbContext : DbContext {"` | DbContext C# source code |
+
+Placeholder bir **örnek değer**, alanın adı değil. Ekran okuyucunun "John Doe,
+edit text" demesi hiç etiket olmamasından **daha kötü**: kullanıcıyı yanlış
+yönlendirir. 38 ekleme geri alındı ve her alan görünen etiket metniyle tek tek
+etiketlendi.
+
+#### Kural olarak benimsenen
+1. Etiket, **görünen metnin aynısı** (WCAG 2.5.3 Label in Name — sesli komut
+   kullanıcısı ekranda gördüğünü söyler).
+2. Saran `<label>` varsa **dokunulmaz**: `aria-label` görünen metni EZER ve
+   2.5.3'ü ihlal ederdi.
+3. Placeholder yalnızca zaten alanın adıysa kullanılır (ör. "Email address",
+   "Password", "Branch name").
+
+### Kalan iş
+`<label htmlFor>` ile **tıklanabilir** etiket (WCAG 2.5.5, hedef alanını
+büyütür) yapılmadı. `aria-label` 1.3.1 ve 4.1.2'yi karşılıyor;
+tıklanabilirlik ayrı bir iyileştirme ve her alanın görünür bir `<label>`'ı yok.
+
+### Effort M (yapıldı) · ### Priority P2
 
 ---
 

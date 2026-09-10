@@ -286,6 +286,7 @@ export default function Header() {
                   <div className="flex items-center gap-2">
                     <input
                       ref={inputRef}
+                      aria-label="Project name"
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onBlur={commitEdit}

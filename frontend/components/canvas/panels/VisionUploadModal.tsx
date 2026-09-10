@@ -280,6 +280,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                           </div>
                           <input
                             type="checkbox"
+                            aria-label={`Include relation ${sourceName} → ${targetName}`}
                             checked={selectedRelations[key] !== false}
                             onChange={() => {
                               setSelectedRelations(prev => ({

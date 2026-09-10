@@ -16,19 +16,45 @@ namespace Namines.Infrastructure.Services;
 
 public class DockerBackupService : IDockerService, IDisposable
 {
-    private readonly DockerClient _client;
-
-    public DockerBackupService()
+    /// <summary>
+    /// Docker istemcisi İLK KULLANIMDA kuruluyor, kurucuda değil.
+    ///
+    /// <b>Neden:</b> Kurucuda kurmak, bu servisi YARATMANIN Docker
+    /// yapılandırmasını çözmeyi gerektirmesi demekti. İki somut sonucu vardı:
+    ///
+    /// 1. <b>Test edilemezlik.</b> Test projesi Testcontainers üzerinden
+    ///    <c>Docker.DotNet.Enhanced</c> paketini çekiyor; o paket de
+    ///    <c>Docker.DotNet.dll</c> adında bir derleme üretiyor ve çıktı klasöründe
+    ///    3.x sürümünün üzerine yazıyor. Yeni sürümde
+    ///    <c>DockerClientConfiguration</c> türü <c>DockerConfiguration</c> olarak
+    ///    yeniden adlandırılmış -- yani bu sınıfı testte kurmak
+    ///    <c>TypeLoadException</c> fırlatıyordu. Şimdi Docker'a dokunmayan yollar
+    ///    test edilebiliyor.
+    /// 2. <b>Açılışta çökme.</b> DI kapsayıcısı bu nesneyi kurarken hata alırsa
+    ///    uygulama, Docker'ı hiç kullanmayacak istekler için bile başlamıyordu.
+    ///
+    /// Aynı desen <c>Namines.Vault.ContainerBackupProvider</c>'da zaten doğru
+    /// kabul edilmişti; burası onunla hizalandı.
+    /// </summary>
+    private readonly Lazy<DockerClient> _clientLazy = new(() =>
     {
         var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
             ? "npipe://./pipe/docker_engine"
             : "unix:///var/run/docker.sock";
+        return new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+    });
 
-        _client = new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+    private DockerClient Docker => _clientLazy.Value;
+
+    public DockerBackupService()
+    {
     }
 
     // Scoped servis: her request'te DockerClient (handler/socket) sızmasın diye dispose edilir.
-    public void Dispose() => _client?.Dispose();
+    public void Dispose()
+    {
+        if (_clientLazy.IsValueCreated) _clientLazy.Value.Dispose();
+    }
 
     public async Task RunSandboxAndBackupAsync(string jobId, string sqlContent, DatabaseType dbType, Action<string> onProgress)
     {
@@ -40,7 +66,7 @@ public class DockerBackupService : IDockerService, IDisposable
             onProgress($"Connected to Docker engine. Checking image: {profile.Image}:{profile.Tag}");
 
             // 1. Check if image exists locally to optimize pull
-            var localImages = await _client.Images.ListImagesAsync(new ImagesListParameters { All = true });
+            var localImages = await Docker.Images.ListImagesAsync(new ImagesListParameters { All = true });
             bool imageExists = localImages.Any(img => 
                 img.RepoTags != null && 
                 img.RepoTags.Contains($"{profile.Image}:{profile.Tag}"));
@@ -48,7 +74,7 @@ public class DockerBackupService : IDockerService, IDisposable
             if (!imageExists)
             {
                 onProgress($"Image not found locally. Pulling from Docker Hub: {profile.Image}:{profile.Tag}...");
-                await _client.Images.CreateImageAsync(
+                await Docker.Images.CreateImageAsync(
                     new ImagesCreateParameters { FromImage = profile.Image, Tag = profile.Tag },
                     new AuthConfig(),
                     new Progress<JSONMessage>(msg => {
@@ -76,13 +102,13 @@ public class DockerBackupService : IDockerService, IDisposable
                 }
             };
 
-            var createResponse = await _client.Containers.CreateContainerAsync(createParams);
+            var createResponse = await Docker.Containers.CreateContainerAsync(createParams);
             containerId = createResponse.ID;
 
             onProgress($"Container created (ID: {containerId.Substring(0, 8)}). Starting...");
 
             // 3. Start Container
-            await _client.Containers.StartContainerAsync(containerId, new ContainerStartParameters());
+            await Docker.Containers.StartContainerAsync(containerId, new ContainerStartParameters());
             onProgress("Container started. Waiting for health check...");
 
             // 4. Wait for DB to be ready (Smart Healthcheck loop)
@@ -128,7 +154,7 @@ public class DockerBackupService : IDockerService, IDisposable
             onProgress("Transferring DDL (SQL) script...");
             using (var tarStream = CreateTarStream("schema.sql", sqlContent))
             {
-                await _client.Containers.ExtractArchiveToContainerAsync(containerId, new ContainerPathStatParameters
+                await Docker.Containers.ExtractArchiveToContainerAsync(containerId, new ContainerPathStatParameters
                 {
                     Path = "/tmp"
                 }, tarStream);
@@ -234,7 +260,7 @@ public class DockerBackupService : IDockerService, IDisposable
             // 8. Extract backup from container & Extract TAR on Host
             onProgress("Copying backup to host machine...");
             
-            var archiveResponse = await _client.Containers.GetArchiveFromContainerAsync(containerId, new GetArchiveFromContainerParameters 
+            var archiveResponse = await Docker.Containers.GetArchiveFromContainerAsync(containerId, new GetArchiveFromContainerParameters 
             { 
                 Path = containerBackupPath 
             }, false);
@@ -296,9 +322,9 @@ public class DockerBackupService : IDockerService, IDisposable
                 try
                 {
                     onProgress("Stopping container...");
-                    await _client.Containers.StopContainerAsync(containerId, new ContainerStopParameters { WaitBeforeKillSeconds = 2 });
+                    await Docker.Containers.StopContainerAsync(containerId, new ContainerStopParameters { WaitBeforeKillSeconds = 2 });
                     onProgress("Removing container...");
-                    await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true });
+                    await Docker.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true });
                 }
                 catch (Exception cleanupEx)
                 {
@@ -310,22 +336,22 @@ public class DockerBackupService : IDockerService, IDisposable
 
     private async Task<(int ExitCode, string Output)> ExecuteCommandAsync(string containerId, string[] cmd, CancellationToken cancellationToken = default)
     {
-        var execCreate = await _client.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
+        var execCreate = await Docker.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
         {
             AttachStdout = true,
             AttachStderr = true,
             Cmd = cmd
         }, cancellationToken);
 
-        using var execStream = await _client.Exec.StartAndAttachContainerExecAsync(execCreate.ID, false, cancellationToken);
+        using var execStream = await Docker.Exec.StartAndAttachContainerExecAsync(execCreate.ID, false, cancellationToken);
         var outputTask = execStream.ReadOutputToEndAsync(cancellationToken);
         
         // Wait for execution to finish
-        var inspect = await _client.Exec.InspectContainerExecAsync(execCreate.ID, cancellationToken);
+        var inspect = await Docker.Exec.InspectContainerExecAsync(execCreate.ID, cancellationToken);
         while (inspect.Running)
         {
             await Task.Delay(500, cancellationToken);
-            inspect = await _client.Exec.InspectContainerExecAsync(execCreate.ID, cancellationToken);
+            inspect = await Docker.Exec.InspectContainerExecAsync(execCreate.ID, cancellationToken);
         }
 
         var outputResult = await outputTask;

@@ -25,7 +25,35 @@ public class DockerSweeperBackgroundService : BackgroundService
     private readonly ILogger<DockerSweeperBackgroundService> _logger;
     private readonly ISandboxJobRegistry _jobRegistry;
     private readonly IBranchDatabaseProvisioner _branchDatabases;
-    private readonly DockerClient _client;
+    /// <summary>
+    /// Docker istemcisi İLK KULLANIMDA kuruluyor, kurucuda değil.
+    ///
+    /// <b>Neden:</b> Kurucuda kurmak, bu servisi YARATMANIN Docker
+    /// yapılandırmasını çözmeyi gerektirmesi demekti. İki somut sonucu vardı:
+    ///
+    /// 1. <b>Test edilemezlik.</b> Test projesi Testcontainers üzerinden
+    ///    <c>Docker.DotNet.Enhanced</c> paketini çekiyor; o paket de
+    ///    <c>Docker.DotNet.dll</c> adında bir derleme üretiyor ve çıktı klasöründe
+    ///    3.x sürümünün üzerine yazıyor. Yeni sürümde
+    ///    <c>DockerClientConfiguration</c> türü <c>DockerConfiguration</c> olarak
+    ///    yeniden adlandırılmış -- yani bu sınıfı testte kurmak
+    ///    <c>TypeLoadException</c> fırlatıyordu. Şimdi Docker'a dokunmayan yollar
+    ///    test edilebiliyor.
+    /// 2. <b>Açılışta çökme.</b> DI kapsayıcısı bu nesneyi kurarken hata alırsa
+    ///    uygulama, Docker'ı hiç kullanmayacak istekler için bile başlamıyordu.
+    ///
+    /// Aynı desen <c>Namines.Vault.ContainerBackupProvider</c>'da zaten doğru
+    /// kabul edilmişti; burası onunla hizalandı.
+    /// </summary>
+    private readonly Lazy<DockerClient> _clientLazy = new(() =>
+    {
+        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
+            ? "npipe://./pipe/docker_engine"
+            : "unix:///var/run/docker.sock";
+        return new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+    });
+
+    private DockerClient Docker => _clientLazy.Value;
     private readonly bool _enabled;
 
     public DockerSweeperBackgroundService(
@@ -43,17 +71,12 @@ public class DockerSweeperBackgroundService : BackgroundService
         // Bu servis yalnızca yerel geliştirmede, açıkça etkinleştirildiğinde çalışır.
         // Kalıcı çözüm: ayrı provisioning broker'ı (bkz. new-phase/06-DATA-PLANE.md).
         _enabled = configuration.GetValue("Sandbox:Enabled", defaultValue: false);
-
-        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
-            ? "npipe://./pipe/docker_engine"
-            : "unix:///var/run/docker.sock";
-
-        _client = new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+
     }
 
     public override void Dispose()
     {
-        _client?.Dispose();
+        if (_clientLazy.IsValueCreated) _clientLazy.Value.Dispose();
         base.Dispose();
     }
 
@@ -124,7 +147,7 @@ public class DockerSweeperBackgroundService : BackgroundService
             All = true
         };
 
-        var containers = await _client.Containers.ListContainersAsync(parameters, cancellationToken);
+        var containers = await Docker.Containers.ListContainersAsync(parameters, cancellationToken);
         var now = DateTime.UtcNow;
 
         // Hâlâ süren işler: container adı 'namines-sandbox-{jobId}' olduğundan jobId ile eşleşir.
@@ -163,12 +186,12 @@ public class DockerSweeperBackgroundService : BackgroundService
                     if (container.State.Equals("running", StringComparison.OrdinalIgnoreCase))
                     {
                         _logger.LogInformation("Stopping container {ContainerId}...", container.ID.Substring(0, 12));
-                        await _client.Containers.StopContainerAsync(container.ID, new ContainerStopParameters { WaitBeforeKillSeconds = 5 }, cancellationToken);
+                        await Docker.Containers.StopContainerAsync(container.ID, new ContainerStopParameters { WaitBeforeKillSeconds = 5 }, cancellationToken);
                     }
 
                     // Remove container
                     _logger.LogInformation("Removing container {ContainerId}...", container.ID.Substring(0, 12));
-                    await _client.Containers.RemoveContainerAsync(container.ID, new ContainerRemoveParameters { Force = true }, cancellationToken);
+                    await Docker.Containers.RemoveContainerAsync(container.ID, new ContainerRemoveParameters { Force = true }, cancellationToken);
                     
                     _logger.LogInformation("Successfully removed zombie container {ContainerId}.", container.ID.Substring(0, 12));
                 }

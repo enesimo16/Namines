@@ -481,7 +481,7 @@ export default function Desk({
                   return (
                     <div key={c.name} className="field" style={{ margin: 0 }}>
                       <label>{c.name}</label>
-                      <select value={d.eq ?? ''} onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))}>
+                      <select aria-label={c.name} value={d.eq ?? ''} onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))}>
                         <option value="">Tümü</option>
                         <option value="true">Evet</option>
                         <option value="false">Hayır</option>
@@ -495,12 +495,12 @@ export default function Desk({
                     <div key={c.name} className="field" style={{ margin: 0, display: 'flex', gap: 4 }}>
                       <div>
                         <label>{c.name} ≥</label>
-                        <input type={inputType} value={d.min ?? ''} style={{ width: 120 }}
+                        <input type={inputType} aria-label={`${c.name} ≥`} value={d.min ?? ''} style={{ width: 120 }}
                                onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { ...prev[c.name], min: e.target.value || undefined } }))} />
                       </div>
                       <div>
                         <label>{c.name} ≤</label>
-                        <input type={inputType} value={d.max ?? ''} style={{ width: 120 }}
+                        <input type={inputType} aria-label={`${c.name} ≤`} value={d.max ?? ''} style={{ width: 120 }}
                                onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { ...prev[c.name], max: e.target.value || undefined } }))} />
                       </div>
                     </div>
@@ -509,7 +509,7 @@ export default function Desk({
                 return (
                   <div key={c.name} className="field" style={{ margin: 0 }}>
                     <label>{c.name} içerir</label>
-                    <input type="text" value={d.eq ?? ''} style={{ width: 140 }}
+                    <input type="text" aria-label={`${c.name} içerir`} value={d.eq ?? ''} style={{ width: 140 }}
                            onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))} />
                   </div>
                 );
@@ -543,6 +543,7 @@ export default function Desk({
                         <th className="col-check" style={{ width: 28 }}>
                           <input
                             type="checkbox"
+                            aria-label="Tüm satırları seç"
                             checked={rows.length > 0 && rows.every(r => selectedPks.has(String(r.values[pk])))}
                             onChange={e => {
                               setSelectedPks(prev => {
@@ -576,6 +577,7 @@ export default function Desk({
                           <td className="col-check">
                             <input
                               type="checkbox"
+                              aria-label={`Satırı seç: ${String(r.values[pk])}`}
                               checked={selectedPks.has(String(r.values[pk]))}
                               onChange={() => toggleRowSelected(String(r.values[pk]))}
                             />
