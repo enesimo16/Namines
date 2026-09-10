@@ -6,7 +6,6 @@ import { X, Trash2, FolderOpen, Database, Plus } from 'lucide-react';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { ProjectSnapshot } from '../../types/project';
-import { DbType } from '../../store/useSchemaStore';
 
 interface ProjectSidebarProps {
   isOpen: boolean;

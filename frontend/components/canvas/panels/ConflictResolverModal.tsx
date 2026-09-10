@@ -1,10 +1,10 @@
 import React, { useRef } from 'react';
-import { GitMerge, X, ArrowRight, Check, CheckCircle2, ChevronRight, AlertTriangle } from 'lucide-react';
+import { GitMerge, X, CheckCircle2, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useBranchStore } from '../../../store/useBranchStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
-import { DatabaseSchema, SchemaTable, SchemaColumn } from '../../../types/schema';
+import { DatabaseSchema } from '../../../types/schema';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 
 export default function ConflictResolverModal() {

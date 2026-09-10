@@ -28,7 +28,7 @@ export default function SchemaTextualSummary() {
     <div className="sr-only" aria-live="polite" aria-atomic="true">
       <h2>Database Schema Text Summary</h2>
       <p>
-        The schema "{schema.name}" contains {schema.tables.length} tables and {schema.relations ? schema.relations.length : 0} relationships.
+        The schema &quot;{schema.name}&quot; contains {schema.tables.length} tables and {schema.relations ? schema.relations.length : 0} relationships.
       </p>
 
       <h3>Tables</h3>

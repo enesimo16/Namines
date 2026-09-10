@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, Scale, Code2, Server, AlertCircle, FileCheck } from 'lucide-react';
+import { ArrowLeft, Scale, Code2, AlertCircle, FileCheck } from 'lucide-react';
 import Footer from '../../components/layout/Footer';
 
 export const metadata: Metadata = {

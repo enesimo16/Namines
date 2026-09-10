@@ -107,7 +107,7 @@ export default function ChangeRequestListPage() {
           <h1 className="text-lg font-bold text-content-primary">Database Change Requests</h1>
         </div>
         <p className="text-xs text-content-subtle mb-4">
-          Review pending schema changes for this project before they're applied.
+          Review pending schema changes for this project before they&apos;re applied.
         </p>
 
         {isAuthenticated && activeProjectId && autoApproveSafe !== null && (
@@ -159,7 +159,7 @@ export default function ChangeRequestListPage() {
         ) : items.length === 0 ? (
           <div className="bg-surface-700 border border-content-primary/15 rounded-[var(--radius-card)] p-8 text-center">
             <p className="text-sm text-content-secondary">No change requests yet.</p>
-            <p className="text-xs text-content-subtle mt-1">Use "Request Review" on the canvas toolbar to open one.</p>
+            <p className="text-xs text-content-subtle mt-1">Use &quot;Request Review&quot; on the canvas toolbar to open one.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">

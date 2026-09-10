@@ -2,8 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  CheckCircle, Database, GitBranch, History, LayoutTemplate,
-  Link2, Pencil, Search, Terminal, Upload, X,
+  Search
 } from 'lucide-react';
 
 export interface PaletteAction {

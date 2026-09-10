@@ -1,7 +1,7 @@
 import React from 'react';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
-import { Key, Link, Pencil, Plus, Minus, RefreshCw, Copy } from 'lucide-react';
-import { SchemaTable, SchemaColumn } from '../../../types/schema';
+import { Key, Link, Pencil, Plus, Minus, RefreshCw } from 'lucide-react';
+import { SchemaTable } from '../../../types/schema';
 import { useLinterStore } from '../../../store/useLinterStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useDbaStore } from '../../../store/useDbaStore';

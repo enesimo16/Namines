@@ -1,8 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  X, Upload, Check, ChevronRight, RefreshCw, 
-  AlertCircle, FileCode, CheckCircle, Database, 
-  ArrowLeft, Terminal, AlertTriangle 
+import {
+  X,
+  Upload,
+  Check,
+  ChevronRight,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  Database,
+  ArrowLeft,
+  Terminal,
+  AlertTriangle
 } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
@@ -405,8 +413,8 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 <ol className="list-decimal pl-5 space-y-2 text-xs text-content-muted leading-relaxed">
                   <li>Close this window and head to the interactive canvas.</li>
                   <li>Modify the schema as desired (add/delete tables, edit columns, configure relationships).</li>
-                  <li>Once your updates are complete, click <strong className="text-content-secondary">"Migration"</strong> in the top toolbar again.</li>
-                  <li>Click <strong className="text-content-secondary">"Compare & Generate Migration"</strong> below for your EF Core code.</li>
+                  <li>Once your updates are complete, click <strong className="text-content-secondary">&quot;Migration&quot;</strong> in the top toolbar again.</li>
+                  <li>Click <strong className="text-content-secondary">&quot;Compare & Generate Migration&quot;</strong> below for your EF Core code.</li>
                 </ol>
               </div>
             </div>

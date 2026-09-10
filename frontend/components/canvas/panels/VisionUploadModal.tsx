@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, Image, RefreshCw, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Image, RefreshCw, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { reverseEngineerService } from '../../../services/api';
 import { useAIGateway } from '../../../hooks/useAIGateway';

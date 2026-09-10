@@ -265,7 +265,7 @@ export default function ChangeRequestDetailPage() {
               </pre>
             ) : (
               <p className="text-xs text-content-subtle">
-                Migration code isn't available for this change (AI code generation may be unavailable). Schema Diff and Impact Analysis are still accurate.
+                Migration code isn&apos;t available for this change (AI code generation may be unavailable). Schema Diff and Impact Analysis are still accurate.
               </p>
             )
           )}
@@ -398,9 +398,9 @@ export default function ChangeRequestDetailPage() {
           {activeTab === 'CODE' && (
             <div className="space-y-4">
               <p className="text-xs text-content-muted leading-relaxed">
-                Upload files from your application (models, API routes, queries) and we'll check whether
+                Upload files from your application (models, API routes, queries) and we&apos;ll check whether
                 the changed table/column names still appear in them. This is a <span className="text-content-secondary font-semibold">possible impact</span>,
-                not a certain one — a name match isn't proof of a real dependency.
+                not a certain one — a name match isn&apos;t proof of a real dependency.
               </p>
 
               <input

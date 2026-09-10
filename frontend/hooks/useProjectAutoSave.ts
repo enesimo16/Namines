@@ -3,8 +3,6 @@
 import { useEffect, useRef } from 'react';
 import { useSchemaStore } from '../store/useSchemaStore';
 import { useProjectHistoryStore } from '../store/useProjectHistoryStore';
-import { DatabaseSchema } from '../types/schema';
-import { Node } from '@xyflow/react';
 
 /**
  * Canvas'taki schema veya node değişikliklerini 3 saniyelik debounce

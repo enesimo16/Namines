@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MigrationResult } from '../../types/migration';
-import { AlertCircle, Copy, Check, FileCode, Award, Download } from 'lucide-react';
+import { AlertCircle, Copy, Check, FileCode, Download } from 'lucide-react';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-csharp';
 

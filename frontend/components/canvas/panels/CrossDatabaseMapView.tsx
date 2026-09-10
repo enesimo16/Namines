@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Network, X, Key, Loader2, Eye, EyeOff } from 'lucide-react';
 import { DatabaseSchema, SchemaTable } from '../../../types/schema';
 

@@ -7,10 +7,7 @@ import {
   Server,
   KeyRound,
   FileCheck2,
-  AlertTriangle,
-  Cpu,
-  Mail,
-  CheckCircle2,
+  Mail
 } from 'lucide-react';
 import Footer from '../../components/layout/Footer';
 

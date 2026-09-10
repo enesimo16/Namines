@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Database, Pencil, Check, ExternalLink, Sparkles, FolderOpen, Cloud, LogOut, Info, CheckCircle2, XCircle, AlertTriangle, X, Settings, Users, ArrowRight } from 'lucide-react';
+import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';

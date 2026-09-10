@@ -14,10 +14,9 @@ import {
   ArrowRight,
   Check,
   Copy,
-  ExternalLink,
   Terminal,
   X,
-  Sparkles,
+  Sparkles
 } from 'lucide-react';
 
 interface BuilderFeature {

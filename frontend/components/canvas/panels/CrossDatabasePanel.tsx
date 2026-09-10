@@ -246,7 +246,7 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
 
                   <div className="grid grid-cols-2 gap-2.5">
                     <label className="flex flex-col gap-1 text-[11px] text-content-muted">
-                      This project's table.column
+                      This project&apos;s table.column
                       <select value={localTableId} onChange={e => { setLocalTableId(e.target.value); setLocalColumnId(''); }} className="bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-content-primary">
                         <option value="">Table…</option>
                         {schema?.tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

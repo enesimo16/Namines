@@ -148,7 +148,7 @@ export default function QuotaExhaustedModal() {
               onClick={() => setExhaustedModalOpen(false)}
               className="w-full py-2.5 bg-transparent hover:bg-white/[0.04] text-content-muted hover:text-content-primary text-xs font-medium rounded-[var(--radius-card)] border border-content-primary/10 transition-all cursor-pointer text-center"
             >
-              I'll wait until tomorrow
+              I&apos;ll wait until tomorrow
             </button>
           </div>
         </div>
