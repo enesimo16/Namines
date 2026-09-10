@@ -171,6 +171,22 @@
   --accent-hover: oklch(calc(var(--brand-l) + 8%) var(--brand-chroma) var(--brand-hue));
   --accent-text: oklch(calc(var(--ui-bg-l) + 55%) calc(var(--brand-chroma) * 0.6) var(--brand-hue));
   --accent-subtle: oklch(calc(var(--ui-bg-l) + 4%) calc(var(--brand-chroma) * 0.45) var(--brand-hue));
+
+  /* Aksan ZEMIN olarak kullanildiginda ustune gelecek METIN rengi (B-42).
+
+     Neden ayri bir token: cagri noktalari `bg-accent text-surface-900`
+     yaziyordu ve `--surface-900` TEMAYLA BIRLIKTE DONUYOR -- koyu temada
+     neredeyse siyah, acik temada neredeyse beyaz. Sonuc, koyu temada aksan
+     zemin uzerinde koyu metin: OLCULEN 3.15:1 (WCAG AA 4.5 istiyor).
+     Acik temada ayni sinif 6.40:1 veriyordu, yani hata yalnizca bir temada
+     gorunuyordu ve bu yuzden kolayca gozden kaciyordu.
+
+     Beyaza yakin bir ton IKI temada da geciyor (aksan her iki temada da
+     orta-koyu: L=%48 / %46):
+         koyu tema  -> 6.25:1
+         acik tema  -> 6.40:1
+     O yuzden token temayla DONMUYOR; bilincli olarak sabit. */
+  --accent-on: oklch(98.5% 0.002 var(--ui-hue));
   --focus-ring: oklch(calc(var(--brand-l) + 14%) var(--brand-chroma) var(--brand-hue));
 
   --danger: oklch(52% 0.15 var(--danger-hue));
@@ -232,6 +248,46 @@ body.light {
   --accent-text: oklch(34% 0.13 var(--brand-hue));
   --accent-subtle: oklch(92% 0.04 var(--brand-hue));
   --focus-ring: oklch(50% 0.14 var(--brand-hue));
+
+  /* ── Semantik durumlar — AÇIK TEMA (WCAG denetimi, 10.09.2026 / B-42) ──
+
+     BU BLOK BİR HATANIN DÜZELTMESİ. Açık tema `--ui-bg-l`'yi %98.5 yapıyor
+     ama semantik METİN token'larını override ETMİYORDU. O token'lar koyu tema
+     için yazılmış `calc(var(--ui-bg-l) + 55%)` formülünü kullanıyor:
+
+         %98.5 + %55 = %153.5  →  kırpılır  →  oklch(100% …) = BEYAZ
+
+     Sonuç: açık temada `text-success-text` ve `text-danger-text`, beyaza yakın
+     bir yüzeyin üstünde BEYAZ metin oluyordu. Ölçülen kontrast:
+
+         --success-text  →  1.07 : 1  (surface-900 üstünde)
+         --danger-text   →  1.01 : 1  (surface-900 üstünde)
+
+     Yani metin görünmüyordu. 135 çağrı noktası etkileniyordu
+     (`grep -rn "text-success-text\|text-danger-text"`).
+
+     "+55%" formülü zemin KOYU olduğunda doğru (metin aydınlanır); açık temada
+     metnin KOYULAŞMASI gerekiyor. Formül tersine çevrilemediği için burada
+     mutlak değer veriliyor.
+
+     Değerler ölçülerek seçildi: en koyu açık-tema yüzeyinde
+     (`--surface-600`, %83) bile 4.5:1 geçecek en yüksek açıklık.
+
+     | Token          | surface-900 | 800  | 700  | 600  |
+     |----------------|-------------|------|------|------|
+     | --success-text | 7.36        | 6.54 | 5.61 | 4.55 |
+     | --danger-text  | 7.38        | 6.56 | 5.63 | 4.56 |
+
+     `-subtle` token'ları da aynı formülün kurbanıydı (+3% → beyaz), yani
+     "hafif tint" arka planları düpedüz beyaz oluyordu; onlar da mutlak
+     değere alındı. */
+  --success: oklch(45% 0.11 var(--success-hue));
+  --success-text: oklch(43% 0.11 var(--success-hue));
+  --success-subtle: oklch(95% 0.03 var(--success-hue));
+
+  --danger: oklch(48% 0.15 var(--danger-hue));
+  --danger-text: oklch(46% 0.15 var(--danger-hue));
+  --danger-subtle: oklch(95% 0.04 var(--danger-hue));
 
   --color-surface-500: color-mix(in srgb, var(--content-primary) 12%, transparent);
   --color-surface-400: color-mix(in srgb, var(--content-primary) 20%, transparent);
@@ -339,6 +395,7 @@ html.light body {
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-subtle: var(--accent-subtle);
+  --color-accent-on: var(--accent-on);
   --color-accent-text: var(--accent-text);
   --color-focus-ring: var(--focus-ring);
 

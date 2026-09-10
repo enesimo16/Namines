@@ -87,7 +87,7 @@ export default function Hero() {
             <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full sm:w-auto">
               <Link
                 href="/new"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 font-bold py-3 px-6 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-surface-900 transition-all text-xs uppercase tracking-wider shadow-lg shadow-accent/15"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 font-bold py-3 px-6 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on transition-all text-xs uppercase tracking-wider shadow-lg shadow-accent/15"
               >
                 <span>Start for free</span>
                 <ArrowRight className="w-3.5 h-3.5" />

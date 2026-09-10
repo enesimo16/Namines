@@ -359,7 +359,7 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
                   onClick={() => handleSelectPrompt(idx)}
                   className={`rounded-[var(--radius-control)] px-3 py-1 text-xs font-mono transition-all cursor-pointer ${
                     activePromptIndex === idx
-                      ? 'bg-accent text-surface-900 font-bold shadow-sm'
+                      ? 'bg-accent text-accent-on font-bold shadow-sm'
                       : 'bg-surface-700/60 text-content-muted hover:text-content-primary hover:bg-surface-700'
                   }`}
                 >
@@ -371,7 +371,7 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
             {/* Bottom Live Verification Status */}
             <div className="mt-3.5 pt-3 border-t border-surface-600/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs font-mono">
-                <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-success-text shrink-0" />
                 <span className="text-content-secondary">
                   {isTyping ? (
                     <span className="text-content-muted">Evaluating relational constraints...</span>
@@ -386,7 +386,7 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
 
               <Link
                 href="/new"
-                className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-surface-900 font-bold px-4 py-1.5 text-xs transition-all shadow-md cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold px-4 py-1.5 text-xs transition-all shadow-md cursor-pointer"
               >
                 <span>Build in Studio</span>
                 <ArrowRight className="w-3.5 h-3.5" />

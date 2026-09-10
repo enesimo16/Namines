@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { type DeskSession } from '../lib/api';
-import { runDeskSql, setDeskSqlEnabled, DeskSqlError, type DeskSqlResult } from '../lib/deskSql';
+import {
+  runDeskSql, setDeskSqlEnabled, DeskSqlError, type DeskSqlResult,
+  getSqlHistory, clearSqlHistory, getSavedQueries, saveQuery, deleteSavedQuery,
+  type SqlHistoryItem, type SavedQueryItem,
+} from '../lib/deskSql';
 import PageHead from './PageHead';
 
 /**
@@ -22,6 +26,32 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [toggling, setToggling] = useState(false);
+
+  // Gecmis (F-01) ve kaydedilmis sorgular (F-02).
+  //
+  // Ikisi de KULLANICIYA OZEL: sunucu baskasinin kaydini dondurmuyor. Bu
+  // arayuz o gercegi yansitiyor, saglamiyor -- gizlenmis bir liste guvenlik
+  // degildir.
+  const [history, setHistory] = useState<SqlHistoryItem[] | null>(null);
+  const [saved, setSaved] = useState<SavedQueryItem[] | null>(null);
+  const [sideTab, setSideTab] = useState<'history' | 'saved'>('history');
+  const [sideBusy, setSideBusy] = useState(false);
+
+  const refreshSide = useCallback(async () => {
+    if (!isOwner || !allowDeskSql) return;
+    try {
+      const [h, q] = await Promise.all([getSqlHistory(session, 50), getSavedQueries(session)]);
+      setHistory(h);
+      setSaved(q);
+    } catch {
+      // Yan defterin yuklenememesi konsolu KULLANILAMAZ yapmamali: sorgu
+      // calistirmak buna bagli degil. Bos liste, bir hata bandindan iyi.
+      setHistory([]);
+      setSaved([]);
+    }
+  }, [session, isOwner, allowDeskSql]);
+
+  useEffect(() => { void refreshSide(); }, [refreshSide]);
 
   if (!isOwner) {
     return (
@@ -80,6 +110,26 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
       setError(err instanceof DeskSqlError ? err.message : 'Çalıştırılamadı.');
     } finally {
       setRunning(false);
+      // Basarisiz calistirma da gecmise yaziliyor (sunucu tarafi), o yuzden
+      // yenileme `finally` icinde -- hata durumunda atlanmasi, kullanicinin
+      // aradigi kaydin gorunmemesi demek olurdu.
+      void refreshSide();
+    }
+  }
+
+  async function handleSave() {
+    const name = prompt('Sorguya bir ad verin:')?.trim();
+    if (!name) return;
+    setSideBusy(true);
+    setError(null);
+    try {
+      await saveQuery(session, name, sql);
+      setSideTab('saved');
+      await refreshSide();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kaydedilemedi.');
+    } finally {
+      setSideBusy(false);
     }
   }
 
@@ -111,6 +161,9 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
         <button className="btn btn-primary" disabled={running || !sql.trim()} onClick={run}>
           {running ? 'Çalıştırılıyor…' : 'Çalıştır'}
         </button>
+        <button className="btn btn-sm" disabled={sideBusy || !sql.trim()} onClick={handleSave}>
+          Sorguyu kaydet
+        </button>
         <button
           className="btn btn-sm"
           disabled={toggling}
@@ -137,6 +190,114 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
       </div>
 
       {error && <div className="notice notice-error">{error}</div>}
+
+      {/* Gecmis / kaydedilmis sorgular. Bir kayda tiklamak metni editore
+          YAZAR ama CALISTIRMAZ: gecmisten gelen bir sorgunun kullanicinin
+          bakmadan calistirmasini istemedigi bir sey olma ihtimali var. */}
+      <div style={{ borderTop: '1px solid var(--line-strong)', paddingTop: 10 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+          <button
+            className={`btn btn-sm${sideTab === 'history' ? ' btn-primary' : ''}`}
+            onClick={() => setSideTab('history')}
+          >
+            Geçmiş{history ? ` (${history.length})` : ''}
+          </button>
+          <button
+            className={`btn btn-sm${sideTab === 'saved' ? ' btn-primary' : ''}`}
+            onClick={() => setSideTab('saved')}
+          >
+            Kayıtlı{saved ? ` (${saved.length})` : ''}
+          </button>
+          {sideTab === 'history' && history && history.length > 0 && (
+            <button
+              className="btn btn-sm"
+              style={{ marginLeft: 'auto' }}
+              disabled={sideBusy}
+              onClick={async () => {
+                if (!confirm('Sorgu geçmişinizi silmek istiyor musunuz? Denetim kaydı silinmez.')) return;
+                setSideBusy(true);
+                try { await clearSqlHistory(session); await refreshSide(); }
+                finally { setSideBusy(false); }
+              }}
+            >
+              Geçmişi temizle
+            </button>
+          )}
+        </div>
+
+        {sideTab === 'history' ? (
+          history === null ? <div className="empty">Yükleniyor…</div>
+          : history.length === 0 ? <div className="empty">Henüz sorgu çalıştırmadınız.</div>
+          : (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 200, overflow: 'auto' }}>
+              {history.map(h => (
+                <li key={h.id} style={{ borderBottom: '1px solid var(--line)', padding: '6px 0' }}>
+                  <button
+                    onClick={() => setSql(h.sql)}
+                    title="Editöre yaz"
+                    style={{
+                      all: 'unset', cursor: 'pointer', display: 'block', width: '100%',
+                      fontFamily: 'ui-monospace, monospace', fontSize: 12,
+                      color: 'var(--content-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    }}
+                  >
+                    {h.sql}{h.truncated && ' …'}
+                  </button>
+                  <div style={{ fontSize: 11, color: 'var(--content-subtle)', marginTop: 2 }}>
+                    {h.succeeded
+                      ? `${h.rowCount} satır · ${h.durationMs} ms`
+                      : `Hata: ${h.errorMessage ?? 'bilinmiyor'}`}
+                    {' · '}{new Date(h.createdAt).toLocaleString('tr-TR')}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : (
+          saved === null ? <div className="empty">Yükleniyor…</div>
+          : saved.length === 0 ? <div className="empty">Kaydedilmiş sorgu yok.</div>
+          : (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 200, overflow: 'auto' }}>
+              {saved.map(q => (
+                <li key={q.id} style={{
+                  borderBottom: '1px solid var(--line)', padding: '6px 0',
+                  display: 'flex', gap: 8, alignItems: 'flex-start',
+                }}>
+                  <button
+                    onClick={() => setSql(q.sql)}
+                    title="Editöre yaz"
+                    style={{
+                      all: 'unset', cursor: 'pointer', flex: 1, minWidth: 0,
+                      color: 'var(--content-primary)',
+                    }}
+                  >
+                    <b style={{ fontSize: 12.5 }}>{q.name}</b>
+                    <div style={{
+                      fontFamily: 'ui-monospace, monospace', fontSize: 11,
+                      color: 'var(--content-subtle)', whiteSpace: 'nowrap',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {q.sql}
+                    </div>
+                  </button>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    disabled={sideBusy}
+                    onClick={async () => {
+                      if (!confirm(`"${q.name}" silinsin mi?`)) return;
+                      setSideBusy(true);
+                      try { await deleteSavedQuery(session, q.id); await refreshSide(); }
+                      finally { setSideBusy(false); }
+                    }}
+                  >
+                    Sil
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        )}
+      </div>
 
       {result && (
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>

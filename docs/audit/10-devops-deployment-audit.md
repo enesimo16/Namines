@@ -7,7 +7,7 @@
 > | DEVOPS-002 TLS/proxy belirsiz | 🟡 Kısmî — prod compose'da varsayım ve `X-Forwarded-Proto` uyarısı yazılı; gerçek mimari hâlâ belgelenmeli |
 > | DEVOPS-003 CI kalitesi | Bulgu yoktu |
 > | DEVOPS-004 CI'da eksik adımlar | ✅ Bağımlılık taraması (NuGet + npm) + atlanan test eşiği |
-> | DEVOPS-005 Sıfır kesinti / geri alma | 🟡 Açık — migration ayrıldı, ileriye uyumluluk kuralı hâlâ yazılmadı |
+> | DEVOPS-005 Sıfır kesinti / geri alma | ✅ Kural + prosedür yazıldı ve TESTLE ZORLANIYOR; rolling update hâlâ yok |
 
 ## Mevcut durum
 
@@ -163,6 +163,40 @@ Migration'ları **ileriye uyumlu** yaz (kolon ekle, hemen silme; iki aşamalı
 yeniden adlandırma) ve bunu bir kural olarak belgele. Bu, geri almayı
 kod seviyesinde mümkün kılan tek yaklaşım.
 ### Effort M · ### Priority P2
+
+### ✅ Yapıldı (10.09.2026) — B-47
+
+**Kural + prosedür:** [`deploy/MIGRATION-VE-GERI-ALMA.md`](../../deploy/MIGRATION-VE-GERI-ALMA.md)
+— izin verilen/yasak işlem tabloları, üç iki-aşamalı desen (yeniden adlandırma,
+`NOT NULL`, silme), geri al/ileri düzelt karar akışı ve migration yazma
+kontrol listesi.
+
+**Kural artık TESTLE ZORLANIYOR:**
+`backend/Namines.Tests/Security/MigrationCompatibilityTests.cs`.
+Her migration'ın `Up()` metodunu tarıyor; `DropColumn`, `RenameColumn`,
+`DropTable`, `AddUniqueConstraint`, `DropPrimaryKey` ve
+`AlterColumn(nullable: false)` bulursa kırılıyor. İstisna listesi
+(`DeliberateExceptions`) **boş başlıyor** ve bir satır eklemek gerekçe yazmayı
+zorunlu kılıyor — `ApiControllerConventionTests`'teki `IntentionallyPublic`
+ile aynı desen.
+
+**Neden test:** Yazılı bir kuralın tek zayıf noktası insanın hatırlaması, ve
+`dotnet ef migrations add` çıktısı her zaman istenen şeyi üretmiyor.
+
+**ÖLÇÜM — denetimin varsayımı kısmen yanlıştı:** Bulgu "ileriye uyumluluk
+kuralı yazılmadı" diyordu ve bu doğruydu; ama mevcut **40+ migration'ın
+`Up()` metotlarında tek bir ihlal bulunmadı.** Yani pratik zaten doğruydu,
+yalnızca yazılı ve zorlanmış değildi. Bu yüzden geçmişi affetme listesine
+ihtiyaç olmadı.
+
+**Testin kendisi doğrulandı:** Kasten ihlal eden geçici bir migration dosyası
+eklendiğinde test **başarısız** oluyor (1 başarısız / 1 başarılı), dosya
+silinince geçiyor (2/2). İkinci bir test (`Down_metodundaki_silmeler_ihlal_sayilmiyor`)
+kontrolün doğru yeri okuduğunu kanıtlıyor: `Down()` içinde `DropColumn` yapan
+migration'lar VAR ve bunlardan şikâyet edilmiyor.
+
+**Kalan (belgede de yazılı):** rolling update / mavi-yeşil tanımı, staging
+ortamı, geri alma tatbikatı.
 
 ---
 

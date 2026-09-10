@@ -39,6 +39,16 @@ namespace Namines.Infrastructure.Data
         /// izlenebilirligin tek kaynagi bu tablo.
         /// </summary>
         public DbSet<SqlExecutionAudit> SqlExecutionAudits { get; set; } = null!;
+        /// <summary>
+        /// Desk SQL konsolunun sorgu gecmisi (F-01) -- KULLANICIYA OZEL okunur.
+        /// Denetim kaydi degil: <see cref="GatewayAuditEntry"/> hesap
+        /// verebilirlik icin SQL metnini saklamiyor, bu ise tam olarak onu
+        /// saklamak zorunda.
+        /// </summary>
+        public DbSet<SqlQueryHistoryEntry> SqlQueryHistory { get; set; } = null!;
+
+        /// <summary>Kullanicinin ada kaydettigi sorgular (F-02).</summary>
+        public DbSet<SavedQuery> SavedQueries { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -386,6 +396,20 @@ namespace Namines.Infrastructure.Data
             // kalirdi. Ikinci istek veritabani seviyesinde reddediliyor.
             builder.Entity<GroundDatabase>()
                 .HasIndex(g => g.ProjectId)
+                .IsUnique();
+
+            // Gecmis HER ZAMAN "bu kullanicinin, bu projedeki, en yenisi ustte"
+            // seklinde okunuyor -- ve saklama siniri da (100 kayit) ayni sirayla
+            // budaniyor. Uc kolonun tek indekste olmasi ikisini de karsiliyor.
+            builder.Entity<SqlQueryHistoryEntry>()
+                .HasIndex(h => new { h.UserId, h.ProjectId, h.CreatedAt });
+
+            // Ayni proje icinde ayni kullanicinin ayni ada iki sorgu kaydetmesi
+            // ENGELLENIYOR: iki "Aylik rapor" arasinda hangisinin dogru oldugunu
+            // kimse bilemez. Ikinci kayit hata degil, GUNCELLEME olarak ele
+            // aliniyor (bkz. denetleyici) -- ama garantiyi veritabani veriyor.
+            builder.Entity<SavedQuery>()
+                .HasIndex(q => new { q.UserId, q.ProjectId, q.Name })
                 .IsUnique();
         }
     }

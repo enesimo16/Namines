@@ -72,8 +72,8 @@ export default function ZeroDriftSection() {
               <span className="text-xs font-mono text-content-secondary">
                 feature/database-branch
               </span>
-              <span className="text-[11px] font-mono text-success flex items-center gap-1 mt-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+              <span className="text-[11px] font-mono text-success-text flex items-center gap-1 mt-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />
                 Checks passed
               </span>
             </div>

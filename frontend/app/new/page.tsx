@@ -359,7 +359,7 @@ export default function NewProjectPage() {
                       <p className="text-sm text-content-primary truncate">{image.name}</p>
                       <p className="text-xs text-content-muted">{(image.size / 1024).toFixed(1)} KB</p>
                     </div>
-                    <button type="button" onClick={() => setImage(null)} className="p-1 text-content-muted hover:text-danger transition-colors">
+                    <button type="button" onClick={() => setImage(null)} className="p-1 text-content-muted hover:text-danger-text transition-colors">
                       <X className="w-5 h-5" />
                     </button>
                   </div>

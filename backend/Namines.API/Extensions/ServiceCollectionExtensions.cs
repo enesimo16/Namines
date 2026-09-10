@@ -107,6 +107,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMigrationService, MigrationService>();
         services.AddScoped<IBranchTestRunner, BranchTestRunnerService>();
         services.AddScoped<IGatewayService, GatewayService>();
+
+        // SQL konsolunun kullaniciya ozel yan defterleri (F-01 gecmis, F-02
+        // kaydedilmis sorgular). GatewayService'ten AYRI: o musterinin
+        // veritabanina gidiyor, bu tamamen bizim kontrol veritabaninda.
+        services.AddScoped<ISqlWorkbenchService, SqlWorkbenchService>();
         // SSRF politikası — üretimde daima sıkı; yalnızca Development + açık bayrakla gevşer.
         services.AddSingleton<Namines.Core.Security.IDbHostAccessPolicy, Namines.Infrastructure.Security.DbHostAccessPolicy>();
 

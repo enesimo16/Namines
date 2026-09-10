@@ -246,7 +246,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
                       <button
                         type="button"
                         onClick={() => handleRevoke(i.id)}
-                        className="tap-44 p-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-danger hover:bg-white/[0.06] transition-colors"
+                        className="tap-44 p-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-danger-text hover:bg-white/[0.06] transition-colors"
                         aria-label="Revoke invite"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

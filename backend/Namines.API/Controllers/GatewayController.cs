@@ -22,6 +22,8 @@ using System.Text;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Security;
+using System.Diagnostics;
+using Namines.Infrastructure.Services;
 
 namespace Namines.API.Controllers;
 
@@ -72,6 +74,9 @@ public sealed record GatewayBulkDeleteRequest(
 /// API anahtarı yolu hiç yok (aşağıdaki <c>DeskSql</c> action'ının yorumuna bkz.).
 /// </summary>
 public sealed record GatewayDeskSqlRequest(string ProjectId, string Sql, int MaxRows = 500);
+
+/// <param name="Name">Sorgunun adı. Aynı ad ikinci kez gelirse GÜNCELLEME olur.</param>
+public sealed record SaveQueryRequest(string ProjectId, string Name, string Sql);
 
 /// <param name="Rows">
 /// Yazılacak satırlar. Hepsi AYNI kolonları taşımalı — satır başına farklı kolon
@@ -142,8 +147,10 @@ public class GatewayController : ControllerBase
     public GatewayController(
         IGatewayService gateway, AuthDbContext context, IConfiguration configuration,
         GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota,
-        IConnectionSecretProtector protector, IDbIntrospectionService introspection)
+        IConnectionSecretProtector protector, IDbIntrospectionService introspection,
+        ISqlWorkbenchService workbench)
     {
+        _workbench = workbench;
         _gateway = gateway;
         _context = context;
         _configuration = configuration;
@@ -153,6 +160,8 @@ public class GatewayController : ControllerBase
         _protector = protector;
         _introspection = introspection;
     }
+
+    private readonly ISqlWorkbenchService _workbench;
 
     /// <summary>
     /// İstemci adresine güvenilebilir mi?
@@ -726,11 +735,178 @@ public class GatewayController : ControllerBase
         // burada YAKALANMIYOR bilerek — ExecuteAsync'in (AuditedAsync'in içinde
         // çağrılan) kendi catch merdiveni bunları zaten doğru mesajlarla ele
         // alıyor; Create/Update/Delete ile AYNI desen, burada tekrar etmiyoruz.
-        return await AuditedAsync(null, GatewayWriteKind.Sql, null, null, null, cancellationToken, async () =>
+        // Geçmiş kaydı, denetim kaydından AYRI ve ikisi birbirinin yerine geçmez:
+        // denetim "kim ne zaman çalıştırdı"yı hesap verebilirlik için tutar ve SQL
+        // metnini bilerek SAKLAMAZ; geçmiş ise tam olarak o metni, yalnızca
+        // çalıştıran kullanıcının okuyabileceği şekilde tutar (bkz.
+        // SqlQueryHistoryEntry sınıf notu).
+        //
+        // BAŞARISIZ çalıştırma da kaydediliyor: kullanıcının aradığı sorgu çoğu
+        // zaman tam da hata verendir ("düzeltip tekrar deneyeceğim").
+        var started = Stopwatch.GetTimestamp();
+        var response = await AuditedAsync(null, GatewayWriteKind.Sql, null, null, null, cancellationToken, async () =>
         {
             var result = await _gateway.DeskSqlQueryAsync(connectionString, dbType, request.Sql, maxRows, cancellationToken);
             return (Ok(result), result.Rows.Count);
         }, projectId: request.ProjectId);
+
+        await RecordHistoryAsync(request, userId, response, started, cancellationToken);
+        return response;
+    }
+
+    /// <summary>
+    /// Geçmiş kaydını yazar. <b>Yazma hatası isteği BOZMAZ:</b> kullanıcının
+    /// sorgusu çalıştı; yan defterin tutulamaması ona bir hata göstermeyi haklı
+    /// çıkarmaz. Sessizce yutulmuyor ama — log'a düşüyor.
+    /// </summary>
+    private async Task RecordHistoryAsync(
+        GatewayDeskSqlRequest request, string userId, IActionResult response,
+        long startedTimestamp, CancellationToken cancellationToken)
+    {
+        var elapsed = (int)Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds;
+
+        var (succeeded, rowCount, error) = response switch
+        {
+            OkObjectResult { Value: GatewayQueryResult r } => (true, r.Rows.Count, (string?)null),
+            ObjectResult { StatusCode: >= 400 } bad => (false, 0, MessageOf(bad.Value)),
+            _ => (false, 0, (string?)null),
+        };
+
+        try
+        {
+            await _workbench.RecordAsync(
+                request.ProjectId, userId, request.Sql, succeeded, rowCount,
+                error, elapsed, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not record SQL console history for project {ProjectId}.", request.ProjectId);
+        }
+    }
+
+    /// <summary>Hata gövdesindeki <c>message</c> alanını okur (anonim tip olabilir).</summary>
+    private static string? MessageOf(object? body) =>
+        body?.GetType().GetProperty("message")?.GetValue(body) as string;
+
+    /// <summary>
+    /// SQL konsolunun geçmişi (F-01) — <b>YALNIZCA çağıranın kendi geçmişi</b>.
+    ///
+    /// Proje Owner'ı bile başkasının geçmişini göremez: bir sorgu metni
+    /// <c>WHERE email = '…'</c> içerebilir ve bir meslektaşın hangi müşteriyi
+    /// aradığı, projeye sahip olmakla kazanılan bir bilgi değil.
+    /// </summary>
+    [HttpGet("desk-sql/history")]
+    public async Task<IActionResult> DeskSqlHistory(
+        [FromQuery] string projectId, [FromQuery] int limit, CancellationToken cancellationToken)
+    {
+        var gate = await RequireDeskSqlOwnerAsync(projectId, cancellationToken);
+        if (gate.Failure is not null) return gate.Failure;
+
+        var items = await _workbench.GetHistoryAsync(
+            projectId, gate.UserId!, limit <= 0 ? 50 : limit, cancellationToken);
+
+        return Ok(new { items });
+    }
+
+    /// <summary>
+    /// Kullanıcının kendi geçmişini silmesi.
+    ///
+    /// <b>Denetim kaydı silinmiyor</b> — <see cref="GatewayAuditEntry"/> yerinde
+    /// duruyor ve "kim ne zaman çalıştırdı" kaydı korunuyor. Silinen yalnızca
+    /// kolaylık amaçlı tutulan SQL METNİ; zorunlu olmayan hassas veriyi tutmakta
+    /// ısrar etmek gereksiz risk.
+    /// </summary>
+    [HttpDelete("desk-sql/history")]
+    public async Task<IActionResult> ClearDeskSqlHistory(
+        [FromQuery] string projectId, CancellationToken cancellationToken)
+    {
+        var gate = await RequireDeskSqlOwnerAsync(projectId, cancellationToken);
+        if (gate.Failure is not null) return gate.Failure;
+
+        var deleted = await _workbench.ClearHistoryAsync(projectId, gate.UserId!, cancellationToken);
+        return Ok(new { deleted });
+    }
+
+    /// <summary>Kaydedilmiş sorgular (F-02) — yine yalnızca çağıranın kendi kayıtları.</summary>
+    [HttpGet("desk-sql/saved")]
+    public async Task<IActionResult> SavedQueries(
+        [FromQuery] string projectId, CancellationToken cancellationToken)
+    {
+        var gate = await RequireDeskSqlOwnerAsync(projectId, cancellationToken);
+        if (gate.Failure is not null) return gate.Failure;
+
+        var items = await _workbench.GetSavedAsync(projectId, gate.UserId!, cancellationToken);
+        return Ok(new { items });
+    }
+
+    [HttpPost("desk-sql/saved")]
+    public async Task<IActionResult> SaveQuery(
+        [FromBody] SaveQueryRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Sql))
+            return BadRequest(new { message = "Sql is required." });
+
+        var gate = await RequireDeskSqlOwnerAsync(request.ProjectId, cancellationToken);
+        if (gate.Failure is not null) return gate.Failure;
+
+        try
+        {
+            var item = await _workbench.SaveAsync(
+                request.ProjectId, gate.UserId!, request.Name ?? string.Empty, request.Sql, cancellationToken);
+            return Ok(item);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("desk-sql/saved/{id}")]
+    public async Task<IActionResult> DeleteSavedQuery(
+        string id, [FromQuery] string projectId, CancellationToken cancellationToken)
+    {
+        var gate = await RequireDeskSqlOwnerAsync(projectId, cancellationToken);
+        if (gate.Failure is not null) return gate.Failure;
+
+        return await _workbench.DeleteSavedAsync(projectId, gate.UserId!, id, cancellationToken)
+            ? NoContent()
+            : NotFound(new { message = "Saved query not found." });
+    }
+
+    /// <summary>
+    /// SQL konsolunun yan defterleri için ortak kapı.
+    ///
+    /// <b><see cref="DeskSql"/> ile AYNI kapılar, bilerek:</b> konsolu
+    /// kullanamayan biri onun geçmişini de görmemeli. Ayrı bir (daha gevşek)
+    /// kural koymak, konsolu kapatmanın aslında hiçbir şeyi kapatmadığı bir
+    /// arka kapı açardı. <c>AllowDeskSql</c> kontrolü de dahil.
+    /// </summary>
+    private async Task<(IActionResult? Failure, string? UserId)> RequireDeskSqlOwnerAsync(
+        string projectId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(projectId))
+            return (BadRequest(new { message = "ProjectId is required." }), null);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) return (Unauthorized(), null);
+
+        var role = await _context.GetRoleAsync(projectId, userId, cancellationToken);
+        if (role is null) return (NotFound(new { message = "Project not found." }), null);
+        if (role != OrgRole.Owner)
+            return (StatusCode(403, new { message = "Only the project Owner can use the Desk SQL console." }), null);
+
+        var allowed = await _context.CloudProjects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.AllowDeskSql)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return allowed
+            ? (null, userId)
+            : (StatusCode(403, new { message = "The SQL console is not enabled for this project yet." }), null);
     }
 
     /// <summary>

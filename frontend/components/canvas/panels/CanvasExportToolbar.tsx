@@ -535,9 +535,9 @@ export default function CanvasExportToolbar() {
                         exportAsSql();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-success hover:bg-success-subtle rounded-[var(--radius-control)] transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-success-text hover:bg-success-subtle rounded-[var(--radius-control)] transition-colors text-left"
                     >
-                      <Database className="w-3.5 h-3.5 text-success" />
+                      <Database className="w-3.5 h-3.5 text-success-text" />
                       <span>SQL Schema Code (.sql)</span>
                     </button>
 
@@ -546,9 +546,9 @@ export default function CanvasExportToolbar() {
                         exportAsJson();
                         setIsExportDropdownOpen(false);
                       }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-danger hover:bg-danger-subtle rounded-[var(--radius-control)] transition-colors text-left"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-danger-text hover:bg-danger-subtle rounded-[var(--radius-control)] transition-colors text-left"
                     >
-                      <Braces className="w-3.5 h-3.5 text-danger" />
+                      <Braces className="w-3.5 h-3.5 text-danger-text" />
                       <span>Namines Meta Schema (.json)</span>
                     </button>
 

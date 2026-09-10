@@ -120,7 +120,7 @@ export default function ClickClickDone() {
                     onClick={() => setSelectedBlueprint(b)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-[var(--radius-control)] text-xs font-mono transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-accent text-surface-900 font-bold shadow-md'
+                        ? 'bg-accent text-accent-on font-bold shadow-md'
                         : 'text-content-secondary hover:bg-surface-800 hover:text-content-primary'
                     }`}
                   >
@@ -192,7 +192,7 @@ export default function ClickClickDone() {
               {/* Rule Engine Safety Tier */}
               <div className="flex items-center justify-between text-xs font-mono p-2.5 bg-surface-800/80 rounded-[var(--radius-control)] border border-surface-500/60">
                 <span className="text-content-muted">Rule Engine</span>
-                <span className="text-success font-semibold flex items-center gap-1">
+                <span className="text-success-text font-semibold flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
                   Production Safe
                 </span>
@@ -221,9 +221,9 @@ export default function ClickClickDone() {
 
             {/* Terminal Diagnostic Log Output */}
             <div className="p-3 bg-surface-800 rounded-[var(--radius-control)] border border-surface-500/80 font-mono text-[11px] flex flex-col gap-1">
-              <div className="flex items-center justify-between text-success">
+              <div className="flex items-center justify-between text-success-text">
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />
                   <span className="font-bold">Verified in {lastVerifiedTime}</span>
                 </div>
                 <span className="text-[10px] text-content-subtle">24 AST rules</span>
@@ -274,7 +274,7 @@ export default function ClickClickDone() {
               <div className="flex items-center gap-1 text-[11px] text-content-muted group-hover:text-accent-text">
                 {copiedPush ? (
                   <>
-                    <Check className="w-3 h-3 text-success" />
+                    <Check className="w-3 h-3 text-success-text" />
                     <span>Copied</span>
                   </>
                 ) : (
@@ -297,7 +297,7 @@ export default function ClickClickDone() {
                     : 'bg-surface-800/60 hover:bg-surface-800 border-surface-500/40'
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-success-text shrink-0 mt-0.5" />
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-mono font-semibold text-content-primary">
                     Automatic check: 3NF Passed
@@ -317,7 +317,7 @@ export default function ClickClickDone() {
                     : 'bg-surface-800/60 hover:bg-surface-800 border-surface-500/40'
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-success-text shrink-0 mt-0.5" />
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-mono font-semibold text-content-primary">
                     Migration generated: Zero drops
@@ -337,7 +337,7 @@ export default function ClickClickDone() {
                     : 'bg-surface-800/60 hover:bg-surface-800 border-surface-500/40'
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-success-text shrink-0 mt-0.5" />
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-mono font-semibold text-content-primary">
                     Namines Desk: Live CRUD admin
