@@ -12,7 +12,7 @@
 > | SEC-003 Sahte Personal Access Token | ✅ Ekran, state, handler ve `localStorage` verisi kaldırıldı; kullanıcı gerçek anahtar ekranına yönlendiriliyor |
 > | SEC-004 Mermaid XSS | ✅ `securityLevel: 'strict'` |
 > | SEC-005 JWT fallback anahtarı | ✅ Kapı `IsDevelopment()`'a çevrildi + fallback ile eşitlik kontrolü eklendi |
-> | SEC-006 DNS rebinding | 🟡 Açık — altyapı kararı gerektiriyor (egress allowlist), kod düzeltmesi tek başına yeterli değil |
+> | SEC-006 DNS rebinding | ✅ **Egress allowlist** (10.09.2026) — kod tarafında yapılabilecek en güçlü mitigasyon, canlı doğrulandı |
 > | SEC-007 Zayıf parola politikası | ✅ 12 karakter + hesap kilitleme (5 deneme / 15 dk) |
 > | SEC-008 `ConnectionString = null` tiyatrosu | ✅ Kaldırıldı |
 > | AUTHZ-004 CSRF | ✅ `CsrfProtectionMiddleware` + frontend başlığı; 8 testle sabitlendi |
@@ -341,12 +341,67 @@ M (kod) / S (altyapı)
 ### Priority
 P2
 
-### 🟡 AÇIK — bilinçli
+### ✅ Yapıldı (10.09.2026) — uygulama seviyesinde egress allowlist
+
 Kod tarafında bir yama (çözülen IP'ye doğrudan bağlanma) sürücü bağlantı
 dizesini yeniden yazmayı gerektiriyor ve TLS sertifika doğrulamasını bozma
-riski taşıyor (sertifika host adına düzenlenmiş olur). Doğru çözüm **egress
-allowlist** — altyapı kararı. Açık bırakıldı ve `21-risk-register.md`'de
-izleniyor.
+riski taşıyor: sürücülere "şu IP'ye bağlan ama sertifikayı şu ad için doğrula"
+demenin taşınabilir bir yolu yok. Bu yüzden **yarışı kapatmak yerine anlamsız
+kılan** çözüm uygulandı.
+
+`Security:DbEgress:AllowedHosts` — operatörün açıkça izin verdiği hedefler.
+**Boşsa** davranış değişmiyor (özel adresler reddedilir, public hedeflere izin
+verilir). **Doluysa** yalnızca listedekilere bağlanılabilir.
+
+Neden bu, rebinding'in cevabı: saldırganın alan adı operatörün listesinde
+olmadığı için, o adın hangi IP'ye çözüldüğü — ve iki çözüm arasında değişip
+değişmediği — artık **fark etmiyor**.
+
+Biçimler: `db.ornek.com` · `*.ornek.com` (kök **dâhil**) · `203.0.113.5`
+
+**Allowlist özel adres yasağını EZMİYOR** — iki kapı birlikte çalışıyor.
+Listeye `localhost` yazmak üretimde onu açmıyor; bunun testi var.
+
+#### Yol boyunca çıkan gerçek bir tutarsızlık
+
+`DatabaseExecutorService` SSRF kararını **kendi bayrağıyla** veriyordu:
+`Executor:AllowPrivateHosts`. O bayrak **TEK KAPILIYDI** — yalnızca config'e
+bakıyor, ortama bakmıyordu.
+
+Oysa aynı kararın diğer tarafı (`DbHostAccessPolicy`) **ÇİFT KAPILI** ve
+gerekçesi kendi yorumunda yazılı: *"tek başına config bayrağı, prod'a
+yanlışlıkla kopyalanan bir env değişkeniyle SSRF korumasını kapatabilirdi"*.
+
+Yani **en tehlikeli uç (keyfi SQL çalıştırma) en zayıf kapıyı kullanıyordu** —
+ve `.env.example` `Executor__AllowPrivateHosts=true` deyip "production'da
+MUTLAKA false olmalı" notuyla operatörün hatırlamasına güveniyordu.
+
+Executor artık ortak politikadan geçiyor: çift kapı + egress allowlist.
+Eski bayrak `.env.example`'da yorumlu bırakıldı (etkisi yok, kafa
+karıştırmasın diye açıklandı).
+
+#### Canlı doğrulama (2026-09-10)
+
+Ayırt edici deney — aynı istek, yalnızca allowlist değişti:
+
+| Allowlist | `POST /api/executor/execute` yanıtı | Anlamı |
+|---|---|---|
+| `db.izinli.com` | "Could not connect to the database…" | **Reddedildi, sunucuya hiç gitmedi** |
+| `db.izinli.com,localhost` | "**Authentication failed.** Check the username and password" | **Sunucuya ULAŞTI**, parola yanlış olduğu için düştü |
+
+İkinci satır, kapının allowlist olduğunu kanıtlıyor: hedef değişmedi, kimlik
+bilgisi değişmedi, yalnızca liste değişti ve davranış değişti.
+
+Açılışta log: `Veritabani egress allowlist AKTIF (1 girdi)`. Liste boşsa da
+**sessiz kalmıyor** — "tanımlı değil, rebinding penceresi kapalı değil" diye
+bilgi veriyor.
+
+**Denetim kaydı da doğrulandı:** reddedilen deneme dâhil ikisi de
+`SqlExecutionAudits`'e yazıldı (host + veritabanı adı var, **parola yok**).
+
+Testler: `DbHostAccessPolicyTests` — 26 test (joker eşleşme DNS'ten bağımsız
+test ediliyor; ilk hâli DNS'e bağlıydı ve **testin kendisi yanlıştı**, kod
+doğruydu).
 
 ---
 

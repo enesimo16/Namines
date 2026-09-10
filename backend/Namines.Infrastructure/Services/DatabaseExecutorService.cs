@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Configuration;
 using MySqlConnector;
 using Npgsql;
 using Oracle.ManagedDataAccess.Client;
@@ -30,22 +29,35 @@ public class DatabaseExecutorService : IDatabaseExecutor
     /// </summary>
     private const int StatementTimeoutSeconds = 120;
 
-    // SSRF koruması: varsayılan olarak private/loopback hedefler reddedilir.
-    // Yerel geliştirmede appsettings.Development.json → "Executor:AllowPrivateHosts": true ile açılabilir.
-    private readonly bool _allowPrivateHosts;
+    /// <summary>
+    /// SSRF ve egress kontrolu -- ORTAK politika.
+    ///
+    /// <b>Onceden bu servis kendi bayragini kullaniyordu</b>
+    /// (`Executor:AllowPrivateHosts`) ve o bayrak TEK KAPILIYDI: yalnizca
+    /// config'e bakiyordu, ortama bakmiyordu. Oysa ayni kararin diger tarafi
+    /// (`DbHostAccessPolicy`) CIFT KAPILI ve gerekcesi kendi yorumunda yazili:
+    /// "tek basina config bayragi, prod'a yanlislikla kopyalanan bir env
+    /// degiskeniyle SSRF korumasini kapatabilirdi".
+    ///
+    /// Yani en tehlikeli uc (keyfi SQL calistirma) en zayif kapiyi kullaniyordu.
+    /// `.env.example` da `Executor__AllowPrivateHosts=true` diyip "production'da
+    /// MUTLAKA false olmali" notuyla operatorun hatirlamasina guveniyordu.
+    ///
+    /// Artik iki taraf ayni politikadan geciyor: cift kapi + egress allowlist.
+    /// </summary>
+    private readonly IDbHostAccessPolicy _hostPolicy;
 
-    public DatabaseExecutorService(IConfiguration configuration)
+    public DatabaseExecutorService(IDbHostAccessPolicy hostPolicy)
     {
-        _allowPrivateHosts = configuration.GetValue<bool>("Executor:AllowPrivateHosts");
+        _hostPolicy = hostPolicy;
     }
 
     private void ValidateConnectionTarget(string connectionString, DatabaseType dbType)
     {
-        if (_allowPrivateHosts) return;
         foreach (var host in ExtractHosts(connectionString, dbType))
         {
-            if (!SsrfGuard.IsHostSafe(host))
-                throw new InvalidOperationException("Connection target host is not allowed.");
+            if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
+                throw new InvalidOperationException(denyReason);
         }
     }
 

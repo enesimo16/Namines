@@ -243,6 +243,38 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   const [localPolicy, setLocalPolicy] = useState<AIPolicy>({ ...policy });
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
+  // MFA (TOTP). `mfaSetup` yalnizca kurulum sirasinda dolu; icindeki
+  // `sharedKey` KULLANICININ SIRRI ve hicbir ucuncu tarafa gonderilmiyor
+  // (or. bir QR uretme servisine) -- bu yuzden QR goruntusu YOK, elle
+  // girilebilir anahtar ve otpauth:// baglantisi var.
+  const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
+  const [mfaRecoveryLeft, setMfaRecoveryLeft] = useState(0);
+  const [mfaSetup, setMfaSetup] = useState<{ sharedKey: string; otpauthUri: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaBusy, setMfaBusy] = useState(false);
+  // Kurtarma kodlari SUNUCUDAN BIR KEZ geliyor; kullanici kaydedene kadar
+  // ekranda tutuluyor ve baska hicbir yere yazilmiyor.
+  const [mfaRecoveryCodes, setMfaRecoveryCodes] = useState<string[] | null>(null);
+
+  /**
+   * MFA durumunu ceker.
+   *
+   * Kullandigi `useEffect`'ten ONCE tanimli olmasi bilincli: sonrasinda
+   * tanimlandiginda lint "bildiriminden once erisiliyor" diyordu. Calisma
+   * zamaninda sorun cikmiyordu (efekt render'dan sonra kosar) ama siralama
+   * degistigi gun cikacakti. Ihtiyac duydugu setState'lerin hepsi yukarida.
+   */
+  const refreshMfaStatus = async () => {
+    try {
+      const status = await authService.mfa.status();
+      setMfaEnabled(status.enabled);
+      setMfaRecoveryLeft(status.recoveryCodesLeft);
+    } catch {
+      // Giris yapilmamis ya da uc erisilemez: durumu bilinmiyor birak.
+      setMfaEnabled(null);
+    }
+  };
+
   // Modal her acildiginda acik SSS maddesi kapaniyor.
   //
   // Bu, efekt icinde `setOpenFaq(null)` olarak yaziliydi; efekt icindeki
@@ -332,6 +364,8 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       });
       if (isAuthenticated) {
         fetchQuota();
+        // MFA durumu: arayuz "Enable" mi "Disable" mi gosterecegini bilmeli.
+        refreshMfaStatus();
       }
 
       if (isAuthenticated) {
@@ -493,6 +527,55 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
     seedDomain, docLevel, scaffoldVersion, dbaSeverity, temperature,
     promptStyle, namingConvention, fkAction, maxTokens, autoIndex, sqlPrettyPrint,
   });
+
+
+  const handleMfaSetup = async () => {
+    setMfaBusy(true);
+    try {
+      setMfaSetup(await authService.mfa.setup());
+      setMfaCode('');
+    } catch {
+      showToast('Two-factor setup could not be started.', 'error');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const handleMfaEnable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMfaBusy(true);
+    try {
+      const result = await authService.mfa.enable(mfaCode);
+      // Kodlar EKRANDA gosteriliyor; kullanici kapatana kadar duruyor.
+      setMfaRecoveryCodes(result.recoveryCodes ?? []);
+      setMfaSetup(null);
+      setMfaCode('');
+      await refreshMfaStatus();
+      showToast('Two-factor authentication is on.', 'success');
+    } catch {
+      // Sunucu kodu neden reddettigini soylemiyor (dogru): sayac tabanli
+      // ipucu vermek saldirgana yardim ederdi. Kullaniciya en olasi sebep
+      // gosteriliyor.
+      showToast('That code is not valid. Check your device clock and try again.', 'error');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const handleMfaDisable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMfaBusy(true);
+    try {
+      await authService.mfa.disable(mfaCode);
+      setMfaCode('');
+      await refreshMfaStatus();
+      showToast('Two-factor authentication is off.', 'info');
+    } catch {
+      showToast('That code is not valid.', 'error');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
 
   const handleSavePolicy = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -806,7 +889,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-sm font-bold text-content-primary">Not Logged In</h3>
-                      <p className="text-xs text-content-muted max-w-xs">Please log in to manage access levels and API tokens.</p>
+                      <p className="text-xs text-content-muted max-w-xs">Please log in to manage two-factor authentication and account access.</p>
                     </div>
                   </div>
                 ) : (
@@ -890,6 +973,139 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                           <span className="text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] bg-success-text/10 text-success-text">ACTIVE</span>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Cok faktorlu dogrulama.
+                        QR GORUNTUSU YOK ve bu bilincli: bir QR uretmek icin
+                        sirri ucuncu bir servise gondermek gerekirdi (or.
+                        chart API'leri) -- yani MFA sirrini disariya vermek.
+                        Yerel uretim bir kutuphane gerektiriyor; onun yerine
+                        elle girilebilir anahtar ve otpauth:// baglantisi
+                        veriliyor. Mobilde baglantiya dokunmak kimlik
+                        dogrulayici uygulamayi aciyor. */}
+                    <div className={`${cardClass} p-5 space-y-4`}>
+                      <div className="flex items-center gap-2 border-b border-content-primary/10 pb-3">
+                        <Shield className="w-4 h-4 text-content-muted" />
+                        <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                          Two-Factor Authentication
+                        </h4>
+                        {mfaEnabled === true && (
+                          <span className="ml-auto text-[10px] font-semibold text-accent-text">ON</span>
+                        )}
+                      </div>
+
+                      {mfaEnabled === null ? (
+                        <p className="text-xs text-content-subtle italic">Checking status…</p>
+                      ) : mfaRecoveryCodes ? (
+                        <div className="space-y-3">
+                          <p className="text-xs text-content-primary font-semibold">
+                            Save these recovery codes now — they are shown only once.
+                          </p>
+                          <p className="text-[10px] text-content-subtle leading-normal">
+                            Each code works once. They are the only way back into your account if you lose
+                            your authenticator device.
+                          </p>
+                          <div className="grid grid-cols-2 gap-1.5 bg-surface-800 p-3 rounded-[var(--radius-control)] font-mono text-xs text-content-secondary select-all">
+                            {mfaRecoveryCodes.map(code => <span key={code}>{code}</span>)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMfaRecoveryCodes(null)}
+                            className={`px-4 py-2 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer ${primaryBtnClass}`}
+                          >
+                            I have saved them
+                          </button>
+                        </div>
+                      ) : mfaEnabled ? (
+                        <form onSubmit={handleMfaDisable} className="space-y-3">
+                          <p className="text-xs text-content-secondary leading-relaxed">
+                            Two-factor authentication is protecting this account.
+                            {mfaRecoveryLeft > 0 && ` ${mfaRecoveryLeft} recovery code${mfaRecoveryLeft === 1 ? '' : 's'} left.`}
+                          </p>
+                          <p className="text-[10px] text-content-subtle leading-normal">
+                            Turning it off requires a current code — so a stolen session cannot remove your
+                            protection.
+                          </p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              value={mfaCode}
+                              onChange={(e) => setMfaCode(e.target.value)}
+                              placeholder="6-digit code"
+                              aria-label="Authentication code to turn off two-factor"
+                              className={`flex-1 ${inputClass}`}
+                            />
+                            <button
+                              type="submit"
+                              disabled={mfaBusy || !mfaCode.trim()}
+                              className="px-4 py-2 text-xs rounded-[var(--radius-control)] bg-danger-text/10 text-danger-text hover:bg-danger-text/20 transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              {mfaBusy ? 'Working…' : 'Turn off'}
+                            </button>
+                          </div>
+                        </form>
+                      ) : mfaSetup ? (
+                        <form onSubmit={handleMfaEnable} className="space-y-3">
+                          <p className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">
+                            Step 1 — add this key to your authenticator app
+                          </p>
+                          <div className="font-mono text-xs bg-surface-800 p-2.5 rounded-[var(--radius-control)] select-all text-content-secondary break-all">
+                            {mfaSetup.sharedKey}
+                          </div>
+                          <a
+                            href={mfaSetup.otpauthUri}
+                            className="inline-block text-[10px] text-accent-text hover:underline"
+                          >
+                            Or open it in your authenticator app
+                          </a>
+                          <p className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider pt-1">
+                            Step 2 — enter the code it shows
+                          </p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              value={mfaCode}
+                              onChange={(e) => setMfaCode(e.target.value)}
+                              placeholder="6-digit code"
+                              aria-label="Authentication code to turn on two-factor"
+                              className={`flex-1 ${inputClass}`}
+                            />
+                            <button
+                              type="submit"
+                              disabled={mfaBusy || !mfaCode.trim()}
+                              className={`px-4 py-2 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer disabled:opacity-50 ${primaryBtnClass}`}
+                            >
+                              {mfaBusy ? 'Checking…' : 'Verify'}
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setMfaSetup(null); setMfaCode(''); }}
+                            className="text-[10px] text-content-subtle hover:text-content-secondary cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </form>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-xs text-content-secondary leading-relaxed">
+                            Add a second step to sign-in using an authenticator app. A leaked password alone
+                            will no longer be enough to reach your databases.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleMfaSetup}
+                            disabled={mfaBusy}
+                            className={`px-4 py-2 text-xs rounded-[var(--radius-control)] transition-all cursor-pointer disabled:opacity-50 ${primaryBtnClass}`}
+                          >
+                            {mfaBusy ? 'Starting…' : 'Turn on'}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* API anahtarlari BILEREK burada YONETILMIYOR.

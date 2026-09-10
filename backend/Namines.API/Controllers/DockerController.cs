@@ -104,10 +104,26 @@ public class DockerController : ControllerBase
 
     /// <summary>
     /// İlerleme akışı (SSE).
-    /// EventSource Authorization header gönderemediği için [Authorize] konulamaz;
-    /// sunucu üretimi GUID jobId capability görevi görür. Akış yalnızca log yayar —
-    /// asıl veri (backup) indirme ucunda sahiplik kontrolüyle korunur.
+    ///
+    /// <b>[Authorize] var — ve olabilir.</b> Eski yorum "EventSource
+    /// Authorization header gönderemediği için [Authorize] konulamaz" diyordu.
+    /// Öncülün ilk yarısı doğru, ikinci yarısı YANLIŞ: EventSource
+    /// <c>Authorization</c> gönderemez ama <b>cookie gönderebilir</b> — ve bu
+    /// uygulamada kimlik zaten <c>httpOnly</c> cookie'de taşınıyor. CORS
+    /// politikası da <c>AllowCredentials()</c> taşıyor.
+    ///
+    /// İstemci tarafında gereken tek şey
+    /// <c>new EventSource(url, { withCredentials: true })</c>.
+    ///
+    /// <b>Neden değişti:</b> önceki tasarım GUID <c>jobId</c>'yi bir
+    /// "capability URL" olarak kullanıyordu — bilmeyen erişemez. Ama capability
+    /// URL'leri sızar: proxy logları, tarayıcı geçmişi, <c>Referer</c> başlığı.
+    /// Ve bu akış kullanıcının DDL'ini içerebilen derleme loglarını yayıyor.
+    ///
+    /// GUID kontrolü <b>kaldırılmadı</b>: artık iki katman var — oturum
+    /// (kim olduğun) ve jobId (hangi işe baktığın).
     /// </summary>
+    [Authorize]
     [HttpGet("stream/{jobId}")]
     public async Task StreamLogs(string jobId)
     {

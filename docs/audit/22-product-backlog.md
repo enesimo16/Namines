@@ -69,7 +69,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 
 | ID | Kategori | İş | Kaynak | Efor |
 |---|---|---|---|---|
-| B-27 | Security | SSRF: çözülen IP'ye bağlan / egress allowlist | SEC-006 | M |
+| ~~B-27~~ | Security | ✅ `Security:DbEgress:AllowedHosts` + executor ortak politikaya bağlandı; **canlı doğrulandı** | SEC-006 | M |
 | ~~B-28~~ | Security | ✅ 12 karakter yapıldı; **sızdırılmış-parola listesi (HIBP) hâlâ açık** | SEC-007 | S |
 | ~~B-29~~ | Security | ✅ Üç motorda da sınırlayıcı kaçırılıyor + testler | 06 §son | S |
 | ~~B-30~~ | Security | ✅ TOTP + kurtarma kodları, **12 adım canlı doğrulandı**. ⚠️ Arayüz henüz yok (B-62) | F-09 | M |
@@ -118,8 +118,9 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | B-59 | Testing | `SecurityStampValidation` için entegrasyon testi | B-09 | S | P2 |
 | ~~B-60~~ | Docs | ✅ `.gitignore` yeni belgeleri yutuyordu — `docs/`, `deploy/` açıldı | DOC-005 | XS | P1 |
 | B-61 | Docs | `*.md` yok sayma politikasını tersine çevir (varsayılan: takip et) | DOC-005 | S | P2 |
-| B-62 | UX | **MFA kurulum arayüzü** (QR + kurtarma kodları) — uçlar hazır | AUTH-003 | M | P1 |
-| B-63 | Security | `DockerController.StreamLogs`'a `[Authorize]` + `EventSource withCredentials` — **çözüm hazır, doğrulanmadı** | 29 | XS | P2 |
+| ~~B-62~~ | UX | ✅ MFA bölümü (elle anahtar + `otpauth://` + kurtarma kodları). **QR görüntüsü yok** — sırrı 3. tarafa göndermemek için; yerel QR B-64 | AUTH-003 | M | P1 |
+| B-64 | UX | MFA için **yerel** QR üretimi (kütüphane kararı) + authenticated dalın elle teyidi | AUTH-003 | S | P2 |
+| ~~B-63~~ | Security | ✅ `[Authorize]` + `withCredentials`; **canlı doğrulandı** (cookiesiz 401, cookie ile 404) | 29 | XS | P2 |
 
 ---
 

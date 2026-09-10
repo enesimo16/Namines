@@ -113,6 +113,41 @@ CI'da Docker'a yeterli bellek verilmeli — orada atlanan test bir uyarıdır.
 
 ---
 
+## Güvenlik turu KAPANDI (10.09.2026)
+
+Denetim sonrası güvenlik listesinin **kod tarafı bitti**. Ayrıntı ve gerekçeler:
+[`docs/audit/29-IYILESTIRME-PLANI-2026-09-10.md`](docs/audit/29-IYILESTIRME-PLANI-2026-09-10.md)
+
+| İş | Durum |
+|---|---|
+| HIBP sızdırılmış parola kontrolü | ✅ `Password123456` → 42.513 sızıntı → red |
+| MFA (TOTP + 8 kurtarma kodu) + arayüz | ✅ 12 adım canlı doğrulandı |
+| Gateway yetki koruması | ✅ Konvansiyon testi — yetkisiz uç eklenince build kırılıyor |
+| SSRF egress allowlist | ✅ `Security:DbEgress:AllowedHosts`, canlı doğrulandı |
+| `DockerController.StreamLogs` | ✅ `[Authorize]` + cookie; bir jobId oracle'ı da kapandı |
+| Executor'ın SSRF bayrağı | ✅ Tek kapılıydı → ortak çift kapılı politikaya bağlandı |
+| SOC 2 / HIPAA | ⬜ Kod işi değil |
+
+**Bu turda canlı denemeyle yakalanan 4 gerçek hata:**
+
+1. **HIBP kontrolü tamamen ölüydü.** 7 birim testi geçiyordu, derleme temizdi
+   ve her istek `"BaseAddress must be set"` ile fail-open'a düşüp **her
+   parolayı kabul ediyordu**. `AddPasswordValidator<T>`, `AddHttpClient<T>`'nin
+   tipli fabrikasını kullanmıyor.
+2. **Kurtarma kodları çalışmıyordu.** Tire siliniyordu; Identity kodları
+   `xxxxx-xxxxx` saklıyor. Telefonunu kaybeden kullanıcı hesabına **hiç**
+   giremiyordu.
+3. **Testler aslında koşmamıştı.** `dotnet build` iki kez sessizce başarısız
+   oldu (koşan test paketi DLL'i kilitliyordu) ve eski ikili koştu.
+4. **Executor SSRF'te en zayıf kapıyı kullanıyordu.** Kendi
+   `Executor:AllowPrivateHosts` bayrağı yalnızca config'e bakıyordu; aynı
+   kararın diğer tarafı ise ortam + config çift kapısı istiyordu.
+
+**Doğrulanmayan:** MFA arayüzünün kimlik doğrulanmış dalı tarayıcıda
+tıklanmadı (B-64).
+
+---
+
 ## Kapsamlı denetim ve düzeltme turu (2026-09-09)
 
 Projenin tamamı denetlendi — mimari, backend, frontend, veritabanı, güvenlik,

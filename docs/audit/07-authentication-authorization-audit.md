@@ -164,9 +164,41 @@ Gerçek TOTP kodu üretilerek (RFC 6238, standart kütüphane, harici bağımlı
 | 11 | Gerçek kodla kapatma | ✅ |
 | 12 | Kapandıktan sonra kodsuz giriş | ✅ jeton |
 
-**Kalan iş:** arayüz. Uçlar hazır ve doğrulanmış, ama Desk/frontend'de MFA
-kurulum ekranı **yok**. Kullanıcı bugün bu özelliği ancak API'yi doğrudan
-çağırarak kullanabilir.
+#### ✅ Arayüz de yapıldı (10.09.2026)
+
+`frontend` → Ayarlar → **Account & Tokens** sekmesine "Two-Factor
+Authentication" bölümü eklendi. Dört durum: kapalı · kurulum · açık · kurtarma
+kodları gösterimi.
+
+Çağrılar **merkezî API istemcisinden** geçiyor (`authService.mfa`), ham `fetch`
+değil — FE-005'in dersi: merkezî istemciyi baypas eden çağrı 401 yönlendirmesi,
+CSRF başlığı ve cookie gönderimini de kaçırır.
+
+**QR görüntüsü BİLEREK yok.** Bir QR üretmek için sırrı üçüncü bir servise
+göndermek gerekirdi (chart API'leri gibi) — yani **MFA sırrını dışarıya
+vermek**. Yerel üretim bir kütüphane gerektiriyor. Onun yerine:
+- elle girilebilir anahtar (dörderli gruplar hâlinde),
+- `otpauth://` bağlantısı — mobilde dokunmak kimlik doğrulayıcı uygulamayı açıyor.
+
+Kurtarma kodları ekranda gösterilip kullanıcı "kaydettim" diyene kadar
+duruyor; başka hiçbir yere yazılmıyor.
+
+#### ⚠️ Arayüzün doğrulanan ve DOĞRULANMAYAN kısmı
+
+| Durum | Doğrulama |
+|---|---|
+| Uçlar (setup/enable/disable/status + login) | ✅ 12 adım canlı |
+| `tsc --noEmit`, `npm run build`, eslint | ✅ Temiz |
+| **Kimlik doğrulanmamış** dalın render'ı | ✅ Tarayıcıda görüldü |
+| **Kimlik doğrulanmış** dalın render'ı ve düğmeler | ❌ **Doğrulanmadı** |
+
+Son satırın sebebi: tarayıcıda giriş akışına makul bir çabayla ulaşılamadı.
+Mekanizma doğru ama "kart görünüyor mu, düğme çalışıyor mu" **elle
+tıklanarak** teyit edilmeli.
+
+**Yan bulgu ve düzeltmesi:** kimlik doğrulanmamış durumdaki metin hâlâ
+*"Please log in to manage access levels and API tokens"* diyordu — jetonlar o
+ekrandan kalktığı için **yanlış** bir cümle. Düzeltildi.
 
 ---
 

@@ -20,12 +20,38 @@ Gerekçeler: [26-production-readiness.md](26-production-readiness.md)
 
 # 1. Güvenlik: 84 → 95
 
+> ## ✅ GÜVENLİK TURU KAPANDI (10.09.2026)
+>
+> | # | İş | Durum |
+> |---|---|---|
+> | 1 | HIBP sızdırılmış parola kontrolü | ✅ Canlı doğrulandı |
+> | 2 | MFA (TOTP + kurtarma kodları) | ✅ 12 adım canlı + arayüz |
+> | 3 | Gateway yetki koruması | ✅ Konvansiyon testi (refactor yerine) |
+> | 4 | SSRF egress allowlist | ✅ Canlı doğrulandı |
+> | 5 | SOC 2 / HIPAA | ⬜ **Kod işi değil** — bir proje, bir görev değil |
+>
+> **Bonus olarak kapatılanlar:** `DockerController.StreamLogs` yetkilendirmesi
+> (+ bir jobId oracle'ı), executor'ın tek-kapılı SSRF bayrağı, MFA arayüzü.
+>
+> **Bu turda yakalanan 4 gerçek hata:** HIBP kontrolü tamamen ölüydü ·
+> kurtarma kodları çalışmıyordu · testlerim aslında koşmamıştı · executor
+> SSRF'te en zayıf kapıyı kullanıyordu. Dördü de **canlı deneme** ile bulundu.
+>
+> **Doğrulanmayan tek şey:** MFA arayüzünün kimlik doğrulanmış dalı (kart ve
+> düğmeler) tarayıcıda tıklanmadı. Uçlar ve derleme temiz; elle teyit gerekiyor
+> (B-64).
+>
+> Kod tarafında yapılabilecek güvenlik işi **bitti**. Kalanlar: altyapı
+> (egress'i ağ seviyesinde de uygula), süreç (SOC 2) ve elle teyit.
+
+
+
 | # | İş | Neden | Efor | Backlog |
 |---|---|---|---|---|
 | 1 | **Sızdırılmış parola kontrolü (HIBP)** | 12 karakter yapıldı ama `Password123456` hâlâ geçiyor. Karmaşıklık kuralı değil, **liste kontrolü** çözer | S | B-58 |
 | 2 | **MFA (TOTP)** | Bytebase'de Enterprise'da var; kurumsal satışta kapı. Identity TOTP sağlayıcısı **zaten pakette** | M | B-30 |
 | 3 | ~~Gateway yetkisini filtreye taşı~~ → **konvansiyon testi** | Karar değişti, gerekçe aşağıda | ~~L~~ **S** | B-23 |
-| 4 | **SSRF: egress allowlist** | DNS rebinding kodla tam kapanmıyor; doğrulanan IP ile bağlanılan IP farklı olabilir | S (altyapı) | B-27 |
+| 4 | ~~SSRF: egress allowlist~~ | ✅ **Yapıldı** — uygulama seviyesinde allowlist, canlı doğrulandı. Ayrıca executor'ın tek-kapılı bayrağı ortak politikaya bağlandı | S | B-27 |
 | 5 | **SOC 2 / HIPAA hazırlığı** | Bytebase **SOC 2 Type 2 + HIPAA** sertifikalı. Kurumsalda bu bir ön şart, özellik değil | XL | — |
 
 ### B-23 kararı değişti: refactor yerine test
@@ -78,15 +104,34 @@ new EventSource(url, { withCredentials: true })   // DockerSandboxPanel.tsx:129
 [Authorize]                                        // DockerController.StreamLogs
 ```
 
-**Neden bu oturumda YAPILMADI:** Docker sandbox akışı uçtan uca
-çalıştırılamadı (iş başlatmak Docker + gerçek bir derleme gerektiriyor).
-Bu oturumda iki kez, doğrulanmadan "çalışıyor" sanılan şeyin ölü olduğu
-görüldü (HIBP kontrolü, kurtarma kodları). Aynı hatayı üçüncü kez yapmamak
-için değişiklik **uygulanmadı, hazır hâlde kaydedildi**.
+### ✅ Yapıldı ve doğrulandı (10.09.2026)
 
-**Risk değerlendirmesi:** capability URL sızabilir (proxy logu, tarayıcı
-geçmişi, `Referer`) ve akış kullanıcının DDL'ini içerebilen derleme loglarını
-yayıyor. Şiddet MEDIUM. Sandbox akışı denenebildiği anda uygulanmalı.
+İlk değerlendirmede "Docker sandbox akışı çalıştırılamıyor, o yüzden
+doğrulanamaz" denip ertelenmişti. **Bu değerlendirme yanlıştı:** yetki
+kapısını doğrulamak için bir Docker işi GEREKMİYOR — var olmayan bir `jobId`
+ile bile kapının çalıştığı ölçülebilir.
+
+| Deney | Sonuç |
+|---|---|
+| Kimliksiz istek | **401** (önceden 400/404 dönüyordu) |
+| Geçersiz biçimli `jobId`, kimliksiz | **401** — yetki, biçim kontrolünden ÖNCE |
+| Bearer jetonuyla, var olmayan iş | **404** — yetki geçti, normal akış |
+| **Cookie ile** (EventSource'un kullanacağı yol) | **404** — yetki geçti |
+| Cookiesiz kontrol | **401** |
+
+Dördüncü satır kritik: tarayıcının `EventSource(url, { withCredentials: true })`
+ile izleyeceği yol tam olarak bu ve çalışıyor.
+
+**Yan kazanç — kapatılan bir bilgi sızıntısı:** önceden kimliksiz bir çağıran
+`400` (bozuk biçim) / `404` (böyle bir iş yok) / `200` (iş var) ayrımını
+görebiliyordu, yani uç bir **jobId oracle**'ıydı. Artık her şey önce `401`.
+
+GUID kontrolü kaldırılmadı: iki katman var — oturum (kim olduğun) ve `jobId`
+(hangi işe baktığın).
+
+**Doğrulanmayan tek şey:** gerçek bir sandbox işi başlatıp tarayıcıda log
+akışının göründüğü. Mekanizma (cookie + `withCredentials` + `AllowCredentials`)
+curl ile birebir doğrulandı, ama tarayıcı içinde denenmedi.
 
 ### Neden bu sıra
 
