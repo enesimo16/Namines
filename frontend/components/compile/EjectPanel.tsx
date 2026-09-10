@@ -111,6 +111,7 @@ export default function EjectPanel({ schema, dbType }: Props) {
         <PanelBar
           left={
             <select
+              aria-label="Export target"
               value={selected}
               onChange={e => setSelected(e.target.value)}
               className="bg-surface-800 border border-content-primary/15 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-primary outline-none focus:border-accent/50"

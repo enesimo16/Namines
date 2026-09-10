@@ -97,6 +97,7 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
         </>}
       />
       <textarea
+        aria-label="SQL sorgusu"
         value={sql}
         onChange={e => setSql(e.target.value)}
         rows={5}

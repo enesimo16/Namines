@@ -332,6 +332,7 @@ function DemoContent() {
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-content-muted" />
               <input
+                aria-label="Search blueprints"
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}

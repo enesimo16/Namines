@@ -255,6 +255,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           )}
 
           <input
+            aria-label="Email address"
             type="email"
             required
             placeholder="Email address"
@@ -265,6 +266,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {!isLogin && (
             <input
+              aria-label="Username"
               type="text"
               required
               placeholder="Username"
@@ -276,6 +278,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {!isLogin && userType === 'corporate' && (
             <input
+              aria-label="Company name"
               type="text"
               required={userType === 'corporate'}
               placeholder="Company name"
@@ -286,6 +289,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           )}
 
           <input
+            aria-label="Password"
             type="password"
             required
             placeholder="Password"

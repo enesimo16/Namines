@@ -300,6 +300,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                   </div>
                 </div>
                 <select
+                  aria-label="Database Provider"
                   value={selectedDbType}
                   onChange={(e) => setSelectedDbType(e.target.value as DbType)}
                   className="bg-surface-800 border border-content-primary/10 rounded-[var(--radius-control)] px-3 py-1.5 text-xs font-semibold text-content-secondary focus:outline-none focus:border-focus-ring"
@@ -363,6 +364,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
                 <span className="text-content-subtle text-xs font-medium block">Or paste your DbContext C# source code directly:</span>
                 <div className="relative rounded-[var(--radius-card)] overflow-hidden border border-content-primary/10 bg-surface-700">
                   <textarea
+                    aria-label="DbContext C# source code"
                     value={dbContextCode}
                     onChange={(e) => setDbContextCode(e.target.value)}
                     placeholder="public class AppDbContext : DbContext { ..."

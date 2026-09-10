@@ -83,12 +83,12 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | B-38 | Architecture | `AIPreferencesModal`'ı böl + tipli tercih modülü | FE-002, TD-004 | M |
 | ~~B-39~~ | Frontend | ~~`DbPushModal`'ı merkezi API istemcisine taşı~~ ✅ `executorService` | FE-005 | S |
 | B-40 | Testing | E2E: tek uçtan uca akış (Playwright) | TEST-005 | M |
-| B-41 | A11y | Form alanlarına etiket (51 input) | A11Y-001 | M |
+| ~~B-41~~ | A11y | ~~Form alanlarına etiket (51 input)~~ ✅ 117/118 (kalan 1 = yorum içi, yanlış pozitif) | A11Y-001 | M |
 | B-42 | A11y | Kontrast + klavye + ekran okuyucu denetimi | 13 | M |
 | B-43 | Feature | Kısmi (tek tablo) geri yükleme | F-07 | M |
 | B-44 | Feature | CSV/JSON dışa aktarma + `CanExport` izni | F-08 | M |
 | B-45 | Feature | Supabase sağlayıcısı | F-10 | M |
-| B-46 | Build | Docker.DotNet sürüm çatışmasını çöz | TD-005, BACK-006 | M |
+| ~~B-46~~ | Build | ~~Docker.DotNet sürüm çatışmasını çöz~~ ✅ etkisiz kılındı (Lazy) + teşhis düzeltildi | TD-005, BACK-006 | M |
 | B-47 | DevOps | İleriye uyumlu migration kuralı + geri alma prosedürü | DEVOPS-005 | M |
 | ~~B-48~~ | Docs | ✅ `deploy/URETIM-CALISTIRMA.md` | 25 | M |
 
@@ -115,11 +115,11 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 |---|---|---|---|---|---|
 | B-57 | Frontend | 128 eslint hatasını temizle, sonra CI'a `npm run lint` ekle | FE-008 | L | P1 |
 | ~~B-58~~ | Security | ✅ HIBP k-anonimlik kontrolü; **canlı doğrulandı** (`Password123456` → 42.513 sızıntı → red) | SEC-007 | S | P2 |
-| B-59 | Testing | `SecurityStampValidation` için entegrasyon testi | B-09 | S | P2 |
+| ~~B-59~~ | Testing | ~~`SecurityStampValidation` için entegrasyon testi~~ ✅ | B-09 | S | P2 |
 | ~~B-60~~ | Docs | ✅ `.gitignore` yeni belgeleri yutuyordu — `docs/`, `deploy/` açıldı | DOC-005 | XS | P1 |
 | ~~B-61~~ | Docs | ~~`*.md` yok sayma politikasını tersine çevir~~ ✅ varsayılan artık takip et | DOC-005 | S | P2 |
-| ~~B-62~~ | UX | ✅ MFA bölümü (elle anahtar + `otpauth://` + kurtarma kodları). **QR görüntüsü yok** — sırrı 3. tarafa göndermemek için; yerel QR B-64 | AUTH-003 | M | P1 |
-| B-64 | UX | MFA için **yerel** QR üretimi (kütüphane kararı) + authenticated dalın elle teyidi | AUTH-003 | S | P2 |
+| ~~B-62~~ | UX | ✅ MFA bölümü (yerel QR + elle anahtar + `otpauth://` + kurtarma kodları). QR tamamen tarayıcıda üretiliyor, sır 3. tarafa gitmiyor (B-64) | AUTH-003 | M | P1 |
+| ~~B-64~~ | UX | ~~MFA için **yerel** QR üretimi (kütüphane kararı) + authenticated dalın elle teyidi~~ ✅ | AUTH-003 | S | P2 |
 | ~~B-63~~ | Security | ✅ `[Authorize]` + `withCredentials`; **canlı doğrulandı** (cookiesiz 401, cookie ile 404) | 29 | XS | P2 |
 
 ---

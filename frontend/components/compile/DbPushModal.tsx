@@ -137,6 +137,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
               </label>
               <div className="relative">
                 <select
+                  aria-label="Target Database Type"
                   value={dbType}
                   onChange={(e) => { setDbType(e.target.value as any); resetState(); }}
                   className="w-full appearance-none bg-surface-600 border border-surface-500 text-content-primary text-sm rounded-[var(--radius-control)] px-3.5 py-2.5 pr-9 focus:outline-none focus:border-focus-ring transition-colors cursor-pointer"
@@ -162,6 +163,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                 Connection String
               </label>
               <textarea
+                aria-label="Connection String"
                 value={connectionString}
                 onChange={(e) => { setConnectionString(e.target.value); resetState(); }}
                 placeholder={DB_PLACEHOLDERS[dbType] || DB_PLACEHOLDERS['MSSQL']}

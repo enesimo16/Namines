@@ -308,6 +308,7 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
             değiştirilecek. Devam etmek için veritabanının adını yazın.
           </span>
           <input
+            aria-label="Onay için veritabanı adı"
             type="text"
             value={confirming.typed}
             placeholder={confirming.backup.databaseName}

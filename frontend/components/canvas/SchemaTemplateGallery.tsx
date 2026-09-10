@@ -79,6 +79,7 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted pointer-events-none" />
             <input
+              aria-label="Search templates"
               autoFocus
               value={query}
               onChange={e => setQuery(e.target.value)}

@@ -11,6 +11,11 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <!-- SQLite (bellek ici): Docker GEREKTIRMEYEN DbContext testleri icin.
+         Gercek motor davranisi gereken testler (ExecuteUpdate'in atomikligi gibi)
+         Testcontainers/Postgres kullanmaya devam ediyor; bu yalnizca sema
+         semantigi degil, AKIS test edilirken kullaniliyor. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.8" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="Serilog.Sinks.TestCorrelator" Version="4.0.0" />
     <PackageReference Include="Testcontainers.MsSql" Version="4.13.0" />

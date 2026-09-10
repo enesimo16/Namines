@@ -691,6 +691,7 @@ export default function CanvasExportToolbar() {
               <div className="flex items-center gap-2.5">
                 <input
                   type="checkbox"
+                  aria-label="Premium: AI Data Analytics (BI) Assistant"
                   checked={includeBiModule}
                   onChange={() => {}} 
                   className="rounded-[var(--radius-control)] border-surface-500 bg-surface-800 text-accent focus:ring-accent-hover/30 h-4 w-4"

@@ -89,6 +89,7 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
         <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-600">
           <Search className="w-4 h-4 text-content-muted shrink-0" />
           <input
+            aria-label="Search commands"
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}

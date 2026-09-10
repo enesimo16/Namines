@@ -280,6 +280,7 @@ export default function NewProjectPage() {
             {/* Textarea Section */}
             <div className="mb-4 relative">
               <textarea
+                aria-label="Describe the database schema you want to generate"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
@@ -326,6 +327,7 @@ export default function NewProjectPage() {
                     <div className="flex items-center gap-2">
                       <LinkIcon className="w-3.5 h-3.5 text-content-muted shrink-0" />
                       <input
+                        aria-label="API specification URL"
                         type="url"
                         value={apiSpecUrl}
                         onChange={(e) => setApiSpecUrl(e.target.value)}

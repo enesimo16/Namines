@@ -40,19 +40,46 @@ namespace Namines.Infrastructure.Services;
 public class BranchTestRunnerService : IBranchTestRunner, IDisposable
 {
     private readonly IDdlGeneratorFactory _ddlGeneratorFactory;
-    private readonly DockerClient _client;
+    /// <summary>
+    /// Docker istemcisi İLK KULLANIMDA kuruluyor, kurucuda değil.
+    ///
+    /// <b>Neden:</b> Kurucuda kurmak, bu servisi YARATMANIN Docker
+    /// yapılandırmasını çözmeyi gerektirmesi demekti. İki somut sonucu vardı:
+    ///
+    /// 1. <b>Test edilemezlik.</b> Test projesi Testcontainers üzerinden
+    ///    <c>Docker.DotNet.Enhanced</c> paketini çekiyor; o paket de
+    ///    <c>Docker.DotNet.dll</c> adında bir derleme üretiyor ve çıktı klasöründe
+    ///    3.x sürümünün üzerine yazıyor. Yeni sürümde
+    ///    <c>DockerClientConfiguration</c> türü <c>DockerConfiguration</c> olarak
+    ///    yeniden adlandırılmış -- yani bu sınıfı testte kurmak
+    ///    <c>TypeLoadException</c> fırlatıyordu. Şimdi Docker'a dokunmayan yollar
+    ///    test edilebiliyor.
+    /// 2. <b>Açılışta çökme.</b> DI kapsayıcısı bu nesneyi kurarken hata alırsa
+    ///    uygulama, Docker'ı hiç kullanmayacak istekler için bile başlamıyordu.
+    ///
+    /// Aynı desen <c>Namines.Vault.ContainerBackupProvider</c>'da zaten doğru
+    /// kabul edilmişti; burası onunla hizalandı.
+    /// </summary>
+    private readonly Lazy<DockerClient> _clientLazy = new(() =>
+    {
+        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
+            ? "npipe://./pipe/docker_engine"
+            : "unix:///var/run/docker.sock";
+        return new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+    });
+
+    private DockerClient Docker => _clientLazy.Value;
 
     public BranchTestRunnerService(IDdlGeneratorFactory ddlGeneratorFactory)
     {
         _ddlGeneratorFactory = ddlGeneratorFactory;
-
-        var dockerUri = Environment.OSVersion.Platform == PlatformID.Win32NT
-            ? "npipe://./pipe/docker_engine"
-            : "unix:///var/run/docker.sock";
-        _client = new DockerClientConfiguration(new Uri(dockerUri)).CreateClient();
+
     }
 
-    public void Dispose() => _client?.Dispose();
+    public void Dispose()
+    {
+        if (_clientLazy.IsValueCreated) _clientLazy.Value.Dispose();
+    }
 
     public async Task<TestRunResult> RunAsync(DatabaseSchema schema, DatabaseType engine, CancellationToken cancellationToken = default)
     {
@@ -88,16 +115,16 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
 
         try
         {
-            var localImages = await _client.Images.ListImagesAsync(new ImagesListParameters { All = true }, ct);
+            var localImages = await Docker.Images.ListImagesAsync(new ImagesListParameters { All = true }, ct);
             var imageExists = localImages.Any(img => img.RepoTags != null && img.RepoTags.Contains($"{profile.Image}:{profile.Tag}"));
             if (!imageExists)
             {
-                await _client.Images.CreateImageAsync(
+                await Docker.Images.CreateImageAsync(
                     new ImagesCreateParameters { FromImage = profile.Image, Tag = profile.Tag },
                     new AuthConfig(), new Progress<JSONMessage>(), ct);
             }
 
-            var createResponse = await _client.Containers.CreateContainerAsync(new CreateContainerParameters
+            var createResponse = await Docker.Containers.CreateContainerAsync(new CreateContainerParameters
             {
                 Name = $"namines-runtest-{Guid.NewGuid():N}",
                 Image = $"{profile.Image}:{profile.Tag}",
@@ -111,7 +138,7 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
             }, ct);
             containerId = createResponse.ID;
 
-            await _client.Containers.StartContainerAsync(containerId, new ContainerStartParameters(), ct);
+            await Docker.Containers.StartContainerAsync(containerId, new ContainerStartParameters(), ct);
 
             var isReady = await WaitForReadyAsync(containerId, dbType, ct);
             if (!isReady)
@@ -130,7 +157,7 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
             }
 
             using var tarStream = DockerTarFile.SingleFile("schema.sql", ddl);
-            await _client.Containers.ExtractArchiveToContainerAsync(containerId, new ContainerPathStatParameters { Path = "/tmp" }, tarStream, ct);
+            await Docker.Containers.ExtractArchiveToContainerAsync(containerId, new ContainerPathStatParameters { Path = "/tmp" }, tarStream, ct);
 
             var (createDbExit, createDbOut) = dbType switch
             {
@@ -177,9 +204,9 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
             {
                 try
                 {
-                    await _client.Containers.StopContainerAsync(containerId, new ContainerStopParameters { WaitBeforeKillSeconds = 2 }, CancellationToken.None);
+                    await Docker.Containers.StopContainerAsync(containerId, new ContainerStopParameters { WaitBeforeKillSeconds = 2 }, CancellationToken.None);
                     // AutoRemove=true zaten silecek; RemoveContainerAsync ek güvenlik (ör. stop sırasında zaten kaldıysa hatayı yut).
-                    try { await _client.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true }, CancellationToken.None); } catch { /* AutoRemove zaten halletmiş olabilir */ }
+                    try { await Docker.Containers.RemoveContainerAsync(containerId, new ContainerRemoveParameters { Force = true }, CancellationToken.None); } catch { /* AutoRemove zaten halletmiş olabilir */ }
                 }
                 catch { /* temizlik hatası ana sonucu maskelemesin */ }
             }
@@ -200,7 +227,7 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
         long available;
         try
         {
-            var info = await _client.System.GetSystemInfoAsync(ct);
+            var info = await Docker.System.GetSystemInfoAsync(ct);
             available = info.MemTotal;
         }
         catch
@@ -223,7 +250,7 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
     {
         try
         {
-            using var logs = await _client.Containers.GetContainerLogsAsync(
+            using var logs = await Docker.Containers.GetContainerLogsAsync(
                 containerId, tty: false,
                 new ContainerLogsParameters { ShowStdout = true, ShowStderr = true, Tail = "5" },
                 CancellationToken.None);
@@ -286,21 +313,21 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
 
     private async Task<(int ExitCode, string Output)> ExecuteCommandAsync(string containerId, string[] cmd, CancellationToken ct)
     {
-        var execCreate = await _client.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
+        var execCreate = await Docker.Exec.ExecCreateContainerAsync(containerId, new ContainerExecCreateParameters
         {
             AttachStdout = true,
             AttachStderr = true,
             Cmd = cmd
         }, ct);
 
-        using var execStream = await _client.Exec.StartAndAttachContainerExecAsync(execCreate.ID, false, ct);
+        using var execStream = await Docker.Exec.StartAndAttachContainerExecAsync(execCreate.ID, false, ct);
         var outputTask = execStream.ReadOutputToEndAsync(ct);
 
-        var inspect = await _client.Exec.InspectContainerExecAsync(execCreate.ID, ct);
+        var inspect = await Docker.Exec.InspectContainerExecAsync(execCreate.ID, ct);
         while (inspect.Running)
         {
             await Task.Delay(500, ct);
-            inspect = await _client.Exec.InspectContainerExecAsync(execCreate.ID, ct);
+            inspect = await Docker.Exec.InspectContainerExecAsync(execCreate.ID, ct);
         }
 
         var outputResult = await outputTask;

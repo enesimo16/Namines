@@ -160,6 +160,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                 <label className="text-[11px] font-semibold text-content-subtle">Connection string</label>
                 <div className="relative">
                   <textarea
+                    aria-label="Connection string"
                     value={connectionString}
                     onChange={e => { setConnectionString(e.target.value); setError(null); }}
                     placeholder={PLACEHOLDERS[dbType] ?? ''}
@@ -181,6 +182,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-semibold text-content-subtle">Table</label>
                 <select
+                  aria-label="Table"
                   value={selectedTable}
                   onChange={e => setSelectedTable(e.target.value)}
                   className="bg-surface-800 border border-surface-500 focus:border-accent-hover rounded-[var(--radius-control)] px-3 py-2 text-[12px] text-content-secondary outline-none cursor-pointer"

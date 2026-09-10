@@ -83,6 +83,7 @@ export default function CanvasSearch({ isOpen, onClose }: Props) {
       <div className="flex items-center gap-2 bg-surface-800/95 backdrop-blur-md border border-accent-hover/40 rounded-[var(--radius-card)] px-3 py-2 shadow-[0_8px_30px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] w-80">
         <Search className="w-4 h-4 text-content-muted shrink-0" />
         <input
+          aria-label="Search tables or columns"
           ref={inputRef}
           value={query}
           onChange={e => handleQueryChange(e.target.value)}

@@ -166,6 +166,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
       {/* Yeni anahtar */}
       <div className="px-4 py-3 border-b border-content-primary/10 flex flex-wrap items-center gap-2">
         <input
+          aria-label="Key name"
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="Key name (e.g. production backend)"
