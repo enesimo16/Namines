@@ -39,11 +39,13 @@ public class VaultController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly VaultService _vault;
+    private readonly IVaultJobQueue _jobs;
 
-    public VaultController(AuthDbContext context, VaultService vault)
+    public VaultController(AuthDbContext context, VaultService vault, IVaultJobQueue jobs)
     {
         _context = context;
         _vault = vault;
+        _jobs = jobs;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -133,11 +135,25 @@ public class VaultController : ControllerBase
     }
 
     /// <summary>
-    /// Yedek alır.
+    /// Yedeklemeyi BAŞLATIR — bitmesini beklemez (PERF-003 / B-35).
     ///
     /// <b>Editor yetkisi yetiyor</b> (<see cref="OrgAccess.CanEditAsync"/>):
     /// yedek almak veriyi DEĞİŞTİRMEYEN, kaybı önleyen bir işlem — onu dar bir
     /// role kilitlemek, riski azaltmak yerine artırırdı.
+    ///
+    /// <b>Neden 202 ve neden 200 değil:</b> Yedekleme süresi veritabanı
+    /// boyutuyla doğrusal büyüyor (bu oturumda küçük bir MariaDB için ~2,8 sn
+    /// ölçüldü). 50 GB'lık bir veritabanında istek dakikalarca açık kalır;
+    /// araya giren her proxy/load balancer zaman aşımı bunu keser ve kullanıcı
+    /// "yedek başarısız" görür — oysa yedek sunucuda devam etmektedir.
+    /// Yanlış bilgi, yavaşlıktan daha kötü.
+    ///
+    /// 202, "kabul ettim, henüz bitmedi" demenin standart yolu ve istemciye
+    /// yoklaması gereken adresi veriyor. 200 dönmek "bitti" demek olurdu.
+    ///
+    /// <b>Doğrulama hemen yapılıyor</b> (bağlantı çözülebiliyor mu, motor
+    /// destekli mi): bunları arka plana bırakmak, kullanıcının anında
+    /// duyabileceği bir hatayı yoklamayla öğrenmesi demek olurdu.
     /// </summary>
     [HttpPost("{projectId}/backups")]
     public async Task<IActionResult> Create(string projectId, CancellationToken ct)
@@ -149,10 +165,69 @@ public class VaultController : ControllerBase
         var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
         if (project is null) return NotFound();
 
-        var result = await _vault.BackupAsync(project, userId, VaultBackupKind.Manual, ct);
-        return result.Ok
-            ? Ok(new { backupId = result.BackupId })
-            : BadRequest(new { error = result.Error });
+        var result = await _vault.QueueBackupAsync(project, userId, VaultBackupKind.Manual, ct);
+        if (!result.Ok) return BadRequest(new { error = result.Error });
+
+        if (!_jobs.TryEnqueue(new VaultBackupJob(result.BackupId!, projectId)))
+        {
+            // Kuyruk dolu. Kaydı SİLMİYORUZ ama Failed olarak kapatıyoruz:
+            // Running kalan bir kayıt, arayüzde sonsuza kadar "sürüyor"
+            // gösterilirdi ve hiç kimse onu çalıştırmayacaktı.
+            var orphan = await _context.VaultBackups
+                .FirstOrDefaultAsync(b => b.Id == result.BackupId, ct);
+            if (orphan is not null)
+            {
+                orphan.Status = VaultBackupStatus.Failed;
+                orphan.ErrorMessage = "The backup queue is full. Try again in a few minutes.";
+                orphan.CompletedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync(ct);
+            }
+
+            return StatusCode(503, new
+            {
+                error = "Too many backups are already queued. Try again in a few minutes.",
+                queued = _jobs.PendingCount,
+            });
+        }
+
+        return Accepted(
+            Url.Action(nameof(GetBackup), new { projectId, backupId = result.BackupId }),
+            new
+            {
+                backupId = result.BackupId,
+                status = VaultBackupStatus.Running.ToString(),
+                queued = _jobs.PendingCount,
+            });
+    }
+
+    /// <summary>
+    /// Tek bir yedeğin durumu — 202 sonrası istemcinin yoklayacağı uç.
+    ///
+    /// <b>Okuma yetkisi yetiyor:</b> burada verinin kendisi değil, işin durumu
+    /// dönüyor. İndirme ayrı ve daha dar bir yetkiye bağlı (bkz. <c>Download</c>).
+    /// </summary>
+    [HttpGet("{projectId}/backups/{backupId}")]
+    public async Task<IActionResult> GetBackup(string projectId, string backupId, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (userId is null) return Unauthorized();
+        if (await _context.GetRoleAsync(projectId, userId, ct) is null) return NotFound();
+
+        var backup = await FindBackupAsync(projectId, backupId, ct);
+        if (backup is null) return NotFound();
+
+        return Ok(new
+        {
+            backup.Id,
+            status = backup.Status.ToString(),
+            backup.SizeBytes,
+            backup.ErrorMessage,
+            backup.CreatedAt,
+            backup.CompletedAt,
+            // İstemcinin yoklamayı ne zaman bırakacağını bilmesi için: durum
+            // artık Running değilse iş bitmiştir (başarılı ya da başarısız).
+            done = backup.Status != VaultBackupStatus.Running,
+        });
     }
 
     /// <summary>

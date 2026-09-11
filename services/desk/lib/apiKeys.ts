@@ -14,6 +14,13 @@ export class ApiKeysError extends Error {
 
 export interface GatewayApiKeySummary {
   id: string; name: string; prefix: string; canWrite: boolean; canExecuteSql: boolean;
+  /**
+   * Toplu disa aktarim (CSV/JSON indirme) yetkisi.
+   *
+   * OKUMA yetkisinden AYRI (F-08): sayfa sayfa okumak ile tablonun tamamini
+   * dosya olarak indirmek ayni yetki degil. Varsayilani kapali.
+   */
+  canExport: boolean;
   allowedOrigins: string | null; allowedIps: string | null; rateLimitPerMinute: number;
   createdAt: string; expiresAt: string | null; revokedAt: string | null; lastUsedAt: string | null;
 }
@@ -39,10 +46,10 @@ export const apiKeysApi = {
   list: (session: DeskSession) =>
     req<GatewayApiKeySummary[]>(`/api/gateway/keys/${encodeURIComponent(session.projectId)}`, session),
 
-  create: (session: DeskSession, name: string, canWrite: boolean) =>
+  create: (session: DeskSession, name: string, canWrite: boolean, canExport = false) =>
     req<GatewayApiKeySummary & { key: string; warning: string }>(
       `/api/gateway/keys/${encodeURIComponent(session.projectId)}`, session,
-      { method: 'POST', body: JSON.stringify({ name, canWrite }) },
+      { method: 'POST', body: JSON.stringify({ name, canWrite, canExport }) },
     ),
 
   /** Sunucu 204 (No Content) döner — JSON gövde ayrıştırılmıyor. */

@@ -89,10 +89,66 @@ public class VaultService
     }
 
     /// <summary>
-    /// Yedek alır.
+    /// Yedekleme kaydını <c>Running</c> durumuyla oluşturur ve HEMEN döner —
+    /// işin kendisini çalıştırmaz (PERF-003 / B-35).
+    ///
+    /// <b>Neden ayrıldı:</b> Yedekleme süresi veritabanı boyutuyla doğrusal
+    /// büyüyor (bu oturumda küçük bir MariaDB için ~2,8 sn ölçüldü). 50 GB'lık
+    /// bir veritabanında HTTP isteği dakikalarca açık kalır; araya giren her
+    /// proxy/load balancer zaman aşımı bunu keser ve kullanıcı "yedek
+    /// başarısız" görür — oysa yedek sunucuda devam etmektedir. Yanlış bilgi,
+    /// yavaşlıktan daha kötü.
+    ///
+    /// Doğrulama BURADA yapılıyor, arka planda değil: çözülemeyen bir bağlantı
+    /// ya da desteklenmeyen bir motor, kullanıcının ANINDA duyması gereken bir
+    /// hata. "Kabul edildi" deyip saniyeler sonra sessizce başarısız olmak,
+    /// kullanıcıyı yoklamaya mahkûm ederdi.
+    /// </summary>
+    public async Task<VaultResult> QueueBackupAsync(
+        CloudProject project, string userId, VaultBackupKind kind, CancellationToken ct)
+    {
+        if (!TryResolveConnection(project, out _, out var queueError))
+            return new VaultResult(false, queueError);
+
+        var provider = FindProvider(project.ConnectionDbType)!;
+        var record = NewBackupRecord(project, userId, kind, provider.Engine);
+
+        _context.VaultBackups.Add(record);
+        await _context.SaveChangesAsync(ct);
+
+        return new VaultResult(true, BackupId: record.Id);
+    }
+
+    /// <summary>
+    /// Kuyruktan alınan bir işi çalıştırır (<see cref="VaultBackupWorker"/>).
+    ///
+    /// Kayıt zaten <see cref="QueueBackupAsync"/> tarafından oluşturuldu; burada
+    /// yalnızca boru hattı çalışıyor ve sonuç kayda yazılıyor.
+    /// </summary>
+    public async Task RunQueuedBackupAsync(VaultBackup record, CloudProject project, CancellationToken ct)
+    {
+        if (!TryResolveConnection(project, out var connectionString, out var error))
+        {
+            record.Status = VaultBackupStatus.Failed;
+            record.ErrorMessage = Shorten(error ?? "The project connection could not be resolved.");
+            record.CompletedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync(CancellationToken.None);
+            return;
+        }
+
+        var provider = FindProvider(project.ConnectionDbType)!;
+        await ExecuteBackupAsync(record, provider, connectionString!, project, ct);
+    }
+
+    /// <summary>
+    /// Yedek alır ve BİTENE KADAR bekler.
     ///
     /// Kayıt iş BAŞLAMADAN yazılıyor: yarıda çöken bir yedek hiçbir iz
     /// bırakmasaydı, kullanıcı hiç denenmemiş bir yedeği "alındı" sanırdı.
+    ///
+    /// <b>HTTP ucu artık bunu kullanmıyor</b> (bkz. <see cref="QueueBackupAsync"/>).
+    /// Zamanlanmış yedekler için duruyor: orada bekleyen bir kullanıcı yok ve
+    /// işin bittiğini görmek zamanlayıcının kendi akışını basitleştiriyor.
     /// </summary>
     public async Task<VaultResult> BackupAsync(
         CloudProject project, string userId, VaultBackupKind kind, CancellationToken ct)
@@ -104,26 +160,42 @@ public class VaultService
         // yalnızca aynı kararı tekrar okuyoruz.
         var provider = FindProvider(project.ConnectionDbType)!;
 
-        var record = new VaultBackup
-        {
-            ProjectId = project.Id,
-            OrganizationId = project.OrganizationId,
-            CreatedByUserId = userId,
-            DatabaseName = project.Name,
-            // Motor KAYDA yazılıyor: geri yükleme sırasında doğru sağlayıcı
-            // buradan seçiliyor. Projenin bağlantısı sonradan başka bir motora
-            // taşınsa bile eski yedek kendi motoruyla geri yüklenebilmeli.
-            Engine = provider.Engine,
-            Kind = kind,
-            StoreDescription = _store.Description,
-            // Anahtarda proje ve zaman var: depodaki dosya, kayda bakmadan da
-            // kime ait olduğu anlaşılabilsin.
-            StorageKey = $"{project.Id}/{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.nvlt",
-        };
+        var record = NewBackupRecord(project, userId, kind, provider.Engine);
 
         _context.VaultBackups.Add(record);
         await _context.SaveChangesAsync(ct);
 
+        return await ExecuteBackupAsync(record, provider, connectionString!, project, ct);
+    }
+
+    /// <summary>
+    /// Kayıt nesnesi — kuyruğa alma ve senkron yol AYNI kaydı üretmek zorunda.
+    /// İki yerde ayrı ayrı kurulsaydı, biri güncellenip diğeri güncellenmediğinde
+    /// aynı ürün iki farklı yedek kaydı şekli yazardı.
+    /// </summary>
+    private VaultBackup NewBackupRecord(
+        CloudProject project, string userId, VaultBackupKind kind, string engine) => new()
+    {
+        ProjectId = project.Id,
+        OrganizationId = project.OrganizationId,
+        CreatedByUserId = userId,
+        DatabaseName = project.Name,
+        // Motor KAYDA yazılıyor: geri yükleme sırasında doğru sağlayıcı
+        // buradan seçiliyor. Projenin bağlantısı sonradan başka bir motora
+        // taşınsa bile eski yedek kendi motoruyla geri yüklenebilmeli.
+        Engine = engine,
+        Kind = kind,
+        StoreDescription = _store.Description,
+        // Anahtarda proje ve zaman var: depodaki dosya, kayda bakmadan da
+        // kime ait olduğu anlaşılabilsin.
+        StorageKey = $"{project.Id}/{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.nvlt",
+    };
+
+    /// <summary>Boru hattını çalıştırır ve sonucu kayda yazar. İki yolun ortak gövdesi.</summary>
+    private async Task<VaultResult> ExecuteBackupAsync(
+        VaultBackup record, IBackupProvider provider, string connectionString,
+        CloudProject project, CancellationToken ct)
+    {
         try
         {
             var spec = new BackupSpec(connectionString!, project.Name);

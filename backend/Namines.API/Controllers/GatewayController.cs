@@ -1035,6 +1035,30 @@ public class GatewayController : ControllerBase
         var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
         if (!allowed) return failure!;
 
+        // DIŞA AKTARIM AYRI BİR İZİN (F-08). Okuma izni YETMEZ.
+        //
+        // Önceden bu uç yalnızca `forWrite: false` ile korunuyordu, yani okuma
+        // yetkisi olan her anahtar tablonun TAMAMINI tek istekte indirebiliyordu.
+        // Nicelik burada bir nitelik farkı: "ekranda sayfa sayfa göster" ile
+        // "hepsini dosya olarak al" aynı yetki değil ve F-08'in güvenlik notu
+        // bunu "veri sızıntısının en sessiz yolu" diye tanımlıyor.
+        //
+        // Oturum yolu (JWT) bu kapıdan GEÇMİYOR: `apiKey` null olduğunda çağıran
+        // projenin kendi sahibi/üyesi ve zaten tüm veriye erişimi var; ona ayrı
+        // bir indirme izni koymak, kendi verisini indirmesini engellemek olurdu.
+        // Kapı, verdiğimiz ANAHTARLAR için var.
+        if (apiKey is not null &&
+            !await _context.IsTableExportAllowedAsync(apiKey, request.TableName, cancellationToken))
+        {
+            NaminesMetrics.GatewayRequest("export", "denied");
+            return StatusCode(403, new
+            {
+                message = $"This API key is not allowed to export '{request.TableName}'. " +
+                          "Bulk export is a separate grant from read access: reading a table " +
+                          "page by page and downloading all of it are different permissions.",
+            });
+        }
+
         // Namines Desk (D4, 04-DATA-CRUD.md §2.3): bağlantı istekte yoksa API
         // anahtarından ya da oturum + ProjectId'den çözülür — diğer beş uçla
         // (list/detail/create/update/delete) aynı yol. Önceden burası yalnızca

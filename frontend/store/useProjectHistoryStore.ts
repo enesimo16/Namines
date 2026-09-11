@@ -6,6 +6,7 @@ import { DatabaseSchema } from '../types/schema';
 import { DbType, useSchemaStore } from './useSchemaStore';
 import { Node } from '@xyflow/react';
 import { useAuthStore } from './useAuthStore';
+import { useToastStore } from './useToastStore';
 import { authService } from '../services/api';
 
 // ── localforage instance (IndexedDB) ──────────────────────────────────────────
@@ -566,11 +567,35 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           // "cloud'da hiç yok" ya da "yerel daha yeni" olanlar gönderiliyor.
           const cloudRaw = await authService.getCloudProjects();
           const cloudUpdatedById = new Map<string, number>();
+          const cloudVersionById = new Map<string, number>();
           if (Array.isArray(cloudRaw)) {
             cloudRaw.forEach(cp => {
-              if (cp?.id) cloudUpdatedById.set(cp.id, new Date(cp.updatedAt).getTime());
+              if (!cp?.id) return;
+              cloudUpdatedById.set(cp.id, new Date(cp.updatedAt).getTime());
+              // Optimistic concurrency belirteci (B-32). Sunucuya GERİ
+              // gönderilmek zorunda: göndermezsek sunucu kontrolü atlıyor.
+              if (typeof cp.rowVersion === 'number') cloudVersionById.set(cp.id, cp.rowVersion);
             });
           }
+
+          // ÇAKIŞMA ARTIK SESSİZ DEĞİL (B-32 / REL-003a).
+          //
+          // Aşağıdaki filtre, cloud'daki sürüm daha yeniyse yüklemeyi atlıyor —
+          // bu, başkasının işini ezmemek için DOĞRU. Ama tek başına ikinci bir
+          // sessiz kayıp üretiyordu: kullanıcının KENDİ yerel değişikliği hiç
+          // gönderilmiyor ve kimse ona bunu söylemiyordu. "Kaydedildi" sanıp
+          // sekmeyi kapatan kullanıcı çalışmasını kaybediyor.
+          //
+          // Denetim bulgusu "son yazan kazanır" diyordu; ölçüldüğünde tablo
+          // aslında "ilk yazan kazanır, ikincisinin işi sessizce düşer"di.
+          // İkisi de aynı sebepten kötü: kullanıcı bilgilendirilmiyor.
+          const conflicted = projects.filter(p => {
+            if (!p.schema) return false;
+            const cloudUpdated = cloudUpdatedById.get(p.id);
+            return cloudUpdated !== undefined &&
+                   new Date(p.updatedAt).getTime() <= cloudUpdated &&
+                   get().pendingCloudSync;
+          });
 
           const toUpload = projects.filter(p => {
             if (!p.schema) return false; // şemasız proje anlamlı bir yük değil
@@ -578,6 +603,15 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
             if (cloudUpdated === undefined) return true;      // cloud'da hiç yok
             return new Date(p.updatedAt).getTime() > cloudUpdated; // yerel daha yeni
           });
+
+          if (conflicted.length > 0) {
+            useToastStore.getState().showToast(
+              conflicted.length === 1
+                ? `"${conflicted[0].name}" bulutta başkası tarafından güncellendi. Yerel değişiklikleriniz gönderilmedi — projeyi yeniden yükleyip tekrar uygulayın.`
+                : `${conflicted.length} proje bulutta başkası tarafından güncellendi. Yerel değişiklikleri göndermedik.`,
+              'warning',
+            );
+          }
 
           if (toUpload.length === 0) return;
 
@@ -587,10 +621,30 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
             dbType: p.dbType,
             schemaJson: JSON.stringify(p.schema),
             nodePositionsJson: JSON.stringify(p.nodePositions ?? {}),
+            // Sunucu bunu güncel sürümle karşılaştırıyor; eşleşmezse 409.
+            // Okuma ile yazma arasındaki dar yarışı bu kapatıyor — zaman
+            // damgası karşılaştırması o aralığı göremiyor.
+            rowVersion: cloudVersionById.get(p.id),
           })));
           set({ pendingCloudSync: false, lastCloudSyncAt: Date.now() });
         } catch (e) {
-          // Sessizce başarısız ol — bir sonraki girişte/tetiklemede tekrar denenir.
+          // 409 = çakışma. Bu bir ağ arızası DEĞİL, kullanıcının bilmesi
+          // gereken bir durum; "sonra tekrar denenir" demek burada yanlış
+          // olurdu çünkü tekrar denemek de aynı sonucu verir.
+          const status = (e as { response?: { status?: number } })?.response?.status;
+          if (status === 409) {
+            const body = (e as { response?: { data?: { message?: string; projectName?: string } } })
+              ?.response?.data;
+            useToastStore.getState().showToast(
+              body?.message ??
+                `"${body?.projectName ?? 'Proje'}" başkası tarafından değiştirildi. Yeniden yükleyip değişikliklerinizi tekrar uygulayın.`,
+              'warning',
+            );
+            return;
+          }
+
+          // Diğer hatalarda sessizce başarısız ol — bir sonraki girişte/
+          // tetiklemede tekrar denenir.
           console.error('[CloudSync] syncAllToCloud failed:', e);
         }
       },

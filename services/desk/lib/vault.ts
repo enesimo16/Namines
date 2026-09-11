@@ -110,10 +110,58 @@ export const vaultApi = {
   restores: async (session: DeskSession): Promise<VaultRestore[]> =>
     (await call(`/api/vault/${encodeURIComponent(session.projectId)}/restores`, session)).json(),
 
-  create: async (session: DeskSession): Promise<{ backupId: string }> =>
+  /**
+   * Yedeklemeyi BASLATIR. Sunucu 202 Accepted donuyor ve is arka planda
+   * calisiyor (PERF-003 / B-35) -- yani bu cagri donduginde yedek HENUZ
+   * ALINMADI. Bitmesini beklemek icin `status` ile yoklanmali.
+   */
+  create: async (session: DeskSession): Promise<{ backupId: string; status: string }> =>
     (await call(`/api/vault/${encodeURIComponent(session.projectId)}/backups`, session, {
       method: 'POST',
     })).json(),
+
+  /** Tek bir yedegin durumu. `done` true olunca yoklama biter. */
+  status: async (session: DeskSession, backupId: string): Promise<{
+    id: string;
+    status: string;
+    sizeBytes: number;
+    errorMessage: string | null;
+    createdAt: string;
+    completedAt: string | null;
+    done: boolean;
+  }> =>
+    (await call(
+      `/api/vault/${encodeURIComponent(session.projectId)}/backups/${encodeURIComponent(backupId)}`,
+      session,
+    )).json(),
+
+  /**
+   * Yedek bitene kadar yoklar.
+   *
+   * **Neden bir zaman siniri var:** sinirsiz yoklama, sunucu tarafinda asili
+   * kalmis bir kayitta sonsuza kadar donen bir arayuz demek. Sinira
+   * ulasildiginda is IPTAL EDILMIYOR (sunucuda devam ediyor olabilir) --
+   * yalnizca arayuz beklemeyi birakip kullaniciya listeden takip etmesini
+   * soyluyor. "Basarisiz" demek yanlis olurdu.
+   */
+  waitForBackup: async (
+    session: DeskSession,
+    backupId: string,
+    { timeoutMs = 10 * 60 * 1000, intervalMs = 2000 }: { timeoutMs?: number; intervalMs?: number } = {},
+  ): Promise<{ done: boolean; status: string; errorMessage: string | null }> => {
+    const deadline = Date.now() + timeoutMs;
+
+    for (;;) {
+      const snapshot = await vaultApi.status(session, backupId);
+      if (snapshot.done) {
+        return { done: true, status: snapshot.status, errorMessage: snapshot.errorMessage };
+      }
+      if (Date.now() >= deadline) {
+        return { done: false, status: snapshot.status, errorMessage: null };
+      }
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+  },
 
   remove: async (session: DeskSession, backupId: string): Promise<void> => {
     await call(

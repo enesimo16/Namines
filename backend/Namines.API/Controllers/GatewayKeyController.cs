@@ -19,6 +19,11 @@ namespace Namines.API.Controllers;
 /// Ham SQL (<c>/query</c>) yetkisi. <b>Tablo izinlerini atlar</b>, o yüzden
 /// <see cref="CanWrite"/>'dan ayrı ve varsayılanı kapalı.
 /// </param>
+/// <param name="CanExport">
+/// Toplu dışa aktarım (<c>/export</c>) yetkisi. <b>Okuma yetkisinden ayrı</b>
+/// (F-08): sayfa sayfa okumak ile tablonun tamamını dosya olarak indirmek aynı
+/// yetki değil. Varsayılanı kapalı.
+/// </param>
 public sealed record CreateGatewayKeyRequest(
     string Name,
     bool CanWrite = false,
@@ -26,9 +31,16 @@ public sealed record CreateGatewayKeyRequest(
     string? AllowedOrigins = null,
     string? AllowedIps = null,
     int? RateLimitPerMinute = null,
-    bool CanExecuteSql = false);
+    bool CanExecuteSql = false,
+    bool CanExport = false);
+
+/// <param name="CanExport">
+/// Bu tablonun toplu indirilmesine izin var mı. <c>CanRead</c> ile birlikte
+/// gerekli — "ekranda göster ama indirilmesin" demek mümkün olsun diye ayrı.
+/// </param>
 public sealed record SetTablePermissionRequest(
-    string TableName, bool CanRead, bool CanWrite, string? MaskedColumns = null);
+    string TableName, bool CanRead, bool CanWrite, string? MaskedColumns = null,
+    bool CanExport = false);
 
 /// <summary>
 /// Gateway API anahtarları ve tablo izinleri (08 §4.3).
@@ -117,6 +129,7 @@ public class GatewayKeyController : ControllerBase
             projectId, request.Name.Trim(), userId, request.CanWrite, request.ExpiresAt);
 
         entity.CanExecuteSql = request.CanExecuteSql;
+        entity.CanExport = request.CanExport;
         entity.AllowedOrigins = Normalize(request.AllowedOrigins);
         entity.AllowedIps = Normalize(request.AllowedIps);
         // Belirtilmemişse planın hakkı: kullanıcıyı bir sayı uydurmaya zorlamak,
@@ -135,6 +148,7 @@ public class GatewayKeyController : ControllerBase
             entity.Prefix,
             entity.CanWrite,
             entity.CanExecuteSql,
+            entity.CanExport,
             entity.ExpiresAt,
             entity.AllowedOrigins,
             entity.AllowedIps,
@@ -158,7 +172,7 @@ public class GatewayKeyController : ControllerBase
             // KeyHash bilinçli olarak dışarıda: gösterilecek bir değer değil.
             .Select(k => new
             {
-                k.Id, k.Name, k.Prefix, k.CanWrite, k.CanExecuteSql,
+                k.Id, k.Name, k.Prefix, k.CanWrite, k.CanExecuteSql, k.CanExport,
                 k.AllowedOrigins, k.AllowedIps, k.RateLimitPerMinute,
                 k.CreatedAt, k.ExpiresAt, k.RevokedAt, k.LastUsedAt,
             })
@@ -314,7 +328,7 @@ public class GatewayKeyController : ControllerBase
 
         return Ok(permissions.Select(p => new
         {
-            p.TableName, p.CanRead, p.CanWrite, p.MaskedColumns, p.UpdatedAt,
+            p.TableName, p.CanRead, p.CanWrite, p.CanExport, p.MaskedColumns, p.UpdatedAt,
         }));
     }
 
@@ -362,11 +376,19 @@ public class GatewayKeyController : ControllerBase
         // doğrulayamaz ve bu neredeyse her zaman istenmeyen bir yapılandırmadır.
         if (request.CanWrite) existing.CanRead = true;
         existing.CanWrite = request.CanWrite;
+        // Dışa aktarım okumayı İMA ETMEZ, GEREKTİRİR: okunamayan bir tabloyu
+        // indirmek, okuma iznini anlamsız kılardı. O yüzden CanRead kapalıysa
+        // CanExport da kapanıyor — sessizce yok sayılmıyor.
+        existing.CanExport = request.CanExport && existing.CanRead;
         existing.MaskedColumns = Normalize(request.MaskedColumns);
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(ct);
-        return Ok(new { existing.TableName, existing.CanRead, existing.CanWrite, existing.MaskedColumns });
+        return Ok(new
+        {
+            existing.TableName, existing.CanRead, existing.CanWrite,
+            existing.CanExport, existing.MaskedColumns,
+        });
     }
 
     // ── Namines Desk: projeye bağlı CANLI veritabanı bağlantısı ──────────────

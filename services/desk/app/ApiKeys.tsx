@@ -24,6 +24,9 @@ export default function ApiKeys({ session, isOwner }: { session: DeskSession; is
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newCanWrite, setNewCanWrite] = useState(false);
+  // Disa aktarim AYRI bir izin (F-08): okuma yetkisi olan bir anahtarin
+  // tablonun tamamini indirebilmesi, veri sizintisinin en sessiz yolu.
+  const [newCanExport, setNewCanExport] = useState(false);
   const [creating, setCreating] = useState(false);
   const [revealedKey, setRevealedKey] = useState<{ name: string; key: string; warning: string } | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -53,10 +56,11 @@ export default function ApiKeys({ session, isOwner }: { session: DeskSession; is
     setCreating(true);
     setError(null);
     try {
-      const created = await apiKeysApi.create(session, newName.trim(), newCanWrite);
+      const created = await apiKeysApi.create(session, newName.trim(), newCanWrite, newCanExport);
       setRevealedKey({ name: created.name, key: created.key, warning: created.warning });
       setNewName('');
       setNewCanWrite(false);
+      setNewCanExport(false);
       await reload();
     } catch (err) {
       setError(err instanceof ApiKeysError ? err.message : 'Oluşturulamadı.');
@@ -118,6 +122,11 @@ export default function ApiKeys({ session, isOwner }: { session: DeskSession; is
           <input type="checkbox" checked={newCanWrite} onChange={e => setNewCanWrite(e.target.checked)} />
           Yazma izni
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+               title="Tablonun tamamını CSV/JSON olarak indirme. Okuma izninden ayrıdır; ayrıca tablo bazında da açılması gerekir.">
+          <input type="checkbox" checked={newCanExport} onChange={e => setNewCanExport(e.target.checked)} />
+          Dışa aktarma izni
+        </label>
         <button className="btn btn-primary" disabled={creating || !newName.trim()} onClick={handleCreate}>
           {creating ? 'Oluşturuluyor…' : 'Yeni anahtar oluştur'}
         </button>
@@ -141,7 +150,7 @@ export default function ApiKeys({ session, isOwner }: { session: DeskSession; is
           <table>
             <thead>
               <tr>
-                <th>Ad</th><th>Önek</th><th>Yazma</th><th>Oran sınırı</th>
+                <th>Ad</th><th>Önek</th><th>Yazma</th><th>Dışa aktarma</th><th>Oran sınırı</th>
                 <th>Oluşturulma</th><th>Son kullanım</th><th>Durum</th><th style={{ textAlign: 'right' }}>İşlem</th>
               </tr>
             </thead>
@@ -151,6 +160,7 @@ export default function ApiKeys({ session, isOwner }: { session: DeskSession; is
                   <td>{k.name}</td>
                   <td><code>{k.prefix}…</code></td>
                   <td>{k.canWrite ? '✓' : '✗'}</td>
+                  <td>{k.canExport ? '✓' : '✗'}</td>
                   <td>{k.rateLimitPerMinute}/dk</td>
                   <td>{new Date(k.createdAt).toLocaleString('tr-TR')}</td>
                   <td>{k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString('tr-TR') : '—'}</td>

@@ -170,6 +170,60 @@ Gateway'in `CanRead`/`CanWrite` modeline `CanExport` eklenmeli.
 
 **Efor:** M · **Öncelik:** P2
 
+### ✅ Yapıldı (10.09.2026) — B-44
+
+**ÖLÇÜM: CSV/JSON dışa aktarma ZATEN VARDI** ve iyi kurulmuştu —
+`POST /api/gateway/export`, satır tavanı (`maxRows`, aşan sorgu sessizce
+kırpılmıyor, reddediliyor), maskeleme uygulanıyor, Excel için UTF-8 BOM.
+Yani bulgunun "özellik yok" kısmı yanlıştı.
+
+**Eksik olan tam olarak güvenlik notuydu:** uç yalnızca `forWrite: false` ile
+korunuyordu, yani **OKUMA izni olan her anahtar tablonun tamamını
+indirebiliyordu.** Bulgunun tarif ettiği açık gerçekti.
+
+#### `CanExport` — iki kapı
+
+| Seviye | Alan | Neden |
+|---|---|---|
+| Anahtar | `GatewayApiKey.CanExport` | Olmadan her tabloyu tek tek kapatmak gerekirdi |
+| Tablo | `GatewayTablePermission.CanExport` | Olmadan "şu tablo hariç" demek imkânsız olurdu |
+
+`CanRead` de **şart**: okunamayan bir tabloyu indirmek okuma iznini anlamsız
+kılardı. `CanExport` okumayı ima ETMEZ, GEREKTİRİR — arayüzde `CanRead`
+kapatılırsa `CanExport` da kapanıyor, sessizce yok sayılmıyor.
+
+**Oturum yolu (JWT) bu kapıdan geçmiyor:** çağıran projenin sahibi/üyesi ve
+zaten tüm veriye erişimi var; ona ayrı bir indirme izni koymak, kendi verisini
+indirmesini engellemek olurdu. Kapı, **verdiğimiz anahtarlar** için var.
+
+#### Bilinçli kırılma
+
+Migration iki kolonu da `false` varsayılanıyla ekliyor, yani **mevcut
+anahtarlar indirme yetkisini kaybediyor.** Varsayılanı `true` yapmak izni
+dekoratif hâle getirirdi — bugün okuma izni olan her anahtar indirmeye devam
+eder ve bulgu hiç kapanmazdı. Güvenlik izinlerinde varsayılan kapalıdır
+(deponun kendi ilkesi, 08 §1). İleriye uyumluluk korunuyor: varsayılanı olan
+kolon eklemek güvenli (`MIGRATION-VE-GERI-ALMA.md` §2) ve yeni
+`MigrationCompatibilityTests` bunu doğruluyor.
+
+#### CANLI DOĞRULANDI (gerçek API + gerçek PostgreSQL)
+
+| Durum | Sonuç |
+|---|---|
+| Okuma izni var, dışa aktarım izni yok → `/list` | **200**, satırlar döndü |
+| Aynı anahtar → `/export` | **403** + açıklayıcı mesaj |
+| Tablo izni verildi → `/export` | **200**, UTF-8 BOM'lu CSV |
+| Anahtar seviyesi izni olmayan yeni anahtar → `/export` | **403** |
+
+9 birim testi (proje sızıntısı ve varsayılanların kapalı olması dahil).
+Test anahtarları ve tablo izni doğrulamadan sonra iptal edildi.
+
+**Not:** Doğrulama sırasında `AspNetUsers` tablosu kullanıldı ve indirilen CSV
+`PasswordHash`/`SecurityStamp` kolonlarını içerdi — bu, maskelemenin
+(`MaskedColumns`) neden dışa aktarımda da uygulanması gerektiğinin canlı
+göstergesi. Uygulanıyor; ama izin verirken hangi kolonların maskeli olduğunu
+kontrol etmek operatörün işi.
+
 ---
 
 ## F-09 — MFA (TOTP)

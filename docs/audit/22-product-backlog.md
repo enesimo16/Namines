@@ -79,10 +79,10 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-29~~ | Security | ✅ Üç motorda da sınırlayıcı kaçırılıyor + testler | 06 §son | S |
 | ~~B-30~~ | Security | ✅ TOTP + kurtarma kodları, **12 adım canlı doğrulandı**. ⚠️ Arayüz henüz yok (B-62) | F-09 | M |
 | ~~B-31~~ | Database | ✅ Prod compose'da `migrate` profili + bekleyen migration'da fail-fast | DB-003, TD-007 | M |
-| B-32 | Stability | Optimistic concurrency (`RowVersion`) | REL-003a, TD-009 | M |
+| ~~B-32~~ | Stability | ~~Optimistic concurrency (`RowVersion`)~~ ✅ `xmin` + 409 + istemci uyarısı; CANLI DOĞRULANDI (200 / 409 / geriye uyumlu). Teşhis düzeltildi: üzerine yazma yoktu, **sessiz düşürme** vardı | REL-003a, TD-009 | M |
 | ~~B-33~~ | Stability | ✅ 3 deneme / 5 sn — **yalnızca** control DB | REL-004 | XS |
 | ~~B-34~~ | Stability | ✅ Prod compose'da `deploy.resources.limits` | REL-005 | S |
-| B-35 | Performance | Vault yedeğini arka plan işine taşı (202 Accepted) | PERF-003 | M |
+| ~~B-35~~ | Performance | ~~Vault yedeğini arka plan işine taşı (202 Accepted)~~ ✅ kuyruk + `BackgroundService` (kendi DI kapsamı) + açılışta uzlaştırma; arayüz iş BİTİNCE "alındı" diyor | PERF-003 | M |
 | ~~B-36~~ | Performance | ~~`mermaid` + `sql.js` dinamik import (önce ölç)~~ ✅ ÖLÇÜLDÜ: `/compile` 1830→1268 KB. CANLI DOĞRULANDI | PERF-004 | S |
 | B-37 | Architecture | `ScaffolderService`'i böl | ARCH-003, TD-003 | M |
 | B-38 | Architecture | `AIPreferencesModal`'ı böl + tipli tercih modülü | FE-002, TD-004 | M |
@@ -91,7 +91,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-41~~ | A11y | ~~Form alanlarına etiket (51 input)~~ ✅ 117/118 (kalan 1 = yorum içi, yanlış pozitif) | A11Y-001 | M |
 | B-42 | A11y | Kontrast + klavye + ekran okuyucu denetimi — 🟡 **kontrast ÖLÇÜLDÜ ve 2 sistemik hata düzeltildi** (koyu tema 4 sayfada 811/811 geçiyor); klavye, ekran okuyucu ve açılış sayfasının AÇIK teması (78 hata) açık | 13 | M |
 | B-43 | Feature | Kısmi (tek tablo) geri yükleme | F-07 | M |
-| B-44 | Feature | CSV/JSON dışa aktarma + `CanExport` izni | F-08 | M |
+| ~~B-44~~ | Feature | ~~CSV/JSON dışa aktarma + `CanExport` izni~~ ✅ CSV/JSON zaten vardı; eksik olan `CanExport` izniydi — iki kapı (anahtar + tablo), CANLI DOĞRULANDI | F-08 | M |
 | B-45 | Feature | Supabase sağlayıcısı | F-10 | M |
 | ~~B-46~~ | Build | ~~Docker.DotNet sürüm çatışmasını çöz~~ ✅ etkisiz kılındı (Lazy) + teşhis düzeltildi | TD-005, BACK-006 | M |
 | ~~B-47~~ | DevOps | ~~İleriye uyumlu migration kuralı + geri alma prosedürü~~ ✅ kural + prosedür + **testle zorlanıyor** (`MigrationCompatibilityTests`) | DEVOPS-005 | M |

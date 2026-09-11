@@ -113,6 +113,35 @@ public static class GatewayAccess
     }
 
     /// <summary>
+    /// Bu anahtar bu tabloyu TOPLU indirebilir mi (F-08)?
+    ///
+    /// <b>Okuma izni yetmiyor ve bu bilinçli.</b> Okuma, bir uygulamanın sayfa
+    /// sayfa veri göstermesi için verilir; dışa aktarım tek istekle tablonun
+    /// tamamını dosyaya alır. İkisi aynı bayrakta olsaydı, "ekranda göster"
+    /// demek isteyen herkes farkında olmadan "indir" yetkisi de verirdi.
+    ///
+    /// <b>İKİ kapı da geçilmeli:</b> anahtarın kendi yetkisi
+    /// (<see cref="GatewayApiKey.CanExport"/>) VE o tablonun izni
+    /// (<see cref="GatewayTablePermission.CanExport"/>). Anahtar seviyesi
+    /// olmadan her tabloyu tek tek kapatmak gerekirdi; tablo seviyesi olmadan
+    /// "şu tablo hariç" demek imkânsız olurdu.
+    ///
+    /// Okuma izni de ŞART: indirilemeyen bir şeyin okunabilir olması gerekir,
+    /// tersi değil.
+    /// </summary>
+    public static async Task<bool> IsTableExportAllowedAsync(
+        this AuthDbContext context, GatewayApiKey key, string tableName,
+        CancellationToken ct = default)
+    {
+        if (!key.CanExport) return false;
+
+        var permission = await context.GatewayTablePermissions
+            .FirstOrDefaultAsync(p => p.ProjectId == key.ProjectId && p.TableName == tableName, ct);
+
+        return permission is not null && permission.CanRead && permission.CanExport;
+    }
+
+    /// <summary>
     /// Bu tablo için maskelenecek kolonlar. İzin satırı yoksa boş döner — zaten
     /// erişim de yoktur.
     /// </summary>

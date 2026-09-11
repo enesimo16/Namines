@@ -319,6 +319,36 @@ namespace Namines.API.Controllers
 
                 if (existing != null)
                 {
+                    // ÇAKIŞMA KONTROLÜ (REL-003a / B-32).
+                    //
+                    // İstemci en son gördüğü sürümü gönderdiyse ve o sürüm artık
+                    // güncel değilse, aradaki değişikliği ÜZERİNE YAZMIYORUZ.
+                    // Sessizce kaybolan bir şemanın maliyeti, bir hata mesajının
+                    // maliyetinden çok yüksek: kullanıcı çalışmasının gittiğini
+                    // çoğu zaman fark etmiyor bile.
+                    //
+                    // Karşılaştırma BURADA yapılıyor, EF'in kendi `[Timestamp]`
+                    // kontrolüne bırakılmıyor: EF, satırı okuduğumuz andaki
+                    // değeri kullanır ve o her zaman güncel olduğu için hiçbir
+                    // çakışma yakalanmaz. Bkz. CloudProject.RowVersion notu.
+                    if (projDto.RowVersion is { } clientVersion &&
+                        clientVersion != existing.RowVersion)
+                    {
+                        return Conflict(new
+                        {
+                            message = "This project was changed by someone else while you were working on it. " +
+                                      "Reload it to get the latest version, then re-apply your changes.",
+                            projectId = existing.Id,
+                            projectName = existing.Name,
+                            yourVersion = clientVersion,
+                            currentVersion = existing.RowVersion,
+                            // Kim değiştirdi sorusunun cevabı, "yeniden yükle"
+                            // demekten çok daha kullanışlı: kullanıcı o kişiyle
+                            // konuşabilir.
+                            changedAt = existing.UpdatedAt,
+                        });
+                    }
+
                     // Update existing record owned by this user
                     existing.Name = projDto.Name;
                     existing.DbType = projDto.DbType;
@@ -413,6 +443,9 @@ namespace Namines.API.Controllers
                     connectionDbType = p.ConnectionDbType,
                     p.OrganizationId,
                     p.AllowDeskSql,
+                    // İstemci bunu saklayıp `sync`'te geri göndermek zorunda,
+                    // yoksa çakışma koruması devreye girmez (B-32).
+                    p.RowVersion,
                 })
                 .ToListAsync();
 
@@ -437,6 +470,7 @@ namespace Namines.API.Controllers
                     ? p.isMine
                     : myRoles.TryGetValue(p.OrganizationId, out var role) && role == OrgRole.Owner,
                 allowDeskSql = p.AllowDeskSql,
+                p.RowVersion,
             });
 
             return Ok(result);
@@ -894,6 +928,20 @@ namespace Namines.API.Controllers
         public string DbType { get; set; } = null!;
         public string SchemaJson { get; set; } = null!;
         public string NodePositionsJson { get; set; } = null!;
+
+        /// <summary>
+        /// İstemcinin bu projeyi en son GÖRDÜĞÜ sürüm (REL-003a / B-32).
+        ///
+        /// <b>Null ise kontrol atlanır ve bu bilinçli bir taviz.</b> Alanı
+        /// zorunlu yapmak, bugün çalışan her istemciyi (ve kaydedilmiş her
+        /// yerel projeyi) anında kırardı — kullanıcı kendi işini kaydedemez
+        /// hâle gelirdi. Değer gönderen istemci korunuyor; göndermeyen,
+        /// değişiklikten önceki davranışı görüyor.
+        ///
+        /// Sunucu bu değeri <c>GET /auth/projects</c> yanıtında
+        /// <c>rowVersion</c> olarak veriyor.
+        /// </summary>
+        public uint? RowVersion { get; set; }
     }
 
     public class UpdateProfileDto

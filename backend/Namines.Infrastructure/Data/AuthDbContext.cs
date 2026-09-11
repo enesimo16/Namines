@@ -398,6 +398,40 @@ namespace Namines.Infrastructure.Data
                 .HasIndex(g => g.ProjectId)
                 .IsUnique();
 
+            // Optimistic concurrency (REL-003a / B-32): PostgreSQL'in `xmin`
+            // sistem kolonuna esleniyor.
+            //
+            // Neden ayri bir kolon DEGIL: `xmin` her satirda ZATEN var ve her
+            // guncellemede motor tarafindan degisiyor. Kendi `byte[] RowVersion`
+            // kolonumuzu eklemek, mevcut satirlar icin bir backfill ve her
+            // guncellemede elle artirma gerektirirdi -- ikisi de atlanabilir
+            // adimlar, ve atlandiginda koruma sessizce YOK olurdu.
+            //
+            // ESLEME YALNIZCA POSTGRESQL ICIN ve bunu bir GERILEME ogretti:
+            // kosulsuz yazildiginda SQLite'ta `EnsureCreated`, `xmin` adinda
+            // GERCEK bir NOT NULL kolon uretiyor. Kolon
+            // `ValueGeneratedOnAddOrUpdate` oldugu icin EF insert'te deger
+            // GONDERMIYOR ve her ekleme
+            // "NOT NULL constraint failed: CloudProjects.xmin" ile patliyor.
+            // Bu, CloudProject ekleyen butun SQLite tabanli testleri kirdi
+            // (9 test) -- ve yalnizca tum suite kosturuldugunda gorundu.
+            //
+            // Diger saglayicilarda ozellik tamamen YOK SAYILIYOR: `xmin` bir
+            // PostgreSQL kavrami, taklidini uretmek yanlis bir guven verirdi.
+            if (Database.IsNpgsql())
+            {
+                builder.Entity<CloudProject>()
+                    .Property(p => p.RowVersion)
+                    .HasColumnName("xmin")
+                    .HasColumnType("xid")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .IsConcurrencyToken();
+            }
+            else
+            {
+                builder.Entity<CloudProject>().Ignore(p => p.RowVersion);
+            }
+
             // Gecmis HER ZAMAN "bu kullanicinin, bu projedeki, en yenisi ustte"
             // seklinde okunuyor -- ve saklama siniri da (100 kayit) ayni sirayla
             // budaniyor. Uc kolonun tek indekste olmasi ikisini de karsiliyor.

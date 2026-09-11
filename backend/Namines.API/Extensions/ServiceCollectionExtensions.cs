@@ -128,6 +128,18 @@ public static class ServiceCollectionExtensions
         services.AddNaminesVault();
         services.AddScoped<VaultService>();
 
+        // Yedekleme arka planda calisiyor (PERF-003 / B-35).
+        //
+        // Kuyruk SINGLETON: uygulama boyunca tek bir sira olmali, yoksa her
+        // istek kendi kuyruguna yazip hicbiri tuketilmezdi.
+        //
+        // Isci KENDI DI kapsamini aciyor: istek kapsamindaki DbContext yanit
+        // dondugunde atiliyor ve ona arka planda dokunmak
+        // ObjectDisposedException demek -- ve bu yalnizca YAVAS yedeklerde,
+        // yani uretimde gorunur.
+        services.AddSingleton<IVaultJobQueue, VaultJobQueue>();
+        services.AddHostedService<VaultBackupWorker>();
+
         // Namines Ground -- yonetilen veritabani.
         services.AddNaminesGround();
         services.AddScoped<GroundService>();
