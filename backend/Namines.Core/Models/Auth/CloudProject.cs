@@ -59,6 +59,27 @@ namespace Namines.Core.Models.Auth
         /// </summary>
         public string? ConnectionDbType { get; set; }
 
+        /// <summary>
+        /// Optimistic concurrency belirteci (REL-003a / B-32).
+        ///
+        /// <b>Çözdüğü sorun:</b> İki kullanıcı aynı projeyi aynı anda
+        /// düzenlediğinde son yazan kazanıyor ve ilk kullanıcının çalışması
+        /// SESSİZCE kayboluyordu. Ürün ekip çalışması iddiasında
+        /// (Organization, roller, change request) olduğu için bu gerçekçi.
+        ///
+        /// <b>Neden yalnızca kolon eklemek YETMEZ:</b> EF'in `[Timestamp]`
+        /// kontrolü, güncellenen varlığın YÜKLENDİĞİ andaki değeri kullanır.
+        /// Sunucu satırı isteğin başında okuduğu için o değer her zaman
+        /// güncel olur ve `WHERE RowVersion = …` koşulu HER ZAMAN eşleşir —
+        /// yani hiçbir çakışma yakalanmaz. Koruma, İSTEMCİNİN en son gördüğü
+        /// sürümü GERİ GÖNDERMESİYLE oluşur (bkz. <c>SyncProjectDto.RowVersion</c>).
+        ///
+        /// PostgreSQL'de <c>xmin</c> sistem kolonuna eşleniyor: ayrı bir kolon
+        /// eklemiyor, mevcut satırlar için de anında çalışıyor.
+        /// </summary>
+        [Timestamp]
+        public uint RowVersion { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

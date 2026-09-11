@@ -77,8 +77,26 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
     setError(null);
     setNotice(null);
     try {
-      await vaultApi.create(session);
-      setNotice('Yedek alındı.');
+      // Sunucu artık 202 dönüyor ve iş arka planda çalışıyor (B-35).
+      // "Yedek alındı" demeden ÖNCE bitmesini beklemek zorundayız: bu cümleyi
+      // iş başlarken söylemek, kullanıcıya alınmamış bir yedeği alınmış
+      // göstermek olurdu — ve yedekte bu, olabilecek en kötü yanlış bilgi.
+      const started = await vaultApi.create(session);
+      setNotice('Yedekleme başladı, sürüyor…');
+
+      const outcome = await vaultApi.waitForBackup(session, started.backupId);
+
+      if (!outcome.done) {
+        // Yoklama süresi doldu. İş İPTAL EDİLMEDİ — sunucuda devam ediyor
+        // olabilir; "başarısız" demek yanlış olurdu.
+        setNotice('Yedekleme hâlâ sürüyor. Listeden durumunu takip edebilirsiniz.');
+      } else if (outcome.status === 'Succeeded') {
+        setNotice('Yedek alındı.');
+      } else {
+        setNotice(null);
+        setError(outcome.errorMessage ?? 'Yedek alınamadı.');
+      }
+
       await reload();
     } catch (err) {
       setError(err instanceof VaultError ? err.message : 'Yedek alınamadı.');

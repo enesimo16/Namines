@@ -54,6 +54,26 @@ public class GatewayApiKey
     public bool CanExecuteSql { get; set; }
 
     /// <summary>
+    /// Toplu dışa aktarım yetkisi (<c>/export</c> — CSV/JSON indirme).
+    ///
+    /// <b>Okuma yetkisinden AYRI, çünkü nicelik burada bir nitelik farkı.</b>
+    /// Okuma izni bir uygulamanın sayfa sayfa veri göstermesi için verilir;
+    /// dışa aktarım ise tek istekle tablonun TAMAMINI tek bir dosyaya indirir.
+    /// İkisini aynı bayrağa bağlamak, "müşteri listesini ekranda göster"
+    /// demek isteyen birine farkında olmadan "müşteri listesini indir"
+    /// yetkisi vermek olurdu — ve veri sızıntısının en sessiz yolu tam olarak
+    /// budur (F-08 güvenlik notu).
+    ///
+    /// <b>Maskeleme yine geçerli:</b> dışa aktarım maskelenmiş kolonları
+    /// maskeler. Bu bayrak maskelemenin yerine geçmiyor, onun üstüne
+    /// biniyor — maskelenmiş bir tablonun tamamını indirmek de tek başına
+    /// anlamlı bir yetkidir (satır sayısı, dağılım, ilişkiler).
+    ///
+    /// Varsayılan false.
+    /// </summary>
+    public bool CanExport { get; set; }
+
+    /// <summary>
     /// İzin verilen kaynaklar, virgülle ayrılmış (<c>https://app.musteri.com</c>).
     /// Boşsa kısıt yok. Doluysa <c>Origin</c> başlığı taşımayan istek de reddedilir —
     /// "origin kısıtla" diyen biri, başlığı hiç göndermeyen istemciye kapıyı açık
@@ -115,6 +135,17 @@ public class GatewayTablePermission
 
     public bool CanRead { get; set; }
     public bool CanWrite { get; set; }
+
+    /// <summary>
+    /// Bu tablonun TOPLU indirilmesine izin var mı (F-08).
+    ///
+    /// <see cref="CanRead"/>'den ayrı tutuluyor ki "ekranda göster, ama
+    /// dosya olarak indirilmesin" diyebilmek mümkün olsun — bu, kişisel veri
+    /// içeren tablolarda en sık istenen ayrım.
+    ///
+    /// Varsayılan false. Kayıt yokluğu da hayır demektir.
+    /// </summary>
+    public bool CanExport { get; set; }
 
     /// <summary>
     /// Virgülle ayrılmış kolon adları — API anahtarıyla okunduğunda değerleri
