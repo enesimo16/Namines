@@ -18,6 +18,7 @@ import {
   X,
   Sparkles
 } from 'lucide-react';
+import { activateOnKey } from '../../lib/a11y';
 
 interface BuilderFeature {
   id: string;
@@ -288,6 +289,9 @@ export default function BuilderGrid() {
             <div
               key={feat.id}
               onClick={() => setActiveFeature(feat)}
+              onKeyDown={activateOnKey(() => setActiveFeature(feat))}
+              role="button"
+              tabIndex={0}
               className="group rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/85 hover:bg-surface-800 p-6 flex flex-col justify-between transition-all duration-300 shadow-lg hover:border-accent hover:shadow-xl hover:scale-[1.02] cursor-pointer"
             >
               <div>

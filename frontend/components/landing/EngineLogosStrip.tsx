@@ -44,9 +44,14 @@ export default function EngineLogosStrip() {
     <section id="engines" className="w-full border-y border-surface-500 bg-surface-900/40 py-12 sm:py-16">
       <div className="w-full max-w-[var(--w-app)] mx-auto px-4 sm:px-6 lg:px-8 text-center">
         {/* Monospace Header */}
-        <h3 className="font-mono text-xs uppercase tracking-[0.25em] text-content-subtle font-semibold mb-8 sm:mb-10">
+        {/* h2: bu bir BOLUM basligi ve sayfadaki tek h1'in hemen altinda.
+            Onceden h3 idi ve h1 -> h3 atlamasi uretiyordu; ekran okuyucu
+            baslik listesinde araya bir seviye eksik goruluyordu (WCAG 1.3.1).
+            Gorsel boyut sinifla belirleniyor, etiket degisimi gorunumu
+            ETKILEMIYOR. */}
+        <h2 className="font-mono text-xs uppercase tracking-[0.25em] text-content-subtle font-semibold mb-8 sm:mb-10">
           SUPPORTING 6 PRODUCTION ENGINES &amp; MODERN FRAMEWORKS
-        </h3>
+        </h2>
 
         {/* Row 1 — Engines */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-3 sm:mb-4">

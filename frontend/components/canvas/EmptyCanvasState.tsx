@@ -67,7 +67,7 @@ export default function EmptyCanvasState() {
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-content-primary">Generate with AI</h4>
+                <h3 className="text-xs font-bold text-content-primary">Generate with AI</h3>
                 <p className="text-[10px] text-content-subtle font-medium mt-0.5">Describe your database structure in plain Turkish or English.</p>
               </div>
             </div>
@@ -84,7 +84,7 @@ export default function EmptyCanvasState() {
                 <FileImage className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-content-primary">Import from Image</h4>
+                <h3 className="text-xs font-bold text-content-primary">Import from Image</h3>
                 <p className="text-[10px] text-content-subtle font-medium mt-0.5">Extract schema tables and fields from a sketch or diagram photo.</p>
               </div>
             </div>
@@ -101,7 +101,7 @@ export default function EmptyCanvasState() {
                 <LayoutTemplate className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-content-primary">Browse Templates</h4>
+                <h3 className="text-xs font-bold text-content-primary">Browse Templates</h3>
                 <p className="text-[10px] text-content-subtle font-medium mt-0.5">Pick a pre-built schema: e-commerce, SaaS, CRM, healthcare, and more.</p>
               </div>
             </div>
@@ -118,7 +118,7 @@ export default function EmptyCanvasState() {
                 <Plus className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-content-primary">Start from Scratch</h4>
+                <h3 className="text-xs font-bold text-content-primary">Start from Scratch</h3>
                 <p className="text-[10px] text-content-subtle font-medium mt-0.5">Manually place tables and customize fields on a clean canvas.</p>
               </div>
             </div>

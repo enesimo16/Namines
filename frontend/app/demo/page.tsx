@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { LintMessage } from '../../types/api';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -32,6 +32,8 @@ import {
 import { type TemplateSize } from '../../lib/templates';
 import { schemaService } from '../../services/api';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import { activateOnKey } from '../../lib/a11y';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 const DemoCanvas = dynamic(() => import('../../components/landing/DemoCanvas'), {
   ssr: false,
@@ -121,6 +123,29 @@ function DemoContent() {
   // İncelenen blueprint modalı
   const initialActive = allBlueprints.find(b => b.key === requested) ?? null;
   const [activeBlueprint, setActiveBlueprint] = useState<EnrichedBlueprint | null>(initialActive);
+
+  /**
+   * Şablon inceleme modalının erişilebilirliği (B-42 / ARIA dialog deseni).
+   *
+   * ÖLÇÜLDÜ — modal açıkken üç şey birden eksikti:
+   *   1. `role="dialog"` / `aria-modal` yok: ekran okuyucu bunu sıradan bir
+   *      `div` sanıyor, "diyalog açıldı" demiyor.
+   *   2. Odak modalın ARKASINDAKİ kartta kalıyordu; Tab modalın altındaki
+   *      sayfada geziniyordu.
+   *   3. Kapatma düğmesi `title="Close (Esc)"` YAZIYORDU ama Escape'i dinleyen
+   *      hiçbir kod yoktu — arayüz tutmadığı bir söz veriyordu.
+   */
+  const blueprintModalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(!!activeBlueprint, blueprintModalRef);
+
+  useEffect(() => {
+    if (!activeBlueprint) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveBlueprint(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeBlueprint]);
   const [engine, setEngine] = useState<Engine>('PostgreSQL');
   const [modalTab, setModalTab] = useState<'canvas' | 'findings' | 'sql' | 'split'>('split');
   const [copiedSql, setCopiedSql] = useState(false);
@@ -540,6 +565,10 @@ function DemoContent() {
                     <div
                       key={blueprint.key}
                       onClick={() => setActiveBlueprint(blueprint)}
+                      onKeyDown={activateOnKey(() => setActiveBlueprint(blueprint))}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open blueprint: ${blueprint.label}`}
                       className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-surface-600/70 bg-surface-800 transition-all hover:border-accent/60 hover:shadow-xl cursor-pointer"
                     >
                       {/* Üst Banner (Render.com Stili) */}
@@ -643,8 +672,16 @@ function DemoContent() {
 
       {/* ── Detaylı İnceleme Modalı (Live Blueprint Inspector) ── */}
       {activeBlueprint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-6 backdrop-blur-sm">
-          <div className="relative flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-[var(--radius-modal)] border border-surface-600 bg-surface-900 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/75 p-3 sm:p-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Blueprint inspector: ${activeBlueprint.label}`}
+        >
+          <div
+            ref={blueprintModalRef}
+            className="relative flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-[var(--radius-modal)] border border-surface-600 bg-surface-900 shadow-2xl"
+          >
             {/* Modal Üst Bar */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-600 bg-surface-800 px-5 py-3.5">
               <div className="flex items-center gap-3">
@@ -693,6 +730,7 @@ function DemoContent() {
                   type="button"
                   onClick={() => setActiveBlueprint(null)}
                   className="rounded-[var(--radius-control)] p-1.5 text-content-muted hover:bg-surface-700 hover:text-content-primary cursor-pointer"
+                  aria-label="Close blueprint inspector"
                   title="Close (Esc)"
                 >
                   <X className="h-5 w-5" />

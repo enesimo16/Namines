@@ -458,6 +458,12 @@ export default function CanvasPage() {
     // Header yüksekliği 52px (globals.css). Burada 56px çıkarılıyordu; 4px'lik fark
     // canvas'ı kısa bırakıyordu.
     <div className="w-full bg-surface-900 overflow-hidden relative" style={{ height: 'calc(100vh - 52px)' }}>
+      {/* Ekran okuyucu için sayfa başlığı. ÖLÇÜLDÜ: `/canvas` sayfasında hiç
+          `<h1>` yoktu — ekran okuyucu kullanıcısı başlık listesini açtığında
+          sayfanın ne olduğunu söyleyen bir giriş göremiyordu ve
+          `SchemaTextualSummary`'deki `<h2>`'ler köksüz duruyordu (WCAG 1.3.1).
+          Görsel başlık tuvalin kendisi olduğu için `sr-only`. */}
+      <h1 className="sr-only">Schema canvas</h1>
       <SchemaTextualSummary />
 
       {/* Connection Lost Overlay for Read-Only Mode */}
