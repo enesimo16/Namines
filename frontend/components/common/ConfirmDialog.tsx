@@ -55,7 +55,7 @@ export default function ConfirmDialog() {
           <button
             autoFocus
             onClick={() => respond(true)}
-            className={`flex-1 py-2.5 rounded-[var(--radius-card)] text-sm font-bold text-content-primary transition-all cursor-pointer active:scale-[0.98] ${
+            className={`flex-1 py-2.5 rounded-[var(--radius-card)] text-sm font-bold text-accent-on transition-all cursor-pointer active:scale-[0.98] ${
               danger
                 ? 'bg-danger hover:bg-danger shadow-[0_4px_15px_color-mix(in srgb, var(--color-danger) 35%, transparent)]'
                 : 'bg-accent hover:bg-accent-hover shadow-[0_4px_15px_color-mix(in srgb, var(--color-accent) 35%, transparent)]'

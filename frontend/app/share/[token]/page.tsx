@@ -134,7 +134,7 @@ export default function SharePage() {
         </div>
         <Link
           href="/"
-          className="px-5 py-2.5 rounded-[var(--radius-card)] bg-accent hover:bg-accent-hover text-content-primary text-sm font-semibold transition-colors"
+          className="px-5 py-2.5 rounded-[var(--radius-card)] bg-accent hover:bg-accent-hover text-accent-on text-sm font-semibold transition-colors"
         >
           Go to Namines
         </Link>

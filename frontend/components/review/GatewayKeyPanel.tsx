@@ -190,7 +190,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
         <button
           onClick={handleCreate}
           disabled={isCreating || !name.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-[11px] font-medium text-content-primary transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-[11px] font-medium text-accent-on transition-colors disabled:opacity-50"
         >
           {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
           Create

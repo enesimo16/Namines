@@ -25,7 +25,7 @@ export default function HomeBanner() {
 
   return (
     <div
-      className="relative flex items-center justify-center gap-3 px-4 py-2 text-center text-xs sm:text-sm font-medium text-surface-900"
+      className="relative flex items-center justify-center gap-3 px-4 py-2 text-center text-xs sm:text-sm font-medium text-banner-ink"
       style={{
         backgroundImage: 'var(--namines-gradient-banner)',
       }}
@@ -43,7 +43,7 @@ export default function HomeBanner() {
       <button
         onClick={() => setDismissed(true)}
         aria-label="Dismiss banner"
-        className="absolute right-2 sm:right-3 p-1 text-surface-900/70 hover:text-surface-900 transition-colors"
+        className="absolute right-2 sm:right-3 p-1 text-banner-ink/70 hover:text-banner-ink transition-colors"
       >
         <X className="w-3.5 h-3.5" />
       </button>

@@ -148,3 +148,32 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 Güvenliğin baskın olması beklenen bir sonuç: bu bir veritabanı erişim ürünü ve
 denetim özellikle o gözle yapıldı. **Bulunanların hiçbiri "yeniden yaz"
 gerektirmiyor** — hepsi noktasal düzeltme.
+
+---
+
+## B-42 — kontrast bölümü KAPANDI (12.09.2026)
+
+**Ölçüm aracı:** `frontend/scripts/contrast-audit.js` (tarayıcı konsolu;
+`selfTest` = 21 öz sınaması var). CSS'i statik okumak bu projede yeterli değil
+— renkler `oklch()` + `calc()` + tema override'ı ile üretiliyor.
+
+**Sonuç:** açık ve koyu temada 10 sayfa, **0 hata**.
+
+### Bulunan ve düzeltilen sistemik hatalar
+
+| # | Hata | Ölçüm (önce → sonra) |
+|---|---|---|
+| 1 | Tanıtım şeridi: metin `--surface-900` kullanıyordu, ama şerit gradyanı temayla TERS yönde değişiyor | koyu 1.30 / 3.14 / 7.49 → **14.86 / 11.91 / 9.53**; açık 1.13 / 1.25 / 1.18 → **16.51 / 14.83 / 15.80** |
+| 2 | `ZeroDriftSection`: 10 satır içi renk koyu zemin için sabitlenmişti | 1.59–1.84 → **5.52–5.83** (`--phrase-l`) |
+| 3 | `accent`/`danger` zeminli 4 düğmede koyu mürekkep (biri `text-white`, tasarım kuralları bunu yasaklıyor) | 3.12 / 2.74 → **5.96 / 6.78** (`--accent-on`) |
+| 4 | Açık tema `--content-subtle` ve `--content-muted` yalnızca EN AÇIK yüzeye göre seçilmişti | subtle 3.63 → **4.62** (en koyu açık yüzeyde); muted 3.89 → **5.48** |
+
+**Şeridin iki temada da kırık olması, önceki "koyu tema 811/811 geçiyor"
+ölçümümün gradyan zeminleri GÖRMEDİĞİ anlamına geliyor.** Denetim aracı
+artık gradyan zeminli öğeleri `unmeasurable` olarak işaretliyor ve onlar
+elle, gradyanın tüm duraklarına karşı ölçülüyor. Aynı kör noktadan kaynaklı
+ikinci bir ders: bir token, kullanıldığı TÜM yüzeylere karşı ölçülmeli —
+`--content-subtle` ilk denemede %50'ye çekilmişti ve `surface-700` üstünde
+4.35 ile `/review` sayfasında yakalandı.
+
+**B-42'de kalan:** klavye gezinmesi ve ekran okuyucu denetimi.
