@@ -60,7 +60,14 @@ export default function RootLayout({
       </head>
       {/* NOT: Font Awesome CDN kaldırıldı — render'ı bloklayan harici bir stylesheet'ti
           ve ikonlar lucide-react'e taşındı. İkon setini tek yerde tut. */}
-      <body className="min-h-full flex flex-col font-sans">
+      {/* `suppressHydrationWarning` BODY'de de gerekli: `useHomeThemeStore`
+          tema sınıfını/`data-theme`'i <html> ile birlikte <body>'ye de yazıyor
+          (store/useHomeThemeStore.ts), ama React'in bastırması aşağı doğru
+          MİRAS ALINMIYOR — yalnızca <html>'de olması yetmiyordu. Sonuç: her
+          sayfa yüklemesinde konsola "tree hydrated but some attributes
+          didn't match" hatası düşüyordu. Bu hata zararsız olduğu hâlde
+          GERÇEK hidrasyon hatalarını gürültüye boğuyordu. */}
+      <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
