@@ -1,20 +1,23 @@
 # 22 — Ürün backlog'u
 
-> ## ✅ DURUM (2026-09-10): **45 kapandı, 19 açık**
+> ## ✅ DURUM (2026-09-12): **60 kapandı, 4 açık**
 >
-> P0'ların 6/6'sı kapalı.
+> P0'ların 6/6'sı kapalı. Tüm P1'ler kapalı (B-12 hariç — aşağıda tek istisna).
 >
 > **Geri çekilen yanlış pozitifler (2):**
 > - **B-24** — `pageSize` tavanı zaten vardı (`Math.Clamp(1, 200)`).
 > - **B-54** — Desk gezinmesi zaten "Yedekler" / "Barındırma" diyor.
 >
-> **10.09.2026'da kapananlar:**
-> B-39, B-41, B-46, B-52, B-53, B-59, B-61, B-64 (altyapı/güvenlik/erişilebilirlik)
-> ve B-21, B-22 (sorgu geçmişi + kaydedilmiş sorgular, canlı doğrulandı).
+> **12.09.2026'da kapananlar:** B-57 (eslint, 149→0 hata + CI), B-40
+> (uçtan uca akış — Playwright yerine karar değişikliği), B-42 (kontrast +
+> klavye/ekran okuyucu — iki temada da kırık şerit dâhil 4 sistemik hata),
+> B-43 (kısmi geri yükleme — PostgreSQL `-t`, sanılandan kolay çıktı).
 >
-> **Açık kalan P1'ler:** B-12 (MSSQL/Oracle FK canlı doğrulama — Docker/disk
-> engeli), B-15 (frontend store testleri), B-20 (demo→hesap), B-26 (Ground
-> strateji kararı), B-57 (eslint).
+> **Açık kalan (4):**
+> - **B-12** (Docker/disk engeli — MSSQL 2000 MB VM istiyor, mevcut 1904 MB)
+> - **B-38** (`AIPreferencesModal` bölme — bilinçli ertelendi, 1651 satır/30+
+>   state'i körlemesine bölmek regresyon riski taşırdı)
+> - **B-56** (i18n birleştirme — bilinçli ertelendi, yüzlerce görünür string)
 >
 > Yeni regresyon testleri: `SecurityHardeningTests.cs` (23),
 > `SecurityStampValidationTests.cs` (7), `DockerServiceConstructionTests.cs` (5),
@@ -118,7 +121,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 
 | ID | Kategori | İş | Kaynak | Efor | Öncelik |
 |---|---|---|---|---|---|
-| B-57 | Frontend | 128 eslint hatasını temizle, sonra CI'a `npm run lint` ekle | FE-008 | L | P1 |
+| ~~B-57~~ | Frontend | ~~128 eslint hatasını temizle, sonra CI'a \`npm run lint\` ekle~~ ✅ ÖLÇÜLDÜ: gerçek sayı 149 (128 değil). 0 hataya indirildi (`any` 26→0, 25 ölü bağlama silindi, 2 TDZ ihlali düzeltildi), `npm run lint` CI'da (hata seviyesinde kırıyor, uyarıda kırmıyor — ölçülerek doğrulandı) | FE-008 | L | P1 |
 | ~~B-58~~ | Security | ✅ HIBP k-anonimlik kontrolü; **canlı doğrulandı** (`Password123456` → 42.513 sızıntı → red) | SEC-007 | S | P2 |
 | ~~B-59~~ | Testing | ~~`SecurityStampValidation` için entegrasyon testi~~ ✅ | B-09 | S | P2 |
 | ~~B-60~~ | Docs | ✅ `.gitignore` yeni belgeleri yutuyordu — `docs/`, `deploy/` açıldı | DOC-005 | XS | P1 |
