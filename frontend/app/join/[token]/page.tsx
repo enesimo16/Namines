@@ -7,6 +7,7 @@ import { teamService } from '../../../services/api';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useAuthModalStore } from '../../../store/useAuthModalStore';
 import { useToastStore } from '../../../store/useToastStore';
+import { errorMessage } from '../../../lib/errors';
 
 type Preview = { organization: string; role: string; expiresAt: string };
 
@@ -45,7 +46,7 @@ export default function JoinTeamPage() {
         // Sunucu üç ayrı sebebi ayırıyor (kullanılmış / iptal / süresi dolmuş);
         // hepsini "geçersiz bağlantı" diye göstermek, kişinin yeni link mi
         // isteyeceğini yoksa zaten katılmış mı olduğunu anlamasını engellerdi.
-        if (!cancelled) setError(err?.response?.data?.error ?? 'This invite link is not valid.');
+        if (!cancelled) setError(errorMessage(err, 'This invite link is not valid.'));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -68,8 +69,8 @@ export default function JoinTeamPage() {
       setJoined(true);
       showToast('You joined the team.', 'success');
       setTimeout(() => router.push('/new'), 1200);
-    } catch (err: any) {
-      setError(err?.response?.data?.error ?? 'Could not join the team.');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not join the team.'));
     } finally {
       setIsJoining(false);
     }

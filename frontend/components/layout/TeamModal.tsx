@@ -6,6 +6,7 @@ import { teamService } from '../../services/api';
 import { TeamStatus, CreatedInvite, TeamProject } from '../../types/team';
 import { useToastStore } from '../../store/useToastStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { errorMessage } from '../../lib/errors';
 
 interface Props {
   isOpen: boolean;
@@ -71,8 +72,8 @@ export default function TeamModal({ isOpen, onClose }: Props) {
       setFresh(created);
       setCopied(false);
       await load();
-    } catch (err: any) {
-      showToast(err?.response?.data?.error ?? 'Invite link could not be created.', 'error');
+    } catch (err) {
+      showToast(errorMessage(err, 'Invite link could not be created.'), 'error');
     } finally {
       setIsCreating(false);
     }

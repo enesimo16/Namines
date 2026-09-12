@@ -3,6 +3,7 @@ import { X, Image, RefreshCw, AlertCircle, CheckCircle, AlertTriangle } from 'lu
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { reverseEngineerService } from '../../../services/api';
 import { useAIGateway } from '../../../hooks/useAIGateway';
+import { errorMessage } from '../../../lib/errors';
 
 interface VisionUploadModalProps {
   isOpen: boolean;
@@ -110,8 +111,8 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
       
       setShowVerification(true);
 
-    } catch (err: any) {
-      setError(err?.response?.data?.error || err.message || 'An error occurred on the AI server while analyzing the image.');
+    } catch (err) {
+      setError(errorMessage(err, 'An error occurred on the AI server while analyzing the image.'));
     } finally {
       setLoading(false);
     }
@@ -121,9 +122,9 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
     // Apply the imported schema to the canvas Zustand store
     try {
       importFromVision(finalSchema);
-    } catch (err: any) {
+    } catch (err) {
       // Ortak, kullanıcıya açıklayıcı hata (sessizce çökmesin).
-      setError(err?.message || 'Import failed. The schema data might be missing or corrupt; please try again.');
+      setError(errorMessage(err, 'Import failed. The schema data might be missing or corrupt; please try again.'));
       return;
     }
 

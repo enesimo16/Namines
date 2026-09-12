@@ -6,6 +6,7 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { gatewayService } from '../../../services/api';
 import { GatewayRow } from '../../../types/gateway';
+import { errorMessage } from '../../../lib/errors';
 
 const DB_TYPES = [
   { value: 'MSSQL',      label: 'SQL Server' },
@@ -86,8 +87,8 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
       if (result.totalCount >= 0) setTotalCount(result.totalCount);
       setPage(result.page);
       setConnected(true);
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Failed to load data.');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load data.'));
       setConnected(false);
     } finally {
       setIsLoading(false);

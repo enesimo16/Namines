@@ -9,6 +9,7 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { authService } from '../../../services/api';
 import GuestSchemaMigrationModal from './GuestSchemaMigrationModal';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
+import { errorMessage } from '../../../lib/errors';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       }));
       await authService.syncProjects(projectsToSync);
       showToast(`${projects.length} local projects successfully synchronized with your cloud account!`, 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Sync error:', err);
       showToast('An error occurred while uploading projects to the cloud.', 'warning');
     }
@@ -122,8 +123,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           onClose();
         }
       }
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'An error occurred. Please check your credentials.';
+    } catch (err) {
+      const msg = errorMessage(err, 'An error occurred. Please check your credentials.');
       setErrorMsg(msg);
       showToast(msg, 'error');
     } finally {

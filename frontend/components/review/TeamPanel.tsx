@@ -7,6 +7,7 @@ import { useToastStore } from '../../store/useToastStore';
 import {
   ProjectMember, OrgRole, ORG_ROLE_LABEL, ORG_ROLE_HINT, ASSIGNABLE_ROLES, VOTING_ROLES,
 } from '../../types/member';
+import { errorMessage } from '../../lib/errors';
 
 interface Props {
   projectId: string;
@@ -55,8 +56,8 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
       setEmail('');
       showToast('Team member added.', 'success');
       load();
-    } catch (err: any) {
-      setError(err?.response?.data?.error ?? 'Could not add the member.');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not add the member.'));
     } finally {
       setIsAdding(false);
     }
@@ -67,8 +68,8 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
     try {
       await memberService.changeRole(projectId, userId, next);
       load();
-    } catch (err: any) {
-      showToast(err?.response?.data?.error ?? 'Could not change the role.', 'error');
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not change the role.'), 'error');
     } finally {
       setBusyUserId(null);
     }
@@ -80,8 +81,8 @@ export default function TeamPanel({ projectId, currentUserEmail }: Props) {
       await memberService.remove(projectId, userId);
       showToast('Member removed.', 'info');
       load();
-    } catch (err: any) {
-      showToast(err?.response?.data?.error ?? 'Could not remove the member.', 'error');
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not remove the member.'), 'error');
     } finally {
       setBusyUserId(null);
     }

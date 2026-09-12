@@ -19,6 +19,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
 import ContextualHelpTooltip from '../help/ContextualHelpTooltip';
 import { helpContent } from '../../lib/helpContent';
+import { apiErrorStatus, errorMessage } from '../../lib/errors';
 
 interface SmartSeedPanelProps {
   schema: DatabaseSchema;
@@ -57,12 +58,12 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
     try {
       const data = await smartSeedService.generate(schema, dbType, domainHint || undefined, rowCount, false);
       setResult(data);
-    } catch (err: any) {
-      if (err?.response?.status === 429) {
+    } catch (err) {
+      if (apiErrorStatus(err) === 429) {
         showToast('Daily AI limit reached! Please upgrade your plan for unlimited test data.', 'warning');
       } else {
         console.error("Test data generation error:", err);
-        showToast(`Test data generation failed: ${err.message || 'Unknown error'}`, 'error');
+        showToast(`Test data generation failed: ${errorMessage(err, 'Unknown error')}`, 'error');
       }
     } finally {
       setIsGenerating(false);

@@ -13,6 +13,7 @@ import { schemaService, authService } from '../../services/api';
 import { API_ORIGIN } from '../../lib/apiConfig';
 import ContextualHelpTooltip from '../help/ContextualHelpTooltip';
 import { helpContent } from '../../lib/helpContent';
+import { apiErrorStatus, errorMessage } from '../../lib/errors';
 
 interface DbaIssuePanelProps {
   isOpen: boolean;
@@ -87,11 +88,11 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
     try {
       await analyzeNow();
       showToast('AI DBA Analysis completed successfully!', 'success');
-    } catch (err: any) {
-      if (err?.response?.status === 429) {
+    } catch (err) {
+      if (apiErrorStatus(err) === 429) {
         showToast('Daily AI limit reached! Please upgrade your plan for unlimited access.', 'warning');
       } else {
-        showToast(`Analysis failed: ${err.message || 'Unknown error'}`, 'error');
+        showToast(`Analysis failed: ${errorMessage(err, 'Unknown error')}`, 'error');
       }
     } finally {
       setIsAnalyzingLocal(false);
@@ -119,12 +120,12 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
 
       loadFromSchema(revisedSchema, undefined, true);
       showToast('AI successfully resolved all DBA, Security, and FinOps issues and optimized your schema!', 'success');
-    } catch (err: any) {
-      if (err?.response?.status === 429) {
+    } catch (err) {
+      if (apiErrorStatus(err) === 429) {
         showToast('Daily AI limit reached! Please upgrade your plan for unlimited access.', 'warning');
       } else {
         console.error('AI Auto-Fix error:', err);
-        showToast(`Error: AI encountered an error while optimizing the schema: ${err.message}`, 'error');
+        showToast(`Error: AI encountered an error while optimizing the schema: ${errorMessage(err, 'unknown error')}`, 'error');
       }
     } finally {
       setIsFixing(false);

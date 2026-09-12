@@ -12,6 +12,7 @@ import 'prismjs/themes/prism-tomorrow.css';
 import { changeRequestService } from '../../../services/api';
 import { useToastStore } from '../../../store/useToastStore';
 import { ChangeRequestDetail, RiskLevel, AffectedCodeScanResult, ChangeRequestAuditEntry } from '../../../types/changeRequest';
+import { apiErrorBody, apiErrorStatus, errorMessage } from '../../../lib/errors';
 
 type Tab = 'DIFF' | 'SQL' | 'IMPACT' | 'TESTS' | 'CODE';
 
@@ -77,8 +78,8 @@ export default function ChangeRequestDetailPage() {
         result.supported && result.success ? 'success' : 'warning'
       );
       load();
-    } catch (err: any) {
-      showToast(err?.response?.data?.error || 'Failed to run the test. Is Docker running?', 'error');
+    } catch (err) {
+      showToast(errorMessage(err, 'Failed to run the test. Is Docker running?'), 'error');
     } finally {
       setIsRunningTests(false);
     }
@@ -116,9 +117,9 @@ export default function ChangeRequestDetailPage() {
       await changeRequestService.decide(cr.id, decision);
       showToast(decision === 'Approved' ? 'Change request approved.' : 'Change request rejected.', decision === 'Approved' ? 'success' : 'info');
       load();
-    } catch (err: any) {
-      const msg = err?.response?.data?.error
-        || (err?.response?.status === 403 ? 'You cannot approve your own high-risk change — a different reviewer is required.' : null)
+    } catch (err) {
+      const msg = apiErrorBody(err)?.error
+        || (apiErrorStatus(err) === 403 ? 'You cannot approve your own high-risk change — a different reviewer is required.' : null)
         || 'Failed to record your decision.';
       showToast(msg, 'error');
     } finally {
