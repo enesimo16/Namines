@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { MergeConflictItem } from '../../../store/useBranchStore';
 import { GitBranch, Plus, Trash2, Eye, EyeOff, GitMerge, ChevronDown } from 'lucide-react';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
@@ -126,7 +127,7 @@ export default function BranchControlPanel() {
       return;
     }
 
-    const conflictsList: any[] = [];
+    const conflictsList: MergeConflictItem[] = [];
 
     Object.entries(diffResult.tables).forEach(([tableId, tableDiff]) => {
       if (tableDiff.status === 'added') {
@@ -135,7 +136,7 @@ export default function BranchControlPanel() {
           id: tableId,
           type: 'table_added',
           tableName: activeTable?.name || 'New Table',
-          sourceValue: activeTable,
+          sourceValue: activeTable ?? null,
           targetValue: null,
           selectedChoice: 'source'
         });
@@ -146,7 +147,7 @@ export default function BranchControlPanel() {
           type: 'table_deleted',
           tableName: deletedTable?.name || 'Deleted Table',
           sourceValue: null,
-          targetValue: deletedTable,
+          targetValue: deletedTable ?? null,
           selectedChoice: 'source'
         });
       } else if (tableDiff.status === 'modified') {
@@ -155,8 +156,8 @@ export default function BranchControlPanel() {
             id: `${tableId}-name`,
             type: 'table_name',
             tableName: tableDiff.newName || 'Table',
-            sourceValue: tableDiff.newName,
-            targetValue: tableDiff.oldName,
+            sourceValue: tableDiff.newName ?? '',
+            targetValue: tableDiff.oldName ?? '',
             selectedChoice: 'source'
           });
         }
@@ -172,7 +173,7 @@ export default function BranchControlPanel() {
               type: 'column_added',
               tableName: activeTable?.name || 'Table',
               columnName: col?.name,
-              sourceValue: col,
+              sourceValue: col ?? null,
               targetValue: null,
               selectedChoice: 'source'
             });
@@ -184,7 +185,7 @@ export default function BranchControlPanel() {
               tableName: activeTable?.name || compareTable?.name || 'Table',
               columnName: col?.name,
               sourceValue: null,
-              targetValue: col,
+              targetValue: col ?? null,
               selectedChoice: 'source'
             });
           } else if (colDiff.status === 'modified') {
@@ -195,8 +196,8 @@ export default function BranchControlPanel() {
               type: 'column_modified',
               tableName: activeTable?.name || 'Table',
               columnName: activeCol?.name,
-              sourceValue: activeCol,
-              targetValue: compareCol,
+              sourceValue: activeCol ?? null,
+              targetValue: compareCol ?? null,
               selectedChoice: 'source'
             });
           }

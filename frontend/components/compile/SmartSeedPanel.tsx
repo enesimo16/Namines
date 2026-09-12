@@ -13,9 +13,6 @@ import Prism from 'prismjs';
 import 'prismjs/components/prism-sql';
 import 'prismjs/themes/prism-tomorrow.css';
 
-import { useAIGateway } from '../../hooks/useAIGateway';
-import { useQuotaStore } from '../../store/useQuotaStore';
-import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
 import ContextualHelpTooltip from '../help/ContextualHelpTooltip';
 import { helpContent } from '../../lib/helpContent';
@@ -32,9 +29,10 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
 
-  const { checkAccess } = useAIGateway();
-  const { remaining } = useQuotaStore();
-  const { isAuthenticated } = useAuthStore();
+  // Kota ONCEDEN kontrol edilmiyor: zorlama SUNUCUDA (429) ve `handleGenerate`
+  // o yanita net bir mesajla karsilik veriyor. Istemci tarafi bir on kontrol
+  // kullanilmiyordu (olu baglama) -- kaldirildi, guvenlik/kota davranisi
+  // degismedi cunku sayan taraf sunucu.
   const showToast = useToastStore(state => state.showToast);
 
   const [result, setResult] = useState<{

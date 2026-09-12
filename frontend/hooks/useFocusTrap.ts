@@ -33,7 +33,6 @@ export function useFocusTrap(isOpen: boolean, containerRef: React.RefObject<HTML
 
     const focusableElements = getFocusableElements();
     const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
 
     // Auto-focus the first focusable element inside the modal
     if (firstElement) {

@@ -10,22 +10,39 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Kapaliyken HIC MONTE ETMEME kabugu.
+ *
+ * **Neden bu bicim:** icerideki bilesen acilista durumunu sifirlamak icin
+ * `useEffect(() => { setQuery(''); ... }, [isOpen])` kullaniyordu. Bu iki
+ * sorun uretiyordu: (1) React once ONCEKI aramayi bir kare gosteriyordu,
+ * (2) `set-state-in-effect` kurali hakli olarak sasirtici zincir render
+ * uyarisi veriyordu.
+ *
+ * Kapaliyken bilesen artik hic monte edilmiyor; acildiginda TAZE monte
+ * oluyor ve `useState` baslangic degerleri sifirlamayi zaten yapiyor.
+ * React'in "durumu sifirlamak icin bileseni yeniden monte et" onerisi bu.
+ *
+ * Kabukta kanca YOK, o yuzden kosullu `return null` kurallara uygun.
+ */
 export default function CanvasSearch({ isOpen, onClose }: Props) {
+  if (!isOpen) return null;
+  return <CanvasSearchPanel onClose={onClose} />;
+}
+
+function CanvasSearchPanel({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [matchIdx, setMatchIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const { fitBounds, getNode } = useReactFlow();
   const schema = useSchemaStore(s => s.schema);
 
+  // Gecikme kasitli: panel acilis gecisi sirasinda odak vermek, tarayicinin
+  // kaydirma konumunu bozabiliyor.
   useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setMatchIdx(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+    const timer = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const tables = schema?.tables ?? [];
   const q = query.trim().toLowerCase();

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import type { DatabaseSchema } from '../../types/schema';
 import { useRouter } from 'next/navigation';
 import { Loader2, X, Link as LinkIcon, Image as ImageIcon, ChevronDown, Check, Wand2 } from 'lucide-react';
 import { schemaService } from '../../services/api';
-import { useSchemaStore } from '../../store/useSchemaStore';
+import { useSchemaStore, type DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import VoiceRecorder from '../../components/landing/VoiceRecorder';
@@ -199,7 +200,7 @@ export default function NewProjectPage() {
       onStep: (step) => setProductionSteps(prev => [...prev, step]),
 
       onResult: (result) => {
-        loadFromSchema(result.schema as any);
+        loadFromSchema(result.schema as DatabaseSchema);
         // second-phase/09-SEMA-ALTERNATIFLERI.md — canvas'taki "Alternatif üret"
         // bu prompt+cevapları tekrar kullanacak, o yüzden burada saklanıyor.
         useSchemaStore.getState().recordGenerationSource(prompt, answers);
@@ -466,7 +467,7 @@ export default function NewProjectPage() {
                           key={db.value}
                           type="button"
                           onClick={() => {
-                            setDbType(db.value as any);
+                            setDbType(db.value as DbType);
                             setDbDropdownOpen(false);
                           }}
                           className={`flex items-center justify-between px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-medium cursor-pointer transition-all text-left ${

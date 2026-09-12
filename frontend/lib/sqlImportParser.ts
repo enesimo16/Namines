@@ -81,7 +81,6 @@ export function parseSqlDdl(sql: string): DatabaseSchema {
       const d = def.trim();
       if (!d) continue;
 
-      const upper = d.toUpperCase();
 
       // ── Table-level PRIMARY KEY ────────────────────────────────────────────
       if (/^(?:CONSTRAINT\s+\S+\s+)?PRIMARY\s+KEY\s*\(/i.test(d)) {

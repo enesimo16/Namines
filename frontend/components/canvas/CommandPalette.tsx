@@ -20,20 +20,37 @@ interface Props {
   actions: PaletteAction[];
 }
 
+/**
+ * Kapaliyken HIC MONTE ETMEME kabugu.
+ *
+ * **Neden bu bicim:** icerideki bilesen acilista durumunu sifirlamak icin
+ * `useEffect(() => { setQuery(''); ... }, [isOpen])` kullaniyordu. Bu iki
+ * sorun uretiyordu: (1) React once ONCEKI aramayi bir kare gosteriyordu,
+ * (2) `set-state-in-effect` kurali hakli olarak sasirtici zincir render
+ * uyarisi veriyordu.
+ *
+ * Kapaliyken bilesen artik hic monte edilmiyor; acildiginda TAZE monte
+ * oluyor ve `useState` baslangic degerleri sifirlamayi zaten yapiyor.
+ * React'in "durumu sifirlamak icin bileseni yeniden monte et" onerisi bu.
+ *
+ * Kabukta kanca YOK, o yuzden kosullu `return null` kurallara uygun.
+ */
 export default function CommandPalette({ isOpen, onClose, actions }: Props) {
+  if (!isOpen) return null;
+  return <CommandPalettePanel onClose={onClose} actions={actions} />;
+}
+
+function CommandPalettePanel({ onClose, actions }: { onClose: () => void; actions: PaletteAction[] }) {
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef  = useRef<HTMLDivElement>(null);
 
-  // Focus input when opened
+  // Gecikme kasitli: modal gecisi sirasinda odak vermek kaydirmayi bozuyor.
   useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setActiveIdx(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [isOpen]);
+    const timer = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const filtered = query.trim()
     ? actions.filter(a => {
@@ -46,10 +63,13 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
       })
     : actions;
 
-  // Scroll active item into view — early return'den ÖNCE tanımlanmalı: hook'lar
-  // her render'da aynı sırada çağrılmalı, "isOpen=false" durumunda erken dönüş
-  // bu iki effect'i atlatıp render'lar arası hook sayısını değiştiriyordu
-  // ("Rendered more hooks than during the previous render" çökmesi).
+  // Seçili satırı görünür tut.
+  //
+  // Eskiden bu dosyada "erken dönüşten ÖNCE tanımlanmalı" notu vardı: bileşen
+  // kapalıyken de monte kalıyordu ve `if (!isOpen) return null` hook'ları
+  // atlayınca React çöküyordu. Artık kapalıyken hiç monte edilmiyor (yukarıdaki
+  // kabuk), yani o tuzak ortadan kalktı; bu effect sırf okunabilirlik için
+  // burada duruyor.
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -57,10 +77,19 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
     item?.scrollIntoView({ block: 'nearest' });
   }, [activeIdx]);
 
-  // Reset active idx when filter changes
-  useEffect(() => { setActiveIdx(0); }, [query]);
-
-  if (!isOpen) return null;
+  /**
+   * Filtre degisince secim ilk siraya doner.
+   *
+   * **Efekt DEGIL, olay isleyicisinin isi:** sorgu yalnizca kullanici yazinca
+   * degisiyor, yani sifirlama o olayin bir parcasi. Efektle yapildiginda React
+   * once yanlis `activeIdx` ile bir kere render ediyordu (liste kisaldiysa
+   * gecersiz bir satir isaretli goruluyordu), sonra ikinci render'da
+   * duzeliyordu. `setQuery`nin yaninda cagirmak bu ara kareyi yok ediyor.
+   */
+  const updateQuery = (value: string) => {
+    setQuery(value);
+    setActiveIdx(0);
+  };
 
   const select = (action: PaletteAction) => {
     onClose();
@@ -91,7 +120,7 @@ export default function CommandPalette({ isOpen, onClose, actions }: Props) {
             aria-label="Search commands"
             ref={inputRef}
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => updateQuery(e.target.value)}
             placeholder="Search commands…"
             className="flex-1 bg-transparent text-content-primary placeholder-content-muted text-sm outline-none"
           />

@@ -151,7 +151,9 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
   const filteredIssues = issues.filter(issue => {
     // Robust severity mapping (handles both C# serialised strings and integers)
     let severityNum = 0;
-    const rawSeverity = issue.severity as any;
+    // Sunucu bu alani hem sayi hem metin olarak gonderebiliyor (C#
+    // serilestirmesi surume gore degisiyor); tip bunu ACIKCA soyluyor.
+    const rawSeverity = issue.severity as number | string;
     if (typeof rawSeverity === 'number') {
       severityNum = rawSeverity;
     } else if (typeof rawSeverity === 'string') {
@@ -381,7 +383,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           ) : (
             filteredIssues.map((issue, idx) => {
               let severityNum = 0;
-              const rawSeverity = issue.severity as any;
+              const rawSeverity = issue.severity as number | string;
               if (typeof rawSeverity === 'number') {
                 severityNum = rawSeverity;
               } else if (typeof rawSeverity === 'string') {

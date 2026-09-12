@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import type { TableNodeData } from '../../../types/flow';
 import { useReactFlow } from '@xyflow/react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
@@ -215,7 +216,7 @@ export default function RegionalPromptPanel() {
                 key={n.id}
                 className="flex items-center gap-1 text-[11px] font-mono text-content-primary bg-white/[0.08] border border-white/15 px-2 py-1 rounded-full whitespace-nowrap shrink-0"
               >
-                /{((n.data as any)?.table?.name || '').toLowerCase()}
+                /{((n.data as TableNodeData | undefined)?.table?.name || '').toLowerCase()}
               </span>
             ))}
             {selectedNodes.length > 3 && (

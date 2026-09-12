@@ -397,7 +397,7 @@ const bad = results.filter(r => r.state === 'ÇALIŞMIYOR');
 const ai = results.filter(r => r.state === 'AI-ENGELLİ').length;
 const waiting = results.filter(r => r.state === 'BEKLİYOR').length;
 const skipped = results.filter(r => r.state === 'ATLANDI').length;
-console.log(`\n  ${ok}/${results.length} çalışıyor · ${bad.length} kırık · ${ai} AI-engelli · ${skipped} atlandı\n`);
+console.log(`\n  ${ok}/${results.length} çalışıyor · ${bad.length} kırık · ${ai} AI-engelli · ${waiting} bekliyor · ${skipped} atlandı\n`);
 
 // Markdown tablo (dokümana yapıştırmak için)
 console.log('  ── Markdown ──');

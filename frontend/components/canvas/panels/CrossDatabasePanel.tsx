@@ -46,12 +46,21 @@ interface CloudProjectLite {
  * iddiasını taşıyan kısım: ilişkiyi KAYDETMEK ve silme öncesi UYARMAK.
  */
 export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
+  // Kapaliyken MONTE EDILMIYOR: onceki hali panel her acilista ONCEKI projenin
+  // iliskilerini bir kare gosteriyordu (durum efektle degil, montajla
+  // sifirlanmali).
+  if (!isOpen) return null;
+  return <CrossDatabasePanelBody onClose={onClose} />;
+}
+
+function CrossDatabasePanelBody({ onClose }: { onClose: () => void }) {
   const schema = useSchemaStore(s => s.schema);
   const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
   const showToast = useToastStore(s => s.showToast);
 
   const [relations, setRelations] = useState<RelationRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Panel veri cekerek aciliyor; ilk karede "iliski yok" gosterilmemeli.
+  const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,29 +76,44 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
   const [remoteColumnId, setRemoteColumnId] = useState('');
   const [note, setNote] = useState('');
 
-  const loadRelations = async () => {
+  /** Iliskileri ceker; yukleme bayragini cagirana birakir. */
+  const fetchRelations = async () => {
     if (!activeProjectId) return;
-    setIsLoading(true);
     try {
       const data = await authService.crossDatabase.listRelations(activeProjectId);
       setRelations(data);
     } catch {
       showToast('Failed to load cross-database relations.', 'error');
+    }
+  };
+
+  /** Yazma isleminden sonra yenile (spinner gostererek). */
+  const loadRelations = async () => {
+    setIsLoading(true);
+    try {
+      await fetchRelations();
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Aktif proje degisirse yeniden cekiliyor. `setIsLoading(true)` efekt icinde
+  // SENKRON cagrilmiyor; ilk deger `true`, sonraki gecislerde kisa bir an eski
+  // liste gorunur -- proje degisimi zaten tuvalin tamamini yeniliyor.
   useEffect(() => {
-    if (isOpen) loadRelations();
+    let cancelled = false;
+    fetchRelations().finally(() => {
+      if (!cancelled) setIsLoading(false);
+    });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, activeProjectId]);
+  }, [activeProjectId]);
 
   const startAdding = async () => {
     setIsAdding(true);
     try {
       const all = await authService.getCloudProjects();
-      setOtherProjects(all.filter((p: any) => p.id !== activeProjectId));
+      setOtherProjects(all.filter(p => p.id !== activeProjectId));
     } catch {
       showToast('Failed to load your other projects.', 'error');
       setIsAdding(false);
@@ -148,7 +172,7 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
     setMapSchema(null);
     try {
       const all = await authService.getCloudProjects();
-      const target = all.find((p: any) => p.id === otherProjectId);
+      const target = all.find(p => p.id === otherProjectId);
       setMapSchema(target ? JSON.parse(target.schemaJson) : null);
     } catch {
       showToast('Could not load the other database.', 'error');
@@ -165,8 +189,8 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
     }
   };
 
-  if (!isOpen) return null;
-
+  // Kapali durum kontrolu artik dis kabukta (bilesen kapaliyken hic monte
+  // edilmiyor), burada tekrarlanmasi gerekmiyor.
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-[90vw] max-w-xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">

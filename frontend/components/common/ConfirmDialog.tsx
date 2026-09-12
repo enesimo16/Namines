@@ -22,7 +22,6 @@ export default function ConfirmDialog() {
   if (!isOpen || !options) return null;
 
   const danger = options.danger ?? false;
-  const accent = danger ? 'rose' : 'indigo';
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-scrim/70 backdrop-blur-sm animate-fade-in">

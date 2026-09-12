@@ -1,16 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { useHomeThemeStore } from '../../store/useHomeThemeStore';
 
+/** Abonelik gerektirmeyen kaynak; deger hic degismedigi icin bos abone. */
+const noopSubscribe = () => () => {};
+
+/**
+ * Istemci hidrasyonunun tamamlanip tamamlanmadigi.
+ *
+ * **Neden efekt + `setState` DEGIL:** `useEffect(() => setMounted(true), [])`
+ * ayni isi iki render ile yapiyor ve React'in `set-state-in-effect` kurali
+ * bunu hakli olarak isaretliyor. `useSyncExternalStore`, sunucu anlik
+ * goruntusu olarak `false`, istemci anlik goruntusu olarak `true` dondurerek
+ * ayni sonucu TEK render'da veriyor -- React ekibinin bu is icin onerdigi
+ * desen budur.
+ */
+function useIsHydrated(): boolean {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
+
 export default function ThemeToggleButton() {
   const { theme, toggle } = useHomeThemeStore();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useIsHydrated();
 
   if (!mounted) {
     return (

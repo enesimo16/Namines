@@ -19,7 +19,6 @@ export function useMultiplayer() {
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
 
   const roomId = useMultiplayerStore(s => s.roomId);
-  const userName = useMultiplayerStore(s => s.userName);
   const isConnected = useMultiplayerStore(s => s.isConnected);
   const isOffline = useMultiplayerStore(s => s.isOffline);
   const setRoomInfo = useMultiplayerStore(s => s.setRoomInfo);
@@ -200,14 +199,14 @@ export function useMultiplayer() {
     });
 
     // Reconnection & connection status callbacks
-    connection.onreconnecting((error) => {
+    connection.onreconnecting(() => {
       if (connectionRef.current === connection) {
         setIsOffline(true);
         showToast('⚠️ Reconnecting to multiplayer room...', 'warning');
       }
     });
 
-    connection.onreconnected((connectionId) => {
+    connection.onreconnected(() => {
       if (connectionRef.current === connection) {
         setIsOffline(false);
         // Reconnect'te yeni ConnectionId atanır → gruba yeniden katılmazsak peer,
@@ -217,7 +216,7 @@ export function useMultiplayer() {
       }
     });
 
-    connection.onclose((error) => {
+    connection.onclose(() => {
       if (connectionRef.current === connection) {
         setIsConnected(false);
         setIsOffline(true);
@@ -238,7 +237,7 @@ export function useMultiplayer() {
           lastAgreedSchemaRef.current = useSchemaStore.getState().schema;
           await connection.invoke('JoinRoom', currentRoomId, currentUserName);
         }
-      } catch (err) {
+      } catch {
         // Errors silenced to avoid noise during fast mount/unmount
       }
     };

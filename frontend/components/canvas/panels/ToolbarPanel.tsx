@@ -47,7 +47,6 @@ export default function ToolbarPanel() {
   const lastGenerationAnswers = useSchemaStore(s => s.lastGenerationAnswers);
   const { checkAccess } = useAIGateway();
   const { getNodes, getEdges } = useReactFlow();
-  const [isGeneratingAlternative, setIsGeneratingAlternative] = useState(false);
   const [alternativeSchema, setAlternativeSchema] = useState<DatabaseSchema | null>(null);
   const [isCrossDbOpen, setIsCrossDbOpen] = useState(false);
   const [isCodeImportOpen, setIsCodeImportOpen] = useState(false);
@@ -221,7 +220,6 @@ export default function ToolbarPanel() {
     }
     if (!checkAccess('Generate Alternative')) return;
 
-    setIsGeneratingAlternative(true);
     try {
       const alt = await schemaService.generateSchema(
         lastGenerationPrompt, dbType, naiModel, undefined, undefined, lastGenerationAnswers ?? undefined
@@ -230,7 +228,6 @@ export default function ToolbarPanel() {
     } catch {
       showToast('Failed to generate an alternative. Please try again.', 'error');
     } finally {
-      setIsGeneratingAlternative(false);
       // Tetikleyici düğme artık prompt çubuğunda (RegionalPromptPanel) ve kendi
       // "meşgul" göstergesini tutuyor — bitişi ona bildir. Başarı ve hata
       // yolunun İKİSİ de buradan geçer (`finally`), yoksa hata durumunda

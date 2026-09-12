@@ -70,7 +70,7 @@ export default function ChangeRequestListPage() {
 
     authService.getCloudProjects()
       .then(projects => {
-        const project = projects.find((p: any) => p.id === activeProjectId);
+        const project = projects.find(p => p.id === activeProjectId);
         setAutoApproveSafeState(project?.autoApproveSafeChanges ?? false);
       })
       .catch(() => setAutoApproveSafeState(false));

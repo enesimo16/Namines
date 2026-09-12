@@ -177,7 +177,7 @@ export const generateQuadrantChart = (schema: DatabaseSchema) => {
   code += '  quadrant-2 Detail Data Tables\n';
   code += '  quadrant-3 Junction/Temporary Tables\n';
   code += '  quadrant-4 Reference/Look-up Tables\n';
-  schema.tables.forEach((t, idx) => {
+  schema.tables.forEach((t) => {
     const relCount = schema.relations.filter(r => r.sourceTableId === t.id || r.targetTableId === t.id).length;
     const xVal = Math.min(0.9, Math.max(0.1, relCount / 5));
     const yVal = Math.min(0.9, Math.max(0.1, t.columns.length / 15));

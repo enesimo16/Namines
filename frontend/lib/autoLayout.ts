@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import type { TableNodeData } from '../types/flow';
 import { Node, Edge } from '@xyflow/react';
 
 // ── Otomatik Yerleşim (Tidy Up) ──────────────────────────────────────────────
@@ -45,7 +46,7 @@ const NODE_HEADER = 60;
 const ROW_HEIGHT = 36;
 
 function estimateNodeHeight(node: Node): number {
-  const columnCount = (node.data as any)?.table?.columns?.length ?? 0;
+  const columnCount = (node.data as TableNodeData | undefined)?.table?.columns?.length ?? 0;
   return NODE_HEADER + columnCount * ROW_HEIGHT;
 }
 

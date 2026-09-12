@@ -432,7 +432,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
       if (isAuthenticated) {
         authService.getSubscriptionStatus()
-          .then(data => { if (data) setSubscriptionStatus(data.status); })
+          .then(data => { if (data) setSubscriptionStatus(data.status ?? null); })
           .catch(() => {});
         // Pro/Team ayrımı subscription/status'te yok (yalnızca active/inactive
         // diyor); hangi kart "You are on this plan" göstersin, quota/status'teki

@@ -146,11 +146,6 @@ export default function Header() {
     return () => window.removeEventListener('namines:open-ai-settings', handleOpenSettings);
   }, []);
 
-  // draft'ı store ile senkronda tut
-  useEffect(() => {
-    if (!isEditing) setDraft(projectName);
-  }, [projectName, isEditing]);
-
   const startEditing = () => {
     setDraft(projectName);
     setIsEditing(true);

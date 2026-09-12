@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
+import type { LintMessage } from '../../types/api';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -40,12 +41,7 @@ const DemoCanvas = dynamic(() => import('../../components/landing/DemoCanvas'), 
 const ENGINES = ['PostgreSQL', 'MySQL', 'MSSQL', 'SQLite', 'Oracle', 'MariaDB'] as const;
 type Engine = (typeof ENGINES)[number];
 
-interface LintMessage {
-  severity: number | string;
-  message: string;
-  tableId?: string | null;
-  columnId?: string | null;
-}
+// `LintMessage` artik tek kaynakta: types/api.ts (yerel kopya kaldirildi).
 
 function severityOf(raw: number | string): 'error' | 'warning' | 'info' {
   const value = typeof raw === 'string' ? raw.toLowerCase() : raw;
@@ -168,7 +164,6 @@ function DemoContent() {
 
   const settled = result?.key === requestKey ? result : null;
   const proving = settled === null && activeBlueprint !== null;
-  const failed = settled !== null && settled.lint === null;
   const lint = settled?.lint ?? null;
   const sql = settled?.sql ?? null;
 

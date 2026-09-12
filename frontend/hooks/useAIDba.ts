@@ -3,16 +3,9 @@ import { useSchemaStore } from '../store/useSchemaStore';
 import { useDbaStore } from '../store/useDbaStore';
 import { aiDbaService } from '../services/api';
 
-export interface DbaIssue {
-  ruleId: string;
-  tableName: string;
-  columnName?: string;
-  severity: 0 | 1 | 2; // 0: Info, 1: Warning, 2: Error
-  message: string;
-  suggestion?: string;
-  source: string;
-  category?: 'Performance' | 'Security' | 'FinOps';
-}
+// `DbaIssue` tek kaynakta: types/api.ts. Buradan yeniden ihrac ediliyor ki
+// mevcut import edenler (DbaIssuePanel vb.) degismek zorunda kalmasin.
+export type { DbaIssue } from '../types/api';
 
 const DEBOUNCE_MS = 2000;
 

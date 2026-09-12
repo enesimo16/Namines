@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Database, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { useSchemaStore } from '../../store/useSchemaStore';
+import { useSchemaStore, type DbType } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { executorService } from '../../services/api';
 
@@ -139,7 +139,7 @@ export default function DbPushModal({ open, onOpenChange, sqlScript }: DbPushMod
                 <select
                   aria-label="Target Database Type"
                   value={dbType}
-                  onChange={(e) => { setDbType(e.target.value as any); resetState(); }}
+                  onChange={(e) => { setDbType(e.target.value as DbType); resetState(); }}
                   className="w-full appearance-none bg-surface-600 border border-surface-500 text-content-primary text-sm rounded-[var(--radius-control)] px-3.5 py-2.5 pr-9 focus:outline-none focus:border-focus-ring transition-colors cursor-pointer"
                 >
                   <option value="MSSQL">SQL Server</option>

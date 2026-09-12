@@ -215,7 +215,7 @@ export default function ArchitectureSpotlights() {
                 + CREATE INDEX CONCURRENTLY IF NOT EXISTS &quot;idx_orders_currency&quot; ON &quot;orders&quot; (&quot;currency&quot;);
               </div>
               <div className="text-content-subtle text-[11px] pt-1">
-                // Destructive operation &quot;DROP COLUMN&quot; blocked: Requires manual override &amp; audit log
+                {'// Destructive operation "DROP COLUMN" blocked: Requires manual override & audit log'}
               </div>
             </div>
           </div>

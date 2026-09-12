@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ColumnDiffDetails } from '../../../utils/schemaDiff';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
 import { Key, Link, Pencil, Plus, Minus, RefreshCw } from 'lucide-react';
 import { SchemaTable } from '../../../types/schema';
@@ -85,7 +86,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
       return table.columns.map(c => ({
         column: c,
         diffStatus: (diff?.status === 'deleted' ? 'deleted' : 'unchanged') as 'added' | 'deleted' | 'modified' | 'unchanged',
-        details: undefined as any
+        details: undefined as ColumnDiffDetails | undefined
       }));
     }
 

@@ -95,13 +95,6 @@ export default function CanvasExportToolbar() {
     return () => window.removeEventListener('namines:import-sql', handler);
   }, []);
 
-  useEffect(() => {
-    const handler = () => exportAsPrisma();
-    window.addEventListener('namines:export-prisma', handler);
-    return () => window.removeEventListener('namines:export-prisma', handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema, projectName]);
-
   const handleSqlFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -191,6 +184,22 @@ export default function CanvasExportToolbar() {
       setIsLocalExporting(false);
     }
   };
+
+  /**
+   * `namines:export-prisma` olayini dinler.
+   *
+   * **Bu efekt neden BURADA, dosyanin en ustunde DEGIL:** `exportAsPrisma`
+   * asagida `const` ile tanimli. Efekt yukarida dururken TDZ ihlali vardi --
+   * calisma zamaninda patlamiyordu (kapanis, mount'tan sonra cagriliyor) ama
+   * fonksiyon yukari tasindigi an ya da efekt senkron cagrildigi an
+   * `ReferenceError` verecekti. Bildirimden sonraya tasimak ihtimali yok ediyor.
+   */
+  useEffect(() => {
+    const handler = () => exportAsPrisma();
+    window.addEventListener('namines:export-prisma', handler);
+    return () => window.removeEventListener('namines:export-prisma', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema, projectName]);
 
   const exportForCi = () => {
     setIsLocalExporting(true);

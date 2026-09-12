@@ -1,4 +1,4 @@
-import { DatabaseSchema, SchemaTable, SchemaColumn } from '../types/schema';
+import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../types/schema';
 
 export interface ColumnDiffDetails {
   nameChanged?: boolean;
@@ -200,19 +200,19 @@ export function calculateSchemaDiff(
   const activeRelations = activeSchema.relations || [];
   const compareRelations = compareSchema.relations || [];
 
-  const areRelationsEqual = (r1: any, r2: any) => {
+  const areRelationsEqual = (r1: SchemaRelation, r2: SchemaRelation) => {
     if (r1.type !== r2.type) return false;
     
-    const getTableColName = (sch: any, tableId: string, colId: string) => {
-      let table = sch.tables?.find((t: any) => t.id === tableId);
+    const getTableColName = (sch: DatabaseSchema, tableId: string, colId: string) => {
+      let table = sch.tables?.find((t: SchemaTable) => t.id === tableId);
       if (!table) {
-        table = sch.tables?.find((t: any) => t.name?.toLowerCase() === tableId.toLowerCase());
+        table = sch.tables?.find((t: SchemaTable) => t.name?.toLowerCase() === tableId.toLowerCase());
       }
       const tableName = table ? table.name : tableId;
 
-      let col = table?.columns?.find((c: any) => c.id === colId);
+      let col = table?.columns?.find((c: SchemaColumn) => c.id === colId);
       if (!col && table) {
-        col = table.columns?.find((c: any) => c.name?.toLowerCase() === colId.toLowerCase());
+        col = table.columns?.find((c: SchemaColumn) => c.name?.toLowerCase() === colId.toLowerCase());
       }
       const colName = col ? col.name : colId;
 

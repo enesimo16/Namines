@@ -1,5 +1,6 @@
 import { Node, Edge } from '@xyflow/react';
-import { DatabaseSchema, SchemaTable } from '../types/schema';
+import type { PascalCaseSchema } from '../types/flow';
+import { DatabaseSchema, SchemaRelation, SchemaTable } from '../types/schema';
 
 export function schemaToFlow(schema: DatabaseSchema): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
@@ -19,8 +20,10 @@ export function schemaToFlow(schema: DatabaseSchema): { nodes: Node[]; edges: Ed
   const ROW_GAP = 48;
 
   // Null guard — API may return PascalCase (Tables) or camelCase (tables)
-  const tables: SchemaTable[] = (schema as any).Tables ?? schema.tables ?? [];
-  const relations = (schema as any).Relations ?? schema.relations ?? [];
+  const tables: SchemaTable[] =
+    ((schema as PascalCaseSchema).Tables as SchemaTable[] | undefined) ?? schema.tables ?? [];
+  const relations: SchemaRelation[] =
+    ((schema as PascalCaseSchema).Relations as SchemaRelation[] | undefined) ?? schema.relations ?? [];
 
   // Sütun sayısı tablo sayısına göre değişiyor, sabit 3 DEĞİL.
   //
@@ -56,7 +59,7 @@ export function schemaToFlow(schema: DatabaseSchema): { nodes: Node[]; edges: Ed
     });
   });
 
-  relations.forEach((relation: any) => {
+  relations.forEach((relation: SchemaRelation) => {
     edges.push({
       id: relation.id,
       type: 'relationEdge',
