@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,7 +15,17 @@ namespace Namines.Vault.Abstractions;
 public sealed record BackupSpec(string ConnectionString, string DatabaseName);
 
 /// <param name="ConnectionString">Geri yüklenecek HEDEF veritabanı.</param>
-public sealed record RestoreSpec(string ConnectionString);
+/// <param name="Tables">
+/// KISMİ geri yükleme (B-43): yalnızca bu tabloları geri yükle, gerisine
+/// dokunma. Boş/null ise TAM geri yükleme (eski davranış, varsayılan).
+///
+/// <b>Yalnızca özel biçim (custom-format) dump'larda desteklenir</b> —
+/// `pg_restore -t` bunu gerektiriyor; düz SQL dökümünde (ör. MySQL'in
+/// `mysqldump` çıktısı) seçici geri yükleme yapmanın tek yolu dump metnini
+/// tablo tablo ayrıştırmaktır, ki bu ayrı ve daha büyük bir iştir. `v1`'de
+/// tek sağlayıcı PostgreSQL olduğu için bu sınır şimdilik görünmüyor.
+/// </param>
+public sealed record RestoreSpec(string ConnectionString, IReadOnlyList<string>? Tables = null);
 
 /// <summary>
 /// Bir motorun yedek/geri yükleme yeteneği.

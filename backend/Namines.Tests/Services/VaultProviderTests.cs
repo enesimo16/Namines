@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
@@ -110,7 +111,7 @@ public class VaultProviderTests
         var provider = new MySqlFamilyBackupProvider(
             "MySQL", "mysql:8.0", hasColumnStatisticsFlag: true, NullLogger.Instance);
 
-        var script = provider.BuildRestoreCommand(conn).Last();
+        var script = provider.BuildRestoreCommand(conn, tables: null).Last();
 
         // Tek tırnağın içinde kabuk hiçbir şey yorumlamaz.
         Assert.Contains("'uygulama$(whoami)'", script);
@@ -131,7 +132,7 @@ public class VaultProviderTests
         var provider = new MySqlFamilyBackupProvider(
             "MySQL", "mysql:8.0", hasColumnStatisticsFlag: true, NullLogger.Instance);
 
-        var script = provider.BuildRestoreCommand(conn).Last();
+        var script = provider.BuildRestoreCommand(conn, tables: null).Last();
 
         Assert.Contains(@"'o'\''brien'", script);
     }
@@ -197,5 +198,59 @@ public class VaultProviderTests
             "Host=db;Database=uygulama;Username=kok;Password=gizli;", 5432);
 
         Assert.Equal(5432, conn.Port);
+    }
+
+    /// <summary>
+    /// B-43: PostgreSQL <c>-t</c> ile KISMİ geri yükleme.
+    ///
+    /// Docker gerektirmeyen tek gerçek kanıt bu: komutun bayrakları doğru
+    /// üretip üretmediği. Gerçek `pg_restore` çalıştırması (dump'ın verdiği
+    /// sonucu Docker/disk kısıtı yüzünden bu depoda canlı doğrulanamadı;
+    /// bkz. namines-vault dokümanı) ayrı bir kanıt gerektirir.
+    /// </summary>
+    [Fact]
+    public void Postgres_kismi_geri_yuklemede_t_bayragi_uretilir()
+    {
+        var conn = DbConnectionParts.Parse(
+            "Host=db;Database=uygulama;Username=kok;Password=gizli;", 5432);
+        var provider = new PostgresBackupProvider(
+            new ConfigurationBuilder().Build(), NullLogger<PostgresBackupProvider>.Instance);
+
+        var full = provider.BuildRestoreCommand(conn, tables: null);
+        var partial = provider.BuildRestoreCommand(conn, tables: new[] { "orders", "order_items" });
+
+        Assert.DoesNotContain("-t", full);
+        Assert.Contains("-t", partial);
+        Assert.Contains("orders", partial);
+        Assert.Contains("order_items", partial);
+        // --clean KISMİ geri yüklemede de kalmalı: pg_restore -t + --clean
+        // yalnızca SEÇİLEN tabloları düşürüp geri yükler (tüm veritabanını
+        // değil) — bu davranış olmadan kısmi geri yükleme "ekle" anlamına
+        // gelirdi, "üzerine yaz" değil.
+        Assert.Contains("--clean", partial);
+    }
+
+    /// <summary>
+    /// B-43: MySQL/MariaDB kısmi geri yüklemeyi AÇIKÇA reddetmeli.
+    ///
+    /// Dump düz SQL; seçici uygulamanın tek yolu metni ayrıştırmak, ki bu
+    /// yapılmadı. Sessizce TAM geri yükleme yapmak "kullanıcının seçtiği
+    /// tabloyu görmezden gel" demek olurdu — bu yüzden reddetmek DOĞRU
+    /// davranış ve test onu koruyor.
+    /// </summary>
+    [Fact]
+    public void MySql_kismi_geri_yuklemeyi_acikca_reddeder()
+    {
+        var conn = DbConnectionParts.Parse(
+            "Server=db;Database=uygulama;User ID=kok;Password=gizli;", 3306);
+        var provider = new MySqlFamilyBackupProvider(
+            "MySQL", "mysql:8.0", hasColumnStatisticsFlag: true, NullLogger.Instance);
+
+        Assert.Throws<NotSupportedException>(
+            () => provider.BuildRestoreCommand(conn, tables: new[] { "orders" }));
+
+        // Tablo listesi BOŞSA (tam geri yükleme) hiç sorun olmamalı.
+        var full = provider.BuildRestoreCommand(conn, tables: null);
+        Assert.NotEmpty(full);
     }
 }

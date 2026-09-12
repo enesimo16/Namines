@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
@@ -234,8 +235,13 @@ public class VaultService
     /// siler; ön yedek alınamıyorsa işlem hiç başlamaz — bu, "yanlış yedeği
     /// seçtim" durumunun tek geri dönüşü.
     /// </summary>
+    /// <param name="tables">
+    /// KISMİ geri yükleme (B-43): yalnızca bu tabloları geri yükle. Boş/null
+    /// ise tam geri yükleme (varsayılan, eski davranış).
+    /// </param>
     public async Task<VaultResult> RestoreAsync(
-        CloudProject project, VaultBackup backup, string userId, CancellationToken ct)
+        CloudProject project, VaultBackup backup, string userId, CancellationToken ct,
+        IReadOnlyList<string>? tables = null)
     {
         if (backup.Status != VaultBackupStatus.Succeeded)
             return new VaultResult(false, "Only a successful backup can be restored.");
@@ -281,7 +287,7 @@ public class VaultService
                 ?? throw new InvalidOperationException(
                     "The backup file is missing from storage; it cannot be restored.");
 
-            var spec = new RestoreSpec(connectionString!);
+            var spec = new RestoreSpec(connectionString!, tables);
             await RunPipelineAsync(
                 produce: stream => encrypted.CopyToAsync(stream, ct),
                 transform: (input, output) => _cipher.DecryptAsync(input, output, ct),
@@ -292,6 +298,16 @@ public class VaultService
                 });
 
             log.Status = VaultBackupStatus.Succeeded;
+        }
+        catch (NotSupportedException ex)
+        {
+            // Log'a yazma: bu bir ARIZA değil, sağlayıcının bilinen bir sınırı
+            // (ör. düz SQL dökümünde seçici geri yükleme yok). Hata mesajı
+            // zaten kullanıcıya "neden" ve "ne yapmalı" söylüyor.
+            log.Status = VaultBackupStatus.Failed;
+            log.ErrorMessage = Shorten(ex.Message);
+            await _context.SaveChangesAsync(ct);
+            return new VaultResult(false, ex.Message);
         }
         catch (Exception ex)
         {

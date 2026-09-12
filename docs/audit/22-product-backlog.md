@@ -85,12 +85,12 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-35~~ | Performance | ~~Vault yedeğini arka plan işine taşı (202 Accepted)~~ ✅ kuyruk + `BackgroundService` (kendi DI kapsamı) + açılışta uzlaştırma; arayüz iş BİTİNCE "alındı" diyor | PERF-003 | M |
 | ~~B-36~~ | Performance | ~~`mermaid` + `sql.js` dinamik import (önce ölç)~~ ✅ ÖLÇÜLDÜ: `/compile` 1830→1268 KB. CANLI DOĞRULANDI | PERF-004 | S |
 | ~~B-37~~ | Architecture | ~~`ScaffolderService`'i böl~~ ✅ 1.761 → 120 satır, 5 üreteç; önce snapshot testi yazıldı, çıktı birebir aynı | ARCH-003, TD-003 | M |
-| B-38 | Architecture | `AIPreferencesModal`'ı böl + tipli tercih modülü | FE-002, TD-004 | M |
+| B-38 | Architecture | `AIPreferencesModal`'ı böl + tipli tercih modülü — 🟡 **bilinçli olarak ertelendi:** dosya 1651 satır, 30+ birbirine bağlı `useState` (6 sekme: profil/hesap/AI/fiyat/yardım/analitik). Körlemesine bölmek — bu oturumun geri kalanında derinlemesine doğrulanamayacak kadar riskli; regresyon ihtimali kazancından yüksek. Güvenli yol: önce her sekmenin state bağımlılık haritası çıkarılıp, sonra TEK sekme taşınıp canlı doğrulanmalı — bu ayrı bir oturum gerektiriyor | FE-002, TD-004 | M |
 | ~~B-39~~ | Frontend | ~~`DbPushModal`'ı merkezi API istemcisine taşı~~ ✅ `executorService` | FE-005 | S |
-| B-40 | Testing | E2E: tek uçtan uca akış (Playwright) | TEST-005 | M |
+| ~~B-40~~ | Testing | ~~E2E: tek uçtan uca akış (Playwright)~~ ✅ **Karar değişti:** Playwright yerine mevcut `check-e2e.mjs` harness'ına zincir bloğu eklendi (kayıt→proje→DDL→409 çakışma kanıtı). Tarayıcı ikilisi indirmek disk kısıtını ihlal ederdi; DOM etkileşimi bu oturumda Browser paneliyle elle doğrulandı | TEST-005 | M |
 | ~~B-41~~ | A11y | ~~Form alanlarına etiket (51 input)~~ ✅ 117/118 (kalan 1 = yorum içi, yanlış pozitif) | A11Y-001 | M |
-| B-42 | A11y | Kontrast + klavye + ekran okuyucu denetimi — 🟡 **kontrast ÖLÇÜLDÜ ve 2 sistemik hata düzeltildi** (koyu tema 4 sayfada 811/811 geçiyor); klavye, ekran okuyucu ve açılış sayfasının AÇIK teması (78 hata) açık | 13 | M |
-| B-43 | Feature | Kısmi (tek tablo) geri yükleme | F-07 | M |
+| ~~B-42~~ | A11y | ~~Kontrast + klavye + ekran okuyucu denetimi~~ ✅ kontrast: açık VE koyu temada 4 sistemik hata (şerit gradyanı iki temada da kırıktı) düzeltildi, 0 hata (10 sayfa × 2 tema); klavye: 29 erişilemez öğe + `useFocusTrap` odak geri yükleme hatası (TÜM modalları etkiliyordu) düzeltildi, uçtan uca CANLI doğrulandı | 13 | M |
+| ~~B-43~~ | Feature | ~~Kısmi (tek tablo) geri yükleme~~ ✅ PostgreSQL: `pg_restore -t` (dump zaten `-Fc` özel biçim, önceki analiz sanıldığından kolay çıktı). MySQL/MariaDB: dump düz SQL, seçici uygulama mümkün değil — sessizce tam geri yükleme yapmak yerine `NotSupportedException` ile AÇIKÇA reddediyor. Docker gerektirmeyen komut-üretim testleri (2) yazıldı; canlı `pg_restore` çalıştırması disk kısıtı yüzünden yapılamadı | F-07 | M |
 | ~~B-44~~ | Feature | ~~CSV/JSON dışa aktarma + `CanExport` izni~~ ✅ CSV/JSON zaten vardı; eksik olan `CanExport` izniydi — iki kapı (anahtar + tablo), CANLI DOĞRULANDI | F-08 | M |
 | ~~B-45~~ | Feature | ~~Supabase sağlayıcısı~~ ✅ `SupabaseProvider` (Neon deseni); CANLI DOĞRULANMADI — `IsLiveVerified: false`, 12 test | F-10 | M |
 | ~~B-46~~ | Build | ~~Docker.DotNet sürüm çatışmasını çöz~~ ✅ etkisiz kılındı (Lazy) + teşhis düzeltildi | TD-005, BACK-006 | M |
@@ -110,7 +110,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-53~~ | A11y | ~~`.nsl` yolunu erişilebilir alternatif olarak belgele~~ ✅ `docs/ERISILEBILIRLIK.md` | A11Y-003 | XS |
 | ~~B-54~~ | UX | ❌ **Geri çekildi** — Desk gezinmesi zaten "Yedekler"/"Barındırma" diyor | 12 | XS |
 | ~~B-55~~ | Product | ~~Mobil hedefini açıkça belirle ve yaz~~ ✅ ÖLÇÜLDÜ + `docs/MOBIL-HEDEFI.md` (öneri, onay bekliyor) | Senaryo 7 | XS |
-| B-56 | i18n | Çok dil altyapısı — **ve iki uygulamanın dilini birleştir** (`frontend` İngilizce, `desk` Türkçe) | 24, UX-004 | M |
+| B-56 | i18n | Çok dil altyapısı — **ve iki uygulamanın dilini birleştir** (`frontend` İngilizce, `desk` Türkçe) — 🟡 **bilinçli olarak ertelendi:** kullanıcıya görünen yüzlerce string'i elle taşımak, bu oturumda derinlemesine test edilemeyecek bir kapsam (her ekranın hem yeni dizeleri hem de kırılmamış yerleşimi canlı doğrulanmalı). Önerilen yol: i18n altyapısını (kütüphane + dil seçici + sözlük iskeleti) kurup metinleri ekran ekran, her taşımadan sonra canlı doğrulayarak aşamalı taşımak | 24, UX-004 | M |
 
 ---
 

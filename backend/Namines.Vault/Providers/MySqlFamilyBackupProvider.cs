@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 
@@ -90,18 +91,37 @@ public sealed class MySqlFamilyBackupProvider : ContainerBackupProvider
         return command;
     }
 
-    internal override IList<string> BuildRestoreCommand(DbConnectionParts conn) => new List<string>
+    internal override IList<string> BuildRestoreCommand(DbConnectionParts conn, IReadOnlyList<string>? tables)
     {
+        // KISMİ geri yükleme (B-43) burada YAPILAMIYOR — Postgres'in aksine.
+        // Dump düz SQL (`mysqldump` çıktısı, `-Fc` gibi özel bir biçim değil);
+        // seçici geri yüklemenin tek yolu dump METNİNİ tablo tablo ayrıştırıp
+        // yalnızca ilgili `CREATE TABLE`/`INSERT` bloklarını çalıştırmak —
+        // ayrı ve daha büyük bir iş (SQL ayrıştırıcı, çok satırlı INSERT'leri
+        // ve olası saklı yordam/tetikleyici bloklarını doğru bölmek gerekir).
+        // Sessizce TAM geri yükleme yapmak, kullanıcının "yalnızca şu tabloyu"
+        // seçimini görmezden gelip İSTENMEYEN tabloları da silip değiştirirdi
+        // — bu, "sessizce yanlış" en kötü türden hatadır. Açıkça reddediyoruz.
+        if (tables is { Count: > 0 })
+        {
+            throw new NotSupportedException(
+                $"Partial (single-table) restore is not supported for {Engine}: its backup format " +
+                "is a plain SQL dump, which cannot be selectively applied. Restore the full backup instead.");
+        }
+
         // Kabuk şart: mysql istemcisinin dosyadan okuması yalnızca yönlendirmeyle
         // (`<`) mümkün, dump yolunu argüman olarak almıyor.
         //
         // Kabuk devreye girdiği an, bağlantı dizesinden gelen değerler artık ham
         // metin değil KOMUT parçası; tırnaklanmazsa kullanıcı adındaki bir
         // `;` ya da `$(...)` konteynerin içinde komut çalıştırırdı.
-        "sh", "-c",
-        $"mysql --protocol=TCP -h {Quote(conn.ContainerVisibleHost)} -P {conn.Port} " +
-        $"-u {Quote(conn.Username)} {Quote(conn.Database)} < {ContainerDumpPath}",
-    };
+        return new List<string>
+        {
+            "sh", "-c",
+            $"mysql --protocol=TCP -h {Quote(conn.ContainerVisibleHost)} -P {conn.Port} " +
+            $"-u {Quote(conn.Username)} {Quote(conn.Database)} < {ContainerDumpPath}",
+        };
+    }
 
     /// <summary>
     /// Bir değeri kabuk için güvenli hâle getirir: tek tırnak içinde hiçbir şey
