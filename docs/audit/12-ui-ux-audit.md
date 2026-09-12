@@ -91,6 +91,35 @@ sunucuya senkronlansın). Kod bunu destekleyecek yapıya sahip görünüyor
 (`useSchemaStore` + `/api/auth/sync`).
 ### Effort M · ### Priority P1 (ürün etkisi yüksek)
 
+### ✅ ÖLÇÜLDÜ (12.09.2026) — B-20: bulgu YANLIŞ ÇIKTI, iş KORUNUYOR
+
+Bulgu "denetimde görülemedi: demo'da yapılan iş korunuyor mu?" diyordu ve
+"korunmuyorsa dönüşümün klasik kaybı" uyarısını yapıyordu. Canlı ölçüldü —
+**korunuyor.**
+
+Ölçüm (gerçek API + gerçek tarayıcı):
+
+1. Misafir olarak `/canvas`'ta şablon yüklendi → 25 tablo.
+2. Gerçek giriş yapıldı (sunucu httpOnly cookie kurdu) ve sayfa oturumla açıldı.
+3. `GET /api/auth/projects` → **"E-Commerce", 25 tablo**, `updatedAt` o an.
+
+Mekanizma: `Header`'ın `isAuthenticated` etkisi **ÖNCE YÜKLER, SONRA İNDİRİR**
+(`syncAllToCloud()` → `syncWithCloud()`). Sıranın bu olması kritik: tersi
+olsaydı buluttaki boş liste yerel işi ezebilirdi. Kodda bu sıra yorumla
+birlikte yazılı (`Header.tsx:132`).
+
+`/demo` yolu da aynı yere çıkıyor: blueprint `useSchemaStore`'a yükleniyor,
+`/canvas`'a gidiliyor, `useProjectAutoSave` yerel kayda yazıyor — yani giriş
+sonrası aynı yükleme yolundan geçiyor.
+
+**Ölçümün sınırı:** Giriş, `AuthModal`'a yazarak değil, gerçek `/auth/login`
+çağrısı + kalıcı oturum bayrağı kurularak yapıldı (modal bu akışta
+tetiklenemedi). Yani doğrulanan şey "oturum varken yerel iş buluta gidiyor" —
+B-20'nin sorduğu şey buydu. Modal'ın kendi işleyicisi yalnızca
+`syncWithCloud()` (indirme) çağırıyor; yükleme `Header` etkisine bağlı.
+O etki `/canvas`'ta mevcut, ama bu bağımlılık **yazılı değildi** — burada
+kayda geçti.
+
 ---
 
 ## UX-003 — Yıkıcı işlemlerde onay: KISMEN İYİ

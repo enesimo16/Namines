@@ -55,18 +55,18 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | B-12 | Bug | MSSQL + Oracle FK introspection'ını **canlı doğrula** | I-06 | M |
 | ~~B-13~~ | Stability | ✅ 120 sn zaman aşımı + iptal | REL-001 | S |
 | ~~B-14~~ | Stability | ✅ `PartialApplyPossible` + UI uyarısı | DB-007 | S |
-| B-15 | Testing | `frontend` store'ları için test | FE-001, TD-001 | L |
+| ~~B-15~~ | Testing | ~~`frontend` store'ları için test~~ ✅ vitest altyapısı kuruldu (hiç yoktu) + 28 test; test yazarken GERÇEK bir hata bulundu ve düzeltildi | FE-001, TD-001 | L |
 | ~~B-16~~ | Testing | ✅ 5'ten fazla atlama build'i kırıyor | TEST-001 | S |
 | ~~B-17~~ | DevOps | ✅ `dotnet list --vulnerable` + `npm audit` | DEVOPS-004 | S |
 | ~~B-18~~ | DevOps | ✅ `deploy/URETIM-CALISTIRMA.md` §3 — proxy gereklilikleri ve cross-site kararı |
 | ~~B-19~~ | UX | ✅ `EmptyState` bileşeni + 5 ince ekran (3'ü zaten iyiydi) | UX-001, F-05 | S |
-| B-20 | UX | Demo → hesap geçişinde işi koru | UX-002, F-06 | M |
+| ~~B-20~~ | UX | ~~Demo → hesap geçişinde işi koru~~ ✅ CANLI ÖLÇÜLDÜ: iş KORUNUYOR (misafir 25 tablo → giriş → bulutta 25 tablo). Bulgu yanlış pozitifti; `Header` etkisi önce yüklüyor sonra indiriyor | UX-002, F-06 | M |
 | ~~B-21~~ | Feature | ~~Sorgu geçmişi~~ ✅ CANLI DOĞRULANDI | F-01 | S |
 | ~~B-22~~ | Feature | ~~Kaydedilmiş sorgular~~ ✅ CANLI DOĞRULANDI | F-02 | S |
 | ~~B-23~~ | Architecture | ✅ **Karar değişti:** refactor yerine konvansiyon testi — yetkisiz uç eklenince build kırılıyor. Filtre işi BACK-004 (Gateway bölme) ile birlikte yapılacak | ARCH-002, TD-002 | S |
 | ~~B-24~~ | Performance | ❌ **Geri çekildi** — tavan zaten vardı (`Math.Clamp(1,200)`) | PERF-007 | XS |
 | ~~B-25~~ | Backend | ✅ `[EnableRateLimiting("sensitive")]` | BACK-002 | XS |
-| B-26 | Product | Ground'un konumunu yeniden belirle (strateji kararı) | RW-02 | — |
+| ~~B-26~~ | Product | ~~Ground'un konumunu yeniden belirle (strateji kararı)~~ ✅ `docs/GROUND-KONUMLANDIRMA.md` (öneri, onay bekliyor): Ground = deneme zemini, üretim kullanıcının platformunda | RW-02 | — |
 
 ---
 
@@ -92,7 +92,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | B-42 | A11y | Kontrast + klavye + ekran okuyucu denetimi — 🟡 **kontrast ÖLÇÜLDÜ ve 2 sistemik hata düzeltildi** (koyu tema 4 sayfada 811/811 geçiyor); klavye, ekran okuyucu ve açılış sayfasının AÇIK teması (78 hata) açık | 13 | M |
 | B-43 | Feature | Kısmi (tek tablo) geri yükleme | F-07 | M |
 | ~~B-44~~ | Feature | ~~CSV/JSON dışa aktarma + `CanExport` izni~~ ✅ CSV/JSON zaten vardı; eksik olan `CanExport` izniydi — iki kapı (anahtar + tablo), CANLI DOĞRULANDI | F-08 | M |
-| B-45 | Feature | Supabase sağlayıcısı | F-10 | M |
+| ~~B-45~~ | Feature | ~~Supabase sağlayıcısı~~ ✅ `SupabaseProvider` (Neon deseni); CANLI DOĞRULANMADI — `IsLiveVerified: false`, 12 test | F-10 | M |
 | ~~B-46~~ | Build | ~~Docker.DotNet sürüm çatışmasını çöz~~ ✅ etkisiz kılındı (Lazy) + teşhis düzeltildi | TD-005, BACK-006 | M |
 | ~~B-47~~ | DevOps | ~~İleriye uyumlu migration kuralı + geri alma prosedürü~~ ✅ kural + prosedür + **testle zorlanıyor** (`MigrationCompatibilityTests`) | DEVOPS-005 | M |
 | ~~B-48~~ | Docs | ✅ `deploy/URETIM-CALISTIRMA.md` | 25 | M |
