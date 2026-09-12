@@ -38,6 +38,8 @@ kapalı olur.
 
 ## TD-003 — `ScaffolderService` 1.760 satır
 
+**GÜNCELLEME 11.09.2026 — kapatıldı (B-37).** `ScaffolderService` 1.761 → 120 satır; içerikler `Generators/Scaffold/` altında beş üreteçte. Bölmeden önce çıktıyı kilitleyen `ScaffolderSnapshotTests` yazıldı (4 varyant); bölme sonrası birebir aynı. Ayrıntı: `02-architecture-audit.md` → ARCH-003.
+
 **Neden var:** Üreteç kodu doğal olarak uzun; bölme işi ertelenmiş.
 **Etki:** Bakım zorluğu. Davranışsal risk yok.
 **Efor:** M · **Öncelik:** P2

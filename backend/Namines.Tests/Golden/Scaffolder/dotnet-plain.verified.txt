@@ -1,0 +1,884 @@
+﻿=== backend/NaminesProject.API/Controllers/OrderItemsController.cs ===
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using NaminesProject.Infrastructure.Data;
+using NaminesProject.Domain.Entities;
+
+namespace NaminesProject.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class OrderItemsController : ControllerBase
+{
+    private readonly AppDbContext _context;
+
+    public OrderItemsController(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<OrderItems>>> GetAll()
+    {
+        return await _context.OrderItemses.ToListAsync();
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<OrderItems>> GetById(int id)
+    {
+        var entity = await _context.OrderItemses.FindAsync(id);
+        if (entity == null) return NotFound();
+        return entity;
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<OrderItems>> Create([FromBody] OrderItems entity)
+    {
+        _context.OrderItemses.Add(entity);
+        await _context.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetById), new { id = entity.Id }, entity);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] OrderItems entity)
+    {
+        if (id != entity.Id) return BadRequest("ID mismatch");
+
+        _context.Entry(entity).State = EntityState.Modified;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!await EntityExists(id)) return NotFound();
+            throw;
+        }
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await _context.OrderItemses.FindAsync(id);
+        if (entity == null) return NotFound();
+
+        _context.OrderItemses.Remove(entity);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private Task<bool> EntityExists(int id)
+    {
+        return _context.OrderItemses.AnyAsync(e => e.Id == id);
+    }
+}
+
+=== backend/NaminesProject.API/Controllers/OrdersController.cs ===
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using NaminesProject.Infrastructure.Data;
+using NaminesProject.Domain.Entities;
+
+namespace NaminesProject.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class OrdersController : ControllerBase
+{
+    private readonly AppDbContext _context;
+
+    public OrdersController(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<Orders>>> GetAll()
+    {
+        return await _context.Orderses.ToListAsync();
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Orders>> GetById(int id)
+    {
+        var entity = await _context.Orderses.FindAsync(id);
+        if (entity == null) return NotFound();
+        return entity;
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<Orders>> Create([FromBody] Orders entity)
+    {
+        _context.Orderses.Add(entity);
+        await _context.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetById), new { id = entity.Id }, entity);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] Orders entity)
+    {
+        if (id != entity.Id) return BadRequest("ID mismatch");
+
+        _context.Entry(entity).State = EntityState.Modified;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!await EntityExists(id)) return NotFound();
+            throw;
+        }
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await _context.Orderses.FindAsync(id);
+        if (entity == null) return NotFound();
+
+        _context.Orderses.Remove(entity);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private Task<bool> EntityExists(int id)
+    {
+        return _context.Orderses.AnyAsync(e => e.Id == id);
+    }
+}
+
+=== backend/NaminesProject.API/Controllers/ProductsController.cs ===
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using NaminesProject.Infrastructure.Data;
+using NaminesProject.Domain.Entities;
+
+namespace NaminesProject.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class ProductsController : ControllerBase
+{
+    private readonly AppDbContext _context;
+
+    public ProductsController(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<Products>>> GetAll()
+    {
+        return await _context.Productses.ToListAsync();
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Products>> GetById(int id)
+    {
+        var entity = await _context.Productses.FindAsync(id);
+        if (entity == null) return NotFound();
+        return entity;
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<Products>> Create([FromBody] Products entity)
+    {
+        _context.Productses.Add(entity);
+        await _context.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetById), new { id = entity.Id }, entity);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] Products entity)
+    {
+        if (id != entity.Id) return BadRequest("ID mismatch");
+
+        _context.Entry(entity).State = EntityState.Modified;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!await EntityExists(id)) return NotFound();
+            throw;
+        }
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await _context.Productses.FindAsync(id);
+        if (entity == null) return NotFound();
+
+        _context.Productses.Remove(entity);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private Task<bool> EntityExists(int id)
+    {
+        return _context.Productses.AnyAsync(e => e.Id == id);
+    }
+}
+
+=== backend/NaminesProject.API/Controllers/UsersController.cs ===
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using NaminesProject.Infrastructure.Data;
+using NaminesProject.Domain.Entities;
+
+namespace NaminesProject.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class UsersController : ControllerBase
+{
+    private readonly AppDbContext _context;
+
+    public UsersController(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<Users>>> GetAll()
+    {
+        return await _context.Userses.ToListAsync();
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Users>> GetById(int id)
+    {
+        var entity = await _context.Userses.FindAsync(id);
+        if (entity == null) return NotFound();
+        return entity;
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<Users>> Create([FromBody] Users entity)
+    {
+        _context.Userses.Add(entity);
+        await _context.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetById), new { id = entity.Id }, entity);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] Users entity)
+    {
+        if (id != entity.Id) return BadRequest("ID mismatch");
+
+        _context.Entry(entity).State = EntityState.Modified;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!await EntityExists(id)) return NotFound();
+            throw;
+        }
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await _context.Userses.FindAsync(id);
+        if (entity == null) return NotFound();
+
+        _context.Userses.Remove(entity);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private Task<bool> EntityExists(int id)
+    {
+        return _context.Userses.AnyAsync(e => e.Id == id);
+    }
+}
+
+=== backend/NaminesProject.API/Dockerfile ===
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet restore "backend/NaminesProject.API/NaminesProject.API.csproj"
+RUN dotnet publish "backend/NaminesProject.API/NaminesProject.API.csproj" -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "NaminesProject.API.dll"]
+
+=== backend/NaminesProject.API/NaminesProject.API.csproj ===
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
+</Project>
+
+=== backend/NaminesProject.API/Program.cs ===
+using Microsoft.EntityFrameworkCore;
+using NaminesProject.Infrastructure.Data;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container with JSON IgnoreCycles configuration.
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    });
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Configure EF Core SQLite database
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+var app = builder.Build();
+
+// Automatically run EF migrations
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    context.Database.EnsureCreated();
+}
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment() || true)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseCors("AllowAll");
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
+
+=== backend/NaminesProject.API/appsettings.json ===
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "DefaultConnection": "Data Source=naminesdb.db"
+  }
+}
+
+=== backend/NaminesProject.Domain/Entities/OrderItems.cs ===
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace NaminesProject.Domain.Entities;
+
+public class OrderItems
+{
+    public int Id { get; set; }
+    public int OrderId { get; set; }
+    public int ProductId { get; set; }
+    public int Quantity { get; set; }
+
+    [JsonIgnore]
+    public virtual Orders Orders { get; set; }
+
+    [JsonIgnore]
+    public virtual Products Products { get; set; }
+}
+
+=== backend/NaminesProject.Domain/Entities/Orders.cs ===
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace NaminesProject.Domain.Entities;
+
+public class Orders
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public decimal Total { get; set; }
+    public DateTime PlacedAt { get; set; }
+
+    [JsonIgnore]
+    public virtual Users Users { get; set; }
+
+    [JsonIgnore]
+    public virtual ICollection<OrderItems> OrderItemses { get; set; } = new List<OrderItems>();
+}
+
+=== backend/NaminesProject.Domain/Entities/Products.cs ===
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace NaminesProject.Domain.Entities;
+
+public class Products
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+    public int Stock { get; set; }
+
+    [JsonIgnore]
+    public virtual ICollection<OrderItems> OrderItemses { get; set; } = new List<OrderItems>();
+}
+
+=== backend/NaminesProject.Domain/Entities/Users.cs ===
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace NaminesProject.Domain.Entities;
+
+public class Users
+{
+    public int Id { get; set; }
+    public string Email { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    [JsonIgnore]
+    public virtual ICollection<Orders> Orderses { get; set; } = new List<Orders>();
+}
+
+=== backend/NaminesProject.Infrastructure/Data/AppDbContext.cs ===
+using System;
+using Microsoft.EntityFrameworkCore;
+using NaminesProject.Domain.Entities;
+
+namespace NaminesProject.Infrastructure.Data;
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<Users> Userses { get; set; }
+    public DbSet<Products> Productses { get; set; }
+    public DbSet<Orders> Orderses { get; set; }
+    public DbSet<OrderItems> OrderItemses { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Users>().HasKey(e => e.Id);
+        modelBuilder.Entity<Products>().HasKey(e => e.Id);
+        modelBuilder.Entity<Orders>().HasKey(e => e.Id);
+        modelBuilder.Entity<OrderItems>().HasKey(e => e.Id);
+
+        modelBuilder.Entity<Orders>()
+            .HasOne(e => e.Users)
+            .WithMany(e => e.Orderses)
+            .HasForeignKey(e => e.UserId);
+
+        modelBuilder.Entity<OrderItems>()
+            .HasOne(e => e.Orders)
+            .WithMany(e => e.OrderItemses)
+            .HasForeignKey(e => e.OrderId);
+
+        modelBuilder.Entity<OrderItems>()
+            .HasOne(e => e.Products)
+            .WithMany(e => e.OrderItemses)
+            .HasForeignKey(e => e.ProductId);
+    }
+}
+
+=== docker-compose.yml ===
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: NaminesProject.API/Dockerfile
+    ports:
+      - "8080:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    volumes:
+      - sqlite-data:/app
+    restart: always
+
+volumes:
+  sqlite-data:
+
+=== frontend-sdk/queryHooks.ts ===
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
+import * as T from './types';
+
+const API_BASE = '/api';
+
+// ─── Users Hooks ──────────────────────────────────────────
+
+export function useGetUserss() {
+  return useQuery<T.Users[]>({
+    queryKey: ['Userss'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/Users`);
+      return res.data;
+    }
+  });
+}
+
+export function useGetUsers(id: any) {
+  return useQuery<T.Users>({
+    queryKey: ['Users', id],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/Users/${id}`);
+      return res.data;
+    },
+    enabled: id !== undefined && id !== null
+  });
+}
+
+export function useCreateUsers() {
+  const queryClient = useQueryClient();
+  return useMutation<T.Users, Error, T.Users>({
+    mutationFn: async (data) => {
+      const res = await axios.post(`${API_BASE}/Users`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Userss'] });
+    }
+  });
+}
+
+export function useUpdateUsers(id: any) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, T.Users>({
+    mutationFn: async (data) => {
+      await axios.put(`${API_BASE}/Users/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Userss'] });
+      queryClient.invalidateQueries({ queryKey: ['Users', id] });
+    }
+  });
+}
+
+export function useDeleteUsers() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, any>({
+    mutationFn: async (id) => {
+      await axios.delete(`${API_BASE}/Users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Userss'] });
+    }
+  });
+}
+
+// ─── Products Hooks ──────────────────────────────────────────
+
+export function useGetProductss() {
+  return useQuery<T.Products[]>({
+    queryKey: ['Productss'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/Products`);
+      return res.data;
+    }
+  });
+}
+
+export function useGetProducts(id: any) {
+  return useQuery<T.Products>({
+    queryKey: ['Products', id],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/Products/${id}`);
+      return res.data;
+    },
+    enabled: id !== undefined && id !== null
+  });
+}
+
+export function useCreateProducts() {
+  const queryClient = useQueryClient();
+  return useMutation<T.Products, Error, T.Products>({
+    mutationFn: async (data) => {
+      const res = await axios.post(`${API_BASE}/Products`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Productss'] });
+    }
+  });
+}
+
+export function useUpdateProducts(id: any) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, T.Products>({
+    mutationFn: async (data) => {
+      await axios.put(`${API_BASE}/Products/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Productss'] });
+      queryClient.invalidateQueries({ queryKey: ['Products', id] });
+    }
+  });
+}
+
+export function useDeleteProducts() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, any>({
+    mutationFn: async (id) => {
+      await axios.delete(`${API_BASE}/Products/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Productss'] });
+    }
+  });
+}
+
+// ─── Orders Hooks ──────────────────────────────────────────
+
+export function useGetOrderss() {
+  return useQuery<T.Orders[]>({
+    queryKey: ['Orderss'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/Orders`);
+      return res.data;
+    }
+  });
+}
+
+export function useGetOrders(id: any) {
+  return useQuery<T.Orders>({
+    queryKey: ['Orders', id],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/Orders/${id}`);
+      return res.data;
+    },
+    enabled: id !== undefined && id !== null
+  });
+}
+
+export function useCreateOrders() {
+  const queryClient = useQueryClient();
+  return useMutation<T.Orders, Error, T.Orders>({
+    mutationFn: async (data) => {
+      const res = await axios.post(`${API_BASE}/Orders`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Orderss'] });
+    }
+  });
+}
+
+export function useUpdateOrders(id: any) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, T.Orders>({
+    mutationFn: async (data) => {
+      await axios.put(`${API_BASE}/Orders/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Orderss'] });
+      queryClient.invalidateQueries({ queryKey: ['Orders', id] });
+    }
+  });
+}
+
+export function useDeleteOrders() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, any>({
+    mutationFn: async (id) => {
+      await axios.delete(`${API_BASE}/Orders/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['Orderss'] });
+    }
+  });
+}
+
+// ─── OrderItems Hooks ──────────────────────────────────────────
+
+export function useGetOrderItemss() {
+  return useQuery<T.OrderItems[]>({
+    queryKey: ['OrderItemss'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/OrderItems`);
+      return res.data;
+    }
+  });
+}
+
+export function useGetOrderItems(id: any) {
+  return useQuery<T.OrderItems>({
+    queryKey: ['OrderItems', id],
+    queryFn: async () => {
+      const res = await axios.get(`${API_BASE}/OrderItems/${id}`);
+      return res.data;
+    },
+    enabled: id !== undefined && id !== null
+  });
+}
+
+export function useCreateOrderItems() {
+  const queryClient = useQueryClient();
+  return useMutation<T.OrderItems, Error, T.OrderItems>({
+    mutationFn: async (data) => {
+      const res = await axios.post(`${API_BASE}/OrderItems`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['OrderItemss'] });
+    }
+  });
+}
+
+export function useUpdateOrderItems(id: any) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, T.OrderItems>({
+    mutationFn: async (data) => {
+      await axios.put(`${API_BASE}/OrderItems/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['OrderItemss'] });
+      queryClient.invalidateQueries({ queryKey: ['OrderItems', id] });
+    }
+  });
+}
+
+export function useDeleteOrderItems() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, any>({
+    mutationFn: async (id) => {
+      await axios.delete(`${API_BASE}/OrderItems/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['OrderItemss'] });
+    }
+  });
+}
+
+
+=== frontend-sdk/types.ts ===
+export interface Users {
+  id: number;
+  email: string;
+  createdat: string;
+}
+
+export interface Products {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+}
+
+export interface Orders {
+  id: number;
+  userid: number;
+  total: number;
+  placedat: string;
+}
+
+export interface OrderItems {
+  id: number;
+  orderid: number;
+  productid: number;
+  quantity: number;
+}
+
+
+=== frontend-sdk/zodSchemas.ts ===
+import { z } from 'zod';
+
+export const UsersSchema = z.object({
+  id: z.number().int(),
+  email: z.string(),
+  createdat: z.string(),
+});
+
+export type UsersInput = z.infer<typeof UsersSchema>;
+
+export const ProductsSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  price: z.number(),
+  stock: z.number().int(),
+});
+
+export type ProductsInput = z.infer<typeof ProductsSchema>;
+
+export const OrdersSchema = z.object({
+  id: z.number().int(),
+  userid: z.number().int(),
+  total: z.number(),
+  placedat: z.string(),
+});
+
+export type OrdersInput = z.infer<typeof OrdersSchema>;
+
+export const OrderItemsSchema = z.object({
+  id: z.number().int(),
+  orderid: z.number().int(),
+  productid: z.number().int(),
+  quantity: z.number().int(),
+});
+
+export type OrderItemsInput = z.infer<typeof OrderItemsSchema>;
+
+

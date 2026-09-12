@@ -84,7 +84,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-34~~ | Stability | ✅ Prod compose'da `deploy.resources.limits` | REL-005 | S |
 | ~~B-35~~ | Performance | ~~Vault yedeğini arka plan işine taşı (202 Accepted)~~ ✅ kuyruk + `BackgroundService` (kendi DI kapsamı) + açılışta uzlaştırma; arayüz iş BİTİNCE "alındı" diyor | PERF-003 | M |
 | ~~B-36~~ | Performance | ~~`mermaid` + `sql.js` dinamik import (önce ölç)~~ ✅ ÖLÇÜLDÜ: `/compile` 1830→1268 KB. CANLI DOĞRULANDI | PERF-004 | S |
-| B-37 | Architecture | `ScaffolderService`'i böl | ARCH-003, TD-003 | M |
+| ~~B-37~~ | Architecture | ~~`ScaffolderService`'i böl~~ ✅ 1.761 → 120 satır, 5 üreteç; önce snapshot testi yazıldı, çıktı birebir aynı | ARCH-003, TD-003 | M |
 | B-38 | Architecture | `AIPreferencesModal`'ı böl + tipli tercih modülü | FE-002, TD-004 | M |
 | ~~B-39~~ | Frontend | ~~`DbPushModal`'ı merkezi API istemcisine taşı~~ ✅ `executorService` | FE-005 | S |
 | B-40 | Testing | E2E: tek uçtan uca akış (Playwright) | TEST-005 | M |

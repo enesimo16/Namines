@@ -1,0 +1,614 @@
+﻿=== .env.example ===
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+
+=== Dockerfile ===
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8501
+
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+
+ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
+=== README.md ===
+# ECommerce - Python Streamlit CRUD Admin
+
+This project is a freemium admin interface generated automatically by Namines for your database schema.
+
+## Features
+- **SQLAlchemy ORM** database mapping with relationship setup
+- **Streamlit-based live CRUD** (Create, Read, Update, Delete) forms
+- **Visual metrics dashboard** to see record count distribution
+- **Dockerized development environment** using PostgreSQL
+
+## Quick Start (with Docker)
+
+1. Ensure Docker and Docker Compose are installed on your machine.
+2. Build and run the services:
+   ```bash
+   docker compose up --build -d
+   ```
+3. Access your live Streamlit CRUD interface at:
+   [http://localhost:8501](http://localhost:8501)
+
+## Manual Run (Virtual Environment)
+
+1. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Set your PostgreSQL environment variable and run the application:
+   ```bash
+   export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+   streamlit run app.py
+   ```
+
+=== app.py ===
+import streamlit as st
+import pandas as pd
+from database import SessionLocal, init_db, Users, Products, Orders, OrderItems
+from sqlalchemy.inspection import inspect
+import datetime
+
+st.set_page_config(page_title='Namines CRUD Admin', page_icon='🗂️', layout='wide', initial_sidebar_state='expanded')
+
+st.markdown("""
+    <style>
+    .main { background-color: #0b0f19; color: #f3f4f6; }
+    .stButton>button { background-color: #4f46e5; color: white; border-radius: 8px; font-weight: bold; }
+    </style>
+""", unsafe_allow_html=True)
+
+try:
+    init_db()
+except Exception as e:
+    st.error(f'Database Connection Error: {e}')
+
+db = SessionLocal()
+
+st.sidebar.title('🗂️ CRUD Engine')
+st.sidebar.subheader('Namines Admin Panel')
+
+nav_options = ['🏠 Dashboard'] + ['Users', 'Products', 'Orders', 'OrderItems']
+choice = st.sidebar.selectbox('Navigate', nav_options)
+
+if choice == '🏠 Dashboard':
+    st.title('🏠 Live Dashboard')
+    st.write('System metrics and overview of the database.')
+
+    cols = st.columns(3)
+    cols[0].metric('Total Tables', 4)
+    
+    table_data = []
+    try:
+        count = db.query(Users).count()
+        table_data.append({'Table': 'Users', 'Row Count': count})
+    except Exception:
+        table_data.append({'Table': 'Users', 'Row Count': 'Error'})
+    try:
+        count = db.query(Products).count()
+        table_data.append({'Table': 'Products', 'Row Count': count})
+    except Exception:
+        table_data.append({'Table': 'Products', 'Row Count': 'Error'})
+    try:
+        count = db.query(Orders).count()
+        table_data.append({'Table': 'Orders', 'Row Count': count})
+    except Exception:
+        table_data.append({'Table': 'Orders', 'Row Count': 'Error'})
+    try:
+        count = db.query(OrderItems).count()
+        table_data.append({'Table': 'OrderItems', 'Row Count': count})
+    except Exception:
+        table_data.append({'Table': 'OrderItems', 'Row Count': 'Error'})
+    df_stats = pd.DataFrame(table_data)
+    cols[1].metric('Total Records', df_stats['Row Count'].sum() if 'Error' not in df_stats['Row Count'].values else 'Unknown')
+
+    st.subheader('Database Schema Overview')
+    st.dataframe(df_stats, use_container_width=True)
+
+elif choice == 'Users':
+    st.title('📋 Users Manager')
+
+    action = st.radio('Select Action', ['View Records', 'Create Record', 'Update Record', 'Delete Record'], horizontal=True)
+
+    if action == 'View Records':
+        st.subheader('Registered Data')
+        try:
+            records = db.query(Users).all()
+            if records:
+                data = []
+                for r in records:
+                    row = {}
+                    row['Id'] = getattr(r, 'id')
+                    row['Email'] = getattr(r, 'email')
+                    row['CreatedAt'] = getattr(r, 'createdat')
+                    data.append(row)
+                st.dataframe(pd.DataFrame(data), use_container_width=True)
+            else:
+                st.info('No records found in this table.')
+        except Exception as e:
+            st.error(f'Error reading table: {e}')
+
+    elif action == 'Create Record':
+        st.subheader('Add New Record')
+        with st.form('create_form_Users'):
+            st.text_input('Id', value='Auto-Incremented', disabled=True)
+            val_email = st.text_input('Email', value='')
+            val_createdat = st.date_input('CreatedAt', value=datetime.date.today())
+            submitted = st.form_submit_button('Save Record')
+            if submitted:
+                try:
+                    new_record = Users(
+                        email=val_email,
+                        createdat=datetime.datetime.combine(val_createdat, datetime.time.min),
+                    )
+                    db.add(new_record)
+                    db.commit()
+                    st.success('Record successfully added!')
+                except Exception as e:
+                    db.rollback()
+                    st.error(f'Error saving record: {e}')
+
+    elif action == 'Update Record':
+        st.subheader('Modify Existing Record')
+        try:
+            records = db.query(Users).all()
+            if not records:
+                st.info('No records to update.')
+            else:
+                keys = [getattr(r, 'id') for r in records]
+                selected_key = st.selectbox('Select Record to Update (Id)', keys)
+                record_to_update = db.query(Users).filter(getattr(Users, 'id') == selected_key).first()
+                if record_to_update:
+                    with st.form('update_form_Users'):
+                        st.text_input('Id', value=str(getattr(record_to_update, 'id')), disabled=True)
+                        val_email = st.text_input('Email', value=str(getattr(record_to_update, 'email') or ''))
+                        orig_val = getattr(record_to_update, 'createdat')
+                        val_createdat = st.date_input('CreatedAt', value=orig_val.date() if orig_val else datetime.date.today())
+                        submitted = st.form_submit_button('Update')
+                        if submitted:
+                            try:
+                                record_to_update.email = val_email
+                                record_to_update.createdat = datetime.datetime.combine(val_createdat, datetime.time.min)
+                                db.commit()
+                                st.success('Record successfully updated!')
+                            except Exception as e:
+                                db.rollback()
+                                st.error(f'Error updating record: {e}')
+        except Exception as e:
+            st.error(f'System error: {e}')
+
+    elif action == 'Delete Record':
+        st.subheader('Remove Record')
+        try:
+            records = db.query(Users).all()
+            if not records:
+                st.info('No records to delete.')
+            else:
+                keys = [getattr(r, 'id') for r in records]
+                selected_key = st.selectbox('Select Record to Delete (Id)', keys)
+                if st.button('Confirm Delete Record'):
+                    try:
+                        record_to_del = db.query(Users).filter(getattr(Users, 'id') == selected_key).first()
+                        if record_to_del:
+                            db.delete(record_to_del)
+                            db.commit()
+                            st.success('Record deleted successfully!')
+                            st.rerun()
+                    except Exception as e:
+                        db.rollback()
+                        st.error(f'Error deleting record: {e}')
+        except Exception as e:
+            st.error(f'System error: {e}')
+
+elif choice == 'Products':
+    st.title('📋 Products Manager')
+
+    action = st.radio('Select Action', ['View Records', 'Create Record', 'Update Record', 'Delete Record'], horizontal=True)
+
+    if action == 'View Records':
+        st.subheader('Registered Data')
+        try:
+            records = db.query(Products).all()
+            if records:
+                data = []
+                for r in records:
+                    row = {}
+                    row['Id'] = getattr(r, 'id')
+                    row['Name'] = getattr(r, 'name')
+                    row['Price'] = getattr(r, 'price')
+                    row['Stock'] = getattr(r, 'stock')
+                    data.append(row)
+                st.dataframe(pd.DataFrame(data), use_container_width=True)
+            else:
+                st.info('No records found in this table.')
+        except Exception as e:
+            st.error(f'Error reading table: {e}')
+
+    elif action == 'Create Record':
+        st.subheader('Add New Record')
+        with st.form('create_form_Products'):
+            st.text_input('Id', value='Auto-Incremented', disabled=True)
+            val_name = st.text_input('Name', value='')
+            val_price = st.number_input('Price', value=0.0)
+            val_stock = st.number_input('Stock', value=0, step=1)
+            submitted = st.form_submit_button('Save Record')
+            if submitted:
+                try:
+                    new_record = Products(
+                        name=val_name,
+                        price=val_price,
+                        stock=val_stock,
+                    )
+                    db.add(new_record)
+                    db.commit()
+                    st.success('Record successfully added!')
+                except Exception as e:
+                    db.rollback()
+                    st.error(f'Error saving record: {e}')
+
+    elif action == 'Update Record':
+        st.subheader('Modify Existing Record')
+        try:
+            records = db.query(Products).all()
+            if not records:
+                st.info('No records to update.')
+            else:
+                keys = [getattr(r, 'id') for r in records]
+                selected_key = st.selectbox('Select Record to Update (Id)', keys)
+                record_to_update = db.query(Products).filter(getattr(Products, 'id') == selected_key).first()
+                if record_to_update:
+                    with st.form('update_form_Products'):
+                        st.text_input('Id', value=str(getattr(record_to_update, 'id')), disabled=True)
+                        val_name = st.text_input('Name', value=str(getattr(record_to_update, 'name') or ''))
+                        val_price = st.number_input('Price', value=float(getattr(record_to_update, 'price') or 0.0))
+                        val_stock = st.number_input('Stock', value=int(getattr(record_to_update, 'stock') or 0), step=1)
+                        submitted = st.form_submit_button('Update')
+                        if submitted:
+                            try:
+                                record_to_update.name = val_name
+                                record_to_update.price = val_price
+                                record_to_update.stock = val_stock
+                                db.commit()
+                                st.success('Record successfully updated!')
+                            except Exception as e:
+                                db.rollback()
+                                st.error(f'Error updating record: {e}')
+        except Exception as e:
+            st.error(f'System error: {e}')
+
+    elif action == 'Delete Record':
+        st.subheader('Remove Record')
+        try:
+            records = db.query(Products).all()
+            if not records:
+                st.info('No records to delete.')
+            else:
+                keys = [getattr(r, 'id') for r in records]
+                selected_key = st.selectbox('Select Record to Delete (Id)', keys)
+                if st.button('Confirm Delete Record'):
+                    try:
+                        record_to_del = db.query(Products).filter(getattr(Products, 'id') == selected_key).first()
+                        if record_to_del:
+                            db.delete(record_to_del)
+                            db.commit()
+                            st.success('Record deleted successfully!')
+                            st.rerun()
+                    except Exception as e:
+                        db.rollback()
+                        st.error(f'Error deleting record: {e}')
+        except Exception as e:
+            st.error(f'System error: {e}')
+
+elif choice == 'Orders':
+    st.title('📋 Orders Manager')
+
+    action = st.radio('Select Action', ['View Records', 'Create Record', 'Update Record', 'Delete Record'], horizontal=True)
+
+    if action == 'View Records':
+        st.subheader('Registered Data')
+        try:
+            records = db.query(Orders).all()
+            if records:
+                data = []
+                for r in records:
+                    row = {}
+                    row['Id'] = getattr(r, 'id')
+                    row['UserId'] = getattr(r, 'userid')
+                    row['Total'] = getattr(r, 'total')
+                    row['PlacedAt'] = getattr(r, 'placedat')
+                    data.append(row)
+                st.dataframe(pd.DataFrame(data), use_container_width=True)
+            else:
+                st.info('No records found in this table.')
+        except Exception as e:
+            st.error(f'Error reading table: {e}')
+
+    elif action == 'Create Record':
+        st.subheader('Add New Record')
+        with st.form('create_form_Orders'):
+            st.text_input('Id', value='Auto-Incremented', disabled=True)
+            val_userid = st.number_input('UserId', value=0, step=1)
+            val_total = st.number_input('Total', value=0.0)
+            val_placedat = st.date_input('PlacedAt', value=datetime.date.today())
+            submitted = st.form_submit_button('Save Record')
+            if submitted:
+                try:
+                    new_record = Orders(
+                        userid=val_userid,
+                        total=val_total,
+                        placedat=datetime.datetime.combine(val_placedat, datetime.time.min),
+                    )
+                    db.add(new_record)
+                    db.commit()
+                    st.success('Record successfully added!')
+                except Exception as e:
+                    db.rollback()
+                    st.error(f'Error saving record: {e}')
+
+    elif action == 'Update Record':
+        st.subheader('Modify Existing Record')
+        try:
+            records = db.query(Orders).all()
+            if not records:
+                st.info('No records to update.')
+            else:
+                keys = [getattr(r, 'id') for r in records]
+                selected_key = st.selectbox('Select Record to Update (Id)', keys)
+                record_to_update = db.query(Orders).filter(getattr(Orders, 'id') == selected_key).first()
+                if record_to_update:
+                    with st.form('update_form_Orders'):
+                        st.text_input('Id', value=str(getattr(record_to_update, 'id')), disabled=True)
+                        val_userid = st.number_input('UserId', value=int(getattr(record_to_update, 'userid') or 0), step=1)
+                        val_total = st.number_input('Total', value=float(getattr(record_to_update, 'total') or 0.0))
+                        orig_val = getattr(record_to_update, 'placedat')
+                        val_placedat = st.date_input('PlacedAt', value=orig_val.date() if orig_val else datetime.date.today())
+                        submitted = st.form_submit_button('Update')
+                        if submitted:
+                            try:
+                                record_to_update.userid = val_userid
+                                record_to_update.total = val_total
+                                record_to_update.placedat = datetime.datetime.combine(val_placedat, datetime.time.min)
+                                db.commit()
+                                st.success('Record successfully updated!')
+                            except Exception as e:
+                                db.rollback()
+                                st.error(f'Error updating record: {e}')
+        except Exception as e:
+            st.error(f'System error: {e}')
+
+    elif action == 'Delete Record':
+        st.subheader('Remove Record')
+        try:
+            records = db.query(Orders).all()
+            if not records:
+                st.info('No records to delete.')
+            else:
+                keys = [getattr(r, 'id') for r in records]
+                selected_key = st.selectbox('Select Record to Delete (Id)', keys)
+                if st.button('Confirm Delete Record'):
+                    try:
+                        record_to_del = db.query(Orders).filter(getattr(Orders, 'id') == selected_key).first()
+                        if record_to_del:
+                            db.delete(record_to_del)
+                            db.commit()
+                            st.success('Record deleted successfully!')
+                            st.rerun()
+                    except Exception as e:
+                        db.rollback()
+                        st.error(f'Error deleting record: {e}')
+        except Exception as e:
+            st.error(f'System error: {e}')
+
+elif choice == 'OrderItems':
+    st.title('📋 OrderItems Manager')
+
+    action = st.radio('Select Action', ['View Records', 'Create Record', 'Update Record', 'Delete Record'], horizontal=True)
+
+    if action == 'View Records':
+        st.subheader('Registered Data')
+        try:
+            records = db.query(OrderItems).all()
+            if records:
+                data = []
+                for r in records:
+                    row = {}
+                    row['Id'] = getattr(r, 'id')
+                    row['OrderId'] = getattr(r, 'orderid')
+                    row['ProductId'] = getattr(r, 'productid')
+                    row['Quantity'] = getattr(r, 'quantity')
+                    data.append(row)
+                st.dataframe(pd.DataFrame(data), use_container_width=True)
+            else:
+                st.info('No records found in this table.')
+        except Exception as e:
+            st.error(f'Error reading table: {e}')
+
+    elif action == 'Create Record':
+        st.subheader('Add New Record')
+        with st.form('create_form_OrderItems'):
+            st.text_input('Id', value='Auto-Incremented', disabled=True)
+            val_orderid = st.number_input('OrderId', value=0, step=1)
+            val_productid = st.number_input('ProductId', value=0, step=1)
+            val_quantity = st.number_input('Quantity', value=0, step=1)
+            submitted = st.form_submit_button('Save Record')
+            if submitted:
+                try:
+                    new_record = OrderItems(
+                        orderid=val_orderid,
+                        productid=val_productid,
+                        quantity=val_quantity,
+                    )
+                    db.add(new_record)
+                    db.commit()
+                    st.success('Record successfully added!')
+                except Exception as e:
+                    db.rollback()
+                    st.error(f'Error saving record: {e}')
+
+    elif action == 'Update Record':
+        st.subheader('Modify Existing Record')
+        try:
+            records = db.query(OrderItems).all()
+            if not records:
+                st.info('No records to update.')
+            else:
+                keys = [getattr(r, 'id') for r in records]
+                selected_key = st.selectbox('Select Record to Update (Id)', keys)
+                record_to_update = db.query(OrderItems).filter(getattr(OrderItems, 'id') == selected_key).first()
+                if record_to_update:
+                    with st.form('update_form_OrderItems'):
+                        st.text_input('Id', value=str(getattr(record_to_update, 'id')), disabled=True)
+                        val_orderid = st.number_input('OrderId', value=int(getattr(record_to_update, 'orderid') or 0), step=1)
+                        val_productid = st.number_input('ProductId', value=int(getattr(record_to_update, 'productid') or 0), step=1)
+                        val_quantity = st.number_input('Quantity', value=int(getattr(record_to_update, 'quantity') or 0), step=1)
+                        submitted = st.form_submit_button('Update')
+                        if submitted:
+                            try:
+                                record_to_update.orderid = val_orderid
+                                record_to_update.productid = val_productid
+                                record_to_update.quantity = val_quantity
+                                db.commit()
+                                st.success('Record successfully updated!')
+                            except Exception as e:
+                                db.rollback()
+                                st.error(f'Error updating record: {e}')
+        except Exception as e:
+            st.error(f'System error: {e}')
+
+    elif action == 'Delete Record':
+        st.subheader('Remove Record')
+        try:
+            records = db.query(OrderItems).all()
+            if not records:
+                st.info('No records to delete.')
+            else:
+                keys = [getattr(r, 'id') for r in records]
+                selected_key = st.selectbox('Select Record to Delete (Id)', keys)
+                if st.button('Confirm Delete Record'):
+                    try:
+                        record_to_del = db.query(OrderItems).filter(getattr(OrderItems, 'id') == selected_key).first()
+                        if record_to_del:
+                            db.delete(record_to_del)
+                            db.commit()
+                            st.success('Record deleted successfully!')
+                            st.rerun()
+                    except Exception as e:
+                        db.rollback()
+                        st.error(f'Error deleting record: {e}')
+        except Exception as e:
+            st.error(f'System error: {e}')
+
+db.close()
+
+=== database.py ===
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Numeric
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+import os
+from datetime import datetime
+
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@db:5432/postgres')
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class Users(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False)
+    createdat = Column(DateTime, nullable=False)
+
+class Products(Base):
+    __tablename__ = 'products'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    price = Column(Numeric, nullable=False)
+    stock = Column(Integer, nullable=False)
+
+class Orders(Base):
+    __tablename__ = 'orders'
+
+    id = Column(Integer, primary_key=True)
+    userid = Column(Integer, nullable=False, ForeignKey('users.id'))
+    total = Column(Numeric, nullable=False)
+    placedat = Column(DateTime, nullable=False)
+    users = relationship('Users')
+
+class OrderItems(Base):
+    __tablename__ = 'orderitems'
+
+    id = Column(Integer, primary_key=True)
+    orderid = Column(Integer, nullable=False, ForeignKey('orders.id'))
+    productid = Column(Integer, nullable=False, ForeignKey('products.id'))
+    quantity = Column(Integer, nullable=False)
+    orders = relationship('Orders')
+    products = relationship('Products')
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
+
+
+=== docker-compose.yml ===
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: namines_postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: namines_streamlit_app
+    restart: always
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+
+=== requirements.txt ===
+streamlit==1.32.0
+SQLAlchemy==2.0.28
+psycopg2-binary==2.9.9
+pandas==2.2.1
+
