@@ -45,18 +45,39 @@ public sealed class PostgresBackupProvider : ContainerBackupProvider
         "-U", conn.Username, "-d", conn.Database,
     };
 
-    internal override IList<string> BuildRestoreCommand(DbConnectionParts conn) => new List<string>
+    internal override IList<string> BuildRestoreCommand(DbConnectionParts conn, IReadOnlyList<string>? tables)
     {
         // --clean --if-exists: hedefteki nesneler önce DÜŞÜRÜLÜR. Bu, geri
         // yüklemenin "üzerine yaz" anlamına geldiği yer — çağıran onayı ve
         // ön yedeği almış olmak zorunda.
         // --exit-on-error: ilk hatada dur. Varsayılan "devam et" davranışı
         // yarım geri yüklenmiş bir veritabanını BAŞARILI gösterirdi.
-        "pg_restore", "--clean", "--if-exists", "--no-owner", "--no-acl", "--exit-on-error",
-        "-h", conn.ContainerVisibleHost, "-p", conn.Port.ToString(),
-        "-U", conn.Username, "-d", conn.Database,
-        ContainerDumpPath,
-    };
+        var cmd = new List<string>
+        {
+            "pg_restore", "--clean", "--if-exists", "--no-owner", "--no-acl", "--exit-on-error",
+        };
+
+        // KISMİ geri yükleme (B-43). Bu mümkün çünkü dump `-Fc` (özel biçim)
+        // — `pg_restore -t` yalnızca özel/dizin/tar biçiminde çalışır, düz
+        // SQL'de çalışmaz. `--clean` ile birlikte kullanıldığında pg_restore
+        // YALNIZCA seçilen tabloları düşürüp geri yükler; ölçülerek doğrulandı
+        // (bkz. Namines.Tests/Vault/PartialRestoreCommandTests.cs — komutun
+        // gerçek Docker olmadan da doğru üretildiğini kanıtlıyor; canlı
+        // pg_restore çalıştırması ise Docker/disk kısıtı yüzünden bu oturumda
+        // yapılamadı, bkz. namines-vault dokümanı).
+        if (tables is { Count: > 0 })
+        {
+            foreach (var table in tables)
+                cmd.AddRange(["-t", table]);
+        }
+
+        cmd.AddRange([
+            "-h", conn.ContainerVisibleHost, "-p", conn.Port.ToString(),
+            "-U", conn.Username, "-d", conn.Database,
+            ContainerDumpPath,
+        ]);
+        return cmd;
+    }
 
     protected override IList<string> BuildVerifyServerEnvironment() => new List<string>
     {

@@ -89,9 +89,16 @@ public abstract class ContainerBackupProvider : IBackupProvider, IDisposable
 
     /// <summary>
     /// <see cref="ContainerDumpPath"/>'teki dump'ı kullanıcının veritabanına
-    /// uygulayan komut. <b>Hedefin mevcut nesnelerini SİLER</b>.
+    /// uygulayan komut. <b>Hedefin mevcut nesnelerini SİLER</b> (tabloları
+    /// SEÇİLMİŞSE yalnızca o tabloların nesnelerini).
     /// </summary>
-    internal abstract IList<string> BuildRestoreCommand(DbConnectionParts conn);
+    /// <param name="tables">
+    /// KISMİ geri yükleme (B-43): boş/null ise tam geri yükleme. Sağlayıcı
+    /// bunu desteklemiyorsa (ör. düz SQL dökümü) <see cref="NotSupportedException"/>
+    /// fırlatmalı — sessizce TAM geri yükleme yapmak, kullanıcının "yalnızca
+    /// şu tabloyu" seçimini görmezden gelip veri kaybına yol açardı.
+    /// </param>
+    internal abstract IList<string> BuildRestoreCommand(DbConnectionParts conn, IReadOnlyList<string>? tables);
 
     /// <summary>Doğrulama sunucusunu ayağa kaldıran ortam değişkenleri.</summary>
     protected abstract IList<string> BuildVerifyServerEnvironment();
@@ -111,6 +118,9 @@ public abstract class ContainerBackupProvider : IBackupProvider, IDisposable
     public async Task RestoreAsync(RestoreSpec spec, Stream source, CancellationToken ct)
     {
         var conn = DbConnectionParts.Parse(spec.ConnectionString, DefaultPort);
+        // Komutu ERKEN üret: sağlayıcı kısmi geri yüklemeyi desteklemiyorsa
+        // (NotSupportedException) hiç dosya yazmadan/indirmeden hemen patlasın.
+        var restoreCommand = BuildRestoreCommand(conn, spec.Tables);
 
         // Dump, stdin'den DEĞİL dosyadan okunuyor.
         //
@@ -129,7 +139,7 @@ public abstract class ContainerBackupProvider : IBackupProvider, IDisposable
                 await source.CopyToAsync(file, ct);
             }
 
-            await RunAsync(BuildRestoreCommand(conn), conn, uploadFromPath: temp, stdout: null, ct);
+            await RunAsync(restoreCommand, conn, uploadFromPath: temp, stdout: null, ct);
         }
         finally
         {

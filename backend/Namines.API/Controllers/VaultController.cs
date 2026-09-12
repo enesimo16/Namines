@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -17,7 +18,12 @@ namespace Namines.API.Controllers;
 /// tek tıkla tetiklenebilmesi, yanlış satıra basan biri için geri dönüşü
 /// olmayan bir kayıp demekti.
 /// </param>
-public sealed record RestoreBackupRequest(string ConfirmDatabaseName);
+/// <param name="Tables">
+/// KISMİ geri yükleme (B-43): yalnızca bu tabloları geri yükle. Boş/null ise
+/// tam geri yükleme. Yalnızca PostgreSQL yedeklerinde desteklenir — özel
+/// biçim (custom-format) dump gerektirir.
+/// </param>
+public sealed record RestoreBackupRequest(string ConfirmDatabaseName, IReadOnlyList<string>? Tables = null);
 
 /// <param name="Cadence">"Daily" veya "Weekly".</param>
 /// <param name="DayOfWeek">Haftalıkta 0 (Pazar) – 6. Günlükte yok sayılır.</param>
@@ -255,10 +261,12 @@ public class VaultController : ControllerBase
     }
 
     /// <summary>
-    /// Geri yükler. <b>Hedefteki veriyi SİLER.</b>
+    /// Geri yükler. <b>Hedefteki veriyi SİLER</b> (tablolar SEÇİLMİŞSE yalnızca
+    /// o tabloların verisini — B-43 kısmi geri yükleme).
     ///
     /// Owner şartı: bir Admin bir tabloyu Gateway'e açabiliyor, ama veritabanının
-    /// tamamının üzerine yazmak faturalama/org silme ile aynı ağırlıkta.
+    /// tamamının (ya da bir tablosunun) üzerine yazmak faturalama/org silme ile
+    /// aynı ağırlıkta — kısmi olması onayı hafifletmiyor.
     /// </summary>
     [HttpPost("{projectId}/backups/{backupId}/restore")]
     public async Task<IActionResult> Restore(
@@ -277,7 +285,7 @@ public class VaultController : ControllerBase
         var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
         if (project is null) return NotFound();
 
-        var result = await _vault.RestoreAsync(project, backup, userId, ct);
+        var result = await _vault.RestoreAsync(project, backup, userId, ct, request?.Tables);
         return result.Ok
             ? Ok(new { restored = true, preRestoreBackupId = result.BackupId })
             : BadRequest(new { error = result.Error });
