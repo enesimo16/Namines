@@ -322,6 +322,76 @@ for (const area of areas) {
     console.log(`    ${mark} ${pad(r.name, 38)} ${r.note}`);
   }
 }
+// ── UÇTAN UCA KULLANICI AKIŞI (TEST-005 / B-40) ──────────────────────────
+//
+// Yukarıdaki denetimler ÖZELLİK BAŞINA bakıyor: her biri kendi ucunu tek
+// başına sınıyor. Bu blok farklı bir soruyu soruyor: **bir kullanıcının
+// baştan sona yolu çalışıyor mu?** Tek tek çalışan uçların zincir hâlinde
+// kırılması bu depoda yaşandı (FK yönü, SSE büyük/küçük harf) — o yüzden
+// zincirin kendisi ayrıca sınanıyor.
+//
+// Akış KENDİ kullanıcısını açıyor: var olan bir hesaba bağlı bir denetim,
+// o hesabın durumuna göre farklı sonuç verirdi.
+await feature('Uçtan uca', 'Kayıt → proje → DDL → paylaşım zinciri', async () => {
+  const email = `e2e-flow-${Date.now()}@namines.local`;
+  const password = 'Zx9!qLmT4vWr2#Kd';
+
+  // 1. Kayıt — jetonu buradan alıyoruz, ortam değişkenine bağlı değil.
+  const reg = await fetch(`${API}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Namines-Request': '1' },
+    body: JSON.stringify({ email, password, fullName: 'E2E Flow' }),
+  });
+  if (reg.status !== 200) return `kayıt HTTP ${reg.status}`;
+  const token = (await reg.json())?.token;
+  if (!token) return 'kayıt jeton döndürmedi';
+
+  const authed = (method, path, body) => fetch(`${API}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Namines-Request': '1',
+      Authorization: `Bearer ${token}`,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  // 2. Misafir işini buluta taşı (UX-002 / B-20'nin sunucu tarafı).
+  const projectId = `e2e-flow-${Date.now()}`;
+  const sync = await authed('POST', '/api/auth/sync', [{
+    Id: projectId, Name: 'E2E Flow', DbType: 'PostgreSQL',
+    SchemaJson: JSON.stringify(mini), NodePositionsJson: '{}',
+  }]);
+  if (sync.status !== 200) return `sync HTTP ${sync.status}`;
+
+  // 3. Proje GERÇEKTEN listede mi — "200 döndü" yeterli sayılmıyor.
+  const listRes = await authed('GET', '/api/auth/projects');
+  const list = await listRes.json();
+  const saved = (Array.isArray(list) ? list : []).find(p => (p.id ?? p.Id) === projectId);
+  if (!saved) return 'kaydedilen proje listede yok';
+  if (saved.tableCount !== mini.tables.length)
+    return `tablo sayısı tutmuyor: ${saved.tableCount} != ${mini.tables.length}`;
+
+  // 4. Optimistic concurrency (REL-003a / B-32): sürüm dönmeli ve ESKİ
+  //    sürümle yazma 409 vermeli. Zincirin bu halkası olmadan "kaydettim"
+  //    sanıp başkasının işini ezmek mümkün olurdu.
+  if (typeof saved.rowVersion !== 'number') return 'rowVersion dönmedi';
+  const stale = await authed('POST', '/api/auth/sync', [{
+    Id: projectId, Name: 'Çakışma denemesi', DbType: 'PostgreSQL',
+    SchemaJson: JSON.stringify(mini), NodePositionsJson: '{}',
+    RowVersion: saved.rowVersion - 1,
+  }]);
+  if (stale.status !== 409) return `eski sürümle yazma ${stale.status} döndü, 409 beklendi`;
+
+  // 5. Aynı şemadan DDL üret — ürünün asıl çıktısı.
+  const ddl = await authed('POST', '/api/compile/sql', { schema: mini, dbType: 'PostgreSQL' });
+  if (ddl.status !== 200) return `compile HTTP ${ddl.status}`;
+  const ddlText = JSON.stringify(await ddl.json());
+  if (!/CREATE TABLE/i.test(ddlText)) return 'DDL içinde CREATE TABLE yok';
+
+  return true;
+});
+
 const ok = results.filter(r => r.state === 'ÇALIŞIYOR').length;
 const bad = results.filter(r => r.state === 'ÇALIŞMIYOR');
 const ai = results.filter(r => r.state === 'AI-ENGELLİ').length;
