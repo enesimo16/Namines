@@ -20,7 +20,13 @@ export const DEFAULT_PROJECT_NAME = 'Untitled Project';
  * "kullanıcının seçtiği isim" sayılır ve şema yüklenirken adı ezilmez —
  * yani eski projeler yeni şemayı aldıklarında yanlış başlıkla kalırdı.
  */
-const PLACEHOLDER_PROJECT_NAMES = [DEFAULT_PROJECT_NAME, 'Yeni Proje', 'Shared Room Project'];
+// 'Untitled Schema' BURAYA test yazarken eklendi (B-15). `app/canvas/page.tsx`
+// sifirdan baslatilan semaya bu adi veriyor; listede olmadigi icin 'ozel ad'
+// sayiliyordu ve sonradan yuklenen bir SABLONUN adi ALINMIYORDU -- kullanici
+// 40 tablolu sablonu yukluyor, baslikta hala 'Untitled Schema' yaziyordu.
+const PLACEHOLDER_PROJECT_NAMES = [
+  DEFAULT_PROJECT_NAME, 'Yeni Proje', 'Shared Room Project', 'Untitled Schema',
+];
 
 const isPlaceholderProjectName = (name: string): boolean =>
   name.trim() === '' || PLACEHOLDER_PROJECT_NAMES.includes(name);
