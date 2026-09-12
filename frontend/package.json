@@ -9,7 +9,9 @@
     "lint": "eslint",
     "check:design": "node scripts/check-design-rules.mjs",
     "check:templates": "node scripts/check-templates.mjs",
-    "check:e2e": "node scripts/check-e2e.mjs"
+    "check:e2e": "node scripts/check-e2e.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
@@ -34,7 +36,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.2",
     "@types/prismjs": "^1.26.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -42,6 +44,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.0"
   }
 }
