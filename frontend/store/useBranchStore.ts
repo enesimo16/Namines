@@ -1,14 +1,44 @@
 import { create } from 'zustand';
+import type { SchemaColumn, SchemaTable } from '../types/schema';
 
-interface MergeConflictItem {
-  id: string; // Eşleşen key (örn: tableId veya tableId-columnId)
-  type: 'table_name' | 'table_added' | 'table_deleted' | 'column_added' | 'column_deleted' | 'column_modified';
+/**
+ * Birlestirme cakismasi.
+ *
+ * **AYRIMLI BIRLESIM (discriminated union), ve bu bir suslemeden fazlasi:**
+ * `sourceValue`/`targetValue` cakismanin TURUNE gore farkli sey tasiyor --
+ * tablo eklendi/silindi ise tablonun kendisi, ad degistiyse metin, kolon
+ * degisikliginde kolon. Onceden ikisi de `any` idi ve `ConflictResolverModal`
+ * her dalda "burada tablo gelir" varsayimiyla okuyordu; varsayim yanlis olsa
+ * derleyici susardı ve birlestirme YANLIS sema uretirdi.
+ *
+ * Simdi `item.type` kontrolu degerin tipini de daraltiyor: modal bir dalda
+ * yanlis sekli okursa DERLENMEZ.
+ */
+interface MergeConflictBase {
+  /** Eslesen key (or. tableId ya da tableId-columnId-durum). */
+  id: string;
   tableName: string;
   columnName?: string;
-  sourceValue: any; // Mevcut (aktif) dalın değeri
-  targetValue: any; // Hedef (birleştirilen) dalın değeri
-  selectedChoice: 'source' | 'target'; // Kullanıcının seçimi
+  /** Kullanicinin secimi; varsayilan olarak bir tarafi isaret eder. */
+  selectedChoice: 'source' | 'target';
 }
+
+export type MergeConflictItem =
+  | (MergeConflictBase & {
+      type: 'table_added' | 'table_deleted';
+      sourceValue: SchemaTable | null;
+      targetValue: SchemaTable | null;
+    })
+  | (MergeConflictBase & {
+      type: 'table_name';
+      sourceValue: string;
+      targetValue: string;
+    })
+  | (MergeConflictBase & {
+      type: 'column_added' | 'column_deleted' | 'column_modified';
+      sourceValue: SchemaColumn | null;
+      targetValue: SchemaColumn | null;
+    });
 
 interface BranchState {
   compareBranchName: string | null;

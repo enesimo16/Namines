@@ -1,9 +1,10 @@
+import type { Database, SqlJsStatic, SqlValue } from 'sql.js';
 import localforage from 'localforage';
 import { errorMessage } from '../lib/errors';
 
-let SQL: any = null;
-let sqlPromise: Promise<any> | null = null;
-let dbInstance: any = null;
+let SQL: SqlJsStatic | null = null;
+let sqlPromise: Promise<SqlJsStatic> | null = null;
+let dbInstance: Database | null = null;
 
 /**
  * sql.js WASM kütüphanesini yükler.
@@ -81,9 +82,27 @@ async function getSqlInstance() {
 
 export interface SqlQueryResult {
   columns: string[];
-  rows: Record<string, any>[];
+  rows: Record<string, SqlValue>[];
   message?: string;
   isSelect: boolean;
+}
+
+/**
+ * Veritabanini gerektigi gibi baslatir ve ORNEGI DONDURUR.
+ *
+ * <b>Neden gerekli:</b> `if (!dbInstance) await this.initDb()` deseni
+ * TypeScript'in null daraltmasini `await` sonrasinda KORUYAMIYOR -- ve bu
+ * yalnizca bir tip sikayeti degildi: `initDb` bir sebeple basarisiz olursa
+ * (WASM inmedi) sonraki satir `dbInstance.run` ile TypeError atiyordu, yani
+ * kullanici "Cannot read properties of null" goruyordu. Simdi ACIK bir hata
+ * mesaji veriliyor.
+ */
+async function requireDb(): Promise<Database> {
+  if (!dbInstance) await sqliteService.initDb();
+  if (!dbInstance) {
+    throw new Error('The in-memory SQLite database could not be initialised.');
+  }
+  return dbInstance;
 }
 
 export const sqliteService = {
@@ -112,12 +131,10 @@ export const sqliteService = {
    * Executes a multi-statement SQL script (DDL / Seeding).
    */
   async executeScript(sql: string): Promise<{ success: boolean; message: string }> {
-    if (!dbInstance) {
-      await this.initDb();
-    }
+    const db = await requireDb();
 
     try {
-      dbInstance.run(sql);
+      db.run(sql);
       return {
         success: true,
         message: 'SQL script executed successfully.'
@@ -132,16 +149,14 @@ export const sqliteService = {
    * Executes a single SQL query (SELECT or DDL/DML) and returns normalized results.
    */
   async executeQuery(sql: string): Promise<SqlQueryResult> {
-    if (!dbInstance) {
-      await this.initDb();
-    }
+    const db = await requireDb();
 
     const trimmedSql = sql.trim().toLowerCase();
     const isSelect = trimmedSql.startsWith('select') || trimmedSql.startsWith('pragma') || trimmedSql.startsWith('explain');
 
     try {
       if (isSelect) {
-        const res = dbInstance.exec(sql);
+        const res = db.exec(sql);
         
         if (!res || res.length === 0) {
           return {
@@ -154,8 +169,8 @@ export const sqliteService = {
 
         const columns = res[0].columns;
         const values = res[0].values;
-        const rows = values.map((row: any[]) => {
-          const rowObj: Record<string, any> = {};
+        const rows = values.map((row: SqlValue[]) => {
+          const rowObj: Record<string, SqlValue> = {};
           columns.forEach((col: string, idx: number) => {
             rowObj[col] = row[idx];
           });
@@ -169,8 +184,8 @@ export const sqliteService = {
         };
       } else {
         // DDL / DML execute
-        dbInstance.run(sql);
-        const modifiedRows = dbInstance.getRowsModified();
+        db.run(sql);
+        const modifiedRows = db.getRowsModified();
         return {
           columns: [],
           rows: [],

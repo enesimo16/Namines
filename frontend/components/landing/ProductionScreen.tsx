@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Check, Loader2, AlertTriangle, X } from 'lucide-react';
 import { AgentStepEvent } from '../../lib/sseSchemaStream';
 
@@ -30,17 +30,35 @@ const KIND_ICON: Record<AgentStepEvent['kind'], typeof Check> = {
  * "biz de AI kullanıyoruz"u "biz kanıtlıyoruz"a çeviriyor.
  * bkz. second-phase/04-LOADING-EKRANI.md
  */
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+/**
+ * Kullanicinin "hareketi azalt" tercihi.
+ *
+ * **Neden `useSyncExternalStore`, efekt + `useState` DEGIL:** eski kod ilk
+ * render'da `false` donup efektte duzeltiyordu. Tercihi acik olan kullanici
+ * ilk karede YUMUSAK kaydirmayi goruyordu -- tam olarak istemedigi sey.
+ * `useSyncExternalStore` degeri render aninda okuyor, o yuzden yanlis kare
+ * hic olusmuyor. Ayrica React'in resmi "dis kaynagi oku" araci bu.
+ *
+ * Sunucu anlik goruntusu (`getServerSnapshot`) `false`: sunucuda medya sorgusu
+ * diye bir sey yok ve hidrasyon uyusmazligini onlemenin tek yolu bu.
+ */
+function useReducedMotion(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(REDUCED_MOTION_QUERY);
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    },
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false,
+  );
+}
+
 export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setReduceMotion(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setReduceMotion(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: reduceMotion ? 'auto' : 'smooth' });

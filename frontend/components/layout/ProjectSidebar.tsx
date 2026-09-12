@@ -34,7 +34,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
   const router = useRouter();
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  const { projects, loadProject, deleteProject, setActiveProjectId } = useProjectHistoryStore();
+  const { projects, deleteProject, setActiveProjectId } = useProjectHistoryStore();
   const { loadFromSchema, setDbType, resetProject, recordGenerationSource } = useSchemaStore();
 
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);

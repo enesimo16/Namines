@@ -187,6 +187,13 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit -p tsconfig.json
 
+      # B-57: lint artık CI'da. Başlangıçta 149 ihlal vardı; tamamı sıfıra
+      # indirildi (`any` kullanımı 26 → 0). `eslint` UYARIDA çıkış kodu 0
+      # döndürür, o yüzden bu adım yalnızca HATA seviyesinde kırar — kalan
+      # uyarıların dökümü docs/FRONTEND-LINT-BORCU.md'de.
+      - name: Lint
+        run: npm run lint
+
       - name: Bağımlılık güvenlik taraması (npm)
         run: npm audit --audit-level=high
 

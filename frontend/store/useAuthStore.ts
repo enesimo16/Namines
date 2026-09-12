@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { QuotaInfo } from '../types/api';
 import { persist } from 'zustand/middleware';
 import { csrfHeaders } from '../lib/csrf';
 
@@ -19,7 +20,7 @@ interface AuthState {
   token: string | null;
   user: UserProfile | null;
   isAuthenticated: boolean;
-  setAuth: (token: string, user: UserProfile, quota?: any) => void;
+  setAuth: (token: string, user: UserProfile, quota?: QuotaInfo) => void;
   logout: () => void;
 }
 

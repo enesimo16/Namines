@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import type { SchemaColumn, SchemaRelation, SchemaTable } from '../../../types/schema';
 import { GitMerge, X, CheckCircle2, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useBranchStore } from '../../../store/useBranchStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
@@ -6,6 +7,35 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { DatabaseSchema } from '../../../types/schema';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
+
+/**
+ * Cakisan bir degeri gosterir.
+ *
+ * **Neden ayri bilesen:** onceki kod `value.type ? ... : value.columns` yazip
+ * hem tabloyu hem kolonu ayni dalda okuyordu; `any` oldugu icin derleyici
+ * susuyordu. Tablo nesnesinde `type` alani YOK, yani tablo dalinda her zaman
+ * `columns` sayisi gosteriliyordu -- calisiyordu ama kazara. `'type' in value`
+ * kontrolu ayrimi ACIK hale getiriyor ve yanlis dal artik DERLENMEZ.
+ */
+function ConflictValue({ value }: { value: SchemaTable | SchemaColumn | string | null }) {
+  if (!value) {
+    return <span className="text-danger-text italic font-sans">Not in this branch</span>;
+  }
+  if (typeof value === 'string') {
+    return <span>{value}</span>;
+  }
+  const column = 'type' in value ? value : null;
+  return (
+    <div className="flex flex-col gap-1 w-full">
+      <span className="font-semibold text-content-primary">{value.name}</span>
+      <span className="text-[10px] text-content-subtle">
+        {column
+          ? `${column.type} ${column.isPK ? '[PK]' : ''} ${column.isFK ? '[FK]' : ''}`.trim()
+          : `${(value as SchemaTable).columns?.length || 0} Columns`}
+      </span>
+    </div>
+  );
+}
 
 export default function ConflictResolverModal() {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -93,9 +123,13 @@ export default function ConflictResolverModal() {
           const tableId = parts[0];
           const colId = parts[1];
           const targetTable = mergedSchema.tables.find(t => t.id === tableId);
-          if (targetTable && item.targetValue) {
-            targetTable.columns = targetTable.columns.map(c => 
-              c.id === colId ? item.targetValue : c
+          // `item.targetValue`u sabite aliyoruz: TypeScript, degistirilebilir bir
+          // ozelligin daralmasini kapanis (closure) icinde KORUMUYOR -- `map`
+          // geri cagrisinin icinde tip yeniden `SchemaColumn | null` oluyor.
+          const replacement = item.targetValue;
+          if (targetTable && replacement) {
+            targetTable.columns = targetTable.columns.map(c =>
+              c.id === colId ? replacement : c
             );
           }
         }
@@ -108,7 +142,7 @@ export default function ConflictResolverModal() {
       ...(sourceBranch.schema.relations || [])
     ];
 
-    const uniqueRelationsMap = new Map<string, any>();
+    const uniqueRelationsMap = new Map<string, SchemaRelation>();
     allRelations.forEach(rel => {
       const key = `${rel.sourceTableId}-${rel.sourceColumnId}-${rel.targetTableId}-${rel.targetColumnId}`;
       uniqueRelationsMap.set(key, rel);
@@ -247,20 +281,7 @@ export default function ConflictResolverModal() {
                     </div>
 
                     <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-[var(--radius-control)] min-h-[40px] flex items-center">
-                      {item.sourceValue ? (
-                        typeof item.sourceValue === 'string' ? (
-                          <span>{item.sourceValue}</span>
-                        ) : (
-                          <div className="flex flex-col gap-1 w-full">
-                            <span className="font-semibold text-content-primary">{item.sourceValue.name}</span>
-                            <span className="text-[10px] text-content-subtle">
-                              {item.sourceValue.type ? `${item.sourceValue.type} ${item.sourceValue.isPK ? '[PK]' : ''} ${item.sourceValue.isFK ? '[FK]' : ''}` : `${item.sourceValue.columns?.length || 0} Columns`}
-                            </span>
-                          </div>
-                        )
-                      ) : (
-                        <span className="text-danger-text italic font-sans">Not in this branch</span>
-                      )}
+                      <ConflictValue value={item.sourceValue} />
                     </div>
                   </div>
 
@@ -279,20 +300,7 @@ export default function ConflictResolverModal() {
                     </div>
 
                     <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-[var(--radius-control)] min-h-[40px] flex items-center">
-                      {item.targetValue ? (
-                        typeof item.targetValue === 'string' ? (
-                          <span>{item.targetValue}</span>
-                        ) : (
-                          <div className="flex flex-col gap-1 w-full">
-                            <span className="font-semibold text-content-primary">{item.targetValue.name}</span>
-                            <span className="text-[10px] text-content-subtle">
-                              {item.targetValue.type ? `${item.targetValue.type} ${item.targetValue.isPK ? '[PK]' : ''} ${item.targetValue.isFK ? '[FK]' : ''}` : `${item.targetValue.columns?.length || 0} Columns`}
-                            </span>
-                          </div>
-                        )
-                      ) : (
-                        <span className="text-danger-text italic font-sans">Not in this branch</span>
-                      )}
+                      <ConflictValue value={item.targetValue} />
                     </div>
                   </div>
                 </div>

@@ -166,11 +166,9 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           ? projects.findIndex(p => p.id === activeProjectId)
           : -1;
 
-        let targetId = '';
 
         if (existingIdx !== -1) {
           const oldProj = projects[existingIdx];
-          targetId = oldProj.id;
           
           // Geriye dönük uyumluluk: branches yoksa main olarak oluştur
           let currentBranches = oldProj.branches ? [...oldProj.branches] : [];
@@ -238,7 +236,6 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           if (!schema?.tables?.length) return;
 
           const newProjectId = generateId();
-          targetId = newProjectId;
           const defaultBranch: Branch = {
             name: 'main',
             schema,

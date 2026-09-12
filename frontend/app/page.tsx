@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import Hero from '../components/landing/Hero';
 import EngineLogosStrip from '../components/landing/EngineLogosStrip';
 import ClickClickDone from '../components/landing/ClickClickDone';

@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { X, Image, RefreshCw, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Image as ImageIcon, RefreshCw, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { reverseEngineerService } from '../../../services/api';
 import { useAIGateway } from '../../../hooks/useAIGateway';
 import { errorMessage } from '../../../lib/errors';
+import type { DatabaseSchema, SchemaRelation, SchemaTable } from '../../../types/schema';
 
 interface VisionUploadModalProps {
   isOpen: boolean;
@@ -23,10 +24,10 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
   // Overwrite warning states
   const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
-  const [pendingSchema, setPendingSchema] = useState<any | null>(null);
+  const [pendingSchema, setPendingSchema] = useState<DatabaseSchema | null>(null);
 
   // Verification Step States
-  const [parsedSchema, setParsedSchema] = useState<any | null>(null);
+  const [parsedSchema, setParsedSchema] = useState<DatabaseSchema | null>(null);
   const [showVerification, setShowVerification] = useState(false);
   const [selectedRelations, setSelectedRelations] = useState<Record<string, boolean>>({});
 
@@ -103,7 +104,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
       
       // Select all relationships by default
       const initialRelations: Record<string, boolean> = {};
-      (schema.relations || []).forEach((rel: any, idx: number) => {
+      (schema.relations || []).forEach((rel: SchemaRelation, idx: number) => {
         const key = rel.id || `rel-${idx}`;
         initialRelations[key] = true;
       });
@@ -118,7 +119,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
     }
   };
 
-  const executeImport = (finalSchema: any) => {
+  const executeImport = (finalSchema: DatabaseSchema) => {
     // Apply the imported schema to the canvas Zustand store
     try {
       importFromVision(finalSchema);
@@ -148,7 +149,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
     if (!parsedSchema) return;
 
     // Filter relations based on user checkbox selection
-    const filteredRelations = (parsedSchema.relations || []).filter((rel: any, idx: number) => {
+    const filteredRelations = (parsedSchema.relations || []).filter((rel: SchemaRelation, idx: number) => {
       const key = rel.id || `rel-${idx}`;
       return selectedRelations[key] !== false;
     });
@@ -248,7 +249,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
               <div className="space-y-1.5 select-none">
                 <span className="text-[10px] font-bold text-content-subtle uppercase tracking-wider block">Detected Tables ({parsedSchema.tables.length})</span>
                 <div className="grid grid-cols-2 gap-1.5 max-h-[110px] overflow-y-auto pr-1">
-                  {parsedSchema.tables.map((t: any) => (
+                  {parsedSchema.tables.map((t: SchemaTable) => (
                     <div key={t.id} className="p-2 bg-surface-700 border border-content-primary/8 rounded-[var(--radius-control)] flex justify-between items-center text-xs">
                       <span className="text-content-primary font-semibold truncate max-w-[120px]">{t.name}</span>
                       <span className="text-content-subtle text-[10px]">{t.columns?.length || 0} Columns</span>
@@ -264,9 +265,9 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                   {(!parsedSchema.relations || parsedSchema.relations.length === 0) ? (
                     <p className="text-content-subtle text-xs italic p-3 bg-surface-700 border border-content-primary/8 rounded-[var(--radius-control)] text-center select-none">No relationships detected.</p>
                   ) : (
-                    parsedSchema.relations.map((rel: any, idx: number) => {
-                      const sourceTable = parsedSchema.tables.find((t: any) => t.id === rel.sourceTableId || t.name === rel.sourceTableId);
-                      const targetTable = parsedSchema.tables.find((t: any) => t.id === rel.targetTableId || t.name === rel.targetTableId);
+                    parsedSchema.relations.map((rel: SchemaRelation, idx: number) => {
+                      const sourceTable = parsedSchema.tables.find((t: SchemaTable) => t.id === rel.sourceTableId || t.name === rel.sourceTableId);
+                      const targetTable = parsedSchema.tables.find((t: SchemaTable) => t.id === rel.targetTableId || t.name === rel.targetTableId);
                       const sourceName = sourceTable?.name || rel.sourceTableId;
                       const targetName = targetTable?.name || rel.targetTableId;
                       const key = rel.id || `rel-${idx}`;
@@ -315,7 +316,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
                 className="hidden"
               />
               <div className="w-10 h-10 bg-surface-600 border border-content-primary/10 text-content-primary flex items-center justify-center rounded-[var(--radius-card)]">
-                <Image className="w-4 h-4" />
+                <ImageIcon className="w-4 h-4" />
               </div>
               <div className="text-center">
                 <span className="text-content-primary text-sm font-semibold block">Drag and Drop Your Image File</span>

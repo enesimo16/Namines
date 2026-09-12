@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { PascalCaseSchema } from '../types/flow';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { Node, Edge, Connection, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import localforage from 'localforage';
@@ -287,13 +288,15 @@ export const useSchemaStore = create<SchemaState>()(
         const updatedTables = [...state.schema.tables];
         partialSchema.tables.forEach(t => {
           const idx = updatedTables.findIndex(et => et.id === t.id);
-          idx !== -1 ? (updatedTables[idx] = t) : updatedTables.push(t);
+          if (idx !== -1) updatedTables[idx] = t;
+          else updatedTables.push(t);
         });
 
         const updatedRelations = [...state.schema.relations];
         partialSchema.relations.forEach(r => {
           const idx = updatedRelations.findIndex(er => er.id === r.id);
-          idx !== -1 ? (updatedRelations[idx] = r) : updatedRelations.push(r);
+          if (idx !== -1) updatedRelations[idx] = r;
+          else updatedRelations.push(r);
         });
 
         const newSchema = { ...state.schema, tables: updatedTables, relations: updatedRelations };
@@ -593,8 +596,8 @@ export const useSchemaStore = create<SchemaState>()(
         const currentSchema = state.schema || { schemaId: genId(), name: DEFAULT_PROJECT_NAME, tables: [], relations: [] };
 
         // Güvenli: AI/vision çıktısı dizi olmayabilir (obje/null) → forEach patlamasın.
-        const rawTables = visionSchema.tables || (visionSchema as any).Tables;
-        const rawRelations = visionSchema.relations || (visionSchema as any).Relations;
+        const rawTables = visionSchema.tables || (visionSchema as PascalCaseSchema).Tables;
+        const rawRelations = visionSchema.relations || (visionSchema as PascalCaseSchema).Relations;
         const visionTables = Array.isArray(rawTables) ? rawTables : [];
         const visionRelations = Array.isArray(rawRelations) ? rawRelations : [];
         if (visionTables.length === 0) {
@@ -671,7 +674,7 @@ export const useSchemaStore = create<SchemaState>()(
         const boundSourceColumns = new Set<string>();
         const skippedRelations: string[] = [];
 
-        visionRelations.forEach((r: any) => {
+        visionRelations.forEach((r: SchemaRelation) => {
           const mappedSourceTableId = idMap[r.sourceTableId] || r.sourceTableId;
           const mappedTargetTableId = idMap[r.targetTableId] || r.targetTableId;
 

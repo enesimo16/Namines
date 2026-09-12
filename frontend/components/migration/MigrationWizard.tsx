@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import type { DatabaseSchema } from '../../types/schema';
 import {
   X,
   Upload,
@@ -49,7 +50,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
   // Overwrite warning states
   const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
-  const [pendingParsedSchema, setPendingParsedSchema] = useState<any | null>(null);
+  const [pendingParsedSchema, setPendingParsedSchema] = useState<DatabaseSchema | null>(null);
 
   // Results state
   const [diffResult, setDiffResult] = useState<SchemaDiffResult | null>(null);

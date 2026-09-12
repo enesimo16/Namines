@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import type { TableNodeData } from '../../types/flow';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -11,7 +12,8 @@ import {
   ReactFlowProvider,
   BackgroundVariant,
   useReactFlow,
-  type Connection
+  type Connection,
+  type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -119,10 +121,10 @@ export default function CanvasPage() {
     return new URLSearchParams(window.location.search).has('roomId');
   });
 
-  const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, toggleEditMode, addTable, connectColumns, deleteTable, deleteRelation, undo, redo, canUndo, canRedo } = useSchemaStore();
+  const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, toggleEditMode, addTable, connectColumns, deleteTable, deleteRelation, undo, redo } = useSchemaStore();
   // Boş şema kurulumu için (bkz. aşağıdaki karşılama efekti).
   const loadEmptySchema = useSchemaStore(s => s.loadFromSchema);
-  const { score, issues, assessment, isAnalyzing, isPanelOpen, setIsPanelOpen } = useDbaStore();
+  const { score, issues, assessment, isPanelOpen, setIsPanelOpen } = useDbaStore();
 
   const { projects, activeProjectId } = useProjectHistoryStore();
   const { isDiffMode, compareBranchName } = useBranchStore();
@@ -132,7 +134,6 @@ export default function CanvasPage() {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const branches = activeProject?.branches || [];
-  const currentBranchName = activeProject?.currentBranch || 'main';
 
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false);
@@ -362,7 +363,7 @@ export default function CanvasPage() {
     });
 
     // Inject virtual deleted nodes
-    const deletedNodes: any[] = [];
+    const deletedNodes: Node[] = [];
     Object.entries(diffResult.tables).forEach(([tableId, tableDiff]) => {
       if (tableDiff.status === 'deleted') {
         const deletedTable = compareBranch.schema.tables.find(t => t.id === tableId);
@@ -530,7 +531,7 @@ export default function CanvasPage() {
             
             <MiniMap
               nodeColor={(node) => {
-                const tableColor = (node.data as any)?.table?.color;
+                const tableColor = (node.data as TableNodeData | undefined)?.table?.color;
                 if (tableColor) return tableColor;
                 // `--color-line-solid` (ızgara noktası deltası) minimap'in kendi
                 // zemininden (surface-700) daha KOYU kalıyordu — renksiz tablolar

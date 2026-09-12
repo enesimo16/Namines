@@ -57,60 +57,6 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
   // ── Restore previous sandbox session when page is loaded ──────────────
   useEffect(() => {
-    let cancelled = false;
-    let controller: AbortController | undefined;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const saved = getActiveSandbox();
-    if (saved && saved.type === 'DB') {
-      jobIdRef.current = saved.jobId;
-      setDownloadUrl(saved.url || null);
-
-      if (saved.url) {
-        setStatus('running');
-        setLogs([`Previous sandbox restored. Backup (.bak) is ready.`]);
-      } else {
-        setStatus('generating');
-        setLogs([`Previous sandbox operation restored. Waiting for log stream...`]);
-
-        // Perform a quick HTTP fetch check to the stream URL on mount before initiating EventSource
-        controller = new AbortController();
-        timeoutId = setTimeout(() => controller?.abort(), 2000);
-
-        // credentials: auth cookie'si olmadan uc artik 401 donuyor (bkz. asagidaki
-        // EventSource notu).
-        fetch(`${API_BASE_URL}/docker/stream/${saved.jobId}`, {
-          signal: controller.signal,
-          credentials: 'include',
-        })
-          .then(res => {
-            clearTimeout(timeoutId);
-            if (cancelled) return; // unmount sonrası setState/connectSse'yi engelle
-            if (res.status === 404) {
-              setActiveSandbox(null);
-              setStatus('idle');
-              setDownloadUrl(null);
-              setLogs([]);
-              jobIdRef.current = null;
-            } else {
-              connectSse(saved.jobId);
-            }
-          })
-          .catch(() => {
-            clearTimeout(timeoutId);
-            if (cancelled) return;
-            // Fallback to connecting anyway on timeout or network error
-            connectSse(saved.jobId);
-          });
-      }
-    }
-
-    return () => { cancelled = true; controller?.abort(); clearTimeout(timeoutId); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
     };
@@ -191,6 +137,69 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
       }
     };
   };
+
+  /**
+   * Onceki oturumdan kalan kum havuzunu geri yukler.
+   *
+   * **Efekt neden `connectSse`nin ALTINDA:** `connectSse` asagida `const` ile
+   * tanimli; efekt yukarida dururken bildirimden onceki bir degiskene
+   * erisiyordu (TDZ). Kapanis mount sonrasi calistigi icin patlamiyordu, ama
+   * ic akis senkron hale geldigi an `ReferenceError` verirdi.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    let controller: AbortController | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const saved = getActiveSandbox();
+    if (saved && saved.type === 'DB') {
+      jobIdRef.current = saved.jobId;
+      setDownloadUrl(saved.url || null);
+
+      if (saved.url) {
+        setStatus('running');
+        setLogs([`Previous sandbox restored. Backup (.bak) is ready.`]);
+      } else {
+        setStatus('generating');
+        setLogs([`Previous sandbox operation restored. Waiting for log stream...`]);
+
+        // Perform a quick HTTP fetch check to the stream URL on mount before initiating EventSource
+        controller = new AbortController();
+        timeoutId = setTimeout(() => controller?.abort(), 2000);
+
+        // credentials: auth cookie'si olmadan uc artik 401 donuyor (bkz. asagidaki
+        // EventSource notu).
+        fetch(`${API_BASE_URL}/docker/stream/${saved.jobId}`, {
+          signal: controller.signal,
+          credentials: 'include',
+        })
+          .then(res => {
+            clearTimeout(timeoutId);
+            if (cancelled) return; // unmount sonrası setState/connectSse'yi engelle
+            if (res.status === 404) {
+              setActiveSandbox(null);
+              setStatus('idle');
+              setDownloadUrl(null);
+              setLogs([]);
+              jobIdRef.current = null;
+            } else {
+              connectSse(saved.jobId);
+            }
+          })
+          .catch(() => {
+            clearTimeout(timeoutId);
+            if (cancelled) return;
+            // Fallback to connecting anyway on timeout or network error
+            connectSse(saved.jobId);
+          });
+      }
+    }
+
+    return () => { cancelled = true; controller?.abort(); clearTimeout(timeoutId); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cleanup on unmount
 
   const handleGenerate = async () => {
     if (!isAuthenticated) {

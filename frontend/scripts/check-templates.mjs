@@ -94,6 +94,9 @@ try {
   await post('/api/lint', { name: 'ping', tables: [], relations: [] });
 } catch (error) {
   console.error(`\n  API'ye ulaşılamadı (${API}).`);
+  // Sebep YAZDIRILIYOR: eskiden yakalanip atiliyordu ve "ulasilamadi"
+  // mesaji baglanti reddi ile 500 hatasini ayirt edilemez kiliyordu.
+  console.error(`  Sebep: ${error instanceof Error ? error.message : String(error)}`);
   console.error('  Şablonlar gerçek kural motoruna karşı doğrulanıyor; API ayakta olmalı.\n');
   process.exit(2);
 }

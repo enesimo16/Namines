@@ -19,8 +19,11 @@ describe('useBranchStore', () => {
       sourceValue: 'users', targetValue: 'members', selectedChoice: 'target' as const,
     },
     {
+      // `column_added` artik KOLON tasimak zorunda (ayrimli birlesim): metin
+      // gecmek derlenmiyor -- modalin yanlis sekli okumasini onleyen sey bu.
       id: 'c2', type: 'column_added' as const, tableName: 'orders', columnName: 'email',
-      sourceValue: 'email', targetValue: null, selectedChoice: 'target' as const,
+      sourceValue: { id: 'col-email', name: 'email', type: 'varchar', isPK: false, isFK: false, isNullable: true, length: 255, defaultValue: null },
+      targetValue: null, selectedChoice: 'target' as const,
     },
   ];
 

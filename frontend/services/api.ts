@@ -1,6 +1,10 @@
 import axios from 'axios';
+import type {
+  AuthResponse, CloudProjectDto, DbaAnalysisResult, LintResult, ProfileDto,
+  SmartSeedResult, SubscriptionStatusDto, SyncProjectPayload, SyncResult,
+} from '../types/api';
 import { csrfHeaders } from '@/lib/csrf';
-import { DatabaseSchema } from '../types/schema';
+import { DatabaseSchema, SchemaRelation, SchemaTable } from '../types/schema';
 import { SchemaDiffResult, MigrationResult } from '../types/migration';
 import { ChangeRequestSummary, ChangeRequestDetail, ApprovalDecision, ChangeRequestStatus, AffectedCodeScanResult, ChangeRequestAuditEntry } from '../types/changeRequest';
 import { GatewayListResult, GatewayRow } from '../types/gateway';
@@ -98,7 +102,7 @@ export const schemaService = {
     return response.data;
   },
 
-  reviseSchema: async (selectedTables: any[], existingRelations: any[], prompt: string, naiModel: string): Promise<DatabaseSchema> => {
+  reviseSchema: async (selectedTables: SchemaTable[], existingRelations: SchemaRelation[], prompt: string, naiModel: string): Promise<DatabaseSchema> => {
     const response = await api.post<DatabaseSchema>('/schema/revise', {
       revisionPrompt: prompt,
       selectedTables,
@@ -109,7 +113,7 @@ export const schemaService = {
     return response.data;
   },
 
-  lintSchema: async (schema: DatabaseSchema): Promise<any> => {
+  lintSchema: async (schema: DatabaseSchema): Promise<LintResult> => {
     const response = await api.post('/lint', schema);
     return response.data;
   },
@@ -227,14 +231,14 @@ export const schemaService = {
 // Backend'deki /api/coderai/* uçları duruyor (dış istemcisi olabilir).
 
 export const aiDbaService = {
-  analyze: async (schema: DatabaseSchema, dbType: string): Promise<any> => {
+  analyze: async (schema: DatabaseSchema, dbType: string): Promise<DbaAnalysisResult> => {
     const response = await api.post('/aidba/analyze', { schema, dbType });
     return response.data;
   }
 };
 
 export const smartSeedService = {
-  generate: async (schema: DatabaseSchema, dbType: string, domainHint?: string, rowCount: number = 50, enhanceWithAI: boolean = false): Promise<any> => {
+  generate: async (schema: DatabaseSchema, dbType: string, domainHint?: string, rowCount: number = 50, enhanceWithAI: boolean = false): Promise<SmartSeedResult> => {
     const response = await api.post('/smartseed/generate', { schema, dbType, domainHint, rowCount, enhanceWithAI });
     return response.data;
   }
@@ -471,7 +475,7 @@ export const executorService = {
 };
 
 export const authService = {
-  register: async (email: string, password: string, username?: string, type?: string, companyName?: string): Promise<any> => {
+  register: async (email: string, password: string, username?: string, type?: string, companyName?: string): Promise<AuthResponse> => {
     const response = await api.post('/auth/register', { email, password, username, type, companyName });
     return response.data;
   },
@@ -509,17 +513,17 @@ export const authService = {
     },
   },
 
-  login: async (email: string, password: string): Promise<any> => {
+  login: async (email: string, password: string): Promise<AuthResponse> => {
     const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
 
-  syncProjects: async (projects: any[]): Promise<any> => {
+  syncProjects: async (projects: SyncProjectPayload[]): Promise<SyncResult> => {
     const response = await api.post('/auth/sync', projects);
     return response.data;
   },
 
-  getCloudProjects: async (): Promise<any[]> => {
+  getCloudProjects: async (): Promise<CloudProjectDto[]> => {
     const response = await api.get('/auth/projects');
     return response.data;
   },
@@ -578,7 +582,7 @@ export const authService = {
     await api.delete(`/share/${projectId}`);
   },
 
-  getProfile: async (): Promise<any> => {
+  getProfile: async (): Promise<ProfileDto> => {
     const response = await api.get('/auth/profile');
     return response.data;
   },
@@ -592,12 +596,12 @@ export const authService = {
     twitterUrl?: string;
     bio?: string;
     location?: string;
-  }): Promise<any> => {
+  }): Promise<ProfileDto> => {
     const response = await api.put('/auth/profile', profile);
     return response.data;
   },
 
-  getSubscriptionStatus: async (): Promise<any> => {
+  getSubscriptionStatus: async (): Promise<SubscriptionStatusDto> => {
     const response = await api.get('/subscription/status');
     return response.data;
   },

@@ -28,9 +28,20 @@ const roleIcon: Record<string, typeof Eye> = {
  * olurdu — bunun yerine ne olduğunu anlatan bir ekran gösteriliyor.
  */
 export default function TeamModal({ isOpen, onClose }: Props) {
+  // Kapaliyken MONTE EDILMIYOR. Onceki hali acilista durumu efektle
+  // sifirliyordu; bu, modal her yeniden acildiginda ONCEKI ekibin verisini bir
+  // kare boyunca gosteriyordu. Taze montaj sifirlamayi `useState` baslangic
+  // degerleriyle, ara kare olmadan yapiyor.
+  if (!isOpen) return null;
+  return <TeamModalPanel onClose={onClose} />;
+}
+
+function TeamModalPanel({ onClose }: { onClose: () => void }) {
   const [team, setTeam] = useState<TeamStatus | null>(null);
   const [projects, setProjects] = useState<TeamProject[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Panel her zaman veri cekerek aciliyor: baslangic degeri `true`, yoksa ilk
+  // karede "ekip yok" gorunur.
+  const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   // Yeni üretilen bağlantı yalnızca bu state'te yaşıyor: sunucuda özeti
   // saklandığı için modal kapanınca bir daha gösterilemez.
@@ -38,30 +49,40 @@ export default function TeamModal({ isOpen, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const showToast = useToastStore(s => s.showToast);
   const modalRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(isOpen, modalRef);
+  useFocusTrap(true, modalRef);
 
-  const load = async () => {
-    setIsLoading(true);
+  /** Veriyi ceker; yukleme bayragini cagirana birakir. */
+  const fetchTeam = async () => {
     try {
       const [status, act] = await Promise.all([teamService.status(), teamService.activity()]);
       setTeam(status);
       setProjects(act.projects);
     } catch {
       showToast('Team information could not be loaded.', 'error');
+    }
+  };
+
+  /** Kullanici eylemlerinden sonra yenile (spinner gostererek). */
+  const load = async () => {
+    setIsLoading(true);
+    try {
+      await fetchTeam();
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Montajda tek atislik yukleme. `setIsLoading(true)` BURADA cagrilmiyor:
+  // baslangic degeri zaten `true` ve efekt icinde senkron `setState` zincir
+  // render tetikliyor.
   useEffect(() => {
-    if (!isOpen) return;
-    setFresh(null);
-    setCopied(false);
-    load();
+    let cancelled = false;
+    fetchTeam().finally(() => {
+      if (!cancelled) setIsLoading(false);
+    });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+  }, []);
 
   const inviteUrl = fresh ? `${window.location.origin}/join/${fresh.token}` : '';
 

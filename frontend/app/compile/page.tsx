@@ -18,7 +18,6 @@ import EfCorePreview from '../../components/compile/EfCorePreview';
 import PrismaPreview from '../../components/compile/PrismaPreview';
 import EjectPanel from '../../components/compile/EjectPanel';
 import { IconButton } from '../../components/compile/PanelKit';
-import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import {
   generateClassDiagram,
   generateFlowchart,
@@ -63,7 +62,6 @@ export default function CompilePage() {
   const router = useRouter();
   const { schema, dbType, setDbType, projectName } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
-  const { getActiveSandbox } = useProjectHistoryStore();
 
   const [sql, setSql] = useState('');
   const [mermaidCode, setMermaidCode] = useState('');
@@ -325,7 +323,7 @@ export default function CompilePage() {
               <>
                 <select
                   value={diagramType}
-                  onChange={(e) => updateDiagram(e.target.value as any)}
+                  onChange={(e) => updateDiagram(e.target.value as typeof diagramType)}
                   aria-label="Diagram type"
                   /* h-9: yanındaki `IconButton` de h-9 — ikisi 32/36 olarak
                      ayrı yüksekliklerdeyken aynı satırda gözle görülür şekilde

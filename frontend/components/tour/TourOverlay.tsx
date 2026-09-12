@@ -126,9 +126,7 @@ export default function TourOverlay() {
         transform: 'translate(-50%, -50%)'
       };
     } else {
-      const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
       const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-      const isRightSide = coords.x + coords.width / 2 > screenWidth / 2;
       const isBottomSide = coords.y + coords.height / 2 > screenHeight / 2;
 
       let top = isBottomSide ? coords.y - 180 : coords.y;
