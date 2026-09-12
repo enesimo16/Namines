@@ -27,16 +27,16 @@ export default function ZeroDriftSection() {
         <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/90 p-8 sm:p-10 flex flex-col justify-center shadow-xl">
           <p className="text-xl sm:text-2xl font-medium leading-relaxed text-content-primary">
             Intuitive database architecture and lifecycle safety for{' '}
-            <span style={{ color: 'oklch(80% 0.14 var(--brand-hue))' }}>PostgreSQL schemas</span>,{' '}
-            <span style={{ color: 'oklch(78% 0.14 160)' }}>foreign key cascades</span>,{' '}
-            <span style={{ color: 'oklch(82% 0.12 180)' }}>indexes &amp; constraints</span>,{' '}
-            <span style={{ color: 'oklch(78% 0.13 210)' }}>multi-engine DDL</span>,{' '}
-            <span style={{ color: 'oklch(80% 0.14 var(--brand-hue))' }}>EF Core &amp; Prisma</span>,{' '}
-            <span style={{ color: 'oklch(78% 0.14 150)' }}>visual ERD canvas</span>,{' '}
-            <span style={{ color: 'oklch(82% 0.12 195)' }}>drift detection</span>,{' '}
-            <span style={{ color: 'oklch(78% 0.14 165)' }}>ephemeral sandboxes</span>,{' '}
-            <span style={{ color: 'oklch(78% 0.13 210)' }}>live CRUD panels</span>, and{' '}
-            <span style={{ color: 'oklch(80% 0.14 var(--brand-hue))' }}>schema versioning</span>.
+            <span style={{ color: 'oklch(var(--phrase-l) 0.14 var(--brand-hue))' }}>PostgreSQL schemas</span>,{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.14 160)' }}>foreign key cascades</span>,{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.12 180)' }}>indexes &amp; constraints</span>,{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.13 210)' }}>multi-engine DDL</span>,{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.14 var(--brand-hue))' }}>EF Core &amp; Prisma</span>,{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.14 150)' }}>visual ERD canvas</span>,{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.12 195)' }}>drift detection</span>,{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.14 165)' }}>ephemeral sandboxes</span>,{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.13 210)' }}>live CRUD panels</span>, and{' '}
+            <span style={{ color: 'oklch(var(--phrase-l) 0.14 var(--brand-hue))' }}>schema versioning</span>.
           </p>
         </div>
 

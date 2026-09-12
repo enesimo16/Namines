@@ -491,7 +491,7 @@ export default function NewProjectPage() {
               <button
                 type="submit"
                 disabled={isGenerating || isClarifying || !prompt.trim()}
-                className="h-[38px] px-4 sm:px-5 bg-accent hover:bg-accent-hover text-white/95 font-bold rounded-[var(--radius-control)] transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider cursor-pointer shadow-sm shadow-accent/20"
+                className="h-[38px] px-4 sm:px-5 bg-accent hover:bg-accent-hover text-accent-on/95 font-bold rounded-[var(--radius-control)] transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider cursor-pointer shadow-sm shadow-accent/20"
               >
                 {isGenerating || isClarifying ? (
                   <>

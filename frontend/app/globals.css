@@ -217,7 +217,26 @@
   --namines-teal-ribbon: linear-gradient(90deg, oklch(13% 0.04 var(--brand-hue)) 0%, oklch(20% 0.09 var(--brand-hue)) 50%, oklch(13% 0.04 var(--brand-hue)) 100%);
   --namines-teal-tile: oklch(20% 0.05 var(--brand-hue));
   --namines-teal-tile-border: oklch(32% 0.09 var(--brand-hue));
-  --namines-gradient-banner: linear-gradient(90deg, oklch(24% 0.08 var(--brand-hue)) 0%, oklch(46% 0.13 165) 50%, oklch(68% 0.15 155) 100%);
+  /* Parlaklik aralığı BİLİNÇLİ olarak daraltıldı (%24→%36; eskiden %24→%68).
+     ÖLÇÜM: eski gradyanda şerit metni (14px, 4.5 gerekiyor) üç durakta
+     1.30 / 3.14 / 7.49 veriyordu — şeridin sol üçte ikisi okunamıyordu.
+     Tek bir mürekkep rengi %24 ile %68 arasındaki bir aralığa karşı
+     çalışamaz; o yüzden düzeltme mürekkebi değil GRADYANI daraltmak.
+     Yeni ölçüm (mürekkep `--banner-ink`): 14.86 / 11.91 / 9.53. */
+  --namines-gradient-banner: linear-gradient(90deg, oklch(24% 0.08 var(--brand-hue)) 0%, oklch(30% 0.11 165) 50%, oklch(36% 0.12 155) 100%);
+
+  /* Şerit mürekkebi. Şerit gradyanı temaya göre ters yönde değiştiği için
+     (koyu temada KOYU yeşil, açık temada AÇIK yeşil) mürekkep de dönmek
+     zorunda — ama `--surface-900` ile AYNI yönde değil. HomeBanner eskiden
+     `text-surface-900` kullanıyordu ve açık temada beyaza yakın metni açık
+     yeşil gradyanın üstüne koyuyordu (ölçüm: 1.13 / 1.25 / 1.18). */
+  --banner-ink: oklch(98.5% 0.002 var(--ui-hue));
+
+  /* ZeroDriftSection'daki vurgulu ifadelerin parlaklığı. Renkler bileşende
+     satır içi yazılmıştı (%78-82) ve koyu zemin için seçilmişti; açık temada
+     1.59-1.84 veriyordu (24px büyük metin, 3.0 gerekiyor). Parlaklığı tek bir
+     değişkene bağlamak 10 satır içi rengi iki temada da doğru kılıyor. */
+  --phrase-l: 80%;
   --namines-gradient-headline: linear-gradient(90deg, oklch(78% 0.14 var(--brand-hue)) 0%, oklch(80% 0.15 170) 50%, oklch(84% 0.14 155) 100%);
 }
 
@@ -240,8 +259,24 @@ body.light {
   --content-primary: oklch(16% 0.004 var(--ui-hue));
   --content-primary-hover: oklch(10% 0.004 var(--ui-hue));
   --content-secondary: oklch(34% 0.006 var(--ui-hue));
-  --content-muted: oklch(48% 0.008 var(--ui-hue));
-  --content-subtle: oklch(58% 0.010 var(--ui-hue));
+  /* %48 → %40. ÖLÇÜM (4.5 gerekiyor): %48, `--surface-600` (en koyu açık
+     yüzey) üstünde 3.89 veriyordu — `/review`'daki "Owner" etiketi böyle
+     yakalandı. %40 → surface-700 6.76, surface-600 5.48. */
+  --content-muted: oklch(40% 0.008 var(--ui-hue));
+  /* %58 → %44. ÖLÇÜM, DÖRT açık-tema yüzeyine karşı (4.5 gerekiyor):
+
+       | L   | surface-900 | 800  | 700  | 600  |
+       |-----|-------------|------|------|------|
+       | %58 | 4.08        | 3.63 | —    | —    |  ← başlangıç, AA altı
+       | %50 | 5.72        | 5.09 | 4.38 | 3.55 |  ← 700 ve 600 hâlâ altta
+       | %46 | 6.77        | 6.03 | 5.19 | 4.21 |  ← 600 hâlâ altta
+       | %44 | 7.44        | 6.62 | 5.70 | 4.62 |  ← DÖRDÜ DE geçiyor
+
+     %50 ilk denemede seçilmişti çünkü yalnızca EN AÇIK iki yüzeye karşı
+     ölçmüştüm; `/review` sayfası token'ı `surface-700` üstünde kullanıyor ve
+     4.35 ile yakalandı. Ders: token bir yüzeye değil, kullanıldığı TÜM
+     yüzeylere karşı ölçülmeli. */
+  --content-subtle: oklch(44% 0.010 var(--ui-hue));
 
   --accent: oklch(46% 0.13 var(--brand-hue));
   --accent-hover: oklch(40% 0.14 var(--brand-hue));
@@ -313,6 +348,10 @@ body.light {
   --namines-teal-tile: oklch(95% 0.02 var(--brand-hue));
   --namines-teal-tile-border: oklch(84% 0.05 var(--brand-hue));
   --namines-gradient-banner: linear-gradient(90deg, oklch(94% 0.04 var(--brand-hue)) 0%, oklch(90% 0.08 165) 50%, oklch(92% 0.08 155) 100%);
+  /* ÖLÇÜM: bu gradyanın üç durağına karşı 16.51 / 14.83 / 15.80. */
+  --banner-ink: oklch(16% 0.004 var(--ui-hue));
+  /* ÖLÇÜM: %48'de altı ifade rengi de 5.52-5.83 veriyor (3.0 gerekiyor). */
+  --phrase-l: 48%;
   --namines-gradient-headline: linear-gradient(90deg, oklch(24% 0.12 var(--brand-hue)) 0%, oklch(28% 0.14 170) 50%, oklch(32% 0.13 155) 100%);
 
   --color-surface-900: var(--surface-900);
@@ -325,6 +364,7 @@ body.light {
   --color-content-subtle: var(--content-subtle);
   --color-accent: var(--accent);
   --color-accent-text: var(--accent-text);
+  --color-banner-ink: var(--banner-ink);
 
   --color-line-solid: oklch(72% 0.008 var(--ui-hue));
   --color-line-solid-strong: oklch(58% 0.012 var(--ui-hue));
@@ -397,6 +437,7 @@ html.light body {
   --color-accent-subtle: var(--accent-subtle);
   --color-accent-on: var(--accent-on);
   --color-accent-text: var(--accent-text);
+  --color-banner-ink: var(--banner-ink);
   --color-focus-ring: var(--focus-ring);
 
   --color-danger: var(--danger);
