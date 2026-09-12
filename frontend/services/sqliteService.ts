@@ -1,4 +1,5 @@
 import localforage from 'localforage';
+import { errorMessage } from '../lib/errors';
 
 let SQL: any = null;
 let sqlPromise: Promise<any> | null = null;
@@ -121,9 +122,9 @@ export const sqliteService = {
         success: true,
         message: 'SQL script executed successfully.'
       };
-    } catch (err: any) {
+    } catch (err) {
       console.error('SQLite script execution error:', err);
-      throw new Error(err.message || 'An unknown SQLite error occurred while executing SQL.');
+      throw new Error(errorMessage(err, 'An unknown SQLite error occurred while executing SQL.'));
     }
   },
 
@@ -177,8 +178,8 @@ export const sqliteService = {
           message: `Query executed successfully. Affected rows: ${modifiedRows}`
         };
       }
-    } catch (err: any) {
-      throw new Error(err.message || 'An SQLite error occurred while executing the query.');
+    } catch (err) {
+      throw new Error(errorMessage(err, 'An SQLite error occurred while executing the query.'));
     }
   },
 

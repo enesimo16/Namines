@@ -12,6 +12,7 @@ import {
 import DbPushModal from './DbPushModal';
 import { API_BASE_URL, toAbsoluteApiUrl } from '../../lib/apiConfig';
 import { Panel, PanelBar, ActionButton, OptionCard } from './PanelKit';
+import { errorMessage } from '../../lib/errors';
 
 interface DockerSandboxPanelProps {
   schema: DatabaseSchema;
@@ -229,9 +230,9 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
 
       connectSse(newJobId);
 
-    } catch (err: any) {
+    } catch (err) {
       setStatus('error');
-      addLog(dockerHint(err?.message || 'Unknown error'));
+      addLog(dockerHint(errorMessage(err, 'Unknown error')));
     }
   };
 

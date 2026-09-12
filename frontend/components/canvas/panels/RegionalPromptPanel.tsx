@@ -6,6 +6,7 @@ import { useAIGateway } from '../../../hooks/useAIGateway';
 import { schemaService } from '../../../services/api';
 import { Loader2, ArrowUp, History, Sparkles } from 'lucide-react';
 import { flowToSchema } from '../../../lib/flowToSchema';
+import { apiErrorStatus, errorMessage } from '../../../lib/errors';
 
 /**
  * Eskiden "Regional Revision" — sürüklenebilir, parlayan/yıldızlı büyük bir
@@ -86,12 +87,12 @@ export default function RegionalPromptPanel() {
       applyRevision(partialSchema);
       addPromptToHistory(prompt);
       setPrompt('');
-    } catch (error: any) {
-      if (error?.response?.status === 429) {
+    } catch (error) {
+      if (apiErrorStatus(error) === 429) {
         showToast("Daily AI limit reached! Please upgrade your plan for unlimited access.", "warning");
       } else {
         console.error("Revision failed", error);
-        const errorMsg = error?.response?.data?.message || "An error occurred during revision.";
+        const errorMsg = errorMessage(error, "An error occurred during revision.");
         showToast(errorMsg, "error");
       }
     } finally {
@@ -118,12 +119,12 @@ export default function RegionalPromptPanel() {
         recordGenerationSource(prompt, null);
         setPrompt('');
         showToast("Database schema successfully generated!", "success");
-      } catch (error: any) {
-        if (error?.response?.status === 429) {
+      } catch (error) {
+        if (apiErrorStatus(error) === 429) {
           showToast("Daily AI limit reached! Please upgrade your plan for unlimited access.", "warning");
         } else {
           console.error("Generation failed", error);
-          const errorMsg = error?.response?.data?.message || "An error occurred during generation.";
+          const errorMsg = errorMessage(error, "An error occurred during generation.");
           showToast(errorMsg, "error");
         }
       } finally {

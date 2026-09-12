@@ -6,6 +6,7 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { schemaService } from '../../../services/api';
 import { CodeExtractionResponse } from '../../../types/codeSchema';
+import { errorMessage } from '../../../lib/errors';
 
 interface Props {
   isOpen: boolean;
@@ -54,8 +55,8 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
         dbType,
       );
       setResult(response);
-    } catch (err: any) {
-      const message = err?.response?.data?.message || 'Could not read a schema from those files.';
+    } catch (err) {
+      const message = errorMessage(err, 'Could not read a schema from those files.');
       showToast(message, 'error');
     } finally {
       setIsLoading(false);

@@ -7,6 +7,7 @@ import { useSqlExplorerStore } from '../../../store/useSqlExplorerStore';
 import { useAIGateway } from '../../../hooks/useAIGateway';
 import { sqliteService, SqlQueryResult } from '../../../services/sqliteService';
 import { schemaService, smartSeedService } from '../../../services/api';
+import { apiErrorStatus, errorMessage } from '../../../lib/errors';
 
 export default function SqlExplorerPanel() {
   const { schema } = useSchemaStore();
@@ -61,11 +62,11 @@ export default function SqlExplorerPanel() {
       setSqlQuery(`SELECT * FROM ${firstTableName} LIMIT 10;`);
 
       setTimeout(() => setSyncSuccess(false), 3000);
-    } catch (err: any) {
-      if (err?.response?.status === 429) {
+    } catch (err) {
+      if (apiErrorStatus(err) === 429) {
         setSyncError('Daily AI Limit Reached: Please upgrade your plan for unlimited seeding.');
       } else {
-        setSyncError(err.message || 'Error occurred while setting up live database.');
+        setSyncError(errorMessage(err, 'Error occurred while setting up live database.'));
       }
     } finally {
       setIsSyncing(false);
@@ -144,8 +145,8 @@ export default function SqlExplorerPanel() {
       
       // Save changes to IndexedDB after executing a query
       await sqliteService.saveToIndexedDb();
-    } catch (err: any) {
-      setQueryError(err.message || 'An unknown SQLite error occurred while executing the query.');
+    } catch (err) {
+      setQueryError(errorMessage(err, 'An unknown SQLite error occurred while executing the query.'));
     } finally {
       setExecuting(false);
     }

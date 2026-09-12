@@ -22,6 +22,7 @@ import { SchemaDiffResult, MigrationResult } from '../../types/migration';
 import DiffViewer from './DiffViewer';
 import MigrationCodeView from './MigrationCodeView';
 import { useAIGateway } from '../../hooks/useAIGateway';
+import { errorMessage } from '../../lib/errors';
 
 interface MigrationWizardProps {
   isOpen: boolean;
@@ -153,8 +154,8 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
         setMigrationBaseline(parsedSchema);
         setStep(2);
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.error || err.message || 'A problem occurred on the AI server while parsing DbContext.');
+    } catch (err) {
+      setError(errorMessage(err, 'A problem occurred on the AI server while parsing DbContext.'));
     } finally {
       setLoading(false);
     }
@@ -176,8 +177,8 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       
       setStep(2);
       setError(null);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while saving the current schema as a baseline.');
+    } catch (err) {
+      setError(errorMessage(err, 'An error occurred while saving the current schema as a baseline.'));
     }
   };
 
@@ -211,8 +212,8 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       setMigrationResult(migration);
 
       setStep(3);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || err.message || 'An error occurred while creating the migration.');
+    } catch (err) {
+      setError(errorMessage(err, 'An error occurred while creating the migration.'));
     } finally {
       setLoading(false);
     }
