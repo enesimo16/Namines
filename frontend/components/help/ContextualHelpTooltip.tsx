@@ -14,9 +14,12 @@ export default function ContextualHelpTooltip({ content }: ContextualHelpTooltip
     <Tooltip.Provider delayDuration={200}>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
+          {/* `tap-44`: ölçülen kutu 22x22'ydi (WCAG 2.5.8 en az 24x24 istiyor) ve
+              isabet testi genişletilmiş bir tıklama alanı bulamadı. Görünmez
+              `::after` katmanı hedefi 44px yapıyor, görsel boyut değişmiyor. */}
           <button
             type="button"
-            className="inline-flex items-center justify-center p-1 rounded-full text-content-subtle hover:text-content-secondary hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-help transition-all ml-1.5 shrink-0"
+            className="tap-44 inline-flex items-center justify-center p-1 rounded-full text-content-subtle hover:text-content-secondary hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring cursor-help transition-all ml-1.5 shrink-0"
             aria-label={`More information about ${content.title}`}
           >
             <HelpCircle className="w-3.5 h-3.5" />

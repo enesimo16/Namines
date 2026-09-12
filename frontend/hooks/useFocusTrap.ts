@@ -31,6 +31,23 @@ export function useFocusTrap(isOpen: boolean, containerRef: React.RefObject<HTML
       return Array.from(container.querySelectorAll(focusableSelectors));
     };
 
+    // SIRA ONEMLI: geri donulecek oge, odak modala TASINMADAN once
+    // yakalanmali.
+    //
+    // ONCEKI HALI BIR HATAYDI: `previousActiveElement`, `firstElement.focus()`
+    // cagrildiktan SONRA okunuyordu. Yani "modaldan once odakta olan oge"
+    // olarak modalin ICINDEKI ilk oge kaydediliyordu. Modal kapaninca o oge
+    // DOM'dan kalktigi icin odak `<body>`e dusuyordu.
+    //
+    // OLCULDU (12.09.2026, /demo): karta Tab ile odaklanip Enter'a basildi,
+    // Escape ile kapatildi -> `document.activeElement` BODY oldu, kart DEGIL.
+    // Klavye kullanicisi modali kapattiktan sonra listenin basina donmek
+    // zorunda kaliyordu (WCAG 2.4.3 Odak Sirasi).
+    //
+    // Bu kanca uygulamadaki TUM modallar tarafindan kullaniliyor, yani hata
+    // her modalda vardi.
+    const previousActiveElement = document.activeElement as HTMLElement | null;
+
     const focusableElements = getFocusableElements();
     const firstElement = focusableElements[0];
 
@@ -38,9 +55,6 @@ export function useFocusTrap(isOpen: boolean, containerRef: React.RefObject<HTML
     if (firstElement) {
       firstElement.focus();
     }
-
-    // Keep track of the active element before the modal opened to restore focus later
-    const previousActiveElement = document.activeElement as HTMLElement | null;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;

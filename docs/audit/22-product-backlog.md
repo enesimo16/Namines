@@ -177,3 +177,43 @@ ikinci bir ders: bir token, kullanıldığı TÜM yüzeylere karşı ölçülmel
 4.35 ile `/review` sayfasında yakalandı.
 
 **B-42'de kalan:** klavye gezinmesi ve ekran okuyucu denetimi.
+
+## B-42 — klavye + ekran okuyucu bölümü de KAPANDI (12.09.2026)
+
+**Ölçüm aracı:** `frontend/scripts/a11y-audit.js` (tarayıcı konsolu).
+
+### Ölçüm yöntemi iki kez DÜZELTİLDİ (ilk sonuçlar sahteydi)
+
+| İlk ölçüm | Gerçek | Neden yanlıştı |
+|---|---|---|
+| "75 odaklanabilir öğenin 73'ünde odak halkası yok" | **0** | `el.focus()` PROGRAMATİK odaktır ve Chrome bunun için `:focus-visible` tetiklemez. Gerçek Tab tuşuyla doğrulandı: `outline: 2px solid`, halka `globals.css`'teki global kuraldan geliyor. |
+| "74 tıklanabilir öğe klavyeyle erişilemez" | **29** | `cursor: pointer` CSS'te MİRAS ALINIYOR; tıklanabilir bir div'in tüm torunları da "pointer" görünüyordu. Araç artık React'in kendi `onClick` prop'unu okuyor (`__reactProps$…`). |
+| "13 onay kutusu 14x14, çok küçük" | **0** | Her biri 256x24 bir `<label>` içinde; etiket metnine tıklamak da çalışıyor, yani gerçek hedef 256x24. Araç artık etiketi ölçüyor. |
+
+### Düzeltilen GERÇEK hatalar
+
+1. **29 tıklanabilir öğe klavyeyle erişilemiyordu** — tanıtım sayfasındaki 8
+   ekosistem kartı, demo sayfasındaki 20 şablon kartı, başlıktaki kullanıcı
+   menüsü. `lib/a11y.ts` → `activateOnKey` + `role="button"` + `tabIndex={0}`.
+   `<button>` kullanılamadı: kartlar içinde `<h3>` var, HTML bunu yasaklıyor.
+2. **`useFocusTrap`'te odak geri yükleme hatası — TÜM modalları etkiliyordu.**
+   `previousActiveElement`, odak modala taşındıktan SONRA okunuyordu; yani
+   "önce odakta olan öge" olarak modalın İÇİNDEKİ ilk öge kaydediliyordu.
+   Modal kapanınca odak `<body>`'ye düşüyordu (WCAG 2.4.3).
+3. **Demo şablon modalı bir ARIA diyalogu değildi**: `role`/`aria-modal`/
+   `aria-label` yok, odak modalın ARKASINDA kalıyor, ve kapatma düğmesi
+   `title="Close (Esc)"` yazdığı hâlde Escape'i dinleyen kod YOKTU — arayüz
+   tutmadığı bir söz veriyordu.
+4. `ContextualHelpTooltip` düğmesi 22x22 idi, genişletilmiş tıklama alanı
+   yoktu (`tap-44` eklendi).
+5. Başlık atlamaları: `/` h1→h3, `/canvas` h2→h4 ve `/canvas`'ta hiç `<h1>`
+   yoktu (ekran okuyucu için `sr-only` h1 eklendi).
+
+### Uçtan uca klavye döngüsü CANLI doğrulandı
+
+Karta odaklan → **Enter** → diyalog açıldı → odak diyaloğun İÇİNE geçti →
+**Escape** → diyalog kapandı → **odak karta geri döndü**.
+
+**Kalan (kabul edilmiş):** modal arka planları (`div.fixed inset-0`) ve
+React Flow tuvali odaklanabilir değil. Arka planlar için Escape çalışıyor;
+React Flow üçüncü taraf ve kendi klavye desteğini getiriyor.

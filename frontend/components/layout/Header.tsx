@@ -19,6 +19,7 @@ import Logo from './Logo';
 import HomeBanner from '../landing/HomeBanner';
 import ThemeToggleButton from '../landing/ThemeToggleButton';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { activateOnKey } from '../../lib/a11y';
 
 const HOME_NAV_ITEMS = [
   { id: 'how-it-works', label: 'How it works' },
@@ -350,6 +351,11 @@ export default function Header() {
           ) : isAuthenticated ? (
             <div
               onClick={() => setIsAIPreferencesOpen(true)}
+              onKeyDown={activateOnKey(() => setIsAIPreferencesOpen(true))}
+              role="button"
+              tabIndex={0}
+              aria-haspopup="dialog"
+              aria-label="Open account and AI settings"
               className="flex items-center gap-2 sm:gap-3 pl-1.5 sm:pl-2 pr-1.5 sm:pr-3 py-1 bg-white/[0.06] border border-content-primary/15 hover:border-white/25 rounded-full select-none shadow-[0_2px_12px_color-mix(in srgb, var(--color-accent) 10%, transparent)] hover:bg-white/[0.08] transition-all duration-200 cursor-pointer"
             >
               {/* Clean Avatar Orb */}
