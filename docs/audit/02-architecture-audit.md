@@ -105,6 +105,35 @@ desen **zaten var** (`ConsoleNextjsGenerator`, `TypeScriptSdkGenerator`,
 
 ### Severity
 **LOW** (bakım yükü; davranışsal risk yok)
+### ✅ Yapıldı (11.09.2026) — B-37
+
+`ScaffolderService` **1.761 → 120 satır**. Artık yalnızca orkestrasyon
+(hangi dosya hangi yola); içerikler `Generators/Scaffold/` altında hedef
+başına beş statik üreteçte:
+
+| Üreteç | Satır | İçerik |
+|---|---|---|
+| `DotnetBackendScaffold` | 408 | entity, DbContext, controller, Program.cs, csproj, Docker |
+| `FrontendSdkScaffold` | 188 | TS tipleri, Zod, TanStack Query kancaları |
+| `CloudInfraScaffold` | 294 | AWS / Azure Terraform + GitHub Actions |
+| `BiModuleScaffold` | 390 | Text-to-SQL denetleyicisi + React bileşeni |
+| `PythonScaffold` | 464 | FastAPI + SQLAlchemy projesi |
+
+**Önce bir güvenlik ağı kuruldu, çünkü yoktu.** Servisin çıktısını kapsayan
+TEK bir test bulunmuyordu. Bölmeden ÖNCE `ScaffolderSnapshotTests` yazıldı:
+4 varyant (.NET düz, .NET+BI+AWS, .NET+Azure, Python), zip'in içindeki her
+dosyanın yolu ve içeriği. Zip baytları değil içerik karşılaştırılıyor —
+başlıklardaki zaman damgaları her üretimde değişir.
+
+Sonuç: bölmeden sonra 4 snapshot da **birebir aynı**. Metot gövdeleri
+değişmedi; yalnızca `private` → `internal static` ve çağrılar sınıf adıyla
+nitelendi. Yardımcılar gruplar arasında çağrılmıyordu (ölçüldü), bu yüzden
+bölme temiz.
+
+**Testin kendisi doğrulandı:** bir üreteçte tek bir kelime değiştirildiğinde
+snapshot testi **başarısız** oluyor, geri alınınca geçiyor. Yani test
+gerçekten çıktıyı ölçüyor — sessizce geçen bir güvenlik ağı değil.
+
 
 ### Effort
 M · ### Priority P2
