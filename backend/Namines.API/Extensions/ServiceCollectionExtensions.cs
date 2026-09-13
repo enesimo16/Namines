@@ -96,7 +96,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDockerService, DockerBackupService>();
         services.AddScoped<ICoderAIPackager, CoderAIPackagerService>();
         services.AddScoped<IDatabaseExecutor, DatabaseExecutorService>();
-        
+        services.AddScoped<Namines.Infrastructure.Services.LaunchService>();
+
         // AI DBA (Otonom Performans Danışmanı) registration
         services.AddScoped<IAIDbaService, AIDbaService>();
         
