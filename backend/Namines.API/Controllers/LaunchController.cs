@@ -1,10 +1,16 @@
 using System;
+using System.IO;
+using System.IO.Compression;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Namines.Core.Interfaces;
+using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
@@ -83,5 +89,79 @@ public class LaunchController : ControllerBase
             default:
                 throw new InvalidOperationException($"Unhandled LaunchStatus: {result.Status}");
         }
+    }
+
+    [HttpPost("{projectId}/download")]
+    public async Task<IActionResult> Download(
+        string projectId,
+        [FromServices] IScaffolderService scaffolder,
+        CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (userId is null) return Unauthorized();
+
+        if (await _context.GetRoleAsync(projectId, userId, ct) != OrgRole.Owner)
+            return Forbid();
+
+        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        if (project is null) return NotFound(new { error = "Project not found." });
+
+        DatabaseSchema schema;
+        try
+        {
+            schema = JsonSerializer.Deserialize<DatabaseSchema>(project.SchemaJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new DatabaseSchema();
+        }
+        catch (JsonException)
+        {
+            return BadRequest(new { error = "The project's stored schema is not valid." });
+        }
+
+        var (entity, rawKey) = GatewayAccess.CreateKey(
+            projectId, "Downloaded project", userId, canWrite: true, expiresAt: null);
+        _context.GatewayApiKeys.Add(entity);
+        await _context.SaveChangesAsync(ct);
+
+        var zipBytes = await scaffolder.GenerateFullStackProjectAsync(schema);
+        var apiOrigin = $"{Request.Scheme}://{Request.Host}";
+        var withReadme = AppendGatewayReadme(zipBytes, $"{apiOrigin}/api/gateway", rawKey);
+
+        return File(withReadme, "application/zip", "namines-project.zip");
+    }
+
+    /// <summary>
+    /// Var olan zip'e TEK bir kök dosya ekler. Beş üretici sınıfın
+    /// (DotnetBackendScaffold / PythonScaffold / FrontendSdkScaffold / ...)
+    /// hiçbiri değişmiyor — bu, "ham parola asla zip'e girmez" kararının
+    /// TEK dokunduğu yer.
+    /// </summary>
+    private static byte[] AppendGatewayReadme(byte[] zipBytes, string gatewayUrl, string rawKey)
+    {
+        using var stream = new MemoryStream();
+        stream.Write(zipBytes, 0, zipBytes.Length);
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var entry = archive.CreateEntry("NAMINES-GATEWAY.md");
+            using var writer = new StreamWriter(entry.Open(), Encoding.UTF8);
+            writer.Write($"""
+                # Connecting to your database
+
+                This project's database connection is managed by Namines and its raw
+                credentials are never written to a file — not even this one.
+
+                Instead, a Gateway API key was created for this project. It reads and
+                writes through Namines' own API, is scoped to this project, and can be
+                revoked at any time from Desk's "API keys" screen.
+
+                ```
+                NAMINES_GATEWAY_URL={gatewayUrl}
+                NAMINES_GATEWAY_KEY={rawKey}
+                ```
+
+                **Store this key now** — Namines cannot show it to you again. If you
+                lose it, revoke it in Desk and create a new one.
+                """);
+        }
+        return stream.ToArray();
     }
 }
