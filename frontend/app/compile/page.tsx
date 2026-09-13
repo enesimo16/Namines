@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpenText, FileText, Container, Download, PanelsTopLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpenText, FileText, Container, Download, PanelsTopLeft, ExternalLink, ShieldCheck, HardDrive, Rocket } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { schemaService, authService } from '../../services/api';
 
 import DbTypeSelector from '../../components/compile/DbTypeSelector';
@@ -17,6 +18,7 @@ import SmartSeedPanel from '../../components/compile/SmartSeedPanel';
 import EfCorePreview from '../../components/compile/EfCorePreview';
 import PrismaPreview from '../../components/compile/PrismaPreview';
 import EjectPanel from '../../components/compile/EjectPanel';
+import LaunchPanel from '../../components/compile/LaunchPanel';
 import { IconButton } from '../../components/compile/PanelKit';
 import {
   generateClassDiagram,
@@ -33,7 +35,7 @@ import {
   generateRequirementDiagram
 } from '../../utils/diagramGenerators';
 
-type TabId = 'SQL' | 'EF' | 'PRISMA' | 'EJECT' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX';
+type TabId = 'SQL' | 'EF' | 'PRISMA' | 'EJECT' | 'ER' | 'MOCK' | 'DICTIONARY' | 'README' | 'SANDBOX' | 'LAUNCH';
 
 const TABS: { id: TabId; label: string; icon: typeof FileCode2 }[] = [
   { id: 'SQL',        label: 'DDL Script',       icon: FileCode2 },
@@ -45,6 +47,7 @@ const TABS: { id: TabId; label: string; icon: typeof FileCode2 }[] = [
   { id: 'DICTIONARY', label: 'Data Dictionary',  icon: BookOpenText },
   { id: 'README',     label: 'README.md',        icon: FileText },
   { id: 'SANDBOX',    label: 'Docker Sandbox',   icon: Container },
+  { id: 'LAUNCH',     label: 'Launch',           icon: Rocket },
 ];
 
 /**
@@ -62,6 +65,7 @@ export default function CompilePage() {
   const router = useRouter();
   const { schema, dbType, setDbType, projectName } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
+  const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
 
   const [sql, setSql] = useState('');
   const [mermaidCode, setMermaidCode] = useState('');
@@ -141,6 +145,18 @@ export default function CompilePage() {
     fetchSql();
     return () => { ignore = true; };
   }, [schema, dbType, router]);
+
+  // Ground yalnizca PostgreSQL destekliyor — Launch, DDL Script sekmesinin
+  // kendi motor seciciisinden bagimsiz, her zaman Postgres DDL'i kullanir.
+  const [launchDdl, setLaunchDdl] = useState('');
+  useEffect(() => {
+    if (!schema) return;
+    let ignore = false;
+    schemaService.compileSql(schema, 'PostgreSQL').then(generated => {
+      if (!ignore) setLaunchDdl(generated);
+    }).catch(() => { if (!ignore) setLaunchDdl(''); });
+    return () => { ignore = true; };
+  }, [schema]);
 
   const updateDiagram = async (
     type: 'ER' | 'CLASS' | 'FLOW' | 'MINDMAP' | 'STATE' | 'SEQUENCE' | 'GANTT' | 'PIE' | 'GIT' | 'JOURNEY' | 'TIMELINE' | 'QUADRANT' | 'REQUIREMENT'
@@ -302,6 +318,32 @@ export default function CompilePage() {
             <span className="text-micro font-bold uppercase tracking-wider text-accent-text bg-accent-subtle px-1.5 py-0.5 rounded-full shrink-0">beta</span>
             <ExternalLink className="w-3 h-3 shrink-0 ml-auto opacity-60" />
           </button>
+
+          {/* Namines Ground / Vault — Desk'in ALTINDA değil, ondan bağımsız
+              kendi sayfaları (/ground, /vault) var. Gerekçe: bir kullanıcı
+              yalnızca barındırılan bir veritabanı (Ground) ya da yalnızca
+              düzenli yedek (Vault) isteyebilir — Desk'in CRUD/SQL konsolu
+              akışına hiç girmeden. Aynı origin/oturum olduğu için Desk'in
+              aksine SSO handoff gerekmiyor, düz bir sayfa geçişi yeterli. */}
+          <button
+            type="button"
+            onClick={() => router.push('/ground')}
+            className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 mt-1 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10"
+            title="Namines Ground — a hosted database, independent of Desk"
+          >
+            <HardDrive className="w-3.5 h-3.5 shrink-0" />
+            <span className="lg:truncate">Namines Ground</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push('/vault')}
+            className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10"
+            title="Namines Vault — backups and restore, independent of Desk"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+            <span className="lg:truncate">Namines Vault</span>
+          </button>
         </nav>
       </aside>
 
@@ -355,7 +397,15 @@ export default function CompilePage() {
           {activeTab === 'SANDBOX' && <DockerSandboxPanel schema={schema} dbType={dbType} sql={sql} />}
           {activeTab === 'DICTIONARY' && <DataDictionaryPreview schema={schema} projectName={projectName} />}
           {activeTab === 'README' && <ReadmePreview schema={schema} />}
-          {activeTab !== 'SANDBOX' && activeTab !== 'DICTIONARY' && activeTab !== 'README' && (
+          {activeTab === 'LAUNCH' && (
+            <LaunchPanel
+              projectId={activeProjectId}
+              projectName={projectName}
+              ddlScript={launchDdl}
+              schema={schema}
+            />
+          )}
+          {activeTab !== 'SANDBOX' && activeTab !== 'DICTIONARY' && activeTab !== 'README' && activeTab !== 'LAUNCH' && (
             <div className="flex-1 min-h-0 relative">
               {isLoading && (
                 <div className="absolute inset-0 z-20 bg-surface-900/60 backdrop-blur-sm flex items-center justify-center rounded-[var(--radius-card)]">
