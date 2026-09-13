@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Namines.API.Controllers.Shared;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models.Auth;
@@ -120,7 +121,7 @@ public class DatabaseExecutorController : ControllerBase
         string userId, ExecutorRequest request, ExecutionResult result, CancellationToken ct)
     {
         var script = request.Script ?? string.Empty;
-        var (host, database) = DescribeTarget(request.ConnectionString, request.DbType);
+        var (host, database) = ConnectionTargetDescriber.Describe(request.ConnectionString, request.DbType);
 
         var entry = new SqlExecutionAudit
         {
@@ -166,39 +167,6 @@ public class DatabaseExecutorController : ControllerBase
     /// Ayrıştırma başarısız olursa alanlar null kalır — kayıt yine de yazılır.
     /// Eksik bir kayıt, hiç kayıt olmamasından iyidir.
     /// </summary>
-    private static (string? Host, string? Database) DescribeTarget(string? connectionString, DatabaseType dbType)
-    {
-        if (string.IsNullOrWhiteSpace(connectionString)) return (null, null);
-
-        string? host = null, database = null;
-
-        foreach (var pair in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var separator = pair.IndexOf('=');
-            if (separator <= 0) continue;
-
-            var key = pair[..separator].Trim();
-            var value = pair[(separator + 1)..].Trim();
-
-            if (key.Equals("Host", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("Server", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("Data Source", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("Address", StringComparison.OrdinalIgnoreCase))
-                host = value;
-            else if (key.Equals("Database", StringComparison.OrdinalIgnoreCase) ||
-                     key.Equals("Initial Catalog", StringComparison.OrdinalIgnoreCase))
-                database = value;
-        }
-
-        // SQLite'ta "Data Source" bir dosya yolu; kullanıcının disk düzenini
-        // denetim kaydına yazmamak için yalnızca dosya adı tutuluyor.
-        if (dbType == DatabaseType.SQLite && host is not null)
-        {
-            host = System.IO.Path.GetFileName(host);
-        }
-
-        return (host, database);
-    }
 }
 
 public class ExecutorRequest
