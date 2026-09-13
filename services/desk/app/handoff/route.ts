@@ -27,14 +27,20 @@ export async function POST(req: NextRequest): Promise<Response> {
   // taklit edilemez. Yoksa (eski tarayıcı) `Origin` ile aynı kontrol yapılır;
   // ikisi de yoksa istek reddedilir — belirsizlikte oturum kurmak yanlış yön.
   if (!isTrustedCaller(req)) {
-    return htmlResponse(errorPage('Bu bağlantı beklenmeyen bir siteden geldi.'), 403);
+    return htmlResponse(errorPage('This link came from an unexpected site.'), 403);
   }
 
   const form = await req.formData();
   const token = form.get('token');
+  // Launch akışı (POST /api/launch) bu ikisini de gönderir: kullanıcıyı
+  // Desk'in proje listesine değil, doğrudan o projenin ilgili görünümüne
+  // (ör. Data) indirir. İkisi de OPSİYONEL — bugünkü openNaminesDesk() çağrısı
+  // yalnızca token gönderiyor ve öncekiyle birebir aynı davranır.
+  const projectId = form.get('projectId');
+  const view = form.get('view');
 
   if (typeof token !== 'string' || !token) {
-    return htmlResponse(errorPage('Eksik jeton.'), 400);
+    return htmlResponse(errorPage('Missing token.'), 400);
   }
 
   const API = process.env.NAMINES_API ?? 'http://localhost:5000';
@@ -58,10 +64,20 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   if (!jwt) {
     return htmlResponse(
-      errorPage('Bu bağlantı geçersiz, süresi dolmuş ya da zaten kullanılmış. Ana uygulamadan tekrar deneyin.'),
+      errorPage('This link is invalid, expired, or already used. Try again from the main app.'),
       401,
     );
   }
+
+  // Yalnızca ikisi de string ve dolu ise seed edilir — LaunchController'ın
+  // gönderdiği deep-link. Yoksa bu blok boş string'e düşer ve script'te
+  // hiçbir şey çalışmaz: önceki (yalnızca token'lı) davranış AYNEN korunur.
+  const deepLinkScript = (typeof projectId === 'string' && projectId && typeof view === 'string' && view)
+    ? `try {
+         sessionStorage.setItem('namines-desk-project', ${JSON.stringify(projectId)});
+         sessionStorage.setItem('namines-desk-view', ${JSON.stringify(view)});
+       } catch (e) {}`
+    : '';
 
   // JWT yalnızca BURADA, sunucudan istemciye giden bu tek yanıtın gövdesinde
   // görünür — bir SPA'nın token'ı istemciye teslim etmesinin standart yolu
@@ -69,9 +85,10 @@ export async function POST(req: NextRequest): Promise<Response> {
   return htmlResponse(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Namines Desk</title></head>
 <body style="background:#0b0b0b;color:#eceff1;font-family:ui-sans-serif,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
-<p>Giriş yapılıyor…</p>
+<p>Signing in…</p>
 <script>
   try { sessionStorage.setItem('namines-desk-token', ${JSON.stringify(jwt)}); } catch (e) {}
+  ${deepLinkScript}
   location.replace('/');
 </script>
 </body></html>`, 200);
@@ -82,7 +99,7 @@ function errorPage(message: string): string {
 <html><head><meta charset="utf-8"><title>Namines Desk</title></head>
 <body style="background:#0b0b0b;color:#eceff1;font-family:ui-sans-serif,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;text-align:center">
 <div>
-  <h1 style="font-size:16px">Namines Desk'e giriş yapılamadı</h1>
+  <h1 style="font-size:16px">Could not sign in to Namines Desk</h1>
   <p style="color:#acb2b7;font-size:13px">${escapeHtml(message)}</p>
 </div>
 </body></html>`;
