@@ -88,13 +88,15 @@ public sealed class AgentTools
     {
         try
         {
-            return call.Name switch
+            // Her aracın sonucu SINIRLI: hepsi mesaj geçmişine ekleniyor ve
+            // model her sonraki araç turunda tüm geçmişi yeniden görüyor.
+            return Truncate(call.Name switch
             {
                 "validate_schema" => ValidateSchema(call.ArgumentsJson),
                 "get_column_info" => GetColumnInfo(call.ArgumentsJson),
                 "preview_ddl" => PreviewDdl(call.ArgumentsJson),
                 _ => $"Unknown tool '{call.Name}'.",
-            };
+            });
         }
         catch (Exception ex)
         {
@@ -164,6 +166,26 @@ public sealed class AgentTools
         return $"Table '{table.Name}' (id: {table.Id}):\n" + string.Join("\n", table.Columns.Select(c =>
             $"- {c.Name} (id: {c.Id}, type: {c.Type}{(c.IsPK ? ", PK" : "")}{(c.IsFK ? ", FK" : "")}" +
             $"{(string.IsNullOrWhiteSpace(c.Generated) ? "" : $", generated: {c.Generated}")})"));
+    }
+
+    /// <summary>
+    /// Bir araç sonucunun üst sınırı, karakter olarak.
+    ///
+    /// <b>Neden gerekli:</b> bu sonuç mesaj geçmişine EKLENİYOR ve model her
+    /// sonraki araç turunda tüm geçmişi yeniden görüyor (bkz.
+    /// GroqSchemaDraftSource.RepairWithToolsAsync). Büyük bir şemada
+    /// preview_ddl'in ürettiği ham DDL onlarca kilobayt olabilir — sınırsız
+    /// bırakmak, tek bir araç çağrısının aynı yanıtı 2-3 kez yeniden
+    /// göndererek turu tüketmesi demekti.
+    /// </summary>
+    private const int MaxToolResultLength = 4000;
+
+    private static string Truncate(string text)
+    {
+        if (text.Length <= MaxToolResultLength) return text;
+
+        return text[..MaxToolResultLength] +
+               $"\n... (truncated, {text.Length - MaxToolResultLength} more characters)";
     }
 
     private string PreviewDdl(string argumentsJson)

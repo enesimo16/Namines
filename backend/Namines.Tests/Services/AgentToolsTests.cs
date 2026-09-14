@@ -146,6 +146,37 @@ public class AgentToolsTests
     }
 
     [Fact]
+    public void preview_ddl_truncates_large_output_instead_of_returning_it_whole()
+    {
+        // Bu araç sonucu mesaj geçmişine EKLENİYOR ve her sonraki araç turunda
+        // yeniden gönderiliyor (bkz. GroqSchemaDraftSource.RepairWithToolsAsync).
+        // Sınırsız bırakmak, büyük bir şemada tek bir preview_ddl çağrısının
+        // token bütçesini tüketmesi demek.
+        var schema = new DatabaseSchema { SchemaId = "s", Name = "S" };
+        for (var i = 0; i < 60; i++)
+        {
+            var table = new SchemaTable { Id = $"t{i}", Name = $"Table{i}" };
+            table.Columns.Add(new SchemaColumn { Id = $"c{i}_1", Name = "Id", Type = "INT", IsPK = true });
+            for (var c = 0; c < 10; c++)
+                table.Columns.Add(new SchemaColumn { Id = $"c{i}_{c + 2}", Name = $"Field{c}", Type = "NVARCHAR", Length = 255 });
+            schema.Tables.Add(table);
+        }
+
+        var result = Tools(schema).Invoke(new AgentToolCall("1", "preview_ddl", "{}"));
+
+        Assert.True(result.Length <= 4200, $"Tool result is {result.Length} chars, expected a bounded size.");
+        Assert.Contains("truncated", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void preview_ddl_does_not_truncate_small_output()
+    {
+        var result = Tools(Valid()).Invoke(new AgentToolCall("1", "preview_ddl", "{}"));
+
+        Assert.DoesNotContain("truncated", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void preview_ddl_returns_the_failure_message_instead_of_throwing()
     {
         // SQLite hesaplanan birincil anahtarı reddeder — üretici istisna fırlatır.
