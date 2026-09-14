@@ -388,6 +388,20 @@ public class GroqAIService : IAIService, IAgentChatClient
     /// dur" kararını AI servisinin içine gömerdi — oysa o karar deterministik
     /// tarafta (bkz. SchemaAgentPipeline).
     /// </summary>
+    /// <summary>
+    /// Gemini'nin OpenAI-uyumluluk uç noktasının <c>tools</c>/<c>tool_choice</c>
+    /// parametrelerini kabul ettiği hiç DOĞRULANMADI — <c>PostAsync</c> bu
+    /// modelleri sessizce farklı bir uç noktaya (Google'ın kendi API'sine)
+    /// yönlendiriyor ve o yolun tool-calling uyumluluğu test edilmedi.
+    ///
+    /// Doğrulanana kadar o yola yönlendirilen bir model için araçlar hiç
+    /// GÖNDERİLMİYOR: göndermek, sağlayıcı reddederse turun bir yapılandırma
+    /// sorununu (yanlış modelin araç istediği) görünmez bir agent hatasına
+    /// ("[agent] Repair round N could not run") çevirmesine yol açardı.
+    /// </summary>
+    internal static bool SupportsToolCalling(string model) =>
+        !model.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase);
+
     public async Task<AgentChatResponse> CompleteAsync(
         IReadOnlyList<AgentChatMessage> messages,
         IReadOnlyList<AgentToolDefinition> tools,
@@ -405,8 +419,10 @@ public class GroqAIService : IAIService, IAgentChatClient
         };
 
         // Araç yoksa 'tools' HİÇ gönderilmiyor: boş bir dizi bazı uyumluluk
-        // katmanlarında hata veriyor ve hiçbir şey kazandırmıyor.
-        if (tools.Count > 0)
+        // katmanlarında hata veriyor ve hiçbir şey kazandırmıyor. Gemini'ye
+        // yönlendirilen bir modelde de aynı şekilde hiç gönderilmiyor — bkz.
+        // SupportsToolCalling.
+        if (tools.Count > 0 && SupportsToolCalling(model))
         {
             payload["tools"] = tools.Select(t => new
             {
