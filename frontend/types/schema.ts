@@ -90,6 +90,34 @@ export interface SchemaCheck {
   expression: string;
 }
 
+/** Bir tablo tetikleyicisi. Yalnızca hedef motor seçiliyken üretilir. */
+export interface SchemaTrigger {
+  id: string;
+  stableUuid?: string;
+  tableId: string;
+  timing: 'Before' | 'After';
+  event: 'Insert' | 'Update' | 'Delete';
+  /** Bu trigger'ın ham SQL'i hangi motor için yazıldı. */
+  targetEngine: string;
+  /** Ham SQL gövdesi — çevrilmez, olduğu gibi taşınır. */
+  body: string;
+}
+
+export interface SchemaStoredProcedureParameter {
+  name: string;
+  type: string;
+}
+
+/** Saklı yordam. Motor-gated davranış SchemaTrigger ile aynıdır. */
+export interface SchemaStoredProcedure {
+  id: string;
+  stableUuid?: string;
+  name: string;
+  targetEngine: string;
+  parameters: SchemaStoredProcedureParameter[];
+  body: string;
+}
+
 export interface SchemaTable {
   id: string;
   name: string;
@@ -137,6 +165,10 @@ export interface DatabaseSchema {
   relations: SchemaRelation[];
   /** Eski kayıtlarda yoktur → undefined; üreticiler boş liste gibi davranır. */
   enums?: SchemaEnum[];
+  /** Eski kayıtlarda yoktur → undefined; üreticiler boş liste gibi davranır. */
+  triggers?: SchemaTrigger[];
+  /** Eski kayıtlarda yoktur → undefined; üreticiler boş liste gibi davranır. */
+  storedProcedures?: SchemaStoredProcedure[];
   cloudProvider?: 'None' | 'AWS' | 'Azure';
   includeBiModule?: boolean;
 }
