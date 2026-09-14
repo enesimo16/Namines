@@ -26,7 +26,7 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
     public Task<DatabaseSchema> DraftAsync(string prompt, DatabaseType engine, CancellationToken cancellationToken = default) =>
         _groq.GenerateSchemaAsync(new GenerateRequest { Prompt = prompt, DbType = engine });
 
-    public Task<DatabaseSchema> RepairAsync(
+    public async Task<DatabaseSchema> RepairAsync(
         DatabaseSchema schema,
         IReadOnlyList<string> findings,
         DatabaseType engine,
@@ -50,11 +50,20 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
         // göremediği bir tabloya yabancı anahtar yazdığında düzeltme turu yeni
         // bir hata üretir. ReviseSchemaAsync yalnızca gördüğü tabloları döndürür,
         // dolayısıyla eksik göndermek şemayı budamak demek olurdu.
-        return _groq.ReviseSchemaAsync(new ReviseRequest
+        var repaired = await _groq.ReviseSchemaAsync(new ReviseRequest
         {
             RevisionPrompt = instructions,
             SelectedTables = schema.Tables,
             ExistingRelations = schema.Relations,
+            // Trigger/saklı yordam/enum da gönderiliyor: göremediği bir trigger'ı
+            // model düzeltemez ve motor uyuşmazlığı bulgusu hiç kapanmazdı.
+            Triggers = schema.Triggers,
+            StoredProcedures = schema.StoredProcedures,
+            Enums = schema.Enums,
         });
+
+        // Model kısmi döner (yalnızca tables+relations). Birleştirmeden kullanmak,
+        // her turda trigger/SP/enum silmek demekti.
+        return SchemaMerge.PreserveUnrevised(schema, repaired);
     }
 }

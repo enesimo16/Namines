@@ -39,6 +39,9 @@ Your output MUST be a single JSON object in the EXACT same DatabaseSchema format
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         var tablesJson = JsonSerializer.Serialize(req.SelectedTables, options);
         var relationsJson = JsonSerializer.Serialize(req.ExistingRelations, options);
+        var triggersJson = JsonSerializer.Serialize(req.Triggers, options);
+        var proceduresJson = JsonSerializer.Serialize(req.StoredProcedures, options);
+        var enumsJson = JsonSerializer.Serialize(req.Enums, options);
 
         return $@"Revision Request: ""{req.RevisionPrompt}""
 
@@ -48,9 +51,20 @@ Here are the selected tables to focus on:
 Here are the existing relations associated with these tables:
 {relationsJson}
 
+Existing triggers (return them only if the request requires changing them):
+{triggersJson}
+
+Existing stored procedures (return them only if the request requires changing them):
+{proceduresJson}
+
+Existing enums (return them only if the request requires changing them):
+{enumsJson}
+
 Modify or add to these tables/relations based on the request.
 Output the partial schema in JSON format.
-CRITICAL: Your output MUST be a JSON object with 'tables' and 'relations' arrays:
+CRITICAL: Your output MUST be a JSON object with 'tables' and 'relations' arrays.
+Include 'triggers', 'storedProcedures' or 'enums' ONLY if you changed them —
+omitting them means ""leave them exactly as they are"":
 {{
   ""tables"": [],
   ""relations"": []
