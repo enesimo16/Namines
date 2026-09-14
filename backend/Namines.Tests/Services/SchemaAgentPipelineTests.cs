@@ -30,10 +30,25 @@ public class SchemaAgentPipelineTests
         public List<IReadOnlyList<string>> SeenFindings { get; } = new();
         public int DraftCalls { get; private set; }
         public int RepairCalls { get; private set; }
+        public int PlanCalls { get; private set; }
 
-        public Task<DatabaseSchema> DraftAsync(string prompt, DatabaseType engine, CancellationToken ct = default)
+        /// <summary>Plan turunun döndüreceği metin.</summary>
+        public string? PlanText { get; set; }
+
+        /// <summary>Taslak turuna gerçekten ULAŞAN plan — bağlanmadıysa null kalır.</summary>
+        public string? SeenPlan { get; private set; }
+
+        public Task<string?> PlanAsync(string prompt, DatabaseType engine, CancellationToken ct = default)
+        {
+            PlanCalls++;
+            return Task.FromResult(PlanText);
+        }
+
+        public Task<DatabaseSchema> DraftAsync(
+            string prompt, DatabaseType engine, string? plan, CancellationToken ct = default)
         {
             DraftCalls++;
+            SeenPlan = plan;
             return Task.FromResult(Next());
         }
 
@@ -141,6 +156,53 @@ public class SchemaAgentPipelineTests
         return schema;
     }
 
+    // ── Plan turu ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task A_plan_turn_runs_when_the_budget_allows_it()
+    {
+        var source = new FakeSource(Healthy());
+
+        await Pipeline(source).RunAsync("x", DatabaseType.PostgreSQL, budgetRounds: 3);
+
+        Assert.Equal(1, source.PlanCalls);
+    }
+
+    [Fact]
+    public async Task The_plan_turn_is_skipped_when_the_budget_is_tight()
+    {
+        // İki tur = taslak + bir onarım. Plan turunu buraya sıkıştırmak,
+        // kullanıcının tek düzeltme hakkını plan uğruna harcamak olurdu.
+        var source = new FakeSource(Healthy());
+
+        await Pipeline(source).RunAsync("x", DatabaseType.PostgreSQL, budgetRounds: 2);
+
+        Assert.Equal(0, source.PlanCalls);
+    }
+
+    [Fact]
+    public async Task The_plan_is_handed_to_the_draft_turn()
+    {
+        // Plan üretilip taslağa BAĞLANMAZSA tur boşa harcanmış olur.
+        var source = new FakeSource(Healthy()) { PlanText = "1. users table" };
+
+        await Pipeline(source).RunAsync("x", DatabaseType.PostgreSQL, budgetRounds: 3);
+
+        Assert.Equal("1. users table", source.SeenPlan);
+    }
+
+    [Fact]
+    public async Task The_plan_turn_counts_as_a_round()
+    {
+        // Plan bir AI çağrısıdır; sayılmazsa kullanıcı bütçesini göremediği
+        // bir yerden harcamış olur.
+        var source = new FakeSource(Healthy());
+
+        var result = await Pipeline(source).RunAsync("x", DatabaseType.PostgreSQL, budgetRounds: 3);
+
+        Assert.Equal(2, result.Rounds);
+    }
+
     // ── Temel akış ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -196,7 +258,8 @@ public class SchemaAgentPipelineTests
         var result = await Pipeline(source).RunAsync("bir mağaza şeması", DatabaseType.PostgreSQL);
 
         Assert.True(result.Clean);
-        Assert.Equal(1, result.Rounds);
+        // Varsayılan bütçede plan turu da çalışıyor: plan + taslak = 2 tur.
+        Assert.Equal(2, result.Rounds);
         Assert.Equal(0, source.RepairCalls);
     }
 
@@ -208,7 +271,8 @@ public class SchemaAgentPipelineTests
         var result = await Pipeline(source).RunAsync("bir mağaza şeması", DatabaseType.PostgreSQL);
 
         Assert.True(result.Clean);
-        Assert.Equal(2, result.Rounds);
+        // plan + taslak + bir düzeltme.
+        Assert.Equal(3, result.Rounds);
         Assert.Empty(result.RemainingFindings);
     }
 
@@ -238,8 +302,8 @@ public class SchemaAgentPipelineTests
 
         Assert.False(result.Clean);
         // İkinci tur ilkiyle aynı bulguları verdiği anda duruyor: devam etmek
-        // yalnızca bütçe harcar.
-        Assert.Equal(2, result.Rounds);
+        // yalnızca bütçe harcar. (plan + taslak + tek düzeltme denemesi)
+        Assert.Equal(3, result.Rounds);
     }
 
     [Fact]

@@ -11,12 +11,15 @@ namespace Namines.Core.Models;
 /// görünmezse ürün "bir de AI şema üretiyor"dan farksız görünüyor.
 /// </summary>
 /// <param name="Kind">
-/// Makine tarafından okunacak durum: "draft" | "inspect" | "finding" |
+/// Makine tarafından okunacak durum: "plan" | "draft" | "inspect" | "finding" |
 /// "repair" | "clean" | "done". Ön yüz buna göre ikon seçiyor (⟳/⚠/✓).
 /// </param>
 /// <param name="Message">İnsan tarafından okunacak, Türkçe/İngilizce karışık olmayan tek cümle.</param>
 public sealed record AgentStep(string Kind, string Message)
 {
+    /// <summary>Taslaktan ÖNCEKİ plan turu; bütçe darsa hiç görünmez.</summary>
+    public static AgentStep Plan(string message) => new("plan", message);
+
     public static AgentStep Draft(string message) => new("draft", message);
     public static AgentStep Inspect(string message) => new("inspect", message);
     public static AgentStep Finding(string message) => new("finding", message);

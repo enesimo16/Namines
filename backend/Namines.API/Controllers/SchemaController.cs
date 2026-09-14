@@ -558,7 +558,7 @@ public class SchemaController : ControllerBase
     private async Task<int> AffordableRoundsAsync(string? userId)
     {
         if (_quota is null || string.IsNullOrEmpty(userId))
-            return SchemaAgentPipeline.DefaultRepairRounds + 1;
+            return SchemaAgentPipeline.DefaultTotalRounds;
 
         var quota = await _quota.EnsureQuotaAsync(userId, HttpContext.RequestAborted);
         var remaining = Math.Max(0, quota.DailyLimit - quota.DailyUsageCount);
@@ -567,7 +567,7 @@ public class SchemaController : ControllerBase
 
         // Tavan var: bütçesi çok olan bir kullanıcı için sınırsız tur açmak,
         // modelin çözemediği bir bulguda bütçeyi tek istekte yakardı.
-        return Math.Min(affordable, SchemaAgentPipeline.DefaultRepairRounds + 1);
+        return Math.Min(affordable, SchemaAgentPipeline.DefaultTotalRounds);
     }
 
     [HttpPost("revise")]

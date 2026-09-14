@@ -58,9 +58,12 @@ public sealed record SchemaAgentResult(
 ///   → tur sınırına gelince: kalan bulguları AÇIKÇA söyle
 /// </code>
 ///
-/// <b>Kapı deterministik, ikinci bir model değil.</b> "Modele kendi çıktısını
-/// kontrol ettirmek" aynı yanılgıyı iki kez üretir; linter ve DDL üreticisi ise
-/// aynı girdiye her zaman aynı cevabı verir.
+/// <b>Kapı deterministik; araçlar modelin gözü, hakemi değil.</b> Model artık
+/// düzeltme turunda kural motorunu ve gerçek DDL üreticisini ARAÇ olarak
+/// çağırabiliyor (bkz. AgentTools) — yani yazmadan önce bakabiliyor. Ama turu
+/// bitiren karar hâlâ burada, deterministik tarafta veriliyor: modelin kendi
+/// çıktısına "temiz" demesi hiçbir şeyi kapatmaz, çünkü aynı yanılgıyı iki kez
+/// üretebilir. Araçlar bulguyu ERKEN göstermeye yarıyor, bulguyu KALDIRMAYA değil.
 ///
 /// <b>Döngü SINIRLI ve sonucu gizlemiyor.</b> Sınırsız bir düzeltme döngüsü,
 /// modelin çözemediği bir bulguda kullanıcının bütçesini sessizce tüketirdi.
@@ -79,6 +82,17 @@ public sealed class SchemaAgentPipeline
     /// bütçe harcamaktan başka işe yaramıyor.
     /// </summary>
     public const int DefaultRepairRounds = 2;
+
+    /// <summary>
+    /// Tam tur bütçesi: plan (1) + taslak (1) + düzeltme turları.
+    ///
+    /// <b>Neden ayrı bir sabit:</b> plan turu eklendiğinde bütçe tavanı
+    /// değişmeseydi, plan turu düzeltme turlarından birini yiyecekti — yani
+    /// kullanıcı fark etmeden bir düzeltme hakkı kaybedecekti. Çağıranların
+    /// <c>+1</c>/<c>+2</c> aritmetiğini kendi başlarına yapması da aynı hatayı
+    /// bir sonraki değişiklikte tekrar üretirdi.
+    /// </summary>
+    public const int DefaultTotalRounds = DefaultRepairRounds + 2;
 
     private readonly ISchemaDraftSource _source;
     private readonly IDdlGeneratorFactory _ddlFactory;
@@ -107,7 +121,7 @@ public sealed class SchemaAgentPipeline
     public async Task<SchemaAgentResult> RunAsync(
         string prompt,
         DatabaseType engine,
-        int budgetRounds = DefaultRepairRounds + 1,
+        int budgetRounds = DefaultTotalRounds,
         CancellationToken cancellationToken = default,
         IProgress<AgentStep>? progress = null)
     {
@@ -118,9 +132,22 @@ public sealed class SchemaAgentPipeline
         if (budgetRounds < 1)
             throw new InvalidOperationException("There is not enough AI budget left to generate a schema.");
 
+        // Plan turu bütçe yetiyorsa yapılır. Dar bütçede ATLANIYOR: taslak + en
+        // az bir onarım, plandan daha değerli — plan tek başına kullanıcıya
+        // çalışan bir şema vermez, yalnızca bir tur harcar.
+        string? plan = null;
+        var rounds = 0;
+
+        if (budgetRounds >= 3)
+        {
+            progress?.Report(AgentStep.Plan("Planning…"));
+            plan = await _source.PlanAsync(prompt, engine, cancellationToken);
+            rounds++;
+        }
+
         progress?.Report(AgentStep.Draft("Generating draft…"));
-        var schema = await _source.DraftAsync(prompt, engine, cancellationToken);
-        var rounds = 1;
+        var schema = await _source.DraftAsync(prompt, engine, plan, cancellationToken);
+        rounds++;
         progress?.Report(AgentStep.Draft(
             $"Draft generated — {schema.Tables.Count} tables, {schema.Relations.Count} relations"));
 

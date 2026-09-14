@@ -17,8 +17,18 @@ namespace Namines.Core.Interfaces;
 /// </summary>
 public interface ISchemaDraftSource
 {
+    /// <summary>
+    /// Üretimden önce kısa bir plan çıkarır.
+    ///
+    /// <c>null</c> dönebilir: plan turu de bütçe harcar ve hat onu atlayabilir —
+    /// o durumda taslak plansız üretilir.
+    /// </summary>
+    Task<string?> PlanAsync(string prompt, DatabaseType engine, CancellationToken cancellationToken = default);
+
     /// <summary>Kullanıcının cümlesinden ilk taslağı üretir.</summary>
-    Task<DatabaseSchema> DraftAsync(string prompt, DatabaseType engine, CancellationToken cancellationToken = default);
+    /// <param name="plan">Plan turunun çıktısı; tur atlandıysa <c>null</c>.</param>
+    Task<DatabaseSchema> DraftAsync(
+        string prompt, DatabaseType engine, string? plan, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Verilen bulguları düzeltir.
