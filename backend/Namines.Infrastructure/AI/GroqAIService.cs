@@ -44,7 +44,7 @@ public class TolerantStringConverter : JsonConverter<string>
     }
 }
 
-public class GroqAIService : IAIService
+public class GroqAIService : IAIService, IAgentChatClient
 {
     private readonly HttpClient _httpClient;
     private readonly string _modelName;
@@ -378,6 +378,105 @@ public class GroqAIService : IAIService
         {
             // Gövde JSON değil ya da usage yok — ölçüm yok, tahmine düşülür.
         }
+    }
+
+    /// <summary>
+    /// Araç çağırabilen ham sohbet turu (<see cref="IAgentChatClient"/>).
+    ///
+    /// <b>Bu metot turu BİTİRMEZ:</b> modelin araç çağırıp çağırmadığını olduğu
+    /// gibi döndürür, döngüyü çağıran yönetir. Döngüyü buraya koymak, "ne zaman
+    /// dur" kararını AI servisinin içine gömerdi — oysa o karar deterministik
+    /// tarafta (bkz. SchemaAgentPipeline).
+    /// </summary>
+    public async Task<AgentChatResponse> CompleteAsync(
+        IReadOnlyList<AgentChatMessage> messages,
+        IReadOnlyList<AgentToolDefinition> tools,
+        double temperature,
+        CancellationToken cancellationToken = default)
+    {
+        var model = await ResolveModelNameAsync(null, "SchemaAgent");
+
+        var payload = new Dictionary<string, object>
+        {
+            ["model"] = model,
+            ["messages"] = messages.Select(ToWireMessage).ToArray(),
+            ["temperature"] = temperature,
+            ["max_tokens"] = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync()),
+        };
+
+        // Araç yoksa 'tools' HİÇ gönderilmiyor: boş bir dizi bazı uyumluluk
+        // katmanlarında hata veriyor ve hiçbir şey kazandırmıyor.
+        if (tools.Count > 0)
+        {
+            payload["tools"] = tools.Select(t => new
+            {
+                type = "function",
+                function = new
+                {
+                    name = t.Name,
+                    description = t.Description,
+                    // Şema NESNE olarak gömülüyor; metin olarak gönderilirse
+                    // sağlayıcı aracı hiç tanımıyor.
+                    parameters = JsonDocument.Parse(t.ParametersJsonSchema).RootElement,
+                }
+            }).ToArray();
+            payload["tool_choice"] = "auto";
+        }
+
+        using var response = await PostAsync("chat/completions", payload);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            ThrowForFailure(response, errorContent);
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var doc = JsonDocument.Parse(body);
+        var message = doc.RootElement.GetProperty("choices")[0].GetProperty("message");
+
+        string? content = message.TryGetProperty("content", out var contentEl) &&
+                          contentEl.ValueKind == JsonValueKind.String
+            ? contentEl.GetString()
+            : null;
+
+        var calls = new List<AgentToolCall>();
+        if (message.TryGetProperty("tool_calls", out var toolCalls) &&
+            toolCalls.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var call in toolCalls.EnumerateArray())
+            {
+                var function = call.GetProperty("function");
+                calls.Add(new AgentToolCall(
+                    call.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "",
+                    function.GetProperty("name").GetString() ?? "",
+                    function.TryGetProperty("arguments", out var args) ? args.GetString() ?? "{}" : "{}"));
+            }
+        }
+
+        return new AgentChatResponse(content, calls);
+    }
+
+    /// <summary>Tel biçimi: rol başına farklı alanlar taşınır.</summary>
+    private static object ToWireMessage(AgentChatMessage message)
+    {
+        if (message.Role == "tool")
+            return new { role = "tool", tool_call_id = message.ToolCallId, content = message.Content ?? "" };
+
+        if (message.ToolCalls is { Count: > 0 })
+            return new
+            {
+                role = message.Role,
+                content = message.Content,
+                tool_calls = message.ToolCalls.Select(c => new
+                {
+                    id = c.Id,
+                    type = "function",
+                    function = new { name = c.Name, arguments = c.ArgumentsJson }
+                }).ToArray()
+            };
+
+        return new { role = message.Role, content = message.Content ?? "" };
     }
 
     private int CalculateMaxTokens(int tableCount)
