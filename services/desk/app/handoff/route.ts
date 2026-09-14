@@ -74,8 +74,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   // hiçbir şey çalışmaz: önceki (yalnızca token'lı) davranış AYNEN korunur.
   const deepLinkScript = (typeof projectId === 'string' && projectId && typeof view === 'string' && view)
     ? `try {
-         sessionStorage.setItem('namines-desk-project', ${JSON.stringify(projectId)});
-         sessionStorage.setItem('namines-desk-view', ${JSON.stringify(view)});
+         sessionStorage.setItem('namines-desk-project', ${jsonForScript(projectId)});
+         sessionStorage.setItem('namines-desk-view', ${jsonForScript(view)});
        } catch (e) {}`
     : '';
 
@@ -87,11 +87,21 @@ export async function POST(req: NextRequest): Promise<Response> {
 <body style="background:#0b0b0b;color:#eceff1;font-family:ui-sans-serif,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
 <p>Signing in…</p>
 <script>
-  try { sessionStorage.setItem('namines-desk-token', ${JSON.stringify(jwt)}); } catch (e) {}
+  try { sessionStorage.setItem('namines-desk-token', ${jsonForScript(jwt)}); } catch (e) {}
   ${deepLinkScript}
   location.replace('/');
 </script>
 </body></html>`, 200);
+}
+
+/**
+ * JSON.stringify + `<` kaçışı — bir `</script>` (ya da `<!--`) alt dizesi
+ * içeren bir değer (JWT/projectId/view kullanıcı/istemci kontrollü olabilir),
+ * kaçışsız olsaydı bu inline <script> bloğunu erken kapatıp içine gelen
+ * metni ham HTML/script olarak çalıştırabilirdi.
+ */
+function jsonForScript(value: string): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
 function errorPage(message: string): string {

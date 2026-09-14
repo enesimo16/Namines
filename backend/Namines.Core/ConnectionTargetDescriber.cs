@@ -1,17 +1,16 @@
 using System;
 using Namines.Core.Enums;
 
-namespace Namines.API.Controllers.Shared;
+namespace Namines.Core;
 
 /// <summary>
 /// Bağlantı dizesinden yalnızca host + veritabanı adını çıkarır (parola/kullanıcı
 /// adı ASLA). Denetim kayıtlarının (<see cref="Namines.Core.Models.Auth.SqlExecutionAudit"/>)
-/// "nerede çalıştı" sorusuna cevap vermesi için — <see cref="DatabaseExecutorController"/>
-/// ve <see cref="LaunchController"/> arasında paylaşılıyor, ikinci bir kopya
-/// çıkması aradaki bir motoru (ör. Oracle) yalnızca birinde güncel tutma riski
-/// taşırdı.
+/// "nerede çalıştı" sorusuna cevap vermesi için — DatabaseExecutorController
+/// (Namines.API) ve LaunchService (Namines.Infrastructure) arasında paylaşılıyor,
+/// bu yüzden ikisinin de referans edebildiği Namines.Core'da yaşıyor.
 /// </summary>
-internal static class ConnectionTargetDescriber
+public static class ConnectionTargetDescriber
 {
     public static (string? Host, string? Database) Describe(string? connectionString, DatabaseType dbType)
     {

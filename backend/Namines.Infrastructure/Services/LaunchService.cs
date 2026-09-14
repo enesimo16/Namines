@@ -1,12 +1,17 @@
 using System;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Namines.Core;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
+using Namines.Infrastructure.Data;
 
 namespace Namines.Infrastructure.Services;
 
@@ -39,11 +44,20 @@ public sealed record LaunchResult(
 /// </summary>
 public class LaunchService
 {
+    /// <summary>Denetim kaydında saklanan betik ön ekinin uzunluğu — bkz.
+    /// <see cref="DatabaseExecutorController"/>'daki aynı sabit; TAMAMI bilerek
+    /// saklanmıyor.</summary>
+    private const int ScriptPreviewLength = 500;
+
+    private static readonly string[] DestructiveKeywords =
+        { "DROP ", "TRUNCATE ", "DELETE ", "ALTER ", "REVOKE ", "GRANT " };
+
     private readonly GroundService _ground;
     private readonly IDbIntrospectionService _introspection;
     private readonly IDatabaseExecutor _executor;
     private readonly VaultService _vault;
     private readonly IConnectionSecretProtector _protector;
+    private readonly AuthDbContext _context;
     private readonly ILogger<LaunchService> _logger;
 
     public LaunchService(
@@ -52,6 +66,7 @@ public class LaunchService
         IDatabaseExecutor executor,
         VaultService vault,
         IConnectionSecretProtector protector,
+        AuthDbContext context,
         ILogger<LaunchService> logger)
     {
         _ground = ground;
@@ -59,6 +74,7 @@ public class LaunchService
         _executor = executor;
         _vault = vault;
         _protector = protector;
+        _context = context;
         _logger = logger;
     }
 
@@ -105,6 +121,8 @@ public class LaunchService
         }
 
         var execution = await _executor.ExecuteScriptAsync(connectionString, ddlScript, DatabaseType.PostgreSQL, ct);
+        await WriteAuditAsync(userId, project.Id, connectionString, ddlScript, execution, ct);
+
         if (!execution.Success)
         {
             _logger.LogError(
@@ -128,5 +146,48 @@ public class LaunchService
         }
 
         return new LaunchResult(LaunchStatus.Ready, DdlApplied: true, BackupWarning: backupWarning);
+    }
+
+    /// <summary>
+    /// DatabaseExecutorController.WriteAuditAsync ile AYNI desen — Launch'ın
+    /// uyguladığı DDL de denetim kaydının dışında kalmamalı. Başarısızlar da
+    /// kaydedilir: bir deneme yanlış giderse "kim, ne zaman, nerede" cevapsız
+    /// kalmamalı.
+    /// </summary>
+    private async Task WriteAuditAsync(
+        string userId, string projectId, string connectionString, string ddlScript,
+        ExecutionResult execution, CancellationToken ct)
+    {
+        var (host, database) = ConnectionTargetDescriber.Describe(connectionString, DatabaseType.PostgreSQL);
+
+        var entry = new SqlExecutionAudit
+        {
+            UserId = userId,
+            ProjectId = projectId,
+            TargetHost = host,
+            TargetDatabase = database,
+            DbType = DatabaseType.PostgreSQL.ToString(),
+            ScriptHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ddlScript))),
+            ScriptPreview = ddlScript.Length <= ScriptPreviewLength ? ddlScript : ddlScript[..ScriptPreviewLength],
+            ScriptLength = ddlScript.Length,
+            ContainsDestructiveKeyword = DestructiveKeywords.Any(
+                k => ddlScript.Contains(k, StringComparison.OrdinalIgnoreCase)),
+            Success = execution.Success,
+            StatementsExecuted = execution.StatementsExecuted,
+            PartialApplyPossible = execution.PartialApplyPossible,
+            Error = execution.ErrorMessage,
+        };
+
+        try
+        {
+            _context.SqlExecutionAudits.Add(entry);
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Launch: SQL calistirma denetim kaydi YAZILAMADI. Kullanici={UserId} Hedef={Host}/{Database} Hash={Hash}",
+                userId, host, database, entry.ScriptHash);
+        }
     }
 }

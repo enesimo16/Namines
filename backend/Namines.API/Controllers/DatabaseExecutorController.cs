@@ -8,7 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Namines.API.Controllers.Shared;
+using Namines.Core;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models.Auth;

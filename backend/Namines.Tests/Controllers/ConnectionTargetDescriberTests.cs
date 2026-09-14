@@ -1,4 +1,4 @@
-using Namines.API.Controllers.Shared;
+using Namines.Core;
 using Namines.Core.Enums;
 using Xunit;
 

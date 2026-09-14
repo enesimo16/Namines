@@ -97,6 +97,7 @@ public class LaunchServiceTests : IAsyncLifetime
             new DatabaseExecutorService(hostPolicy),
             vault,
             protector,
+            _context,
             NullLogger<LaunchService>.Instance);
     }
 
@@ -152,6 +153,12 @@ public class LaunchServiceTests : IAsyncLifetime
 
         var backupCount = await reloaded.VaultBackups.CountAsync(b => b.ProjectId == project.Id);
         Assert.Equal(1, backupCount);
+
+        // Launch'ın uyguladığı DDL de DatabaseExecutorController'ınki gibi
+        // denetim kaydına düşmeli — audit trail'in dışında kalmamalı.
+        var audit = await reloaded.SqlExecutionAudits.SingleAsync(a => a.ProjectId == project.Id);
+        Assert.True(audit.Success);
+        Assert.Equal(_userId, audit.UserId);
     }
 
     [RequiresDockerFact]

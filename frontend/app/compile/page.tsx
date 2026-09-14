@@ -20,6 +20,7 @@ import PrismaPreview from '../../components/compile/PrismaPreview';
 import EjectPanel from '../../components/compile/EjectPanel';
 import LaunchPanel from '../../components/compile/LaunchPanel';
 import { IconButton } from '../../components/compile/PanelKit';
+import { openDeskHandoff } from '../../lib/deskHandoff';
 import {
   generateClassDiagram,
   generateFlowchart,
@@ -92,23 +93,7 @@ export default function CompilePage() {
     setOpeningDesk(true);
     try {
       const { token } = await authService.createDeskHandoffToken();
-      const deskUrl = process.env.NEXT_PUBLIC_DESK_URL ?? 'http://localhost:3200';
-
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = `${deskUrl}/handoff`;
-      form.target = '_blank';
-      form.style.display = 'none';
-
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'token';
-      input.value = token;
-      form.appendChild(input);
-
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
+      openDeskHandoff({ token });
     } catch {
       showToast('Could not open Namines Desk. Please try again.', 'error');
     } finally {
@@ -148,15 +133,18 @@ export default function CompilePage() {
 
   // Ground yalnizca PostgreSQL destekliyor — Launch, DDL Script sekmesinin
   // kendi motor seciciisinden bagimsiz, her zaman Postgres DDL'i kullanir.
-  const [launchDdl, setLaunchDdl] = useState('');
+  // dbType zaten PostgreSQL ise yukaridaki fetchSql'in urettigi `sql` aynen
+  // odur — ikinci bir agi istegi acmaya gerek yok.
+  const [launchDdlOther, setLaunchDdlOther] = useState('');
   useEffect(() => {
-    if (!schema) return;
+    if (!schema || dbType === 'PostgreSQL') return;
     let ignore = false;
     schemaService.compileSql(schema, 'PostgreSQL').then(generated => {
-      if (!ignore) setLaunchDdl(generated);
-    }).catch(() => { if (!ignore) setLaunchDdl(''); });
+      if (!ignore) setLaunchDdlOther(generated);
+    }).catch(() => { if (!ignore) setLaunchDdlOther(''); });
     return () => { ignore = true; };
-  }, [schema]);
+  }, [schema, dbType]);
+  const launchDdl = dbType === 'PostgreSQL' ? sql : launchDdlOther;
 
   const updateDiagram = async (
     type: 'ER' | 'CLASS' | 'FLOW' | 'MINDMAP' | 'STATE' | 'SEQUENCE' | 'GANTT' | 'PIE' | 'GIT' | 'JOURNEY' | 'TIMELINE' | 'QUADRANT' | 'REQUIREMENT'

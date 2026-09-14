@@ -8,12 +8,11 @@ import { changeRequestService } from '../../services/api';
 import { useRouter } from 'next/navigation';
 import { Panel, PanelBar, ActionButton, PanelEmpty } from './PanelKit';
 import { DatabaseSchema } from '../../types/schema';
+import { openDeskHandoff } from '../../lib/deskHandoff';
 
 type StepState = 'pending' | 'active' | 'done' | 'error';
 
 interface StepRow { key: string; label: string; state: StepState; detail?: string }
-
-const DESK_URL = process.env.NEXT_PUBLIC_DESK_URL ?? 'http://localhost:3200';
 
 /**
  * "/compile"'daki tek tık akışı: Ground'da veritabanı aç, DDL'i uygula, ilk
@@ -40,6 +39,7 @@ export default function LaunchPanel({
   const [outcome, setOutcome] = useState<LaunchOutcome | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   useEffect(() => {
     groundApi.providers().then(setProviders).catch(() => setProviders([]));
@@ -77,46 +77,37 @@ export default function LaunchPanel({
           { key: 'provision', label: 'Database already has tables', state: 'done' },
           { key: 'apply', label: 'Schema NOT applied — sent to review instead', state: 'error' },
         ]);
+      } else if (result.status === 'DdlFailed') {
+        // Provizyon başarılıydı — hata DDL adımında, "Opening database"'de değil.
+        setSteps([
+          { key: 'provision', label: 'Database opened', state: 'done' },
+          { key: 'apply', label: 'Schema application failed', state: 'error', detail: result.error },
+        ]);
       } else {
-        setSteps(prev => (prev ?? []).map(s =>
-          s.state === 'active' ? { ...s, state: 'error', detail: result.error } : s));
+        setSteps([
+          { key: 'provision', label: 'Could not open database', state: 'error', detail: result.error },
+        ]);
       }
     } catch (err) {
       const message = err instanceof LaunchError ? err.message : 'Launch failed unexpectedly.';
-      setSteps(prev => (prev ?? []).map(s =>
-        s.state === 'active' ? { ...s, state: 'error', detail: message } : s));
+      setSteps([{ key: 'provision', label: 'Launch failed', state: 'error', detail: message }]);
+      // launchApi bir LaunchOutcome ayrıştıramadığında (ör. istek gövdesi geçersiz —
+      // {status} yok, yalnızca {error}) fırlatır; "Try again" düğmesi outcome.status'a
+      // bağlı olduğu için burada da bir outcome set ETMEZSEK kullanıcı kilitli kalır.
+      setOutcome({ status: 'ProvisionFailed', error: message });
     }
   }
 
   async function handleNeedsReview() {
     if (!projectId) return;
+    setReviewError(null);
     try {
       const { id } = await changeRequestService.createQuick(
         projectId, schema, 'Launch: schema update');
       router.push(`/review/${id}`);
     } catch {
-      // handleLaunch'un kendi hata satırı zaten görünür; burada sessizce geç.
+      setReviewError('Could not send this to review. Please try again.');
     }
-  }
-
-  function openDesk(deskHandoffToken: string, pid: string) {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = `${DESK_URL}/handoff`;
-    form.target = '_blank';
-    form.style.display = 'none';
-
-    for (const [name, value] of [['token', deskHandoffToken], ['projectId', pid], ['view', 'data']]) {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = name;
-      input.value = value;
-      form.appendChild(input);
-    }
-
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
   }
 
   async function handleDownload() {
@@ -207,7 +198,7 @@ export default function LaunchPanel({
         {outcome?.status === 'Ready' && (
           <div className="flex flex-wrap gap-2 pt-1">
             <ActionButton icon={ExternalLink} tone="primary"
-              onClick={() => openDesk(outcome.deskHandoffToken, outcome.projectId)}>
+              onClick={() => openDeskHandoff({ token: outcome.deskHandoffToken, projectId: outcome.projectId, view: 'data' })}>
               Open Desk
             </ActionButton>
             <ActionButton icon={Download} busy={downloading} onClick={handleDownload}>
@@ -222,6 +213,7 @@ export default function LaunchPanel({
             Review changes
           </ActionButton>
         )}
+        {reviewError && <p className="text-[11px] text-[var(--color-danger)]">{reviewError}</p>}
 
         {(outcome?.status === 'ProvisionFailed' || outcome?.status === 'DdlFailed') && (
           <ActionButton tone="primary" onClick={() => { setSteps(null); setOutcome(null); }}>
