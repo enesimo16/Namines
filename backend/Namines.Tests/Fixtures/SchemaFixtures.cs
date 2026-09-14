@@ -1,3 +1,4 @@
+using Namines.Core.Enums;
 using Namines.Core.Models;
 
 namespace Namines.Tests.Fixtures;
@@ -23,6 +24,7 @@ public static class SchemaFixtures
         yield return ("05-multi-cascade-path", MultiCascadePath());
         yield return ("06-indexes-constraints", IndexesAndConstraints());
         yield return ("07-timestamp-default", TimestampDefault());
+        yield return ("08-trigger-postgres-only", TriggerPostgresOnly());
     }
 
     public static DatabaseSchema ByName(string name) =>
@@ -307,6 +309,37 @@ public static class SchemaFixtures
                 Col("c_event_seen", "last_seen_at", "DATETIME", isNullable: true))
         }
     };
+
+    // ── 08 — Motor-gated trigger ──────────────────────────────────────────────
+    // Amaç: Postgres için yazılmış bir trigger'ın YALNIZCA Postgres golden
+    // dosyasında göründüğünü, diğer 5 motorda hiç görünmediğini sabitlemek.
+    public static DatabaseSchema TriggerPostgresOnly()
+    {
+        var schema = new DatabaseSchema
+        {
+            SchemaId = "fixture-08",
+            Name = "TriggerPostgresOnly",
+            Tables =
+            {
+                Table("t_o", "Orders",
+                    Col("c_o_id", "Id", "INT", isPk: true),
+                    Col("c_o_total", "Total", "DECIMAL"))
+            }
+        };
+
+        schema.Triggers.Add(new SchemaTrigger
+        {
+            Id = "trg_order_audit",
+            StableUuid = "uuid-trg1",
+            TableId = "t_o",
+            Timing = "After",
+            Event = "Insert",
+            TargetEngine = DatabaseType.PostgreSQL,
+            Body = "CREATE OR REPLACE FUNCTION audit_order() RETURNS TRIGGER AS $$\nBEGIN\n  RAISE NOTICE 'order %', NEW.\"Id\";\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n\nCREATE TRIGGER trg_order_audit AFTER INSERT ON \"Orders\"\nFOR EACH ROW EXECUTE FUNCTION audit_order();"
+        });
+
+        return schema;
+    }
 
     private static SchemaTable Table(string id, string name, params SchemaColumn[] columns) => new()
     {

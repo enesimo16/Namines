@@ -108,6 +108,7 @@ public class SqliteDdlGenerator : IDdlGenerator
             }
         }
 
+        TriggerProcedureSql.Append(sb, schema, DatabaseType.SQLite);
         return sb.ToString();
     }
 

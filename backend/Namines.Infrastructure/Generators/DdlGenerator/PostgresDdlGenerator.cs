@@ -104,6 +104,7 @@ public class PostgresDdlGenerator : IDdlGenerator
             }
         }
 
+        TriggerProcedureSql.Append(sb, schema, DatabaseType.PostgreSQL);
         return sb.ToString();
     }
 

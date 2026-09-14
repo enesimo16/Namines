@@ -98,6 +98,7 @@ public class MariaDbDdlGenerator : IDdlGenerator
             }
         }
 
+        TriggerProcedureSql.Append(sb, schema, DatabaseType.MariaDB);
         return sb.ToString();
     }
 

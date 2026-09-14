@@ -96,6 +96,7 @@ public class MssqlDdlGenerator : IDdlGenerator
             }
         }
 
+        TriggerProcedureSql.Append(sb, schema, DatabaseType.MSSQL);
         return sb.ToString();
     }
 

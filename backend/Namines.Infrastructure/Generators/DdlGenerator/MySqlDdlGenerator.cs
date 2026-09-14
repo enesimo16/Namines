@@ -95,6 +95,7 @@ public class MySqlDdlGenerator : IDdlGenerator
             }
         }
 
+        TriggerProcedureSql.Append(sb, schema, DatabaseType.MySQL);
         return sb.ToString();
     }
 

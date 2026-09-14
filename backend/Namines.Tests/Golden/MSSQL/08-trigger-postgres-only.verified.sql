@@ -1,0 +1,6 @@
+﻿CREATE TABLE [Orders] (
+    [Id] INT IDENTITY(1,1) NOT NULL,
+    [Total] DECIMAL NOT NULL
+    , CONSTRAINT [PK_Orders] PRIMARY KEY CLUSTERED ([Id])
+);
+

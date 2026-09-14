@@ -1,0 +1,6 @@
+﻿CREATE TABLE `Orders` (
+    `Id` INT NOT NULL AUTO_INCREMENT,
+    `Total` DECIMAL NOT NULL
+    , PRIMARY KEY (`Id`)
+) ENGINE=InnoDB;
+

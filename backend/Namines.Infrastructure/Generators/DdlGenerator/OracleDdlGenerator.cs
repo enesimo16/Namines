@@ -110,6 +110,7 @@ public class OracleDdlGenerator : IDdlGenerator
             }
         }
 
+        TriggerProcedureSql.Append(sb, schema, DatabaseType.Oracle);
         return sb.ToString();
     }
 
