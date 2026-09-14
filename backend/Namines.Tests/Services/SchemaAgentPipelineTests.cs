@@ -51,8 +51,7 @@ public class SchemaAgentPipelineTests
     }
 
     private static SchemaAgentPipeline Pipeline(FakeSource source) =>
-        new(source, new LinterService(), new DdlGeneratorFactory(),
-            NullLogger<SchemaAgentPipeline>.Instance);
+        new(source, new DdlGeneratorFactory(), NullLogger<SchemaAgentPipeline>.Instance);
 
     // ── Şemalar ──────────────────────────────────────────────────────────────
 
@@ -90,7 +89,102 @@ public class SchemaAgentPipelineTests
         return schema;
     }
 
+    /// <summary>
+    /// Bileşik birincil anahtarlı şema — iki kolon birlikte PK.
+    ///
+    /// Eski kapı (LinterService) bunu "multiple primary keys" hatası sayıyordu,
+    /// oysa bu kod tabanının kendi golden fixture'ı (03-composite-key) onu meşru
+    /// sayıyor ve üreticiler tek bir bileşik PK kısıtı yazıyor.
+    /// </summary>
+    private static DatabaseSchema CompositeKey()
+    {
+        var schema = new DatabaseSchema
+        {
+            Name = "join",
+            Tables =
+            {
+                new SchemaTable
+                {
+                    Id = "t_o", Name = "orders",
+                    Columns = { new SchemaColumn { Id = "c_o_id", Name = "id", Type = "INT", IsPK = true } },
+                },
+                new SchemaTable
+                {
+                    Id = "t_p", Name = "products",
+                    Columns = { new SchemaColumn { Id = "c_p_id", Name = "id", Type = "INT", IsPK = true } },
+                },
+                new SchemaTable
+                {
+                    Id = "t_op", Name = "order_products",
+                    Columns =
+                    {
+                        new SchemaColumn { Id = "c_op_o", Name = "order_id", Type = "INT", IsPK = true, IsFK = true },
+                        new SchemaColumn { Id = "c_op_p", Name = "product_id", Type = "INT", IsPK = true, IsFK = true },
+                    },
+                },
+            },
+        };
+
+        schema.Relations.Add(new SchemaRelation
+        {
+            Id = "r1", Type = "OneToMany",
+            SourceTableId = "t_op", SourceColumnId = "c_op_o",
+            TargetTableId = "t_o", TargetColumnId = "c_o_id",
+        });
+        schema.Relations.Add(new SchemaRelation
+        {
+            Id = "r2", Type = "OneToMany",
+            SourceTableId = "t_op", SourceColumnId = "c_op_p",
+            TargetTableId = "t_p", TargetColumnId = "c_p_id",
+        });
+
+        return schema;
+    }
+
     // ── Temel akış ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Composite_primary_keys_are_not_treated_as_a_finding()
+    {
+        // Bileşik anahtar meşrudur. Hata sayılırsa, bu şemayı üreten her
+        // kullanıcı kapatılamayan bir bulguyla tüm bütçesini yakar.
+        var source = new FakeSource(CompositeKey());
+
+        var result = await Pipeline(source).RunAsync("ara tablo", DatabaseType.PostgreSQL);
+
+        Assert.True(result.Clean,
+            "Bileşik PK bulgu üretmemeli: " + string.Join(" | ", result.RemainingFindings));
+        Assert.Equal(0, source.RepairCalls);
+    }
+
+    [Fact]
+    public async Task A_foreign_key_with_a_mismatched_type_is_reported_with_its_rule_code()
+    {
+        var schema = Healthy();
+        schema.Tables.Add(new SchemaTable
+        {
+            Id = "t2", Name = "orders",
+            Columns =
+            {
+                new SchemaColumn { Id = "c_o_id", Name = "id", Type = "INT", IsPK = true },
+                // Tip uyuşmuyor: VARCHAR → INT
+                new SchemaColumn { Id = "c_o_user", Name = "user_id", Type = "VARCHAR", Length = 50, IsFK = true },
+            },
+        });
+        schema.Relations.Add(new SchemaRelation
+        {
+            Id = "r1", Type = "OneToMany",
+            SourceTableId = "t2", SourceColumnId = "c_o_user",
+            TargetTableId = "t1", TargetColumnId = "c1",
+        });
+
+        var source = new FakeSource(schema);
+
+        var result = await Pipeline(source).RunAsync("x", DatabaseType.PostgreSQL);
+
+        Assert.False(result.Clean);
+        Assert.Contains(result.RemainingFindings, f => f.Contains("NSL004"));
+    }
 
     [Fact]
     public async Task A_clean_draft_needs_no_repair_round()

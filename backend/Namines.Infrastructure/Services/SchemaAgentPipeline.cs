@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Core.Nsl;
 using Namines.Infrastructure.Generators.DdlGenerator;
 
 namespace Namines.Infrastructure.Services;
@@ -80,18 +81,15 @@ public sealed class SchemaAgentPipeline
     public const int DefaultRepairRounds = 2;
 
     private readonly ISchemaDraftSource _source;
-    private readonly ILinterService _linter;
     private readonly IDdlGeneratorFactory _ddlFactory;
     private readonly ILogger<SchemaAgentPipeline> _logger;
 
     public SchemaAgentPipeline(
         ISchemaDraftSource source,
-        ILinterService linter,
         IDdlGeneratorFactory ddlFactory,
         ILogger<SchemaAgentPipeline> logger)
     {
         _source = source;
-        _linter = linter;
         _ddlFactory = ddlFactory;
         _logger = logger;
     }
@@ -199,8 +197,18 @@ public sealed class SchemaAgentPipeline
 
         // 1) Kural motoru — yalnızca HATALAR. Uyarıları düzeltme döngüsüne
         //    sokmak, modeli stil tercihleri için tur harcamaya iter.
-        foreach (var message in _linter.Lint(schema).Messages.Where(m => m.Severity == LintSeverity.Error))
-            findings.Add($"[rule] {message.Message}");
+        //
+        //    LinterService DEĞİL, NslValidator: eskisi üç kurallıydı ve bileşik
+        //    birincil anahtarı hata sayıyordu — oysa bu kod tabanının kendi golden
+        //    fixture'ı (03-composite-key) onu meşru sayıyor ve üreticiler tek bir
+        //    bileşik PK kısıtı yazıyor. Yani bileşik anahtarlı her şema, hiçbir
+        //    zaman kapanmayacak bir bulguyla tüm bütçeyi yakıyordu.
+        //
+        //    Kural KODU da bulguya yazılıyor (NSL004 gibi): model hangi kuralı
+        //    ihlal ettiğini bilirse düzeltmesi isabetli oluyor, metni yeniden
+        //    yorumlamak zorunda kalmıyor.
+        foreach (var finding in NslValidator.Validate(schema, engine).Where(f => f.Severity == "error"))
+            findings.Add($"[rule] {finding.Code}: {finding.Message}");
 
         // 2) HEDEF motorda gerçekten derleniyor mu? Yalnızca bu, düzeltme turunu
         //    hak ediyor — kullanıcı bu motoru seçti.
