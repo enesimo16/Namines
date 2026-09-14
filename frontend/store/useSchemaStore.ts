@@ -15,6 +15,39 @@ export type DbType = 'MSSQL' | 'PostgreSQL' | 'MySQL' | 'SQLite' | 'Oracle' | 'M
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
 /**
+ * İki tablo sürümü arasındaki kolon farkını Namines Flow olaylarına çevirir.
+ *
+ * `updateTable` tek çağrıda birden fazla kolonu aynı anda
+ * ekleyebilir/silebilir/değiştirebilir (drawer'da toplu kaydetme) — bu
+ * yüzden TEK bir olay değil, bir olay LİSTESİ üretiyor.
+ */
+function diffColumnsForFlowEvents(
+  previousTable: SchemaTable,
+  updatedTable: SchemaTable
+): NaminesFlowEvent[] {
+  const events: NaminesFlowEvent[] = [];
+  const previousById = new Map(previousTable.columns.map(c => [c.id, c]));
+  const updatedById = new Map(updatedTable.columns.map(c => [c.id, c]));
+
+  for (const col of updatedTable.columns) {
+    const before = previousById.get(col.id);
+    if (!before) {
+      events.push({ type: 'ColumnAdded', tableId: updatedTable.id, columnId: col.id, columnName: col.name });
+    } else if (JSON.stringify(before) !== JSON.stringify(col)) {
+      events.push({ type: 'ColumnChanged', tableId: updatedTable.id, columnId: col.id, columnName: col.name });
+    }
+  }
+
+  for (const col of previousTable.columns) {
+    if (!updatedById.has(col.id)) {
+      events.push({ type: 'ColumnDeleted', tableId: updatedTable.id, columnId: col.id, columnName: col.name });
+    }
+  }
+
+  return events;
+}
+
+/**
  * Adı hâlâ "kullanıcı bir isim vermedi" anlamına mı geliyor?
  *
  * 'Yeni Proje' listede duruyor çünkü varsayılan ad İngilizceye çevrildi ve
@@ -455,6 +488,7 @@ export const useSchemaStore = create<SchemaState>()(
       updateTable: (updatedTable) => {
         const state = get();
         if (!state.schema) return;
+        const previousTable = state.schema.tables.find(t => t.id === updatedTable.id);
         set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
 
         const newTables = state.schema.tables.map(t =>
@@ -486,6 +520,12 @@ export const useSchemaStore = create<SchemaState>()(
           nodes: state.nodes.map(n => n.id === updatedTable.id ? updatedNode : n),
           edges: state.edges.filter(e => survivingRelationIds.has(e.id)),
         });
+
+        if (previousTable) {
+          for (const event of diffColumnsForFlowEvents(previousTable, updatedTable)) {
+            naminesFlow.emit(event);
+          }
+        }
       },
 
       /**
