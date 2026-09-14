@@ -289,7 +289,8 @@ public class GroqAIService : IAIService, IAgentChatClient
         return await UpstreamModelForUserAsync(NaiModel.Standard, httpContext);
     }
 
-    private async Task<HttpResponseMessage> PostAsync(string relativeUri, object payload)
+    private async Task<HttpResponseMessage> PostAsync(
+        string relativeUri, object payload, CancellationToken cancellationToken = default)
     {
         var json = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -333,7 +334,11 @@ public class GroqAIService : IAIService, IAgentChatClient
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groqApiKey);
         }
 
-        var response = await _httpClient.SendAsync(request);
+        // Token GEÇİRİLİYOR: bu metot artık bir agent turu içinde zincirleme
+        // çağrılabiliyor (bkz. CompleteAsync/RepairWithToolsAsync) — kullanıcı
+        // isteği iptal ettiğinde kuyruktaki her çağrının upstream'de tamamlanmayı
+        // beklemeye devam etmesi, hem gereksiz gecikme hem gereksiz fatura demek.
+        var response = await _httpClient.SendAsync(request, cancellationToken);
         await RecordUsageAsync(response);
         return response;
     }
@@ -439,7 +444,7 @@ public class GroqAIService : IAIService, IAgentChatClient
             payload["tool_choice"] = "auto";
         }
 
-        using var response = await PostAsync("chat/completions", payload);
+        using var response = await PostAsync("chat/completions", payload, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
