@@ -923,6 +923,40 @@ html.light .glass-panel {
   box-shadow: 0 20px 48px -12px color-mix(in srgb, var(--color-scrim) 20%, transparent), 0 2px 8px -1px color-mix(in srgb, var(--color-scrim) 10%, transparent), 0 0 0 1px color-mix(in srgb, var(--content-primary) 4%, transparent);
 }
 
+/* ─────────────────────────────────────────
+   Şema üretimi — "Advanced" parıltısı
+
+   Gelişmiş mod açıkken prompt panelinin kendisi bunu söylüyor — kullanıcı
+   metne bakmadan, çevresel bir ipucuyla hangi modda olduğunu görüyor.
+───────────────────────────────────────── */
+.prompt-panel-advanced {
+  transition: box-shadow 0.4s ease;
+  animation: advanced-glow 2.4s ease-in-out infinite;
+}
+@keyframes advanced-glow {
+  0%, 100% {
+    box-shadow:
+      var(--shadow-glass),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent),
+      0 0 22px 0 color-mix(in srgb, var(--color-accent) 20%, transparent);
+  }
+  50% {
+    box-shadow:
+      var(--shadow-glass),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 65%, transparent),
+      0 0 42px 6px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prompt-panel-advanced {
+    animation: none;
+    box-shadow:
+      var(--shadow-glass),
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 50%, transparent),
+      0 0 28px 2px color-mix(in srgb, var(--color-accent) 24%, transparent);
+  }
+}
+
 .glass-input {
   background: color-mix(in srgb, var(--color-scrim) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-content-primary) 14%, transparent);

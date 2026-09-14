@@ -293,8 +293,12 @@ export default function NewProjectPage() {
           </p>
         </div>
 
-        {/* Form Card */}
-        <div className="w-full max-w-2xl glass-panel rounded-[var(--radius-modal)] p-4 sm:p-6 relative overflow-visible group">
+        {/* Form Card — "Advanced" açıkken parlıyor (bkz. globals.css
+            .prompt-panel-advanced): kullanıcı hangi modda olduğunu metne
+            bakmadan, panelin kendisinden görüyor. */}
+        <div
+          className={`w-full max-w-2xl glass-panel rounded-[var(--radius-modal)] p-4 sm:p-6 relative overflow-visible group ${advanced ? 'prompt-panel-advanced' : ''}`}
+        >
           <form onSubmit={handleGenerate} className="relative">
             {/* Textarea Section */}
             <div className="mb-4 relative">
