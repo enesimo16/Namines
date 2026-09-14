@@ -600,6 +600,14 @@ export const useSchemaStore = create<SchemaState>()(
         });
 
         set({ schema: newSchema, nodes: finalNodes, edges: newEdges });
+
+        naminesFlow.emit({
+          type: 'RelationAdded',
+          relationId: newRelation.id,
+          sourceTableId: source,
+          targetTableId: target,
+        });
+
         return { ok: true, reason: `Created relation ${sourceTable.name}.${sourceColumn.name} → ${targetTable.name}.${targetColumn.name}.` };
       },
 
@@ -637,6 +645,13 @@ export const useSchemaStore = create<SchemaState>()(
             return table ? { ...n, data: { table } } : n;
           }),
           edges: state.edges.filter(e => e.id !== relationId),
+        });
+
+        naminesFlow.emit({
+          type: 'RelationDeleted',
+          relationId,
+          sourceTableId: removed.sourceTableId,
+          targetTableId: removed.targetTableId,
         });
       },
 
