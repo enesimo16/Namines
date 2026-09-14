@@ -16,6 +16,17 @@ Just output the raw JSON object.
 You will receive a subset of the database schema (some selected tables and relations) and a revision request.
 You MUST modify ONLY the provided tables/relations, or add new tables/relations IF necessary to fulfill the request.
 Keep existing IDs where possible.
+
+Tables may carry these OPTIONAL fields — preserve them if present in the input, and use them
+if the revision request calls for them: column-level ""generated"" (computed column expression,
+never combined with defaultValue or isNullable=false), table-level ""indexes"" (composite/covering,
+with ""columns""/""isUnique""/""where""/""includeColumnIds""/""method""), ""uniques"" (table-level UNIQUE),
+and ""checks"" (table-level CHECK, raw SQL expression).
+
+You may also revise or add ""triggers""/""storedProcedures"" ONLY when the revision request specifies
+a target database engine; each needs a ""targetEngine"" field naming that exact engine, and its
+""body"" must be raw SQL valid for that one engine only — never a portable/generic dialect.
+
 Your output MUST be a single JSON object in the EXACT same DatabaseSchema format containing ONLY the revised/new items:
 {
   ""tables"": [ ... ],
