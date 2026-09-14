@@ -3,8 +3,9 @@
 import { useCallback, useState } from 'react';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { useReactFlow } from '@xyflow/react';
-import { Plus, Trash2, Pencil, Table2, Copy } from 'lucide-react';
+import { Plus, Trash2, Pencil, Table2, Copy, Zap } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import { useAutomationStore } from '../../store/useAutomationStore';
 
 interface ContextMenuState {
   x: number;
@@ -26,8 +27,15 @@ interface CanvasContextMenuProps {
  */
 export default function CanvasContextMenu({ children }: CanvasContextMenuProps) {
   const { screenToFlowPosition } = useReactFlow();
-  const { isEditMode, addTable, deleteTable, duplicateTable, setSelectedTableForEdit } = useSchemaStore();
+  const { isEditMode, schema, addTable, deleteTable, duplicateTable, setSelectedTableForEdit } = useSchemaStore();
+  const addAutomationRule = useAutomationStore(s => s.addRule);
+  const deleteRulesForTable = useAutomationStore(s => s.deleteRulesForTable);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
+
+  // Sağ tıklanan node bir GERÇEK tablo mu yoksa bir Namines Flow node'u mu?
+  // Otomasyon node'unun kendi üzerinde "Delete Table"/"Add to Namines Flow"
+  // göstermek anlamsız olurdu — o node bir tablo değil.
+  const isTableNode = !!menuState?.nodeId && !!schema?.tables.some(t => t.id === menuState.nodeId);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (!isEditMode) return; // Don't show menu if not in edit mode
@@ -57,7 +65,22 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
 
   const handleDeleteTable = () => {
     if (!menuState?.nodeId) return;
+    // Kural silme önce: tablo silindikten sonra artık hangi tabloya ait
+    // olduğunu bilmenin yolu kalmaz.
+    deleteRulesForTable(menuState.nodeId);
     deleteTable(menuState.nodeId);
+    setMenuState(null);
+  };
+
+  /**
+   * Namines Flow node'unu seçilen tabloya bağlı olarak ekler. Node'un
+   * kendisi React Flow state'inde YAŞAMAZ — AutomationNode, rule
+   * listesinden TÜRETİLİR (bkz. canvas/page.tsx), bu yüzden burada
+   * yalnızca kural oluşturuluyor.
+   */
+  const handleAddAutomation = () => {
+    if (!menuState?.nodeId) return;
+    addAutomationRule(menuState.nodeId, 'TableDeleted', 'Toast');
     setMenuState(null);
   };
 
@@ -94,7 +117,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
               </>
             )}
 
-            {menuState?.type === 'node' && (
+            {menuState?.type === 'node' && isTableNode && (
               <>
                 <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-content-muted uppercase tracking-wider mb-1">
                   <Table2 className="w-3.5 h-3.5" />
@@ -113,6 +136,13 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
                 >
                   <Copy className="w-4 h-4 text-accent-text" />
                   <span>Duplicate Table</span>
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-content-primary rounded-[var(--radius-control)] cursor-pointer outline-none transition-colors hover:bg-warning/20 hover:text-warning-text focus:bg-warning/20 focus:text-warning-text"
+                  onSelect={handleAddAutomation}
+                >
+                  <Zap className="w-4 h-4 text-warning-text" />
+                  <span>Add to Namines Flow</span>
                 </ContextMenu.Item>
                 <ContextMenu.Separator className="h-px bg-content-primary/[0.06] my-1 mx-1" />
                 <ContextMenu.Item

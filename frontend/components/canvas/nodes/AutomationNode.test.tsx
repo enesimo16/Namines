@@ -16,8 +16,11 @@ function renderNode(ruleId: string) {
         dragging={false}
         zIndex={0}
         isConnectable
-        xPos={0}
-        yPos={0}
+        selectable
+        deletable
+        draggable
+        positionAbsoluteX={0}
+        positionAbsoluteY={0}
       />
     </ReactFlowProvider>
   );

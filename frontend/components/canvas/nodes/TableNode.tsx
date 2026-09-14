@@ -5,6 +5,7 @@ import { Key, Link, Pencil, Plus, Minus, RefreshCw } from 'lucide-react';
 import { SchemaTable } from '../../../types/schema';
 import { useLinterStore } from '../../../store/useLinterStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
+import { useAutomationStore } from '../../../store/useAutomationStore';
 import { useDbaStore } from '../../../store/useDbaStore';
 import { TableDiff } from '../../../utils/schemaDiff';
 
@@ -67,6 +68,9 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       if (isEditMode && !diff) {
+        // Tabloya bağlı Namines Flow kuralları da temizlenir — aksi hâlde
+        // artık var olmayan bir tabloya bağlı "hayalet" kural kalırdı.
+        useAutomationStore.getState().deleteRulesForTable(table.id);
         deleteTable(table.id);
       }
     }

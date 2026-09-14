@@ -18,6 +18,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import { useSchemaStore } from '../../store/useSchemaStore';
+import { useAutomationStore } from '../../store/useAutomationStore';
 import { useAIDba } from '../../hooks/useAIDba';
 import { useDbaStore } from '../../store/useDbaStore';
 import { useProjectAutoSave } from '../../hooks/useProjectAutoSave';
@@ -52,12 +53,14 @@ const SchemaTemplateGallery = dynamic(
 import CanvasSearch from '../../components/canvas/CanvasSearch';
 import KeyboardShortcutsModal from '../../components/canvas/KeyboardShortcutsModal';
 import TableNode from '../../components/canvas/nodes/TableNode';
+import AutomationNode from '../../components/canvas/nodes/AutomationNode';
 import RelationEdge from '../../components/canvas/edges/RelationEdge';
 import RegionalPromptPanel from '../../components/canvas/panels/RegionalPromptPanel';
 import ToolbarPanel from '../../components/canvas/panels/ToolbarPanel';
 import CanvasExportToolbar from '../../components/canvas/panels/CanvasExportToolbar';
 import CanvasContextMenu from '../../components/canvas/CanvasContextMenu';
 import TableEditorDrawer from '../../components/canvas/TableEditorDrawer';
+import AutomationRuleDrawer from '../../components/canvas/AutomationRuleDrawer';
 import SqlExplorerPanel from '../../components/canvas/panels/SqlExplorerPanel';
 import BranchControlPanel from '../../components/canvas/panels/BranchControlPanel';
 import ConflictResolverModal from '../../components/canvas/panels/ConflictResolverModal';
@@ -299,7 +302,20 @@ export default function CanvasPage() {
   // `schema.tables` dokunulmadan kalır. Sonuç: tablo görünmez olur ama şemada durur ve
   // ilk loadFromSchema/applyRevision çağrısında geri gelir. Silmeyi şemaya da uygula.
   const handleNodesDelete = useCallback((deleted: { id: string }[]) => {
-    deleted.forEach(node => deleteTable(node.id));
+    deleted.forEach(node => {
+      // Namines Flow node'ları React Flow state'inde YAŞAMAZ (bkz.
+      // nodesWithAutomation) — Backspace ile silinirse gerçek işlem kural
+      // listesinden silmek, `deleteTable`'ı çağırmak değil.
+      if (node.id.startsWith('automation-')) {
+        useAutomationStore.getState().deleteRule(node.id.replace('automation-', ''));
+        return;
+      }
+      // Tablo silinirken ona bağlı Namines Flow kuralları da temizlenir —
+      // aksi hâlde artık var olmayan bir tabloya bağlı, asla ateşlenemeyecek
+      // "hayalet" kurallar kalırdı.
+      useAutomationStore.getState().deleteRulesForTable(node.id);
+      deleteTable(node.id);
+    });
 
     // second-phase/10-COKLU-DB.md — silinen tablonun BAŞKA bir veritabanına
     // kaydedilmiş mantıksal bir ilişkisi varsa kullanıcıyı uyar. React Flow
@@ -307,7 +323,9 @@ export default function CanvasPage() {
     // gerçek bir kısıt olmadığı için zaten durduramayız (bkz. panelin
     // "not enforced" notu).
     if (activeProjectId) {
-      deleted.forEach(node => {
+      // Namines Flow node'ları gerçek bir tablo değil — onlar için çapraz
+      // veritabanı etki sorgusu çalıştırmanın anlamı yok.
+      deleted.filter(node => !node.id.startsWith('automation-')).forEach(node => {
         authService.crossDatabase.impact(activeProjectId, node.id)
           .then((impacts) => {
             if (impacts.length === 0) return;
@@ -332,8 +350,15 @@ export default function CanvasPage() {
     useDbaStore.getState().setDbaResults({ issues: [], score: 100, assessment: 'Pending schema health check...' });
   }, [activeProjectId]);
 
-  const nodeTypes = useMemo(() => ({ tableNode: TableNode }), []);
+  const nodeTypes = useMemo(() => ({ tableNode: TableNode, automationNode: AutomationNode }), []);
   const edgeTypes = useMemo(() => ({ relationEdge: RelationEdge }), []);
+
+  // Namines Flow node/edge'leri React Flow state'inde YAŞAMAZ — kural
+  // listesinden (useAutomationStore) her render'da TÜRETİLİR. Böylece
+  // undo/redo, node pozisyon kaydı gibi şema mekanizmalarının hiçbiri
+  // otomasyon kurallarını bilmek zorunda kalmaz (bkz. spec'in "şemadan
+  // ayrı depolama" kararı).
+  const automationRules = useAutomationStore(s => s.rules);
 
   // Compute final nodes list with diff states
   const processedNodes = useMemo(() => {
@@ -386,6 +411,44 @@ export default function CanvasPage() {
 
     return [...updatedNodes, ...deletedNodes];
   }, [schema, nodes, isDiffMode, compareBranchName, branches]);
+
+  // Namines Flow node/edge'leri `processedNodes`'un (diff modunda tablo
+  // node'larına diff bilgisi eklenmiş hâli) ÜZERİNE ekleniyor — böylece
+  // branch karşılaştırma modunda da doğru şekilde görünmeye devam ederler.
+  const nodesWithAutomation = useMemo(() => {
+    const automationNodes = automationRules.map((rule, i) => {
+      const anchor = nodes.find(n => n.id === rule.scopeTableId);
+      const anchorX = anchor?.position.x ?? 0;
+      const anchorY = anchor?.position.y ?? 0;
+      return {
+        id: `automation-${rule.id}`,
+        type: 'automationNode',
+        position: { x: anchorX + 320, y: anchorY + i * 70 },
+        data: { ruleId: rule.id },
+        // React Flow, boyutu ResizeObserver ile ÖLÇENE kadar node'u
+        // `visibility: hidden` tutar ve ölçülen boyutu node nesnesine geri
+        // yazar. Bu node'lar her render'da YENİDEN üretiliyor (kural
+        // listesinden türetiliyor, kalıcı React Flow state'inde yaşamıyor),
+        // yani ölçülen değer hiçbir zaman kalıcı olmuyor ve node sonsuza
+        // kadar görünmez kalıyordu. Sabit width/height vermek, React Flow'a
+        // ölçmeyi hiç beklemeden node'u hemen "ölçülmüş" saydırıyor.
+        width: 180,
+        height: 58,
+      };
+    });
+    return [...processedNodes, ...automationNodes];
+  }, [processedNodes, nodes, automationRules]);
+
+  const edgesWithAutomation = useMemo(() => {
+    const automationEdges = automationRules.map(rule => ({
+      id: `automation-edge-${rule.id}`,
+      source: rule.scopeTableId,
+      target: `automation-${rule.id}`,
+      style: { strokeDasharray: '4 4', stroke: 'var(--color-warning-text)' },
+      animated: false,
+    }));
+    return [...edges, ...automationEdges];
+  }, [edges, automationRules]);
 
   useEffect(() => {
     if (!schema && typeof window !== 'undefined') {
@@ -506,8 +569,8 @@ export default function CanvasPage() {
         <CanvasContextMenu>
           <ReactFlow
             id="react-flow-canvas"
-            nodes={processedNodes}
-            edges={edges}
+            nodes={nodesWithAutomation}
+            edges={edgesWithAutomation}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
@@ -599,6 +662,7 @@ export default function CanvasPage() {
       </ReactFlowProvider>
 
       <TableEditorDrawer />
+      <AutomationRuleDrawer />
       <SqlExplorerPanel />
       <AIGatewayModal />
 
