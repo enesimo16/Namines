@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { DatabaseSchema } from '../../types/schema';
 import { useRouter } from 'next/navigation';
-import { Loader2, X, Link as LinkIcon, Image as ImageIcon, ChevronDown, Check, Wand2, Sparkles } from 'lucide-react';
+import { Loader2, X, Link as LinkIcon, Image as ImageIcon, ChevronDown, Check, Wand2 } from 'lucide-react';
 import { schemaService } from '../../services/api';
 import { useSchemaStore, type DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
@@ -475,13 +475,12 @@ export default function NewProjectPage() {
                     ? 'The agent plans, then fixes what the rule engine and the real DDL compiler report. Uses more of your budget.'
                     : 'One pass. The schema is still checked, but problems are reported instead of fixed automatically.'
                 }
-                className={`flex items-center gap-1.5 rounded-[var(--radius-control)] px-3 h-[38px] text-sm font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`flex items-center rounded-[var(--radius-control)] px-3 h-[38px] text-sm font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                   advanced
-                    ? 'bg-accent/20 text-accent-text border border-accent/40'
+                    ? 'bg-accent/20 text-accent-text border border-accent/40 advanced-toggle-glow'
                     : 'glass-input text-content-muted hover:text-content-primary'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5" />
                 <span>Advanced</span>
               </button>
 

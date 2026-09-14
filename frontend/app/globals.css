@@ -957,6 +957,33 @@ html.light .glass-panel {
   }
 }
 
+/* Aynı parıltı, "Advanced" düğmesi için — küçük yüzeyde daha yakın/sıkı bir
+   halka olacak şekilde ölçeklendi. */
+.advanced-toggle-glow {
+  transition: box-shadow 0.4s ease;
+  animation: advanced-toggle-glow 2.4s ease-in-out infinite;
+}
+@keyframes advanced-toggle-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent),
+      0 0 10px 0 color-mix(in srgb, var(--color-accent) 25%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 80%, transparent),
+      0 0 18px 3px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .advanced-toggle-glow {
+    animation: none;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--color-accent) 60%, transparent),
+      0 0 12px 1px color-mix(in srgb, var(--color-accent) 30%, transparent);
+  }
+}
+
 .glass-input {
   background: color-mix(in srgb, var(--color-scrim) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-content-primary) 14%, transparent);
