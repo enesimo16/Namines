@@ -55,15 +55,15 @@ export default function Projects({
     <div className="page">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Projeler</h1>
+          <h1 className="page-title">Projects</h1>
           <p className="page-desc">
-            Namines hesabınızdaki projeler. Canlı veritabanı bağlı olan bir projeyi açtığınızda
-            şemayı, satırları, sürüm geçmişini ve denetim kayıtlarını buradan yönetirsiniz.
+            Projects in your Namines account. Open one with a live database connected to manage
+            its schema, rows, version history, and audit log.
           </p>
         </div>
         <div className="page-actions">
           <a className="btn" href={NAMINES_FRONTEND} target="_blank" rel="noreferrer">
-            <Plus size={14} /> Ana uygulamada yeni proje
+            <Plus size={14} /> New project in Namines
           </a>
         </div>
       </div>
@@ -73,22 +73,22 @@ export default function Projects({
       {projects && projects.length > 0 && (
         <div className="stats">
           <div className="stat">
-            <div className="stat-label"><Boxes size={12} /> Proje</div>
+            <div className="stat-label"><Boxes size={12} /> Projects</div>
             <div className="stat-value">{total}</div>
-            <div className="stat-sub">{shared > 0 ? `${shared} tanesi paylaşılan` : 'Hepsi sizin'}</div>
+            <div className="stat-sub">{shared > 0 ? `${shared} shared` : 'All yours'}</div>
           </div>
           <div className="stat">
-            <div className="stat-label"><PlugZap size={12} /> Bağlı veritabanı</div>
+            <div className="stat-label"><PlugZap size={12} /> Connected</div>
             <div className="stat-value">{connected}</div>
-            <div className="stat-sub">{total - connected} proje henüz bağlı değil</div>
+            <div className="stat-sub">{total - connected} not yet connected</div>
           </div>
           <div className="stat">
-            <div className="stat-label"><Table2 size={12} /> Tasarlanan tablo</div>
+            <div className="stat-label"><Table2 size={12} /> Designed tables</div>
             <div className="stat-value">{tableSum}</div>
-            <div className="stat-sub">Tüm projelerin şemalarından</div>
+            <div className="stat-sub">Across all project schemas</div>
           </div>
           <div className="stat">
-            <div className="stat-label"><Database size={12} /> Motorlar</div>
+            <div className="stat-label"><Database size={12} /> Engines</div>
             <div className="stat-value">{engines.length}</div>
             <div className="stat-sub">{engines.length > 0 ? engines.join(', ') : '—'}</div>
           </div>
@@ -100,50 +100,50 @@ export default function Projects({
           <div className="search-box" style={{ flex: 1, minWidth: 200, maxWidth: 320 }}>
             <Search size={13} />
             <input
-              type="search" value={search} placeholder="Proje ara…"
-              aria-label="Proje ara"
+              type="search" value={search} placeholder="Search projects…"
+              aria-label="Search projects"
               onChange={e => setSearch(e.target.value)}
             />
           </div>
           <select
             value={engineFilter}
-            aria-label="Motora göre filtrele"
+            aria-label="Filter by engine"
             onChange={e => setEngineFilter(e.target.value)}
             style={{ height: 32, padding: '0 8px', border: '1px solid var(--line-strong)', borderRadius: 'var(--radius-control)', background: 'var(--surface-800)', color: 'var(--content-primary)' }}
           >
-            <option value="">Tüm motorlar</option>
+            <option value="">All engines</option>
             {engines.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
           <select
             value={connFilter}
-            aria-label="Bağlantı durumuna göre filtrele"
+            aria-label="Filter by connection status"
             onChange={e => setConnFilter(e.target.value as typeof connFilter)}
             style={{ height: 32, padding: '0 8px', border: '1px solid var(--line-strong)', borderRadius: 'var(--radius-control)', background: 'var(--surface-800)', color: 'var(--content-primary)' }}
           >
-            <option value="all">Tüm durumlar</option>
-            <option value="connected">Bağlı</option>
-            <option value="disconnected">Bağlı değil</option>
+            <option value="all">All statuses</option>
+            <option value="connected">Connected</option>
+            <option value="disconnected">Not connected</option>
           </select>
         </div>
       )}
 
       {!visibleProjects ? (
-        <div className="empty empty-plain">Projeler yükleniyor…</div>
+        <div className="empty empty-plain">Loading projects…</div>
       ) : projects && projects.length === 0 ? (
         <div className="empty">
           <div style={{ fontWeight: 600, color: 'var(--content-primary)', marginBottom: 6 }}>
-            Henüz proje yok
+            No projects yet
           </div>
           <div style={{ marginBottom: 14 }}>
-            Desk, Namines&apos;te tasarladığınız projelerin verisini yönetir — önce ana uygulamada
-            bir şema oluşturun, sonra buradan canlı veritabanına bağlayın.
+            Desk manages the data for projects you design in Namines — create a schema in the
+            main app first, then connect it to a live database here.
           </div>
           <a className="btn btn-primary" href={NAMINES_FRONTEND} target="_blank" rel="noreferrer">
-            <ExternalLink size={14} /> Ana uygulamayı aç
+            <ExternalLink size={14} /> Open Namines
           </a>
         </div>
       ) : visibleProjects.length === 0 ? (
-        <div className="empty">Bu filtrelerle eşleşen proje yok.</div>
+        <div className="empty">No projects match these filters.</div>
       ) : (
         <div className="project-grid">
           {visibleProjects.map(p => (
@@ -156,22 +156,22 @@ export default function Projects({
                 <span className="project-card-name">{p.name}</span>
                 <span
                   className={`dot ${p.hasConnection ? 'dot-connected' : 'dot-disconnected'}`}
-                  title={p.hasConnection ? 'Canlı veritabanı bağlı' : 'Bağlı değil'}
+                  title={p.hasConnection ? 'Live database connected' : 'Not connected'}
                 />
               </div>
 
               <div className="project-card-meta">
                 <span>{p.connectionDbType ?? p.dbType ?? '—'}</span>
-                {p.tableCount !== null && <span>· {p.tableCount} tablo</span>}
+                {p.tableCount !== null && <span>· {p.tableCount} tables</span>}
                 {!p.isMine && p.ownerName && <span>· {p.ownerName}</span>}
               </div>
 
               <div className="spread" style={{ marginTop: 2 }}>
                 <span className={`badge ${p.hasConnection ? 'badge-ok' : 'badge-off'}`}>
-                  {p.hasConnection ? 'Bağlı' : 'Bağlantı yok'}
+                  {p.hasConnection ? 'Connected' : 'Not connected'}
                 </span>
                 <span className="project-card-import">
-                  {p.hasConnection ? 'Aç →' : 'Bağlantı ekle →'}
+                  {p.hasConnection ? 'Open →' : 'Add connection →'}
                 </span>
               </div>
             </button>

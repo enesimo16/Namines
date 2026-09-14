@@ -64,7 +64,7 @@ export default function RowForm({
       for (const c of columns) payload[c.name] = normalizeValue(c, values[c.name] ?? '');
       await onSubmit(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kaydedilemedi.');
+      setError(err instanceof Error ? err.message : 'Could not save.');
       setBusy(false);
     }
   }
@@ -72,7 +72,7 @@ export default function RowForm({
   return (
     <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
       <form className="dialog" onSubmit={submit}>
-        <h2>{isEdit ? 'Satırı düzenle' : 'Yeni satır'}</h2>
+        <h2>{isEdit ? 'Edit row' : 'New row'}</h2>
         <p className="hint">
           {table.name}
           {isEdit && pk ? ` · ${pk} = ${String(initial?.[pk])}` : ''}
@@ -86,9 +86,9 @@ export default function RowForm({
         ))}
 
         <div className="dialog-actions">
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Vazgeç</button>
+          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Kaydediliyor…' : isEdit ? 'Kaydet' : 'Ekle'}
+            {busy ? 'Saving…' : isEdit ? 'Save' : 'Add'}
           </button>
         </div>
       </form>
@@ -188,7 +188,7 @@ function FkField({ column, value, onChange, required, label, fetchFkOptions }: {
     return (
       <div className="field">
         {label}
-        <input id={`f-${column.name}`} type="text" value={value} disabled placeholder="Seçenekler yükleniyor…" />
+        <input id={`f-${column.name}`} type="text" value={value} disabled placeholder="Loading options…" />
       </div>
     );
   }
@@ -199,7 +199,7 @@ function FkField({ column, value, onChange, required, label, fetchFkOptions }: {
         {label}
         <select id={`f-${column.name}`} value={value} required={required}
                 onChange={e => onChange(e.target.value)}>
-          <option value="">{required ? '— seçin —' : '— boş —'}</option>
+          <option value="">{required ? '— select —' : '— empty —'}</option>
           {result.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
@@ -214,8 +214,8 @@ function FkField({ column, value, onChange, required, label, fetchFkOptions }: {
              onChange={e => onChange(e.target.value)} />
       <div style={{ fontSize: 10.5, color: 'var(--content-subtle)', marginTop: 4 }}>
         {result.kind === 'too_many'
-          ? `${column.references!.table} tablosunda 200'den fazla kayıt var — ham ${column.references!.column} değeri girin.`
-          : 'Seçenekler okunamadı — ham değer girin.'}
+          ? `${column.references!.table} has more than 200 rows — enter the raw ${column.references!.column} value.`
+          : 'Could not load options — enter the raw value.'}
       </div>
     </div>
   );

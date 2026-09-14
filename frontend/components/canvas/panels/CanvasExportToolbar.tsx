@@ -668,7 +668,7 @@ export default function CanvasExportToolbar() {
       {/* Zero-to-Cloud Infrastructure Selector Modal */}
       {isCloudModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-[450px] p-6 rounded-[var(--radius-modal)] bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
+          <div className="w-[450px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-[var(--radius-modal)] bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
             {/* Title */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -777,7 +777,7 @@ export default function CanvasExportToolbar() {
       {/* Shared Hosting / Mobile Selector Modal — second-phase/13-DAGITIM-HEDEFLERI.md */}
       {isSharedHostingModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-[420px] p-6 rounded-[var(--radius-modal)] bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
+          <div className="w-[420px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-[var(--radius-modal)] bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Server className="w-5 h-5 text-content-primary" />

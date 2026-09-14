@@ -33,7 +33,7 @@ const HOME_NAV_ITEMS = [
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  const { projectName, setProjectName, resetProject } = useSchemaStore();
+  const { projectName, setProjectName } = useSchemaStore();
   
   const isCanvas = pathname === '/canvas';
   const isCompile = pathname === '/compile';
@@ -164,8 +164,24 @@ export default function Header() {
     if (e.key === 'Escape') { setIsEditing(false); setDraft(projectName); }
   };
 
+  /**
+   * Marka işareti bir GEZİNME öğesi — veri silen bir eylem değil.
+   *
+   * Önceden `resetProject()` çağırıyordu: kullanıcı "ana sayfaya döneyim" diye
+   * logoya tıkladığında açık olan şema (ölçüldü: 25 tablo) sessizce siliniyordu.
+   * Kayıp ancak sonra fark ediliyordu — "Back to Diagram" boş bir tuvale ya da
+   * `/new`'e düşüyor ve kullanıcı bunu bir gezinme hatası sanıyordu. Proje
+   * sıfırlama hâlâ var, ama ait olduğu yerde: ProjectSidebar'daki "New Project",
+   * oturum kapatma ve hesap değiştirme.
+   *
+   * Zaten ana sayfadaysak gezinmek yerine başa kaydırıyoruz — aynı URL'e
+   * push etmek hiçbir şey yapmıyor gibi görünüyordu.
+   */
   const handleLogoClick = () => {
-    resetProject();
+    if (isHome) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     router.push('/');
   };
 
@@ -190,14 +206,17 @@ export default function Header() {
           <button
             onClick={handleLogoClick}
             className="shrink-0"
-            title="Return to homepage"
-            aria-label="Namines homepage"
+            title={isHome ? 'Back to top' : 'Go to homepage'}
+            aria-label={isHome ? 'Scroll back to top' : 'Go to Namines homepage'}
           >
             <Logo size="sm" />
           </button>
 
           {isHome ? (
-            <div className="hidden md:flex items-center gap-5 lg:gap-6 ml-3">
+            /* `md` DEĞİL `lg`: yedi bağlantı (6 bölüm + Demo) 768px'de logo ve
+               sağdaki hesap/tema grubuyla aynı satıra sığmıyordu — bağlantılar
+               kırpılıyor ve tema düğmesiyle üst üste biniyordu. */
+            <div className="hidden lg:flex items-center gap-4 xl:gap-6 ml-3 min-w-0">
               {HOME_NAV_ITEMS.map((item) => {
                 const isActive = activeSection === item.id;
                 return (

@@ -23,7 +23,10 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
-  const [lang, setLang] = useState<Lang>('tr');
+  // The rest of the UI is English; defaulting to 'tr' handed a Turkish README
+  // to everyone who never noticed the language switch. The switch stays — only
+  // the default changes (same fix already applied in DataDictionaryPreview).
+  const [lang, setLang] = useState<Lang>('en');
   const [copied, setCopied] = useState<boolean>(false);
 
   const rawCodeRef = useRef<HTMLElement>(null);
@@ -68,10 +71,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      const successMsg = lang === 'tr' 
-        ? "README.md successfully downloaded!"
-        : "README.md successfully downloaded!";
-      showToast(successMsg, "success");
+      showToast("README.md successfully downloaded!", "success");
     } catch (error) {
       console.error("Failed to download Readme", error);
       showToast("An error occurred while downloading README.", "error");

@@ -28,7 +28,7 @@ export default function Deployments({ session }: { session: DeskSession }) {
     let cancelled = false;
     deploymentsApi.list(session, session.projectId)
       .then(l => { if (!cancelled) setList(l); })
-      .catch(err => { if (!cancelled) setError(err instanceof Error ? err.message : 'Sürümler okunamadı.'); });
+      .catch(err => { if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load deployments.'); });
     return () => { cancelled = true; };
   }, [session]);
 
@@ -38,7 +38,7 @@ export default function Deployments({ session }: { session: DeskSession }) {
     setDetailError(null);
     Promise.all([deploymentsApi.detail(session, selectedId), deploymentsApi.audit(session, selectedId)])
       .then(([d, a]) => { if (!cancelled) { setDetail(d); setAudit(a); } })
-      .catch(err => { if (!cancelled) setDetailError(err instanceof Error ? err.message : 'Detay okunamadı.'); });
+      .catch(err => { if (!cancelled) setDetailError(err instanceof Error ? err.message : 'Could not load details.'); });
     return () => { cancelled = true; };
   }, [session, selectedId]);
 
@@ -46,18 +46,17 @@ export default function Deployments({ session }: { session: DeskSession }) {
   // "yanlis yere mi geldim?" diye dusunmesine yol aciyordu.
   const head = (
     <PageHead
-      title="Sürümler"
+      title="Deployments"
       desc={<>
-        Ana uygulamada açılan şema değişikliği istekleri ve etki raporları.
-        <b> Desk buradan DDL çalıştırmaz</b> — şemayı canlı veritabanına uygulamak
-        geri alınamaz bir işlem ve yedek altyapısı (Vault) gelene kadar bilinçli
-        olarak kapsam dışı.
+        Schema change requests opened in the main app, with their impact reports.
+        <b> Desk never runs DDL from here</b> — applying a schema to a live database is
+        irreversible, and deliberately stays out of scope until Vault is in place.
       </>}
     />
   );
 
   if (error) return <div className="page">{head}<div className="notice notice-error">{error}</div></div>;
-  if (!list) return <div className="page">{head}<div className="empty empty-plain">Sürümler yükleniyor…</div></div>;
+  if (!list) return <div className="page">{head}<div className="empty empty-plain">Loading deployments…</div></div>;
 
   if (list.length === 0) {
     return (
@@ -65,9 +64,9 @@ export default function Deployments({ session }: { session: DeskSession }) {
         {head}
         <div className="empty">
           <div style={{ fontWeight: 600, color: 'var(--content-primary)', marginBottom: 6 }}>
-            Henüz şema sürümü yok
+            No schema versions yet
           </div>
-          Ana uygulamada bir değişiklik yapıp &quot;Request Review&quot; dediğinizde ilk sürüm burada belirir.
+          The first version appears here once you make a change in the main app and click &quot;Request Review&quot;.
         </div>
       </div>
     );
@@ -82,7 +81,7 @@ export default function Deployments({ session }: { session: DeskSession }) {
           <table>
             <thead>
               <tr>
-                <th>Mesaj</th><th>Durum</th><th>Risk</th><th>Branch</th><th>Sürüm</th><th>Zaman</th>
+                <th>Message</th><th>Status</th><th>Risk</th><th>Branch</th><th>Version</th><th>Time</th>
               </tr>
             </thead>
             <tbody>
@@ -90,12 +89,12 @@ export default function Deployments({ session }: { session: DeskSession }) {
                 <tr key={cr.id} style={{ cursor: 'pointer' }}
                     className={cr.id === selectedId ? undefined : undefined}
                     onClick={() => setSelectedId(cr.id)}>
-                  <td className={cr.id === selectedId ? 'pk-cell' : undefined}>{cr.title || '(mesaj yok)'}</td>
-                  <td><StatusBadge status={cr.status} /></td>
-                  <td><RiskBadge risk={cr.riskLevel} /></td>
-                  <td>{cr.branchName}</td>
-                  <td>{cr.tableCount} tablo</td>
-                  <td>{new Date(cr.createdAt).toLocaleString('tr-TR')}</td>
+                  <td className={cr.id === selectedId ? 'pk-cell' : undefined}>{cr.title || '(no message)'}</td>
+                  <td className="nowrap"><StatusBadge status={cr.status} /></td>
+                  <td className="nowrap"><RiskBadge risk={cr.riskLevel} /></td>
+                  <td className="nowrap">{cr.branchName}</td>
+                  <td className="nowrap">{cr.tableCount} tables</td>
+                  <td className="nowrap">{new Date(cr.createdAt).toLocaleString('en-US')}</td>
                 </tr>
               ))}
             </tbody>
@@ -110,17 +109,17 @@ export default function Deployments({ session }: { session: DeskSession }) {
         }}>
           {detailError && <div className="notice notice-error">{detailError}</div>}
           {!detail ? (
-            <div className="empty">Yükleniyor…</div>
+            <div className="empty">Loading…</div>
           ) : (
             <>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>{detail.title || '(mesaj yok)'}</div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>{detail.title || '(no message)'}</div>
               <div style={{ fontSize: 11.5, color: 'var(--content-muted)', marginBottom: 12 }}>
                 <StatusBadge status={detail.status} /> · <RiskBadge risk={detail.riskLevel} /> · {detail.branchName} · v{detail.headVersion.version}
               </div>
 
               <div style={{ fontSize: 11.5, color: 'var(--content-muted)', marginBottom: 4 }}>
-                Onay: {detail.approvedCount}/{detail.requiredApprovals}
-                {detail.rejectedCount > 0 && ` · ${detail.rejectedCount} red`}
+                Approvals: {detail.approvedCount}/{detail.requiredApprovals}
+                {detail.rejectedCount > 0 && ` · ${detail.rejectedCount} rejected`}
               </div>
 
               {detail.impact && <ImpactSummary impact={detail.impact} />}
@@ -128,12 +127,12 @@ export default function Deployments({ session }: { session: DeskSession }) {
               {detail.approvals.length > 0 && (
                 <div style={{ marginTop: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', marginBottom: 6 }}>
-                    Onaylar
+                    Approvals
                   </div>
                   {detail.approvals.map(a => (
                     <div key={a.id} style={{ fontSize: 12, marginBottom: 4 }}>
-                      {a.username ?? a.userId} — {a.decision === 'Approved' ? '✓ onayladı' : '✗ reddetti'}
-                      <span style={{ color: 'var(--content-subtle)', fontSize: 10.5 }}> · {new Date(a.createdAt).toLocaleString('tr-TR')}</span>
+                      {a.username ?? a.userId} — {a.decision === 'Approved' ? '✓ approved' : '✗ rejected'}
+                      <span style={{ color: 'var(--content-subtle)', fontSize: 10.5 }}> · {new Date(a.createdAt).toLocaleString('en-US')}</span>
                     </div>
                   ))}
                 </div>
@@ -142,13 +141,13 @@ export default function Deployments({ session }: { session: DeskSession }) {
               {audit && audit.length > 0 && (
                 <div style={{ marginTop: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', marginBottom: 6 }}>
-                    Zaman çizelgesi
+                    Timeline
                   </div>
                   {audit.map(e => (
                     <div key={e.id} style={{ fontSize: 12, marginBottom: 4 }}>
                       <span style={{ fontWeight: 600 }}>{e.action}</span>
                       {e.actorUsername && ` — ${e.actorUsername}`}
-                      <div style={{ color: 'var(--content-subtle)', fontSize: 10.5 }}>{new Date(e.createdAt).toLocaleString('tr-TR')}</div>
+                      <div style={{ color: 'var(--content-subtle)', fontSize: 10.5 }}>{new Date(e.createdAt).toLocaleString('en-US')}</div>
                     </div>
                   ))}
                 </div>
@@ -178,10 +177,10 @@ function ImpactSummary({ impact }: { impact: NonNullable<ChangeRequestDetail['im
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', marginBottom: 6 }}>
-        Değişiklik özeti
+        Change summary
       </div>
       {impact.affectedTables.length === 0 && impact.breakingChanges.length === 0 && impact.dataLossRisks.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'var(--content-muted)' }}>Etkilenen tablo yok.</div>
+        <div style={{ fontSize: 12, color: 'var(--content-muted)' }}>No affected tables.</div>
       ) : (
         <>
           {impact.affectedTables.map((t, i) => (
@@ -204,7 +203,7 @@ function ImpactSummary({ impact }: { impact: NonNullable<ChangeRequestDetail['im
       )}
       {!impact.rollback.isReversible && (
         <div style={{ fontSize: 11.5, color: 'var(--danger)', marginTop: 6 }}>
-          Geri alınamaz{impact.rollback.reason && `: ${impact.rollback.reason}`}
+          Not reversible{impact.rollback.reason && `: ${impact.rollback.reason}`}
         </div>
       )}
     </div>

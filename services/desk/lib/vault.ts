@@ -89,7 +89,7 @@ async function call(path: string, session: DeskSession, init?: RequestInit): Pro
   if (!res.ok) {
     // Sunucunun kendi mesajını taşı: "yedek alınamadı" demek, kullanıcıyı
     // 403 (yetki yok) ile "bu projede canlı bağlantı yok" arasında kör bırakırdı.
-    let message = `İstek başarısız (${res.status}).`;
+    let message = `Request failed (${res.status}).`;
     try {
       const body = await res.json();
       if (body?.error) message = body.error;

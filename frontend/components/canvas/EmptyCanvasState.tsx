@@ -68,7 +68,7 @@ export default function EmptyCanvasState() {
               </div>
               <div>
                 <h3 className="text-xs font-bold text-content-primary">Generate with AI</h3>
-                <p className="text-[10px] text-content-subtle font-medium mt-0.5">Describe your database structure in plain Turkish or English.</p>
+                <p className="text-[10px] text-content-subtle font-medium mt-0.5">Describe your database structure in plain English.</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-content-subtle group-hover:text-content-muted group-hover:translate-x-0.5 transition-all" />

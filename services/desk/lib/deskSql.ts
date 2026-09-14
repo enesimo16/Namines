@@ -29,7 +29,7 @@ export async function runDeskSql(
   });
 
   if (!res.ok) {
-    let message = `İstek başarısız (${res.status}).`;
+    let message = `Request failed (${res.status}).`;
     try {
       const body = await res.json();
       if (body?.message) message = body.message;
@@ -96,7 +96,7 @@ async function call<T>(session: DeskSession, path: string, init?: RequestInit): 
   });
 
   if (!res.ok) {
-    let message = `İstek başarısız (${res.status}).`;
+    let message = `Request failed (${res.status}).`;
     try {
       const body = await res.json();
       if (body?.message) message = body.message;

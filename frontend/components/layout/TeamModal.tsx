@@ -262,7 +262,7 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium">{i.role} invite</p>
                         <p className="text-[10px] text-content-muted">
-                          expires {new Date(i.expiresAt).toLocaleDateString()}
+                          expires {new Date(i.expiresAt).toLocaleDateString('en-US')}
                         </p>
                       </div>
                       <button
@@ -295,7 +295,7 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold truncate">{p.name}</p>
                         <p className="text-[10px] text-content-muted truncate">
-                          {p.dbType} · {p.ownerName} · {new Date(p.updatedAt).toLocaleString()}
+                          {p.dbType} · {p.ownerName} · {new Date(p.updatedAt).toLocaleString('en-US')}
                         </p>
                       </div>
                     </div>

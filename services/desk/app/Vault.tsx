@@ -10,32 +10,27 @@ import {
 } from '../lib/vault';
 import PageHead from './PageHead';
 
-/** Haftalık zamanlamada gün adları — dizideki sıra sunucudaki 0=Pazar ile aynı. */
-const DAY_NAMES = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
 const KIND_LABELS: Record<VaultBackup['kind'], string> = {
-  Manual: 'Elle',
-  Scheduled: 'Otomatik',
-  PreRestore: 'Geri yükleme öncesi',
+  Manual: 'Manual',
+  Scheduled: 'Scheduled',
+  PreRestore: 'Pre-restore',
 };
 
 /**
- * Namines Vault — yedekleme ekranı.
+ * Namines Vault — backup screen.
  *
- * <b>Vault'un kendi sitesi yok</b>: bir arka uç modülü ve kullanıcıya bakan tek
- * yüzü bu görünüm. Gerekçesi ve deploy şartları
- * <c>namines-vault/02-ERISIM-VE-DEPLOY.md</c>'de.
+ * Vault has no site of its own; this view is its only user-facing surface.
+ * Restore is the most destructive action in Desk: it wipes the target
+ * database's current objects, so it isn't one click — the user has to type
+ * the database name, and the server always takes a mandatory backup right
+ * before restoring, which this screen also states plainly.
  *
- * <b>Geri yükleme, Desk'teki en yıkıcı işlem:</b> hedef veritabanının mevcut
- * nesnelerini siler. Bu yüzden tek tıkla tetiklenmiyor — kullanıcı veritabanının
- * adını ELİYLE yazmak zorunda. Aynı gerekçeyle sunucu her geri yüklemeden önce
- * ZORUNLU bir ön yedek alıyor; ekran bunu da açıkça söylüyor.
- *
- * Yetki Desk'te değil sunucuda kararlaştırılıyor (Desk'in kendi yetki kararı
- * yok). `isOwner` burada yalnızca yıkıcı düğmeleri GİZLEMEK için — sunucu
- * kontrolünün yerine geçmez, onu tekrar eder.
+ * Authorization is decided on the server, not in Desk. `isOwner` here only
+ * HIDES destructive buttons — it doesn't replace the server's own check.
  */
 export default function Vault({ session, isOwner }: { session: DeskSession; isOwner: boolean }) {
   const [backups, setBackups] = useState<VaultBackup[] | null>(null);
@@ -49,7 +44,7 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [health, setHealth] = useState<VaultHealth | null>(null);
 
-  // Onay kutusu: hangi yedek ve kullanıcının o ana kadar yazdığı ad.
+  // Confirmation box: which backup, and what the user has typed so far.
   const [confirming, setConfirming] = useState<{ backup: VaultBackup; typed: string } | null>(null);
 
   const reload = useCallback(async () => {
@@ -65,7 +60,7 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       setHealth(status);
       setError(null);
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Yedekler okunamadı.');
+      setError(err instanceof VaultError ? err.message : 'Could not load backups.');
       setBackups([]);
     }
   }, [session]);
@@ -77,29 +72,28 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
     setError(null);
     setNotice(null);
     try {
-      // Sunucu artık 202 dönüyor ve iş arka planda çalışıyor (B-35).
-      // "Yedek alındı" demeden ÖNCE bitmesini beklemek zorundayız: bu cümleyi
-      // iş başlarken söylemek, kullanıcıya alınmamış bir yedeği alınmış
-      // göstermek olurdu — ve yedekte bu, olabilecek en kötü yanlış bilgi.
+      // The server returns 202 and the job runs in the background (B-35),
+      // so it hasn't finished the moment this call returns — waiting for
+      // that has to happen by polling `status`.
       const started = await vaultApi.create(session);
-      setNotice('Yedekleme başladı, sürüyor…');
+      setNotice('Backup started, running…');
 
       const outcome = await vaultApi.waitForBackup(session, started.backupId);
 
       if (!outcome.done) {
-        // Yoklama süresi doldu. İş İPTAL EDİLMEDİ — sunucuda devam ediyor
-        // olabilir; "başarısız" demek yanlış olurdu.
-        setNotice('Yedekleme hâlâ sürüyor. Listeden durumunu takip edebilirsiniz.');
+        // Polling timed out. The job was NOT cancelled — it may still be
+        // running server-side, so calling it "failed" would be wrong.
+        setNotice('Backup is still running. You can track its status from the list below.');
       } else if (outcome.status === 'Succeeded') {
-        setNotice('Yedek alındı.');
+        setNotice('Backup created.');
       } else {
         setNotice(null);
-        setError(outcome.errorMessage ?? 'Yedek alınamadı.');
+        setError(outcome.errorMessage ?? 'Backup failed.');
       }
 
       await reload();
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Yedek alınamadı.');
+      setError(err instanceof VaultError ? err.message : 'Backup failed.');
     } finally {
       setBusy(false);
     }
@@ -111,11 +105,11 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
     setNotice(null);
     try {
       await vaultApi.verify(session, backup.id);
-      setNotice('Yedek doğrulandı: geçici bir sunucuya geri yüklenip çalıştığı kanıtlandı.');
+      setNotice('Backup verified: restored to a throwaway server and proven to work.');
     } catch (err) {
-      // Doğrulamanın BAŞARISIZ olması bir arayüz hatası değil, gerçek bir bulgu:
-      // yedek bozuk. Bu yüzden mesaj bastırılmıyor, listeye de yazılıyor.
-      setError(err instanceof VaultError ? err.message : 'Doğrulanamadı.');
+      // A FAILED verification isn't a UI error, it's a real finding: the
+      // backup is broken. So the message isn't suppressed — it's shown.
+      setError(err instanceof VaultError ? err.message : 'Verification failed.');
     } finally {
       setRowBusyId(null);
       await reload();
@@ -127,9 +121,9 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
     setError(null);
     try {
       setSchedule(await vaultApi.saveSchedule(session, next));
-      setNotice('Otomatik yedek ayarı kaydedildi.');
+      setNotice('Backup schedule saved.');
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Ayar kaydedilemedi.');
+      setError(err instanceof VaultError ? err.message : 'Could not save the schedule.');
     } finally {
       setSavingSchedule(false);
     }
@@ -145,24 +139,24 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       link.href = url;
       link.download = fileName;
       link.click();
-      // Nesne URL'i serbest bırakılmazsa blob sekme kapanana kadar bellekte kalır.
+      // Freeing the object URL — otherwise the blob stays in memory until the tab closes.
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'İndirilemedi.');
+      setError(err instanceof VaultError ? err.message : 'Download failed.');
     } finally {
       setRowBusyId(null);
     }
   }
 
   async function handleDelete(backup: VaultBackup) {
-    if (!confirm(`${new Date(backup.createdAt).toLocaleString('tr-TR')} tarihli yedek kalıcı olarak silinecek. Emin misiniz?`)) return;
+    if (!confirm(`The backup from ${new Date(backup.createdAt).toLocaleString('en-US')} will be permanently deleted. Continue?`)) return;
     setRowBusyId(backup.id);
     setError(null);
     try {
       await vaultApi.remove(session, backup.id);
       await reload();
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Silinemedi.');
+      setError(err instanceof VaultError ? err.message : 'Delete failed.');
     } finally {
       setRowBusyId(null);
     }
@@ -180,12 +174,12 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       setConfirming(null);
       setNotice(
         result.preRestoreBackupId
-          ? 'Geri yükleme tamamlandı. Öncesindeki hâl ayrı bir yedek olarak saklandı.'
-          : 'Geri yükleme tamamlandı.',
+          ? 'Restore complete. The previous state was saved as a separate backup.'
+          : 'Restore complete.',
       );
       await reload();
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Geri yüklenemedi.');
+      setError(err instanceof VaultError ? err.message : 'Restore failed.');
     } finally {
       setBusy(false);
     }
@@ -196,11 +190,11 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
   return (
     <div className="page">
       <PageHead
-        title="Yedekler"
+        title="Namines Vault"
         desc={<>
-          Projenin canlı veritabanının tam kopyası. Dosyalar <b>şifreli</b> saklanır ve
-          tarayıcıya da şifreli iner. <b>Geri yükleme, hedefteki veriyi siler</b> — bu yüzden
-          her geri yüklemeden önce mevcut hâlin yedeği otomatik alınır.
+          A full copy of the project&apos;s live database. Files are stored <b>encrypted</b> and
+          arrive at the browser encrypted too. <b>Restoring overwrites the target&apos;s current data</b> —
+          a mandatory backup of the current state is taken automatically before every restore.
         </>}
         actions={
           <button
@@ -209,13 +203,12 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
             title={health?.problem ?? undefined}
             onClick={handleCreate}
           >
-            {busy ? 'Çalışıyor…' : 'Şimdi yedek al'}
+            {busy ? 'Working…' : 'Back up now'}
           </button>
         }
       />
 
-      {/* Engel varsa EN USTTE: kullanici "neden calismiyor" diye tahmin
-          yurutmek zorunda kalmasin. */}
+      {/* Any blocker goes at the TOP: the user shouldn't have to guess why it isn't working. */}
       {health && !health.ok && (
         <div className="notice notice-error">{health.problem}</div>
       )}
@@ -223,16 +216,15 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       {error && <div className="notice notice-error">{error}</div>}
       {notice && <div className="notice">{notice}</div>}
 
-      {/* Yedeklerin NEREDE durduğu gizlenecek bir ayrıntı değil: v1 sunucu
-          diskini kullanıyor ve kullanıcı bunu bilmeden yedeğe güvenmemeli. */}
-      {store && <div className="notice">Yedekler burada saklanıyor: <code>{store}</code></div>}
+      {/* WHERE backups sit is not a detail to hide: v1 uses the server's own
+          disk, and the user shouldn't trust a backup without knowing that. */}
+      {store && <div className="notice">Backups are stored at: <code>{store}</code></div>}
 
-      {/* Hangi motorların yedeklenebildiği ekranda YAZIYOR: aksi halde
-          desteklenmeyen bir motorda kullanıcı bunu ancak ilk yedek denemesi
-          hataya düştüğünde öğrenirdi. Liste sunucudaki kayıtlı
-          sağlayıcılardan geliyor, burada elle tutulmuyor. */}
+      {/* Which engines can be backed up is stated on screen — otherwise an
+          unsupported engine would only be discovered on the first failed attempt.
+          The list comes from the server's registered providers, not hardcoded here. */}
       {health && health.engines.length > 0 && (
-        <div className="notice">Yedeklenebilen motorlar: <code>{health.engines.join(', ')}</code></div>
+        <div className="notice">Engines that can be backed up: <code>{health.engines.join(', ')}</code></div>
       )}
 
       {schedule && (
@@ -244,11 +236,11 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
               disabled={!isOwner || savingSchedule}
               onChange={e => handleSaveSchedule({ ...schedule, enabled: e.target.checked })}
             />
-            Otomatik yedek
+            Automatic backups
           </label>
 
           <div className="field" style={{ margin: 0 }}>
-            <label htmlFor="vault-cadence">Sıklık</label>
+            <label htmlFor="vault-cadence">Frequency</label>
             <select
               id="vault-cadence"
               value={schedule.cadence}
@@ -256,19 +248,19 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
               onChange={e => setSchedule({
                 ...schedule,
                 cadence: e.target.value as typeof schedule.cadence,
-                // Haftalığa geçerken bir gün seçili olmak zorunda; sunucu
-                // günsüz haftalık ayarı zaten reddediyor.
+                // Switching to weekly requires a day picked — the server
+                // already rejects a day-less weekly schedule.
                 dayOfWeek: e.target.value === 'Weekly' ? (schedule.dayOfWeek ?? 0) : null,
               })}
             >
-              <option value="Daily">Her gün</option>
-              <option value="Weekly">Haftada bir</option>
+              <option value="Daily">Daily</option>
+              <option value="Weekly">Weekly</option>
             </select>
           </div>
 
           {schedule.cadence === 'Weekly' && (
             <div className="field" style={{ margin: 0 }}>
-              <label htmlFor="vault-day">Gün</label>
+              <label htmlFor="vault-day">Day</label>
               <select
                 id="vault-day"
                 value={schedule.dayOfWeek ?? 0}
@@ -281,8 +273,8 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
           )}
 
           <div className="field" style={{ margin: 0 }}>
-            {/* Saat UTC: sunucunun saat dilimi değişse de zamanlama kaymasın. */}
-            <label htmlFor="vault-hour">Saat (UTC)</label>
+            {/* Hour is UTC so a server timezone change never shifts the schedule. */}
+            <label htmlFor="vault-hour">Hour (UTC)</label>
             <select
               id="vault-hour"
               value={schedule.hourUtc}
@@ -294,7 +286,7 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
           </div>
 
           <div className="field" style={{ margin: 0 }}>
-            <label htmlFor="vault-retain">Saklanacak yedek</label>
+            <label htmlFor="vault-retain">Backups to keep</label>
             <input
               id="vault-retain" type="number" min={1} max={60} style={{ width: 80 }}
               value={schedule.retainCount}
@@ -305,28 +297,27 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
 
           <button className="btn" disabled={!isOwner || savingSchedule}
                   onClick={() => handleSaveSchedule(schedule)}>
-            {savingSchedule ? 'Kaydediliyor…' : 'Ayarı kaydet'}
+            {savingSchedule ? 'Saving…' : 'Save schedule'}
           </button>
 
           <span style={{ fontSize: 12.5, opacity: 0.75 }}>
-            {/* Saklama politikasının YALNIZCA otomatik yedekleri sildiğini söylemek
-                şart: kullanıcı elle aldığı yedeğin de silineceğini sanmasın. */}
-            Saklama sayısı yalnızca otomatik yedekleri sınırlar; elle aldıklarınıza dokunulmaz.
-            {schedule.lastRunAt && ` Son otomatik yedek: ${new Date(schedule.lastRunAt).toLocaleString('tr-TR')}.`}
+            {/* Retention only prunes automatic backups — the user shouldn't think a manual one will vanish too. */}
+            Retention only limits automatic backups; manual ones are never touched.
+            {schedule.lastRunAt && ` Last automatic backup: ${new Date(schedule.lastRunAt).toLocaleString('en-US')}.`}
           </span>
         </div>
       )}
 
       {confirming && (
         <div className="notice notice-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <b>Bu işlem geri alınamaz.</b>
+          <b>This cannot be undone.</b>
           <span>
-            <code>{confirming.backup.databaseName}</code> veritabanındaki mevcut veriler silinip{' '}
-            {new Date(confirming.backup.createdAt).toLocaleString('tr-TR')} tarihli yedekle
-            değiştirilecek. Devam etmek için veritabanının adını yazın.
+            Current data in <code>{confirming.backup.databaseName}</code> will be deleted and replaced with
+            the backup from {new Date(confirming.backup.createdAt).toLocaleString('en-US')}.
+            Type the database name to continue.
           </span>
           <input
-            aria-label="Onay için veritabanı adı"
+            aria-label="Database name to confirm"
             type="text"
             value={confirming.typed}
             placeholder={confirming.backup.databaseName}
@@ -335,26 +326,25 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
           />
           <div className="row-actions">
             <button className="btn btn-danger" disabled={busy || !confirmMatches} onClick={handleRestore}>
-              {busy ? 'Geri yükleniyor…' : 'Geri yükle'}
+              {busy ? 'Restoring…' : 'Restore'}
             </button>
             <button className="btn btn-sm" disabled={busy} onClick={() => setConfirming(null)}>
-              Vazgeç
+              Cancel
             </button>
           </div>
         </div>
       )}
 
       {!backups ? (
-        <div className="empty">Yükleniyor…</div>
+        <div className="empty">Loading…</div>
       ) : backups.length === 0 ? (
         <EmptyState
-          title="Henüz yedek alınmadı"
+          title="No backups yet"
           description={
             <>
-              Yedekler şifrelenerek saklanır ve geri yüklenebilirlikleri temiz bir sunucuya
-              gerçekten geri yüklenerek <strong>kanıtlanır</strong>. Yukarıdaki
-              &quot;Şimdi yedek al&quot; düğmesiyle ilkini oluşturun, ya da düzenli yedek için
-              zamanlamayı açın.
+              Backups are stored encrypted, and their restorability is <strong>proven</strong> by actually
+              restoring them to a clean server. Create the first one with &quot;Back up now&quot; above,
+              or turn on the schedule for regular backups.
             </>
           }
         />
@@ -363,58 +353,57 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
           <table>
             <thead>
               <tr>
-                <th>Tarih</th><th>Tür</th><th>Motor</th><th>Boyut</th>
-                <th>Süre</th><th>Durum</th><th>Doğrulama</th><th style={{ textAlign: 'right' }}>İşlem</th>
+                <th>Date</th><th>Kind</th><th>Engine</th><th>Size</th>
+                <th>Duration</th><th>Status</th><th>Verified</th><th style={{ textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {backups.map(b => (
                 <tr key={b.id}>
-                  <td>{new Date(b.createdAt).toLocaleString('tr-TR')}</td>
-                  <td>{KIND_LABELS[b.kind]}</td>
-                  <td>{b.engine}</td>
-                  <td>{b.status === 'Succeeded' ? formatSize(b.sizeBytes) : '—'}</td>
-                  <td>{formatDuration(b.createdAt, b.completedAt) ?? '—'}</td>
-                  <td>
-                    {b.status === 'Succeeded' ? 'Tamam'
-                      : b.status === 'Running' ? 'Alınıyor…'
-                      // Hata metni satırın içinde: kullanıcı "neden başarısız"
-                      // sorusunu sormak için başka bir ekrana gitmek zorunda kalmasın.
-                      : <span title={b.error ?? undefined}>Başarısız</span>}
+                  <td className="nowrap">{new Date(b.createdAt).toLocaleString('en-US')}</td>
+                  <td className="nowrap">{KIND_LABELS[b.kind]}</td>
+                  <td className="nowrap">{b.engine}</td>
+                  <td className="nowrap">{b.status === 'Succeeded' ? formatSize(b.sizeBytes) : '—'}</td>
+                  <td className="nowrap">{formatDuration(b.createdAt, b.completedAt) ?? '—'}</td>
+                  <td className="nowrap">
+                    {b.status === 'Succeeded' ? 'Done'
+                      : b.status === 'Running' ? 'Running…'
+                      // The error text lives right in the row: the user shouldn't
+                      // have to go to another screen to ask "why did this fail".
+                      : <span title={b.error ?? undefined}>Failed</span>}
                   </td>
-                  <td>
-                    {/* Üç ayrı hâl: kanıtlandı / bozuk çıktı / henüz denenmedi.
-                        Son ikisini birleştirmek, bozuk bir yedeği "sadece
-                        doğrulanmamış" gibi gösterirdi. */}
+                  <td className="nowrap">
+                    {/* Three distinct states: proven / found broken / never tried.
+                        Merging the last two would make a broken backup look merely unverified. */}
                     {b.verifiedAt ? (
-                      <span title={`Doğrulandı: ${new Date(b.verifiedAt).toLocaleString('tr-TR')}`}>✓ Doğrulandı</span>
+                      <span title={`Verified: ${new Date(b.verifiedAt).toLocaleString('en-US')}`}>✓ Verified</span>
                     ) : b.verifyError ? (
-                      <span title={b.verifyError}>✗ Bozuk</span>
+                      <span title={b.verifyError}>✗ Broken</span>
                     ) : '—'}
                   </td>
                   <td>
                     <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
-                      {/* Doğrulama geçici bir sunucuda yapılıyor, projenin
-                          veritabanına dokunmuyor — bu yüzden Owner şartı yok. */}
+                      {/* Verification runs on a throwaway server — it never touches
+                          the project's database, so no Owner requirement here. */}
                       {b.status === 'Succeeded' && (
                         <button className="btn btn-sm" disabled={rowBusyId === b.id || busy}
                                 onClick={() => handleVerify(b)}>
-                          {rowBusyId === b.id ? 'Deneniyor…' : 'Doğrula'}
+                          {rowBusyId === b.id ? 'Verifying…' : 'Verify'}
                         </button>
                       )}
                       {b.status === 'Succeeded' && isOwner && (
                         <>
                           <button className="btn btn-sm" disabled={rowBusyId === b.id || busy}
                                   onClick={() => handleDownload(b)}>
-                            İndir
+                            Download
                           </button>
                           <button className="btn btn-sm btn-danger" disabled={busy}
                                   onClick={() => setConfirming({ backup: b, typed: '' })}>
-                            Geri yükle
+                            Restore
                           </button>
                           <button className="btn btn-sm" disabled={rowBusyId === b.id || busy}
                                   onClick={() => handleDelete(b)}>
-                            Sil
+                            Delete
                           </button>
                         </>
                       )}
@@ -430,24 +419,24 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       {restores.length > 0 && (
         <>
           <PageHead
-            title="Geri yükleme geçmişi"
-            desc="Bu veritabanına en son kimin, ne zaman, hangi yedeği yazdığı."
+            title="Restore history"
+            desc="Who last restored this database, when, and from which backup."
           />
           <div className="grid-wrap">
             <table>
               <thead>
-                <tr><th>Tarih</th><th>Kaynak yedek</th><th>Süre</th><th>Durum</th></tr>
+                <tr><th>Date</th><th>Source backup</th><th>Duration</th><th>Status</th></tr>
               </thead>
               <tbody>
                 {restores.map(r => (
                   <tr key={r.id}>
-                    <td>{new Date(r.startedAt).toLocaleString('tr-TR')}</td>
-                    <td><code>{r.backupId.slice(0, 8)}</code></td>
-                    <td>{formatDuration(r.startedAt, r.completedAt) ?? '—'}</td>
-                    <td>
-                      {r.status === 'Succeeded' ? 'Tamam'
-                        : r.status === 'Running' ? 'Sürüyor…'
-                        : <span title={r.error ?? undefined}>Başarısız</span>}
+                    <td className="nowrap">{new Date(r.startedAt).toLocaleString('en-US')}</td>
+                    <td className="nowrap"><code>{r.backupId.slice(0, 8)}</code></td>
+                    <td className="nowrap">{formatDuration(r.startedAt, r.completedAt) ?? '—'}</td>
+                    <td className="nowrap">
+                      {r.status === 'Succeeded' ? 'Done'
+                        : r.status === 'Running' ? 'Running…'
+                        : <span title={r.error ?? undefined}>Failed</span>}
                     </td>
                   </tr>
                 ))}

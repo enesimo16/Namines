@@ -25,11 +25,11 @@ interface NavEntry {
 
 const NAV_GROUPS: { label: string; items: NavEntry[] }[] = [
   {
-    label: 'Genel',
+    label: 'General',
     items: [{ view: 'overview', icon: LayoutGrid }],
   },
   {
-    label: 'Veritabanı',
+    label: 'Database',
     items: [
       { view: 'canvas', icon: Workflow, needsProject: true },
       { view: 'data', icon: Table2, needsProject: true },
@@ -37,7 +37,7 @@ const NAV_GROUPS: { label: string; items: NavEntry[] }[] = [
     ],
   },
   {
-    label: 'İşlemler',
+    label: 'Operations',
     items: [
       { view: 'deployments', icon: GitBranch, needsProject: true },
       { view: 'logs', icon: ScrollText, needsProject: true },
@@ -47,7 +47,7 @@ const NAV_GROUPS: { label: string; items: NavEntry[] }[] = [
     ],
   },
   {
-    label: 'Ayarlar',
+    label: 'Settings',
     items: [
       { view: 'members', icon: Users, needsProject: true },
       { view: 'apikeys', icon: KeyRound, needsProject: true, ownerOnly: true },
@@ -176,8 +176,8 @@ export default function AppShell({
               ref={searchRef}
               type="search"
               value={query}
-              placeholder="Ara…"
-              aria-label="Gezinme ve tablolarda ara"
+              placeholder="Search…"
+              aria-label="Search navigation and tables"
               onChange={e => setQuery(e.target.value)}
             />
             {!query && <span className="search-kbd">Ctrl K</span>}
@@ -194,21 +194,21 @@ export default function AppShell({
             onClick={() => setProjectMenuOpen(o => !o)}
             aria-haspopup="listbox"
             aria-expanded={projectMenuOpen}
-            title="Proje değiştir"
+            title="Switch project"
           >
             <ArrowLeftRight size={14} />
             <span className="ps-body">
-              <span className="ps-label">Proje</span>
-              <span className="ps-name">{projectName ?? 'Seçilmedi'}</span>
+              <span className="ps-label">Project</span>
+              <span className="ps-name">{projectName ?? 'None selected'}</span>
             </span>
             <ChevronsUpDown size={13} />
           </button>
 
           {projectMenuOpen && (
             <div className="project-menu" role="listbox">
-              <div className="project-menu-label">Projeler</div>
+              <div className="project-menu-label">Projects</div>
               {(projects ?? []).length === 0 && (
-                <div className="nav-sub-empty">Proje yok.</div>
+                <div className="nav-sub-empty">No projects.</div>
               )}
               {(projects ?? []).map(p => (
                 <button
@@ -217,7 +217,7 @@ export default function AppShell({
                   role="option"
                   aria-current={p.id === projectId}
                   aria-selected={p.id === projectId}
-                  title={p.hasConnection ? p.name : `${p.name} — canlı veritabanı bağlı değil`}
+                  title={p.hasConnection ? p.name : `${p.name} — no live database connected`}
                   onClick={() => {
                     setProjectMenuOpen(false);
                     // Baglantisi olmayan proje acilamaz (sema okunamaz);
@@ -242,13 +242,13 @@ export default function AppShell({
                 onClick={() => { setProjectMenuOpen(false); onChangeProject(); }}
               >
                 <LayoutGrid size={13} />
-                <span className="pm-name">Tüm projeler</span>
+                <span className="pm-name">All projects</span>
               </button>
             </div>
           )}
         </div>
 
-        <nav className="side-scroll" aria-label="Ana gezinme">
+        <nav className="side-scroll" aria-label="Main navigation">
           {NAV_GROUPS.map(group => {
             const items = group.items.filter(item => {
               if (item.ownerOnly && !isOwner) return false;
@@ -269,7 +269,7 @@ export default function AppShell({
                         className="nav-item"
                         aria-current={view === item.view}
                         disabled={disabled}
-                        title={disabled ? 'Önce bir proje seçin' : VIEW_LABELS[item.view]}
+                        title={disabled ? 'Select a project first' : VIEW_LABELS[item.view]}
                         onClick={() => onNavigate(item.view)}
                       >
                         <Icon size={15} />
@@ -298,7 +298,7 @@ export default function AppShell({
                           ))}
                           {matchingTables.length === 0 && (
                             <div className="nav-sub-empty">
-                              {q ? 'Eşleşen tablo yok.' : 'Erişilebilir tablo yok.'}
+                              {q ? 'No matching tables.' : 'No accessible tables.'}
                             </div>
                           )}
                         </div>
@@ -315,11 +315,11 @@ export default function AppShell({
           <button
             className="collapse-btn"
             onClick={toggleCollapsed}
-            title={collapsed ? 'Paneli genişlet' : 'Paneli daralt'}
-            aria-label={collapsed ? 'Paneli genişlet' : 'Paneli daralt'}
+            title={collapsed ? 'Expand panel' : 'Collapse panel'}
+            aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
           >
             {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-            <span>Paneli daralt</span>
+            <span>Collapse panel</span>
           </button>
         </div>
       </aside>
@@ -330,8 +330,8 @@ export default function AppShell({
           <button
             className="icon-btn top-menu-btn"
             onClick={() => setDrawerOpen(o => !o)}
-            aria-label="Gezinmeyi aç"
-            title="Gezinmeyi aç"
+            aria-label="Open navigation"
+            title="Open navigation"
           >
             <Menu size={16} />
           </button>
@@ -354,14 +354,14 @@ export default function AppShell({
               href={NAMINES_FRONTEND}
               target="_blank"
               rel="noreferrer"
-              title="Namines'i aç — şema tasarım uygulaması"
+              title="Open Namines — the schema design app"
             >
               <ExternalLink size={14} />
               <span>Namines</span>
             </a>
-            <a className="top-link" href="mailto:support@namines.com" title="Destek ekibine yaz">
+            <a className="top-link" href="mailto:support@namines.com" title="Email support">
               <LifeBuoy size={14} />
-              <span>Destek</span>
+              <span>Support</span>
             </a>
             <ThemeToggle />
 
@@ -373,29 +373,29 @@ export default function AppShell({
                 aria-expanded={menuOpen}
               >
                 <span className="avatar">{initialsOf(user)}</span>
-                <span className="profile-email">{user.email ?? user.name ?? 'Hesap'}</span>
+                <span className="profile-email">{user.email ?? user.name ?? 'Account'}</span>
                 <ChevronsUpDown size={13} />
               </button>
 
               {menuOpen && (
                 <div className="menu" role="menu">
                   <div className="menu-head">
-                    <div className="mh-name">{user.name ?? 'Namines hesabı'}</div>
+                    <div className="mh-name">{user.name ?? 'Namines account'}</div>
                     {user.email && <div className="mh-mail">{user.email}</div>}
                   </div>
                   <a className="menu-item" href={NAMINES_FRONTEND} target="_blank" rel="noreferrer" role="menuitem">
-                    <ExternalLink size={14} /> Namines&apos;i aç
+                    <ExternalLink size={14} /> Open Namines
                   </a>
                   {hasProject && (
                     <button className="menu-item" role="menuitem" onClick={() => { setMenuOpen(false); onChangeProject(); }}>
-                      <ArrowLeftRight size={14} /> Proje değiştir
+                      <ArrowLeftRight size={14} /> Switch project
                     </button>
                   )}
                   <a className="menu-item" href="mailto:support@namines.com" role="menuitem">
                     <LifeBuoy size={14} /> Destek
                   </a>
                   <button className="menu-item is-danger" role="menuitem" onClick={onSignOut}>
-                    <LogOut size={14} /> Çıkış yap
+                    <LogOut size={14} /> Sign out
                   </button>
                 </div>
               )}

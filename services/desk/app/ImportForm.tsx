@@ -40,7 +40,7 @@ export default function ImportForm({
     try {
       await onSubmit(connectionString.trim(), dbType);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bağlantı kaydedilemedi.');
+      setError(err instanceof Error ? err.message : 'Could not save the connection.');
       setBusy(false);
     }
   }
@@ -48,22 +48,22 @@ export default function ImportForm({
   return (
     <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
       <form className="dialog" onSubmit={submit}>
-        <h2>Veritabanı bağla</h2>
+        <h2>Connect a database</h2>
         <p className="hint">
-          {projectName} · Bağlantı sunucuda şifreli durur, tarayıcıya bir daha hiç gelmez.
+          {projectName} · The connection stays encrypted on the server and never reaches the browser.
         </p>
 
         {error && <div className="notice notice-error">{error}</div>}
 
         <div className="field">
-          <label htmlFor="dbType">Motor</label>
+          <label htmlFor="dbType">Engine</label>
           <select id="dbType" value={dbType} onChange={e => setDbType(e.target.value)}>
             {DESK_DB_ENGINES.map(engine => <option key={engine} value={engine}>{engine}</option>)}
           </select>
         </div>
 
         <div className="field">
-          <label htmlFor="conn">Bağlantı dizesi<span className="req">*</span></label>
+          <label htmlFor="conn">Connection string<span className="req">*</span></label>
           <textarea
             id="conn" value={connectionString} required autoFocus
             placeholder="Host=...;Port=...;Database=...;Username=...;Password=..."
@@ -72,17 +72,17 @@ export default function ImportForm({
         </div>
 
         <div className="notice" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span>Elinizde bir veritabanı yok mu? Namines sizin için bir tane açabilir.</span>
+          <span>Don&apos;t have a database yet? Namines can create one for you.</span>
           <button type="button" className="btn btn-sm" style={{ alignSelf: 'flex-start' }}
                   disabled={busy} onClick={onUseGround}>
-            Namines Ground ile oluştur
+            Create with Namines Ground
           </button>
         </div>
 
         <div className="dialog-actions">
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Vazgeç</button>
+          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={busy || !connectionString.trim()}>
-            {busy ? 'Bağlanıyor…' : 'Bağla'}
+            {busy ? 'Connecting…' : 'Connect'}
           </button>
         </div>
       </form>

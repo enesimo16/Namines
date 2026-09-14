@@ -26,17 +26,19 @@ export const PROJECT_VIEWS: DeskView[] = [
 
 /** Üst şeritteki ekmek kırıntısında ve sayfa başlığında kullanılan adlar. */
 export const VIEW_LABELS: Record<DeskView, string> = {
-  overview: 'Projeler',
-  canvas: 'Şema',
-  data: 'Veri',
-  deployments: 'Sürümler',
-  logs: 'Kayıtlar',
-  analytics: 'Analitik',
-  sql: 'SQL konsolu',
-  apikeys: 'API anahtarları',
-  vault: 'Yedekler',
-  ground: 'Barındırma',
-  members: 'Ekip',
+  overview: 'Projects',
+  canvas: 'Schema',
+  data: 'Data',
+  deployments: 'Deployments',
+  logs: 'Logs',
+  analytics: 'Analytics',
+  sql: 'SQL console',
+  apikeys: 'API keys',
+  // Short brand name here; PageHead still shows the full name
+  // ("Namines Vault"/"Namines Ground") — this is just the nav/breadcrumb label.
+  vault: 'Vault',
+  ground: 'Ground',
+  members: 'Team',
 };
 
 /**

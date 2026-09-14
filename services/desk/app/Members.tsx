@@ -23,7 +23,7 @@ export default function Members({ session }: { session: DeskSession }) {
         const list = await fetchMembers(session);
         if (!cancelled) { setMembers(list); setError(null); }
       } catch (err) {
-        if (!cancelled) setError(err instanceof MembersError ? err.message : 'Üyeler okunamadı.');
+        if (!cancelled) setError(err instanceof MembersError ? err.message : 'Could not load members.');
       }
     })();
     return () => { cancelled = true; };
@@ -32,42 +32,35 @@ export default function Members({ session }: { session: DeskSession }) {
   return (
     <div className="page">
       <PageHead
-        title="Ekip"
+        title="Team"
         desc={<>
-          Bu projeye erişebilen kişiler ve rolleri. <b>Salt-okunur görüntü:</b> davet
-          gönderme, rol değiştirme ve üye çıkarma ana Namines uygulamasında yapılır —
-          aynı işi iki yerde yapmak &quot;hangi ekran yetkili&quot; sorusunu bulanıklaştırırdı.
+          People with access to this project and their roles. <b>Read-only view:</b> inviting,
+          changing roles, and removing members happens in the main Namines app.
         </>}
       />
 
       {error && <div className="notice notice-error">{error}</div>}
 
       {!members ? (
-        <div className="empty">Yükleniyor…</div>
+        <div className="empty">Loading…</div>
       ) : members.length === 0 ? (
         <EmptyState
-          title="Bu projede başka üye yok"
-          description={
-            <>
-              Ekip arkadaşlarınızı davet ederek şema değişikliklerini birlikte inceleyebilir ve
-              onaylayabilirsiniz. Riskli değişiklikler için ikinci bir onay, tek başına
-              çalışırken alınamayan bir güvencedir.
-            </>
-          }
+          title="No other members on this project"
+          description="Invite teammates to review and approve schema changes together — a second approval catches what working alone can't."
         />
       ) : (
         <div className="grid-wrap">
           <table>
             <thead>
-              <tr><th>Kullanıcı</th><th>E-posta</th><th>Rol</th><th>Katılma</th></tr>
+              <tr><th>User</th><th>Email</th><th>Role</th><th>Joined</th></tr>
             </thead>
             <tbody>
               {members.map(m => (
                 <tr key={m.userId}>
-                  <td>{m.username ?? '—'}</td>
-                  <td>{m.email ?? '—'}</td>
-                  <td>{roleLabel(m.role)}</td>
-                  <td>{m.joinedAt ? new Date(m.joinedAt).toLocaleString('tr-TR') : '—'}</td>
+                  <td className="nowrap">{m.username ?? '—'}</td>
+                  <td className="nowrap">{m.email ?? '—'}</td>
+                  <td className="nowrap">{roleLabel(m.role)}</td>
+                  <td className="nowrap">{m.joinedAt ? new Date(m.joinedAt).toLocaleString('en-US') : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -80,11 +73,11 @@ export default function Members({ session }: { session: DeskSession }) {
 
 function roleLabel(role: ProjectMember['role']): string {
   switch (role) {
-    case 'Owner': return 'Sahip';
-    case 'Admin': return 'Yönetici';
-    case 'Editor': return 'Düzenleyici';
-    case 'Viewer': return 'Görüntüleyici';
-    case 'Billing': return 'Faturalama';
+    case 'Owner': return 'Owner';
+    case 'Admin': return 'Admin';
+    case 'Editor': return 'Editor';
+    case 'Viewer': return 'Viewer';
+    case 'Billing': return 'Billing';
     default: return role;
   }
 }

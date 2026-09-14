@@ -11,14 +11,13 @@ import {
 import PageHead from './PageHead';
 
 /**
- * Namines Ground — yönetilen veritabanı ekranı.
+ * Namines Ground — managed database screen.
  *
- * <b>Ground'un kendi sitesi yok</b>; bir arka uç modülü ve kullanıcıya bakan
- * tek yüzü bu görünüm. Gerekçesi `namines-ground/02-V1-KARARLARI.md`'de.
- *
- * <b>Silme, Desk'teki en yıkıcı ikinci işlem</b> (Vault'un geri yüklemesinden
- * sonra): veritabanının tamamını yok eder. Bu yüzden proje adı elle yazılıyor
- * ve silme hemen değil, geri alınabilir bir pencereyle yapılıyor.
+ * Ground has no site of its own; this view is its only user-facing surface
+ * (see `namines-ground/02-V1-KARARLARI.md`). Deletion is the second most
+ * destructive action in Desk (after Vault's restore): it wipes the whole
+ * database, so the project name has to be typed by hand and deletion goes
+ * through a recoverable grace window instead of happening instantly.
  */
 export default function Ground({ session, isOwner }: { session: DeskSession; isOwner: boolean }) {
   const [providers, setProviders] = useState<GroundProvider[] | null>(null);
@@ -39,8 +38,9 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       setDatabase(record);
       setError(null);
 
-      // Ölçüm AYRI çağrı ve hatası yutuluyor: sağlayıcıya gerçek bir sorgu
-      // gidiyor, oradaki bir aksaklık ekranın tamamını çökertmemeli.
+      // Metrics is a SEPARATE call whose failure is swallowed: it hits the
+      // provider with a real query, and a hiccup there shouldn't take down
+      // the whole screen.
       if (record && record.status !== 'Deleted') {
         try {
           setMetrics(await groundApi.metrics(session));
@@ -51,7 +51,7 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
         setMetrics(null);
       }
     } catch (err) {
-      setError(err instanceof GroundError ? err.message : 'Yönetilen veritabanı bilgisi okunamadı.');
+      setError(err instanceof GroundError ? err.message : 'Could not load the managed database.');
       setProviders([]);
     }
   }, [session]);
@@ -67,24 +67,24 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       setNotice(success);
       await reload();
     } catch (err) {
-      setError(err instanceof GroundError ? err.message : 'İşlem başarısız oldu.');
+      setError(err instanceof GroundError ? err.message : 'The action failed.');
     } finally {
       setBusy(false);
     }
   }
 
   const handleProvision = (provider: string) =>
-    run(() => groundApi.provision(session, provider), 'Yönetilen veritabanı açıldı.');
+    run(() => groundApi.provision(session, provider), 'Managed database created.');
 
   const handleDelete = () =>
     run(async () => {
       await groundApi.requestDelete(session, confirmText);
       setConfirming(false);
       setConfirmText('');
-    }, 'Silme istendi. Bekleme penceresi içinde geri alabilirsiniz.');
+    }, 'Deletion requested. You can still undo it during the grace window.');
 
   const handleCancelDelete = () =>
-    run(() => groundApi.cancelDelete(session), 'Silme geri alındı, veritabanı yeniden kullanılabilir.');
+    run(() => groundApi.cancelDelete(session), 'Deletion cancelled — the database is back in use.');
 
   const remainingDays = database?.deleteRequestedAt
     ? daysUntilPurge(database.deleteRequestedAt, database.graceDays)
@@ -93,27 +93,18 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
   return (
     <div className="page">
       <PageHead
-        title="Barındırma"
-        desc={<>
-          Bu proje için <b>yönetilen bir PostgreSQL veritabanı</b> açar. Bağlantı sunucuda
-          şifreli saklanır ve tarayıcıya hiç gelmez. <b>Silme geri alınabilir bir bekleme
-          penceresiyle</b> yapılır — yanlışlıkla silinen bir veritabanı, çoğu zaman ancak
-          birileri onu kullanmayı denediğinde fark edilir.
-        </>}
+        title="Namines Ground"
+        desc="A managed PostgreSQL database for this project. The connection stays encrypted on the server and never reaches the browser."
       />
 
       {error && <div className="notice notice-error">{error}</div>}
       {notice && <div className="notice">{notice}</div>}
 
       {!isOwner && (
-        <div className="notice">
-          Yönetilen veritabanı açmak ve silmek yalnızca proje sahibinin (Owner) yetkisindedir.
-        </div>
+        <div className="notice">Only the project Owner can create or delete a managed database.</div>
       )}
 
-      {/* Yalnizca UYARI: veritabani kisitlanmiyor, kapatilmiyor. Kullanici
-          "neden verime erisemiyorum" diye sormaz -- yalnizca "bunu bilmelisin"
-          diyoruz. */}
+      {/* WARNING only — the database is never throttled or shut off. */}
       {metrics?.storageWarning && (
         <div className="notice">{metrics.storageWarning}</div>
       )}
@@ -122,27 +113,26 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
         <div className="grid-wrap">
           <table>
             <tbody>
-              <tr><th style={{ width: 200 }}>Durum</th><td>{STATUS_LABELS[database.status]}</td></tr>
-              <tr><th>Sağlayıcı</th><td>{database.provider}</td></tr>
+              <tr><th style={{ width: 160 }}>Status</th><td className="nowrap">{STATUS_LABELS[database.status]}</td></tr>
+              <tr><th>Provider</th><td className="nowrap">{database.provider}</td></tr>
               <tr>
-                <th>Sağlayıcıdaki adı</th>
-                {/* Kaynağı sağlayıcının kendi panelinde bulabilmek için. */}
+                <th>Provider ID</th>
+                {/* So the resource can be found in the provider's own console. */}
                 <td><code>{database.providerProjectId ?? '—'}</code></td>
               </tr>
-              <tr><th>Bölge</th><td>{database.region ?? '—'}</td></tr>
-              <tr><th>Açılış</th><td>{new Date(database.createdAt).toLocaleString('tr-TR')}</td></tr>
-              {/* null = BILINMIYOR, sifir degil. "0 B" yazmak bos bir
-                  veritabani izlenimi verirdi. */}
+              <tr><th>Region</th><td className="nowrap">{database.region ?? '—'}</td></tr>
+              <tr><th>Created</th><td className="nowrap">{new Date(database.createdAt).toLocaleString('en-US')}</td></tr>
+              {/* null = unknown, not zero. "0 B" would look like an empty database. */}
               <tr>
-                <th>Kullanılan alan</th>
-                <td>{metrics?.storageBytes != null ? formatSize(metrics.storageBytes) : '—'}</td>
+                <th>Storage used</th>
+                <td className="nowrap">{metrics?.storageBytes != null ? formatSize(metrics.storageBytes) : '—'}</td>
               </tr>
               <tr>
-                <th>Açık bağlantı</th>
-                <td>{metrics?.activeConnections ?? '—'}</td>
+                <th>Active connections</th>
+                <td className="nowrap">{metrics?.activeConnections ?? '—'}</td>
               </tr>
               {database.error && (
-                <tr><th>Hata</th><td>{database.error}</td></tr>
+                <tr><th>Error</th><td>{database.error}</td></tr>
               )}
             </tbody>
           </table>
@@ -151,16 +141,16 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
 
       {database?.status === 'PendingDelete' && (
         <div className="notice notice-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <b>Bu veritabanı silinmeyi bekliyor.</b>
+          <b>This database is scheduled for deletion.</b>
           <span>
             {remainingDays === 0
-              ? 'Bekleme penceresi doldu; ilk temizlik turunda kalıcı olarak silinecek.'
-              : `Kalıcı olarak silinmesine ${remainingDays} gün kaldı. O ana kadar geri alabilirsiniz.`}
+              ? 'The grace window has ended; it will be permanently deleted on the next cleanup pass.'
+              : `${remainingDays} day${remainingDays === 1 ? '' : 's'} left before it's permanently deleted. You can still undo it.`}
           </span>
           {isOwner && (
             <button className="btn" style={{ alignSelf: 'flex-start' }} disabled={busy}
                     onClick={handleCancelDelete}>
-              {busy ? 'Geri alınıyor…' : 'Silmeyi geri al'}
+              {busy ? 'Undoing…' : 'Undo deletion'}
             </button>
           )}
         </div>
@@ -169,28 +159,25 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       {database?.status === 'Active' && isOwner && (
         confirming ? (
           <div className="notice notice-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <b>Bu veritabanı ve içindeki tüm veriler silinecek.</b>
-            <span>
-              Silme hemen olmaz; bekleme penceresi boyunca geri alabilirsiniz. Devam etmek
-              için proje adını yazın.
-            </span>
-            <input type="text" aria-label="Onay için proje adı" value={confirmText} style={{ maxWidth: 280 }}
+            <b>This database and everything in it will be deleted.</b>
+            <span>Deletion isn&apos;t instant — you can undo it during the grace window. Type the project name to continue.</span>
+            <input type="text" aria-label="Project name to confirm" value={confirmText} style={{ maxWidth: 280 }}
                    onChange={e => setConfirmText(e.target.value)} />
             <div className="row-actions">
               <button className="btn btn-danger" disabled={busy || !confirmText.trim()}
                       onClick={handleDelete}>
-                {busy ? 'İsteniyor…' : 'Silmeyi başlat'}
+                {busy ? 'Requesting…' : 'Start deletion'}
               </button>
               <button className="btn btn-sm" disabled={busy}
                       onClick={() => { setConfirming(false); setConfirmText(''); }}>
-                Vazgeç
+                Cancel
               </button>
             </div>
           </div>
         ) : (
           <div className="row-actions">
             <button className="btn btn-danger btn-sm" onClick={() => setConfirming(true)}>
-              Veritabanını sil
+              Delete database
             </button>
           </div>
         )
@@ -199,30 +186,37 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       {!database || database.status === 'Deleted' ? (
         <>
           <PageHead
-            title="Sağlayıcılar"
-            desc="Veritabanının nerede açılacağını seçin. Her sağlayıcının sorumluluğu farklıdır."
+            title="Providers"
+            desc="Choose where the database lives — each provider carries different responsibilities."
           />
 
           {!providers ? (
-            <div className="empty">Yükleniyor…</div>
+            <div className="empty">Loading…</div>
           ) : providers.length === 0 ? (
             <EmptyState
-              title="Kayıtlı sağlayıcı yok"
-              description={
-                <>
-                  Ground, projeniz için yönetilen bir veritabanı açar. Sunucuda hiçbir sağlayıcı
-                  yapılandırılmamış — yöneticinizin <code>Ground__*</code> ayarlarını tanımlaması
-                  gerekiyor.
-                </>
-              }
+              title="No providers registered"
+              description={<>No provider is configured on the server yet — an admin needs to set the <code>Ground__*</code> settings.</>}
             />
           ) : (
             <div className="grid-wrap">
-              <table>
+              {/* `minWidth` yerine sıfırdan güvenmek: dar bir görünüm alanında sabit
+                  sütun genişlikleri (140+130+140) "Responsibility" sütununu birkaç
+                  piksele sıkıştırıp her kelimeyi kendi satırına düşürüyordu — üst
+                  üste binmekten farklı ama aynı derecede okunamaz bir bozulma. Tablo
+                  artık kendi minimum genişliğini taşıyor; `.grid-wrap`'in zaten
+                  sahip olduğu `overflow: auto` dar ekranda yatay kaydırmayı
+                  üstleniyor, sütunlar hiç sıkışmıyor. */}
+              <table style={{ tableLayout: 'fixed', minWidth: 640 }}>
+                <colgroup>
+                  <col style={{ width: 140 }} />
+                  <col style={{ width: 130 }} />
+                  <col />
+                  <col style={{ width: 140 }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Sağlayıcı</th><th>Durum</th><th>Sorumluluk</th>
-                    <th style={{ textAlign: 'right' }}>İşlem</th>
+                    <th>Provider</th><th>Status</th><th>Responsibility</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -230,18 +224,20 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
                     <tr key={p.name}>
                       <td>{p.name}</td>
                       <td>
-                        {/* Uc ayri hal: hazir / yapilandirilmamis / denenmemis.
-                            "Canli kanitlanmadi" gizlenirse, kullanici verisini
-                            denenmemis bir yola koydugunu bilmezdi. */}
+                        {/* Three distinct states: ready / not configured / unverified.
+                            Hiding "not live-verified" would let a user trust an
+                            untested path without knowing it. NOT `.nowrap`: a narrow
+                            fixed column plus a forced single line pushed text past the
+                            cell boundary and over the next column instead of wrapping. */}
                         {p.problem
-                          ? <span title={p.problem}>Yapılandırılmamış</span>
+                          ? <span title={p.problem}>Not configured</span>
                           : p.liveVerified
-                            ? 'Hazır'
-                            : <span title="Bu sağlayıcı gerçek bir hesaba karşı hiç denenmedi.">
-                                ⚠ Canlı denenmedi
+                            ? 'Ready'
+                            : <span title="This provider has never been tested against a real account.">
+                                ⚠ Unverified
                               </span>}
                       </td>
-                      <td style={{ maxWidth: 420, fontSize: 12.5 }}>{p.responsibility}</td>
+                      <td style={{ fontSize: 12.5 }}>{p.responsibility}</td>
                       <td>
                         <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
                           <button
@@ -250,7 +246,7 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
                             title={p.problem ?? undefined}
                             onClick={() => handleProvision(p.name)}
                           >
-                            {busy ? 'Açılıyor…' : 'Bu sağlayıcıda aç'}
+                            {busy ? 'Creating…' : 'Use this provider'}
                           </button>
                         </div>
                       </td>
@@ -267,9 +263,9 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
 }
 
 const STATUS_LABELS: Record<GroundDatabase['status'], string> = {
-  Provisioning: 'Açılıyor…',
-  Active: 'Etkin',
-  PendingDelete: 'Silinmeyi bekliyor',
-  Deleted: 'Silindi',
-  Failed: 'Başarısız',
+  Provisioning: 'Creating…',
+  Active: 'Active',
+  PendingDelete: 'Pending deletion',
+  Deleted: 'Deleted',
+  Failed: 'Failed',
 };

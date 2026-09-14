@@ -56,9 +56,9 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
   if (!isOwner) {
     return (
       <div className="page">
-        <PageHead title="SQL konsolu" />
+        <PageHead title="SQL console" />
         <div className="notice">
-          SQL konsolu yalnızca proje sahibi (Owner) tarafından kullanılabilir.
+          The SQL console can only be used by the project Owner.
         </div>
       </div>
     );
@@ -68,14 +68,14 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
     return (
       <div className="page">
         <PageHead
-          title="SQL konsolu"
-          desc="Bu proje için henüz açılmadı. Açmak, kapsamı sınırlı ama gerçek bir veritabanı erişimi olduğu için bilinçli bir karar olmalı — o yüzden varsayılan kapalı."
+          title="SQL console"
+          desc="Not yet enabled for this project. Turning it on grants real, if limited, database access — so it should be a deliberate decision, which is why it's off by default."
         />
         <div className="notice" style={{ marginBottom: 12 }}>
-          Açtığınızda yalnızca <b>tek bir SELECT/WITH/EXPLAIN/SHOW</b> ifadesi
-          çalıştırılabilir — yazma, DDL ve <code>SELECT…INTO</code> sunucu tarafında
-          engellenir. Motor destekliyorsa bağlantı ayrıca veritabanı düzeyinde
-          salt-okunur açılır ve her çalıştırma denetim kaydına yazılır.
+          Once enabled, only a <b>single SELECT/WITH/EXPLAIN/SHOW</b> statement can run —
+          writes, DDL, and <code>SELECT…INTO</code> are blocked server-side. When the engine
+          supports it, the connection also opens read-only at the database level, and every
+          run is logged.
         </div>
         <button
           className="btn btn-primary"
@@ -86,13 +86,13 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
               await setDeskSqlEnabled(session, true);
               onToggled();
             } catch (err) {
-              setError(err instanceof Error ? err.message : 'Açılamadı.');
+              setError(err instanceof Error ? err.message : 'Could not enable.');
             } finally {
               setToggling(false);
             }
           }}
         >
-          {toggling ? 'Açılıyor…' : 'SQL konsolunu aç'}
+          {toggling ? 'Enabling…' : 'Enable SQL console'}
         </button>
         {error && <div className="notice notice-error" style={{ marginTop: 10 }}>{error}</div>}
       </div>
@@ -107,7 +107,7 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
       setResult(res);
     } catch (err) {
       setResult(null);
-      setError(err instanceof DeskSqlError ? err.message : 'Çalıştırılamadı.');
+      setError(err instanceof DeskSqlError ? err.message : 'Could not run the query.');
     } finally {
       setRunning(false);
       // Basarisiz calistirma da gecmise yaziliyor (sunucu tarafi), o yuzden
@@ -118,7 +118,7 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
   }
 
   async function handleSave() {
-    const name = prompt('Sorguya bir ad verin:')?.trim();
+    const name = prompt('Name this query:')?.trim();
     if (!name) return;
     setSideBusy(true);
     setError(null);
@@ -127,7 +127,7 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
       setSideTab('saved');
       await refreshSide();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kaydedilemedi.');
+      setError(err instanceof Error ? err.message : 'Could not save the query.');
     } finally {
       setSideBusy(false);
     }
@@ -138,16 +138,16 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
   return (
     <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <PageHead
-        title="SQL konsolu"
+        title="SQL console"
         desc={<>
-          Salt-okunur sorgu penceresi. Yalnızca <b>tek bir SELECT/WITH/EXPLAIN/SHOW</b>
-          {' '}çalıştırılabilir; yazma, DDL ve <code>SELECT…INTO</code> sunucu tarafında
-          engellenir — motor destekliyorsa bağlantı ayrıca veritabanı düzeyinde
-          salt-okunur açılır.
+          A read-only query window. Only a <b>single SELECT/WITH/EXPLAIN/SHOW</b> statement
+          {' '}can run — writes, DDL, and <code>SELECT…INTO</code> are blocked server-side,
+          and the connection also opens read-only at the database level when the engine
+          supports it.
         </>}
       />
       <textarea
-        aria-label="SQL sorgusu"
+        aria-label="SQL query"
         value={sql}
         onChange={e => setSql(e.target.value)}
         rows={5}
@@ -159,33 +159,33 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
       />
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button className="btn btn-primary" disabled={running || !sql.trim()} onClick={run}>
-          {running ? 'Çalıştırılıyor…' : 'Çalıştır'}
+          {running ? 'Running…' : 'Run'}
         </button>
         <button className="btn btn-sm" disabled={sideBusy || !sql.trim()} onClick={handleSave}>
-          Sorguyu kaydet
+          Save query
         </button>
         <button
           className="btn btn-sm"
           disabled={toggling}
           onClick={async () => {
-            if (!confirm('SQL konsolunu bu proje için kapatmak istiyor musunuz?')) return;
+            if (!confirm('Disable the SQL console for this project?')) return;
             setToggling(true);
             setError(null);
             try {
               await setDeskSqlEnabled(session, false);
               onToggled();
             } catch (err) {
-              // Bu catch OLMADAN kapatma sessizce başarısız oluyordu: kullanıcı
-              // konsolun kapandığını sanıyor, oysa sunucuda AÇIK kalıyor.
-              // Hassas bir yüzeyin durumu hakkında yanlış bilgi vermek,
-              // hatayı göstermemekten çok daha kötü.
-              setError(err instanceof Error ? err.message : 'Kapatılamadı.');
+              // Without this catch, disabling would silently fail: the user
+              // would think the console is off while the server keeps it ON.
+              // Misreporting a sensitive surface's state is worse than not
+              // showing an error at all.
+              setError(err instanceof Error ? err.message : 'Could not disable.');
             } finally {
               setToggling(false);
             }
           }}
         >
-          Konsolu kapat
+          Disable console
         </button>
       </div>
 
@@ -200,13 +200,13 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
             className={`btn btn-sm${sideTab === 'history' ? ' btn-primary' : ''}`}
             onClick={() => setSideTab('history')}
           >
-            Geçmiş{history ? ` (${history.length})` : ''}
+            History{history ? ` (${history.length})` : ''}
           </button>
           <button
             className={`btn btn-sm${sideTab === 'saved' ? ' btn-primary' : ''}`}
             onClick={() => setSideTab('saved')}
           >
-            Kayıtlı{saved ? ` (${saved.length})` : ''}
+            Saved{saved ? ` (${saved.length})` : ''}
           </button>
           {sideTab === 'history' && history && history.length > 0 && (
             <button
@@ -214,27 +214,27 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
               style={{ marginLeft: 'auto' }}
               disabled={sideBusy}
               onClick={async () => {
-                if (!confirm('Sorgu geçmişinizi silmek istiyor musunuz? Denetim kaydı silinmez.')) return;
+                if (!confirm('Clear your query history? The audit log is not affected.')) return;
                 setSideBusy(true);
                 try { await clearSqlHistory(session); await refreshSide(); }
                 finally { setSideBusy(false); }
               }}
             >
-              Geçmişi temizle
+              Clear history
             </button>
           )}
         </div>
 
         {sideTab === 'history' ? (
-          history === null ? <div className="empty">Yükleniyor…</div>
-          : history.length === 0 ? <div className="empty">Henüz sorgu çalıştırmadınız.</div>
+          history === null ? <div className="empty">Loading…</div>
+          : history.length === 0 ? <div className="empty">You haven&apos;t run a query yet.</div>
           : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 200, overflow: 'auto' }}>
               {history.map(h => (
                 <li key={h.id} style={{ borderBottom: '1px solid var(--line)', padding: '6px 0' }}>
                   <button
                     onClick={() => setSql(h.sql)}
-                    title="Editöre yaz"
+                    title="Write to editor"
                     style={{
                       all: 'unset', cursor: 'pointer', display: 'block', width: '100%',
                       fontFamily: 'ui-monospace, monospace', fontSize: 12,
@@ -245,17 +245,17 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
                   </button>
                   <div style={{ fontSize: 11, color: 'var(--content-subtle)', marginTop: 2 }}>
                     {h.succeeded
-                      ? `${h.rowCount} satır · ${h.durationMs} ms`
-                      : `Hata: ${h.errorMessage ?? 'bilinmiyor'}`}
-                    {' · '}{new Date(h.createdAt).toLocaleString('tr-TR')}
+                      ? `${h.rowCount} rows · ${h.durationMs} ms`
+                      : `Error: ${h.errorMessage ?? 'unknown'}`}
+                    {' · '}{new Date(h.createdAt).toLocaleString('en-US')}
                   </div>
                 </li>
               ))}
             </ul>
           )
         ) : (
-          saved === null ? <div className="empty">Yükleniyor…</div>
-          : saved.length === 0 ? <div className="empty">Kaydedilmiş sorgu yok.</div>
+          saved === null ? <div className="empty">Loading…</div>
+          : saved.length === 0 ? <div className="empty">No saved queries.</div>
           : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 200, overflow: 'auto' }}>
               {saved.map(q => (
@@ -265,7 +265,7 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
                 }}>
                   <button
                     onClick={() => setSql(q.sql)}
-                    title="Editöre yaz"
+                    title="Write to editor"
                     style={{
                       all: 'unset', cursor: 'pointer', flex: 1, minWidth: 0,
                       color: 'var(--content-primary)',
@@ -284,13 +284,13 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
                     className="btn btn-sm btn-danger"
                     disabled={sideBusy}
                     onClick={async () => {
-                      if (!confirm(`"${q.name}" silinsin mi?`)) return;
+                      if (!confirm(`Delete "${q.name}"?`)) return;
                       setSideBusy(true);
                       try { await deleteSavedQuery(session, q.id); await refreshSide(); }
                       finally { setSideBusy(false); }
                     }}
                   >
-                    Sil
+                    Delete
                   </button>
                 </li>
               ))}
@@ -303,11 +303,11 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           {result.truncated && (
             <div className="notice" style={{ marginBottom: 8 }}>
-              Sonuç 500 satırda kesildi — daha fazla kayıt var.
+              Result truncated at 500 rows — there are more.
             </div>
           )}
           {result.rows.length === 0 ? (
-            <div className="empty">Sonuç yok.</div>
+            <div className="empty">No results.</div>
           ) : (
             <div className="grid-wrap">
               <table>

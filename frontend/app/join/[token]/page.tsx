@@ -120,7 +120,7 @@ export default function JoinTeamPage() {
               </p>
               {preview?.expiresAt && (
                 <p className="text-[10px] text-content-subtle">
-                  This link expires {new Date(preview.expiresAt).toLocaleDateString()} and works only once.
+                  This link expires {new Date(preview.expiresAt).toLocaleDateString('en-US')} and works only once.
                 </p>
               )}
             </div>

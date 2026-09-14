@@ -32,7 +32,7 @@ async function req<T>(path: string, session: DeskSession, init?: RequestInit): P
     cache: 'no-store',
   });
   if (!res.ok) {
-    let message = `İstek başarısız (${res.status}).`;
+    let message = `Request failed (${res.status}).`;
     try {
       const body = await res.json();
       if (body?.error) message = body.error;
@@ -59,7 +59,7 @@ export const apiKeysApi = {
       { method: 'DELETE', headers: { Authorization: `Bearer ${session.token}` }, cache: 'no-store' },
     );
     if (!res.ok) {
-      let message = `İstek başarısız (${res.status}).`;
+      let message = `Request failed (${res.status}).`;
       try {
         const body = await res.json();
         if (body?.error) message = body.error;

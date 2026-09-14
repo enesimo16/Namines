@@ -12,7 +12,7 @@ import { useState } from 'react';
  * 10'dan AZ seçimde bu modal hiç açılmaz — Desk.tsx tarayıcının kendi
  * `confirm()`'ünü kullanmaya devam eder (tekil silmeyle aynı, tutarlı UX).
  */
-const CONFIRM_WORD = 'SİL';
+const CONFIRM_WORD = 'DELETE';
 const BULK_DELETE_THRESHOLD = 10;
 
 export { BULK_DELETE_THRESHOLD };
@@ -35,7 +35,7 @@ export default function BulkDeleteConfirm({ count, onCancel, onConfirm }: {
     try {
       await onConfirm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Silinemedi.');
+      setError(err instanceof Error ? err.message : 'Delete failed.');
       setBusy(false);
     }
   }
@@ -43,15 +43,15 @@ export default function BulkDeleteConfirm({ count, onCancel, onConfirm }: {
   return (
     <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
       <div className="dialog">
-        <h2>{count} satır kalıcı olarak silinecek</h2>
+        <h2>{count} row{count === 1 ? '' : 's'} will be permanently deleted</h2>
         <p className="hint">
-          Bu işlem geri alınamaz. Devam etmek için aşağıya <b>{CONFIRM_WORD}</b> yazın.
+          This cannot be undone. Type <b>{CONFIRM_WORD}</b> below to continue.
         </p>
 
         {error && <div className="notice notice-error">{error}</div>}
 
         <div className="field">
-          <label htmlFor="confirm-word">Onay</label>
+          <label htmlFor="confirm-word">Confirm</label>
           <input
             id="confirm-word" type="text" value={typed} autoFocus
             placeholder={CONFIRM_WORD}
@@ -60,9 +60,9 @@ export default function BulkDeleteConfirm({ count, onCancel, onConfirm }: {
         </div>
 
         <div className="dialog-actions">
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Vazgeç</button>
+          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
           <button type="button" className="btn btn-danger" disabled={!canConfirm || busy} onClick={handleConfirm}>
-            {busy ? 'Siliniyor…' : `${count} satırı sil`}
+            {busy ? 'Deleting…' : `Delete ${count} row${count === 1 ? '' : 's'}`}
           </button>
         </div>
       </div>

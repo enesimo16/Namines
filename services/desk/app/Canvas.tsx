@@ -74,7 +74,7 @@ function SchemaTableNode({ data }: NodeProps<Node<SchemaNodeData>>) {
           color: drift === 'not_in_db' ? 'var(--content-subtle)' : 'var(--accent-text)',
           background: 'var(--surface-700)',
         }}>
-          {drift === 'not_in_db' ? 'veritabanında yok' : 'tasarımda yok'}
+          {drift === 'not_in_db' ? 'not in database' : 'not in design'}
         </div>
       )}
 
@@ -95,7 +95,7 @@ function SchemaTableNode({ data }: NodeProps<Node<SchemaNodeData>>) {
         </div>
       ) : (
         <div style={{ padding: '8px 10px', color: 'var(--content-subtle)' }}>
-          Bu tablo yalnızca tasarımda var — canlı veritabanında bulunamadı.
+          This table only exists in the design — not found in the live database.
         </div>
       )}
     </div>
@@ -243,9 +243,9 @@ export default function Canvas({
           <Controls showInteractive={false} />
           <MiniMap pannable zoomable style={{ background: 'var(--surface-800)' }} />
           <Panel position="top-right" style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-sm" onClick={autoLayout}>Otomatik yerleştir</button>
+            <button className="btn btn-sm" onClick={autoLayout}>Auto-arrange</button>
             {layoutOverride && (
-              <button className="btn btn-sm" onClick={() => setLayoutOverride(null)}>Düzeni sıfırla</button>
+              <button className="btn btn-sm" onClick={() => setLayoutOverride(null)}>Reset layout</button>
             )}
           </Panel>
         </ReactFlow>
@@ -258,7 +258,7 @@ export default function Canvas({
         }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>{selectedTable.name}</div>
           <div style={{ fontSize: 11.5, color: 'var(--content-muted)', marginBottom: 12 }}>
-            {selectedTable.columns.length} kolon{!selectedTable.canWrite && ' · salt-okunur'}
+            {selectedTable.columns.length} columns{!selectedTable.canWrite && ' · read-only'}
           </div>
           {selectedTable.columns.map(c => (
             <div key={c.name} style={{ fontSize: 12, marginBottom: 6 }}>

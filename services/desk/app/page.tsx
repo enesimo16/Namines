@@ -88,7 +88,7 @@ export default function Page() {
         setTok(null);
         return;
       }
-      setProjectsError(err instanceof Error ? err.message : 'Projeler okunamadi.');
+      setProjectsError(err instanceof Error ? err.message : 'Could not load projects.');
     }
   }, [token]);
 
@@ -185,7 +185,7 @@ export default function Page() {
               setToken(t);
               setTok(t);
             } catch (err) {
-              setLoginError(err instanceof Error ? err.message : 'Giris basarisiz.');
+              setLoginError(err instanceof Error ? err.message : 'Login failed.');
             } finally {
               setLoggingIn(false);
             }
@@ -196,22 +196,22 @@ export default function Page() {
             <h1>Namines Desk <span className="brand-badge">beta</span></h1>
           </div>
           <p>
-            Namines hesabinizla giris yapin. Veritabani baglantiniz sunucuda
-            sifreli duruyor &mdash; parolaniz bu sayfaya hicbir zaman gelmez.
+            Log in with your Namines account. Your database connection stays encrypted
+            on the server &mdash; your password never reaches this page.
           </p>
           {loginError && <div className="notice notice-error">{loginError}</div>}
           <div className="field">
-            <label htmlFor="email">E-posta</label>
-            <input id="email" type="email" value={email} placeholder="ad@ornek.com"
+            <label htmlFor="email">Email</label>
+            <input id="email" type="email" value={email} placeholder="name@example.com"
                    onChange={e => setEmail(e.target.value)} autoFocus required />
           </div>
           <div className="field">
-            <label htmlFor="password">Parola</label>
+            <label htmlFor="password">Password</label>
             <input id="password" type="password" value={password}
                    onChange={e => setPassword(e.target.value)} required />
           </div>
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loggingIn}>
-            {loggingIn ? 'Giris yapiliyor…' : 'Giris yap'}
+            {loggingIn ? 'Logging in…' : 'Log in'}
           </button>
         </form>
       </div>

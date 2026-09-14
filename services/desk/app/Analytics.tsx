@@ -8,9 +8,9 @@ import PageHead from './PageHead';
 
 type Period = '24h' | '7d' | '30d';
 const PERIODS: { key: Period; label: string; hours: number; bucket: 'hour' | 'day' }[] = [
-  { key: '24h', label: 'Son 24 saat', hours: 24, bucket: 'hour' },
-  { key: '7d', label: '7 gün', hours: 24 * 7, bucket: 'day' },
-  { key: '30d', label: '30 gün', hours: 24 * 30, bucket: 'day' },
+  { key: '24h', label: 'Last 24 hours', hours: 24, bucket: 'hour' },
+  { key: '7d', label: '7 days', hours: 24 * 7, bucket: 'day' },
+  { key: '30d', label: '30 days', hours: 24 * 30, bucket: 'day' },
 ];
 
 // Islem turu basina ayirt edilebilir renkler. Onceki palet bes farkli GRI
@@ -26,8 +26,8 @@ const KIND_COLORS: Record<string, string> = {
   sql: '#5f7d8c',
 };
 const KIND_LABELS: Record<string, string> = {
-  create: 'ekleme', update: 'güncelleme', delete: 'silme',
-  import: 'içe aktarma', rpc: 'rpc', sql: 'sql',
+  create: 'create', update: 'update', delete: 'delete',
+  import: 'import', rpc: 'rpc', sql: 'sql',
 };
 
 /**
@@ -56,7 +56,7 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
       .catch(err => {
         if (cancelled) return;
         if (err instanceof AnalyticsAccessError && err.status === 403) { setForbidden(true); return; }
-        setError(err instanceof Error ? err.message : 'Analitik okunamadı.');
+        setError(err instanceof Error ? err.message : 'Could not load analytics.');
       });
     return () => { cancelled = true; };
   }, [session, period]);
@@ -72,12 +72,11 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
 
   const head = (
     <PageHead
-      title="Analitik"
+      title="Analytics"
       desc={<>
-        Bu projede yapılan <b>yazma işlemlerinin</b> özeti — hepsi denetim kaydından
-        (GatewayAuditEntry) türetiliyor. CPU/istek/transfer gibi barındırma metrikleri
-        burada YOK: Namines kimsenin uygulamasını çalıştırmıyor, o sayıların bir
-        kaynağı olmazdı.
+        A summary of <b>write operations</b> on this project, all derived from the audit log.
+        Hosting metrics like CPU/requests/transfer are NOT here — Namines doesn&apos;t run anyone&apos;s
+        application, so those numbers wouldn&apos;t have a source.
       </>}
     />
   );
@@ -87,8 +86,8 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
       <div className="page">
         {head}
         <div className="notice">
-          Bu bölüm için yönetici (Admin) yetkisi gerekiyor. Toplamlar, projenin
-          tüm veri hareketini açığa vurur — bu yüzden bir yönetim yetkisi.
+          This section requires Admin access — the totals reveal all data activity on the
+          project, so it's gated behind an admin-level role.
         </div>
       </div>
     );
@@ -107,22 +106,22 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
       </div>
 
       {!data ? (
-        <div className="empty">Yükleniyor…</div>
+        <div className="empty">Loading…</div>
       ) : data.totalWrites === 0 ? (
         <div className="empty">
-          Bu dönemde yazma işlemi yok. Okuma istekleri kaydedilmiyor (§1) — bu, projenin
-          kullanılmadığı anlamına gelmez.
+          No writes in this period. Reads aren&apos;t logged — this doesn&apos;t mean the project
+          is unused.
         </div>
       ) : (
         <>
           <div className="stats">
-            <Card label="Yazma işlemi" value={String(data.totalWrites)} />
-            <Card label="Başarı oranı" value={`${(data.successRate * 100).toFixed(0)}%`} />
-            <Card label="Etkilenen satır" value={String(data.totalAffectedRows)} />
-            <Card label="Şema sürümü" value={String(data.schemaVersionCount)} />
-            <Card label="İnsan / Uygulama" value={`${data.sourceBreakdown.human} / ${data.sourceBreakdown.application}`} />
+            <Card label="Writes" value={String(data.totalWrites)} />
+            <Card label="Success rate" value={`${(data.successRate * 100).toFixed(0)}%`} />
+            <Card label="Affected rows" value={String(data.totalAffectedRows)} />
+            <Card label="Schema versions" value={String(data.schemaVersionCount)} />
+            <Card label="Human / App" value={`${data.sourceBreakdown.human} / ${data.sourceBreakdown.application}`} />
             {schemaCounts && (
-              <Card label="Tablo / Kolon / İlişki" value={`${schemaCounts.tableCount} / ${schemaCounts.columnCount} / ${schemaCounts.relationCount}`} />
+              <Card label="Tables / Columns / Relations" value={`${schemaCounts.tableCount} / ${schemaCounts.columnCount} / ${schemaCounts.relationCount}`} />
             )}
           </div>
 
@@ -131,7 +130,7 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
           {data.topTables.length > 0 && (
             <div style={{ marginTop: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', marginBottom: 8 }}>
-                En çok yazılan tablolar
+                Most-written tables
               </div>
               {data.topTables.map(t => (
                 <div key={t.tableName} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
@@ -190,7 +189,7 @@ function StackedBarChart({ buckets, bucketUnit }: { buckets: AnalyticsBucketLike
         viewBox={`0 0 ${width} ${height}`}
         style={{ width: '100%', height: 'auto', display: 'block' }}
         role="img"
-        aria-label={`Yazma işlemleri zaman serisi — en yüksek ${rawMax}`}
+        aria-label={`Write operations over time — peak ${rawMax}`}
       >
         {/* Yatay ızgara + Y ekseni etiketleri */}
         {ticks.map(t => {
@@ -216,7 +215,7 @@ function StackedBarChart({ buckets, bucketUnit }: { buckets: AnalyticsBucketLike
           const total = totals[i];
           return (
             <g key={i}>
-              <title>{`${formatBucketLabel(b, bucketUnit)} — ${total} işlem`}</title>
+              <title>{`${formatBucketLabel(b, bucketUnit)} — ${total} ops`}</title>
               {kinds.map(k => {
                 const v = b[k];
                 if (v === 0) return null;
@@ -255,7 +254,7 @@ function StackedBarChart({ buckets, bucketUnit }: { buckets: AnalyticsBucketLike
           </span>
         ))}
         <span style={{ marginLeft: 'auto', color: 'var(--content-subtle)' }}>
-          kova: {bucketUnit === 'hour' ? 'saat' : 'gün'}
+          bucket: {bucketUnit === 'hour' ? 'hour' : 'day'}
         </span>
       </div>
     </div>
@@ -277,8 +276,8 @@ function formatBucketLabel(b: AnalyticsBucketLike, unit: 'hour' | 'day'): string
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return '';
   return unit === 'hour'
-    ? d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
+    ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' });
 }
 
 interface AnalyticsBucketLike {

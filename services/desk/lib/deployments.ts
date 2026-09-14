@@ -18,7 +18,7 @@ async function get<T>(path: string, session: DeskSession): Promise<T> {
     headers: { Authorization: `Bearer ${session.token}` },
     cache: 'no-store',
   });
-  if (!res.ok) throw new Error(`İstek başarısız (${res.status}).`);
+  if (!res.ok) throw new Error(`Request failed (${res.status}).`);
   return res.json() as Promise<T>;
 }
 

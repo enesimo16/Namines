@@ -73,7 +73,7 @@ export async function login(email: string, password: string): Promise<string> {
   });
 
   if (!res.ok) {
-    let message = 'E-posta veya parola hatalı.';
+    let message = 'Incorrect email or password.';
     try {
       const body = await res.json();
       if (body?.message ?? body?.Message) message = body.message ?? body.Message;
@@ -83,7 +83,7 @@ export async function login(email: string, password: string): Promise<string> {
 
   const body = await res.json();
   const token = body?.token ?? body?.Token;
-  if (!token) throw new AuthError('Sunucu bir oturum belgesi döndürmedi.', 500);
+  if (!token) throw new AuthError('The server did not return a session token.', 500);
   return token as string;
 }
 
@@ -98,8 +98,8 @@ export async function fetchProjects(token: string): Promise<DeskProject[]> {
     cache: 'no-store',
   });
 
-  if (res.status === 401) throw new AuthError('Oturum süresi doldu.', 401);
-  if (!res.ok) throw new AuthError('Projeler okunamadı.', res.status);
+  if (res.status === 401) throw new AuthError('Your session has expired.', 401);
+  if (!res.ok) throw new AuthError('Could not load projects.', res.status);
 
   const raw = await res.json();
   return (raw as Array<Record<string, unknown>>).map(p => ({
@@ -136,7 +136,7 @@ export async function setProjectConnection(
   });
 
   if (!res.ok) {
-    let message = 'Bağlantı kaydedilemedi.';
+    let message = 'Could not save the connection.';
     try {
       const body = await res.json();
       if (body?.error) message = body.error;

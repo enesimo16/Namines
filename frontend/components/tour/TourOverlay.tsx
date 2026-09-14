@@ -143,6 +143,15 @@ export default function TourOverlay() {
         top = isBottomSide ? coords.y - 180 : coords.y + coords.height + 20;
       }
 
+      // Final clamp: on a phone-width viewport the centring fallback above can
+      // still push the card past the right edge (it only guards the left one),
+      // leaving the tour's Next button off-screen and the tour unfinishable.
+      if (typeof window !== 'undefined') {
+        const cardWidth = Math.min(320, window.innerWidth - 40);
+        left = Math.min(left, window.innerWidth - cardWidth - 20);
+        left = Math.max(20, left);
+      }
+
       cardStyle = {
         ...cardStyle,
         left: `${left}px`,
@@ -192,7 +201,7 @@ export default function TourOverlay() {
       {/* Tour Dialog Card */}
       <div
         style={cardStyle}
-        className="w-[320px] p-5 rounded-[var(--radius-modal)] bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col gap-4 text-sans animate-in zoom-in-95 duration-200"
+        className="w-[320px] max-w-[calc(100vw-2.5rem)] p-5 rounded-[var(--radius-modal)] bg-surface-800 border border-content-primary/12 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col gap-4 text-sans animate-in zoom-in-95 duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between">

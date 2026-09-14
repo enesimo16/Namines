@@ -35,7 +35,7 @@ export async function fetchMembers(session: DeskSession): Promise<ProjectMember[
     cache: 'no-store',
   });
   if (!res.ok) {
-    let message = `İstek başarısız (${res.status}).`;
+    let message = `Request failed (${res.status}).`;
     try {
       const body = await res.json();
       if (body?.error) message = body.error;

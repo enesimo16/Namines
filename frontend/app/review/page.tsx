@@ -173,7 +173,7 @@ export default function ChangeRequestListPage() {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-content-primary truncate">{cr.title || 'Schema update'}</p>
                     <p className="text-[11px] text-content-subtle mt-0.5">
-                      {cr.branchName} · {cr.tableCount} tables · {new Date(cr.createdAt).toLocaleString()}
+                      {cr.branchName} · {cr.tableCount} tables · {new Date(cr.createdAt).toLocaleString('en-US')}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

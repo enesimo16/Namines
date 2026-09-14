@@ -80,7 +80,7 @@ async function call(path: string, session: DeskSession, init?: RequestInit): Pro
   });
 
   if (!res.ok) {
-    let message = `İstek başarısız (${res.status}).`;
+    let message = `Request failed (${res.status}).`;
     try {
       const body = await res.json();
       if (body?.error) message = body.error;

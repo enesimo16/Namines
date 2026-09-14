@@ -389,7 +389,7 @@ export default function ChangeRequestDetailPage() {
                     <pre className="mt-2 text-[11px] text-content-secondary whitespace-pre-wrap font-mono leading-relaxed">{cr.testRun.testRunMessage}</pre>
                   )}
                   {cr.testRun.testRunAt && (
-                    <p className="text-[10px] text-content-subtle mt-2">Last run {new Date(cr.testRun.testRunAt).toLocaleString()}</p>
+                    <p className="text-[10px] text-content-subtle mt-2">Last run {new Date(cr.testRun.testRunAt).toLocaleString('en-US')}</p>
                   )}
                 </div>
               )}
@@ -524,7 +524,7 @@ export default function ChangeRequestDetailPage() {
                     {entry.actorUsername ? ` by ${entry.actorUsername}` : entry.actorUserId ? '' : ' (automatic)'}
                     {entry.details ? ` — ${entry.details}` : ''}
                   </span>
-                  <span className="text-content-subtle shrink-0 font-mono">{new Date(entry.createdAt).toLocaleString()}</span>
+                  <span className="text-content-subtle shrink-0 font-mono">{new Date(entry.createdAt).toLocaleString('en-US')}</span>
                 </div>
               ))}
             </div>

@@ -45,7 +45,7 @@ export default function GuestSchemaMigrationModal({
         <div className="max-h-40 overflow-y-auto mb-5 bg-surface-700 border border-content-primary/8 rounded-[var(--radius-card)] p-2 flex flex-col gap-1.5">
           {projects.map((proj) => {
             const tableCount = proj.schema?.tables?.length || 0;
-            const updatedDate = new Date(proj.updatedAt).toLocaleDateString();
+            const updatedDate = new Date(proj.updatedAt).toLocaleDateString('en-US');
             return (
               <div
                 key={proj.id}

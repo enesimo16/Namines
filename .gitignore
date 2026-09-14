@@ -163,3 +163,7 @@ docker-compose.local.yml
 # Claude Skill tanimi koddur, dokuman degil - genel *.md kurali bunu sessizce yutuyordu.
 !skills/**/*.md
 telemetry.config.json
+
+# Vault yerel yedek dosyalari -- gelistirici makinesine ozgu calisma zamani
+# verisi, urune ait degil (bkz. yukaridaki .claude/ gerekcesi).
+backend/Namines.API/vault-data/

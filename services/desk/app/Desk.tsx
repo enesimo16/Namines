@@ -141,7 +141,7 @@ export default function Desk({
       // satırlara düşmek demek olurdu. Varsayılanı kabuk belirliyor
       // (`page.tsx` → handleTablesLoaded), görünümü değiştirmeden.
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Şema okunamadı.');
+      setError(err instanceof Error ? err.message : 'Could not load the schema.');
     }
   }, [session]);
 
@@ -190,7 +190,7 @@ export default function Desk({
       setTotal(res.totalCount);
     } catch (err) {
       setRows([]);
-      setError(err instanceof Error ? err.message : 'Satırlar okunamadı.');
+      setError(err instanceof Error ? err.message : 'Could not load rows.');
     } finally {
       setLoading(false);
     }
@@ -250,7 +250,7 @@ export default function Desk({
       a.href = url; a.download = fileName; a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Dışa aktarılamadı.');
+      setError(err instanceof Error ? err.message : 'Export failed.');
     } finally {
       setExporting(false);
     }
@@ -305,12 +305,12 @@ export default function Desk({
     // Silme geri alınamaz; onay bilinçli olarak satırı adlandırıyor ki
     // kullanıcı hangi kaydı sildiğini görsün.
     const shown = String(row[displayColumn(table)] ?? row[pk]);
-    if (!confirm(`"${shown}" kalıcı olarak silinecek. Emin misiniz?`)) return;
+    if (!confirm(`"${shown}" will be permanently deleted. Are you sure?`)) return;
     try {
       await deskApi.remove(session, table.name, pk, String(row[pk]));
       await loadRows(table.name, page);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Silinemedi.');
+      setError(err instanceof Error ? err.message : 'Delete failed.');
     }
   }
 
@@ -331,13 +331,13 @@ export default function Desk({
   function requestBulkDelete() {
     if (selectedPks.size === 0) return;
     if (selectedPks.size < BULK_DELETE_THRESHOLD) {
-      if (!confirm(`${selectedPks.size} satır kalıcı olarak silinecek. Emin misiniz?`)) return;
+      if (!confirm(`${selectedPks.size} row${selectedPks.size === 1 ? '' : 's'} will be permanently deleted. Are you sure?`)) return;
       // Hata BURADA yakalanıyor: bu yol `BulkDeleteConfirm`'den geçmiyor, yani
       // modalın kendi try/catch'i devrede değil. Yakalanmadığında silme
       // başarısız oluyor, hiçbir uyarı çıkmıyor ve satırlar seçili kaldığı için
       // kullanıcı "sildim ama liste yenilenmedi" sanıyordu.
       void executeBulkDelete().catch(err => {
-        setError(err instanceof Error ? err.message : 'Silinemedi.');
+        setError(err instanceof Error ? err.message : 'Delete failed.');
       });
       return;
     }
@@ -370,19 +370,19 @@ export default function Desk({
       <div className="page">
         <div className="page-head">
           <div>
-            <h1 className="page-title">Şema okunamadı</h1>
+            <h1 className="page-title">Could not load the schema</h1>
             <p className="page-desc">
-              Bu projenin canlı veritabanına bağlanılamadı. Bağlantı bilgisi değişmiş olabilir.
+              Could not connect to this project&apos;s live database. The connection details may have changed.
             </p>
           </div>
         </div>
         <div className="notice notice-error">{error}</div>
-        <button className="btn" onClick={onChangeProject}>Başka bir proje seç</button>
+        <button className="btn" onClick={onChangeProject}>Choose another project</button>
       </div>
     );
   }
 
-  if (!tables) return <div className="page"><div className="empty empty-plain">Şema okunuyor…</div></div>;
+  if (!tables) return <div className="page"><div className="empty empty-plain">Loading schema…</div></div>;
 
   const pk = table ? primaryKey(table) : null;
   const editable = table ? isEditable(table) : false;
@@ -393,7 +393,7 @@ export default function Desk({
       <div className="desk-content">
         {newVersionBanner && (
           <div className="notice" style={{ margin: 0, borderRadius: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Şema güncellendi — Canvas ve tablolar güncel olmayabilir.</span>
+            <span>Schema updated — Canvas and tables may be out of date.</span>
             <button className="btn btn-sm btn-primary" onClick={() => { setNewVersionBanner(false); reloadSchema(); }}>
               Yenile
             </button>
@@ -424,12 +424,12 @@ export default function Desk({
         <>
         <div className="topbar">
           <div>
-            <h1>{table?.name ?? 'Tablo seçin'}</h1>
+            <h1>{table?.name ?? 'Select a table'}</h1>
             {table && (
               <div className="meta">
-                {total !== null ? `${total} kayıt` : `${rows.length} kayıt`}
-                {' · '}{table.columns.length} kolon
-                {!editable && ' · salt-okunur'}
+                {total !== null ? `${total} rows` : `${rows.length} rows`}
+                {' · '}{table.columns.length} columns
+                {!editable && ' · read-only'}
               </div>
             )}
           </div>
@@ -439,23 +439,23 @@ export default function Desk({
                 className="btn btn-sm"
                 aria-current={filtersOpen}
                 onClick={() => setFiltersOpen(o => !o)}
-                title="Sütun filtreleri"
+                title="Column filters"
               >
-                Filtreler{appliedFilters.length > 0 ? ` (${appliedFilters.length})` : ''}
+                Filters{appliedFilters.length > 0 ? ` (${appliedFilters.length})` : ''}
               </button>
               <button className="btn btn-sm" disabled={exporting} onClick={() => handleExport('csv')}>
-                {exporting ? 'Aktarılıyor…' : 'CSV'}
+                {exporting ? 'Exporting…' : 'CSV'}
               </button>
               <button className="btn btn-sm" disabled={exporting} onClick={() => handleExport('json')}>
-                {exporting ? 'Aktarılıyor…' : 'JSON'}
+                {exporting ? 'Exporting…' : 'JSON'}
               </button>
               {editable && selectedPks.size > 0 && (
                 <button className="btn btn-sm btn-danger" onClick={requestBulkDelete}>
-                  Seçilenleri sil ({selectedPks.size})
+                  Delete selected ({selectedPks.size})
                 </button>
               )}
               {editable && (
-                <button className="btn btn-primary" onClick={() => setEditing(null)}>Yeni satır</button>
+                <button className="btn btn-primary" onClick={() => setEditing(null)}>New row</button>
               )}
             </div>
           )}
@@ -465,10 +465,10 @@ export default function Desk({
           {error && <div className="notice notice-error">{error}</div>}
           {table && !editable && (
             <div className="notice">
-              Bu tablo salt-okunur.{' '}
+              This table is read-only.{' '}
               {!table.canWrite
-                ? 'API anahtarının bu tabloya yazma izni yok.'
-                : 'Tek kolonlu birincil anahtarı olmadığı için güvenle güncellenemiyor — bileşik anahtarlı bir satırı yanlış eşleştirmek başka bir kaydı değiştirebilirdi.'}
+                ? 'The API key has no write permission on this table.'
+                : 'It cannot be safely updated without a single-column primary key — misidentifying a composite-key row could change the wrong record.'}
             </div>
           )}
 
@@ -482,9 +482,9 @@ export default function Desk({
                     <div key={c.name} className="field" style={{ margin: 0 }}>
                       <label>{c.name}</label>
                       <select aria-label={c.name} value={d.eq ?? ''} onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))}>
-                        <option value="">Tümü</option>
-                        <option value="true">Evet</option>
-                        <option value="false">Hayır</option>
+                        <option value="">All</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
                       </select>
                     </div>
                   );
@@ -508,30 +508,30 @@ export default function Desk({
                 }
                 return (
                   <div key={c.name} className="field" style={{ margin: 0 }}>
-                    <label>{c.name} içerir</label>
-                    <input type="text" aria-label={`${c.name} içerir`} value={d.eq ?? ''} style={{ width: 140 }}
+                    <label>{c.name} contains</label>
+                    <input type="text" aria-label={`${c.name} contains`} value={d.eq ?? ''} style={{ width: 140 }}
                            onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))} />
                   </div>
                 );
               })}
-              <button className="btn btn-sm btn-primary" onClick={applyFilters}>Filtrele</button>
+              <button className="btn btn-sm btn-primary" onClick={applyFilters}>Filter</button>
               {appliedFilters.length > 0 && (
-                <button className="btn btn-sm" onClick={() => setCriteria({ table: active, sortColumn, sortDir, filters: NO_FILTERS, draft: {} })}>Temizle</button>
+                <button className="btn btn-sm" onClick={() => setCriteria({ table: active, sortColumn, sortDir, filters: NO_FILTERS, draft: {} })}>Clear</button>
               )}
             </div>
           )}
 
           {loading ? (
-            <div className="empty">Yükleniyor…</div>
+            <div className="empty">Loading…</div>
           ) : !table ? (
             <EmptyState
-              title="Bir tablo seçin"
-              description="Soldaki listeden bir tablo seçtiğinizde satırları burada görünür; buradan düzenleyebilir, ekleyebilir ve silebilirsiniz."
+              title="Select a table"
+              description="Pick a table from the list on the left to see, edit, add, and delete its rows here."
             />
           ) : rows.length === 0 ? (
             <EmptyState
-              title="Bu tabloda kayıt yok"
-              description="Tablo boş. Yukarıdaki &quot;Yeni satır&quot; ile ilk kaydı ekleyebilir veya bir CSV içe aktarabilirsiniz."
+              title="No records in this table"
+              description="This table is empty. Add the first row with &quot;New row&quot; above, or import a CSV."
             />
           ) : (
             <>
@@ -543,7 +543,7 @@ export default function Desk({
                         <th className="col-check" style={{ width: 28 }}>
                           <input
                             type="checkbox"
-                            aria-label="Tüm satırları seç"
+                            aria-label="Select all rows"
                             checked={rows.length > 0 && rows.every(r => selectedPks.has(String(r.values[pk])))}
                             onChange={e => {
                               setSelectedPks(prev => {
@@ -560,14 +560,14 @@ export default function Desk({
                       )}
                       {table.columns.map(c => (
                         <th key={c.name} style={{ cursor: 'pointer', userSelect: 'none' }}
-                            onClick={() => toggleSort(c.name)} title="Sıralamak için tıklayın">
+                            onClick={() => toggleSort(c.name)} title="Click to sort">
                           {c.name}
                           {sortColumn === c.name && <span className="col-badge">{sortDir === 'Asc' ? '▲' : '▼'}</span>}
                           {c.isPK && <span className="col-badge">PK</span>}
                           {c.references && <span className="col-badge">→{c.references.table}</span>}
                         </th>
                       ))}
-                      {editable && <th className="col-actions" style={{ textAlign: 'right' }}>İşlem</th>}
+                      {editable && <th className="col-actions" style={{ textAlign: 'right' }}>Action</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -577,7 +577,7 @@ export default function Desk({
                           <td className="col-check">
                             <input
                               type="checkbox"
-                              aria-label={`Satırı seç: ${String(r.values[pk])}`}
+                              aria-label={`Select row: ${String(r.values[pk])}`}
                               checked={selectedPks.has(String(r.values[pk]))}
                               onChange={() => toggleRowSelected(String(r.values[pk]))}
                             />
@@ -591,8 +591,8 @@ export default function Desk({
                         {editable && (
                           <td className="col-actions">
                             <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
-                              <button className="btn btn-sm" onClick={() => setEditing(r.values)}>Düzenle</button>
-                              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(r.values)}>Sil</button>
+                              <button className="btn btn-sm" onClick={() => setEditing(r.values)}>Edit</button>
+                              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(r.values)}>Delete</button>
                             </div>
                           </td>
                         )}
@@ -604,10 +604,10 @@ export default function Desk({
 
               <div className="pager">
                 <button className="btn btn-sm" disabled={page <= 1}
-                        onClick={() => { const p = page - 1; setPage(p); loadRows(table.name, p); }}>Önceki</button>
+                        onClick={() => { const p = page - 1; setPage(p); loadRows(table.name, p); }}>Previous</button>
                 <span>{page} / {lastPage}</span>
                 <button className="btn btn-sm" disabled={page >= lastPage}
-                        onClick={() => { const p = page + 1; setPage(p); loadRows(table.name, p); }}>Sonraki</button>
+                        onClick={() => { const p = page + 1; setPage(p); loadRows(table.name, p); }}>Next</button>
               </div>
             </>
           )}

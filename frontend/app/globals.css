@@ -206,6 +206,13 @@
      mavimsi zeminin yanında soğuk bir leke gibi duruyordu. */
   --scrim: oklch(calc(var(--ui-bg-l) - 14%) var(--ui-chroma) var(--ui-hue));
 
+  /* QR kod — paletin DIŞINDA kalan tek yer ve bilinçli: QR okuyucular gerçek
+     siyah/beyaz kontrastına dayanıyor, paletin yumuşatılmış tonlarıyla basılan
+     bir kod telefonlarda okunmuyor. Değerler yine de token merkezinde duruyor
+     ki bileşen ham hex taşımasın (FRONTEND.md §4). */
+  --qr-dark: #000000;
+  --qr-light: #ffffff;
+
   --background: var(--surface-900);
   --foreground: var(--content-primary);
   color-scheme: dark;
@@ -451,6 +458,8 @@ html.light body {
   --color-warning-subtle: var(--warning-subtle);
 
   --color-scrim: var(--scrim);
+  --color-qr-dark: var(--qr-dark);
+  --color-qr-light: var(--qr-light);
   --color-namines-badge: var(--namines-teal-badge);
   --color-namines-vibrant: var(--namines-teal-vibrant);
   --color-namines-tile: var(--namines-teal-tile);

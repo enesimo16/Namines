@@ -604,8 +604,8 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           if (conflicted.length > 0) {
             useToastStore.getState().showToast(
               conflicted.length === 1
-                ? `"${conflicted[0].name}" bulutta başkası tarafından güncellendi. Yerel değişiklikleriniz gönderilmedi — projeyi yeniden yükleyip tekrar uygulayın.`
-                : `${conflicted.length} proje bulutta başkası tarafından güncellendi. Yerel değişiklikleri göndermedik.`,
+                ? `"${conflicted[0].name}" was updated in the cloud by someone else. Your local changes were not uploaded — reload the project and reapply them.`
+                : `${conflicted.length} projects were updated in the cloud by someone else. Your local changes were not uploaded.`,
               'warning',
             );
           }
@@ -634,7 +634,7 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
               ?.response?.data;
             useToastStore.getState().showToast(
               body?.message ??
-                `"${body?.projectName ?? 'Proje'}" başkası tarafından değiştirildi. Yeniden yükleyip değişikliklerinizi tekrar uygulayın.`,
+                `"${body?.projectName ?? 'This project'}" was changed by someone else. Reload it and reapply your changes.`,
               'warning',
             );
             return;

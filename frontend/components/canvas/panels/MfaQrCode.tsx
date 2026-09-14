@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { token } from '../../../lib/designTokens';
 
 /**
  * MFA kurulum QR kodu — TAMAMEN TARAYICIDA üretilir.
@@ -37,8 +38,10 @@ export default function MfaQrCode({ otpauthUri }: { otpauthUri: string }) {
         width: 176,
         // Karanlık arayüzde de okunabilmesi için ZORUNLU beyaz zemin:
         // QR okuyucular koyu/açık kontrastına dayanır, saydam bir zemin
-        // üzerinde ters kontrast oluşup okuma başarısız olabilir.
-        color: { dark: '#000000', light: '#ffffff' },
+        // üzerinde ters kontrast oluşup okuma başarısız olabilir. Değerler
+        // token merkezinden okunuyor (globals.css `--qr-dark`/`--qr-light`) —
+        // bileşende ham hex tutmak FRONTEND.md §4'ü ihlal ediyordu.
+        color: { dark: token('--color-qr-dark'), light: token('--color-qr-light') },
       }))
       .then(url => { if (!cancelled) setDataUrl(url); })
       .catch(() => { /* Elle girilebilir anahtar zaten var; bkz. bileşen notu. */ });
@@ -55,8 +58,9 @@ export default function MfaQrCode({ otpauthUri }: { otpauthUri: string }) {
         src={dataUrl}
         width={176}
         height={176}
-        alt="Kimlik dogrulayici uygulamanizla taratabileceginiz QR kod. Taratamiyorsaniz yukaridaki anahtari elle girin."
-        className="rounded-[var(--radius-control)] bg-white p-2"
+        alt="QR code to scan with your authenticator app. If you can't scan it, enter the key above manually."
+        className="rounded-[var(--radius-control)] p-2"
+        style={{ backgroundColor: 'var(--color-qr-light)' }}
       />
     </div>
   );

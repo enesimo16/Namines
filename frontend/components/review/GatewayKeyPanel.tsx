@@ -263,7 +263,7 @@ export default function GatewayKeyPanel({ projectId }: Props) {
                   {key.rateLimitPerMinute ? ` · ${key.rateLimitPerMinute}/min` : ''}
                   {key.allowedIps ? ' · ip-restricted' : ''}
                   {key.allowedOrigins ? ' · origin-restricted' : ''}
-                  {key.lastUsedAt ? ` · last used ${new Date(key.lastUsedAt).toLocaleDateString()}` : ' · never used'}
+                  {key.lastUsedAt ? ` · last used ${new Date(key.lastUsedAt).toLocaleDateString('en-US')}` : ' · never used'}
                 </p>
               </div>
               {!key.revokedAt && (

@@ -43,7 +43,7 @@ async function call(path: string, session: DeskSession, init?: RequestInit): Pro
   if (!res.ok) {
     // Sunucunun kendi mesajını taşı — "bir hata oluştu" demek, kullanıcıyı
     // 403 (izin yok) ile 500 (bağlantı koptu) arasında kör bırakırdı.
-    let message = `İstek başarısız (${res.status}).`;
+    let message = `Request failed (${res.status}).`;
     try {
       const body = await res.json();
       if (body?.message) message = body.message;

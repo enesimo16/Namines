@@ -681,14 +681,14 @@ export const useSchemaStore = create<SchemaState>()(
           const sourceTable = updatedTables.find(t => t.id === mappedSourceTableId);
           const targetTable = updatedTables.find(t => t.id === mappedTargetTableId);
           if (!sourceTable || !targetTable) {
-            skippedRelations.push(`${r.sourceTableId} → ${r.targetTableId} (tablo bulunamadı)`);
+            skippedRelations.push(`${r.sourceTableId} → ${r.targetTableId} (table not found)`);
             return;
           }
 
           // Hedef: birincil anahtar. Yoksa ilişki kurulamaz.
           const targetColumn = targetTable.columns.find(c => c.isPK);
           if (!targetColumn) {
-            skippedRelations.push(`${sourceTable.name} → ${targetTable.name} (hedefte birincil anahtar yok)`);
+            skippedRelations.push(`${sourceTable.name} → ${targetTable.name} (target has no primary key)`);
             return;
           }
 
@@ -706,7 +706,7 @@ export const useSchemaStore = create<SchemaState>()(
             available[0];
 
           if (!sourceColumn) {
-            skippedRelations.push(`${sourceTable.name} → ${targetTable.name} (kaynakta uygun yabancı anahtar kolonu yok)`);
+            skippedRelations.push(`${sourceTable.name} → ${targetTable.name} (no suitable foreign key column on the source)`);
             return;
           }
 
@@ -724,7 +724,7 @@ export const useSchemaStore = create<SchemaState>()(
 
         if (skippedRelations.length > 0) {
           console.warn(
-            `[importFromVision] ${skippedRelations.length} ilişki kolonlara bağlanamadığı için atlandı:\n` +
+            `[importFromVision] ${skippedRelations.length} relations skipped — could not be bound to columns:\n` +
             skippedRelations.join('\n')
           );
         }
