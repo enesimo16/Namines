@@ -7,7 +7,13 @@ import { DatabaseSchema } from '../types/schema';
  * bkz. second-phase/04-LOADING-EKRANI.md
  */
 export interface AgentStepEvent {
-  kind: 'draft' | 'inspect' | 'finding' | 'repair' | 'clean';
+  /**
+   * Backend `AgentStep.Kind` ile BİREBİR. İki dilde ayrı yazılı olduğu için
+   * aralarında derleyici bağı yok: backend'e yeni bir tür eklendiğinde burası
+   * da AYNI değişiklikte güncellenmeli. Güncellenmezse tüketici çalışma anında
+   * patlar — ikon tablosu `undefined` döner ve React onu bileşen sanır.
+   */
+  kind: 'plan' | 'draft' | 'inspect' | 'finding' | 'repair' | 'clean';
   message: string;
 }
 

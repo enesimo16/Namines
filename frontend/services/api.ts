@@ -77,10 +77,13 @@ export const schemaService = {
    * kullanıyor; tekrarı önlemek için ayrı bir dosyaya taşındı, aşağıdaki
    * generateSchema de bunu çağırıyor.
    */
-  buildGenerateFormData: (prompt: string, dbType: string, naiModel: string, image?: File | null, apiSpecUrl?: string, answers?: Record<string, string>): FormData => {
+  buildGenerateFormData: (prompt: string, dbType: string, naiModel: string, image?: File | null, apiSpecUrl?: string, answers?: Record<string, string>, advanced?: boolean): FormData => {
     const formData = new FormData();
     formData.append('Prompt', prompt);
     formData.append('DbType', dbType);
+    // Gelişmiş mod: plan turu + otomatik onarım turları. Kapalıyken de şema
+    // denetimden geçiyor; yalnızca onarım turu (yani ek kota) harcanmıyor.
+    formData.append('Advanced', advanced ? 'true' : 'false');
     // Saglayici artik sunucuda cozuluyor; 'Groq' burada yalnizca eski
     // sozlesmeyi karsilamak icin duruyor, model adi ('nai', 'nai-pro') ise
     // NaiCatalog tarafindan gercek ustteki modele eslenıyor.

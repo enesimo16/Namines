@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { DatabaseSchema } from '../../types/schema';
 import { useRouter } from 'next/navigation';
-import { Loader2, X, Link as LinkIcon, Image as ImageIcon, ChevronDown, Check, Wand2 } from 'lucide-react';
+import { Loader2, X, Link as LinkIcon, Image as ImageIcon, ChevronDown, Check, Wand2, Sparkles } from 'lucide-react';
 import { schemaService } from '../../services/api';
 import { useSchemaStore, type DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
@@ -12,7 +12,7 @@ import VoiceRecorder from '../../components/landing/VoiceRecorder';
 import ClarifyDialog from '../../components/landing/ClarifyDialog';
 import ProductionScreen from '../../components/landing/ProductionScreen';
 import PlanScreen from '../../components/landing/PlanScreen';
-import { streamSchemaGeneration, AgentStepEvent } from '../../lib/sseSchemaStream';
+import { streamSchemaGeneration, AgentStepEvent, AgentResultEvent } from '../../lib/sseSchemaStream';
 import { ClarifyResponse, NaiModelOption } from '../../types/nai';
 
 export default function NewProjectPage() {
@@ -35,6 +35,17 @@ export default function NewProjectPage() {
   // Üretim ekranı: hattın canlı adımları. bkz. second-phase/04-LOADING-EKRANI.md
   const [productionSteps, setProductionSteps] = useState<AgentStepEvent[]>([]);
   const [showProduction, setShowProduction] = useState(false);
+
+  /**
+   * Gelişmiş mod: plan turu + otomatik onarım turları.
+   *
+   * Varsayılan KAPALI — kapalıyken de şema denetimden geçiyor, yalnızca model
+   * bulguları düzeltmek için ek kota harcamıyor (bkz. GenerateRequest.Advanced).
+   */
+  const [advanced, setAdvanced] = useState(false);
+
+  /** Hat bittiğinde dönen özet — kalan bulgular kullanıcıya gösterilecek. */
+  const [agentSummary, setAgentSummary] = useState<AgentResultEvent['agent'] | null>(null);
   const [models, setModels] = useState<NaiModelOption[]>([]);
 
   const router = useRouter();
@@ -192,9 +203,12 @@ export default function NewProjectPage() {
     setClarify(null);
     setPlanAnswers(null);
     setProductionSteps([]);
+    setAgentSummary(null);
     setShowProduction(true);
 
-    const formData = schemaService.buildGenerateFormData(prompt, dbType, naiModel, image, apiSpecUrl, answers);
+    const formData = schemaService.buildGenerateFormData(
+      prompt, dbType, naiModel, image, apiSpecUrl, answers, advanced,
+    );
 
     await streamSchemaGeneration(formData, {
       onStep: (step) => setProductionSteps(prev => [...prev, step]),
@@ -204,6 +218,10 @@ export default function NewProjectPage() {
         // second-phase/09-SEMA-ALTERNATIFLERI.md — canvas'taki "Alternatif üret"
         // bu prompt+cevapları tekrar kullanacak, o yüzden burada saklanıyor.
         useSchemaStore.getState().recordGenerationSource(prompt, answers);
+        // Kalan bulgular kullanıcıya gösteriliyor (bkz. ProductionScreen).
+        // Bunu atlamak, sunucunun "bulguları gizleme" kararını sessizce geri
+        // almak olurdu: kullanıcı bozuk şemayı veritabanı reddedince öğrenirdi.
+        setAgentSummary(result.agent);
         setIsGenerating(false);
         // Üretim ekranı "Devam et" ile kapanana kadar açık kalır — kullanıcı
         // ne olduğunu okuyabilsin diye canvas'a hemen atlanmıyor. Kapanınca
@@ -436,6 +454,33 @@ export default function NewProjectPage() {
                 </div>
               )}
 
+              {/* Gelişmiş mod — modelin YANINDA, çünkü ikisi de aynı soruyu
+                  cevaplıyor: bu üretim ne kadar bütçe harcasın.
+
+                  Kapalıyken şema YİNE denetimden geçiyor; kapalı olan tek şey
+                  modelin bulguları düzeltmek için ek tur harcaması. Etiketin
+                  "denetimi kapat" gibi okunmaması bu yüzden önemli — ipucu
+                  metni farkı açıkça söylüyor. */}
+              <button
+                type="button"
+                disabled={isGenerating}
+                onClick={() => setAdvanced(!advanced)}
+                aria-pressed={advanced}
+                title={
+                  advanced
+                    ? 'The agent plans, then fixes what the rule engine and the real DDL compiler report. Uses more of your budget.'
+                    : 'One pass. The schema is still checked, but problems are reported instead of fixed automatically.'
+                }
+                className={`flex items-center gap-1.5 rounded-[var(--radius-control)] px-3 h-[38px] text-sm font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  advanced
+                    ? 'bg-accent/20 text-accent-text border border-accent/40'
+                    : 'glass-input text-content-muted hover:text-content-primary'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Advanced</span>
+              </button>
+
               {/* Database Select */}
               <div className="relative flex-1 min-w-[130px]" ref={dbDropdownRef}>
                 <button
@@ -543,6 +588,7 @@ export default function NewProjectPage() {
         <ProductionScreen
           steps={productionSteps}
           isRunning={isGenerating}
+          summary={agentSummary}
           onClose={closeProduction}
         />
       )}

@@ -1,17 +1,27 @@
 'use client';
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { Check, Loader2, AlertTriangle, X } from 'lucide-react';
-import { AgentStepEvent } from '../../lib/sseSchemaStream';
+import { Check, Loader2, AlertTriangle, X, ListTodo } from 'lucide-react';
+import { AgentStepEvent, AgentResultEvent } from '../../lib/sseSchemaStream';
 
 interface Props {
   steps: AgentStepEvent[];
   /** Akış hâlâ devam ediyor mu — false olunca "kapat" görünür, otomatik kapanmaz. */
   isRunning: boolean;
+  /**
+   * Hat bittiğinde dönen özet; akış sürerken null.
+   *
+   * <b>Neden gösterilmek ZORUNDA:</b> sunucu kalan bulguları bilerek
+   * döndürüyor ("çalışıyor gibi görünen bir şema, hiç vermemekten kötüdür").
+   * Bunu burada yutmak o kararı sessizce geri almak olurdu — kullanıcı bozuk
+   * şemayı ancak veritabanı reddedince öğrenirdi.
+   */
+  summary: AgentResultEvent['agent'] | null;
   onClose: () => void;
 }
 
 const KIND_ICON: Record<AgentStepEvent['kind'], typeof Check> = {
+  plan: ListTodo,
   draft: Loader2,
   inspect: Loader2,
   finding: AlertTriangle,
@@ -56,7 +66,7 @@ function useReducedMotion(): boolean {
   );
 }
 
-export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
+export default function ProductionScreen({ steps, isRunning, summary, onClose }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
 
@@ -88,7 +98,13 @@ export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
           {steps.map((step, i) => {
             const Icon = KIND_ICON[step.kind];
             const isLast = i === steps.length - 1;
-            const spinning = isRunning && isLast && (step.kind === 'draft' || step.kind === 'inspect' || step.kind === 'repair');
+            const spinning =
+              isRunning &&
+              isLast &&
+              (step.kind === 'plan' ||
+                step.kind === 'draft' ||
+                step.kind === 'inspect' ||
+                step.kind === 'repair');
             return (
               <div key={i} className="flex items-start gap-2.5 text-xs">
                 <Icon
@@ -115,6 +131,58 @@ export default function ProductionScreen({ steps, isRunning, onClose }: Props) {
             );
           })}
         </div>
+
+        {summary && (
+          <div className="mt-4 pt-4 border-t border-line-strong flex flex-col gap-3">
+            {summary.clean ? (
+              <div className="flex items-start gap-2.5 text-xs">
+                <Check className="w-3.5 h-3.5 mt-0.5 shrink-0 text-success-text" />
+                <span className="text-content-primary">
+                  Schema compiled with no errors
+                  {summary.rounds > 1 ? ` after ${summary.rounds} rounds` : ''}.
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-start gap-2.5 text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-warning" />
+                  <span className="text-content-primary font-medium">
+                    {summary.findings.length} unresolved{' '}
+                    {summary.findings.length === 1 ? 'problem' : 'problems'} — the schema is
+                    loaded, but fix these before using it.
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-1 pl-6 max-h-32 overflow-y-auto">
+                  {summary.findings.map((finding, i) => (
+                    <li key={i} className="text-[11px] text-content-secondary leading-snug">
+                      {finding}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Taşınabilirlik notları bulgu DEĞİL: kullanıcı bu motoru seçti,
+                şemanın diğerlerinde takılması bugünkü işini engellemiyor.
+                Katlanmış duruyor ki "yarın MySQL'e taşıyabilir miyim" sorusu
+                cevapsız kalmasın ama asıl uyarıyı da gölgelemesin. */}
+            {summary.portability.length > 0 && (
+              <details className="text-[11px]">
+                <summary className="cursor-pointer text-content-muted hover:text-content-secondary">
+                  Works on this engine, but {summary.portability.length} issue
+                  {summary.portability.length === 1 ? '' : 's'} on other engines
+                </summary>
+                <ul className="flex flex-col gap-1 mt-1.5 pl-3 max-h-28 overflow-y-auto">
+                  {summary.portability.map((note, i) => (
+                    <li key={i} className="text-content-muted leading-snug">
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
 
         {!isRunning && (
           <button
