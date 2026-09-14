@@ -68,6 +68,19 @@ public class SchemaAgentPipelineTests
     private static SchemaAgentPipeline Pipeline(FakeSource source) =>
         new(source, new DdlGeneratorFactory(), NullLogger<SchemaAgentPipeline>.Instance);
 
+    /// <summary>
+    /// Adımları senkron olarak toplar. <see cref="Progress{T}"/> KULLANILMIYOR:
+    /// o sınıf çağrıyı yakaladığı SynchronizationContext üzerinden ASENKRON
+    /// gönderir (xUnit'te context yoksa thread pool'a kuyruklar) — yani
+    /// RunAsync bittiğinde mesajların hepsi henüz teslim edilmemiş olabilir ve
+    /// test kararsız (flaky) olurdu.
+    /// </summary>
+    private sealed class CapturingProgress : IProgress<AgentStep>
+    {
+        public List<AgentStep> Steps { get; } = new();
+        public void Report(AgentStep value) => Steps.Add(value);
+    }
+
     // ── Şemalar ──────────────────────────────────────────────────────────────
 
     private static DatabaseSchema Healthy() => new()
@@ -201,6 +214,37 @@ public class SchemaAgentPipelineTests
         var result = await Pipeline(source).RunAsync("x", DatabaseType.PostgreSQL, budgetRounds: 3);
 
         Assert.Equal(2, result.Rounds);
+    }
+
+    // ── İlerleme mesajları ───────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Repair_progress_counts_repair_attempts_not_total_pipeline_rounds()
+    {
+        // Plan turu çalışınca "rounds" taslaktan sonra 2'den başlıyor. İlerleme
+        // mesajı yine de "1. ONARIM denemesi" demeli, "2. pipeline turu" değil —
+        // kullanıcı ekranda "round 2/3" görüp bir tur atlanmış sanmamalı.
+        var progress = new CapturingProgress();
+        var source = new FakeSource(Broken(), Healthy());
+
+        await Pipeline(source).RunAsync("x", DatabaseType.PostgreSQL, budgetRounds: 4, progress: progress);
+
+        var repairStep = Assert.Single(progress.Steps, s => s.Kind == "repair");
+        Assert.Equal("Repairing (round 1/2)…", repairStep.Message);
+    }
+
+    [Fact]
+    public async Task Repair_progress_is_still_correct_when_the_plan_turn_is_skipped()
+    {
+        // Bütçe plan turuna yetmiyorsa taslaktan sonra rounds=1 olur; bu durumda
+        // sayaç zaten doğruydu — bu test onu regresyona karşı kilitliyor.
+        var progress = new CapturingProgress();
+        var source = new FakeSource(Broken(), Healthy());
+
+        await Pipeline(source).RunAsync("x", DatabaseType.PostgreSQL, budgetRounds: 2, progress: progress);
+
+        var repairStep = Assert.Single(progress.Steps, s => s.Kind == "repair");
+        Assert.Equal("Repairing (round 1/1)…", repairStep.Message);
     }
 
     // ── Temel akış ───────────────────────────────────────────────────────────

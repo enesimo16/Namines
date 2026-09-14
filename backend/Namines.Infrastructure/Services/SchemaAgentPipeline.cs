@@ -176,6 +176,14 @@ public sealed class SchemaAgentPipeline
         progress?.Report(AgentStep.Draft(
             $"Draft generated — {schema.Tables.Count} tables, {schema.Relations.Count} relations"));
 
+        // Buraya kadar harcanan SABİT tur sayısı — plan çalıştıysa 2 (plan+taslak),
+        // atlandıysa 1 (yalnız taslak). İlerleme mesajının "kaçıncı ONARIM
+        // denemesi" demesi için bu ayrım şart: plan turu eklendiğinde `rounds`
+        // taslaktan sonra 2'den başlıyor, ama bu hâlâ 1. onarım denemesi.
+        // Sabit bir FixedRounds SAYMAK yanlış olurdu — plan turu hata alıp
+        // atlanmışsa (yukarıdaki catch) rounds hâlâ 1'de kalıyor.
+        var fixedRoundsUsed = rounds;
+
         progress?.Report(AgentStep.Inspect($"Compiling on {engine}…"));
         var findings = Inspect(schema, engine);
 
@@ -187,7 +195,14 @@ public sealed class SchemaAgentPipeline
             foreach (var finding in findings)
                 progress?.Report(AgentStep.Finding(finding));
 
-            progress?.Report(AgentStep.Repair($"Repairing (round {rounds}/{budgetRounds - 1})…"));
+            // Numaratör "kaçıncı onarım denemesi", paydası "toplam kaç onarım
+            // hakkı var" — ikisi de fixedRoundsUsed'e göre, budgetRounds'a
+            // göre DEĞİL. rounds - fixedRoundsUsed + 1: rounds henüz bu
+            // denemeyi saymıyor (artış RepairAsync başarılı dönünce oluyor),
+            // yani bu her zaman 1'den başlayan bir deneme numarası verir.
+            var repairAttempt = rounds - fixedRoundsUsed + 1;
+            var maxRepairAttempts = budgetRounds - fixedRoundsUsed;
+            progress?.Report(AgentStep.Repair($"Repairing (round {repairAttempt}/{maxRepairAttempts})…"));
 
             DatabaseSchema repaired;
             try
