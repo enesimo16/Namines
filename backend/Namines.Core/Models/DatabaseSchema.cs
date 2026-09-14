@@ -20,6 +20,19 @@ public class DatabaseSchema
     /// bozulmadan çalışmaya devam eder.
     /// </summary>
     public List<SchemaEnum> Enums { get; set; } = new();
+
+    /// <summary>
+    /// Tablo tetikleyicileri. Yalnızca <see cref="SchemaTrigger.TargetEngine"/>
+    /// seçilen hedef motorla eşleştiğinde üretilir — başka motor için yazılmış
+    /// ham SQL, o motorun çıktısına asla karışmaz.
+    ///
+    /// Eski kayıtlarda bu alan yoktur → boş liste olur, mevcut şemalar bozulmadan
+    /// çalışmaya devam eder.
+    /// </summary>
+    public List<SchemaTrigger> Triggers { get; set; } = new();
+
+    /// <summary>Saklı yordamlar. Motor-gated davranış <see cref="Triggers"/> ile aynıdır.</summary>
+    public List<SchemaStoredProcedure> StoredProcedures { get; set; } = new();
 }
 
 /// <summary>
@@ -168,4 +181,55 @@ public class SchemaRelation
     /// Oracle ON UPDATE'i hiç desteklemez — o motorda yok sayılır.
     /// </summary>
     public ReferentialAction OnUpdate { get; set; } = ReferentialAction.NoAction;
+}
+
+/// <summary>
+/// Bir tablo üzerindeki tetikleyici.
+///
+/// <b>Neden motor-gated:</b> Postgres PL/pgSQL, MSSQL T-SQL ve MySQL trigger
+/// sözdizimi birbiriyle uyumsuz. Bunu tek bir motor-agnostik ifadeye çevirmeye
+/// çalışmak yerine, LLM'den doğrudan seçilen hedef motor için ham SQL istenir;
+/// <see cref="TargetEngine"/> üretim anındaki motorla eşleşmezse DdlGenerator
+/// bu trigger'ı sessizce atlar.
+/// </summary>
+public class SchemaTrigger
+{
+    public string Id { get; set; } = string.Empty;
+    public string StableUuid { get; set; } = Guid.NewGuid().ToString();
+
+    /// <summary><see cref="SchemaTable.Id"/> değeri.</summary>
+    public string TableId { get; set; } = string.Empty;
+
+    /// <summary>"Before" | "After".</summary>
+    public string Timing { get; set; } = string.Empty;
+
+    /// <summary>"Insert" | "Update" | "Delete".</summary>
+    public string Event { get; set; } = string.Empty;
+
+    /// <summary>Bu trigger'ın ham SQL'i hangi motor için yazıldı.</summary>
+    public DatabaseType TargetEngine { get; set; }
+
+    /// <summary>Ham SQL gövdesi — DdlGenerator bunu çevirmez, olduğu gibi yazar.</summary>
+    public string Body { get; set; } = string.Empty;
+}
+
+/// <summary>Bir saklı yordam parametresi.</summary>
+public class SchemaStoredProcedureParameter
+{
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Saklı yordam. Motor-gated davranış <see cref="SchemaTrigger"/> ile aynı
+/// gerekçeyle aynıdır.
+/// </summary>
+public class SchemaStoredProcedure
+{
+    public string Id { get; set; } = string.Empty;
+    public string StableUuid { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public DatabaseType TargetEngine { get; set; }
+    public List<SchemaStoredProcedureParameter> Parameters { get; set; } = new();
+    public string Body { get; set; } = string.Empty;
 }
