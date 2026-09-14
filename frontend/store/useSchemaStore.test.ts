@@ -231,3 +231,171 @@ describe('useSchemaStore — geri al / yinele', () => {
     expect(useSchemaStore.getState().schema!.relations).toHaveLength(1);
   });
 });
+
+describe('useSchemaStore — Namines Flow olayları', () => {
+  beforeEach(() => {
+    useSchemaStore.setState({ schema: null, nodes: [], edges: [], projectName: 'Untitled Schema' } as never);
+  });
+
+  it('addTable "TableAdded" olayını yayınlar', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('TableAdded', listener);
+    useSchemaStore.getState().addTable(100, 100);
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    const [event] = listener.mock.calls[0];
+    expect(event.type).toBe('TableAdded');
+    expect(event.tableName).toBe('Yeni_Tablo_3'); // schemaWith() 2 tablo veriyor
+  });
+
+  it('deleteTable "TableDeleted" olayını yayınlar', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('TableDeleted', listener);
+    useSchemaStore.getState().deleteTable('t-orders');
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalledWith({ type: 'TableDeleted', tableId: 't-orders', tableName: 'orders' });
+  });
+
+  it('şema yokken addTable/deleteTable hiçbir olay yayınlamaz', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('*', listener);
+
+    useSchemaStore.getState().addTable(0, 0);
+    useSchemaStore.getState().deleteTable('nope');
+    unsubscribe();
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('updateTable yeni bir kolon eklendiğinde "ColumnAdded" yayınlar', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('ColumnAdded', listener);
+
+    const ordersTable = useSchemaStore.getState().schema!.tables.find(t => t.id === 't-orders')!;
+    useSchemaStore.getState().updateTable({
+      ...ordersTable,
+      columns: [...ordersTable.columns, column('c-orders-total', 'total')],
+    } as never);
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalledWith({
+      type: 'ColumnAdded', tableId: 't-orders', columnId: 'c-orders-total', columnName: 'total',
+    });
+  });
+
+  it('updateTable bir kolon kaldırıldığında "ColumnDeleted" yayınlar', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('ColumnDeleted', listener);
+
+    const ordersTable = useSchemaStore.getState().schema!.tables.find(t => t.id === 't-orders')!;
+    useSchemaStore.getState().updateTable({
+      ...ordersTable,
+      columns: ordersTable.columns.filter(c => c.id !== 'c-orders-user'),
+    } as never);
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalledWith({
+      type: 'ColumnDeleted', tableId: 't-orders', columnId: 'c-orders-user', columnName: 'user_id',
+    });
+  });
+
+  it('updateTable var olan bir kolonun alanı değiştiğinde "ColumnChanged" yayınlar', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('ColumnChanged', listener);
+
+    const ordersTable = useSchemaStore.getState().schema!.tables.find(t => t.id === 't-orders')!;
+    useSchemaStore.getState().updateTable({
+      ...ordersTable,
+      columns: ordersTable.columns.map(c => c.id === 'c-orders-user' ? { ...c, isNullable: true } : c),
+    } as never);
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalledWith({
+      type: 'ColumnChanged', tableId: 't-orders', columnId: 'c-orders-user', columnName: 'user_id',
+    });
+  });
+
+  it('updateTable hiçbir kolon değişmediyse hiçbir kolon olayı yayınlamaz', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('*', listener);
+
+    const ordersTable = useSchemaStore.getState().schema!.tables.find(t => t.id === 't-orders')!;
+    useSchemaStore.getState().updateTable({ ...ordersTable, name: 'Orders' } as never); // yalnızca ad değişti
+    unsubscribe();
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('connectColumns başarılı bir ilişkide "RelationAdded" yayınlar', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('RelationAdded', listener);
+    const result = useSchemaStore.getState().connectColumns({
+      source: 't-orders', target: 't-users', sourceHandle: 'c-orders-user', targetHandle: 'c-users-id',
+    } as never);
+    unsubscribe();
+
+    expect(result.ok).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+    const [event] = listener.mock.calls[0];
+    expect(event.type).toBe('RelationAdded');
+    expect(event.sourceTableId).toBe('t-orders');
+    expect(event.targetTableId).toBe('t-users');
+  });
+
+  it('connectColumns başarısız olduğunda hiçbir olay yayınlamaz', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('*', listener);
+    const result = useSchemaStore.getState().connectColumns({
+      source: 't-orders', target: 't-users', sourceHandle: 'c-orders-user', targetHandle: 'c-orders-id',
+    } as never); // target bir PK değil → reddedilir
+    unsubscribe();
+
+    expect(result.ok).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('deleteRelation "RelationDeleted" yayınlar', async () => {
+    const { naminesFlow } = await import('../lib/naminesFlowEventBus');
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+    useSchemaStore.getState().connectColumns({
+      source: 't-orders', target: 't-users', sourceHandle: 'c-orders-user', targetHandle: 'c-users-id',
+    } as never);
+    const relationId = useSchemaStore.getState().schema!.relations[0].id;
+
+    const listener = vi.fn();
+    const unsubscribe = naminesFlow.on('RelationDeleted', listener);
+    useSchemaStore.getState().deleteRelation(relationId);
+    unsubscribe();
+
+    expect(listener).toHaveBeenCalledWith({
+      type: 'RelationDeleted', relationId, sourceTableId: 't-orders', targetTableId: 't-users',
+    });
+  });
+});

@@ -6,6 +6,7 @@ import localforage from 'localforage';
 import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../types/schema';
 import { schemaToFlow } from '../lib/schemaToFlow';
 import { getLayoutedNodes } from '../lib/autoLayout';
+import { naminesFlow, type NaminesFlowEvent } from '../lib/naminesFlowEventBus';
 
 // Db2/Firebird/Spanner/Redshift kaldırıldı: arka uçta kendi DDL üreticileri yoktu,
 // istekler sessizce Oracle/SQLite/PostgreSQL üreticisine düşüyordu.
@@ -371,6 +372,8 @@ export const useSchemaStore = create<SchemaState>()(
           nodes: [...state.nodes, newNode],
           // edges değişmez
         });
+
+        naminesFlow.emit({ type: 'TableAdded', tableId: newTableId, tableName: newTable.name });
       },
 
       /**
@@ -381,6 +384,8 @@ export const useSchemaStore = create<SchemaState>()(
         const state = get();
         if (!state.schema) return;
         set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+
+        const deletedTable = state.schema.tables.find(t => t.id === tableId);
 
         const newTables = state.schema.tables.filter(t => t.id !== tableId);
         const newRelations = state.schema.relations.filter(
@@ -399,6 +404,10 @@ export const useSchemaStore = create<SchemaState>()(
           edges: state.edges.filter(e => !relatedRelIds.includes(e.id)),
           selectedTableForEdit: state.selectedTableForEdit === tableId ? null : state.selectedTableForEdit,
         });
+
+        if (deletedTable) {
+          naminesFlow.emit({ type: 'TableDeleted', tableId, tableName: deletedTable.name });
+        }
       },
 
       duplicateTable: (tableId) => {
