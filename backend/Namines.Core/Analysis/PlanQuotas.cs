@@ -76,6 +76,19 @@ public enum PlanTier
 /// otomatik bir kısıtlama koymak, yanlış anda kullanıcının verisine
 /// erişimini kesme riskini taşırdı. Uyarı, kısıtlamadan önceki dürüst adım.
 /// </param>
+/// <param name="MaxAgentRepairTurns">
+/// Şema ajanının kaç kez DÜZELTME turu atabileceği. Plan ve taslak turları
+/// bunun DIŞINDA (bkz. <c>SchemaAgentPipeline.FixedRounds</c>).
+///
+/// <b>Neden plana bağlı:</b> önceden tavan çağıranda sabitti, yani ödeyen
+/// kullanıcının tek farkı daha büyük bir token havuzuydu — agent yine aynı
+/// noktada pes ediyordu. Derinlik, ücretli planın somut karşılığı.
+///
+/// <b>Neden token bütçesinden AYRI:</b> token havuzu "bugün ne kadar
+/// harcayabilirsin", bu ise "tek bir şemada ne kadar ısrar edilsin" sorusunu
+/// cevaplıyor. Yalnızca token'a bakmak, havuzu bol bir kullanıcının tek
+/// istekte çözülemeyen bir bulgu için turlarca dönmesine izin verirdi.
+/// </param>
 public sealed record PlanLimits(
     int BranchDatabases,
     int EphemeralRunsPerDay,
@@ -85,7 +98,8 @@ public sealed record PlanLimits(
     int TeamSeats = 1,
     int CrossDatabaseRelations = 3,
     int ManagedDatabases = 0,
-    long ManagedDatabaseStorageWarningBytes = -1);
+    long ManagedDatabaseStorageWarningBytes = -1,
+    int MaxAgentRepairTurns = 2);
 
 /// <summary>
 /// Plan başına kaynak sınırları.
@@ -126,7 +140,12 @@ public static class PlanQuotas
             // diskini tek bir ucretsiz kullanicinin doldurmasina izin
             // vermeyecek kadar dar. Kisitlama degil UYARI -- bkz. yukaridaki
             // parametre yorumu.
-            ManagedDatabaseStorageWarningBytes: 500L * 1024 * 1024),
+            ManagedDatabaseStorageWarningBytes: 500L * 1024 * 1024,
+            // İki tur ampirik denge (bkz. SchemaAgentPipeline.DefaultRepairRounds):
+            // biri unutulmuş anahtarı/ilişkiyi düzeltiyor, ikincisi ilkinin yan
+            // etkisini topluyor. Ücretsiz katmanda daha derine inmek, ürünü
+            // denemenin maliyetini karşılıksız büyütürdü.
+            MaxAgentRepairTurns: 2),
 
         // Pro sınırsız DEĞİL: AI gerçek para harcıyor, "sınırsız" demek tek bir
         // kullanıcının aylık ücretinin kat kat üstünde fatura üretebilmesi demek.
@@ -134,7 +153,10 @@ public static class PlanQuotas
             DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600, TeamSeats: 1,
             CrossDatabaseRelations: 25,
             // BranchDatabases ile hizali: bir uretim + bir hazirlik ortami.
-            ManagedDatabases: 2),
+            ManagedDatabases: 2,
+            // Free'nin iki katı: ödeyen kullanıcının agent'ı, üçüncü turda
+            // pes etmek yerine zor şemalarda ısrar edebiliyor.
+            MaxAgentRepairTurns: 4),
 
         // Team'de DailyAiTokens KOLTUK BAŞINA pay: 3 koltuk × 200.000 = 600.000
         // günlük ekip havuzu. Pro ile aynı sayı olması bilinçli — bir Team koltuğu
@@ -147,14 +169,18 @@ public static class PlanQuotas
         PlanTier.Team => new PlanLimits(20, -1, 20,
             DailyAiTokens: 200_000, GatewayRequestsPerMinute: 3_000, TeamSeats: 3,
             CrossDatabaseRelations: 100,
-            ManagedDatabases: 20),
+            ManagedDatabases: 20,
+            // Pro ile AYNI: bir Team koltuğu bir Pro hesabıyla aynı hakkı
+            // taşıyor, ekip olmak kimseyi kısıtlamıyor.
+            MaxAgentRepairTurns: 4),
 
         // Enterprise sözleşmeyle belirlenir; bu değerler tavan değil, sözleşme
         // yapılandırılana kadar geçerli bir başlangıç.
         PlanTier.Enterprise => new PlanLimits(-1, -1, -1,
             DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000, TeamSeats: -1,
             CrossDatabaseRelations: -1,
-            ManagedDatabases: -1),
+            ManagedDatabases: -1,
+            MaxAgentRepairTurns: 6),
 
         // Sahip hesabında sınır yok. Token tavanı -1 DEĞİL, int.MaxValue:
         // -1 "sınırsız" anlamına gelen sayaç alanları için doğru ama günlük
@@ -164,7 +190,10 @@ public static class PlanQuotas
         PlanTier.Dev => new PlanLimits(-1, -1, -1,
             DailyAiTokens: int.MaxValue, GatewayRequestsPerMinute: int.MaxValue, TeamSeats: -1,
             CrossDatabaseRelations: -1,
-            ManagedDatabases: -1),
+            ManagedDatabases: -1,
+            // Tur sayısı -1 DEĞİL: DailyAiTokens'daki aynı gerekçe. Bu bir
+            // sayaç değil DÖNGÜ sınırı; -1 koymak döngüyü hiç çalıştırmazdı.
+            MaxAgentRepairTurns: 6),
 
         _ => For(PlanTier.Free),
     };

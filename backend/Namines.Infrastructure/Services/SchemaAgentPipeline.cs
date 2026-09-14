@@ -84,6 +84,16 @@ public sealed class SchemaAgentPipeline
     public const int DefaultRepairRounds = 2;
 
     /// <summary>
+    /// Düzeltme turlarının DIŞINDA kalan sabit turlar: plan + taslak.
+    ///
+    /// <b>Neden adı var:</b> tavanı hesaplayan çağıran (bkz.
+    /// <c>SchemaController.AffordableRoundsAsync</c>) aritmetiği kendi başına
+    /// yaparsa, tur yapısı değiştiğinde sessizce yanlış hesaplar — plan turu
+    /// eklendiğinde tam olarak bu olmuş ve bir düzeltme hakkı yenmişti.
+    /// </summary>
+    public const int FixedRounds = 2;
+
+    /// <summary>
     /// Tam tur bütçesi: plan (1) + taslak (1) + düzeltme turları.
     ///
     /// <b>Neden ayrı bir sabit:</b> plan turu eklendiğinde bütçe tavanı
@@ -92,7 +102,7 @@ public sealed class SchemaAgentPipeline
     /// <c>+1</c>/<c>+2</c> aritmetiğini kendi başlarına yapması da aynı hatayı
     /// bir sonraki değişiklikte tekrar üretirdi.
     /// </summary>
-    public const int DefaultTotalRounds = DefaultRepairRounds + 2;
+    public const int DefaultTotalRounds = FixedRounds + DefaultRepairRounds;
 
     private readonly ISchemaDraftSource _source;
     private readonly IDdlGeneratorFactory _ddlFactory;

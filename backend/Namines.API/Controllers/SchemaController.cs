@@ -577,7 +577,15 @@ public class SchemaController : ControllerBase
 
         // Tavan var: bütçesi çok olan bir kullanıcı için sınırsız tur açmak,
         // modelin çözemediği bir bulguda bütçeyi tek istekte yakardı.
-        return Math.Min(affordable, SchemaAgentPipeline.DefaultTotalRounds);
+        //
+        // Tavan artık PLANA bağlı. Önceden herkes aynı tavandaydı: ödeyen
+        // kullanıcının tek farkı daha büyük bir token havuzuydu, agent yine
+        // aynı noktada pes ediyordu — yani derinlik için ödenen para bir
+        // karşılık üretmiyordu.
+        var tier = await _quota.TierAsync(userId);
+        var ceiling = PlanQuotas.For(tier).MaxAgentRepairTurns + SchemaAgentPipeline.FixedRounds;
+
+        return Math.Min(affordable, ceiling);
     }
 
     [HttpPost("revise")]
