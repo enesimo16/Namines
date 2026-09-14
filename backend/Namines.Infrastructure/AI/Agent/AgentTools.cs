@@ -84,11 +84,6 @@ public sealed class AgentTools
             """),
     };
 
-    private static readonly JsonSerializerOptions SchemaJson = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
-
     public string Invoke(AgentToolCall call)
     {
         try
@@ -125,7 +120,7 @@ public sealed class AgentTools
         {
             var raw = schemaEl.GetString();
             if (!string.IsNullOrWhiteSpace(raw))
-                return JsonSerializer.Deserialize<DatabaseSchema>(raw, SchemaJson);
+                return JsonSerializer.Deserialize<DatabaseSchema>(raw, Namines.Infrastructure.Services.SchemaJsonOptions.Default);
         }
 
         return Context;

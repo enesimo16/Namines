@@ -15,8 +15,6 @@ namespace Namines.Infrastructure.Services;
 /// </summary>
 public static class SchemaJsonReader
 {
-    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
-
     public static DatabaseSchema? TryRead(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
@@ -30,7 +28,7 @@ public static class SchemaJsonReader
 
         try
         {
-            var schema = JsonSerializer.Deserialize<DatabaseSchema>(text, Options);
+            var schema = JsonSerializer.Deserialize<DatabaseSchema>(text, SchemaJsonOptions.Default);
 
             // Tablosuz bir şema "okundu" sayılmamalı: model açıklama metni
             // döndürdüyse JSON ayrıştırılabilir ama içi boş olur ve sessizce

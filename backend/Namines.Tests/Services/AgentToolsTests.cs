@@ -116,6 +116,28 @@ public class AgentToolsTests
     }
 
     [Fact]
+    public void validate_schema_tolerates_a_numeric_value_in_a_string_field()
+    {
+        // Modelin sık ürettiği bir biçim: "defaultValue": 0. Tolerant converter
+        // olmadan bu JsonException fırlatır, araç "The tool failed: ..." döner ve
+        // model hiçbir doğrulama sinyali almaz — aracı vermenin amacı biter.
+        const string candidate = """
+            {
+              "schemaId": "s1", "name": "S",
+              "tables": [{ "id": "t1", "name": "Orders", "columns": [
+                { "id": "c1", "name": "Id", "type": "INT", "isPK": true, "defaultValue": 0 }
+              ] }]
+            }
+            """;
+        var arguments = JsonSerializer.Serialize(new { schema = candidate });
+
+        var result = Tools(Valid()).Invoke(new AgentToolCall("1", "validate_schema", arguments));
+
+        Assert.DoesNotContain("tool failed", result, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no errors", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void preview_ddl_returns_generated_sql()
     {
         var result = Tools(Valid()).Invoke(new AgentToolCall("1", "preview_ddl", "{}"));
