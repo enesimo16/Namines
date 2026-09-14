@@ -353,7 +353,17 @@ public class SchemaController : ControllerBase
         // Kaç tur harcayabileceğimizi BÜTÇE söylüyor, hat değil. Bir kullanıcının
         // günlük hakkı bitmişken üç tur çalıştırmak, ona hiçbir şey vermeden
         // parasını harcamak olurdu.
-        var budgetRounds = await AffordableRoundsAsync(userId);
+        var affordableRounds = await AffordableRoundsAsync(userId);
+
+        // Gelişmiş kapalıyken TEK tur: taslak üretilir ve DENETİMDEN geçer, ama
+        // plan turu ve otomatik onarım turu çalışmaz — kalan bulgular kullanıcıya
+        // gösterilir, model onları düzeltmek için kota harcamaz.
+        //
+        // Sabit 1 DEĞİL, Math.Min: bütçesi hiç kalmamış kullanıcı kapalı modda da
+        // 429 almalı, sessizce bedava bir tur kazanmamalı.
+        var budgetRounds = request.Advanced
+            ? affordableRounds
+            : Math.Min(affordableRounds, 1);
 
         // Akış isteniyor mu? EventSource yalnızca GET destekler, bu uç POST
         // olduğu için istemci fetch + ReadableStream kullanıyor ve isteği bu

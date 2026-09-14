@@ -31,6 +31,16 @@ public class GenerateRequest
     /// mahkûm etmek olurdu.
     /// </summary>
     public string? Answers { get; set; }
+
+    /// <summary>
+    /// Gelişmiş mod: plan turu + otomatik onarım turları + araçlar.
+    ///
+    /// <b>Varsayılan <c>false</c> ve bu "denetimsiz" demek DEĞİL:</b> kapalı
+    /// modda da şema NSL kurallarından ve gerçek DDL derlemesinden geçiyor,
+    /// kalan bulgular kullanıcıya gösteriliyor. Fark, modelin o bulguları
+    /// düzeltmek için ek tur (yani kota) harcamaması.
+    /// </summary>
+    public bool Advanced { get; set; }
 }
 
 /// <param name="Prompt">Kullanıcının ilk cümlesi.</param>
