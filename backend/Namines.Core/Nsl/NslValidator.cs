@@ -151,6 +151,8 @@ public static class NslValidator
             }
         }
 
+        ValidateEngineSupport(schema, engine, findings);
+
         ValidateRelations(schema, findings);
 
         // NSL006/007 — cascade yolları. Yeniden yazılmadı, mevcut ve gerçek
@@ -165,6 +167,45 @@ public static class NslValidator
         }
 
         return findings;
+    }
+
+    /// <summary>
+    /// NSL024 — hedef motorda desteklenmeyen özellik.
+    ///
+    /// <b>Neden ayrı bir kural gerekiyor:</b> motor uyuşmayan bir trigger/saklı
+    /// yordam, DDL üretiminde SESSİZCE atlanıyor (bkz. TriggerProcedureSql) —
+    /// üretim hata vermiyor, dolayısıyla derleme kapısı bunu göremiyor.
+    /// Kullanıcı da trigger'ının neden ortada olmadığını hiçbir yerde göremezdi.
+    /// Derleme kapısının yakalayamadığı tek kayıp sınıfı budur.
+    /// </summary>
+    private static void ValidateEngineSupport(
+        DatabaseSchema schema, DatabaseType engine, List<NslFinding> findings)
+    {
+        foreach (var trigger in schema.Triggers.Where(t => t.TargetEngine != engine))
+        {
+            var table = schema.Tables.FirstOrDefault(t => t.Id == trigger.TableId);
+            findings.Add(new("NSL024", "error",
+                $"Trigger '{trigger.Id}' is written for {trigger.TargetEngine} but the target engine is " +
+                $"{engine}; it would be dropped from the generated DDL without any error.",
+                table?.Name, AutoFixable: true));
+        }
+
+        foreach (var procedure in schema.StoredProcedures.Where(p => p.TargetEngine != engine))
+            findings.Add(new("NSL024", "error",
+                $"Stored procedure '{procedure.Name}' is written for {procedure.TargetEngine} but the target " +
+                $"engine is {engine}; it would be dropped from the generated DDL without any error.",
+                AutoFixable: true));
+
+        // SQLite hesaplanan bir kolonun birincil anahtar olmasına izin vermiyor ve
+        // DDL üretimi bunu istisnayla reddediyor (bkz. ColumnFeatureSql). Kuralı
+        // burada da söylemek, kullanıcının bunu bir çökme olarak değil düzeltilebilir
+        // bir bulgu olarak görmesini sağlıyor — aynı şema PostgreSQL'de sorunsuz.
+        if (engine == DatabaseType.SQLite)
+            foreach (var table in schema.Tables)
+                foreach (var column in table.Columns.Where(c => c.IsPK && !string.IsNullOrWhiteSpace(c.Generated)))
+                    findings.Add(new("NSL024", "error",
+                        $"Column '{column.Name}' is generated and part of the primary key, which SQLite does not allow.",
+                        table.Name, column.Name, true));
     }
 
     private static void ValidateRelations(DatabaseSchema schema, List<NslFinding> findings)

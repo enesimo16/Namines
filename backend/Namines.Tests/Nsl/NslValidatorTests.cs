@@ -258,6 +258,94 @@ public class NslValidatorTests
         Assert.Equal("settings", finding.Table);
     }
 
+    // ── NSL024 — hedef motorda desteklenmeyen özellik ────────────────────────
+    //
+    // Bu kuralın DERLEME kapısıyla yakalanamamasının sebebi: motor uyuşmayan bir
+    // trigger DDL üretiminde sessizce atlanıyor, üretim hata VERMİYOR. Yani
+    // kullanıcı trigger'ının neden yok olduğunu hiçbir yerde göremiyor.
+
+    private static DatabaseSchema WithTrigger(DatabaseType triggerEngine)
+    {
+        var schema = WithTable(new SchemaTable
+        {
+            Id = "t1",
+            Name = "orders",
+            Columns = { Column("c1", "id", "INT", pk: true) },
+        });
+
+        schema.Triggers.Add(new SchemaTrigger
+        {
+            Id = "trg1",
+            TableId = "t1",
+            Timing = "After",
+            Event = "Insert",
+            TargetEngine = triggerEngine,
+            Body = "CREATE TRIGGER x ...;",
+        });
+
+        return schema;
+    }
+
+    [Fact]
+    public void A_trigger_written_for_another_engine_is_an_error()
+    {
+        Assert.Contains("NSL024", Codes(WithTrigger(DatabaseType.MySQL), DatabaseType.PostgreSQL));
+    }
+
+    [Fact]
+    public void A_trigger_that_matches_the_target_engine_is_silent()
+    {
+        // Yanlış alarm, tüm uyarıların görmezden gelinmesine yol açar.
+        Assert.DoesNotContain("NSL024", Codes(WithTrigger(DatabaseType.PostgreSQL), DatabaseType.PostgreSQL));
+    }
+
+    [Fact]
+    public void A_stored_procedure_written_for_another_engine_is_an_error()
+    {
+        var schema = WithTable(new SchemaTable
+        {
+            Id = "t1",
+            Name = "orders",
+            Columns = { Column("c1", "id", "INT", pk: true) },
+        });
+
+        schema.StoredProcedures.Add(new SchemaStoredProcedure
+        {
+            Id = "sp1",
+            Name = "Recalculate",
+            TargetEngine = DatabaseType.Oracle,
+            Body = "BEGIN NULL; END;",
+        });
+
+        Assert.Contains("NSL024", Codes(schema, DatabaseType.MSSQL));
+    }
+
+    [Fact]
+    public void A_generated_primary_key_column_is_an_error_on_sqlite_only()
+    {
+        var column = Column("c1", "id", "INT", pk: true);
+        column.Generated = "1 + 1";
+
+        var schema = WithTable(new SchemaTable { Id = "t1", Name = "orders", Columns = { column } });
+
+        // SQLite "generated columns cannot be part of the PRIMARY KEY" diyor ve
+        // DDL üretimi istisna fırlatıyor; kural bunu çökme değil, düzeltilebilir
+        // bir bulgu hâline getiriyor.
+        Assert.Contains("NSL024", Codes(schema, DatabaseType.SQLite));
+        Assert.DoesNotContain("NSL024", Codes(schema, DatabaseType.PostgreSQL));
+    }
+
+    [Fact]
+    public void The_engine_support_rule_reports_an_error_severity()
+    {
+        // Yalnızca "error" seviyesindeki bulgular düzeltme turu tetikliyor
+        // (bkz. SchemaAgentPipeline.Inspect). Uyarı olsaydı trigger sessizce
+        // kaybolmaya devam ederdi.
+        var findings = NslValidator.Validate(WithTrigger(DatabaseType.MySQL), DatabaseType.PostgreSQL);
+
+        Assert.Contains(findings, f => f.Code == "NSL024" && f.Severity == "error");
+    }
+
     [Fact]
     public void Cascade_rules_come_from_the_existing_analyzer()
     {
