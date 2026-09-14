@@ -151,8 +151,23 @@ public sealed class SchemaAgentPipeline
         if (budgetRounds >= 3)
         {
             progress?.Report(AgentStep.Plan("Planning…"));
-            plan = await _source.PlanAsync(prompt, engine, cancellationToken);
-            rounds++;
+            try
+            {
+                plan = await _source.PlanAsync(prompt, engine, cancellationToken);
+                rounds++;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Plan bir İYİLEŞTİRME, zorunluluk değil: onsuz da şema
+                // üretilebiliyor. Üretimi burada düşürmek, opsiyonel bir adımı
+                // zorunlu kılmak olurdu.
+                _logger.LogWarning(ex, "Schema agent plan turn failed; continuing without a plan.");
+                plan = null;
+            }
         }
 
         progress?.Report(AgentStep.Draft("Generating draft…"));
@@ -173,7 +188,33 @@ public sealed class SchemaAgentPipeline
                 progress?.Report(AgentStep.Finding(finding));
 
             progress?.Report(AgentStep.Repair($"Repairing (round {rounds}/{budgetRounds - 1})…"));
-            var repaired = await _source.RepairAsync(schema, findings, engine, cancellationToken);
+
+            DatabaseSchema repaired;
+            try
+            {
+                repaired = await _source.RepairAsync(schema, findings, engine, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Kullanıcı iptali hata DEĞİL; bulguya çevrilirse çağıran onu
+                // normal bir sonuç sanar ve iptal edilmiş işi tamamlanmış gösterir.
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Elde GEÇERLİ bir şema var ve kullanıcı onun bedelini zaten
+                // ödedi. Turun patlaması yüzünden onu da çöpe atmak, hattın
+                // kendi sözünü ("elde kalan şema — hatalı olsa bile döner")
+                // bozmak olurdu. Hata gizlenmiyor: bulgu olarak raporlanıyor.
+                _logger.LogWarning(
+                    ex, "Schema agent repair round {Round} failed; returning the best schema so far.", rounds);
+
+                findings = findings
+                    .Append($"[agent] Repair round {rounds} could not run: {ex.Message}")
+                    .ToList();
+                break;
+            }
+
             rounds++;
 
             progress?.Report(AgentStep.Inspect($"Recompiling on {engine}…"));
