@@ -385,7 +385,16 @@ public class SchemaController : ControllerBase
         // Bütçe ÖNCEDEN rezerve ediliyor — eskiden yalnızca iş bittikten sonra
         // düşülüyordu ve aradaki pencerede eşzamanlı N istek aynı bütçeyi
         // harcayabiliyordu (bkz. AiQuotaService.TryReserveAsync).
-        var reserved = NaiCatalog.CostOf(effectiveModel, budgetRounds * SchemaRoundTokenEstimate);
+        //
+        // Düz "budgetRounds * SchemaRoundTokenEstimate" DEĞİL: bir onarım turu
+        // araç döngüsü yüzünden birden çok upstream çağrıya açılabiliyor (bkz.
+        // AgentQuotaReservation). Bunu görmezden gelmek, kullanıcının günlük
+        // bütçesini tek bir istekte, önceden hiç uyarılmadan tükettirebilirdi.
+        var fixedRoundsForBudget = budgetRounds >= 3
+            ? SchemaAgentPipeline.FixedRounds
+            : Math.Min(budgetRounds, 1);
+        var roundEquivalents = AgentQuotaReservation.RoundEquivalents(budgetRounds, fixedRoundsForBudget);
+        var reserved = NaiCatalog.CostOf(effectiveModel, roundEquivalents * SchemaRoundTokenEstimate);
         if (_quota is not null && !string.IsNullOrEmpty(userId))
         {
             var decision = await _quota.TryReserveAsync(userId, reserved, HttpContext.RequestAborted);
