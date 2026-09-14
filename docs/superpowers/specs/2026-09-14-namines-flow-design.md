@@ -226,6 +226,48 @@ hata `AutomationRunLog`'a yazılır, tüm senkron isteğini düşürmez.
 
 ---
 
+## Bölüm 3 Eki — Uygulama Öncesi Doğrulamada Bulunan 3 Boşluk
+
+Gerçek kod okunarak (Bölüm 3 planı yazılmadan önce) bulunan ve kullanıcı
+onayıyla kapatılan üç boşluk:
+
+**1. AI kotası (kullanıcı kararı: mevcut `AiQuotaService`'e bağlan).**
+`DbaCheck` ve `SeedData` gerçek Groq çağrısı yapıyor ama diff-tetiklemeli
+bu akış `SchemaController`'daki `TryReserveAsync` rezervasyonundan
+tamamen bağımsız — kullanıcı bir kural kurup sık sık kaydederse kotasız
+sınırsız AI çağrısı üretirdi. Çözüm: `AutomationExecutor`, her
+`DbaCheck`/`SeedData` çalıştırmadan önce `_quota.TryReserveAsync(userId,
+estimatedTokens, ct)` çağırır; `Allowed` değilse kural atlanır ve
+`AutomationRunLog`'a `Status=Skipped, ErrorMessage="Quota exceeded"`
+yazılır — senkron isteği ASLA düşürmez (bkz. "bir kuralın hatası diğerini
+etkilemez" kuralı). `Webhook`/`Toast` kota gerektirmez.
+
+**2. Tablo kimliği uyuşmazlığı.** `SchemaDiffResult.AddedTables` /
+`RemovedTables` / `ModifiedTables[].TableName` tablo **adı** (string)
+döndürüyor — `SchemaTable.Name`. Ama `AutomationRule.ScopeTableId`
+istemcideki stabil `SchemaTable.Id`'yi tutuyor. Eşleştirme motoru
+(`AutomationRuleMatcher`), `oldSchema.Tables` ve `newSchema.Tables`'ın
+birleşiminden `Id → Name` sözlüğü kurar, kuralın `ScopeTableId`'sini bu
+sözlükle isme çevirir, sonra diff'teki isimle karşılaştırır. Tablo
+`RemovedTables`'taysa yalnızca `oldSchema` sözlüğünde bulunur; bu yüzden
+sözlük birleşimi (union) şart, tek taraflı değil.
+
+**3. İstemci deposu senkron/asenkron çelişkisi.** Bölüm 2'nin
+`useAutomationStore.ts`'i (`addRule`, `updateRule`, `deleteRule`) tamamen
+senkron — state'i anında mutasyona uğratıp senkron `id` döndürüyor.
+Gerçek `/api/automation/rules` çağrıları asenkron. İmzaları SABİT tutma
+sözü (satır 38) bozulmadan çözüm: depo **iyimser (optimistic)** kalıyor
+— state hâlâ anında mutasyona uğruyor, senkron `id`/`void` dönüyor; her
+mutasyon fonksiyonunun gövdesi ARKA PLANDA (`void fetch(...)`, beklenmeden)
+karşılık gelen API çağrısını da tetikliyor. Ayrıca depoya YENİ bir
+`loadRules(projectId): Promise<void>` eklenir (imza değişikliği değil,
+saf ekleme) — canvas açılışında `GET /api/automation/rules` ile sunucudaki
+kuralları state'e yükler. Ağ hatası olursa iyimser state sunucudan
+sapabilir; bu v1 kapsamında kabul edilen bir taviz (kullanıcı sayfayı
+yenileyince `loadRules` yeniden senkronlar).
+
+---
+
 ## Kapsam Dışı (v1 için)
 
 - Throttle bypass — sunucu tarafı aksiyonlar için ~30sn gecikme kabul
