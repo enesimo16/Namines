@@ -14,6 +14,8 @@ namespace Namines.Infrastructure.Data
         public DbSet<GlobalAiUsage> GlobalAiUsages { get; set; } = null!;
         public DbSet<OrgAiUsage> OrgAiUsages { get; set; } = null!;
         public DbSet<Branch> Branches { get; set; } = null!;
+        public DbSet<Namines.Core.Models.AutomationRule> AutomationRules { get; set; } = null!;
+        public DbSet<Namines.Core.Models.AutomationRunLog> AutomationRunLogs { get; set; } = null!;
         public DbSet<SchemaVersion> SchemaVersions { get; set; } = null!;
         public DbSet<ChangeRequest> ChangeRequests { get; set; } = null!;
         public DbSet<ChangeRequestApproval> ChangeRequestApprovals { get; set; } = null!;
@@ -149,6 +151,26 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<SchemaVersion>()
                 .HasIndex(v => new { v.ProjectId, v.CreatedAt });
+
+            // ── Namines Flow — AutomationRule / AutomationRunLog (Bölüm 3) ──
+
+            builder.Entity<Namines.Core.Models.AutomationRule>()
+                .HasOne<CloudProject>()
+                .WithMany()
+                .HasForeignKey(r => r.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Namines.Core.Models.AutomationRule>()
+                .HasIndex(r => new { r.ProjectId, r.Enabled });
+
+            builder.Entity<Namines.Core.Models.AutomationRunLog>()
+                .HasOne<Namines.Core.Models.AutomationRule>()
+                .WithMany()
+                .HasForeignKey(l => l.RuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Namines.Core.Models.AutomationRunLog>()
+                .HasIndex(l => l.RuleId);
 
             // ── G11 — ChangeRequest / ChangeRequestApproval ("Database PR", new-phase/29) ──
 
