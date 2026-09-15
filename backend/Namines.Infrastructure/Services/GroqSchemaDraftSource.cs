@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Namines.Core.Analysis;
@@ -13,6 +14,60 @@ using Namines.Infrastructure.AI.Agent;
 using Namines.Infrastructure.Generators.DdlGenerator;
 
 namespace Namines.Infrastructure.Services;
+
+/// <summary>
+/// Bir bulgu (finding) metninde hangi tabloların adı geçtiğini bulur.
+///
+/// <b>Neden gerekli:</b> onarım turu artık şemanın TAMAMINI değil, yalnızca
+/// bulguda adı geçen tabloları modele gönderiyor (bkz.
+/// <see cref="GroqSchemaDraftSource.RepairAsync"/>). Bu belirleme yanlış
+/// yapılırsa iki yönde de zararlı: gereğinden az tablo göndermek modelin
+/// sorunu göremeden düzeltmeye çalışmasına, gereğinden çok (yanlış eşleşme)
+/// göndermek ise kapsamlamanın asıl amacını (token tasarrufu) boşa
+/// çıkarmasına yol açar.
+///
+/// <b>Tam kelime eşleşmesi şart:</b> bulgular linter ve DDL üreticilerinden
+/// serbest metin olarak geliyor — "Table 'orders' has no primary key" gibi.
+/// Düz bir <c>Contains</c> araması "orders" adını "order_items" içinde de
+/// bulur, bu da "order_items" bulgusu için yanlışlıkla "orders" tablosunu
+/// (ya da tersini) kapsama sokar. Alt çizgi (<c>_</c>) regex'te bir "kelime"
+/// karakteri sayıldığından .NET'in <c>\b</c> kelime sınırı da bunu tek
+/// başına engellemez — o yüzden sınır burada AÇIKÇA harf/rakam/alt çizgi
+/// DIŞI karakterlerle tanımlanıyor.
+/// </summary>
+public static class RepairScope
+{
+    /// <summary>
+    /// Bulgu metinlerinde geçen, şemadaki tablo adlarını döndürür.
+    ///
+    /// Hiçbir tablo adı bulunamazsa (şema-seviyesi bir bulgu, ör. "naming
+    /// convention should be snake_case") BOŞ liste döner — çağıran bu
+    /// durumda tam şemayı göndermeye düşer. Sessizce hiçbir şeyi
+    /// göndermemek, pahalı ama eksiksiz bir onarım turundan daha kötü olurdu.
+    /// </summary>
+    public static IReadOnlyList<string> TableNamesIn(IReadOnlyList<string> findings, DatabaseSchema schema)
+    {
+        var combined = string.Join("\n", findings);
+        var matched = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var table in schema.Tables)
+        {
+            if (string.IsNullOrWhiteSpace(table.Name) || !seen.Add(table.Name))
+                continue;
+
+            // (?<![A-Za-z0-9_]) / (?![A-Za-z0-9_]): harf/rakam/alt çizgi
+            // dışında bir sınır — tırnak, boşluk, noktalama hepsi geçerli
+            // sınır, ama "orders" içindeki "order" gibi bir alt dizi asla
+            // eşleşmiyor.
+            var pattern = $@"(?<![A-Za-z0-9_]){Regex.Escape(table.Name)}(?![A-Za-z0-9_])";
+            if (Regex.IsMatch(combined, pattern, RegexOptions.IgnoreCase))
+                matched.Add(table.Name);
+        }
+
+        return matched;
+    }
+}
 
 /// <summary>
 /// <see cref="ISchemaDraftSource"/>'un Groq uygulaması.
@@ -152,14 +207,46 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
             "Keep every other table, column and relation exactly as it is. " +
             "Do not rename anything that is not named in the list above.";
 
-        // TÜM tablolar gönderiliyor, yalnızca bulguya konu olanlar değil: model
-        // göremediği bir tabloya yabancı anahtar yazdığında düzeltme turu yeni
-        // bir hata üretir. Trigger/saklı yordam/enum da gönderiliyor — göremediği
-        // bir trigger'ı düzeltemez ve NSL024 bulgusu hiç kapanmazdı.
+        // KAPSAMLI onarım: bulguda adı geçen tablolar RepairScope ile bulunuyor.
+        // Bulunamazsa (şema-seviyesi bulgu) TAM şemaya düşülüyor — bugünkü
+        // davranış. Bu, 50-60 tablolu bir şemada TÜM tabloları her onarım
+        // turunda göndermenin (ve token tavanına çarpıp kesilmenin) önüne
+        // geçiyor.
+        //
+        // Model göremediği bir tabloya yabancı anahtar yazarsa düzeltme turu
+        // yeni bir hata üretir — bu korumayı kaybetmemek için diğer
+        // tabloların İSİMLERİ (içerikleri değil) talimata ekleniyor: model
+        // onlara referans verebileceğini biliyor ama yeniden tanımlamaya
+        // çalışmıyor. Trigger/saklı yordam/enum HÂLÂ TAM gönderiliyor —
+        // onlar için kapsamlama yok, çünkü hangi trigger'ın hangi bulguyla
+        // ilgili olduğunu isim eşleştirmesiyle güvenilir biçimde çıkaramayız.
+        var scopedTableNames = RepairScope.TableNamesIn(findings, schema);
+        var isScoped = scopedTableNames.Count > 0;
+
+        var selectedTables = isScoped
+            ? schema.Tables
+                .Where(t => scopedTableNames.Any(n => string.Equals(n, t.Name, StringComparison.OrdinalIgnoreCase)))
+                .ToList()
+            : schema.Tables;
+
+        if (isScoped)
+        {
+            var otherTableNames = schema.Tables
+                .Select(t => t.Name)
+                .Where(name => !scopedTableNames.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (otherTableNames.Count > 0)
+            {
+                instructions += "\n\nThese other tables exist and may be referenced, but do not redefine them: " +
+                    string.Join(", ", otherTableNames) + ".";
+            }
+        }
+
         var request = new ReviseRequest
         {
             RevisionPrompt = instructions,
-            SelectedTables = schema.Tables,
+            SelectedTables = selectedTables,
             ExistingRelations = schema.Relations,
             Triggers = schema.Triggers,
             StoredProcedures = schema.StoredProcedures,
@@ -173,9 +260,12 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
         // tamamen kaybetmesi anlamına gelmemeli.
         var repaired = SchemaJsonReader.TryRead(answer) ?? await _groq.ReviseSchemaAsync(request);
 
-        // Model kısmi döner (yalnızca tables+relations). Birleştirmeden kullanmak,
-        // her turda trigger/SP/enum silmek demekti.
-        return SchemaMerge.PreserveUnrevised(schema, repaired);
+        // Model kısmi döner (yalnızca kapsamdaki tablolar + relations). Eski
+        // PreserveUnrevised'ın aksine, SpliceTables kapsam dışındaki tabloları
+        // tam şemadan AYNEN korur ve yalnızca isim eşleşen tabloları değiştirir
+        // — trigger/SP/enum koruması aynen devam ediyor (SpliceTables onu
+        // sarmalıyor).
+        return SchemaMerge.SpliceTables(schema, repaired);
     }
 
     /// <summary>

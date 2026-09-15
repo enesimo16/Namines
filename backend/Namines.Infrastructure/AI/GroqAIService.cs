@@ -545,11 +545,23 @@ public class GroqAIService : IAIService, IAgentChatClient
         return new { role = message.Role, content = message.Content ?? "" };
     }
 
-    private int CalculateMaxTokens(int tableCount)
+    /// <summary>
+    /// Tablo sayısıyla ölçeklenen çıktı token tavanı.
+    ///
+    /// <b>Neden değişti:</b> eskiden sabitti (≤10 tablo → 4096, aksi hâlde
+    /// 6000) — 50-60 tablolu bir şema bu tavanla asla tam dönemez, ya kesilir
+    /// (finish_reason=length) ya da model tabloları sessizce atlar. Artık
+    /// tablo sayısıyla DOĞRUSAL büyüyor.
+    ///
+    /// <b>Neden hâlâ bir tavan var:</b> <paramref name="tierCeiling"/>, o anki
+    /// kullanıcının plan/tercih tavanı (bkz. <c>AiAdvancedSettings.MaxTokensFor</c>)
+    /// — ölçeklenen değeri bununla SINIRLAMAK şart, aksi hâlde büyük bir şema
+    /// ücretsiz bir kullanıcının günlük bütçesini tek çağrıda aşabilirdi.
+    /// </summary>
+    private int CalculateMaxTokens(int tableCount, int tierCeiling)
     {
-        // Safe for standard 12,000 TPM limits on free tier organizations
-        if (tableCount <= 10) return 4096;
-        return 6000;
+        var scaled = Math.Max(4096, tableCount * 600 + 2000);
+        return Math.Min(tierCeiling, scaled);
     }
 
 
@@ -716,6 +728,7 @@ public class GroqAIService : IAIService, IAgentChatClient
     {
         var systemPrompt = SmartSeedPromptBuilder.BuildSystemPrompt();
         var userPrompt = SmartSeedPromptBuilder.BuildUserPrompt(schema, dbType, domain, rowCount);
+        var tierCeiling = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
 
         var payload = new
         {
@@ -726,7 +739,7 @@ public class GroqAIService : IAIService, IAgentChatClient
                 new { role = "user", content = userPrompt }
             },
             temperature = 0.4,
-            max_tokens = CalculateMaxTokens(schema.Tables?.Count ?? 0)
+            max_tokens = CalculateMaxTokens(schema.Tables?.Count ?? 0, tierCeiling)
         };
 
         using var response = await PostAsync("chat/completions", payload);
@@ -882,7 +895,12 @@ public class GroqAIService : IAIService, IAgentChatClient
             {
                 var modelToUse = await ResolveModelNameAsync(request.ModelName, "SchemaRevision");
                 var tableCount = request.SelectedTables?.Count ?? 0;
-                var maxTokensForThisCall = CalculateMaxTokens(tableCount);
+                // Aynı tavan hem payload'a hem de kesilme kontrolüne gidiyor —
+                // bkz. GenerateSchemaAsync'in yaptığı gibi bir yerel değişkende
+                // sabitleniyor, aksi hâlde raporlanan tavan gerçekte
+                // gönderilenle uyuşmayabilirdi.
+                var tierCeiling = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
+                var maxTokensForThisCall = CalculateMaxTokens(tableCount, tierCeiling);
 
                 var payload = new
                 {
@@ -951,6 +969,7 @@ public class GroqAIService : IAIService, IAgentChatClient
         var systemPrompt = MockDataPromptBuilder.BuildSystemPrompt();
         var userPrompt = MockDataPromptBuilder.BuildUserPrompt(schema);
         var tableCount = schema.Tables?.Count ?? 0;
+        var tierCeiling = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
 
         var payload = new
         {
@@ -961,7 +980,7 @@ public class GroqAIService : IAIService, IAgentChatClient
                 new { role = "user", content = userPrompt }
             },
             temperature = 0.4,
-            max_tokens = CalculateMaxTokens(tableCount)
+            max_tokens = CalculateMaxTokens(tableCount, tierCeiling)
         };
 
         using var response = await PostAsync("chat/completions", payload);
@@ -1024,6 +1043,8 @@ public class GroqAIService : IAIService, IAgentChatClient
             $"Tablolar ve Kolonları:\n{tableList}\n\n" +
             "Bu veritabanı şeması için profesyonel bir Yönetici Özeti yaz.";
 
+        var tierCeiling = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
+
         var payload = new
         {
             model = await ResolveModelNameAsync(null, "Documentation"),
@@ -1033,7 +1054,7 @@ public class GroqAIService : IAIService, IAgentChatClient
                 new { role = "user",   content = userPrompt }
             },
             temperature = 0.6,
-            max_tokens = CalculateMaxTokens(tableCount)
+            max_tokens = CalculateMaxTokens(tableCount, tierCeiling)
         };
 
         using var response = await PostAsync("chat/completions", payload);
@@ -1143,6 +1164,7 @@ public class GroqAIService : IAIService, IAgentChatClient
         var systemPrompt = StreamlitPromptBuilder.BuildSystemPrompt();
         var userPrompt = StreamlitPromptBuilder.BuildUserPrompt(schema, dbType);
         var tableCount = schema.Tables?.Count ?? 0;
+        var tierCeiling = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
 
         var payload = new
         {
@@ -1153,7 +1175,7 @@ public class GroqAIService : IAIService, IAgentChatClient
                 new { role = "user", content = userPrompt }
             },
             temperature = 0.2,
-            max_tokens = CalculateMaxTokens(tableCount)
+            max_tokens = CalculateMaxTokens(tableCount, tierCeiling)
         };
 
         using var response = await PostAsync("chat/completions", payload);

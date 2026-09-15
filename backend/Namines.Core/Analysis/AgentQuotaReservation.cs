@@ -46,4 +46,49 @@ public static class AgentQuotaReservation
 
         return fixedRoundsCounted + maxRepairRounds * RepairRoundMultiplier;
     }
+
+    /// <summary>
+    /// Taslak token başına yaklaşık maliyet (bkz. GroqAIService.CalculateMaxTokens'in
+    /// aynı 600/tablo oranı) — parçalı (chunked) üretimde her tablo, ayrı bir
+    /// domain parçasında kendi tur payını harcıyor.
+    /// </summary>
+    private const int TokensPerTable = 600;
+
+    /// <summary>
+    /// Bir onarım turunun sabit token maliyeti. <see cref="RoundEquivalents"/>'in
+    /// kullandığı <see cref="RepairRoundMultiplier"/> ile ÇARPILIYOR — burada
+    /// yeni bir sayı icat etmek, iki hesaplamanın aynı "onarım turu ne kadar
+    /// pahalı" varsayımından sessizce ayrışmasına yol açardı.
+    /// </summary>
+    private const int TokensPerRepairRound = 2_500;
+
+    /// <summary>Plan (ön prompt) turunun sabit maliyeti.</summary>
+    private const int PlanRoundTokens = 1_500;
+
+    /// <summary>
+    /// Bir şema üretim/onarım isteği için PEŞİNEN rezerve edilecek TOKEN
+    /// sayısını, şemanın gerçek boyutuna göre hesaplar.
+    ///
+    /// <b>Neden gerekli:</b> <see cref="RoundEquivalents"/> "tur eşdeğeri"
+    /// sayıyor ve çağıran tarafta sabit bir tur-başı token varsayımıyla
+    /// (~2500) çarpılıyor. Bu varsayım küçük şemalar için doğruydu ama 50-60
+    /// tablolu, parçalı (chunked) üretilen bir şema tek bir turda bunun
+    /// KATLARINI harcıyor — <c>RoundEquivalents</c> bunu hiç görmüyor çünkü
+    /// tablo sayısından habersiz. Sonuç: 60 tablolu bir istek, kullanıcının
+    /// günlük bütçesinin tamamını tek seferde, önceden hiçbir uyarı olmadan
+    /// tüketebiliyordu.
+    ///
+    /// <b>Neden <see cref="RoundEquivalents"/> silinmiyor:</b> eşik altındaki
+    /// (küçük/orta) şemalar için hattın hâlâ kullandığı yol bu — burada yeni
+    /// bir kapsam-farkında tahmin devreye girmiyor demek, mevcut davranışın
+    /// bozulmaması demek.
+    /// </summary>
+    /// <param name="tableCount">Şemadaki tablo sayısı (taslak maliyeti).</param>
+    /// <param name="repairRounds">Bütçelenen onarım turu sayısı.</param>
+    public static int TokensForScope(int tableCount, int repairRounds)
+    {
+        return tableCount * TokensPerTable
+            + repairRounds * TokensPerRepairRound * RepairRoundMultiplier
+            + PlanRoundTokens;
+    }
 }
