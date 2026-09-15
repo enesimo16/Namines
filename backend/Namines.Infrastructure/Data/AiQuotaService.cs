@@ -66,7 +66,7 @@ public enum AiQuotaDecision
 /// </list>
 /// Kural tek yerde olduğu sürece bu üçü de tek bir yerde doğru.
 /// </summary>
-public sealed class AiQuotaService
+public sealed class AiQuotaService : Namines.Infrastructure.Services.IAiQuotaReserver
 {
     private readonly AuthDbContext _context;
     private readonly IConfiguration _configuration;
