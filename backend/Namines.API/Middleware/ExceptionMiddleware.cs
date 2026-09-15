@@ -53,6 +53,19 @@ public class ExceptionMiddleware
         string correlationId,
         bool isDevelopment)
     {
+        // Yanıt ZATEN başlamışsa (ör. SSE akışı ilk baytını gönderdiyse) header/
+        // status kodu artık ayarlanamaz — bunu denemek `InvalidOperationException`
+        // ile İKİNCİ bir çökmeye yol açıyordu (bkz. schema/generate: model_not_found
+        // hatası akış başladıktan sonra fırlıyor, middleware header set etmeye
+        // çalışıyor, Kestrel bağlantıyı sert şekilde kesiyor — istemci temiz bir
+        // hata mesajı yerine çıplak "network error" görüyordu). Akış zaten başladıysa
+        // yapabileceğimiz tek şey bağlantıyı düzgünce sonlandırmak; JSON gövde artık
+        // istemciye anlamlı şekilde ulaşmaz.
+        if (context.Response.HasStarted)
+        {
+            return Task.CompletedTask;
+        }
+
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 

@@ -473,6 +473,17 @@ public class SchemaController : ControllerBase
             await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
             await WriteEventAsync("error", new { code = "AI_NOT_CONFIGURED", message = ex.Message });
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Yukarıdaki üç tip dışındaki HER hata (ör. sağlayıcının modeli
+            // kaldırması — GroqAIService'in fırlattığı düz `Exception`) buraya
+            // düşmeden global `ExceptionMiddleware`'e ulaşırsa akış zaten
+            // başladığı için header set etmeye çalışıp İKİNCİ bir istisnayla
+            // çöküyor ve istemci temiz bir hata yerine çıplak "network error"
+            // görüyordu. Akış başladıktan sonra hata iletmenin TEK yolu bu event.
+            await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
+            await WriteEventAsync("error", new { message = ex.Message });
+        }
 
         return new EmptyResult();
     }

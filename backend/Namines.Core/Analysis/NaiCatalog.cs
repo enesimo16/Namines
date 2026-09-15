@@ -77,7 +77,10 @@ public static class NaiCatalog
             Id: "nai-v1",
             DisplayName: "NAI v1",
             Description: "Balanced. The default for everyday work.",
-            UpstreamModel: "qwen/qwen3.6-27b",
+            // qwen/qwen3.6-27b Groq'tan kaldırıldı (404 model_not_found) — tam da
+            // bu dosyanın kendi XML doc'unun uyardığı senaryo: sağlayıcı modeli
+            // öldürdü, düzeltme TEK satırda kalsın diye kimlik yalnızca burada.
+            UpstreamModel: "llama-3.3-70b-versatile",
             TokenMultiplier: 1.0),
 
         [NaiModel.Pro] = new NaiModelInfo(

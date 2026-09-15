@@ -193,7 +193,11 @@ public static class DevSandboxSeeder
                 Id = ProjectId,
                 Name = ProjectName,
                 DbType = "PostgreSQL",
-                SchemaJson = "{}",
+                // Boş obje DEĞİL: frontend'in DatabaseSchema tipi tables/relations'ı
+                // ZORUNLU dizi sayıyor (types/schema.ts) — "{}" canvas'ı
+                // `schema.tables.length` üzerinde TypeError ile çökertiyordu,
+                // çünkü hiçbir kod yolu boş projeyi bu şekilde üretmiyordu.
+                SchemaJson = "{\"name\":\"" + ProjectName + "\",\"tables\":[],\"relations\":[]}",
                 NodePositionsJson = "{}",
                 UserId = owner.Id,
                 CreatedAt = DateTime.UtcNow,

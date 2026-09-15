@@ -9,6 +9,30 @@ import { useAuthStore } from './useAuthStore';
 import { useToastStore } from './useToastStore';
 import { authService } from '../services/api';
 
+/**
+ * Bulut/backend'den gelen bir şema JSON'unu geçerli bir `DatabaseSchema`'ya
+ * normalize eder — `tables`/`relations` her zaman dizi olmalı (bkz.
+ * `DatabaseSchema` tipi, `types/schema.ts`), ama backend tarafında BOŞ bir
+ * proje `SchemaJson = "{}"` ile tohumlanabiliyor (ör. DevSandboxSeeder).
+ * Normalize edilmeden geçen `{}`, canvas'ta `schema.tables.length` gibi
+ * erişimlerde `TypeError` ile çöküyordu — bu, dış kaynaktan gelen verinin
+ * TANIMLI SINIRDA doğrulanması gereken tam da o nokta.
+ */
+function normalizeSchema(raw: unknown, fallbackName: string): DatabaseSchema {
+  const obj = (raw && typeof raw === 'object') ? raw as Partial<DatabaseSchema> : {};
+  return {
+    schemaId: obj.schemaId ?? '',
+    name: obj.name ?? fallbackName,
+    tables: Array.isArray(obj.tables) ? obj.tables : [],
+    relations: Array.isArray(obj.relations) ? obj.relations : [],
+    enums: obj.enums,
+    triggers: obj.triggers,
+    storedProcedures: obj.storedProcedures,
+    cloudProvider: obj.cloudProvider,
+    includeBiModule: obj.includeBiModule,
+  };
+}
+
 // ── localforage instance (IndexedDB) ──────────────────────────────────────────
 const naminesStore = localforage.createInstance({
   name: 'namines-v2',
@@ -662,7 +686,8 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
             let nodePosObj = {};
 
             try {
-              schemaObj = typeof cp.schemaJson === 'string' ? JSON.parse(cp.schemaJson) : cp.schemaJson;
+              const parsed = typeof cp.schemaJson === 'string' ? JSON.parse(cp.schemaJson) : cp.schemaJson;
+              schemaObj = normalizeSchema(parsed, cp.name);
             } catch (e) {
               console.error('Failed to parse schemaJson from cloud project', cp.id, e);
             }

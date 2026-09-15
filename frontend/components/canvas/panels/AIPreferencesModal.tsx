@@ -218,8 +218,10 @@ const fkActionOptions = [
 
 const maxTokensOptions = [
   { value: '2048', label: '2048 Tokens (Short, Quick Compilation)' },
-  { value: '4096', label: '4096 Tokens (Standard, Highly Recommended)' },
-  { value: '8192', label: '8192 Tokens (Max Context - Rich Schema)' }
+  { value: '4096', label: '4096 Tokens (Standard)' },
+  { value: '8192', label: '8192 Tokens (Rich Schema)' },
+  { value: '16000', label: '16000 Tokens (Comprehensive — 20-30 Tables)' },
+  { value: '32000', label: '32000 Tokens (Maximum — Team/Enterprise ceiling, Highly Recommended)' },
 ];
 
 const autoIndexOptions = [
@@ -318,7 +320,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   const [promptStyle, setPromptStyle] = useState('clean');
   const [namingConvention, setNamingConvention] = useState('snake_case');
   const [fkAction, setFkAction] = useState('cascade');
-  const [maxTokens, setMaxTokens] = useState('4096');
+  const [maxTokens, setMaxTokens] = useState('32000');
   const [sqlPrettyPrint, setSqlPrettyPrint] = useState('true');
   const [autoIndex, setAutoIndex] = useState('true');
 
@@ -410,7 +412,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
       setPromptStyle(localStorage.getItem('namines-ai-prompt-style') || 'clean');
       setNamingConvention(localStorage.getItem('namines-ai-naming-convention') || 'snake_case');
       setFkAction(localStorage.getItem('namines-ai-fk-action') || 'restrict');
-      setMaxTokens(localStorage.getItem('namines-ai-max-tokens') || '4096');
+      setMaxTokens(localStorage.getItem('namines-ai-max-tokens') || '32000');
       setSqlPrettyPrint(localStorage.getItem('namines-ai-sql-pretty') || 'true');
       setAutoIndex(localStorage.getItem('namines-ai-auto-index') || 'true');
 

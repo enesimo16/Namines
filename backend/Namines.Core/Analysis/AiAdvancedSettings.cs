@@ -66,9 +66,21 @@ public sealed record AiAdvancedSettings
     [JsonPropertyName("fkAction")]
     public string FkAction { get; init; } = "restrict";
 
-    /// <summary>Şema üretiminde modelin üretebileceği en fazla token.</summary>
+    /// <summary>
+    /// Şema üretiminde modelin üretebileceği en fazla token.
+    ///
+    /// <b>Varsayılan 32000 (tavan) — 4096 DEĞİL, bilerek.</b> "Advanced AI
+    /// Tuning" panelini hiç açmamış (yani ezici çoğunluk) her kullanıcı
+    /// <see cref="Default"/>'u kullanır. Eskiden bu alan "4096" idi ve
+    /// <see cref="MaxTokensFor"/>'un `Math.Min(kullanıcı, plan tavanı)` mantığı
+    /// yüzünden HİÇ dokunulmamış bir tercih, Pro/Team kullanıcısını bile
+    /// planının tavanına (16.000/32.000) değil sabit 4.096'ya kilitliyordu —
+    /// "kapsamlı" istenen bir şema, çıktı kesildiği için 5-6 tabloda kalıyordu.
+    /// Tavanın kendi amacı zaten bütçeyi koruyor (bkz. MaxTokensFor doc'u);
+    /// burada ikinci, gizli bir küçültme olmamalı.
+    /// </summary>
     [JsonPropertyName("maxTokens")]
-    public string MaxTokens { get; init; } = "4096";
+    public string MaxTokens { get; init; } = "32000";
 
     /// <summary>Yabancı anahtarlar için otomatik index önerilsin mi.</summary>
     [JsonPropertyName("autoIndex")]
