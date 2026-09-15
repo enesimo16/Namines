@@ -7,6 +7,16 @@ const genId = (): string =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+/**
+ * `addRule`'un dışa açık imzası (Global Constraints) bir `projectId`
+ * parametresi ALAMIYOR, ama arka plandaki `createAutomationRule` çağrısı
+ * bir projectId'ye ihtiyaç duyuyor. Modül seviyesinde tutulan bu değişken
+ * `loadRules` her çağrıldığında (başarılı ya da başarısız fark etmez —
+ * en azından "hangi projedeyiz" bilgisi hâlâ doğru) güncelleniyor, böylece
+ * `addRule` en son yüklenen projeyi kullanabiliyor.
+ */
+let currentProjectId: string | null = null;
+
 export type AutomationActionType = 'Webhook' | 'DbaCheck' | 'SeedData' | 'Toast';
 
 export interface AutomationRule {
@@ -46,6 +56,9 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
   selectedRuleId: null,
 
   loadRules: async (projectId) => {
+    // Hangi projede olduğumuz — başarı/başarısızlık fark etmeksizin
+    // biliniyor, bu yüzden try/catch'ten ÖNCE set ediliyor.
+    currentProjectId = projectId;
     try {
       const rules = await fetchAutomationRules(projectId);
       set({ rules });
@@ -65,8 +78,18 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
     // NOT: gerçek sunucu id'si burada göz ardı ediliyor (v1 tavizi) — yerel
     // id kalıcı olarak kullanılmaya devam eder çünkü store'un dışa açık
     // sözleşmesi senkron bir id döndürmek zorunda.
-    const rule = get().rules.find(r => r.id === id);
-    if (rule) void createAutomationRule(rule.scopeTableId, scopeTableId, triggerType, actionType)?.catch?.(() => {});
+    //
+    // `addRule`'un imzası bir projectId almıyor (Global Constraints), o
+    // yüzden `currentProjectId` (en son `loadRules` çağrısından) kullanılıyor.
+    // Henüz hiç `loadRules` çalışmadıysa (`currentProjectId === null`) arka
+    // plan çağrısı TAMAMEN ATLANIYOR — yanlış/boş bir projectId ile sunucuya
+    // istek atıp sessizce 404 almaktansa, kural bir sonraki `loadRules`'a
+    // kadar yalnızca istemcide kalıyor. v1 için kabul edilebilir: canvas
+    // mount olduğunda `loadRules`'ı her zaman önce çağırıyor (Task 8),
+    // kullanıcı "Namines Flow'a Ekle" eylemine ancak ondan sonra ulaşabiliyor.
+    if (currentProjectId !== null) {
+      void createAutomationRule(currentProjectId, scopeTableId, triggerType, actionType)?.catch?.(() => {});
+    }
     return id;
   },
 

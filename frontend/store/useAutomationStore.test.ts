@@ -77,7 +77,39 @@ vi.mock('../lib/automationApi', () => ({
   deleteAutomationRule: vi.fn(),
 }));
 
-import { fetchAutomationRules } from '../lib/automationApi';
+import { fetchAutomationRules, createAutomationRule } from '../lib/automationApi';
+
+// NOT: bu describe, dosyadaki `loadRules` çağıran testlerden ÖNCE
+// tanımlanmalı/çalışmalı — `currentProjectId` `useAutomationStore.ts`
+// içinde MODÜL seviyesinde tutuluyor (store'un dışa açık imzası bir
+// projectId alamadığı için), yani `useAutomationStore.setState(...)` onu
+// SIFIRLAMIYOR ve testler arasında kalıcı. İlk testin "hiç loadRules
+// çalışmadı" durumunu doğru sınayabilmesi için dosyadaki başka hiçbir
+// testin ondan önce `loadRules` çağırmamış olması gerekiyor.
+describe('useAutomationStore.addRule arka plan API çağrısı (projectId eşleme)', () => {
+  beforeEach(() => {
+    useAutomationStore.setState({ rules: [], selectedRuleId: null });
+    vi.mocked(createAutomationRule).mockReset();
+    vi.mocked(fetchAutomationRules).mockReset();
+  });
+
+  it('hiç loadRules çalışmadıysa createAutomationRule ÇAĞRILMAZ (kural yerel kalır)', () => {
+    useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Webhook');
+
+    expect(createAutomationRule).not.toHaveBeenCalled();
+    // Yine de kural yerelde optimistik olarak eklenmiş olmalı.
+    expect(useAutomationStore.getState().rules).toHaveLength(1);
+  });
+
+  it('loadRules çalıştıktan sonra createAutomationRule doğru projectId ile çağrılır', async () => {
+    vi.mocked(fetchAutomationRules).mockResolvedValue([]);
+    await useAutomationStore.getState().loadRules('proj-42');
+
+    useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Webhook');
+
+    expect(createAutomationRule).toHaveBeenCalledWith('proj-42', 't-orders', 'TableDeleted', 'Webhook');
+  });
+});
 
 describe('useAutomationStore.loadRules', () => {
   beforeEach(() => {
