@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAutomationStore } from './useAutomationStore';
 
 describe('useAutomationStore', () => {
@@ -68,5 +68,39 @@ describe('useAutomationStore', () => {
 
     useAutomationStore.getState().setSelectedRuleId(null);
     expect(useAutomationStore.getState().selectedRuleId).toBeNull();
+  });
+});
+
+vi.mock('../lib/automationApi', () => ({
+  fetchAutomationRules: vi.fn(),
+  createAutomationRule: vi.fn(),
+  deleteAutomationRule: vi.fn(),
+}));
+
+import { fetchAutomationRules } from '../lib/automationApi';
+
+describe('useAutomationStore.loadRules', () => {
+  beforeEach(() => {
+    useAutomationStore.setState({ rules: [], selectedRuleId: null });
+    vi.mocked(fetchAutomationRules).mockReset();
+  });
+
+  it('sunucudan gelen kuralları state e yazıyor', async () => {
+    vi.mocked(fetchAutomationRules).mockResolvedValue([
+      { id: 'r1', scopeTableId: 't1', triggerType: 'TableDeleted', actionType: 'Webhook', actionConfig: {}, enabled: true },
+    ]);
+
+    await useAutomationStore.getState().loadRules('proj-1');
+
+    expect(useAutomationStore.getState().rules).toHaveLength(1);
+  });
+
+  it('ağ hatasında mevcut state i koruyor', async () => {
+    vi.mocked(fetchAutomationRules).mockRejectedValue(new Error('network'));
+    useAutomationStore.setState({ rules: [{ id: 'r1', scopeTableId: 't1', triggerType: 'TableAdded', actionType: 'Toast', actionConfig: {}, enabled: true }], selectedRuleId: null });
+
+    await useAutomationStore.getState().loadRules('proj-1');
+
+    expect(useAutomationStore.getState().rules).toHaveLength(1);
   });
 });
