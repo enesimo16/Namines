@@ -98,4 +98,19 @@ public class SchemaChunkMergerTests
 
         Assert.Empty(result.Schema.Tables);
     }
+
+    [Fact]
+    public void Ayni_id_li_enum_tekillestiriliyor_ve_not_uretiyor()
+    {
+        var a = new DatabaseSchema();
+        a.Enums.Add(new SchemaEnum { Id = "status", Name = "Status", Values = { "active" } });
+
+        var b = new DatabaseSchema();
+        b.Enums.Add(new SchemaEnum { Id = "status", Name = "Status", Values = { "inactive" } });
+
+        var result = SchemaChunkMerger.Merge("X", new[] { a, b });
+
+        Assert.Single(result.Schema.Enums);
+        Assert.Contains(result.Notes, n => n.Contains("status"));
+    }
 }

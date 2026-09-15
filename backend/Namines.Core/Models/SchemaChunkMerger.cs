@@ -118,9 +118,9 @@ public static class SchemaChunkMerger
         }
 
         // --- 4) Enums/Triggers/StoredProcedures: tüm parçalardan birleştir, id'ye göre tekilleştir. ---
-        MergeById(chunks.SelectMany(c => c.Enums), schema.Enums, e => e.Id);
-        MergeById(chunks.SelectMany(c => c.Triggers), schema.Triggers, t => t.Id);
-        MergeById(chunks.SelectMany(c => c.StoredProcedures), schema.StoredProcedures, p => p.Id);
+        MergeById(chunks.SelectMany(c => c.Enums), schema.Enums, e => e.Id, notes, "enum");
+        MergeById(chunks.SelectMany(c => c.Triggers), schema.Triggers, t => t.Id, notes, "trigger");
+        MergeById(chunks.SelectMany(c => c.StoredProcedures), schema.StoredProcedures, p => p.Id, notes, "stored procedure");
 
         // --- 5) SchemaId: boşsa yeni GUID (yapıcıda zaten üretiliyor, dokunma). ---
         if (string.IsNullOrWhiteSpace(schema.SchemaId))
@@ -148,14 +148,34 @@ public static class SchemaChunkMerger
         return null;
     }
 
-    private static void MergeById<T>(IEnumerable<T> items, List<T> target, Func<T, string> idSelector)
+    /// <summary>
+    /// <see cref="SchemaEnum"/>/<see cref="SchemaTrigger"/>/<see cref="SchemaStoredProcedure"/>
+    /// gibi kimlikle tekilleştirilen koleksiyonları birleştirir.
+    ///
+    /// <b>Not üretmek zorunlu:</b> iki chunk bağımsız olarak aynı türetilmiş
+    /// kimlikle (ör. aynı "status" enum'u) bir öğe üretebilir. Bu durumda
+    /// ikincisi sessizce atılırsa, tablo/ilişki tarafında özenle kaçınılan
+    /// "sessiz kayıp" burada da tekrarlanmış olur — dosyanın geri kalanıyla
+    /// tutarlı olmak için her atılan yinelenen kendi notunu üretir.
+    /// </summary>
+    private static void MergeById<T>(
+        IEnumerable<T> items,
+        List<T> target,
+        Func<T, string> idSelector,
+        List<string> notes,
+        string kind)
     {
         var seen = new HashSet<string>();
         foreach (var item in items)
         {
-            if (seen.Add(idSelector(item)))
+            var id = idSelector(item);
+            if (seen.Add(id))
             {
                 target.Add(item);
+            }
+            else
+            {
+                notes.Add($"[merge] Duplicate {kind} '{id}' from another chunk was dropped.");
             }
         }
     }
