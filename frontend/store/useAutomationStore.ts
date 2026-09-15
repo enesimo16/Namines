@@ -22,6 +22,18 @@ const genId = (): string =>
  */
 let currentProjectId: string | null = null;
 
+/**
+ * `addRule` çağrıldığında arka planda başlattığı `createAutomationRule`
+ * isteği, YEREL id'ye göre burada tutuluyor ve istek çözülünce/reddedilince
+ * siliniyor. Amaç: `updateRule`/`deleteRule`/`deleteRulesForTable` aynı
+ * kural için create HENÜZ sunucuya ulaşmadan (id takası olmadan) çağrılırsa,
+ * arka plan PUT/DELETE'inin var olmayan yerel id'ye gidip sessizce 404
+ * almasını önlemek. Promise sunucunun ürettiği GERÇEK id'yi (başarılıysa)
+ * ya da `null`'ı (create başarısızsa — güncellenecek/silinecek bir sunucu
+ * satırı yok) çözer.
+ */
+const pendingCreates = new Map<string, Promise<string | null>>();
+
 export type AutomationActionType = 'Webhook' | 'DbaCheck' | 'SeedData' | 'Toast';
 
 export interface AutomationRule {
@@ -97,17 +109,31 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
     // kullanıcı "Namines Flow'a Ekle" eylemine ancak ondan sonra ulaşabiliyor.
     if (currentProjectId !== null) {
       const created = createAutomationRule(currentProjectId, scopeTableId, triggerType, actionType);
-      void created
-        ?.then?.((serverRule) => {
-          if (!serverRule?.id || serverRule.id === id) return;
+      // `pendingCreates`'e KAYDEDİLEN promise, id takasını yapan promise'in
+      // AYNISI değil — o iş bitene kadar çözülmeyen ayrı bir zincir. Böylece
+      // bu create HENÜZ bitmeden gelen updateRule/deleteRule çağrıları onu
+      // `await`leyip GERÇEK sonucu (sunucu id'si ya da başarısızlıkta null)
+      // öğrenebiliyor.
+      const pending = Promise.resolve(created)
+        .then((serverRule) => {
+          if (!serverRule?.id) return null;
+          if (serverRule.id === id) return id;
           // Yerel id → sunucu id takası. Seçili kural buysa seçim de taşınıyor,
           // yoksa kullanıcı düzenleme sırasında drawer'ın seçimini kaybederdi.
           set(state => ({
             rules: state.rules.map(r => (r.id === id ? { ...r, id: serverRule.id } : r)),
             selectedRuleId: state.selectedRuleId === id ? serverRule.id : state.selectedRuleId,
           }));
+          return serverRule.id;
         })
-        ?.catch?.(() => {});
+        .catch(() => null)
+        .finally(() => {
+          // Yalnızca HÂLÂ bu create'e ait olan girdiyi temizle — teorik
+          // olarak aynı id ikinci bir addRule tarafından yeniden kullanılmış
+          // olabilir (id çakışması pratikte olmaz ama savunmacı davranıyoruz).
+          if (pendingCreates.get(id) === pending) pendingCreates.delete(id);
+        });
+      pendingCreates.set(id, pending);
     }
     return id;
   },
@@ -121,6 +147,28 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
     // Sunucu kısmi patch kabul etmediği için birleştirilmiş NİHAİ kayıt
     // okunup gönderiliyor. Kural bulunamazsa (ör. eşzamanlı silme) çağrı
     // tamamen atlanıyor.
+    //
+    // C3 RACE FİKSİ: bu `id` için hâlâ devam eden bir create varsa (kullanıcı
+    // kuralı oluşturduktan HEMEN sonra, sunucu yanıtı gelmeden çekmeceyi
+    // düzenlediyse), arka plan PUT'u create çözülene kadar ERTELENİYOR —
+    // aksi hâlde sunucunun hiç görmediği yerel id'ye gidip sessizce 404 alır
+    // ve düzenleme kaybolurdu. Create başarısız olursa (sunucuda satır YOK)
+    // PUT tamamen atlanıyor.
+    const pendingCreate = pendingCreates.get(id);
+    if (pendingCreate) {
+      void pendingCreate.then((resolvedId) => {
+        if (!resolvedId) return;
+        const rule = get().rules.find(r => r.id === resolvedId);
+        if (!rule) return;
+        void updateAutomationRule(resolvedId, {
+          triggerType: rule.triggerType,
+          actionType: rule.actionType,
+          actionConfig: rule.actionConfig,
+          enabled: rule.enabled,
+        })?.catch?.(() => {});
+      });
+      return;
+    }
     const merged = get().rules.find(r => r.id === id);
     if (!merged) return;
     void updateAutomationRule(id, {
@@ -136,13 +184,33 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
       rules: state.rules.filter(r => r.id !== id),
       selectedRuleId: state.selectedRuleId === id ? null : state.selectedRuleId,
     }));
+    // Aynı yarış koşulu updateRule'daki gibi: create hâlâ beklemedeyse
+    // önce onu bekleyip sunucu id'siyle sil, başarısızsa hiç çağrı yapma.
+    const pendingCreate = pendingCreates.get(id);
+    if (pendingCreate) {
+      void pendingCreate.then((resolvedId) => {
+        if (!resolvedId) return;
+        void deleteAutomationRule(resolvedId)?.catch?.(() => {});
+      });
+      return;
+    }
     void deleteAutomationRule(id)?.catch?.(() => {});
   },
 
   deleteRulesForTable: (tableId) => {
     const toDelete = get().rules.filter(r => r.scopeTableId === tableId);
     set(state => ({ rules: state.rules.filter(r => r.scopeTableId !== tableId) }));
-    toDelete.forEach(r => void deleteAutomationRule(r.id)?.catch?.(() => {}));
+    toDelete.forEach(r => {
+      const pendingCreate = pendingCreates.get(r.id);
+      if (pendingCreate) {
+        void pendingCreate.then((resolvedId) => {
+          if (!resolvedId) return;
+          void deleteAutomationRule(resolvedId)?.catch?.(() => {});
+        });
+        return;
+      }
+      void deleteAutomationRule(r.id)?.catch?.(() => {});
+    });
   },
 
   rulesForTable: (tableId) => get().rules.filter(r => r.scopeTableId === tableId),

@@ -232,6 +232,124 @@ describe('useAutomationStore kural yaşam döngüsü (yerel id → sunucu id)', 
     useAutomationStore.getState().updateRule(localId, { enabled: false });
 
     expect(useAutomationStore.getState().rules[0].enabled).toBe(false);
-    expect(updateAutomationRule).toHaveBeenCalledWith(localId, expect.objectContaining({ enabled: false }));
+  });
+});
+
+/**
+ * FIX ROUND 2 (updateRule/addRule yarış koşulu): `addRule`'un create isteği
+ * SUNUCUDAN yanıt almadan (yerel id → sunucu id takası olmadan) hemen
+ * ardından `updateRule`/`deleteRule` aynı (yerel) id ile çağrılırsa, arka
+ * plandaki PUT/DELETE artık create çözülene kadar ERTELENİYOR ve sunucunun
+ * hiç görmediği yerel id yerine GERÇEK sunucu id'siyle gidiyor. Create
+ * başarısız olursa (sunucuda satır hiç oluşmadı) PUT/DELETE tamamen
+ * atlanıyor — mevcut dosyanın sessiz-başarısızlık deseniyle tutarlı.
+ *
+ * Senaryo: canvas bağlam menüsünden kural oluşturup HEMEN ardından çekmeceyi
+ * açıp trigger/action/webhook URL'i düzenlemek (create'in POST'u henüz ağdan
+ * dönmeden).
+ */
+describe('useAutomationStore FIX ROUND 2: updateRule/deleteRule create ile yarışıyor', () => {
+  const SERVER_ID = 'server-side-uuid-race';
+
+  const serverRule = () => ({
+    id: SERVER_ID, scopeTableId: 't-orders',
+    triggerType: 'TableDeleted' as const, actionType: 'Toast' as const,
+    actionConfig: {}, enabled: true,
+  });
+
+  /** Manuel kontrol edilebilir (deferred) promise: create'i "sunucudan yanıt beklerken" durumunda dondurmak için. */
+  const deferred = <T,>() => {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+  };
+
+  beforeEach(async () => {
+    useAutomationStore.setState({ rules: [], selectedRuleId: null });
+    vi.mocked(createAutomationRule).mockReset();
+    vi.mocked(updateAutomationRule).mockReset();
+    vi.mocked(deleteAutomationRule).mockReset();
+    vi.mocked(fetchAutomationRules).mockReset();
+
+    vi.mocked(fetchAutomationRules).mockResolvedValue([]);
+    await useAutomationStore.getState().loadRules('proj-42');
+  });
+
+  it('create çözülmeden ÖNCE updateRule çağrılırsa: PUT yerel id ile HEMEN atılmıyor, create çözülünce SUNUCU id ile atılıyor', async () => {
+    const { promise, resolve } = deferred<ReturnType<typeof serverRule>>();
+    vi.mocked(createAutomationRule).mockReturnValue(promise);
+
+    const localId = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+
+    // Create HENÜZ sunucudan dönmedi — çekmece hemen açılıp düzenleniyor.
+    useAutomationStore.getState().updateRule(localId, { actionType: 'Webhook' });
+    useAutomationStore.getState().updateRule(localId, { actionConfig: { url: 'https://example.test/hook' } });
+
+    // Yerel state senkron güncellendi (drawer anında yansımalı).
+    expect(useAutomationStore.getState().rules[0]).toMatchObject({
+      actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' },
+    });
+
+    // Ama create henüz çözülmedi: PUT hiç atılmamış olmalı — ne yerel id ile
+    // (var olmayan bir sunucu satırına 404), ne başka bir id ile.
+    expect(updateAutomationRule).not.toHaveBeenCalled();
+
+    // Create şimdi sunucu id'siyle çözülüyor.
+    resolve(serverRule());
+
+    await vi.waitFor(() => {
+      expect(updateAutomationRule).toHaveBeenCalled();
+    });
+
+    // PUT SUNUCU id'siyle, en son birleştirilmiş (nihai) alanlarla atıldı.
+    expect(updateAutomationRule).toHaveBeenCalledWith(SERVER_ID, {
+      triggerType: 'TableDeleted',
+      actionType: 'Webhook',
+      actionConfig: { url: 'https://example.test/hook' },
+      enabled: true,
+    });
+    expect(updateAutomationRule).not.toHaveBeenCalledWith(localId, expect.anything());
+  });
+
+  it('create BAŞARISIZ olursa: create çözülmeden önce çağrılan updateRule hiçbir zaman updateAutomationRule tetiklemiyor', async () => {
+    const { promise, reject } = deferred<ReturnType<typeof serverRule>>();
+    vi.mocked(createAutomationRule).mockReturnValue(promise);
+
+    const localId = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().updateRule(localId, { actionType: 'Webhook' });
+
+    expect(updateAutomationRule).not.toHaveBeenCalled();
+
+    // Create sunucuda başarısız oluyor (ör. ağ hatası / 500).
+    reject(new Error('create failed'));
+
+    // Reddin işlenmesi için event loop'a bir tur ver.
+    await new Promise(r => setTimeout(r, 0));
+    await new Promise(r => setTimeout(r, 0));
+
+    // Sunucuda hiç satır yok — PUT ASLA çağrılmamalı.
+    expect(updateAutomationRule).not.toHaveBeenCalled();
+  });
+
+  it('create çözülmeden ÖNCE deleteRule çağrılırsa: DELETE create çözülünce SUNUCU id ile atılıyor', async () => {
+    const { promise, resolve } = deferred<ReturnType<typeof serverRule>>();
+    vi.mocked(createAutomationRule).mockReturnValue(promise);
+
+    const localId = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().deleteRule(localId);
+
+    // Yerel state senkron güncellendi: kural hemen kayboldu.
+    expect(useAutomationStore.getState().rules).toHaveLength(0);
+    expect(deleteAutomationRule).not.toHaveBeenCalled();
+
+    resolve(serverRule());
+
+    await vi.waitFor(() => {
+      expect(deleteAutomationRule).toHaveBeenCalled();
+    });
+
+    expect(deleteAutomationRule).toHaveBeenCalledWith(SERVER_ID);
+    expect(deleteAutomationRule).not.toHaveBeenCalledWith(localId);
   });
 });
