@@ -141,6 +141,21 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IVaultJobQueue, VaultJobQueue>();
         services.AddHostedService<VaultBackupWorker>();
 
+        // Namines Flow — otomasyon tetikleme kuyruğu (Bölüm 3). Vault kuyruğuyla
+        // aynı gerekçe (istek kapsamlı DbContext, kendi DI kapsamı); TEK FARK:
+        // kuyruk dolunca istek 503'e DÜŞMÜYOR, sessizce loglanıp atlanıyor —
+        // otomasyon tetikleme SyncProjects'in yan etkisi, asıl işi değil.
+        services.AddSingleton<IAutomationJobQueue, AutomationJobQueue>();
+        services.AddScoped<IAutomationExecutor, AutomationExecutor>();
+        services.AddHostedService<AutomationExecutorWorker>();
+
+        // Webhook aksiyonu için adlandırılmış istemci — kısa timeout: kullanıcının
+        // üçüncü taraf ucu yavaşsa/düşükse bu, işçiyi TIKAMAMALI.
+        services.AddHttpClient("AutomationWebhook", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
+
         // Namines Ground -- yonetilen veritabani.
         services.AddNaminesGround();
         services.AddScoped<GroundService>();

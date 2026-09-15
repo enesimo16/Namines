@@ -2,10 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Namines.Core.Enums;
+using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+using Namines.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
@@ -35,15 +39,24 @@ namespace Namines.API.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly AuthDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly IMigrationService _migrationService;
+        private readonly IAutomationJobQueue _automationQueue;
+        private readonly ILogger<AuthController> _logger;
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
             AuthDbContext context,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IMigrationService migrationService,
+            IAutomationJobQueue automationQueue,
+            ILogger<AuthController> logger)
         {
             _userManager = userManager;
             _context = context;
             _configuration = configuration;
+            _migrationService = migrationService;
+            _automationQueue = automationQueue;
+            _logger = logger;
         }
 
         [HttpPost("register")]
@@ -311,6 +324,7 @@ namespace Namines.API.Controllers
                 userId, user.UserName ?? "Personal");
 
             int savedCount = 0;
+            var pendingDiffs = new List<(string ProjectId, string DbType, string? OldJson, string NewJson)>();
             foreach (var projDto in projects)
             {
                 // Check if this project ID belongs to the current user
@@ -349,6 +363,13 @@ namespace Namines.API.Controllers
                         });
                     }
 
+                    // Diff, kayıt GÜNCELLENMEDEN ÖNCEKİ haliyle hesaplanmalı — bu yüzden eski
+                    // JSON, üzerine yazılmadan burada yakalanıyor.
+                    string? oldSchemaJsonForDiff = existing.SchemaJson;
+                    string newSchemaJsonForDiff = projDto.SchemaJson;
+                    string dbTypeForDiff = existing.DbType;
+                    string projectIdForDiff = existing.Id;
+
                     // Update existing record owned by this user
                     existing.Name = projDto.Name;
                     existing.DbType = projDto.DbType;
@@ -360,6 +381,8 @@ namespace Namines.API.Controllers
                     // oluşturduğu projeler ekibe hiç görünmezdi.
                     existing.OrganizationId ??= personalOrg.Id;
                     _context.CloudProjects.Update(existing);
+
+                    pendingDiffs.Add((projectIdForDiff, dbTypeForDiff, oldSchemaJsonForDiff, newSchemaJsonForDiff));
                 }
                 else
                 {
@@ -385,6 +408,36 @@ namespace Namines.API.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            // Kaydetme başarılı OLDUKTAN SONRA — sunucu, istemcinin "şunu değiştirdim"
+            // iddiasına değil, KENDİ hesapladığı diff'e güveniyor (bkz. spec "Kritik
+            // bulgu"). Kuyruk dolarsa iş sessizce loglanıp atlanır — bu, senkron
+            // isteğin (proje kaydetme) başarısını ASLA etkilemez.
+            foreach (var (pid, dbType, oldJson, newJson) in pendingDiffs)
+            {
+                try
+                {
+                    var oldSchema = string.IsNullOrWhiteSpace(oldJson)
+                        ? new DatabaseSchema()
+                        : JsonSerializer.Deserialize<DatabaseSchema>(oldJson, Namines.Infrastructure.Services.SchemaJsonOptions.Default) ?? new DatabaseSchema();
+                    var newSchema = JsonSerializer.Deserialize<DatabaseSchema>(newJson, Namines.Infrastructure.Services.SchemaJsonOptions.Default) ?? new DatabaseSchema();
+
+                    var engine = Enum.TryParse<DatabaseType>(dbType, ignoreCase: true, out var parsedEngine)
+                        ? parsedEngine : DatabaseType.PostgreSQL;
+                    var diff = await _migrationService.CalculateDiffAsync(oldSchema, newSchema, engine);
+
+                    if (!_automationQueue.TryEnqueue(new AutomationJob(pid, diff, oldSchema, newSchema)))
+                        _logger.LogWarning("Namines Flow: {ProjectId} icin otomasyon kuyrugu dolu, tetikleme atlandi.", pid);
+                }
+                catch (Exception ex)
+                {
+                    // Diff hesaplama patlarsa (örn. bozuk JSON) senkron isteği ASLA
+                    // düşürmemeli — kullanıcı projesini kaydedebilmeli, otomasyon
+                    // tetiklenmemesi ikincil bir kayıp.
+                    _logger.LogError(ex, "Namines Flow: {ProjectId} icin diff hesaplanamadi.", pid);
+                }
+            }
+
             return Ok(new { Message = "Sync successful.", SavedCount = savedCount });
         }
 
