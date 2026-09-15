@@ -402,11 +402,39 @@ public class SchemaController : ControllerBase
                 return StatusCode(429, new { message = QuotaMessage(decision) });
         }
 
+        // Plan turu kapsamı (kaç tablo) söyler söylemez çağrılan ikinci-aşama
+        // rezervasyon. Peşin `reserved` yalnızca sabit tur-başı tahmine göre
+        // hesaplandı; 50-60 tablolu parçalı bir üretim bunun katlarını
+        // harcayabiliyor. Kapsam bilinir bilinmez GERÇEKÇİ bir ek rezervasyon
+        // yapılıyor ve `reserved` güncelleniyor ki SettleAsync doğru tutarı
+        // uzlaştırsın — aksi hâlde iade hesabı yanlış olur.
+        async Task OnScopePlannedAsync(int tableCount, CancellationToken ct)
+        {
+            if (_quota is null || string.IsNullOrEmpty(userId)) return;
+
+            var scopeTokens = NaiCatalog.CostOf(
+                effectiveModel,
+                AgentQuotaReservation.TokensForScope(tableCount, budgetRounds - SchemaAgentPipeline.FixedRounds));
+
+            var extra = scopeTokens - reserved;
+            if (extra <= 0) return;
+
+            var decision = await _quota.TryReserveAsync(userId, extra, ct);
+            if (decision != AiQuotaDecision.Allowed)
+                throw new InvalidOperationException(
+                    $"This request needs about {scopeTokens:N0} tokens for {tableCount} tables, " +
+                    "which is more than your remaining daily budget. Try a narrower request.");
+
+            reserved = scopeTokens;
+        }
+
         if (!wantsStream)
         {
             try
             {
-                var result = await _agent.RunAsync(enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted);
+                var result = await _agent.RunAsync(
+                    enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted,
+                    onScopePlanned: OnScopePlannedAsync);
                 await SettleAsync(userId, reserved, result.Rounds, effectiveModel);
 
                 return Ok(BuildResultPayload(archetype, result));
@@ -428,6 +456,11 @@ public class SchemaController : ControllerBase
             {
                 await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
                 return StatusCode(503, new { code = "AI_NOT_CONFIGURED", message = ex.Message });
+            }
+            catch (AiOutputTruncatedException ex)
+            {
+                await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
+                return StatusCode(422, new { code = "OUTPUT_TRUNCATED", message = ex.Message });
             }
         }
 
@@ -452,7 +485,8 @@ public class SchemaController : ControllerBase
         try
         {
             var result = await _agent.RunAsync(
-                enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted, progress);
+                enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted, progress,
+                onScopePlanned: OnScopePlannedAsync);
 
             await SettleAsync(userId, reserved, result.Rounds, effectiveModel);
 
@@ -472,6 +506,15 @@ public class SchemaController : ControllerBase
         {
             await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
             await WriteEventAsync("error", new { code = "AI_NOT_CONFIGURED", message = ex.Message });
+        }
+        // AiOutputTruncatedException, Exception'dan türer — bu catch Task 4'ün
+        // eklediği genel `catch (Exception)`'dan ÖNCE gelmeli, aksi hâlde o
+        // catch-all daha spesifik olan buradan önce eşleşir ve OUTPUT_TRUNCATED
+        // kodu hiçbir zaman üretilmez.
+        catch (AiOutputTruncatedException ex)
+        {
+            await SettleAsync(userId, reserved, rounds: 0, effectiveModel);
+            await WriteEventAsync("error", new { code = "OUTPUT_TRUNCATED", message = ex.Message });
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -551,6 +594,7 @@ public class SchemaController : ControllerBase
                 result.PortableEverywhere,
                 findings = result.RemainingFindings,
                 portability = result.PortabilityNotes,
+                mergeNotes = result.MergeNotes,
             },
         };
 
