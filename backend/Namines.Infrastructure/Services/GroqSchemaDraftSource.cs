@@ -93,13 +93,20 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
     ///
     /// Bunun yerine <see cref="_chat"/> (ham <see cref="IAgentChatClient"/>) ÜZERİNDEN
     /// tek bir tur çalıştırılıyor — <see cref="PlanAsync"/> ve
-    /// <see cref="RepairWithToolsAsync"/>'in zaten kullandığı desen. Bilinçli ödün:
-    /// bu yol <c>GenerateSchemaAsync</c>'in yeniden deneme/sıcaklık artırma
-    /// döngüsünü ve kesilme (truncation) istisnasını miras almıyor — ama parça
-    /// istemleri tanım gereği tam şemadan çok daha küçük, yani kesilme riski
-    /// zaten düşük. Kullanıcının tur başı token tavanı (<c>MaxTokensFor</c>)
-    /// yine de uygulanıyor, çünkü onu <see cref="GroqAIService.CompleteAsync"/>
-    /// kendi içinde çağırıyor.
+    /// <see cref="RepairWithToolsAsync"/>'in zaten kullandığı desen.
+    ///
+    /// <b>Kesilme (truncation) tespiti kaybolmuyor:</b> <see cref="GroqAIService.CompleteAsync"/>
+    /// artık <c>GroqResponseReader.ReadContentOrThrow</c> üzerinden okuyor —
+    /// <c>GenerateSchemaAsync</c>/<c>ReviseSchemaAsync</c>'in kullandığı AYNI
+    /// kontrol. Yani bir parça yanıtı sağlayıcının token tavanına çarpıp
+    /// kesilirse (<c>finish_reason == "length"</c>), bu da <c>AiOutputTruncatedException</c>
+    /// olarak yüzeye çıkıyor — belirsiz bir JSON ayrıştırma hatası olarak değil.
+    /// Kullanıcının tur başı token tavanı (<c>MaxTokensFor</c>) de aynı şekilde
+    /// uygulanıyor. Bilinçli ödün olarak kalan tek şey: bu yol
+    /// <c>GenerateSchemaAsync</c>'in sıcaklık artırarak yeniden deneme döngüsünü
+    /// miras almıyor — kesilme artık ayrı ve doğru bir istisna olduğu için o
+    /// döngünün asıl amacı (kesilmeyi "yanlış sıcaklık" sanıp tekrar denemek)
+    /// zaten burada geçerli değil.
     /// </summary>
     public async Task<DatabaseSchema> DraftChunkAsync(
         string prompt,

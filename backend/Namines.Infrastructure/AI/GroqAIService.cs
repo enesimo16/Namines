@@ -55,13 +55,25 @@ internal static class GroqResponseReader
     {
         var choice = responseObject.GetProperty("choices")[0];
 
+        // "length" = sağlayıcı token tavanına çarpıp kesti — gerçek sebep bu,
+        // sıcaklığı artırıp yeniden denemek değil (bkz. AiOutputTruncatedException).
+        // "tool_calls" da dahil OLMAK ÜZERE başka her finish_reason normal
+        // tamamlanmadır: bir araç çağrısı turunda model "content" yazmadan
+        // durur, bu bir kesilme değil.
         if (choice.TryGetProperty("finish_reason", out var finishReasonProp) &&
             finishReasonProp.GetString() == "length")
         {
             throw new AiOutputTruncatedException(maxTokens);
         }
 
-        return choice.GetProperty("message").GetProperty("content").GetString() ?? string.Empty;
+        // "content" bir araç çağrısı turunda hiç yazılmamış ya da JSON null
+        // olabilir — TryGetProperty + ValueKind kontrolü burada bilerek GetProperty
+        // yerine kullanılıyor, aksi hâlde araç döngüsü bu turlarda istisna alırdı.
+        var message = choice.GetProperty("message");
+        return message.TryGetProperty("content", out var contentEl) &&
+               contentEl.ValueKind == JsonValueKind.String
+            ? contentEl.GetString() ?? string.Empty
+            : string.Empty;
     }
 }
 
@@ -436,12 +448,19 @@ public class GroqAIService : IAIService, IAgentChatClient
     {
         var model = await ResolveModelNameAsync(null, "SchemaAgent");
 
+        // Ayni tavan hem payload'a hem de kesilme kontrolune gidiyor — Task 4'un
+        // GenerateSchemaAsync/ReviseSchemaAsync icin yaptigi gibi bir yerel
+        // degiskende sabitleniyor, aksi halde TierAsync() ikinci kez cagrilirsa
+        // (esZamanli bir istek plani degistirmis olabilir) rapor edilen tavan
+        // gercekte gonderilenle uyusmayabilirdi.
+        var maxTokens = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
+
         var payload = new Dictionary<string, object>
         {
             ["model"] = model,
             ["messages"] = messages.Select(ToWireMessage).ToArray(),
             ["temperature"] = temperature,
-            ["max_tokens"] = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync()),
+            ["max_tokens"] = maxTokens,
         };
 
         // Araç yoksa 'tools' HİÇ gönderilmiyor: boş bir dizi bazı uyumluluk
@@ -475,12 +494,13 @@ public class GroqAIService : IAIService, IAgentChatClient
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         using var doc = JsonDocument.Parse(body);
-        var message = doc.RootElement.GetProperty("choices")[0].GetProperty("message");
 
-        string? content = message.TryGetProperty("content", out var contentEl) &&
-                          contentEl.ValueKind == JsonValueKind.String
-            ? contentEl.GetString()
-            : null;
+        // "length" burada da kontrol ediliyor — PlanAsync ve RepairWithToolsAsync
+        // bu metodu paylaşıyor, yani plan/onarım turu tavana çarparsa artık
+        // "beklenmeyen JSON" gibi görünmüyor, gerçek sebebiyle çıkıyor.
+        var content = GroqResponseReader.ReadContentOrThrow(doc.RootElement, maxTokens);
+
+        var message = doc.RootElement.GetProperty("choices")[0].GetProperty("message");
 
         var calls = new List<AgentToolCall>();
         if (message.TryGetProperty("tool_calls", out var toolCalls) &&
@@ -496,7 +516,11 @@ public class GroqAIService : IAIService, IAgentChatClient
             }
         }
 
-        return new AgentChatResponse(content, calls);
+        // Eski davranışla eşitlik: "content" yoksa/JSON null'sa ReadContentOrThrow
+        // boş dize döndürür — burada null'a geri çevriliyor ki PlanAsync'in
+        // IsNullOrWhiteSpace kontrolü ve tel biçimindeki "content" alanı önceki
+        // gibi davransın.
+        return new AgentChatResponse(string.IsNullOrEmpty(content) ? null : content, calls);
     }
 
     /// <summary>Tel biçimi: rol başına farklı alanlar taşınır.</summary>
