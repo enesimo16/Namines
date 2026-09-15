@@ -350,6 +350,15 @@ export default function CanvasPage() {
     useDbaStore.getState().setDbaResults({ issues: [], score: 100, assessment: 'Pending schema health check...' });
   }, [activeProjectId]);
 
+  // Namines Flow kurallarını sunucudan yükle — önceki bir oturumda
+  // oluşturulan kurallar canvas her açıldığında (ve proje değiştiğinde)
+  // geri gelsin. `loadRules` çağrılmazsa store boş kalır ve bu kurallar
+  // hiç görünmez (bkz. Task 7, useAutomationStore).
+  useEffect(() => {
+    if (!activeProjectId) return;
+    useAutomationStore.getState().loadRules(activeProjectId);
+  }, [activeProjectId]);
+
   const nodeTypes = useMemo(() => ({ tableNode: TableNode, automationNode: AutomationNode }), []);
   const edgeTypes = useMemo(() => ({ relationEdge: RelationEdge }), []);
 
