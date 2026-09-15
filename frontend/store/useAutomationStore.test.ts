@@ -74,10 +74,16 @@ describe('useAutomationStore', () => {
 vi.mock('../lib/automationApi', () => ({
   fetchAutomationRules: vi.fn(),
   createAutomationRule: vi.fn(),
+  updateAutomationRule: vi.fn(),
   deleteAutomationRule: vi.fn(),
 }));
 
-import { fetchAutomationRules, createAutomationRule } from '../lib/automationApi';
+import {
+  fetchAutomationRules,
+  createAutomationRule,
+  updateAutomationRule,
+  deleteAutomationRule,
+} from '../lib/automationApi';
 
 // NOT: bu describe, dosyadaki `loadRules` çağıran testlerden ÖNCE
 // tanımlanmalı/çalışmalı — `currentProjectId` `useAutomationStore.ts`
@@ -134,5 +140,98 @@ describe('useAutomationStore.loadRules', () => {
     await useAutomationStore.getState().loadRules('proj-1');
 
     expect(useAutomationStore.getState().rules).toHaveLength(1);
+  });
+});
+
+/**
+ * ZİNCİR TESTİ (C3 + C2 + I3): yerel id → sunucu id takası ve sonrasındaki
+ * düzenleme/silme çağrılarının SUNUCU id'sini kullanması.
+ *
+ * Eskiden `addRule` sunucunun yanıtını yok sayıyordu; istemci `genId()`
+ * uuid'siyle kalıyor, sonraki DELETE (ve C2 ile gelen PUT) var olmayan bir
+ * id'ye gidip 404 alıyor, hata `.catch(() => {})` içinde yutuluyordu — kural
+ * bir sonraki `loadRules`'ta geri geliyordu.
+ */
+describe('useAutomationStore kural yaşam döngüsü (yerel id → sunucu id)', () => {
+  const SERVER_ID = 'server-side-uuid-9999';
+
+  const serverRule = () => ({
+    id: SERVER_ID, scopeTableId: 't-orders',
+    triggerType: 'TableDeleted' as const, actionType: 'Toast' as const,
+    actionConfig: {}, enabled: true,
+  });
+
+  beforeEach(async () => {
+    useAutomationStore.setState({ rules: [], selectedRuleId: null });
+    vi.mocked(createAutomationRule).mockReset();
+    vi.mocked(updateAutomationRule).mockReset();
+    vi.mocked(deleteAutomationRule).mockReset();
+    vi.mocked(fetchAutomationRules).mockReset();
+
+    vi.mocked(fetchAutomationRules).mockResolvedValue([]);
+    await useAutomationStore.getState().loadRules('proj-42');
+  });
+
+  it('createAutomationRule çözüldüğünde yerel id sunucu id ile değiştiriliyor', async () => {
+    vi.mocked(createAutomationRule).mockResolvedValue(serverRule());
+
+    const localId = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(localId);
+
+    // Senkron dönüş DEĞİŞMEDİ: hâlâ yerel id (dışa açık imza sabit).
+    expect(localId).not.toBe(SERVER_ID);
+    expect(useAutomationStore.getState().rules[0].id).toBe(localId);
+
+    await vi.waitFor(() => {
+      expect(useAutomationStore.getState().rules[0].id).toBe(SERVER_ID);
+    });
+
+    // Seçim de taşınmalı, yoksa çekmece düzenleme ortasında seçimi kaybederdi.
+    expect(useAutomationStore.getState().selectedRuleId).toBe(SERVER_ID);
+  });
+
+  it('takastan sonra updateRule ve deleteRule SUNUCU id ile çağrılıyor', async () => {
+    vi.mocked(createAutomationRule).mockResolvedValue(serverRule());
+
+    const localId = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+
+    await vi.waitFor(() => {
+      expect(useAutomationStore.getState().rules[0].id).toBe(SERVER_ID);
+    });
+
+    // Kullanıcı çekmecede aksiyonu Webhook'a çevirip URL giriyor.
+    useAutomationStore.getState().updateRule(SERVER_ID, { actionType: 'Webhook' });
+    useAutomationStore.getState().updateRule(SERVER_ID, {
+      actionConfig: { url: 'https://example.test/hook' },
+    });
+
+    // C2: updateRule artık SUNUCUYA da yazıyor — hem de birleştirilmiş nihai
+    // hâliyle (ikinci çağrı ilk çağrının actionType'ını korumalı).
+    expect(updateAutomationRule).toHaveBeenLastCalledWith(SERVER_ID, {
+      triggerType: 'TableDeleted',
+      actionType: 'Webhook',
+      actionConfig: { url: 'https://example.test/hook' },
+      enabled: true,
+    });
+    expect(updateAutomationRule).not.toHaveBeenCalledWith(localId, expect.anything());
+
+    useAutomationStore.getState().deleteRule(SERVER_ID);
+
+    expect(deleteAutomationRule).toHaveBeenCalledWith(SERVER_ID);
+    expect(deleteAutomationRule).not.toHaveBeenCalledWith(localId);
+    expect(useAutomationStore.getState().rules).toHaveLength(0);
+  });
+
+  it('updateRule yerel state i SENKRON güncelliyor (API çağrısını beklemeden)', () => {
+    vi.mocked(createAutomationRule).mockResolvedValue(serverRule());
+
+    const localId = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+
+    // Takas HENÜZ olmadan (promise çözülmeden) düzenleme: yerel state anında
+    // değişmeli, hiçbir await gerekmemeli.
+    useAutomationStore.getState().updateRule(localId, { enabled: false });
+
+    expect(useAutomationStore.getState().rules[0].enabled).toBe(false);
+    expect(updateAutomationRule).toHaveBeenCalledWith(localId, expect.objectContaining({ enabled: false }));
   });
 });

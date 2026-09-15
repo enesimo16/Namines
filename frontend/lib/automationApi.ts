@@ -62,6 +62,31 @@ export async function createAutomationRule(
   return fromDto(response.data);
 }
 
+/**
+ * Kuralın düzenlenebilir alanlarını sunucuya yazar (PUT /automation/rules/{id}).
+ *
+ * Sunucu TÜM alanları bekliyor (kısmi patch değil), o yüzden çağıran taraf
+ * birleştirilmiş nihai hâli geçirmeli — `useAutomationStore.updateRule` bunu
+ * yerel state'i güncelledikten SONRA oradan okuyarak yapıyor.
+ */
+export async function updateAutomationRule(
+  id: string,
+  fields: {
+    triggerType: NaminesFlowEvent['type'];
+    actionType: AutomationActionType;
+    actionConfig: { url?: string };
+    enabled: boolean;
+  },
+): Promise<AutomationRule> {
+  const response = await api.put<AutomationRuleDto>(`/automation/rules/${id}`, {
+    triggerType: fields.triggerType,
+    actionType: fields.actionType,
+    actionConfigJson: JSON.stringify(fields.actionConfig ?? {}),
+    enabled: fields.enabled,
+  });
+  return fromDto(response.data);
+}
+
 export async function deleteAutomationRule(id: string): Promise<void> {
   await api.delete(`/automation/rules/${id}`);
 }

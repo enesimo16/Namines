@@ -413,8 +413,25 @@ namespace Namines.API.Controllers
             // iddiasına değil, KENDİ hesapladığı diff'e güveniyor (bkz. spec "Kritik
             // bulgu"). Kuyruk dolarsa iş sessizce loglanıp atlanır — bu, senkron
             // isteğin (proje kaydetme) başarısını ASLA etkilemez.
+            // ÖNCE: bu partide hangi projelerin AÇIK bir otomasyon kuralı var?
+            // Kullanıcıların büyük çoğunluğunun hiç kuralı yok; kural yoksa
+            // deserialize + diff + enqueue işinin TAMAMI boşa gidiyordu (her
+            // sync'te, her proje için). Tek sorgu + HashSet: Task 1'in
+            // (ProjectId, Enabled) indeksi bunu zaten karşılıyor.
+            var diffProjectIds = pendingDiffs.Select(d => d.ProjectId).Distinct().ToList();
+            var projectIdsWithRules = diffProjectIds.Count == 0
+                ? new HashSet<string>()
+                : (await _context.AutomationRules.AsNoTracking()
+                        .Where(r => diffProjectIds.Contains(r.ProjectId) && r.Enabled)
+                        .Select(r => r.ProjectId)
+                        .Distinct()
+                        .ToListAsync())
+                    .ToHashSet();
+
             foreach (var (pid, dbType, oldJson, newJson) in pendingDiffs)
             {
+                if (!projectIdsWithRules.Contains(pid)) continue;
+
                 try
                 {
                     var oldSchema = string.IsNullOrWhiteSpace(oldJson)

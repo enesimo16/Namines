@@ -11,8 +11,12 @@ const TRIGGER_OPTIONS: { value: NaminesFlowEvent['type']; label: string }[] = [
   { value: 'ColumnAdded', label: 'Column added' },
   { value: 'ColumnDeleted', label: 'Column deleted' },
   { value: 'ColumnChanged', label: 'Column changed' },
-  { value: 'RelationAdded', label: 'Relation added' },
-  { value: 'RelationDeleted', label: 'Relation deleted' },
+  // RelationAdded/RelationDeleted BİLEREK yok: AutomationRuleMatcher bu iki
+  // tetikleyiciyi yalnızca PROJE GENELİ kurallar (ScopeTableId == null) için
+  // eşleştiriyor, ama kural oluşturmanın tek yolu olan CanvasContextMenu her
+  // zaman bir tablo id'si veriyor. Dolayısıyla bu seçenekler kullanıcının
+  // oluşturabildiği hiçbir kuralda ASLA tetiklenemezdi. Proje geneli kural
+  // oluşturma eklendiğinde geri konulmalı.
 ];
 
 const ACTION_OPTIONS: { value: AutomationActionType; label: string }[] = [

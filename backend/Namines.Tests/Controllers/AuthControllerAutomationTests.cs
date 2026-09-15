@@ -93,6 +93,122 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
         public int PendingCount => 0;
     }
 
+    /// <summary>Kuyruğa atılan işleri kaydeden sahte kuyruk.</summary>
+    private sealed class RecordingQueue : IAutomationJobQueue
+    {
+        public List<AutomationJob> Jobs { get; } = new();
+        public bool TryEnqueue(AutomationJob job) { Jobs.Add(job); return true; }
+        public ValueTask<AutomationJob> DequeueAsync(CancellationToken ct) => throw new NotSupportedException();
+        public int PendingCount => Jobs.Count;
+    }
+
+    private async Task SeedUserAsync(string userId)
+    {
+        await using var seedDb = NewContext();
+        using var seedUserManager = NewUserManager(seedDb);
+        var user = new ApplicationUser { Id = userId, UserName = userId, Email = $"{userId}@example.com" };
+        Assert.True((await seedUserManager.CreateAsync(user)).Succeeded);
+    }
+
+    private static List<SyncProjectDto> SyncPayload(string schemaJson) => new()
+    {
+        new()
+        {
+            Id = "proj-1",
+            Name = "Proje",
+            DbType = "PostgreSQL",
+            SchemaJson = schemaJson,
+            NodePositionsJson = "{}",
+        },
+    };
+
+    private const string EmptySchema = "{\"tables\":[]}";
+    private const string OneTableSchema = "{\"tables\":[{\"id\":\"t1\",\"name\":\"orders\",\"columns\":[]}]}";
+
+    [Fact]
+    public async Task Otomasyon_kurali_olmayan_proje_icin_diff_hic_hesaplanmiyor()
+    {
+        // I1: diff+enqueue döngüsü ESKİDEN her projede koşulsuz çalışıyordu;
+        // kullanıcıların çoğunun hiç kuralı yok.
+        const string userId = "user-norules";
+        await SeedUserAsync(userId);
+
+        await using var db = NewContext();
+        using var userManager = NewUserManager(db);
+        var queue = new RecordingQueue();
+        var controller = NewController(db, userManager, queue, userId);
+
+        Assert.IsType<OkObjectResult>(await controller.SyncProjects(SyncPayload(EmptySchema)));
+        Assert.IsType<OkObjectResult>(await controller.SyncProjects(SyncPayload(OneTableSchema)));
+
+        Assert.Empty(queue.Jobs);
+    }
+
+    [Fact]
+    public async Task Acik_kurali_olan_proje_icin_diff_hala_kuyruga_atiliyor()
+    {
+        const string userId = "user-withrules";
+        await SeedUserAsync(userId);
+
+        await using var db = NewContext();
+        using var userManager = NewUserManager(db);
+        var queue = new RecordingQueue();
+        var controller = NewController(db, userManager, queue, userId);
+
+        // İlk sync projeyi oluşturur (diff dalı yalnızca GÜNCELLEMEDE çalışır).
+        Assert.IsType<OkObjectResult>(await controller.SyncProjects(SyncPayload(EmptySchema)));
+
+        await using (var ruleDb = NewContext())
+        {
+            ruleDb.AutomationRules.Add(new Namines.Core.Models.AutomationRule
+            {
+                ProjectId = "proj-1",
+                ScopeTableId = null,
+                TriggerType = "TableAdded",
+                ActionType = "Webhook",
+                ActionConfigJson = "{}",
+                Enabled = true,
+            });
+            await ruleDb.SaveChangesAsync();
+        }
+
+        Assert.IsType<OkObjectResult>(await controller.SyncProjects(SyncPayload(OneTableSchema)));
+
+        var job = Assert.Single(queue.Jobs);
+        Assert.Equal("proj-1", job.ProjectId);
+    }
+
+    [Fact]
+    public async Task Kapali_kurali_olan_proje_icin_diff_atlaniyor()
+    {
+        const string userId = "user-disabledrule";
+        await SeedUserAsync(userId);
+
+        await using var db = NewContext();
+        using var userManager = NewUserManager(db);
+        var queue = new RecordingQueue();
+        var controller = NewController(db, userManager, queue, userId);
+
+        Assert.IsType<OkObjectResult>(await controller.SyncProjects(SyncPayload(EmptySchema)));
+
+        await using (var ruleDb = NewContext())
+        {
+            ruleDb.AutomationRules.Add(new Namines.Core.Models.AutomationRule
+            {
+                ProjectId = "proj-1",
+                TriggerType = "TableAdded",
+                ActionType = "Webhook",
+                ActionConfigJson = "{}",
+                Enabled = false,
+            });
+            await ruleDb.SaveChangesAsync();
+        }
+
+        Assert.IsType<OkObjectResult>(await controller.SyncProjects(SyncPayload(OneTableSchema)));
+
+        Assert.Empty(queue.Jobs);
+    }
+
     [Fact]
     public async Task Kuyruk_dolu_olsa_bile_SyncProjects_basariyla_donuyor()
     {
@@ -125,6 +241,23 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
 
         var firstResult = await controller.SyncProjects(firstSync);
         Assert.IsType<OkObjectResult>(firstResult);
+
+        // I1'den SONRA: diff yalnızca AÇIK kuralı olan projeler için
+        // hesaplanıyor, bu yüzden bu test "dolu kuyruk" dalına girebilmek için
+        // artık bir kural SEEDLEMEK ZORUNDA — yoksa sessizce hiçbir şeyi
+        // sınamayan bir teste dönüşürdü.
+        await using (var ruleDb = NewContext())
+        {
+            ruleDb.AutomationRules.Add(new Namines.Core.Models.AutomationRule
+            {
+                ProjectId = "proj-1",
+                TriggerType = "TableAdded",
+                ActionType = "Webhook",
+                ActionConfigJson = "{}",
+                Enabled = true,
+            });
+            await ruleDb.SaveChangesAsync();
+        }
 
         // Act: aynı projeyi değiştirip tekrar sync çağır — bu, existing != null
         // dalını (diff hesaplama + kuyruğa atma) tetikler. Kuyruk her zaman

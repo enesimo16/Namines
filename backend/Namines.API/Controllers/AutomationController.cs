@@ -18,6 +18,21 @@ public class CreateAutomationRuleRequest
     public string ActionConfigJson { get; set; } = "{}";
 }
 
+/// <summary>
+/// Kuralın DÜZENLENEBİLİR alanları. ProjectId/ScopeTableId bilerek yok:
+/// bir kuralın kapsamı oluşturulduktan sonra değişmiyor (istemci tarafında da
+/// öyle — AutomationRuleDrawer yalnızca tetikleyici/aksiyon/URL/enabled'ı
+/// düzenletiyor). Alan adları CreateAutomationRuleRequest ile aynı şekilde
+/// yazılmış ki istemcideki DTO tek bir biçimde kalsın.
+/// </summary>
+public class UpdateAutomationRuleRequest
+{
+    public string TriggerType { get; set; } = string.Empty;
+    public string ActionType { get; set; } = string.Empty;
+    public string ActionConfigJson { get; set; } = "{}";
+    public bool Enabled { get; set; } = true;
+}
+
 [ApiController]
 [Route("api/automation")]
 [Authorize]
@@ -68,6 +83,35 @@ public class AutomationController : ControllerBase
             ActionConfigJson = request.ActionConfigJson,
         };
         _context.AutomationRules.Add(rule);
+        await _context.SaveChangesAsync(ct);
+        return Ok(rule);
+    }
+
+    /// <summary>
+    /// Bir kuralın tetikleyici/aksiyon/konfig/enabled alanlarını günceller.
+    ///
+    /// Bu uç OLMADAN istemcideki her düzenleme yalnızca yereldeydi: kural
+    /// sunucuda sonsuza dek ActionType="Toast" kalıyordu ve AutomationExecutor
+    /// Toast kurallarını atladığı için webhook/DBA/seed hiç çalışmıyordu.
+    /// </summary>
+    [HttpPut("rules/{id}")]
+    public async Task<IActionResult> UpdateRule(string id, [FromBody] UpdateAutomationRuleRequest request, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        // DeleteRule ile AYNI sıra ve AYNI yardımcı: önce kaydı bul, sonra
+        // sahipliği doğrula; ikisinden biri tutmazsa 404 (varlığı sızdırmamak
+        // için 403 değil) — diğer üç uçla tutarlı.
+        var rule = await _context.AutomationRules.FirstOrDefaultAsync(r => r.Id == id, ct);
+        if (rule is null) return NotFound();
+        if (!await OwnsProjectAsync(rule.ProjectId, userId, ct)) return NotFound();
+
+        rule.TriggerType = request.TriggerType;
+        rule.ActionType = request.ActionType;
+        rule.ActionConfigJson = request.ActionConfigJson;
+        rule.Enabled = request.Enabled;
+
         await _context.SaveChangesAsync(ct);
         return Ok(rule);
     }

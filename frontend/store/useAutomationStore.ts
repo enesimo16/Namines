@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import type { NaminesFlowEvent } from '../lib/naminesFlowEventBus';
-import { fetchAutomationRules, createAutomationRule, deleteAutomationRule } from '../lib/automationApi';
+import {
+  fetchAutomationRules,
+  createAutomationRule,
+  updateAutomationRule,
+  deleteAutomationRule,
+} from '../lib/automationApi';
 
 const genId = (): string =>
   typeof crypto !== 'undefined' && crypto.randomUUID
@@ -75,9 +80,12 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
       rules: [...state.rules, { id, scopeTableId, triggerType, actionType, actionConfig: {}, enabled: true }],
     }));
     // İyimser: yerel state anında güncellendi, sunucuya arka planda bildiriliyor.
-    // NOT: gerçek sunucu id'si burada göz ardı ediliyor (v1 tavizi) — yerel
-    // id kalıcı olarak kullanılmaya devam eder çünkü store'un dışa açık
-    // sözleşmesi senkron bir id döndürmek zorunda.
+    // Sunucu KENDİ id'sini üretiyor (AutomationRule.Id = Guid.NewGuid()), yani
+    // yereldeki `genId()` id'si sunucudakiyle ASLA eşleşmiyor. Bu yüzden POST
+    // çözüldüğünde yerel id, sunucunun gerçek id'siyle DEĞİŞTİRİLİYOR — aksi
+    // hâlde sonraki PUT/DELETE çağrıları var olmayan bir id'ye gidip 404
+    // alıyor, hata sessizce yutuluyor ve kural bir sonraki `loadRules`'ta geri
+    // geliyordu.
     //
     // `addRule`'un imzası bir projectId almıyor (Global Constraints), o
     // yüzden `currentProjectId` (en son `loadRules` çağrısından) kullanılıyor.
@@ -88,7 +96,18 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
     // mount olduğunda `loadRules`'ı her zaman önce çağırıyor (Task 8),
     // kullanıcı "Namines Flow'a Ekle" eylemine ancak ondan sonra ulaşabiliyor.
     if (currentProjectId !== null) {
-      void createAutomationRule(currentProjectId, scopeTableId, triggerType, actionType)?.catch?.(() => {});
+      const created = createAutomationRule(currentProjectId, scopeTableId, triggerType, actionType);
+      void created
+        ?.then?.((serverRule) => {
+          if (!serverRule?.id || serverRule.id === id) return;
+          // Yerel id → sunucu id takası. Seçili kural buysa seçim de taşınıyor,
+          // yoksa kullanıcı düzenleme sırasında drawer'ın seçimini kaybederdi.
+          set(state => ({
+            rules: state.rules.map(r => (r.id === id ? { ...r, id: serverRule.id } : r)),
+            selectedRuleId: state.selectedRuleId === id ? serverRule.id : state.selectedRuleId,
+          }));
+        })
+        ?.catch?.(() => {});
     }
     return id;
   },
@@ -97,11 +116,19 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
     set(state => ({
       rules: state.rules.map(r => r.id === id ? { ...r, ...patch } : r),
     }));
-    // v1 tavizi: PATCH ucu bu planın kapsamında değil (spec CRUD listesi
-    // yalnızca POST/DELETE tanımlıyor) — güncelleme şimdilik yalnızca
-    // istemcide kalıcı, sayfa yenilenince sunucudaki eski hâline döner.
-    // Bu, spec'in "throttle'a girmez" sözünü bozmuyor çünkü kayıt zaten
-    // hiç sunucuya yazılmıyor; sonraki bir bölümde PATCH eklenebilir.
+    // Yerel state YUKARIDA senkron güncellendi; sunucuya arka planda
+    // (`addRule`/`deleteRule` ile aynı fire-and-forget deseni) yazılıyor.
+    // Sunucu kısmi patch kabul etmediği için birleştirilmiş NİHAİ kayıt
+    // okunup gönderiliyor. Kural bulunamazsa (ör. eşzamanlı silme) çağrı
+    // tamamen atlanıyor.
+    const merged = get().rules.find(r => r.id === id);
+    if (!merged) return;
+    void updateAutomationRule(id, {
+      triggerType: merged.triggerType,
+      actionType: merged.actionType,
+      actionConfig: merged.actionConfig,
+      enabled: merged.enabled,
+    })?.catch?.(() => {});
   },
 
   deleteRule: (id) => {

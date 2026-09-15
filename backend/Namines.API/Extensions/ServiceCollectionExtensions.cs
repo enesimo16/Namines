@@ -149,6 +149,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAutomationExecutor, AutomationExecutor>();
         services.AddHostedService<AutomationExecutorWorker>();
 
+        // AutomationExecutor, AI aksiyonlarının kotasını IAiQuotaReserver
+        // üzerinden rezerve ediyor; bu arayüzü AiQuotaService uyguluyor ama
+        // yukarıda YALNIZCA somut tip kayıtlıydı. Arayüz kaydı olmadan
+        // Development'ta ValidateOnBuild uygulamayı açılışta düşürüyor,
+        // Production'da ise her otomasyon işi işçinin catch'inde sessizce
+        // ölüyordu. IAIService ile aynı devredici-fabrika deseni: tek örnek
+        // paylaşılsın diye yeni bir nesne kurulmuyor, kayıtlı somut servis
+        // çözümleniyor.
+        services.AddScoped<IAiQuotaReserver>(sp => sp.GetRequiredService<AiQuotaService>());
+
         // Webhook aksiyonu için adlandırılmış istemci — kısa timeout: kullanıcının
         // üçüncü taraf ucu yavaşsa/düşükse bu, işçiyi TIKAMAMALI.
         services.AddHttpClient("AutomationWebhook", client =>

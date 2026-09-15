@@ -107,6 +107,87 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         Assert.Equal("TableAdded", persisted!.TriggerType);
     }
 
+    private async Task<AutomationRule> SeedRuleAsync(AuthDbContext db, string projectId)
+    {
+        var rule = new AutomationRule
+        {
+            ProjectId = projectId,
+            TriggerType = "TableDeleted",
+            ActionType = "Toast",
+            ActionConfigJson = "{}",
+        };
+        db.AutomationRules.Add(rule);
+        await db.SaveChangesAsync();
+        return rule;
+    }
+
+    [Fact]
+    public async Task UpdateRule_degisikligi_kalici_yaziyor()
+    {
+        // C2: PUT ucu olmadan istemcideki her düzenleme yereldeydi ve sunucudaki
+        // kayıt sonsuza dek ActionType="Toast" kalıyordu.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+
+        var controller = NewController(db, userId: "owner-1");
+        var result = await controller.UpdateRule(rule.Id, new UpdateAutomationRuleRequest
+        {
+            TriggerType = "ColumnAdded",
+            ActionType = "Webhook",
+            ActionConfigJson = "{\"url\":\"https://example.test/hook\"}",
+            Enabled = false,
+        }, default);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var returned = Assert.IsType<AutomationRule>(ok.Value);
+        Assert.Equal("Webhook", returned.ActionType);
+
+        await using var verifyDb = NewContext();
+        var persisted = await verifyDb.AutomationRules.SingleAsync(r => r.Id == rule.Id);
+        Assert.Equal("ColumnAdded", persisted.TriggerType);
+        Assert.Equal("Webhook", persisted.ActionType);
+        Assert.Equal("{\"url\":\"https://example.test/hook\"}", persisted.ActionConfigJson);
+        Assert.False(persisted.Enabled);
+    }
+
+    [Fact]
+    public async Task UpdateRule_proje_sahibi_olmayan_kullanici_icin_NotFound_donuyor_ve_yazmiyor()
+    {
+        // DeleteRule ile AYNI sahiplik kuralı: yabancı 404 alır, kayıt değişmez.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+
+        var controller = NewController(db, userId: "intruder-1");
+        var result = await controller.UpdateRule(rule.Id, new UpdateAutomationRuleRequest
+        {
+            TriggerType = "ColumnAdded",
+            ActionType = "Webhook",
+            ActionConfigJson = "{\"url\":\"https://evil.test\"}",
+            Enabled = true,
+        }, default);
+
+        Assert.IsType<NotFoundResult>(result);
+
+        await using var verifyDb = NewContext();
+        var persisted = await verifyDb.AutomationRules.SingleAsync(r => r.Id == rule.Id);
+        Assert.Equal("Toast", persisted.ActionType);
+        Assert.Equal("TableDeleted", persisted.TriggerType);
+    }
+
+    [Fact]
+    public async Task UpdateRule_olmayan_kural_icin_NotFound_donuyor()
+    {
+        await using var db = NewContext();
+        await SeedProjectAsync(db, ownerId: "owner-1");
+
+        var controller = NewController(db, userId: "owner-1");
+        var result = await controller.UpdateRule("yok-boyle-bir-id", new UpdateAutomationRuleRequest(), default);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
     [Fact]
     public async Task DeleteRule_var_olan_kurali_kaldiriyor()
     {

@@ -24,6 +24,25 @@ describe('AutomationRuleDrawer', () => {
     expect(screen.getByText(/Namines Flow/)).toBeInTheDocument();
   });
 
+  // I2: AutomationRuleMatcher, RelationAdded/RelationDeleted'ı YALNIZCA proje
+  // geneli kurallar (ScopeTableId == null) için eşleştiriyor, ama kural
+  // oluşturmanın tek yolu (CanvasContextMenu) her zaman bir tablo id'si
+  // veriyor — bu iki seçenek hiçbir kuralda tetiklenemezdi.
+  it('does not offer relation triggers that can never fire for a table-scoped rule', () => {
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Webhook');
+    useAutomationStore.getState().setSelectedRuleId(id);
+
+    render(<AutomationRuleDrawer />);
+
+    const triggerSelect = screen.getByLabelText(/trigger/i) as HTMLSelectElement;
+    const offered = Array.from(triggerSelect.options).map(o => o.value);
+
+    expect(offered).not.toContain('RelationAdded');
+    expect(offered).not.toContain('RelationDeleted');
+    // Tablo kapsamlı kuralların gerçekten tetiklenebildiği seçenekler duruyor.
+    expect(offered).toEqual(['TableAdded', 'TableDeleted', 'ColumnAdded', 'ColumnDeleted', 'ColumnChanged']);
+  });
+
   it('changing the action to Webhook reveals a URL field, and typing in it saves', () => {
     const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Webhook');
     useAutomationStore.getState().setSelectedRuleId(id);
