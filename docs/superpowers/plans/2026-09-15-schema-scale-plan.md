@@ -25,15 +25,15 @@
 ### Task 1: Yapısal plan modeli, ayrıştırıcı ve kimlik sözleşmesi
 
 **Files:**
-- Create: `backend/Namines.Core/Analysis/SchemaPlan.cs`
+- Create: `backend/Namines.Core/Analysis/SchemaScopePlan.cs`
 - Create: `backend/Namines.Core/Analysis/SchemaIdConvention.cs`
-- Test: `backend/Namines.Tests/Analysis/SchemaPlanTests.cs`
+- Test: `backend/Namines.Tests/Analysis/SchemaScopePlanTests.cs`
 
 **Interfaces:**
 - Produces:
-  - `sealed record SchemaPlanDomain(string Name, IReadOnlyList<string> Tables)`
-  - `sealed record SchemaPlan(string SchemaName, IReadOnlyList<SchemaPlanDomain> Domains)` with `int TableCount`, `IReadOnlyList<string> AllTableNames`, `string RenderAsText()`
-  - `static SchemaPlan? SchemaPlan.TryParse(string? json)`
+  - `sealed record SchemaScopeDomain(string Name, IReadOnlyList<string> Tables)`
+  - `sealed record SchemaScopePlan(string SchemaName, IReadOnlyList<SchemaScopeDomain> Domains)` with `int TableCount`, `IReadOnlyList<string> AllTableNames`, `string RenderAsText()`
+  - `static SchemaScopePlan? SchemaScopePlan.TryParse(string? json)`
   - `static class SchemaIdConvention` with `string TableId(string tableName)`, `string ColumnId(string tableName, string columnName)`, `string Normalize(string name)`
 - Task 2, 3, 4, 5 ve 7 bunları tüketir.
 
@@ -45,7 +45,7 @@ using Xunit;
 
 namespace Namines.Tests.Analysis;
 
-public class SchemaPlanTests
+public class SchemaScopePlanTests
 {
     private const string ValidJson = """
     {
@@ -60,7 +60,7 @@ public class SchemaPlanTests
     [Fact]
     public void Gecerli_plan_ayristiriliyor()
     {
-        var plan = SchemaPlan.TryParse(ValidJson);
+        var plan = SchemaScopePlan.TryParse(ValidJson);
 
         Assert.NotNull(plan);
         Assert.Equal("Shop", plan!.SchemaName);
@@ -74,7 +74,7 @@ public class SchemaPlanTests
     {
         // Model talimata ragmen ```json ... ``` sarabiliyor; plan turunu bu
         // yuzden kaybetmek, opsiyonel bir adimi kirilgan yapardi.
-        var plan = SchemaPlan.TryParse("```json\n" + ValidJson + "\n```");
+        var plan = SchemaScopePlan.TryParse("```json\n" + ValidJson + "\n```");
 
         Assert.NotNull(plan);
         Assert.Equal(5, plan!.TableCount);
@@ -91,13 +91,13 @@ public class SchemaPlanTests
     public void Bozuk_veya_bos_plan_null_donuyor(string? json)
     {
         // null = "plan yok" demek; hat bugunku plansiz yoluna duser.
-        Assert.Null(SchemaPlan.TryParse(json));
+        Assert.Null(SchemaScopePlan.TryParse(json));
     }
 
     [Fact]
     public void Ayni_tablo_iki_alanda_gecerse_tekillestiriliyor()
     {
-        var plan = SchemaPlan.TryParse("""
+        var plan = SchemaScopePlan.TryParse("""
         {"schemaName":"X","domains":[
           {"name":"A","tables":["users","orders"]},
           {"name":"B","tables":["Users","payments"]}]}
@@ -110,7 +110,7 @@ public class SchemaPlanTests
     [Fact]
     public void Duz_metne_render_ediliyor()
     {
-        var text = SchemaPlan.TryParse(ValidJson)!.RenderAsText();
+        var text = SchemaScopePlan.TryParse(ValidJson)!.RenderAsText();
 
         Assert.Contains("Identity", text);
         Assert.Contains("users", text);
@@ -136,14 +136,14 @@ public class SchemaPlanTests
 
 - [ ] **Step 2: Testi çalıştırıp FAIL ettiğini doğrula**
 
-Run: `dotnet test backend/Namines.Tests --filter SchemaPlanTests`
-Expected: derleme hatası (`SchemaPlan` yok)
+Run: `dotnet test backend/Namines.Tests --filter SchemaScopePlanTests`
+Expected: derleme hatası (`SchemaScopePlan` yok)
 
-- [ ] **Step 3: `SchemaIdConvention` ve `SchemaPlan`'ı yaz**
+- [ ] **Step 3: `SchemaIdConvention` ve `SchemaScopePlan`'ı yaz**
 
 `SchemaIdConvention`: `Normalize` → küçük harf, PascalCase/camelCase sınırlarına `_` ekle, boşluk/tire/nokta → `_`, ardışık `_` tekille, baştaki/sondaki `_` kırp. `TableId` → `"t_" + Normalize(name)`. `ColumnId` → `"c_" + Normalize(table) + "_" + Normalize(column)`.
 
-`SchemaPlan.TryParse`:
+`SchemaScopePlan.TryParse`:
 1. Boş/whitespace → `null`.
 2. İlk `{` ile son `}` arasını al (kod bloğu sarmalını böylece düşür); bulunamazsa `null`.
 3. `JsonSerializer.Deserialize` — `JsonException` yakalanır, `null` döner.
@@ -154,13 +154,13 @@ Expected: derleme hatası (`SchemaPlan` yok)
 
 - [ ] **Step 4: Testi çalıştırıp PASS ettiğini doğrula**
 
-Run: `dotnet test backend/Namines.Tests --filter SchemaPlanTests -v normal`
+Run: `dotnet test backend/Namines.Tests --filter SchemaScopePlanTests -v normal`
 Expected: tüm testler PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/Namines.Core/Analysis/SchemaPlan.cs backend/Namines.Core/Analysis/SchemaIdConvention.cs backend/Namines.Tests/Analysis/SchemaPlanTests.cs
+git add backend/Namines.Core/Analysis/SchemaScopePlan.cs backend/Namines.Core/Analysis/SchemaIdConvention.cs backend/Namines.Tests/Analysis/SchemaScopePlanTests.cs
 git commit -m "feat: add structured schema plan model, parser and id convention"
 ```
 
@@ -169,16 +169,16 @@ git commit -m "feat: add structured schema plan model, parser and id convention"
 ### Task 2: Alan gruplama (partitioner)
 
 **Files:**
-- Create: `backend/Namines.Core/Analysis/SchemaPlanPartitioner.cs`
-- Test: `backend/Namines.Tests/Analysis/SchemaPlanPartitionerTests.cs`
+- Create: `backend/Namines.Core/Analysis/SchemaScopePartitioner.cs`
+- Test: `backend/Namines.Tests/Analysis/SchemaScopePartitionerTests.cs`
 
 **Interfaces:**
-- Consumes: `SchemaPlan`, `SchemaPlanDomain` (Task 1).
+- Consumes: `SchemaScopePlan`, `SchemaScopeDomain` (Task 1).
 - Produces:
   - `sealed record SchemaChunk(string Label, IReadOnlyList<string> OwnedTables)`
-  - `static IReadOnlyList<SchemaChunk> SchemaPlanPartitioner.Partition(SchemaPlan plan)`
+  - `static IReadOnlyList<SchemaChunk> SchemaScopePartitioner.Partition(SchemaScopePlan plan)`
   - `const int TargetTablesPerChunk = 9`, `const int PartitionThreshold = 12`
-  - `static bool ShouldPartition(SchemaPlan plan)` → `plan.TableCount > PartitionThreshold`
+  - `static bool ShouldPartition(SchemaScopePlan plan)` → `plan.TableCount > PartitionThreshold`
 - Task 5 ve 7 bunları tüketir.
 
 - [ ] **Step 1: Failing test yaz**
@@ -190,9 +190,9 @@ using Xunit;
 
 namespace Namines.Tests.Analysis;
 
-public class SchemaPlanPartitionerTests
+public class SchemaScopePartitionerTests
 {
-    private static SchemaPlan Plan(params (string Domain, int Tables)[] domains)
+    private static SchemaScopePlan Plan(params (string Domain, int Tables)[] domains)
     {
         var json = new System.Text.StringBuilder("""{"schemaName":"X","domains":[""");
         for (var d = 0; d < domains.Length; d++)
@@ -203,21 +203,21 @@ public class SchemaPlanPartitionerTests
             json.Append($$"""{"name":"{{domains[d].Domain}}","tables":[{{string.Join(",", tables)}}]}""");
         }
         json.Append("]}");
-        return SchemaPlan.TryParse(json.ToString())!;
+        return SchemaScopePlan.TryParse(json.ToString())!;
     }
 
     [Fact]
     public void Esik_altinda_parcalanmiyor()
     {
-        Assert.False(SchemaPlanPartitioner.ShouldPartition(Plan(("A", 12))));
-        Assert.True(SchemaPlanPartitioner.ShouldPartition(Plan(("A", 13))));
+        Assert.False(SchemaScopePartitioner.ShouldPartition(Plan(("A", 12))));
+        Assert.True(SchemaScopePartitioner.ShouldPartition(Plan(("A", 13))));
     }
 
     [Fact]
     public void Kucuk_alanlar_tek_cagriya_gruplaniyor()
     {
         // 3+3+3 = 9 tablo hedefin altinda: tek parca olmali, uc degil.
-        var chunks = SchemaPlanPartitioner.Partition(Plan(("A", 3), ("B", 3), ("C", 3)));
+        var chunks = SchemaScopePartitioner.Partition(Plan(("A", 3), ("B", 3), ("C", 3)));
 
         Assert.Single(chunks);
         Assert.Equal(9, chunks[0].OwnedTables.Count);
@@ -226,11 +226,11 @@ public class SchemaPlanPartitionerTests
     [Fact]
     public void Buyuk_bir_alan_boluniyor()
     {
-        var chunks = SchemaPlanPartitioner.Partition(Plan(("Big", 25)));
+        var chunks = SchemaScopePartitioner.Partition(Plan(("Big", 25)));
 
         Assert.True(chunks.Count >= 3, "25 tablo tek cagriya sigmamali");
         Assert.All(chunks, c => Assert.True(
-            c.OwnedTables.Count <= SchemaPlanPartitioner.TargetTablesPerChunk,
+            c.OwnedTables.Count <= SchemaScopePartitioner.TargetTablesPerChunk,
             "hicbir parca hedefi asmamali"));
     }
 
@@ -238,7 +238,7 @@ public class SchemaPlanPartitionerTests
     public void Hicbir_tablo_kaybolmuyor_ve_tekrarlanmiyor()
     {
         var plan = Plan(("A", 7), ("B", 11), ("C", 4), ("D", 20));
-        var chunks = SchemaPlanPartitioner.Partition(plan);
+        var chunks = SchemaScopePartitioner.Partition(plan);
 
         var owned = chunks.SelectMany(c => c.OwnedTables).ToList();
 
@@ -249,7 +249,7 @@ public class SchemaPlanPartitionerTests
     [Fact]
     public void Her_parcanin_okunabilir_bir_etiketi_var()
     {
-        var chunks = SchemaPlanPartitioner.Partition(Plan(("Identity", 5), ("Catalog", 20)));
+        var chunks = SchemaScopePartitioner.Partition(Plan(("Identity", 5), ("Catalog", 20)));
 
         Assert.All(chunks, c => Assert.False(string.IsNullOrWhiteSpace(c.Label)));
     }
@@ -258,9 +258,9 @@ public class SchemaPlanPartitionerTests
 
 - [ ] **Step 2: Testi çalıştırıp FAIL ettiğini doğrula**
 
-Run: `dotnet test backend/Namines.Tests --filter SchemaPlanPartitionerTests`
+Run: `dotnet test backend/Namines.Tests --filter SchemaScopePartitionerTests`
 
-- [ ] **Step 3: `SchemaPlanPartitioner`'ı yaz**
+- [ ] **Step 3: `SchemaScopePartitioner`'ı yaz**
 
 Algoritma (deterministik, sırayı koruyan):
 1. Alanları plan sırasıyla dolaş.
@@ -272,12 +272,12 @@ Etiket: parçanın kapsadığı alan adları `" + "` ile birleştirilir; bölün
 
 - [ ] **Step 4: Testi çalıştırıp PASS ettiğini doğrula**
 
-Run: `dotnet test backend/Namines.Tests --filter SchemaPlanPartitionerTests -v normal`
+Run: `dotnet test backend/Namines.Tests --filter SchemaScopePartitionerTests -v normal`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/Namines.Core/Analysis/SchemaPlanPartitioner.cs backend/Namines.Tests/Analysis/SchemaPlanPartitionerTests.cs
+git add backend/Namines.Core/Analysis/SchemaScopePartitioner.cs backend/Namines.Tests/Analysis/SchemaScopePartitionerTests.cs
 git commit -m "feat: add deterministic domain partitioner for chunked generation"
 ```
 
@@ -774,7 +774,7 @@ git commit -m "feat: add per-chunk draft entry point to the draft source"
 - Test: `backend/Namines.Tests/Services/SchemaAgentPipelinePartitionTests.cs`
 
 **Interfaces:**
-- Consumes: `SchemaPlan`/`SchemaPlanPartitioner`/`SchemaChunkMerger`/`DraftChunkAsync` (Task 1,2,3,6).
+- Consumes: `SchemaScopePlan`/`SchemaScopePartitioner`/`SchemaChunkMerger`/`DraftChunkAsync` (Task 1,2,3,6).
 - Produces: `SchemaAgentResult` — mevcut şekli KORUNUR; birleştirme notları `PortabilityNotes` ile aynı ruhta ayrı bir alan olarak DEĞİL, `RemainingFindings`'e de DEĞİL, yeni `IReadOnlyList<string> MergeNotes` alanı olarak eklenir (varsayılan boş liste, mevcut çağıranlar bozulmaz).
 
 - [ ] **Step 1: Failing test yaz**
@@ -801,14 +801,14 @@ Denetim adımının gerçek `IDdlGeneratorFactory` ile çalıştığına dikkat:
 Plan turundan sonra:
 
 ```csharp
-var parsedPlan = SchemaPlan.TryParse(planText);
+var parsedPlan = SchemaScopePlan.TryParse(planText);
 
 DatabaseSchema schema;
 var mergeNotes = new List<string>();
 
-if (parsedPlan is not null && SchemaPlanPartitioner.ShouldPartition(parsedPlan))
+if (parsedPlan is not null && SchemaScopePartitioner.ShouldPartition(parsedPlan))
 {
-    var chunks = SchemaPlanPartitioner.Partition(parsedPlan);
+    var chunks = SchemaScopePartitioner.Partition(parsedPlan);
     progress?.Report(AgentStep.Draft(
         $"Generating {parsedPlan.TableCount} tables across {chunks.Count} domains…"));
 
