@@ -44,6 +44,27 @@ public class TolerantStringConverter : JsonConverter<string>
     }
 }
 
+/// <summary>
+/// Groq chat-completion yanıtından içeriği çıkaran saf yardımcı. Gerçek HTTP
+/// çağrısından bağımsız — bu sayede kesilme (finish_reason=length) davranışı
+/// hiçbir ağ isteği yapmadan test edilebiliyor.
+/// </summary>
+internal static class GroqResponseReader
+{
+    public static string ReadContentOrThrow(JsonElement responseObject, int maxTokens)
+    {
+        var choice = responseObject.GetProperty("choices")[0];
+
+        if (choice.TryGetProperty("finish_reason", out var finishReasonProp) &&
+            finishReasonProp.GetString() == "length")
+        {
+            throw new AiOutputTruncatedException(maxTokens);
+        }
+
+        return choice.GetProperty("message").GetProperty("content").GetString() ?? string.Empty;
+    }
+}
+
 public class GroqAIService : IAIService, IAgentChatClient
 {
     private readonly HttpClient _httpClient;
@@ -746,6 +767,12 @@ public class GroqAIService : IAIService, IAgentChatClient
                     };
                 }
 
+                // Hem payload'a hem de kesilme kontrolüne aynı tavan gidiyor:
+                // TierAsync() ikinci kez çağrılırsa (planı değiştiren eşzamanlı
+                // bir istek gibi) farklı bir sonuç dönebilir ve rapor edilen
+                // tavan, gerçekte gönderilenle uyuşmayabilirdi.
+                var maxTokensForThisCall = advanced.MaxTokensFor(await TierAsync());
+
                 var payload = new
                 {
                     model = modelToUse,
@@ -760,7 +787,7 @@ public class GroqAIService : IAIService, IAgentChatClient
                     temperature = advanced.TemperatureValue + (currentAttempt * 0.2),
                     // Plana bağlı tavan: ücretsiz bir kullanıcı 32.000 yazıp tek
                     // çağrıda günlük hakkının tamamını yakamamalı (bkz. MaxTokensFor).
-                    max_tokens = advanced.MaxTokensFor(await TierAsync())
+                    max_tokens = maxTokensForThisCall
                 };
 
                 using var response = await PostAsync("chat/completions", payload);
@@ -777,7 +804,7 @@ public class GroqAIService : IAIService, IAgentChatClient
 
                 var responseString = await response.Content.ReadAsStringAsync();
                 var responseObject = JsonSerializer.Deserialize<JsonElement>(responseString);
-                var jsonResponse = responseObject.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+                var jsonResponse = GroqResponseReader.ReadContentOrThrow(responseObject, maxTokensForThisCall);
 
                 if (string.IsNullOrWhiteSpace(jsonResponse))
                 {
@@ -791,7 +818,7 @@ public class GroqAIService : IAIService, IAgentChatClient
                 {
                     jsonResponse = jsonResponse.Substring(firstBrace, lastBrace - firstBrace + 1);
                 }
-                
+
                 jsonResponse = Namines.Infrastructure.Services.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
                 var schema = JsonSerializer.Deserialize<DatabaseSchema>(jsonResponse, _jsonOptions);
                 if (schema == null)
@@ -831,6 +858,7 @@ public class GroqAIService : IAIService, IAgentChatClient
             {
                 var modelToUse = await ResolveModelNameAsync(request.ModelName, "SchemaRevision");
                 var tableCount = request.SelectedTables?.Count ?? 0;
+                var maxTokensForThisCall = CalculateMaxTokens(tableCount);
 
                 var payload = new
                 {
@@ -841,7 +869,7 @@ public class GroqAIService : IAIService, IAgentChatClient
                         new { role = "user", content = userPrompt }
                     },
                     temperature = 0.1 + (currentAttempt * 0.2),
-                    max_tokens = CalculateMaxTokens(tableCount)
+                    max_tokens = maxTokensForThisCall
                 };
 
                 using var response = await PostAsync("chat/completions", payload);
@@ -854,7 +882,7 @@ public class GroqAIService : IAIService, IAgentChatClient
 
                 var responseString = await response.Content.ReadAsStringAsync();
                 var responseObject = JsonSerializer.Deserialize<JsonElement>(responseString);
-                var jsonResponse = responseObject.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+                var jsonResponse = GroqResponseReader.ReadContentOrThrow(responseObject, maxTokensForThisCall);
                 lastJsonResponse = jsonResponse ?? "";
 
                 if (string.IsNullOrWhiteSpace(jsonResponse))
