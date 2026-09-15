@@ -49,6 +49,11 @@ public class SchemaAgentResilienceTests
         public Task<DatabaseSchema> RepairAsync(
             DatabaseSchema schema, IReadOnlyList<string> findings, DatabaseType engine,
             CancellationToken ct = default) => throw _failure;
+
+        public Task<DatabaseSchema> DraftChunkAsync(
+            string prompt, DatabaseType engine, Namines.Core.Analysis.SchemaChunk chunk,
+            IReadOnlyList<string> allTableNames, CancellationToken ct = default) =>
+            throw new System.NotImplementedException("bu test parçalı üretimi kullanmıyor");
     }
 
     /// <summary>FK tipi uyuşmayan şema — onarım turu tetikler.</summary>

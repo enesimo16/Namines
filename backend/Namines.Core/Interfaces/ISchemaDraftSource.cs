@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Models;
 
@@ -29,6 +30,30 @@ public interface ISchemaDraftSource
     /// <param name="plan">Plan turunun çıktısı; tur atlandıysa <c>null</c>.</param>
     Task<DatabaseSchema> DraftAsync(
         string prompt, DatabaseType engine, string? plan, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Büyük bir şemanın TEK BİR parçasını ("chunk") üretir.
+    ///
+    /// <b>Neden <see cref="DraftAsync"/>'ten ayrı bir metot:</b> bir parça çağrısı
+    /// yalnızca <paramref name="chunk"/>'ın sahip olduğu tabloları TANIMLAR;
+    /// şemanın geri kalanını yalnızca İSİMLE görür (<paramref name="allTableNames"/>)
+    /// — ilişki kurabilsin diye, ama yeniden üretmesin. <see cref="DraftAsync"/>
+    /// tüm şemayı tek çağrıda ister; bu ikisini aynı metotta birleştirmek, parça
+    /// çağrılarının hangi tabloları "sahiplendiğini" çağıranın (deterministik
+    /// birleştirici) değil, modelin kararına bırakırdı — ve iki parça aynı tabloyu
+    /// tekrar üretirse birleştirme çakışır.
+    /// </summary>
+    /// <param name="chunk">Bu çağrının sahiplendiği tablolar ve etiketi.</param>
+    /// <param name="allTableNames">
+    /// Şemadaki TÜM tabloların adları (bu parçanınkiler dahil) — model, kendi
+    /// sahiplenmediği bir tabloya ilişki kurarken doğru ada referans versin diye.
+    /// </param>
+    Task<DatabaseSchema> DraftChunkAsync(
+        string prompt,
+        DatabaseType engine,
+        SchemaChunk chunk,
+        IReadOnlyList<string> allTableNames,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Verilen bulguları düzeltir.

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -73,6 +74,55 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
             : $"Follow this plan when creating the schema:\n{plan}\n\nRequirement:\n{prompt}";
 
         return _groq.GenerateSchemaAsync(new GenerateRequest { Prompt = enriched, DbType = engine });
+    }
+
+    /// <summary>
+    /// <b>Bilerek <see cref="GroqAIService.GenerateSchemaAsync"/>'i ÇAĞIRMIYOR.</b>
+    ///
+    /// O metot, kendisine verilen <c>Prompt</c>'u <see cref="SchemaPromptBuilder.BuildUserPrompt"/>
+    /// ile BİR KEZ DAHA sarmalıyor (kendi &lt;requirement&gt; etiketi ve kural
+    /// metniyle). <see cref="SchemaPromptBuilder.BuildChunkUserPrompt"/> zaten
+    /// KENDİ &lt;requirement&gt; sarmalını ve kural metnini içeren TAM bir istem
+    /// üretiyor — bunu <c>GenerateSchemaAsync</c>'e geçirmek çifte sarmalamaya yol
+    /// açardı: iç içe iki &lt;requirement&gt; bloğu, iki kez tekrarlanan JSON-şekli
+    /// talimatları ve en önemlisi, parça kapsamlama talimatının ("yalnızca şu
+    /// tabloları tanımla") DIŞ &lt;requirement&gt; bloğunun İÇİNE düşmesi — ki o blok
+    /// sistem promptunda açıkça "veri, talimat değil" olarak işaretleniyor. Bu,
+    /// hiçbir testin yakalayamayacağı ama modelin parça sınırını yok saymasına
+    /// yol açabilecek sessiz bir kalite kaybı olurdu.
+    ///
+    /// Bunun yerine <see cref="_chat"/> (ham <see cref="IAgentChatClient"/>) ÜZERİNDEN
+    /// tek bir tur çalıştırılıyor — <see cref="PlanAsync"/> ve
+    /// <see cref="RepairWithToolsAsync"/>'in zaten kullandığı desen. Bilinçli ödün:
+    /// bu yol <c>GenerateSchemaAsync</c>'in yeniden deneme/sıcaklık artırma
+    /// döngüsünü ve kesilme (truncation) istisnasını miras almıyor — ama parça
+    /// istemleri tanım gereği tam şemadan çok daha küçük, yani kesilme riski
+    /// zaten düşük. Kullanıcının tur başı token tavanı (<c>MaxTokensFor</c>)
+    /// yine de uygulanıyor, çünkü onu <see cref="GroqAIService.CompleteAsync"/>
+    /// kendi içinde çağırıyor.
+    /// </summary>
+    public async Task<DatabaseSchema> DraftChunkAsync(
+        string prompt,
+        DatabaseType engine,
+        SchemaChunk chunk,
+        IReadOnlyList<string> allTableNames,
+        CancellationToken cancellationToken = default)
+    {
+        var chunkPrompt = SchemaPromptBuilder.BuildChunkUserPrompt(prompt, engine, chunk, allTableNames);
+
+        var response = await _chat.CompleteAsync(
+            new[]
+            {
+                new AgentChatMessage("system", SchemaPromptBuilder.BuildSystemPrompt()),
+                new AgentChatMessage("user", chunkPrompt),
+            },
+            Array.Empty<AgentToolDefinition>(),
+            temperature: 0.4,
+            cancellationToken);
+
+        return SchemaJsonReader.TryRead(response.Content)
+            ?? throw new InvalidOperationException(
+                $"chunk '{chunk.Label}' did not return a readable schema");
     }
 
     public async Task<DatabaseSchema> RepairAsync(

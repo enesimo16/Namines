@@ -60,6 +60,11 @@ public class SchemaAgentPipelineTests
             return Task.FromResult(Next());
         }
 
+        public Task<DatabaseSchema> DraftChunkAsync(
+            string prompt, DatabaseType engine, Namines.Core.Analysis.SchemaChunk chunk,
+            IReadOnlyList<string> allTableNames, CancellationToken ct = default) =>
+            throw new System.NotImplementedException("bu test parçalı üretimi kullanmıyor");
+
         // Cevap kalmadıysa sonuncuyu tekrarlıyor: "model aynı şeyi döndürmeye
         // devam ediyor" senaryosunu üretmenin yolu bu.
         private DatabaseSchema Next() => _answers.Count > 1 ? _answers.Dequeue() : _answers.Peek();

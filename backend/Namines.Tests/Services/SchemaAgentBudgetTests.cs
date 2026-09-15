@@ -40,6 +40,11 @@ public class SchemaAgentBudgetTests
             string prompt, DatabaseType engine, string? plan, CancellationToken ct = default) =>
             Task.FromResult(_schema);
 
+        public Task<DatabaseSchema> DraftChunkAsync(
+            string prompt, DatabaseType engine, Namines.Core.Analysis.SchemaChunk chunk,
+            System.Collections.Generic.IReadOnlyList<string> allTableNames, CancellationToken ct = default) =>
+            throw new System.NotImplementedException("bu test parçalı üretimi kullanmıyor");
+
         public Task<DatabaseSchema> RepairAsync(
             DatabaseSchema schema, IReadOnlyList<string> findings, DatabaseType engine, CancellationToken ct = default)
         {
