@@ -26,12 +26,22 @@ namespace Namines.Infrastructure.Services;
 /// taşıyabilir miyim" sorusu cevapsız kalmasın.
 /// </param>
 /// <param name="Rounds">Kaç AI turu harcandı (taslak dahil).</param>
+/// <param name="MergeNotes">
+/// Parçalı (chunked) üretim yolunda <see cref="Namines.Core.Models.SchemaChunkMerger"/>'ın
+/// ürettiği birleştirme notları artı başarısız parça bildirimleri. Plan
+/// bölünmeye ihtiyaç duymadıysa (tek çağrılık yol) her zaman boş liste —
+/// mevcut çağıranların pozisyonel oluşturması bu yüzden bozulmuyor.
+/// </param>
 public sealed record SchemaAgentResult(
     DatabaseSchema Schema,
     IReadOnlyList<string> RemainingFindings,
     IReadOnlyList<string> PortabilityNotes,
-    int Rounds)
+    int Rounds,
+    IReadOnlyList<string>? MergeNotes = null)
 {
+    /// <summary>Ham alan her zaman non-null olsun diye normalize edilmiş erişim.</summary>
+    public IReadOnlyList<string> MergeNotes { get; init; } = MergeNotes ?? Array.Empty<string>();
+
     /// <summary>Hedef motorda hiçbir bulgu kalmadıysa true.</summary>
     public bool Clean => RemainingFindings.Count == 0;
 
@@ -128,12 +138,22 @@ public sealed class SchemaAgentPipeline
     /// istemeyen çağıranlar (ör. RegionalPromptPanel'in kullandığı revizyon
     /// yolu) hiçbir şey vermez, hat sessizce çalışır.
     /// </param>
+    /// <param name="onScopePlanned">
+    /// Plan ayrıştırılır ayrıştırılmaz — taslak/parça çağrılarından ÖNCE —
+    /// çağrılan kapsam bildirimi: kaç tablo üretileceği. Yalnızca plan
+    /// başarıyla ayrıştıysa çağrılır; plan yoksa/bozuksa hiç çağrılmaz.
+    ///
+    /// <b>Hat bütçeye kendi başına karar VERMEZ, yalnızca BİLDİRİR.</b> Karar
+    /// çağıranın: geri çağrı fırlatırsa hat onu yakalamaz, üretim hiç
+    /// başlamadan durur. <c>null</c> ise davranış bugünküyle birebir aynı.
+    /// </param>
     public async Task<SchemaAgentResult> RunAsync(
         string prompt,
         DatabaseType engine,
         int budgetRounds = DefaultTotalRounds,
         CancellationToken cancellationToken = default,
-        IProgress<AgentStep>? progress = null)
+        IProgress<AgentStep>? progress = null,
+        Func<int, CancellationToken, Task>? onScopePlanned = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
 
@@ -170,8 +190,67 @@ public sealed class SchemaAgentPipeline
             }
         }
 
-        progress?.Report(AgentStep.Draft("Generating draft…"));
-        var schema = await _source.DraftAsync(prompt, engine, plan, cancellationToken);
+        var parsedPlan = Namines.Core.Analysis.SchemaScopePlan.TryParse(plan);
+
+        if (parsedPlan is not null && onScopePlanned is not null)
+            await onScopePlanned(parsedPlan.TableCount, cancellationToken);
+
+        DatabaseSchema schema;
+        var mergeNotes = new List<string>();
+
+        if (parsedPlan is not null && Namines.Core.Analysis.SchemaScopePartitioner.ShouldPartition(parsedPlan))
+        {
+            // Büyük plan: birkaç paralel parça çağrısına bölüp sonra
+            // birleştiriyoruz — tek çağrı 12'den fazla tabloya güvenle sığmaz.
+            var chunks = Namines.Core.Analysis.SchemaScopePartitioner.Partition(parsedPlan);
+            progress?.Report(AgentStep.Draft(
+                $"Generating {parsedPlan.TableCount} tables across {chunks.Count} domains…"));
+
+            var tasks = chunks.Select(async chunk =>
+            {
+                try
+                {
+                    var part = await _source.DraftChunkAsync(
+                        prompt, engine, chunk, parsedPlan.AllTableNames, cancellationToken);
+                    progress?.Report(AgentStep.Draft($"{chunk.Label} — {part.Tables.Count} tables"));
+                    return (Part: part, Error: (string?)null);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Kullanıcı iptali hata DEĞİL — diğer parçaların
+                    // "başarısızlığı yutup devam et" mantığına girmemeli;
+                    // Task.WhenAll bu istisnayı olduğu gibi yukarı taşır.
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // Bir alanın patlaması diğerlerini iptal ETMEZ: 60 tablonun
+                    // 50'sini vermek, hiçbir şey vermemekten iyidir.
+                    return (Part: (DatabaseSchema?)null,
+                        Error: $"[merge] Domain '{chunk.Label}' failed: {ex.Message}");
+                }
+            }).ToList();
+
+            var results = await Task.WhenAll(tasks);
+            mergeNotes.AddRange(results.Where(r => r.Error is not null).Select(r => r.Error!));
+
+            var parts = results.Where(r => r.Part is not null).Select(r => r.Part!).ToList();
+            if (parts.Count == 0)
+                throw new InvalidOperationException("Every domain of the schema failed to generate.");
+
+            var merged = Namines.Core.Models.SchemaChunkMerger.Merge(parsedPlan.SchemaName, parts);
+            schema = merged.Schema;
+            mergeNotes.AddRange(merged.Notes);
+        }
+        else
+        {
+            progress?.Report(AgentStep.Draft("Generating draft…"));
+            schema = await _source.DraftAsync(prompt, engine, parsedPlan?.RenderAsText() ?? plan, cancellationToken);
+        }
+
+        // Parçalı yol birden çok upstream çağrısı yapsa da, araç döngüsünün
+        // sayılmaması ile aynı ilkeyle, hat için TEK BİR taslak turu sayılır —
+        // gerçek maliyet SettleAsync'in ölçümünden geliyor.
         rounds++;
         progress?.Report(AgentStep.Draft(
             $"Draft generated — {schema.Tables.Count} tables, {schema.Relations.Count} relations"));
@@ -254,7 +333,7 @@ public sealed class SchemaAgentPipeline
         if (findings.Count == 0)
             progress?.Report(AgentStep.Clean($"Clean on {engine} — no findings left"));
 
-        return new SchemaAgentResult(schema, findings, Portability(schema, engine), rounds);
+        return new SchemaAgentResult(schema, findings, Portability(schema, engine), rounds, mergeNotes);
     }
 
     /// <summary>
