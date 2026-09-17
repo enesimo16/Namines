@@ -168,6 +168,26 @@ Böylece onarım maliyeti şema büyüklüğünden bağımsızlaşır.
 
 ---
 
+## Uygulama Sonrası Düzeltme — eşik ve parça boyutu KATMANA BAĞLI
+
+Yukarıdaki `12` eşiği ve `~8-10` parça hedefi bu spec'te **sabit sayı** olarak
+yazıldı; oysa hemen üstlerindeki tablo bu sayıları katman tavanından
+hesaplıyordu (Free 6.000 / Pro 16.000 / Team 32.000, ~600 token/tablo).
+Bütünsel branş incelemesi bu tutarsızlığı yakaladı: sabit `12` eşiğiyle, Free
+katmandaki bir kullanıcının 11-12 tablolu planı tek çağrı yoluna düşüyor,
+~6.600 token gerektirip 6.000 tavanına çarpıyor ve **her seferinde kesiliyor**
+— üstelik tam da o durumu çözecek parçalama mekanizması hemen yanı başında
+kullanılmadan duruyor.
+
+Bu bir uygulama hatası değil, **bu spec'in hatasıydı**: tavan tablosundan
+hesaplayıp ardından sonucu sabitledi.
+
+Düzeltilmiş kural: hem eşik hem parça hedefi etkin çıktı tavanından türetilir
+(`tavan / 600`), bugünkü sabitler ÜST SINIR olarak korunur. Böylece Pro ve
+Team davranışı birebir aynı kalır (16.000/32.000 → 26/53 hesaplanır, 12/9'a
+kırpılır), yalnızca dar tavanlı katmanlar daha küçük parçalar alır. Tavan
+bilinmiyorsa eski sabitlere düşülür.
+
 ## Test stratejisi
 
 - **Plan ayrıştırma:** geçerli JSON, bozuk JSON, boş domain listesi, eşik
