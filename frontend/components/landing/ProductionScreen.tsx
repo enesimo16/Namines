@@ -181,6 +181,29 @@ export default function ProductionScreen({ steps, isRunning, summary, onClose }:
                 </ul>
               </details>
             )}
+
+            {/* Büyük şemalar (50-60 tablo) paralel parçalar hâlinde üretilip
+                birleştiriliyor. Birleştirme sırasında tekilleştirilen bir
+                tablo, düşürülen çözülemez bir ilişki ya da tamamen
+                başarısız olan bir alan — bunların hiçbiri bulgu DEĞİL
+                (şema yine derleniyor) ama sessizce kaybolmamalı: kullanıcı
+                "45 tablo" görüp aslında 9 tablonun (bir alanın) hiç
+                üretilmediğini bilmeden kalmamalı. bkz. SchemaChunkMerger. */}
+            {summary.mergeNotes && summary.mergeNotes.length > 0 && (
+              <details className="text-[11px]">
+                <summary className="cursor-pointer text-content-muted hover:text-content-secondary">
+                  {summary.mergeNotes.length} note{summary.mergeNotes.length === 1 ? '' : 's'} from
+                  merging this schema's parts
+                </summary>
+                <ul className="flex flex-col gap-1 mt-1.5 pl-3 max-h-28 overflow-y-auto">
+                  {summary.mergeNotes.map((note, i) => (
+                    <li key={i} className="text-content-muted leading-snug">
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
         )}
 

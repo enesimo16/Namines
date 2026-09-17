@@ -129,6 +129,46 @@ describe('ProductionScreen', () => {
     expect(screen.queryByText(/unresolved problem/i)).not.toBeInTheDocument();
   });
 
+  it('surfaces merge notes from chunked (50-60 table) generation instead of hiding them', () => {
+    // Final whole-branch review I4: mergeNotes'un backend'de üretilip
+    // frontend'de HİÇBİR YERDE okunmaması, birleştiricinin var olma sebebi
+    // olan dürüstlük garantisini (düşürülen ilişki, tekilleştirilen tablo,
+    // "Domain 'Billing' failed") kullanıcıdan görünmez kılıyordu.
+    render(
+      <ProductionScreen
+        steps={[]}
+        isRunning={false}
+        summary={summary({
+          clean: true,
+          mergeNotes: [
+            "[merge] Domain 'Billing' failed: chunk 'Billing' did not return a readable schema",
+            "[merge] Duplicate table 'order_items' from another chunk was dropped.",
+          ],
+        })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/2 notes from merging this schema's parts/i)).toBeInTheDocument();
+    expect(screen.getByText(/Domain 'Billing' failed/)).toBeInTheDocument();
+    expect(screen.getByText(/Duplicate table 'order_items'/)).toBeInTheDocument();
+  });
+
+  it('does not render a merge notes section for the single-call (small schema) path', () => {
+    // Tek çağrılık yolda mergeNotes her zaman boş dizi (ya da alan hiç
+    // gelmeyebilir) — bu durumda bölüm hiç görünmemeli.
+    render(
+      <ProductionScreen
+        steps={[]}
+        isRunning={false}
+        summary={summary({ clean: true, mergeNotes: [] })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/notes from merging/i)).not.toBeInTheDocument();
+  });
+
   it('shows nothing extra while the run is still in progress', () => {
     render(
       <ProductionScreen

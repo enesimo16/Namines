@@ -26,6 +26,19 @@ export interface AgentResultEvent {
     portableEverywhere: boolean;
     findings: string[];
     portability: string[];
+    /**
+     * Parçalı (chunked, 50-60 tablo) üretim yolunda SchemaChunkMerger'ın
+     * ürettiği birleştirme notları — tekilleştirilen tablo, düşürülen
+     * çözülemez ilişki, başarısız olan alan ("[merge] Domain 'Billing'
+     * failed: ..."). Tek çağrılık (küçük şema) yolda her zaman BOŞ dizi.
+     *
+     * Backend her zaman gönderir (bkz. SchemaAgentResult.MergeNotes'un
+     * null->boş-dizi normalize eden init'i), ama alan opsiyonel işaretli:
+     * bu sözleşmenin iki dil arasında DERLEYİCİ BAĞI YOK (bkz. yukarıdaki
+     * kind alanı notu) — eski bir backend/önbelleğe alınmış bir yanıt bu
+     * alanı hiç içermeyebilir, o durumda tüketici çökmemeli.
+     */
+    mergeNotes?: string[];
   };
 }
 
