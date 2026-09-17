@@ -626,6 +626,29 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         return 0;
     }
 
+    // Final whole-branch review I5: "maxTokens" varsayılanı koddaki record'da
+    // "4096"'dan "32000"e çıkarıldı, ama bu yalnızca Advanced AI Tuning
+    // panelini hiç açmamış kullanıcıları kurtarıyor — panel bir kez bile
+    // kaydedildiyse veritabanında kalıcı "4096" yazıyor ve Pro/Team
+    // kullanıcısını bile o tavana kilitliyor (bkz. AiAdvancedSettingsFixup'ın
+    // kendi doc'u). ORTAMDAN BAĞIMSIZ (yalnızca Development değil) çalışır:
+    // bu gerçek kullanıcı hesaplarını düzeltiyor. Migration'dan SONRA, hata
+    // FIRLATMADAN — bu bir veri düzeltmesi, uygulamanın açılma şartı değil.
+    using (var fixupScope = app.Services.CreateScope())
+    {
+        try
+        {
+            await Namines.API.Services.AiAdvancedSettingsFixup.RunAsync(
+                fixupScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
+                fixupScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger(nameof(Namines.API.Services.AiAdvancedSettingsFixup)));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "AiAdvancedSettings düzeltmesi çalıştırılamadı; uygulama onsuz devam ediyor.");
+        }
+    }
+
     // Sahip/geliştirici hesabı .env'den tohumlanıyor. Migration'dan SONRA olmalı:
     // IsDev kolonu henüz yokken kullanıcı yazmaya çalışmak açılışı kırardı.
     //
