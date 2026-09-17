@@ -1,0 +1,143 @@
+# Hız Sınırı Dayanıklılığı ve Sağlayıcı Soyutlaması — Spec
+
+**Durum:** Üç karar kullanıcı tarafından verildi — uygulama planı bekleniyor.
+
+**Sorun:** Şema üretimi büyük isteklerde çalışmıyor ve sebebi kod değil, tek bir
+sağlayıcıya (Groq) ücretsiz katman limitleriyle bağlı olmak.
+
+Canlı ölçüm (bu hesap, `openai/gpt-oss-*`): **dakikada 8.000 token**. 54 tablo
+≈ 35.000 çıktı tokenı gerektiriyor. Model tarafında sorun yok —
+`gpt-oss-120b`'nin tek çağrı tavanı 65.536, yani kapasite fazlasıyla yeterli.
+Tıkanan tek şey dakikalık akış.
+
+Bugün 429 alındığında `AiRateLimitException` fırlatılıyor, sağlayıcının verdiği
+`Retry-After` değeri de taşınıyor — ama **hiç kullanılmıyor**. Kullanıcı 20
+saniye beklemek yerine hatayı görüyor.
+
+## Kullanıcı kararları
+
+1. **Bekleme:** şimdilik uzun beklemeye izin verilsin, ama **Dev Tier'a
+   geçildiğinde bu hiç yaşanmamalı.** → Süre sabit değil, **yapılandırılabilir**
+   olacak; bugün cömert bir varsayılan, daha yüksek bir katmanda pratikte hiç
+   tetiklenmeyen bir emniyet ağı.
+2. **DeepSeek:** anahtarsız yazılacak, canlı doğrulama sonraya bırakılacak.
+   (Bu oturumun dersi açıkça kabul edildi: birim testler yeşilken canlıda beş
+   ayrı hata çıkmıştı. Bu yüzden Faz 2 "bitti" değil "canlıda doğrulanmadı"
+   olarak kapanacak.)
+3. **Rol:** sağlayıcı **yapılandırmayla seçilebilir**, varsayılan Groq kalır.
+
+---
+
+## Faz 1: 429'da bekle ve yeniden dene
+
+### Nerede
+
+`GroqAIService.PostAsync` — **tek çıkış noktası**. Bu tercih `max_tokens`
+kırpmasıyla aynı gerekçeye dayanıyor: bu sınıfta sekizden fazla çağrı yeri var
+ve yenileri ekleniyor; her birine yeniden deneme yazmak, birini unutmanın
+zamanla kesinleşmesi demek. Gövde zaten burada kuruluyor ve 429 zaten burada
+`AiRateLimitException`'a çevriliyor.
+
+### Kural
+
+- Sağlayıcının `Retry-After` başlığı (ya da hata gövdesindeki süre) **olduğu
+  gibi** kullanılır — tahmin edilmez.
+- Toplam bekleme `Ai:RateLimitRetry:MaxTotalWaitSeconds` ile sınırlı
+  (varsayılan **600**). Bu değer aşılınca bugünkü davranışa dönülür:
+  `AiRateLimitException` fırlatılır ve kullanıcı ne kadar gerektiğini öğrenir.
+- Tek seferlik bekleme de sınırlı (`MaxSingleWaitSeconds`, varsayılan **60**):
+  sağlayıcı saçma bir değer döndürürse istek sonsuza kadar asılı kalmaz.
+- `CancellationToken` beklemenin İÇİNDE de geçerli — kullanıcı iptal ettiğinde
+  60 saniye beklemeye devam etmek, iptali yok saymak olurdu.
+- Yeniden deneme yalnızca **429** için. Diğer hatalar bugünkü gibi anında
+  yukarı çıkar; 400'ü yeniden denemek yalnızca aynı 400'ü tekrar almaktır.
+
+### Bilinçli olarak YAPILMAYAN
+
+Üretim ekranına "hız sınırı, 20sn bekleniyor" adımı **bu fazda eklenmiyor.**
+`PostAsync` HTTP katmanı; oraya ilerleme bildirimi taşımak, bu spec'in
+çözmediği bir bağımlılık zinciri açar. Kullanıcı yine de ilerleme görüyor:
+parçalar tamamlandıkça SSE akışına düşüyorlar. Beklemenin görünür olması ayrı
+bir iş olarak not edildi.
+
+---
+
+## Faz 2: Sağlayıcı soyutlaması + DeepSeek
+
+### Bugünkü durumun dürüst tespiti
+
+Soyutlama **zaten var**: `IAIService` (7 metot), `IAIFactory`, `AIFactory`, ve
+ikinci bir implementasyon olarak `OllamaAIService`. Sorun soyutlamanın yokluğu
+değil, **atlanması**: altı tüketici somut `GroqAIService`'i alıyor —
+`GatewayController`, `AIDbaService`, `AutomationExecutor`,
+`GroqSchemaDraftSource`, `MigrationService`, `SmartSeedService`. Sebebi de net:
+ihtiyaç duydukları `AnalyzeSchemaDbaAsync`, `GenerateSmartSeedSqlAsync` gibi
+metotlar `IAIService`'te yok.
+
+### Seçilen yaklaşım: sınıfı değil, ALTINDAKİ SAĞLAYICIYI değiştirilebilir yap
+
+Altı tüketiciyi bir arayüze çevirmek yerine, `GroqAIService`'in HTTP tarafını
+enjekte edilen bir sağlayıcıya devretmesi tercih ediliyor. Böylece **altı
+tüketici hiç değişmeden** DeepSeek'i de kullanabilir hâle geliyor; aksi hâlde
+her biri için ayrı bir arayüz genişletme ve çevirme işi çıkardı ve DeepSeek
+yalnızca şema üretiminde çalışırdı.
+
+```
+IChatCompletionProvider        ← sağlayıcıya özgü olan HER ŞEY burada
+  ├─ BaseAddress
+  ├─ kimlik doğrulama başlığı
+  ├─ model kimlikleri + model başına çıktı sınırı
+  └─ 429 gövdesinden/başlığından Retry-After çıkarma
+
+  ├── GroqChatProvider        (bugünkü davranış, birebir)
+  └── DeepSeekChatProvider    (OpenAI uyumlu — aynı gövde şekli)
+
+AiService (bugünkü GroqAIService)
+  └─ üst seviye işler: şema üretimi, revizyon, DBA, seed, migration…
+     Sağlayıcıya özgü hiçbir şey bilmez.
+```
+
+Sağlayıcı seçimi: `Ai:Provider` (`groq` | `deepseek`), varsayılan `groq`.
+Tanınmayan değer varsayılana düşer ve **loglanır** — bir yazım hatası yüzünden
+uygulamanın açılmaması, yapılandırma hatasının bedelini orantısız kılardı.
+
+### Model kataloğu sağlayıcı-farkında olmalı
+
+`NaiCatalog` bugün Groq'a özgü: model kimlikleri **ve** model başına
+`MaxCompletionTokens` içeriyor. Bu iki bilgi sağlayıcıya göre değişiyor, yani
+katalog sağlayıcıdan gelmeli. `Flash`/`Standard`/`Pro` kademeleri ürünün kendi
+kavramı olarak kalıyor — her sağlayıcı bu üç kademeye kendi modelini eşliyor.
+
+### DeepSeek'in bilinen farkları
+
+- OpenAI uyumlu `chat/completions` — gövde şekli aynı, bu yüzden mevcut
+  serileştirme yeniden kullanılabilir.
+- Farklı temel adres ve model kimlikleri.
+- 429 gövdesi Groq'unkiyle **aynı şekilde olmayabilir** — `Retry-After`
+  çıkarma sağlayıcıya özgü kalmalı, ortak koda gömülmemeli.
+- Araç çağırma (tool calling) desteği modelden modele değişir;
+  `SupportsToolCalling` kararı da sağlayıcıya ait olmalı.
+
+---
+
+## Test stratejisi
+
+- **Faz 1:** 429 → bekle → başarı senaryosu; toplam bütçe aşılınca istisna;
+  iptal token'ı beklemeyi kesiyor; 429 DIŞINDAKİ hatanın yeniden
+  DENENMEDİĞİ. Hepsi sahte bir `HttpMessageHandler` ile, gerçek ağ olmadan.
+- **Faz 2:** her iki sağlayıcının doğru temel adres/başlık/model ürettiği;
+  `Ai:Provider` seçiminin doğru sağlayıcıyı verdiği; tanınmayan değerin
+  varsayılana düşüp loglandığı; `max_tokens` kırpmasının her iki sağlayıcının
+  kendi sınırlarını kullandığı.
+- **Regresyon:** Groq yolunun davranışı birebir korunmalı — bugünkü tüm testler
+  değişmeden geçmeli. Değişmeleri gerekiyorsa bu, davranışın değiştiğinin
+  işaretidir ve durup bakılmalı.
+
+## Kapsam dışı (bu spec için)
+
+- Beklemenin üretim ekranında görünür olması (yukarıda gerekçesiyle).
+- Groq 429'unda otomatik DeepSeek'e düşme (kullanıcı "seçilebilir" dedi,
+  "otomatik yedek" değil).
+- `IAIService`'in yedi metotluk yüzeyini genişletmek — bu yaklaşımla gerek
+  kalmıyor.
+- DeepSeek'in canlı doğrulaması (anahtar yok; kullanıcı kararıyla ertelendi).
