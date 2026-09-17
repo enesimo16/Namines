@@ -98,6 +98,44 @@ public class ScopedRepairTests
         Assert.Contains(spliced.Tables, t => t.Name == "order_audit_log");
     }
 
+    /// <summary>
+    /// Final whole-branch review I3: <c>SpliceTables</c> ve
+    /// <see cref="SchemaChunkMerger"/> "aynı tablo adı" konusunda ANLAŞMALI.
+    /// Onarım turu genelde tam olarak bir <c>namingConvention</c> bulgusunu
+    /// düzeltmesi istendiği için model tabloyu FARKLI biçimlendirilmiş bir
+    /// adla döndürebilir (ör. "Order Items" → "order_items"). Ham
+    /// <c>OrdinalIgnoreCase</c> karşılaştırması bu ikisini FARKLI tablo sanıp
+    /// orijinali AYNEN korur VE modelin düzelttiği hâlini "yeni tablo" sayıp
+    /// EKLERDİ — aynı varlık için iki tablo, bulgu asla çözülmez. Normalize
+    /// edilmiş ada göre eşleştirme bunu önlemeli: tablo sayısı ARTMAMALI.
+    /// </summary>
+    [Fact]
+    public void SpliceTables_matches_a_reformatted_table_name_via_normalization_not_ordinal_comparison()
+    {
+        var full = new DatabaseSchema { SchemaId = "s", Name = "S" };
+        full.Tables.Add(Table("Order Items", "t1"));
+        full.Tables.Add(Table("customers", "t2"));
+
+        // Model bir "naming convention should be snake_case" bulgusunu
+        // düzeltiyor ve tabloyu snake_case adla geri döndürüyor — kimlik (Id)
+        // AYNI kalıyor ama isim farklı biçimlendirilmiş.
+        var repairedSubset = new DatabaseSchema { SchemaId = "s", Name = "S" };
+        var renamed = Table("order_items", "t1");
+        renamed.Columns.Add(new SchemaColumn { Id = "c1", Name = "id", Type = "int", IsPK = true });
+        repairedSubset.Tables.Add(renamed);
+
+        var spliced = SchemaMerge.SpliceTables(full, repairedSubset);
+
+        // Tablo sayısı BÜYÜMEMELİ — iki ayrı tablo (biri eski adla, biri yeni
+        // adla) olmamalı.
+        Assert.Equal(2, spliced.Tables.Count);
+
+        // Düzeltilmiş (yeniden biçimlendirilmiş) hâl kazanmalı, orijinal
+        // "Order Items" değil.
+        Assert.Contains(spliced.Tables, t => t.Name == "order_items" && t.Columns.Count == 1);
+        Assert.DoesNotContain(spliced.Tables, t => t.Name == "Order Items");
+    }
+
     // ---- RepairScope.TableNamesIn -----------------------------------------
 
     [Fact]

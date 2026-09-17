@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Namines.Core.Analysis;
 
 namespace Namines.Core.Models;
 
@@ -68,19 +69,37 @@ public static class SchemaMerge
     /// <c>SelectedTables</c> daraltılıyor), yani bu alanda ekstra bir
     /// birleştirmeye gerek yok.
     /// </summary>
+    /// <remarks>
+    /// <b>İsim eşleştirme <see cref="SchemaIdConvention.Normalize"/> ile yapılır,
+    /// ham <c>OrdinalIgnoreCase</c> ile DEĞİL</b> (final whole-branch review I3).
+    ///
+    /// <see cref="SchemaChunkMerger"/> tabloları normalize edilmiş ada göre
+    /// tekilleştiriyor; bu metot ise ham adı karşılaştırıyordu. Onarım turu
+    /// tam olarak kullanıcının <c>namingConvention</c> tercihini düzeltmesi
+    /// istenen bir bulguya cevap veriyorsa, model tabloyu FARKLI biçimlendirilmiş
+    /// bir adla ("Order Items" → "order_items") geri döndürebilir — bu iki
+    /// kod yolunun aynı tabloyu FARKLI şeyler sanmasına yol açar: burada eşleşme
+    /// bulunamaz, orijinal AYNEN kalır VE modelin döndürdüğü hâli "yeni tablo"
+    /// sanılıp EKLENİR. Sonuç: aynı varlık için iki tablo, bulgu hiç çözülmez,
+    /// bir sonraki tur aynı hatayı tekrar onarmaya çalışır.
+    ///
+    /// Normalize'a geçmek bu ikisini aynı anahtara indirger — bir model
+    /// icadı yeni tablo hâlâ EKLENİR (bu ruling'i TERSİNE ÇEVİRMİYORUZ, yalnızca
+    /// "aynı isim" tanımını <see cref="SchemaChunkMerger"/> ile HİZALIYORUZ).
+    /// </remarks>
     public static DatabaseSchema SpliceTables(DatabaseSchema full, DatabaseSchema repairedSubset)
     {
         var merged = PreserveUnrevised(full, repairedSubset);
 
         var spliced = new List<SchemaTable>(full.Tables.Count);
-        var namesInFull = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        var namesInFull = new HashSet<string>();
 
         foreach (var original in full.Tables)
         {
-            namesInFull.Add(original.Name);
+            namesInFull.Add(SchemaIdConvention.Normalize(original.Name));
 
             var replacement = repairedSubset.Tables.FirstOrDefault(
-                t => string.Equals(t.Name, original.Name, System.StringComparison.OrdinalIgnoreCase));
+                t => SchemaIdConvention.Normalize(t.Name) == SchemaIdConvention.Normalize(original.Name));
 
             spliced.Add(replacement ?? original);
         }
@@ -89,7 +108,7 @@ public static class SchemaMerge
         // bilerek yeni bir tablo eklemiş demektir.
         foreach (var candidate in repairedSubset.Tables)
         {
-            if (!string.IsNullOrWhiteSpace(candidate.Name) && namesInFull.Add(candidate.Name))
+            if (!string.IsNullOrWhiteSpace(candidate.Name) && namesInFull.Add(SchemaIdConvention.Normalize(candidate.Name)))
                 spliced.Add(candidate);
         }
 
