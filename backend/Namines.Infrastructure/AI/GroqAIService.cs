@@ -339,13 +339,49 @@ public class GroqAIService : IAIService, IAgentChatClient
         return await UpstreamModelForUserAsync(NaiModel.Standard, httpContext);
     }
 
+    /// <summary>
+    /// Gönderilmeden hemen önce <c>max_tokens</c>'ı modelin sağlayıcı sınırına
+    /// çeker.
+    ///
+    /// <b>Neden TEK çıkış noktasında, her çağrı yerinde değil:</b> bu sınıfta
+    /// <c>max_tokens</c> hesaplayan sekiz ayrı yer var ve yenileri ekleniyor.
+    /// Her birine kırpma yazmak, birini unutmanın er ya da geç olması demekti —
+    /// ve unutulan yer sessiz bir hata değil, sağlayıcının isteği KOMPLE
+    /// reddetmesi (400 invalid_request) olarak çıkıyor: kullanıcı küçük bir
+    /// sonuç değil, hiç sonuç alamıyor. Burada, gövde JSON'ı zaten model adını
+    /// okumak için ayrıştırılıyorken yapılınca kural unutulamaz hâle geliyor.
+    ///
+    /// Tanınmayan model ya da <c>max_tokens</c> içermeyen gövde olduğu gibi
+    /// geçer (bkz. <see cref="NaiCatalog.ClampToModelLimit"/>).
+    /// </summary>
+    private static string ClampMaxTokensToModelLimit(string json, string modelInPayload)
+    {
+        if (string.IsNullOrEmpty(modelInPayload)) return json;
+
+        try
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(json);
+            if (node?["max_tokens"] is null) return json;
+
+            var requested = node["max_tokens"]!.GetValue<int>();
+            var clamped = NaiCatalog.ClampToModelLimit(modelInPayload, requested);
+            if (clamped == requested) return json;
+
+            node["max_tokens"] = clamped;
+            return node.ToJsonString();
+        }
+        catch
+        {
+            // Gövdeyi okuyamadıysak DOKUNMUYORUZ: kırpma bir güvenlik ağı,
+            // isteği bozma hakkı değil.
+            return json;
+        }
+    }
+
     private async Task<HttpResponseMessage> PostAsync(
         string relativeUri, object payload, CancellationToken cancellationToken = default)
     {
         var json = JsonSerializer.Serialize(payload);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var request = new HttpRequestMessage(HttpMethod.Post, relativeUri) { Content = content };
 
         // Resolve the model name from the payload to detect Gemini routing
         string modelInPayload = "";
@@ -356,6 +392,12 @@ public class GroqAIService : IAIService, IAgentChatClient
                 modelInPayload = modelEl.GetString() ?? "";
         }
         catch { }
+
+        json = ClampMaxTokensToModelLimit(json, modelInPayload);
+
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, relativeUri) { Content = content };
 
         bool isGeminiModel = modelInPayload.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase);
 
@@ -461,7 +503,8 @@ public class GroqAIService : IAIService, IAgentChatClient
         IReadOnlyList<AgentChatMessage> messages,
         IReadOnlyList<AgentToolDefinition> tools,
         double temperature,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? maxOutputTokens = null)
     {
         var model = await ResolveModelNameAsync(null, "SchemaAgent");
 
@@ -470,7 +513,15 @@ public class GroqAIService : IAIService, IAgentChatClient
         // degiskende sabitleniyor, aksi halde TierAsync() ikinci kez cagrilirsa
         // (esZamanli bir istek plani degistirmis olabilir) rapor edilen tavan
         // gercekte gonderilenle uyusmayabilirdi.
-        var maxTokens = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
+        var planCeiling = (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
+
+        // Cagri BASINA tavan: sadeCE ihtiyac kadar iste. Saglayicinin dakikalik
+        // token siniri HARCANANI degil ISTENENI sayiyor, yani 9 tabloluk bir
+        // parca icin planin 32.000'lik tavanini istemek butun dakikalik butceyi
+        // tek istekte yakip 429 aldiriyordu (canli testte gorulen hata).
+        var maxTokens = maxOutputTokens is > 0
+            ? Math.Min(maxOutputTokens.Value, planCeiling)
+            : planCeiling;
 
         var payload = new Dictionary<string, object>
         {

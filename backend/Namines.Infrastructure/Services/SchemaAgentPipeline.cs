@@ -114,6 +114,27 @@ public sealed class SchemaAgentPipeline
     /// </summary>
     public const int DefaultTotalRounds = FixedRounds + DefaultRepairRounds;
 
+    /// <summary>
+    /// Aynı anda kaç parça çağrısının sağlayıcıya gideceği.
+    ///
+    /// <b>Sınırsız fan-out CANLI TESTTE 429 ürüyordu.</b> Sağlayıcı yalnızca
+    /// günlük değil DAKİKA BAŞINA token (TPM) de sınırlıyor ve bu sınıra
+    /// harcanan token değil İSTENEN <c>max_tokens</c> sayılıyor. 7 parça aynı
+    /// anda 16.384'er token isteyince anlık talep ~115.000 oluyor ve istek
+    /// daha başlamadan reddediliyordu — yani özellik, tam da var olma sebebi
+    /// olan BÜYÜK isteklerde çalışmıyordu. Kullanıcının günlük bütçesini
+    /// hesaplayan kontrol bunu göremez; o bütçe ayrı bir şey.
+    ///
+    /// İki bilinçli tercih:
+    /// <list type="bullet">
+    /// <item>Sıralıya düşülmedi: 7 parçayı teker teker beklemek, parçalamanın
+    /// hız kazancını tamamen geri verirdi.</item>
+    /// <item>Sayı KÜÇÜK tutuldu (2): sonuç ALMAK, biraz daha hızlı almaktan
+    /// önce gelir. 429 görülmeye devam ederse çevrilecek ilk düğme budur.</item>
+    /// </list>
+    /// </summary>
+    public const int MaxConcurrentChunks = 2;
+
     private readonly ISchemaDraftSource _source;
     private readonly IDdlGeneratorFactory _ddlFactory;
     private readonly ILogger<SchemaAgentPipeline> _logger;
@@ -217,9 +238,13 @@ public sealed class SchemaAgentPipeline
             progress?.Report(AgentStep.Draft(
                 $"Generating {parsedPlan.TableCount} tables across {chunks.Count} domains…"));
 
+            // Parçalar paralel ama SINIRLI paralel — bkz. MaxConcurrentChunks.
+            using var chunkGate = new SemaphoreSlim(MaxConcurrentChunks, MaxConcurrentChunks);
+
             var tasks = chunks.Select(async chunk =>
             {
                 DatabaseSchema part;
+                await chunkGate.WaitAsync(cancellationToken);
                 try
                 {
                     part = await _source.DraftChunkAsync(
@@ -238,6 +263,12 @@ public sealed class SchemaAgentPipeline
                     // 50'sini vermek, hiçbir şey vermemekten iyidir.
                     return (Part: (DatabaseSchema?)null,
                         Error: $"[merge] Domain '{chunk.Label}' failed: {ex.Message}");
+                }
+                finally
+                {
+                    // Sağlayıcı çağrısı bitti: sıradaki parça hemen girebilsin.
+                    // İlerleme bildiriminin geçidi tutmasına gerek yok.
+                    chunkGate.Release();
                 }
 
                 // Bilerek `try` DIŞINDA: bu bir ilerleme bildirimi, üretimin

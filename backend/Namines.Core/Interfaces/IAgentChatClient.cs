@@ -31,9 +31,21 @@ public sealed record AgentChatResponse(string? Content, IReadOnlyList<AgentToolC
 /// </summary>
 public interface IAgentChatClient
 {
+    /// <param name="maxOutputTokens">
+    /// Bu ÇAĞRININ ihtiyacı kadar çıktı tavanı; <c>null</c> ise planın genel
+    /// tavanı kullanılır.
+    ///
+    /// <b>Neden çağrı başına:</b> sağlayıcı dakika başına token sınırını
+    /// harcanan değil <b>İSTENEN</b> <c>max_tokens</c> üzerinden sayıyor.
+    /// Dokuz tabloluk bir parça için planın 32.000'lik tavanını istemek,
+    /// 8.000'lik dakikalık bütçeyi tek istekte aşıp 429 alıyor — yani parça
+    /// üretimi hiç başlamıyor. Canlı testte tam olarak bu oldu. Her çağrı
+    /// gerçekten ihtiyacı kadar isteyince aynı bütçeye birkaç parça sığıyor.
+    /// </param>
     Task<AgentChatResponse> CompleteAsync(
         IReadOnlyList<AgentChatMessage> messages,
         IReadOnlyList<AgentToolDefinition> tools,
         double temperature,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int? maxOutputTokens = null);
 }

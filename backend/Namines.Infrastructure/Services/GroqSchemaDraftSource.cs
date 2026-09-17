@@ -172,6 +172,20 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
     {
         var chunkPrompt = SchemaPromptBuilder.BuildChunkUserPrompt(prompt, engine, chunk, allTableNames);
 
+        // Bu parça KENDİ tablo sayısı kadar çıktı istiyor, planın genel tavanı
+        // kadar değil.
+        //
+        // <b>Neden önemli:</b> sağlayıcının dakika başına token sınırı harcanan
+        // değil İSTENEN <c>max_tokens</c> üzerinden işliyor. Dokuz tabloluk bir
+        // parça için 32.000 istemek, 8.000'lik dakikalık bütçeyi tek istekte
+        // aşıp 429 aldırıyordu — yani parçalı üretim hiç başlayamıyordu. Canlı
+        // testte görülen hata buydu ve hiçbir birim test yakalayamazdı, çünkü
+        // sınır sağlayıcı tarafında.
+        //
+        // Katsayı, kod tabanının başka yerlerinde de kullanılan ölçümle aynı:
+        // tablo başına ~600 token, üstüne ilişkiler/sarmal için sabit pay.
+        var chunkBudget = chunk.OwnedTables.Count * 600 + 2000;
+
         var response = await _chat.CompleteAsync(
             new[]
             {
@@ -180,7 +194,8 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
             },
             Array.Empty<AgentToolDefinition>(),
             temperature: 0.4,
-            cancellationToken);
+            cancellationToken,
+            maxOutputTokens: chunkBudget);
 
         return SchemaJsonReader.TryRead(response.Content)
             ?? throw new InvalidOperationException(

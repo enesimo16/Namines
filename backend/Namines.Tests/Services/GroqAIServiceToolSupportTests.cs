@@ -24,7 +24,7 @@ public class GroqAIServiceToolSupportTests
 
     [Theory]
     [InlineData("openai/gpt-oss-20b")]
-    [InlineData("qwen/qwen3.6-27b")]
+    [InlineData("qwen/qwen3.8-27b")]
     [InlineData("openai/gpt-oss-120b")]
     [InlineData("llama-3.3-70b")]
     public void Groq_native_models_support_tool_calling(string model)
