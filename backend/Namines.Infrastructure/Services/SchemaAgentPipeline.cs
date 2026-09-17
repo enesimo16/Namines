@@ -198,22 +198,32 @@ public sealed class SchemaAgentPipeline
         DatabaseSchema schema;
         var mergeNotes = new List<string>();
 
-        if (parsedPlan is not null && Namines.Core.Analysis.SchemaScopePartitioner.ShouldPartition(parsedPlan))
+        // Bölme kararı kullanıcının GERÇEK çıktı token tavanını bilmek zorunda
+        // (final whole-branch review I2): eşik/hedef sabitleri Pro/Team'e göre
+        // seçilmişti, Free'nin daha düşük tavanında bölme eşiğinin altında
+        // kalan bir plan bile kesiliyordu. Tavan yalnızca AI tarafında
+        // biliniyor (kullanıcı kimliği + tercihi), bu yüzden hat onu
+        // kaynaktan SORUYOR — kendi başına hesaplamıyor.
+        var effectiveMaxOutputTokens = parsedPlan is not null
+            ? await SafeEffectiveMaxOutputTokensAsync(cancellationToken)
+            : 0;
+
+        if (parsedPlan is not null &&
+            Namines.Core.Analysis.SchemaScopePartitioner.ShouldPartition(parsedPlan, effectiveMaxOutputTokens))
         {
             // Büyük plan: birkaç paralel parça çağrısına bölüp sonra
             // birleştiriyoruz — tek çağrı 12'den fazla tabloya güvenle sığmaz.
-            var chunks = Namines.Core.Analysis.SchemaScopePartitioner.Partition(parsedPlan);
+            var chunks = Namines.Core.Analysis.SchemaScopePartitioner.Partition(parsedPlan, effectiveMaxOutputTokens);
             progress?.Report(AgentStep.Draft(
                 $"Generating {parsedPlan.TableCount} tables across {chunks.Count} domains…"));
 
             var tasks = chunks.Select(async chunk =>
             {
+                DatabaseSchema part;
                 try
                 {
-                    var part = await _source.DraftChunkAsync(
+                    part = await _source.DraftChunkAsync(
                         prompt, engine, chunk, parsedPlan.AllTableNames, cancellationToken);
-                    progress?.Report(AgentStep.Draft($"{chunk.Label} — {part.Tables.Count} tables"));
-                    return (Part: part, Error: (string?)null);
                 }
                 catch (OperationCanceledException)
                 {
@@ -229,6 +239,17 @@ public sealed class SchemaAgentPipeline
                     return (Part: (DatabaseSchema?)null,
                         Error: $"[merge] Domain '{chunk.Label}' failed: {ex.Message}");
                 }
+
+                // Bilerek `try` DIŞINDA: bu bir ilerleme bildirimi, üretimin
+                // kendisi değil. İçeride kalsaydı, WriteEventAsync'in eş
+                // zamanlı yanıt yazımından (ya da başka bir raporlama
+                // arızasından) fırlayan bir istisna yukarıdaki `catch` tarafından
+                // yakalanır ve bu chunk zaten TAMAMLANMIŞ, kullanıcının parası
+                // ödenmiş 9 tabloyu "[merge] Domain 'X' failed" diye yanlış
+                // sebeple çöpe atardı. Burada fırlarsa Task.WhenAll'a olduğu
+                // gibi yükselir — chunk'ın kendisi başarısız SAYILMAZ.
+                progress?.Report(AgentStep.Draft($"{chunk.Label} — {part.Tables.Count} tables"));
+                return (Part: (DatabaseSchema?)part, Error: (string?)null);
             }).ToList();
 
             var results = await Task.WhenAll(tasks);
@@ -334,6 +355,32 @@ public sealed class SchemaAgentPipeline
             progress?.Report(AgentStep.Clean($"Clean on {engine} — no findings left"));
 
         return new SchemaAgentResult(schema, findings, Portability(schema, engine), rounds, mergeNotes);
+    }
+
+    /// <summary>
+    /// <see cref="ISchemaDraftSource.EffectiveMaxOutputTokensAsync"/>'i sarmalıyor.
+    ///
+    /// Tavan bilgisi bir İYİLEŞTİRME — bölme kararını daha DOĞRU yapıyor ama
+    /// hiçbir zaman üretimi DÜŞÜRMEMELİ. Kaynak bu bilgiyi veremezse (ör. test
+    /// çift'i implemente etmiyor, ya da beklenmeyen bir hata) 0 dönülür —
+    /// <see cref="Namines.Core.Analysis.SchemaScopePartitioner"/> zaten 0'ı
+    /// "tavan bilinmiyor, bugünkü sabitleri kullan" olarak yorumluyor.
+    /// </summary>
+    private async Task<int> SafeEffectiveMaxOutputTokensAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _source.EffectiveMaxOutputTokensAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not read the effective output token ceiling; using default partition constants.");
+            return 0;
+        }
     }
 
     /// <summary>

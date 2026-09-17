@@ -57,6 +57,12 @@ public sealed class FakeSchemaDraftSource : ISchemaDraftSource
         return Task.FromResult(schema);
     }
 
+    /// <summary>0 = "tavan bilinmiyor" — çağıran bugünkü sabit eşik/hedefe düşer.</summary>
+    public int? EffectiveMaxOutputTokens { get; set; }
+
+    public Task<int> EffectiveMaxOutputTokensAsync(CancellationToken ct = default) =>
+        Task.FromResult(EffectiveMaxOutputTokens ?? 0);
+
     /// <summary>
     /// Her tabloya bir birincil anahtar veriliyor: aksi hâlde NslValidator
     /// bulgu üretir, hat onarım döngüsüne girer ve test ölçmek istediği

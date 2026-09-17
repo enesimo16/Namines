@@ -51,6 +51,8 @@ public class SchemaAgentBudgetTests
             RepairCalls++;
             return Task.FromResult(_schema);
         }
+
+        public Task<int> EffectiveMaxOutputTokensAsync(CancellationToken ct = default) => Task.FromResult(0);
     }
 
     /// <summary>FK tipi uyuşmayan şema — NSL004 hatası üretir.</summary>

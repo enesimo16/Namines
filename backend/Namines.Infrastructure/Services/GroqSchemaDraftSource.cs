@@ -268,6 +268,10 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
         return SchemaMerge.SpliceTables(schema, repaired);
     }
 
+    /// <inheritdoc />
+    public Task<int> EffectiveMaxOutputTokensAsync(CancellationToken cancellationToken = default) =>
+        _groq.EffectiveMaxOutputTokensAsync();
+
     /// <summary>
     /// Düzeltme turunu araçlarla yürütür: model yazmadan ÖNCE kural motorunu,
     /// kolon bilgisini ve gerçek DDL üretimini sorgulayabilir.

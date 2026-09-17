@@ -65,6 +65,8 @@ public class SchemaAgentPipelineTests
             IReadOnlyList<string> allTableNames, CancellationToken ct = default) =>
             throw new System.NotImplementedException("bu test parçalı üretimi kullanmıyor");
 
+        public Task<int> EffectiveMaxOutputTokensAsync(CancellationToken ct = default) => Task.FromResult(0);
+
         // Cevap kalmadıysa sonuncuyu tekrarlıyor: "model aynı şeyi döndürmeye
         // devam ediyor" senaryosunu üretmenin yolu bu.
         private DatabaseSchema Next() => _answers.Count > 1 ? _answers.Dequeue() : _answers.Peek();

@@ -9,6 +9,7 @@ using System.Security.Claims;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -473,11 +474,29 @@ public class SchemaController : ControllerBase
         Response.Headers.CacheControl = "no-cache";
         Response.Headers["X-Accel-Buffering"] = "no"; // ters proxy'lerin arabelleğe almasını engelle
 
+        // Paralel parça (chunk) üretimi birden çok arka plan görevinden aynı
+        // anda ilerleme bildirebilir (bkz. SchemaAgentPipeline'ın chunk
+        // döngüsü). ASP.NET Core'da Response.Body'ye EŞ ZAMANLI yazım
+        // desteklenmiyor — iki görev aynı anda buraya girerse en iyi ihtimalle
+        // SSE çerçeveleri iç içe geçer, en kötü ihtimalle pipe bir
+        // InvalidOperationException fırlatır. Bu semafor tek yazıcıyı
+        // GARANTİ ediyor; yanıtın tek sahibi burası olduğu için en ucuz doğru
+        // çözüm de bu.
+        var writeLock = new SemaphoreSlim(1, 1);
+
         async Task WriteEventAsync(string eventName, object data)
         {
             var json = JsonSerializer.Serialize(data, _jsonOptions);
-            await Response.WriteAsync($"event: {eventName}\ndata: {json}\n\n", HttpContext.RequestAborted);
-            await Response.Body.FlushAsync(HttpContext.RequestAborted);
+            await writeLock.WaitAsync(HttpContext.RequestAborted);
+            try
+            {
+                await Response.WriteAsync($"event: {eventName}\ndata: {json}\n\n", HttpContext.RequestAborted);
+                await Response.Body.FlushAsync(HttpContext.RequestAborted);
+            }
+            finally
+            {
+                writeLock.Release();
+            }
         }
 
         var progress = new AsyncProgress<AgentStep>(step => WriteEventAsync("step", step));

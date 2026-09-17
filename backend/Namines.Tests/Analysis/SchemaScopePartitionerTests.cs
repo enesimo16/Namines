@@ -67,4 +67,66 @@ public class SchemaScopePartitionerTests
 
         Assert.All(chunks, c => Assert.False(string.IsNullOrWhiteSpace(c.Label)));
     }
+
+    // ── Final whole-branch review I2: eşik/hedef tavana göre KÜÇÜLEBİLMELİ ──
+    //
+    // Free'nin tavanı 6.000 token; spec'in tablo başı ~600 token ölçümüyle bu
+    // ~10 tablo demek. Eski sabit eşik (12), 11-12 tablolu bir Free planını
+    // TEK ÇAĞRIYA düşürüyordu — bölme mekanizması tam da bunu çözerdi ama
+    // devreye hiç girmiyordu.
+
+    [Fact]
+    public void Dusuk_tavanda_esik_kuculur_free_11_tablo_artik_bolunuyor()
+    {
+        var plan = Plan(("A", 11));
+
+        // Tavan verilmezse (eski davranış, geriye dönük uyum) 11 hâlâ eşiğin altında.
+        Assert.False(SchemaScopePartitioner.ShouldPartition(plan));
+
+        // Free tavanı (6.000 ≈ 10 tablo) verildiğinde 11 tablo artık BÖLÜNMELİ.
+        Assert.True(SchemaScopePartitioner.ShouldPartition(plan, maxOutputTokens: 6_000));
+    }
+
+    [Fact]
+    public void Yuksek_tavan_bugunku_sabitleri_asmiyor_pro_team_degismiyor()
+    {
+        var plan12 = Plan(("A", 12));
+        var plan13 = Plan(("A", 13));
+
+        // Pro (16.000) ve Team (32.000) tavanları bugünkü sabit eşikten (12)
+        // DAHA BÜYÜK bir eşik üretmemeli — yalnızca daha düşük tavanlar
+        // eşiği küçültebilir, hiçbiri onu büyütmemeli.
+        Assert.False(SchemaScopePartitioner.ShouldPartition(plan12, maxOutputTokens: 16_000));
+        Assert.False(SchemaScopePartitioner.ShouldPartition(plan12, maxOutputTokens: 32_000));
+        Assert.True(SchemaScopePartitioner.ShouldPartition(plan13, maxOutputTokens: 16_000));
+        Assert.True(SchemaScopePartitioner.ShouldPartition(plan13, maxOutputTokens: 32_000));
+    }
+
+    [Fact]
+    public void Parca_hedefi_de_tavandan_turetiliyor_ama_bugunku_sabiti_asmiyor()
+    {
+        // Çok düşük bir tavanda (ör. 3.000 ≈ 5 tablo) parça hedefi TargetTablesPerChunk'ın (9) ALTINA inmeli.
+        var chunks = SchemaScopePartitioner.Partition(Plan(("Big", 25)), maxOutputTokens: 3_000);
+
+        Assert.All(chunks, c => Assert.True(c.OwnedTables.Count <= 5,
+            "3.000 token tavanında bir parça 5 tablodan fazlasını hedeflememeli (~600 token/tablo)."));
+
+        // Pro/Team tavanında (>= eski sabitlerin gerektirdiği) hedef bugünküyle AYNI (9) kalmalı.
+        var chunksAtProCeiling = SchemaScopePartitioner.Partition(Plan(("Big", 25)), maxOutputTokens: 16_000);
+        Assert.All(chunksAtProCeiling, c => Assert.True(
+            c.OwnedTables.Count <= SchemaScopePartitioner.TargetTablesPerChunk));
+        Assert.Contains(chunksAtProCeiling, c => c.OwnedTables.Count == SchemaScopePartitioner.TargetTablesPerChunk);
+    }
+
+    [Fact]
+    public void Tavan_sifirsa_ya_da_verilmezse_bugunku_sabitler_aynen_kullaniliyor()
+    {
+        var plan = Plan(("A", 13));
+
+        var chunksNoCeiling = SchemaScopePartitioner.Partition(plan);
+        var chunksZeroCeiling = SchemaScopePartitioner.Partition(plan, maxOutputTokens: 0);
+
+        Assert.Equal(chunksNoCeiling.Count, chunksZeroCeiling.Count);
+        Assert.Equal(SchemaScopePartitioner.ShouldPartition(plan), SchemaScopePartitioner.ShouldPartition(plan, 0));
+    }
 }

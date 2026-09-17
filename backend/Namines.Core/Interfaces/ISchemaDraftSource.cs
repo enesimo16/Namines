@@ -67,4 +67,19 @@ public interface ISchemaDraftSource
         IReadOnlyList<string> findings,
         DatabaseType engine,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Bu isteği yapan kullanıcının GERÇEK çıktı token tavanı (plan tavanı ile
+    /// kullanıcı tercihinin daha küçüğü).
+    ///
+    /// <b>Hat neden bunu bilmek zorunda (final whole-branch review I2):</b>
+    /// <see cref="SchemaScopePartitioner"/>'ın bölme eşiği ve parça-başı tablo
+    /// hedefi Pro/Team tavanına göre seçilmişti; Free'nin daha düşük tavanında
+    /// bölme eşiğinin altında kalan bir plan bile kesiliyordu — bölme
+    /// mekanizması tam da bunu çözerdi ama hiç devreye girmiyordu. Karar
+    /// hattın kendisinde (deterministik tarafta) verilmeli, bu yüzden tavan
+    /// buradan dışarı açılıyor; hesaplaması yine AI tarafında kalıyor çünkü
+    /// kullanıcının kimliği ve tercihi yalnızca orada biliniyor.
+    /// </summary>
+    Task<int> EffectiveMaxOutputTokensAsync(CancellationToken cancellationToken = default);
 }

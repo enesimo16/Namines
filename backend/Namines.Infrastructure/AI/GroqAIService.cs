@@ -253,6 +253,23 @@ public class GroqAIService : IAIService, IAgentChatClient
         }
     }
 
+    /// <summary>
+    /// Bu isteği yapan kullanıcının GERÇEK çıktı token tavanı — plan tavanı ile
+    /// kullanıcının tercihinin daha küçüğü (bkz. <see cref="AiAdvancedSettings.MaxTokensFor"/>).
+    ///
+    /// <b>Neden dışarı açılıyor:</b> <see cref="Services.SchemaAgentPipeline"/>
+    /// büyük bir planı parçalara (chunk) bölüp bölmeyeceğine — ve parça başına
+    /// kaç tablo hedefleyeceğine — bu tavanı bilerek karar vermek zorunda
+    /// (final whole-branch review I2): eşik/hedef sabitleri Pro/Team için
+    /// doğruydu ama Free'nin 6.000 token'lık tavanında (~10 tablo) tek-çağrı
+    /// eşiği olan 12'nin altında kalan bir plan bile kesiliyordu. Hat bu
+    /// değeri kendi başına HESAPLAYAMAZ — tavan kullanıcının kimliğine ve
+    /// tercihine bağlı, ve bunlar yalnızca burada, sağlayıcı katmanında
+    /// biliniyor.
+    /// </summary>
+    public async Task<int> EffectiveMaxOutputTokensAsync() =>
+        (await AdvancedSettingsAsync()).MaxTokensFor(await TierAsync());
+
     private async Task<string> ResolveModelNameAsync(string? requestedModel = null, string? featureName = null)
     {
         var httpContext = _httpContextAccessor.HttpContext;

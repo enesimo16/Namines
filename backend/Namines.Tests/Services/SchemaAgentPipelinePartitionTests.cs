@@ -253,6 +253,8 @@ public class SchemaAgentPipelinePartitionTests
         public Task<DatabaseSchema> RepairAsync(
             DatabaseSchema schema, IReadOnlyList<string> findings, DatabaseType engine, CancellationToken ct = default) =>
             Task.FromResult(schema);
+
+        public Task<int> EffectiveMaxOutputTokensAsync(CancellationToken ct = default) => Task.FromResult(0);
     }
 
     [Fact]
