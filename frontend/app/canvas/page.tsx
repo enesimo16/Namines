@@ -73,6 +73,7 @@ import TourOverlay from '../../components/tour/TourOverlay';
 import { token } from '../../lib/designTokens';
 import { useHomeThemeStore } from '../../store/useHomeThemeStore';
 import { useActiveEdgeMenuStore } from '../../store/useActiveEdgeMenuStore';
+import { decideCanvasBoot } from '../../lib/canvasBoot';
 
 export default function CanvasPage() {
   const router = useRouter();
@@ -129,7 +130,7 @@ export default function CanvasPage() {
   const loadEmptySchema = useSchemaStore(s => s.loadFromSchema);
   const { score, issues, assessment, isPanelOpen, setIsPanelOpen } = useDbaStore();
 
-  const { projects, activeProjectId } = useProjectHistoryStore();
+  const { projects, activeProjectId, hasHydrated } = useProjectHistoryStore();
   const { isDiffMode, compareBranchName } = useBranchStore();
   const { isOffline, setIsOffline } = useMultiplayerStore();
 
@@ -490,7 +491,23 @@ export default function CanvasPage() {
    * karşı taraftan gelmesi bekleniyor.
    */
   useEffect(() => {
-    if (schema || joinedSharedRoom) return;
+    const decision = decideCanvasBoot({
+      hasSchema: !!schema,
+      joinedSharedRoom,
+      hasHydrated,
+      activeProjectId,
+      projects,
+    });
+
+    if (decision.action === 'wait') return;
+
+    if (decision.action === 'restore') {
+      // preserveProjectName: proje adı persist ediliyor ve şemanınkinden
+      // daha güvenilir; geri yükleme onu ezmemeli.
+      loadEmptySchema(decision.schema, decision.nodePositions, true);
+      return;
+    }
+
     loadEmptySchema({
       schemaId: typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
@@ -499,7 +516,7 @@ export default function CanvasPage() {
       tables: [],
       relations: [],
     });
-  }, [schema, joinedSharedRoom, loadEmptySchema]);
+  }, [schema, joinedSharedRoom, hasHydrated, activeProjectId, projects, loadEmptySchema]);
 
   if (!schema) {
     // `joinedSharedRoom`: yalnızca kullanıcı GERÇEKTEN bir davet bağlantısıyla
