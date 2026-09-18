@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
@@ -6,8 +6,10 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Caching.Memory;
@@ -81,43 +83,63 @@ public class GroqAIService : IAIService, IAgentChatClient
 {
     private readonly HttpClient _httpClient;
     private readonly string _modelName;
-    private const string MissingApiKeySentinel = "MISSING_API_KEY";
-
-    private readonly string _groqApiKey;   // Per-request inject edilir — DefaultRequestHeaders'a yazılmaz
+    /// <summary>
+    /// Sağlayıcıya özgü olan her şey: adres, kimlik, model tablosu.
+    /// Bu sınıfın kendisi hangi sağlayıcıyla konuştuğunu BİLMİYOR.
+    /// </summary>
+    private readonly IChatCompletionProvider _provider;
+    private readonly IModelCatalog _modelCatalog;
     private readonly IConfiguration _configuration;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<GroqAIService>? _logger;
+    private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly int _retryMaxTotalWaitSeconds;
+    private readonly int _retryMaxSingleWaitSeconds;
 
     public GroqAIService(
         HttpClient httpClient,
         IConfiguration configuration,
         IHttpContextAccessor httpContextAccessor,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        ILogger<GroqAIService>? logger = null,
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        IChatCompletionProvider? provider = null)
     {
         _httpClient = httpClient;
         _httpContextAccessor = httpContextAccessor;
         _cache = cache;
 
-        var apiKey = configuration["Groq:ApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            // Kurucuda fırlatmak yerine işaretle: bu servis, AI gerektirmeyen uçlar
-            // (lint, derleme, dokümantasyon) için de DI'dan çözülüyor; kurulumu eksik
-            // bir sunucuda uygulamanın tamamını düşürmek doğru olmazdı.
-            // Gerçek çağrı anında AiNotConfiguredException'a dönüşür (bkz. PostAsync).
-            apiKey = MissingApiKeySentinel;
-        }
+        // Anahtar eksikse kurucuda FIRLATILMIYOR, yalnızca işaretleniyor: bu
+        // servis AI gerektirmeyen uçlar (lint, derleme, dokümantasyon) için de
+        // DI'dan çözülüyor; kurulumu eksik bir sunucuda uygulamanın tamamını
+        // düşürmek doğru olmazdı. Gerçek çağrı anında AiNotConfiguredException'a
+        // dönüşür (bkz. SendOnceAsync).
+        //
+        // Anahtar sağlayıcının kendi içinde kalıyor ve isteğe İSTEK BAŞINA
+        // yazılıyor; DefaultRequestHeaders KULLANILMIYOR, çünkü paylaşılan bir
+        // HttpClient'ta başlık değiştirmek paralel isteklerde yarış koşulu ve
+        // log sızıntısı riski demek.
+        _provider = provider ?? new GroqChatCompletionProvider(configuration);
+        _modelCatalog = _provider.Models;
 
-        // API key sadece private field'da tutulur.
-        // DefaultRequestHeaders.Authorization KULLANILMAZ: thread pool'daki parallel Gemini/OpenAI
-        // isteklerinde header mutation race condition riski ve debug/log sızıntısı yaratirdı.
-        _groqApiKey = apiKey;
         _configuration = configuration;
-        // Varsayılan model NaiCatalog'dan; yapılandırma yalnızca override.
-        _modelName = configuration["Groq:Model"] ?? NaiCatalog.Get(NaiModel.Standard).UpstreamModel;
+        // Varsayılan model sağlayıcının kataloğundan; yapılandırma yalnızca override.
+        _modelName = configuration["Groq:Model"] ?? _modelCatalog.UpstreamModel(NaiModel.Standard);
 
-        _httpClient.BaseAddress = new Uri("https://api.groq.com/openai/v1/");
+        _logger = logger;
+        // Testte gerçek zaman harcanmasın diye uyku dışarıdan verilebiliyor.
+        _delay = delay ?? Task.Delay;
+
+        // Varsayılanlar: toplam 600 sn, tek seferde en çok 60 sn. Daha yüksek
+        // bir sağlayıcı katmanında bu beklemelerin HİÇ oluşmaması hedefleniyor;
+        // buradaki değerler bir emniyet ağı, çalışma biçimi değil. Sıfır vermek
+        // yeniden denemeyi tamamen kapatır (bkz. AiRetryPolicy).
+        _retryMaxTotalWaitSeconds = ReadInt(configuration, "Ai:RateLimitRetry:MaxTotalWaitSeconds", 600);
+        _retryMaxSingleWaitSeconds = ReadInt(configuration, "Ai:RateLimitRetry:MaxSingleWaitSeconds", 60);
+
+        _httpClient.BaseAddress = _provider.BaseAddress;
         // DefaultRequestHeaders.Authorization kasitlı olarak KALDIRILDI.
 
         _jsonOptions = new JsonSerializerOptions
@@ -126,6 +148,9 @@ public class GroqAIService : IAIService, IAgentChatClient
         };
         _jsonOptions.Converters.Add(new TolerantStringConverter());
     }
+
+    private static int ReadInt(IConfiguration configuration, string key, int fallback)
+        => int.TryParse(configuration[key], out var value) ? value : fallback;
 
     /// <summary>
     /// Kullanıcı politikasını asenkron olarak sorgular ve 60 saniyelik cache'e alır.
@@ -146,7 +171,7 @@ public class GroqAIService : IAIService, IAgentChatClient
         // Yapılandırma override'ı: sağlayıcı bir modeli kaldırdığında yeni sürüm
         // beklemeden geçilebilsin.
         var configured = _configuration[$"Nai:{model}"];
-        return string.IsNullOrWhiteSpace(configured) ? NaiCatalog.Get(model).UpstreamModel : configured;
+        return string.IsNullOrWhiteSpace(configured) ? _modelCatalog.UpstreamModel(model) : configured;
     }
 
     /// <summary>
@@ -352,9 +377,9 @@ public class GroqAIService : IAIService, IAgentChatClient
     /// okumak için ayrıştırılıyorken yapılınca kural unutulamaz hâle geliyor.
     ///
     /// Tanınmayan model ya da <c>max_tokens</c> içermeyen gövde olduğu gibi
-    /// geçer (bkz. <see cref="NaiCatalog.ClampToModelLimit"/>).
+    /// geçer (bkz. <see cref="IModelCatalog.ClampToModelLimit"/>).
     /// </summary>
-    private static string ClampMaxTokensToModelLimit(string json, string modelInPayload)
+    private string ClampMaxTokensToModelLimit(string json, string modelInPayload)
     {
         if (string.IsNullOrEmpty(modelInPayload)) return json;
 
@@ -364,7 +389,7 @@ public class GroqAIService : IAIService, IAgentChatClient
             if (node?["max_tokens"] is null) return json;
 
             var requested = node["max_tokens"]!.GetValue<int>();
-            var clamped = NaiCatalog.ClampToModelLimit(modelInPayload, requested);
+            var clamped = _modelCatalog.ClampToModelLimit(modelInPayload, requested);
             if (clamped == requested) return json;
 
             node["max_tokens"] = clamped;
@@ -395,6 +420,59 @@ public class GroqAIService : IAIService, IAgentChatClient
 
         json = ClampMaxTokensToModelLimit(json, modelInPayload);
 
+        var retryPolicy = new AiRetryPolicy(_retryMaxTotalWaitSeconds, _retryMaxSingleWaitSeconds);
+
+        while (true)
+        {
+            var response = await SendOnceAsync(relativeUri, json, modelInPayload, cancellationToken);
+
+            // Hız sınırı DIŞINDAKİ her yanıt — başarı da, başka hata da —
+            // olduğu gibi çağırana gider. Yorumlamak çağıranın işi.
+            var errorContent = response.IsSuccessStatusCode
+                ? string.Empty
+                : await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (response.IsSuccessStatusCode || !IsRateLimited(response, errorContent))
+                return response;
+
+            // Sağlayıcı süre bildirmediyse tek seferlik tavan kadar bekle:
+            // yeniden denemeyi sağlayıcının nezaketine bağlamak, tam da
+            // dayanıklılık istediğimiz yerde onu kaybetmek olurdu.
+            var requested = ParseRetryAfter(response, errorContent, out var parsed)
+                ? parsed
+                : TimeSpan.FromSeconds(_retryMaxSingleWaitSeconds);
+
+            if (!retryPolicy.TryNextDelay(requested, out var wait))
+            {
+                // Bütçe bitti: bugünkü davranış. Yanıtı çağırana döndürüyoruz ki
+                // hata gövdesini her zamanki gibi kendisi okuyup ThrowForFailure'a
+                // versin — yeniden deneme, hata yolunu DEĞİŞTİRMİYOR, yalnızca
+                // ondan önce araya giriyor.
+                _logger?.LogWarning(
+                    "AI rate limit retry budget exhausted after {Spent}s; surfacing the rate limit to the caller.",
+                    retryPolicy.Spent.TotalSeconds);
+                return response;
+            }
+
+            _logger?.LogInformation(
+                "AI provider rate limited; waiting {Wait}s before retrying (spent {Spent}s of budget).",
+                wait.TotalSeconds, retryPolicy.Spent.TotalSeconds);
+
+            response.Dispose();
+
+            // Token beklemenin İÇİNDE de geçerli: kullanıcı iptal ettiğinde bir
+            // dakika daha beklemek, iptali yok saymak olurdu.
+            await _delay(wait, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Tek bir gönderim. <see cref="HttpRequestMessage"/> ikinci kez
+    /// gönderilemediği için her denemede yeniden kuruluyor.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendOnceAsync(
+        string relativeUri, string json, string modelInPayload, CancellationToken cancellationToken)
+    {
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         var request = new HttpRequestMessage(HttpMethod.Post, relativeUri) { Content = content };
@@ -419,11 +497,11 @@ public class GroqAIService : IAIService, IAgentChatClient
             // olarak Groq'a gidiyordu: ~10 saniye bekleniyor, dış servise gereksiz yük
             // biniyor ve sonuç yine hata oluyordu — üstelik genel bir 500 olarak, yani
             // arayüz onu "beklenmedik hata" sayıp sessizce yutuyordu.
-            if (_groqApiKey == MissingApiKeySentinel)
-                throw new AiNotConfiguredException("Groq");
+            if (!_provider.IsConfigured)
+                throw new AiNotConfiguredException(_provider.Name);
 
-            // Standart Groq isteği: key per-request inject edilir (DefaultRequestHeaders KULLANILMAZ)
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groqApiKey);
+            // Kimlik per-request inject edilir (DefaultRequestHeaders KULLANILMAZ).
+            _provider.Authenticate(request);
         }
 
         // Token GEÇİRİLİYOR: bu metot artık bir agent turu içinde zincirleme
@@ -1392,6 +1470,57 @@ public class GroqAIService : IAIService, IAgentChatClient
 
         return schema;
     }
+
+    /// <summary>
+    /// Sağlayıcının bildirdiği bekleme süresini sayıya çevirir.
+    ///
+    /// <b>Neden <see cref="GetRetryAfterSeconds"/>'dan ayrı:</b> o metot
+    /// kullanıcıya gösterilecek METNİ üretiyor ve bilinmeyen durumda "unknown"
+    /// diyebiliyor. Yeniden deneme ise bir SAYI istiyor ve "unknown"ı sıfır
+    /// saniye sanmamalı. İki soru farklı, cevapları da farklı.
+    /// </summary>
+    internal static bool ParseRetryAfter(
+        HttpResponseMessage? response, string? errorContent, out TimeSpan retryAfter)
+    {
+        if (response?.Headers.RetryAfter?.Delta is { } delta)
+        {
+            retryAfter = delta;
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(errorContent))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                errorContent,
+                @"try again in ([0-9.]+)s",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            if (match.Success &&
+                double.TryParse(
+                    match.Groups[1].Value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var seconds))
+            {
+                retryAfter = TimeSpan.FromSeconds(seconds);
+                return true;
+            }
+        }
+
+        retryAfter = TimeSpan.Zero;
+        return false;
+    }
+
+    /// <summary>
+    /// Bu yanıt bir hız sınırı mı?
+    ///
+    /// Ölçüt <see cref="ThrowForFailure"/> ile BİREBİR aynı olmak zorunda.
+    /// Ayrıştıkları anda, sınıflandırması "hız sınırı" olan ama yeniden
+    /// denenmeyen (ya da tersi) bir yanıt türü doğar.
+    /// </summary>
+    private static bool IsRateLimited(HttpResponseMessage response, string errorContent)
+        => response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+           errorContent.Contains("rate_limit_exceeded", StringComparison.OrdinalIgnoreCase);
 
     private static string GetRetryAfterSeconds(HttpResponseMessage response, string errorContent)
     {

@@ -24,6 +24,15 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddNaminesServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // Sohbet sağlayıcısı: yapılandırmayla seçilir, varsayılan Groq.
+        // Singleton çünkü tamamen durumsuz — yalnızca adres, anahtar ve model
+        // tablosu taşıyor.
+        services.AddSingleton<IChatCompletionProvider>(sp =>
+            ChatCompletionProviderFactory.Create(
+                sp.GetRequiredService<IConfiguration>(),
+                sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
+                    ?.CreateLogger(nameof(ChatCompletionProviderFactory))));
+
         services.AddHttpClient<GroqAIService>(client =>
         {
             client.Timeout = TimeSpan.FromMinutes(5);

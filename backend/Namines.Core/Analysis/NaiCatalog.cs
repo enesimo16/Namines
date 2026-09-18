@@ -34,7 +34,6 @@ public enum NaiModel
 /// <param name="Id">Kullanıcıya ve API'ye görünen ad.</param>
 /// <param name="DisplayName">Arayüzde yazan ad.</param>
 /// <param name="Description">Kullanıcının hangisini seçeceğini anlaması için tek cümle.</param>
-/// <param name="UpstreamModel">Sağlayıcıdaki gerçek model kimliği. Kullanıcıya GÖSTERİLMEZ.</param>
 /// <param name="TokenMultiplier">
 /// Kota maliyeti çarpanı.
 ///
@@ -45,25 +44,23 @@ public sealed record NaiModelInfo(
     string Id,
     string DisplayName,
     string Description,
-    string UpstreamModel,
-    double TokenMultiplier,
-    int MaxCompletionTokens);
+    double TokenMultiplier);
 
 /// <summary>
 /// Namines AI modellerinin <b>TEK</b> tanımı.
 ///
-/// Sağlayıcı model kimliği yalnızca burada geçiyor. Kod tabanının başka hiçbir
-/// yerinde model adı yazılı olmamalı — yazıldığı anda, sağlayıcı o modeli
-/// kaldırdığında hangi dosyaları düzelteceğini aramak zorunda kalırsın.
+/// Sağlayıcı model kimlikleri burada DEĞİL, sağlayıcının kendi kataloğunda
+/// (<see cref="IModelCatalog"/>). Burada kalan her şey ürünün kendi kararı:
+/// kademe adları, fiyat çarpanı, plan kısıtı — sağlayıcı değişse de değişmezler.
 /// </summary>
 public static class NaiCatalog
 {
     /// <summary>
-    /// Model tanımları.
+    /// Kademe tanımları: kullanıcıya görünen ad, açıklama ve kota çarpanı.
     ///
-    /// Üstteki kimlikler <b>yapılandırmadan override edilebilir</b>
-    /// (<c>Nai:Flash</c>, <c>Nai:Standard</c>, <c>Nai:Pro</c>): sağlayıcı bir modeli
-    /// kaldırdığında yeni sürüm beklemeden ortam değişkeniyle geçilebilsin.
+    /// Hangi kademenin hangi SAĞLAYICI MODELİNE karşılık geldiği burada değil
+    /// (bkz. <see cref="IModelCatalog"/>); o eşleme yapılandırmadan override
+    /// edilebilir (<c>Nai:Flash</c>, <c>Nai:Standard</c>, <c>Nai:Pro</c>).
     /// </summary>
     private static readonly Dictionary<NaiModel, NaiModelInfo> Models = new()
     {
@@ -71,50 +68,23 @@ public static class NaiCatalog
             Id: "nai-v1-flash",
             DisplayName: "NAI v1 Flash",
             Description: "Fastest. Best for short edits, suggestions and quick answers.",
-            UpstreamModel: "openai/gpt-oss-20b",
-            TokenMultiplier: 0.5,
-            MaxCompletionTokens: 65_536),
+            TokenMultiplier: 0.5),
 
         [NaiModel.Standard] = new NaiModelInfo(
             Id: "nai-v1",
             DisplayName: "NAI v1",
             Description: "Balanced. The default for everyday work.",
-            // <b>Bu satırın geçmişi, bu dosyanın XML doc'unun neden böyle
-            // yazıldığını bire bir anlatıyor — üç kez üst üste yanıldı:</b>
-            //
-            // 1. qwen3.6-27b bir gün 404 (model_not_found) vermeye başladı ve
-            //    şema üretimi tamamen durdu.
-            // 2. Yerine AKLA YATKIN görünen bir ad yazıldı (llama-3.3-70b-
-            //    versatile). O da bu hesapta yoktu: ölü model ölü modelle
-            //    değiştirildi, bütün birim testler yeşil kaldı, hata ancak
-            //    CANLI istekte ortaya çıktı.
-            // 3. Sağlayıcının kataloğu sorulunca doğru ad bulundu
-            //    (qwen3.8-27b — model kaldırılmamış, sürümü artmış). Ama canlı
-            //    istek yine başarısız oldu: o modelin bu hesapta DAKİKA BAŞINA
-            //    ÇIKTI TOKENI (OTPM) sınırı 1.000, yani kabaca iki tablo. Bir
-            //    şema üretemiyor.
-            //
-            // Sonuç: gpt-oss ikilisi aynı hesapta 8.000 TPM ile sorunsuz
-            // çalışıyor, Standard oraya alındı. Standard'ın Flash ile aynı
-            // modele düşmesi bilinçli bir taviz — katmanları ayrı tutmak uğruna
-            // VARSAYILAN katmanı hiç şema üretemez bırakmak, ayrımı anlamlı
-            // değil işlevsiz yapardı. Pro (120b) farkını koruyor.
-            //
-            // <b>Kural:</b> burayı değiştirmeden önce hem modelin VAR olduğunu
-            // (GET /openai/v1/models) hem de kotasının iş için yettiğini
-            // (küçük bir istekle x-ratelimit-* başlıkları) doğrula. Tahmin
-            // etme.
-            UpstreamModel: "openai/gpt-oss-20b",
-            TokenMultiplier: 1.0,
-            MaxCompletionTokens: 65_536),
+            // Standard'ın Flash ile aynı MODELE düşmesi bilinçli bir taviz;
+            // gerekçesi ve onu doğuran üç canlı hata GroqModelCatalog'da yazılı.
+            // Buradaki çarpan ise sağlayıcıdan bağımsız: Standard, Flash'ın iki
+            // katı kotaya mal olmaya devam ediyor.
+            TokenMultiplier: 1.0),
 
         [NaiModel.Pro] = new NaiModelInfo(
             Id: "nai-v1-pro",
             DisplayName: "NAI v1 Pro",
             Description: "Most capable. Best for designing a schema from scratch or deep analysis.",
-            UpstreamModel: "openai/gpt-oss-120b",
-            TokenMultiplier: 2.0,
-            MaxCompletionTokens: 65_536),
+            TokenMultiplier: 2.0),
     };
 
     public static IReadOnlyList<NaiModelInfo> All => Models.Values.ToList();
@@ -176,35 +146,4 @@ public static class NaiCatalog
     /// <summary>Bir işin bu modelde kaça mal olacağı.</summary>
     public static int CostOf(NaiModel model, int baseTokens) =>
         (int)Math.Ceiling(baseTokens * Get(model).TokenMultiplier);
-
-    /// <summary>
-    /// İstenen <c>max_tokens</c>'ı, o modelin SAĞLAYICI TARAFINDAKİ sınırına
-    /// çeker.
-    ///
-    /// <b>Neden şart:</b> plan tavanları (Free 6.000 … Team/Enterprise 32.000)
-    /// ürünün kendi bütçe kararı; modelin kabul ettiği üst sınır ise
-    /// sağlayıcının kararı ve ikisi birbirinden habersiz. Standard modelin
-    /// sınırı 16.384 iken Team kullanıcısı için hesaplanan 32.000 gönderilince
-    /// sağlayıcı isteği kısmen değil KOMPLE reddediyor (400 invalid_request):
-    /// kullanıcı küçük bir şema değil, hiçbir şey alamıyor. Canlı testte tam
-    /// olarak bu yaşandı ve hiçbir birim test yakalayamadı, çünkü sınır bu kod
-    /// tabanında hiçbir yerde yazılı değildi.
-    ///
-    /// <b>Tanınmayan model olduğu gibi geçiyor</b> (fail-open): kimlik
-    /// yapılandırmadan override edilebiliyor (<c>Groq:Model</c>), ve bilmediğimiz
-    /// bir modele uydurma bir tavan dayatmak, sessizce çıktıyı kısmak olurdu.
-    /// Sağlayıcı zaten reddedip sebebini söylüyor.
-    /// </summary>
-    public static int ClampToModelLimit(string? upstreamModel, int requestedMaxTokens)
-    {
-        if (string.IsNullOrWhiteSpace(upstreamModel)) return requestedMaxTokens;
-
-        foreach (var info in Models.Values)
-        {
-            if (string.Equals(info.UpstreamModel, upstreamModel, StringComparison.OrdinalIgnoreCase))
-                return Math.Min(requestedMaxTokens, info.MaxCompletionTokens);
-        }
-
-        return requestedMaxTokens;
-    }
 }
