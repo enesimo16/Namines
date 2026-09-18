@@ -17,6 +17,7 @@ import { ClarifyResponse, NaiModelOption } from '../../types/nai';
 import { SourceMenu } from '../../components/prompt/SourceMenu';
 import { GithubScanModal } from '../../components/prompt/GithubScanModal';
 import { StarterPickerModal } from '../../components/prompt/StarterPickerModal';
+import { JsonShapeModal } from '../../components/prompt/JsonShapeModal';
 import CodeImportPanel from '../../components/canvas/panels/CodeImportPanel';
 import DbConnectionPanel from '../../components/canvas/panels/DbConnectionPanel';
 import type { RepositoryScanResult, SchemaSourceDescriptor } from '../../types/source';
@@ -60,6 +61,7 @@ export default function NewProjectPage() {
   const [starterModalOpen, setStarterModalOpen] = useState(false);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
   const [dbModalOpen, setDbModalOpen] = useState(false);
+  const [jsonModalOpen, setJsonModalOpen] = useState(false);
 
   const router = useRouter();
   // V2: dbType artık global store'dan geliyor
@@ -146,12 +148,11 @@ export default function NewProjectPage() {
     if (id === 'dbconnect') { setDbModalOpen(true); return; }
     if (id === 'openapi') { setShowUrlInput(true); return; }
     if (id === 'image') { fileInputRef.current?.click(); return; }
+    if (id === 'jsonshape') { setJsonModalOpen(true); return; }
 
-    // Kalan tek kaynak: gözlenen JSON yanıtlarından çıkarım. Ucu var ama
-    // sonucu bir ŞEMA değil, kullanıcının tek tek kabul etmesi gereken aday
-    // listesi (second-phase/06'nın açık kuralı: otomatik onay yok). O ekran
-    // yazılana kadar sessiz kalmak yerine nerede olduğunu söylüyoruz.
-    showToast('Sample JSON inference is available on the canvas.', 'info');
+    // Buraya düşmek, katalogda ekranı olmayan bir kaynak var demek. Sessizce
+    // hiçbir şey yapmamak menüyü bozuk gösterirdi.
+    showToast('That source has no screen yet.', 'info');
   };
 
   /** Şema geldi: canvas'a geç. Üretim akışının bitişiyle aynı yol. */
@@ -160,6 +161,7 @@ export default function NewProjectPage() {
     setStarterModalOpen(false);
     setCodeModalOpen(false);
     setDbModalOpen(false);
+    setJsonModalOpen(false);
     router.push('/canvas');
   };
 
@@ -680,6 +682,18 @@ export default function NewProjectPage() {
         onClose={() => setDbModalOpen(false)}
         onApplied={goToCanvasWithCurrentSchema}
       />
+
+      {jsonModalOpen && (
+        <JsonShapeModal
+          onInfer={(responses) => schemaService.inferShapes(responses)}
+          onApply={(inferredSchema) => {
+            loadFromSchema(inferredSchema);
+            setProjectName('Inferred model');
+            goToCanvasWithCurrentSchema();
+          }}
+          onClose={() => setJsonModalOpen(false)}
+        />
+      )}
 
       {githubModalOpen && (
         <GithubScanModal

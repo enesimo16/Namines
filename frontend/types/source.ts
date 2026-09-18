@@ -81,3 +81,43 @@ export interface RepositoryScanResult {
   warnings?: string[];
   drift?: unknown;
 }
+
+// ── Gözlemlenen JSON'dan çıkarım (second-phase/06 kademe 3) ──────────────────
+
+/** Çıkarılan bir alan. Değerler ASLA taşınmaz — yalnızca ad ve tip. */
+export interface InferredField {
+  name: string;
+  type: string;
+  seenCount: number;
+  /** Yalnızca birkaç yanıtta görüldü; kullanıcıya belirsiz diye gösterilir. */
+  isUncertain: boolean;
+}
+
+export interface InferredEntity {
+  name: string;
+  sampleCount: number;
+  endpointCount: number;
+  /**
+   * "high" | "medium" | "low" — SAYI DEĞİL.
+   *
+   * Sunucu bunu metin olarak üretiyor (`JsonShapeInferencer`); sayı varsayıp
+   * yüzdeye çevirmek ekranda `NaN%` gösteriyordu. Canlı doğrulamada görüldü;
+   * birim test kendi uydurduğu 0–1 değerini kullandığı için görmemişti.
+   */
+  confidence: string;
+  fields: InferredField[];
+}
+
+export interface InferredRelation {
+  fromEntity: string;
+  fromField: string;
+  toEntity: string;
+}
+
+/** `POST /api/codeschema/infer-shapes` yanıtı. */
+export interface ShapeInferenceResult {
+  /** Her zaman true — çıkarılan şey bir tahmin ve öyle sunulmak zorunda. */
+  isGuess: boolean;
+  entities: InferredEntity[];
+  relations: InferredRelation[];
+}

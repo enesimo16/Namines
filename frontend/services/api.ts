@@ -12,7 +12,7 @@ import { ProjectMember, OrgRole } from '../types/member';
 import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
 import { ClarifyResponse, NaiModelOption, SchemaPlan } from '../types/nai';
 import { CodeExtractionResponse } from '../types/codeSchema';
-import type { MergePreviewResult, RepositoryScanResult, SchemaSourceDescriptor } from '../types/source';
+import type { MergePreviewResult, RepositoryScanResult, SchemaSourceDescriptor, ShapeInferenceResult } from '../types/source';
 import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
@@ -77,6 +77,19 @@ export const schemaService = {
     base: DatabaseSchema, ours: DatabaseSchema, theirs: DatabaseSchema,
   ): Promise<MergePreviewResult> => {
     const response = await api.post<MergePreviewResult>('/merge/preview', { base, ours, theirs });
+    return response.data;
+  },
+
+  /**
+   * Gözlemlenen JSON yanıtlarının ŞEKLİNDEN veri modeli çıkarımı
+   * (second-phase/06 kademe 3). AI kullanmıyor, kotayı etkilemiyor.
+   *
+   * Sunucu yalnızca alan adı ve tip çıkarıyor; hiçbir DEĞER saklanmıyor.
+   */
+  inferShapes: async (
+    responses: { endpoint: string; body: string }[],
+  ): Promise<ShapeInferenceResult> => {
+    const response = await api.post<ShapeInferenceResult>('/codeschema/infer-shapes', { responses });
     return response.data;
   },
 
