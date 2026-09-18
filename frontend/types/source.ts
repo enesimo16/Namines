@@ -6,7 +6,7 @@
  * bir kez kırıldı — sunucuya yeni bir değer eklendi, kopya güncellenmedi ve
  * istemci sessizce YANLIŞ değeri gösterdi. Alan `string` olunca sunucunun
  * eklediği yeni bir değer yanlış değil, *bilinmeyen* olur; onu tüketen yer
- * (bkz. `SourceMenu`) bilinmeyeni güvenli tarafa koyabilir.
+ * (bkz. `SourceStrip`) bilinmeyeni güvenli tarafa koyabilir.
  *
  * Aşağıdaki listeler bu yüzden birer *sözleşme kaydı*: bugün sunucunun ne
  * gönderdiğini belgeliyorlar, gelen değeri kısıtlamıyorlar.

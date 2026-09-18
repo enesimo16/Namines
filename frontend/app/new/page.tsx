@@ -14,7 +14,7 @@ import ProductionScreen from '../../components/landing/ProductionScreen';
 import PlanScreen from '../../components/landing/PlanScreen';
 import { streamSchemaGeneration, AgentStepEvent, AgentResultEvent } from '../../lib/sseSchemaStream';
 import { ClarifyResponse, NaiModelOption } from '../../types/nai';
-import { SourceMenu } from '../../components/prompt/SourceMenu';
+import { SourceStrip } from '../../components/prompt/SourceStrip';
 import { GithubScanModal } from '../../components/prompt/GithubScanModal';
 import { StarterPickerModal } from '../../components/prompt/StarterPickerModal';
 import { JsonShapeModal } from '../../components/prompt/JsonShapeModal';
@@ -352,6 +352,13 @@ export default function NewProjectPage() {
           </p>
         </div>
 
+        {/* Kaynak şeridi PANELİN DIŞINDA ve ÜSTÜNDE.
+            Menü prompt kutusunun içinde küçük bir düğmeyken kimse aramıyordu;
+            ürünün tek girişi bir cümle yazmak sanılıyordu. Şerit, yazı
+            yazmadan başlamanın mümkün olduğunu hiçbir tıklama olmadan
+            gösteriyor. */}
+        <SourceStrip sources={sources} onSelect={handleSourceSelect} disabled={isGenerating} />
+
         {/* Form Card — "Advanced" açıkken parlıyor (bkz. globals.css
             .prompt-panel-advanced): kullanıcı hangi modda olduğunu metne
             bakmadan, panelin kendisinden görüyor. */}
@@ -366,11 +373,10 @@ export default function NewProjectPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
-                /* pb-11: kaynak menüsü artık kutunun ALT ŞERİDİNİ boydan boya
-                   kaplıyor (eskiden yalnızca sağ köşedeki üç ikondu). Alt
-                   dolgu olmadan uzun bir prompt metnin son satırı menünün
-                   altında kalıyor. */
-                className="w-full h-24 sm:h-28 p-3 pb-11 rounded-[var(--radius-card)] glass-input resize-none text-content-primary placeholder:text-content-muted text-sm leading-relaxed focus:outline-none"
+                /* pb-10: sağ alt köşedeki mikrofon düğmesi için yer. Kaynak
+                   menüsü artık kutunun içinde değil (şeride taşındı), o yüzden
+                   boydan boya dolgu gerekmiyor. */
+                className="w-full h-24 sm:h-28 p-3 pb-10 rounded-[var(--radius-card)] glass-input resize-none text-content-primary placeholder:text-content-muted text-sm leading-relaxed focus:outline-none"
                 disabled={isGenerating}
               ></textarea>
 
@@ -380,10 +386,10 @@ export default function NewProjectPage() {
                   getirebilirim" sorusunun cevabını tek bir yerde göremiyordu.
                   Mikrofon MENÜYE GİRMİYOR: ses bir kaynak değil, prompt
                   metnine giriş yöntemi — şema değil cümle üretiyor. */}
-              <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5">
-                {sources.length > 0 ? (
-                  <SourceMenu sources={sources} onSelect={handleSourceSelect} disabled={isGenerating} />
-                ) : <span />}
+              {/* Kaynak menüsü buradan ŞERİDE taşındı; kutunun içinde kalan
+                  tek şey sesle yazdırma — o bir kaynak değil, prompt'a giriş
+                  yöntemi. */}
+              <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -538,15 +544,15 @@ export default function NewProjectPage() {
                 }`}
               >
                 {/*
-                  Etiket DURUMU söylüyor. Eskiden açıkken de kapalıyken de
-                  yalnızca "Advanced" yazıyordu ve fark sadece renkteydi;
-                  kullanıcı düğmeyi hiç açmadan "advanced moddayım" sanıyordu.
-                  Bedeli görünmez değil: kapalıyken onarım turu HİÇ çalışmıyor,
-                  kural motorunun bulduğu sorunlar düzeltilmek yerine
-                  raporlanıyor. Gerçek bir kullanıcı tam olarak bunu yaşadı ve
-                  sonucu "advanced olmama rağmen sonuç kötü" diye bildirdi.
+                  Etiketten "· On/Off" KALDIRILDI. Bu metin bir kez eklenmişti:
+                  fark yalnızca renkteyken bir kullanıcı düğmeyi hiç açmadan
+                  "advanced moddayım" sanmıştı. O günden beri AÇIKKEN PANELİN
+                  TAMAMI parlıyor (globals.css .prompt-panel-advanced) — durum
+                  artık düğmenin rengiyle değil, ekranın yarısıyla anlatılıyor
+                  ve metne gerek kalmadı. Panelin parlaması kaldırılırsa bu
+                  etiket geri gelmeli.
                 */}
-                <span>Advanced{advanced ? ' · On' : ' · Off'}</span>
+                <span>Advanced</span>
               </button>
 
               {/* Database Select */}

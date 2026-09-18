@@ -10,9 +10,25 @@ namespace Namines.Infrastructure.Services;
 /// </summary>
 public sealed class StaticSchemaSourceCatalog : ISchemaSourceCatalog
 {
+    /// <summary>
+    /// <b>SIRA EKRANDA GÖRÜNEN SIRADIR.</b> Prompt kutusunun üstündeki şerit
+    /// ilk dördünü kart olarak gösteriyor, kalanı "+N" altına giriyor — yani
+    /// bu listenin başı "prompt yazmadan başlamanın en kısa yolu" demek.
+    /// İstemcide ikinci bir sıralama tutmak, iki listenin ayrışması olurdu.
+    /// </summary>
     private static readonly IReadOnlyList<SchemaSourceDescriptor> Sources = new[]
     {
-        // Menüde ilk sırada: ürünün bugün en çok anlatılan girişi.
+        new SchemaSourceDescriptor(
+            "starter", "Starter schemas",
+            // SAYI YAZILMIYOR: katalog sabit, şablon listesi (frontend
+            // lib/templates.ts) büyüyor. "Five" yazıyordu, gerçekte 20 vardı —
+            // menüde görülen ilk yalan buydu. Sayıyı gösteren yer, listeyi
+            // gerçekten okuyan ekran olmalı.
+            "Ready-made schemas to begin from — no prompt needed.",
+            SchemaSourceKind.Starter,
+            SchemaSourceCapability.Import,
+            ProducesGuess: false),
+
         // Grup "import", çünkü F1 tek seferlik okuma yapıyor; drift takibi
         // (Watch) F3'te gelince "connect"e terfi edecek.
         new SchemaSourceDescriptor(
@@ -30,18 +46,18 @@ public sealed class StaticSchemaSourceCatalog : ISchemaSourceCatalog
             ProducesGuess: false),
 
         new SchemaSourceDescriptor(
-            "openapi", "OpenAPI / GraphQL URL",
-            "Infer a data model from an API specification.",
-            SchemaSourceKind.Import,
-            SchemaSourceCapability.Import | SchemaSourceCapability.Compare,
-            ProducesGuess: true),
-
-        new SchemaSourceDescriptor(
             "code", "Code files",
             "Prisma schema, EF Core entities or raw SQL.",
             SchemaSourceKind.Import,
             SchemaSourceCapability.Import | SchemaSourceCapability.Compare,
             ProducesGuess: false),
+
+        new SchemaSourceDescriptor(
+            "openapi", "OpenAPI / GraphQL URL",
+            "Infer a data model from an API specification.",
+            SchemaSourceKind.Import,
+            SchemaSourceCapability.Import | SchemaSourceCapability.Compare,
+            ProducesGuess: true),
 
         new SchemaSourceDescriptor(
             "jsonshape", "Sample JSON response",
@@ -57,16 +73,6 @@ public sealed class StaticSchemaSourceCatalog : ISchemaSourceCatalog
             SchemaSourceCapability.Import,
             ProducesGuess: true),
 
-        new SchemaSourceDescriptor(
-            "starter", "Starter schemas",
-            // SAYI YAZILMIYOR: katalog sabit, şablon listesi (frontend
-            // lib/templates.ts) büyüyor. "Five" yazıyordu, gerçekte 20 vardı —
-            // menüde görülen ilk yalan buydu. Sayıyı gösteren yer, listeyi
-            // gerçekten okuyan ekran olmalı.
-            "Ready-made schemas to begin from — no prompt needed.",
-            SchemaSourceKind.Starter,
-            SchemaSourceCapability.Import,
-            ProducesGuess: false),
     };
 
     public IReadOnlyList<SchemaSourceDescriptor> All() => Sources;
