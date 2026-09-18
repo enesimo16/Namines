@@ -29,11 +29,18 @@ public class DdlExecutionTests
     private static string Ddl(DatabaseSchema schema, DatabaseType engine) =>
         new DdlGeneratorFactory().GetGenerator(engine).Generate(schema);
 
-    private static string[] SplitStatements(string ddl) =>
-        ddl.Split(';', StringSplitOptions.RemoveEmptyEntries)
-           .Select(s => s.Trim())
-           .Where(s => s.Length > 0 && !s.StartsWith("--"))
-           .ToArray();
+    /// <summary>
+    /// İfadelere bölme <see cref="SqlStatementSplitter"/>'a devredildi.
+    ///
+    /// <b>Buradaki eski düz <c>Split(';')</c> iki testi uzun süredir
+    /// yanlış raporluyordu:</b> PostgreSQL trigger fonksiyonunun
+    /// <c>$$ ... $$</c> gövdesindeki noktalı virgüller gövdeyi ortadan kesiyor,
+    /// <c>RETURN NEW;</c> ayrı bir ifade olarak gönderiliyor ve test
+    /// "PostgreSQL üretilen DDL'i reddetti" diyordu. Üretilen DDL geçerliydi;
+    /// bölen bozuktu.
+    /// </summary>
+    private static IReadOnlyList<string> SplitStatements(string ddl) =>
+        SqlStatementSplitter.Split(ddl);
 
     // ══════════════════════════════════════════════════════════════════════
     //  PostgreSQL
