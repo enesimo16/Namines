@@ -12,7 +12,7 @@ import { ProjectMember, OrgRole } from '../types/member';
 import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
 import { ClarifyResponse, NaiModelOption, SchemaPlan } from '../types/nai';
 import { CodeExtractionResponse } from '../types/codeSchema';
-import type { SchemaSourceDescriptor } from '../types/source';
+import type { RepositoryScanResult, SchemaSourceDescriptor } from '../types/source';
 import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
@@ -238,6 +238,17 @@ export const sourceService = {
    */
   catalog: async (): Promise<SchemaSourceDescriptor[]> => {
     const response = await api.get<SchemaSourceDescriptor[]>('/sources');
+    return response.data;
+  },
+
+  /**
+   * Depo linkinden şema (github/01-DEPO-TARAMA.md).
+   *
+   * AI kullanmıyor, kotayı etkilemiyor; ama giriş istiyor — uç sunucuyu
+   * dışarıya çıkarıyor.
+   */
+  scanRepository: async (repoUrl: string, branch?: string): Promise<RepositoryScanResult> => {
+    const response = await api.post<RepositoryScanResult>('/github/scan', { repoUrl, branch });
     return response.data;
   }
 };

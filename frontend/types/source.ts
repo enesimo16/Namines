@@ -26,3 +26,25 @@ export interface SchemaSourceDescriptor {
   /** Üretilen şema bir çıkarım mı — UI bunu kullanıcıya göstermek zorunda. */
   producesGuess: boolean;
 }
+
+/** Okunmayan bir dosya ve NEDENİ; ikisi birlikte gösterilir. */
+export interface RepositoryScanSkip {
+  name: string;
+  reason: string;
+}
+
+/** `POST /api/github/scan` yanıtı (github/01-DEPO-TARAMA.md). */
+export interface RepositoryScanResult {
+  format: string;
+  branch: string;
+  /** `DatabaseSchema` — canvas store'una olduğu gibi gider. */
+  schema: unknown;
+  parsedFiles: string[];
+  skipped: RepositoryScanSkip[];
+  /**
+   * GitHub ağacı kesti mi. Kestiyse "deponda şema yok" demek yanlış olur;
+   * kullanıcıya bakılmayan bir kısım olduğu söylenmeli.
+   */
+  treeTruncated: boolean;
+  drift?: unknown;
+}

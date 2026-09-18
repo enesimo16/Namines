@@ -15,7 +15,8 @@ import PlanScreen from '../../components/landing/PlanScreen';
 import { streamSchemaGeneration, AgentStepEvent, AgentResultEvent } from '../../lib/sseSchemaStream';
 import { ClarifyResponse, NaiModelOption } from '../../types/nai';
 import { SourceMenu } from '../../components/prompt/SourceMenu';
-import type { SchemaSourceDescriptor } from '../../types/source';
+import { GithubScanModal } from '../../components/prompt/GithubScanModal';
+import type { RepositoryScanResult, SchemaSourceDescriptor } from '../../types/source';
 
 export default function NewProjectPage() {
   const [prompt, setPrompt] = useState('');
@@ -50,6 +51,7 @@ export default function NewProjectPage() {
   const [agentSummary, setAgentSummary] = useState<AgentResultEvent['agent'] | null>(null);
   const [models, setModels] = useState<NaiModelOption[]>([]);
   const [sources, setSources] = useState<SchemaSourceDescriptor[]>([]);
+  const [githubModalOpen, setGithubModalOpen] = useState(false);
 
   const router = useRouter();
   // V2: dbType artık global store'dan geliyor
@@ -129,6 +131,7 @@ export default function NewProjectPage() {
    * bozuk gösterirdi, o yüzden nerede olduğu söyleniyor.
    */
   const handleSourceSelect = (id: string) => {
+    if (id === 'github') { setGithubModalOpen(true); return; }
     if (id === 'openapi') { setShowUrlInput(true); return; }
     if (id === 'image') { fileInputRef.current?.click(); return; }
     showToast('Available on the canvas — open or generate a schema first.', 'info');
@@ -618,6 +621,21 @@ export default function NewProjectPage() {
             setClarify(null);
             runGeneration(answers);
           }}
+        />
+      )}
+
+      {githubModalOpen && (
+        <GithubScanModal
+          onScan={(repoUrl, branch) => sourceService.scanRepository(repoUrl, branch)}
+          onImport={(result: RepositoryScanResult) => {
+            // Üretim akışının bitişiyle aynı: şema store'a yüklenip canvas'a
+            // gidiliyor. Ayrı bir yol açmak, iki farklı "şema hazır" davranışı
+            // demek olurdu.
+            loadFromSchema(result.schema as DatabaseSchema);
+            setGithubModalOpen(false);
+            router.push('/canvas');
+          }}
+          onClose={() => setGithubModalOpen(false)}
         />
       )}
 
