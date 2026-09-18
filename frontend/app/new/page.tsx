@@ -481,7 +481,16 @@ export default function NewProjectPage() {
                     : 'glass-input text-content-muted hover:text-content-primary'
                 }`}
               >
-                <span>Advanced</span>
+                {/*
+                  Etiket DURUMU söylüyor. Eskiden açıkken de kapalıyken de
+                  yalnızca "Advanced" yazıyordu ve fark sadece renkteydi;
+                  kullanıcı düğmeyi hiç açmadan "advanced moddayım" sanıyordu.
+                  Bedeli görünmez değil: kapalıyken onarım turu HİÇ çalışmıyor,
+                  kural motorunun bulduğu sorunlar düzeltilmek yerine
+                  raporlanıyor. Gerçek bir kullanıcı tam olarak bunu yaşadı ve
+                  sonucu "advanced olmama rağmen sonuç kötü" diye bildirdi.
+                */}
+                <span>Advanced{advanced ? ' · On' : ' · Off'}</span>
               </button>
 
               {/* Database Select */}
