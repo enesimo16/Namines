@@ -141,3 +141,53 @@ kavramı olarak kalıyor — her sağlayıcı bu üç kademeye kendi modelini e�
 - `IAIService`'in yedi metotluk yüzeyini genişletmek — bu yaklaşımla gerek
   kalmıyor.
 - DeepSeek'in canlı doğrulaması (anahtar yok; kullanıcı kararıyla ertelendi).
+
+---
+
+## Uygulama durumu
+
+**Faz 1 — 429 yeniden deneme: uygulandı, birim testlerle doğrulandı.**
+Canlı bir hız sınırına karşı denenmedi; testler sahte bir aktarım katmanı
+kullanıyor ve uykuyu dışarıdan alıyor, yani gerçek zaman harcamıyorlar.
+
+**Faz 2 — sağlayıcı soyutlaması: uygulandı. DeepSeek CANLI DOĞRULANMADI.**
+Hesapta DeepSeek anahtarı yok. Bu oturumda, tamamı yeşil bir birim test
+paketinin arkasında beş ayrı canlı hata saklandı: ölü model kimliği, yerine
+yazılan ikinci ölü kimlik, çıktı token kotası işe yetmeyen model, model
+sınırını aşan `max_tokens` (400 ile isteğin KOMPLE reddi), ve istenen
+`max_tokens` üzerinden sayılan dakikalık kota. DeepSeek yolundaki model
+kimlikleri ve 8.192'lik tavan belgelerden alındı — ilk canlı istekten önce
+üçü de doğrulanmalı: kimlikler var mı, kota yetiyor mu, tavan gerçekten bu mu.
+
+**Testler:** 1899 başarılı / 2 başarısız (ikisi de Docker bağımlı ve bu
+çalışmadan önce de başarısızdı) / 1901 toplam. **Mevcut hiçbir testi
+değiştirmek gerekmedi** — Groq davranışının korunduğunun asıl kanıtı bu.
+Ayrıca DI zinciri ayrıca sınanıyor (`ChatProviderDependencyInjectionTests`),
+çünkü kayıt hatasını ne derleme ne de birim testler yakalar; bu kod tabanında
+tam olarak öyle bir boşluk uygulamayı açılmaz yapmıştı.
+
+## Yapılandırma
+
+| Anahtar | Varsayılan | Ne işe yarıyor |
+|---|---|---|
+| `Ai:Provider` | `groq` | `groq` veya `deepseek`. Tanınmayan değer Groq'a düşer ve loglanır. |
+| `Ai:RateLimitRetry:MaxTotalWaitSeconds` | `600` | Bir istek boyunca hız sınırı için beklenebilecek toplam süre. `0` yeniden denemeyi kapatır. |
+| `Ai:RateLimitRetry:MaxSingleWaitSeconds` | `60` | Tek bir beklemenin tavanı; sağlayıcı süre bildirmediğinde kullanılan süre de budur. |
+| `DeepSeek:ApiKey` | — | DeepSeek seçiliyse zorunlu. |
+| `DeepSeek:Models:Flash\|Standard\|Pro` | katalog | Sağlayıcı bir modeli kaldırırsa sürüm beklemeden geçmek için. |
+
+**Daha yüksek bir sağlayıcı katmanına geçildiğinde:** bu beklemelerin HİÇ
+oluşmaması hedefleniyor. `MaxTotalWaitSeconds` sıfırlanmamalı, ama log'da
+"AI provider rate limited; waiting" satırı görülüyorsa bu, katmanın hâlâ dar
+olduğunun işareti sayılmalı. Yeniden deneme bir emniyet ağı, çalışma biçimi
+değil.
+
+## Bu çalışmanın ÇÖZMEDİĞİ
+
+Mevcut Groq hesabıyla 54 tablo hâlâ tek seferde çıkmıyor; yalnızca hata almak
+yerine bekleniyor. 54 tablo ≈ 35.000 çıktı tokenı, hesap 8.000 TPM veriyor —
+yani kabaca dört buçuk dakikalık bir kuyruk. Bunu gerçekten açan şey daha geniş
+bir kota (DeepSeek ya da Dev Tier), bu faz değil.
+
+Ayrıca: daha geniş bir kota AKIŞ sorununu çözer, modelin 54 tabloyu gerçekten
+SAYIP DÖKECEĞİNİ kanıtlamaz. O hâlâ sınanmadı.
