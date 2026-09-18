@@ -4,6 +4,7 @@ using Namines.Core.Github;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Namines.Core.Interfaces;
+using Namines.Core.Sources;
 using Namines.Infrastructure;
 using Namines.Infrastructure.AI;
 using Namines.Infrastructure.Generators.DdlGenerator;
@@ -79,6 +80,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPrismaGenerator, PrismaGeneratorService>();
         // Singleton: üreticiler durumsuz, kayıt defteri de öyle.
         services.AddSingleton<IEjectGeneratorRegistry, EjectGeneratorRegistry>();
+
+        // Şema kaynakları kataloğu (github/06-EKLENTI-MIMARISI.md). Liste sabit
+        // ve durumsuz — her istekte yeniden kurmanın anlamı yok.
+        services.AddSingleton<ISchemaSourceCatalog, StaticSchemaSourceCatalog>();
 
         // Namines Bot (11 §7). HttpClient fabrikadan alınıyor: her çağrıda yeni bir
         // HttpClient üretmek soket tükenmesine, tek bir statik örnek ise DNS
