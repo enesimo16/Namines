@@ -110,7 +110,11 @@ public sealed class GithubClient : IGithubClient
         // inceleyemememiz demek olurdu.
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
 
-        await EnsureSuccessAsync(response, cancellationToken);
+        // Okuma sınıflandırıcısı: burada YAZMA yolunun genel hatası kullanılırsa
+        // GitHub'ın "rate limit exceeded" 403'ü anlaşılmaz bir 500'e dönüşüyor.
+        // Canlı doğrulamada tam olarak bu yaşandı — ağaç okuması geçti, dosya
+        // okuması kotaya takıldı ve kullanıcı ne olduğunu göremedi.
+        await EnsureReadSuccessAsync(response, repository, cancellationToken);
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
 
@@ -210,12 +214,27 @@ public sealed class GithubClient : IGithubClient
                 $"{repository} could not be read. It does not exist, or it is private — " +
                 "a private repository needs a GitHub App installation.");
 
-        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests &&
-            response.Headers.TryGetValues("x-ratelimit-remaining", out var remaining) &&
-            remaining.FirstOrDefault() == "0")
-            throw new GithubRateLimitedException(
-                "GitHub's hourly limit for anonymous requests is used up. " +
-                "Try again later, or connect a GitHub App.");
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
+        {
+            var headerSaysLimit =
+                response.Headers.TryGetValues("x-ratelimit-remaining", out var remaining) &&
+                remaining.FirstOrDefault() == "0";
+
+            // Gövdeye de bakılıyor: canlı doğrulamada GitHub kota 403'ünü
+            // gönderdi ama başlık okunamadı ve hata "bilinmeyen 403" olarak
+            // düştü. Tek bir sinyale güvenmek, kullanıcıya ne yapacağını
+            // söyleyebildiğimiz tek durumu kaçırmak demekti.
+            var body = await response.Content.ReadAsStringAsync(ct);
+            var bodySaysLimit = body.Contains("rate limit", StringComparison.OrdinalIgnoreCase);
+
+            if (headerSaysLimit || bodySaysLimit)
+                throw new GithubRateLimitedException(
+                    "GitHub's hourly limit for anonymous requests is used up. " +
+                    "Try again later, or connect a GitHub App.");
+
+            _logger.LogWarning("GitHub API {Status}: {Body}", (int)response.StatusCode, body);
+            throw new HttpRequestException($"GitHub API returned {(int)response.StatusCode}.");
+        }
 
         await EnsureSuccessAsync(response, ct);
     }

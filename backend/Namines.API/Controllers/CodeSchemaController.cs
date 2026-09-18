@@ -101,36 +101,11 @@ public class CodeSchemaController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
 
-        object? drift = null;
-        if (request.CompareWith is not null)
-        {
-            // Kod UUID taşımaz — hizalanmadan karşılaştırmak HER tabloyu
-            // "silindi + eklendi" gösterir (bkz. SchemaUuidAligner).
-            var aligned = SchemaUuidAligner.AlignTo(extraction.Schema, request.CompareWith);
-
-            // Yön bilinçli: ESKİ = kodun söylediği, YENİ = şu an elimizdeki şema.
-            // Böylece "eklendi/silindi" ifadeleri "veritabanında var ama kodda
-            // yok" diye okunuyor — kullanıcının sorduğu soru bu.
-            var impact = SchemaImpactAnalyzer.Analyze(aligned, request.CompareWith, request.DbType);
-            drift = new
-            {
-                hasDrift = impact.AffectedTables.Count > 0 || impact.BreakingChanges.Count > 0,
-                overallRisk = impact.OverallRisk.ToString(),
-                affectedTables = impact.AffectedTables.Select(t => new
-                {
-                    t.TableName,
-                    kind = t.Kind.ToString(),
-                    t.ChangedColumns,
-                }),
-                breakingChanges = impact.BreakingChanges.Select(b => new
-                {
-                    b.TableName,
-                    b.ColumnName,
-                    b.Description,
-                    kind = b.Kind.ToString(),
-                }),
-            };
-        }
+        // Hizalama + yön + cevap biçimi SchemaDriftResponse'ta: aynı hesabı
+        // yapan ikinci uç (depo tarama) ile ayrışmasınlar diye.
+        object? drift = request.CompareWith is null
+            ? null
+            : SchemaDriftResponse.Build(extraction.Schema, request.CompareWith, request.DbType);
 
         return Ok(new
         {

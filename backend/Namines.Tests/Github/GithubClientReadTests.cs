@@ -115,6 +115,63 @@ public class GithubClientReadTests
     }
 
     [Fact]
+    public async Task Reading_a_file_uses_the_read_classifier_too()
+    {
+        // CANLI DOĞRULAMADA BULUNDU: ağaç okuması geçip dosya okuması kotaya
+        // takıldığında, bu metot yazma yolunun genel hatasını kullandığı için
+        // kullanıcı anlaşılmaz bir 500 görüyordu. Birim testler görmemişti
+        // çünkü hiçbiri dosya okumasını hata durumunda denememişti.
+        var handler = new FakeHandler
+        {
+            Respond = _ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                Content = new StringContent("{\"message\":\"API rate limit exceeded for 1.2.3.4.\"}"),
+            },
+        };
+
+        await Assert.ThrowsAsync<GithubRateLimitedException>(() =>
+            Client(handler).GetFileContentAsync(
+                new GithubRepository("acme", "shop"), installationId: null,
+                path: "prisma/schema.prisma", reference: "main"));
+    }
+
+    [Fact]
+    public async Task The_rate_limit_is_recognised_from_the_body_when_the_header_is_missing()
+    {
+        // GitHub kota reddini gövdede açıklıyor; tek sinyale (başlığa) güvenmek
+        // bu durumu "bilinmeyen 403"e düşürüyordu.
+        var handler = new FakeHandler
+        {
+            Respond = _ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                Content = new StringContent("{\"message\":\"API rate limit exceeded for 1.2.3.4.\"}"),
+            },
+        };
+
+        await Assert.ThrowsAsync<GithubRateLimitedException>(() =>
+            Client(handler).GetRepositoryTreeAsync(
+                new GithubRepository("acme", "shop"), "main", installationId: null));
+    }
+
+    [Fact]
+    public async Task A_forbidden_that_is_not_about_rate_limiting_stays_a_plain_failure()
+    {
+        // Her 403'ü "kota doldu" diye çevirmek, izin hatasını kullanıcıya
+        // yanlış teşhisle sunmak olurdu.
+        var handler = new FakeHandler
+        {
+            Respond = _ => new HttpResponseMessage(HttpStatusCode.Forbidden)
+            {
+                Content = new StringContent("{\"message\":\"Resource not accessible by integration\"}"),
+            },
+        };
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            Client(handler).GetRepositoryTreeAsync(
+                new GithubRepository("acme", "shop"), "main", installationId: null));
+    }
+
+    [Fact]
     public async Task Rate_limiting_is_reported_as_itself()
     {
         var handler = new FakeHandler

@@ -85,6 +85,10 @@ public static class ServiceCollectionExtensions
         // ve durumsuz — her istekte yeniden kurmanın anlamı yok.
         services.AddSingleton<ISchemaSourceCatalog, StaticSchemaSourceCatalog>();
 
+        // Depo tarama (github/01-DEPO-TARAMA.md). Scoped: durumsuz ama bağımlı
+        // olduğu GithubClient HttpClient fabrikasından geliyor ve transient.
+        services.AddScoped<IRepositoryScanner, RepositoryScanner>();
+
         // Namines Bot (11 §7). HttpClient fabrikadan alınıyor: her çağrıda yeni bir
         // HttpClient üretmek soket tükenmesine, tek bir statik örnek ise DNS
         // değişikliklerini görmemeye yol açar.

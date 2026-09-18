@@ -131,6 +131,25 @@ public class RepositoryScannerTests
     }
 
     [Fact]
+    public async Task An_anonymous_scan_stays_inside_githubs_hourly_budget()
+    {
+        // CANLI DOĞRULAMADA BULUNDU: anonim sınır saatte 60 istek ve IP
+        // başına — yani sunucunun tamamı için. 200 dosyalık bütçeyle tarama
+        // yapmak, tek bir kullanıcının tek bir deposunun herkesin kotasını
+        // bitirmesi demekti. Aşanlar atılmıyor, bildiriliyor.
+        var paths = Enumerable.Range(0, 60).Select(i => $"db/migrations/{i:D3}_init.sql").ToList();
+        var files = paths.ToDictionary(p => p, _ => "CREATE TABLE users (id int primary key);");
+
+        var github = new FakeGithub { Paths = paths, Files = files };
+
+        var result = await new RepositoryScanner(github).ScanAsync(
+            new GithubRepository("acme", "shop"), branch: null, installationId: null);
+
+        Assert.Equal(RepositoryScanner.AnonymousMaxFiles, github.Fetched.Count);
+        Assert.Contains(result.Skipped, s => s.Reason.Contains("file budget"));
+    }
+
+    [Fact]
     public async Task What_the_selector_skipped_reaches_the_caller_too()
     {
         var github = new FakeGithub

@@ -12,9 +12,26 @@ namespace Namines.Infrastructure.Services;
 /// <inheritdoc cref="IRepositoryScanner"/>
 public sealed class RepositoryScanner : IRepositoryScanner
 {
+    /// <summary>
+    /// Kimliksiz bir taramanın çekebileceği en fazla dosya.
+    ///
+    /// <b>GitHub'ın anonim sınırı saatte 60 istek ve bu sınır IP başına</b> —
+    /// yani sunucunun tamamı için. Ayrıştırıcının 200 dosyalık bütçesiyle
+    /// tarama yapmak, TEK bir kullanıcının tek bir deposunun bütün kullanıcılara
+    /// ait saatlik kotayı bitirmesi demekti; canlı doğrulamada tam olarak bu
+    /// yaşandı. 40, ağaç + varsayılan dal çağrılarıyla birlikte kotanın
+    /// yarısından azını harcıyor ve sonraki taramalara yer bırakıyor.
+    ///
+    /// Aşan dosyalar ATILMIYOR, "atlandı" olarak gerekçesiyle bildiriliyor.
+    /// </summary>
+    public const int AnonymousMaxFiles = 40;
+
     private readonly IGithubClient _github;
 
     public RepositoryScanner(IGithubClient github) => _github = github;
+
+    private static int MaxFilesFor(long? installationId) =>
+        installationId is null ? AnonymousMaxFiles : CodeSchemaExtractor.MaxFiles;
 
     public async Task<RepositoryScanResult> ScanAsync(
         GithubRepository repository, string? branch, long? installationId,
@@ -32,8 +49,8 @@ public sealed class RepositoryScanner : IRepositoryScanner
 
         // Bütçe AĞAÇTA uygulanıyor, indirdikten sonra değil: sınırın amacı
         // ayrıştırma maliyetinden önce ağ maliyetini sınırlamak. Ayrıştırıcının
-        // kendi sınırı (aynı sabit) ikinci bir savunma olarak yerinde kalıyor.
-        var selection = RepositoryCandidateSelector.Select(tree.Paths, CodeSchemaExtractor.MaxFiles);
+        // kendi sınırı ikinci bir savunma olarak yerinde kalıyor.
+        var selection = RepositoryCandidateSelector.Select(tree.Paths, MaxFilesFor(installationId));
 
         var files = new Dictionary<string, string>(StringComparer.Ordinal);
         var skipped = new List<SkippedItem>(selection.Skipped);
