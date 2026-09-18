@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import type { DatabaseSchema } from '../../types/schema';
 import { useRouter } from 'next/navigation';
-import { Loader2, X, Link as LinkIcon, Image as ImageIcon, ChevronDown, Check, Wand2 } from 'lucide-react';
-import { schemaService } from '../../services/api';
+import { Loader2, X, Link as LinkIcon, ChevronDown, Check, Wand2 } from 'lucide-react';
+import { schemaService, sourceService } from '../../services/api';
 import { useSchemaStore, type DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
@@ -14,6 +14,8 @@ import ProductionScreen from '../../components/landing/ProductionScreen';
 import PlanScreen from '../../components/landing/PlanScreen';
 import { streamSchemaGeneration, AgentStepEvent, AgentResultEvent } from '../../lib/sseSchemaStream';
 import { ClarifyResponse, NaiModelOption } from '../../types/nai';
+import { SourceMenu } from '../../components/prompt/SourceMenu';
+import type { SchemaSourceDescriptor } from '../../types/source';
 
 export default function NewProjectPage() {
   const [prompt, setPrompt] = useState('');
@@ -47,6 +49,7 @@ export default function NewProjectPage() {
   /** Hat bittiğinde dönen özet — kalan bulgular kullanıcıya gösterilecek. */
   const [agentSummary, setAgentSummary] = useState<AgentResultEvent['agent'] | null>(null);
   const [models, setModels] = useState<NaiModelOption[]>([]);
+  const [sources, setSources] = useState<SchemaSourceDescriptor[]>([]);
 
   const router = useRouter();
   // V2: dbType artık global store'dan geliyor
@@ -104,7 +107,32 @@ export default function NewProjectPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Kaynak listesi de SUNUCUDAN geliyor (model listesiyle aynı gerekçe):
+  // hangi kaynağın hangi grupta olduğunu ve ne yapabildiğini istemcide tekrar
+  // yazmak, iki kopyanın ayrışması demekti. Liste alınamazsa menü gizleniyor —
+  // menüyü kaybetmek şema üretimini engellememeli.
+  useEffect(() => {
+    let cancelled = false;
+    sourceService.catalog()
+      .then(list => { if (!cancelled) setSources(list); })
+      .catch(() => { /* sessiz: menü olmadan da üretim çalışıyor */ });
+    return () => { cancelled = true; };
+  }, []);
+
   const selectedModel = models.find(m => m.id === naiModel);
+
+  /**
+   * Menüden seçilen kaynağı bu ekrandaki karşılığına yönlendirir.
+   *
+   * Karşılığı olmayan kaynaklar (kod dosyası, DB bağlantısı, örnek JSON,
+   * hazır şemalar) canvas'ta yaşıyor. Sessizce hiçbir şey yapmamak menüyü
+   * bozuk gösterirdi, o yüzden nerede olduğu söyleniyor.
+   */
+  const handleSourceSelect = (id: string) => {
+    if (id === 'openapi') { setShowUrlInput(true); return; }
+    if (id === 'image') { fileInputRef.current?.click(); return; }
+    showToast('Available on the canvas — open or generate a schema first.', 'info');
+  };
 
 
   useEffect(() => {
@@ -307,27 +335,24 @@ export default function NewProjectPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
-                className="w-full h-24 sm:h-28 p-3 rounded-[var(--radius-card)] glass-input resize-none text-content-primary placeholder:text-content-muted text-sm leading-relaxed focus:outline-none"
+                /* pb-11: kaynak menüsü artık kutunun ALT ŞERİDİNİ boydan boya
+                   kaplıyor (eskiden yalnızca sağ köşedeki üç ikondu). Alt
+                   dolgu olmadan uzun bir prompt metnin son satırı menünün
+                   altında kalıyor. */
+                className="w-full h-24 sm:h-28 p-3 pb-11 rounded-[var(--radius-card)] glass-input resize-none text-content-primary placeholder:text-content-muted text-sm leading-relaxed focus:outline-none"
                 disabled={isGenerating}
               ></textarea>
 
-              <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowUrlInput(!showUrlInput)}
-                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${showUrlInput || apiSpecUrl ? 'text-accent-text border-accent' : 'text-content-muted hover:text-content-primary'}`}
-                  title="Infer from a GraphQL or OpenAPI/Swagger URL"
-                >
-                  <LinkIcon className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`w-7 h-7 rounded-[var(--radius-control)] glass-button flex items-center justify-center transition-all ${image ? 'text-accent-text border-accent' : 'text-content-muted hover:text-content-primary'}`}
-                  title="Add Image"
-                >
-                  <ImageIcon className="w-3.5 h-3.5" />
-                </button>
+              {/* Kaynak düğmeleri tek bir menüde toplandı (github/06-EKLENTI-MIMARISI.md):
+                  her yeni kaynak için textarea'nın köşesine bir ikon daha
+                  eklemek ölçeklenmiyordu ve kullanıcı "şemamı nereden
+                  getirebilirim" sorusunun cevabını tek bir yerde göremiyordu.
+                  Mikrofon MENÜYE GİRMİYOR: ses bir kaynak değil, prompt
+                  metnine giriş yöntemi — şema değil cümle üretiyor. */}
+              <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5">
+                {sources.length > 0 ? (
+                  <SourceMenu sources={sources} onSelect={handleSourceSelect} disabled={isGenerating} />
+                ) : <span />}
                 <input
                   type="file"
                   ref={fileInputRef}
