@@ -182,9 +182,24 @@ public sealed class GroqSchemaDraftSource : ISchemaDraftSource
         // testte görülen hata buydu ve hiçbir birim test yakalayamazdı, çünkü
         // sınır sağlayıcı tarafında.
         //
-        // Katsayı, kod tabanının başka yerlerinde de kullanılan ölçümle aynı:
-        // tablo başına ~600 token, üstüne ilişkiler/sarmal için sabit pay.
-        var chunkBudget = chunk.OwnedTables.Count * 600 + 2000;
+        // <b>Katsayı ÖLÇÜLDÜ, tahmin edilmedi — ve ilk hâli fena hâlde düşüktü.</b>
+        // Başlangıçta tablo başına 600 token yazılmıştı (kota tahmininden
+        // devşirme). Canlı bir 49 tabloluk üretimde sonuç şuydu: üç tabloluk bir
+        // parçaya 3.800 tavan verildi ve model tam orada kesildi
+        // (finish_reason=length), dokuz tabloluğa 7.400 verildi, o da kesildi.
+        // Sekiz alandan yedisi bu yüzden düştü ve kullanıcı 49 tablo yerine 7
+        // tablo aldı.
+        //
+        // <b>Yön seçimi bilinçli: fazla istemek az istemekten İYİDİR.</b> İki
+        // başarısızlık biçimi simetrik değil — fazla istemek 429 getiriyor, o da
+        // artık bekleyip yeniden deneniyor (bkz. AiRetryPolicy), yani iş yalnızca
+        // yavaşlıyor. Az istemek ise kesilme getiriyor ve kesilen parça KOMPLE
+        // atılıyor; üretilmiş tablolar geri gelmiyor. Bu yüzden katsayı cömert.
+        //
+        // Ölçüm: kesilen üç tabloluk parça 3.800'e sığmadı, yani tablo başına
+        // gerçek ihtiyaç 1.250'nin üstünde. 1.600 buna makul bir pay bırakıyor;
+        // sabit pay da ilişkiler ve JSON sarmalı için 2.000'den 3.000'e çıktı.
+        var chunkBudget = chunk.OwnedTables.Count * 1600 + 3000;
 
         var response = await _chat.CompleteAsync(
             new[]
