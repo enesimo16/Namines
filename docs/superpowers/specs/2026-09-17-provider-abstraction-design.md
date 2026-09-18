@@ -1,6 +1,7 @@
 # Hız Sınırı Dayanıklılığı ve Sağlayıcı Soyutlaması — Spec
 
-**Durum:** Üç karar kullanıcı tarafından verildi — uygulama planı bekleniyor.
+**Durum:** Uygulandı. Aşağıdaki tasarım bölümleri kararların gerekçesini
+saklıyor; gerçekleşen hâli için sondaki "Uygulama durumu" bölümüne bakın.
 
 **Sorun:** Şema üretimi büyük isteklerde çalışmıyor ve sebebi kod değil, tek bir
 sağlayıcıya (Groq) ücretsiz katman limitleriyle bağlı olmak.
@@ -86,15 +87,14 @@ yalnızca şema üretiminde çalışırdı.
 IChatCompletionProvider        ← sağlayıcıya özgü olan HER ŞEY burada
   ├─ BaseAddress
   ├─ kimlik doğrulama başlığı
-  ├─ model kimlikleri + model başına çıktı sınırı
-  └─ 429 gövdesinden/başlığından Retry-After çıkarma
+  └─ model kimlikleri + model başına çıktı sınırı (IModelCatalog)
 
-  ├── GroqChatProvider        (bugünkü davranış, birebir)
-  └── DeepSeekChatProvider    (OpenAI uyumlu — aynı gövde şekli)
+  ├── GroqChatCompletionProvider       (bugünkü davranış, birebir)
+  └── DeepSeekChatCompletionProvider   (OpenAI uyumlu — aynı gövde şekli)
 
-AiService (bugünkü GroqAIService)
+GroqAIService
   └─ üst seviye işler: şema üretimi, revizyon, DBA, seed, migration…
-     Sağlayıcıya özgü hiçbir şey bilmez.
+     Adresi, anahtarı ve modelleri sağlayıcıdan alıyor.
 ```
 
 Sağlayıcı seçimi: `Ai:Provider` (`groq` | `deepseek`), varsayılan `groq`.
@@ -113,10 +113,17 @@ kavramı olarak kalıyor — her sağlayıcı bu üç kademeye kendi modelini e�
 - OpenAI uyumlu `chat/completions` — gövde şekli aynı, bu yüzden mevcut
   serileştirme yeniden kullanılabilir.
 - Farklı temel adres ve model kimlikleri.
-- 429 gövdesi Groq'unkiyle **aynı şekilde olmayabilir** — `Retry-After`
-  çıkarma sağlayıcıya özgü kalmalı, ortak koda gömülmemeli.
-- Araç çağırma (tool calling) desteği modelden modele değişir;
-  `SupportsToolCalling` kararı da sağlayıcıya ait olmalı.
+- 429 gövdesi Groq'unkiyle **aynı şekilde olmayabilir**.
+
+  **Uygulamada farklı yapıldı:** `Retry-After` çıkarma sağlayıcıya
+  taşınMADI, `GroqAIService.ParseRetryAfter`'da ortak kaldı. Gerekçe: bugün
+  ikisi de OpenAI uyumlu ve aynı biçimi kullanıyor; olmadığı KANITLANMADAN
+  sağlayıcı başına ayrı bir çıkarıcı yazmak, doğrulanmamış bir farkı kodda
+  kalıcılaştırmak olurdu. DeepSeek'in gövdesi farklı çıkarsa bu metot
+  arayüze taşınmalı — canlı doğrulamada bakılacak ilk yerlerden biri.
+- Araç çağırma (tool calling) desteği modelden modele değişir.
+  **Bu da yapılmadı:** `SupportsToolCalling` bugünkü hâliyle
+  `GroqAIService`'te duruyor. Aynı gerekçe.
 
 ---
 
