@@ -70,6 +70,10 @@ public class GithubScanController : ControllerBase
                 skipped = scan.Skipped.Select(s => new { name = s.Name, reason = s.Reason }),
                 // Ağaç kesildiyse "deponda şema yok" demek yanlış olur.
                 treeTruncated = scan.TreeTruncated,
+                // Okunan dosyalardan çıkan şemanın KENDİSİYLE ilgili uyarılar
+                // (atlanan dosyalardan ayrı): ör. birbirinden bağımsız
+                // projelerin şemaları birleştiğinde çıkan ad tekrarları.
+                warnings = scan.Warnings,
                 drift = request.CompareWith is null
                     ? null
                     : SchemaDriftResponse.Build(scan.Schema, request.CompareWith, request.DbType),

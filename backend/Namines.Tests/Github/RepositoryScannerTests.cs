@@ -150,6 +150,46 @@ public class RepositoryScannerTests
     }
 
     [Fact]
+    public async Task A_monorepo_whose_schemas_collide_is_warned_about()
+    {
+        // CANLI DOĞRULAMADA GÖRÜLDÜ: prisma-examples taranınca 40 ayrı örnek
+        // projenin şeması tek şemada birleşti ve "Quotes" tablosu dört kez
+        // çıktı. Ayrıştırıcı dosyaları birleştiriyor — bu, tek bir uygulamanın
+        // deposunda doğru, birbirinden bağımsız projeler taşıyan bir depoda
+        // ise anlamsız bir şema üretiyor. Sessiz kalmak, kullanıcının o şemayı
+        // gerçek sanması demek.
+        var github = new FakeGithub
+        {
+            Paths = { "apps/a/prisma/schema.prisma", "apps/b/prisma/schema.prisma" },
+            Files =
+            {
+                ["apps/a/prisma/schema.prisma"] = "model Quote {\n  id Int @id\n}",
+                ["apps/b/prisma/schema.prisma"] = "model Quote {\n  id Int @id\n}",
+            },
+        };
+
+        var result = await new RepositoryScanner(github).ScanAsync(
+            new GithubRepository("acme", "shop"), branch: null, installationId: null);
+
+        Assert.Contains(result.Warnings, w => w.Contains("Quote"));
+    }
+
+    [Fact]
+    public async Task A_single_application_repository_gets_no_warning()
+    {
+        var github = new FakeGithub
+        {
+            Paths = { "prisma/schema.prisma" },
+            Files = { ["prisma/schema.prisma"] = "model User {\n  id Int @id\n}" },
+        };
+
+        var result = await new RepositoryScanner(github).ScanAsync(
+            new GithubRepository("acme", "shop"), branch: null, installationId: null);
+
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
     public async Task What_the_selector_skipped_reaches_the_caller_too()
     {
         var github = new FakeGithub

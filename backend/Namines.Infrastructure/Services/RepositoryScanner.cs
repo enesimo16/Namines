@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Namines.Core.Analysis;
 using Namines.Core.Github;
 using Namines.Core.Interfaces;
+using Namines.Core.Models;
 
 namespace Namines.Infrastructure.Services;
 
@@ -32,6 +33,38 @@ public sealed class RepositoryScanner : IRepositoryScanner
 
     private static int MaxFilesFor(long? installationId) =>
         installationId is null ? AnonymousMaxFiles : CodeSchemaExtractor.MaxFiles;
+
+    /// <summary>
+    /// Sonuç üretildi ama güvenilirliği hakkında söylenmesi gereken şeyler.
+    ///
+    /// <b>Neden gerekli:</b> ayrıştırıcı bulduğu bütün şema dosyalarını
+    /// BİRLEŞTİRİYOR. Tek bir uygulamanın deposunda doğru; birbirinden
+    /// bağımsız örnek projeler taşıyan bir depoda ise 40 ayrı şema tek şemaya
+    /// karışıyor ve aynı tablo adı defalarca çıkıyor (canlı doğrulamada
+    /// prisma-examples taranınca "Quotes" dört kez çıktı). Sessiz kalmak,
+    /// kullanıcının o karışımı deponun gerçek şeması sanması demek.
+    /// </summary>
+    private static IReadOnlyList<string> WarningsFor(DatabaseSchema schema, int fileCount)
+    {
+        var duplicates = schema.Tables
+            .GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+
+        if (duplicates.Count == 0) return Array.Empty<string>();
+
+        var shown = string.Join(", ", duplicates.Take(5));
+        var rest = duplicates.Count > 5 ? $" and {duplicates.Count - 5} more" : string.Empty;
+
+        return new[]
+        {
+            $"This repository holds more than one schema ({fileCount} files were merged), " +
+            $"so the same table name appears several times: {shown}{rest}. " +
+            "It is probably a repository of separate projects rather than one application.",
+        };
+    }
 
     public async Task<RepositoryScanResult> ScanAsync(
         GithubRepository repository, string? branch, long? installationId,
@@ -78,6 +111,7 @@ public sealed class RepositoryScanner : IRepositoryScanner
             reference,
             files.Keys.ToList(),
             skipped.Concat(extraction.Skipped).ToList(),
-            tree.Truncated);
+            tree.Truncated,
+            WarningsFor(extraction.Schema, files.Count));
     }
 }

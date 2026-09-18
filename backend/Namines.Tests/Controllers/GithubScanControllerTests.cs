@@ -27,7 +27,8 @@ public class GithubScanControllerTests
                 "prisma", branch ?? "main",
                 new[] { "prisma/schema.prisma" },
                 new[] { new SkippedItem("node_modules/x.sql", "Build output or dependency directory.") },
-                TreeTruncated: false));
+                TreeTruncated: false,
+                Warnings: Array.Empty<string>()));
         }
     }
 

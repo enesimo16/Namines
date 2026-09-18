@@ -16,13 +16,22 @@ namespace Namines.Core.Interfaces;
 /// GitHub ağacı kesti mi. Kestiyse "deponda şema yok" demek yanlış olur:
 /// bakmadığımız bir kısım var.
 /// </param>
+/// <param name="Warnings">
+/// Sonuç üretildi ama güvenilirliği hakkında söylenmesi gereken şeyler.
+///
+/// <b><see cref="Skipped"/>'dan farkı:</b> orası okunAMAYAN dosyalar; burası
+/// okunan dosyalardan çıkan şemanın kendisiyle ilgili. Örnek: birbirinden
+/// bağımsız projeler taşıyan bir depoda şemalar birleştirildiğinde aynı tablo
+/// adı birden çok kez çıkar ve sonuç tek bir uygulamanın şeması değildir.
+/// </param>
 public sealed record RepositoryScanResult(
     DatabaseSchema Schema,
     string Format,
     string Branch,
     IReadOnlyList<string> ParsedFiles,
     IReadOnlyList<SkippedItem> Skipped,
-    bool TreeTruncated);
+    bool TreeTruncated,
+    IReadOnlyList<string> Warnings);
 
 /// <summary>
 /// github/01-DEPO-TARAMA.md — bir depoyu okuyup şemayı çıkarır.

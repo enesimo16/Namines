@@ -127,6 +127,13 @@ export function GithubScanModal({ onScan, onImport, onClose }: GithubScanModalPr
               Read {result.format} from <span className="text-content-secondary">{result.branch}</span>.
             </p>
 
+            {(result.warnings ?? []).map((warning) => (
+              <p key={warning} className="flex items-start gap-2 text-micro text-content-secondary">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                {warning}
+              </p>
+            ))}
+
             {result.treeTruncated && (
               <p className="flex items-start gap-2 text-micro text-content-secondary">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />

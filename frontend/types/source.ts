@@ -73,5 +73,11 @@ export interface RepositoryScanResult {
    * kullanıcıya bakılmayan bir kısım olduğu söylenmeli.
    */
   treeTruncated: boolean;
+  /**
+   * Okunan dosyalardan çıkan ŞEMANIN kendisiyle ilgili uyarılar — atlanan
+   * dosyalardan ayrı. Ör. birbirinden bağımsız projeler taşıyan bir depoda
+   * şemalar birleştiğinde çıkan tablo adı tekrarları.
+   */
+  warnings?: string[];
   drift?: unknown;
 }
