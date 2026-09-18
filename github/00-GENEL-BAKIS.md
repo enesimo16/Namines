@@ -68,7 +68,8 @@ Her katman bu kaydın bir alanını kullanıyor. Kayıt yoksa hiçbiri çalışm
 | E | **CI/CD ve gerisi** | Action, CLI, GitHub ile giriş, eject → yeni repo | kısmen | [05](05-CI-CD-VE-DIGER.md) |
 | F | **Eklenti mimarisi** | `ISchemaSource` kayıt defteri + `+` kaynak menüsü | ❌ | [06](06-EKLENTI-MIMARISI.md) |
 
-**Fazlandırma: [07-FAZ-PLANI.md](07-FAZ-PLANI.md).**
+**Fazlandırma ve güncel durum: [07-FAZ-PLANI.md](07-FAZ-PLANI.md).**
+**Senden beklenen GitHub App kurulumu: [F2-GITHUB-APP-KURULUMU.md](F2-GITHUB-APP-KURULUMU.md).**
 
 **Karar: ilk teslim edilecek dilim A.** Sebebi: GitHub App'i (senden bir hesap
 işi) beklemez, var olan üç ayrıştırıcıyı kullanır, tek yeni şey depo taraması,

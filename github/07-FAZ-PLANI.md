@@ -4,15 +4,22 @@
 > Sıra, bağımlılığa göre değil **beklemeye** göre dizildi: senden hesap işi
 > bekleyen fazlar, beklemeyenlerin arkasına kondu.
 
-| Faz | Ne | Seni bekler mi | Dayandığı iş |
-|:--:|---|:--:|---|
-| **F0** | Kayıt defteri + `+` menüsü | ❌ | — |
-| **F1** | Public repo → şema / drift | ❌ | F0 |
-| **F2** | GitHub App, private repo, bot canlı | ✅ App | F1 |
-| **F3** | GitHub branch ↔ Namines branch + PR'da preview DB | ❌ | F2 |
-| **F4** | Sunucu-taraflı 3-yollu merge + merge kuyruğu | ❌ | F3 |
-| **F5** | Yazma yolu: PR → izin butonu → push | ❌ | F2 (izin kapsamı) |
-| **F6** | Diğer kaynakların eklentileşmesi + CLI/Action yayını | ✅ npm | F0, F5 |
+| Faz | Ne | Durum | Seni bekler mi |
+|:--:|---|---|:--:|
+| **F0** | Kayıt defteri + `+` menüsü | ✅ **bitti**, canlı doğrulandı | ❌ |
+| **F1** | Public repo → şema / drift | ✅ **bitti**, gerçek depoya karşı doğrulandı (62 tablo, 22 ilişki) | ❌ |
+| **F2** | GitHub App, private repo, bot canlı | ⏸ App bekliyor — [F2-GITHUB-APP-KURULUMU.md](F2-GITHUB-APP-KURULUMU.md) | ✅ App |
+| **F3** | GitHub branch ↔ Namines branch + PR'da preview DB | ⏳ F2'den sonra | ❌ |
+| **F4** | Sunucu-taraflı 3-yollu merge | ✅ **motor + iki uç + canvas bağlantısı bitti**; merge kuyruğu F3'e bağlı | ❌ |
+| **F5** | Yazma yolu: PR → izin butonu → push | ⏳ F2'nin izin kapsamından sonra | ❌ |
+| **F6** | Diğer kaynakların eklentileşmesi + CLI/Action yayını | ⏳ | ✅ npm |
+
+### F4'ün kapsam dışı kalan kısmı
+
+Merge kuyruğu (03 §4), migration versiyonunun merge anında atanması (03 §3.3)
+ve canvas'taki "PR #12'de değiştiriliyor" rozeti (03 §5) **integration DB'ye ve
+GitHub akışına bağlı** — F2/F3 gelmeden canlı doğrulanamazlar, bu yüzden
+yazılmadılar.
 
 ---
 
