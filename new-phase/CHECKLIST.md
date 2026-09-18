@@ -1854,6 +1854,67 @@ uçtan uca doğrulandı (davet üret → katıl → link tükendi → ortak proj
 
 ---
 
+## G53 — GitHub platformu: kaynak kataloğu, depo tarama ve 3-yollu merge ✅ TAMAMLANDI
+
+Tasarım ve fazlandırma: [`github/`](../github/) klasörü
+([07-FAZ-PLANI.md](../github/07-FAZ-PLANI.md) güncel durumu taşıyor).
+
+- [x] **Şema kaynakları tek katalogda** (`ISchemaSourceCatalog`, `GET /api/sources`).
+      Prompt kutusundaki dağınık ikonlar tek bir `+ Add source` menüsünde toplandı.
+      Hangi kaynağın hangi grupta olduğu ve **çıkarım mı yaptığı** sunucudan geliyor —
+      "tahmin olduğunu her ekranda söyle" kuralı böylece UI'ın unutamayacağı yere taşındı.
+      `kind`/`capabilities` sınırdan **string** geçiyor (enum kopyalama bir kez kırılmıştı).
+- [x] **Public depo linkinden şema** (`RepositoryCandidateSelector`, `RepositoryScanner`,
+      `POST /api/github/scan`). Yeni ayrıştırıcı YAZILMADI — var olan zincire
+      (`CodeSchemaExtractor` → `SchemaUuidAligner` → `SchemaImpactAnalyzer`) yalnızca
+      GitHub ağacı bir dosya kaynağı olarak eklendi. Depo klonlanmıyor, hiçbir SQL
+      çalıştırılmıyor, host beyaz listesi yalnızca `github.com`.
+- [x] **3-yollu merge motoru** (`SchemaThreeWayMerger`) + iki uç:
+      `POST /api/branch/{id}/merge/preview` (sunucu dalları; ortak atayı
+      `ParentBranchId` + `ForkedFromVersion`'dan çözüyor — **bu alanlar zaten vardı**)
+      ve `POST /api/merge/preview` (durumsuz; canvas'ın tarayıcıda yaşayan dalları için).
+      Canvas dal açarken artık fork anındaki şemayı `forkBase` olarak saklıyor.
+
+- **⚠️ Merge iki yolluydu ve bu kullanıcıya her farkı soruyordu.** Ortak ata
+  olmadan "yalnızca bir taraf değiştirdi" ile "ikisi de değiştirdi" ayırt
+  edilemiyor. Artık tek taraflı değişiklikler sorulmadan birleşiyor.
+- **⚠️ Aynı adla eklenen kolon iki kez şemaya giriyordu.** İki dalda eklenen
+  kolonların `StableUuid`'leri FARKLI; yalnızca kimliğe bakan bir birleştirici
+  ikisini de ayrı kolon sanıp ekler ve şema iki `status` ile çalışmaz hâle gelir.
+  Ad çakışması birleştirmeden SONRA ayrıca aranıyor (`NameCollision`).
+- **⚠️ "Son yazan kazanır" engellendi.** Bir taraf silip diğeri değiştirdiyse
+  (`DeleteVsModify`) merge **bloke** ediliyor — `ReferentialActionSql`'in
+  "belirsizlikte en kısıtlayıcı davranışa düş" kuralı.
+- **⚠️ Modal çakışma kimliğini `-` ile parçalıyordu** (`tableId-colId-durum`).
+  GUID'lerde bu GUID'in ilk bölümünü tablo kimliği sanar. Kimlikler artık
+  taşınıyor. (Bu kusur bu işten önce de vardı.)
+- **⚠️ Anonim GitHub kotası saatte 60 ve IP başına** — yani sunucunun tamamı
+  için. 200 dosyalık ayrıştırıcı bütçesiyle tarama yapmak, tek bir kullanıcının
+  tek bir deposunun herkesin kotasını bitirmesi demekti; canlı doğrulamada
+  tam olarak bu yaşandı. Kimliksiz tarama 40 dosyayla sınırlandı.
+- **⚠️ İki uzun süredir kırık test ürünü suçluyordu.** `DdlExecutionTests`'in
+  `Split(';')` ayırıcısı trigger fonksiyonunun `$$ ... $$` gövdesini ortadan
+  kesiyor, `RETURN NEW;` ayrı ifade olarak gönderiliyordu. Üretilen DDL
+  geçerliydi; **bölen bozuktu**. `SqlStatementSplitter` + 7 Docker'sız test.
+
+- Doğrulama: yeni testler **`SchemaSourceCatalog` 7**, **`RepositoryCandidateSelector` 14**,
+  **`GithubClientRead` 8**, **`RepositoryScanner` 9**, **`GithubScanController` 6**,
+  **`SchemaThreeWayMerger` 11**, **`BranchMergePreview` 4**, **`MergeController` 3**,
+  **`SqlStatementSplitter` 7**; frontend **102 test**, `check:design` ve `tsc` temiz.
+  **Canlı (gerçek GitHub, gerçek API):** `prisma/prisma-examples` tarandı →
+  62 tablo / 22 ilişki, 40 dosya okundu, 58'i gerekçesiyle atlandı, varsayılan dal
+  `latest` olarak çözüldü (**"main varsay" bu depoda boş sonuç verirdi**).
+  Merge önizlemesi gerçek dallarda: tek taraflı iki değişiklik sorulmadan
+  birleşti, `status` ad çakışması yakalandı, silme/değiştirme çakışması
+  **bloke** etti. `DdlExecutionTests` **28/28** (önceden 26/28).
+
+- **Kapsam dışı, bilinçli:** merge kuyruğu ve migration versiyonunun merge anında
+  atanması (integration DB ister), canvas'taki "PR #12'de değiştiriliyor" rozeti,
+  private depo ve bot'un PR'a yazması — üçü de **GitHub App'e bağlı**
+  ([github/F2-GITHUB-APP-KURULUMU.md](../github/F2-GITHUB-APP-KURULUMU.md)).
+
+---
+
 ## G-ekstra — Yol boyunca bulunanlar
 
 - [x] `launchSettings.json` port çelişkisi — **zaten çözülmüştü** (`dfdfc49`, bu G14
@@ -1894,6 +1955,8 @@ Sade dille anlatımı: [34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md).
       edildi**; ürünün para kazanmasının önündeki tek engel bu.
 - [ ] 🟡 **GitHub App** (`Github__AppId`, `Github__PrivateKey`,
       `Github__WebhookSecret`). Bot kod olarak hazır ama PR'a tek satır yazamıyor.
+      **Adım adım kurulum: [github/F2-GITHUB-APP-KURULUMU.md](../github/F2-GITHUB-APP-KURULUMU.md).**
+      App ayrıca depo taramanın kotasını 60/saat'ten 5000/saat'e çıkarıyor (G53).
 - [ ] 🟡 **npm + GitHub yayını.** MCP paketi, npm sarmalayıcısı ve release
       workflow hazır ama `npm publish` ve `git tag v0.1.0` atılmadı.
 - [ ] 🟡 **Gateway'in public alan adı** (`api.namines.com`?). OpenAPI'deki
