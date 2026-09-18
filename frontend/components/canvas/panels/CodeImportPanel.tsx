@@ -11,6 +11,15 @@ import { errorMessage } from '../../../lib/errors';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * Sema GERCEKTEN uygulandiginda cagrilir (iptal edildiginde DEGIL).
+   *
+   * Neden `onClose`'tan ayri: `/new` ekraninda bu panel "prompt yazmadan
+   * basla" yolunun bir adimi ve sema geldiginde canvas'a gecilmesi gerekiyor.
+   * `onClose` iptal ederken de calisiyor; ona baglanmak, kullanici vazgectiginde
+   * de canvas'a atmak demekti.
+   */
+  onApplied?: () => void;
 }
 
 /**
@@ -26,7 +35,7 @@ interface Props {
  * olmayan bir tam resim sunar ve o resme dayanıp "kodum veritabanımla uyumlu"
  * sonucuna varır.
  */
-export default function CodeImportPanel({ isOpen, onClose }: Props) {
+export default function CodeImportPanel({ isOpen, onClose, onApplied }: Props) {
   const schema = useSchemaStore(s => s.schema);
   const dbType = useSchemaStore(s => s.dbType);
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
@@ -69,6 +78,7 @@ export default function CodeImportPanel({ isOpen, onClose }: Props) {
     loadFromSchema(result.schema, undefined, true);
     showToast(`Loaded ${result.parsedCount} model(s) from ${result.format === 'prisma' ? 'Prisma' : 'EF Core'}.`, 'success');
     onClose();
+    onApplied?.();
   };
 
   if (!isOpen) return null;

@@ -16,6 +16,9 @@ import { streamSchemaGeneration, AgentStepEvent, AgentResultEvent } from '../../
 import { ClarifyResponse, NaiModelOption } from '../../types/nai';
 import { SourceMenu } from '../../components/prompt/SourceMenu';
 import { GithubScanModal } from '../../components/prompt/GithubScanModal';
+import { StarterPickerModal } from '../../components/prompt/StarterPickerModal';
+import CodeImportPanel from '../../components/canvas/panels/CodeImportPanel';
+import DbConnectionPanel from '../../components/canvas/panels/DbConnectionPanel';
 import type { RepositoryScanResult, SchemaSourceDescriptor } from '../../types/source';
 
 export default function NewProjectPage() {
@@ -52,12 +55,18 @@ export default function NewProjectPage() {
   const [models, setModels] = useState<NaiModelOption[]>([]);
   const [sources, setSources] = useState<SchemaSourceDescriptor[]>([]);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
+  // "+ Add source" menüsündeki her kaynağın kendi ekranı. Hepsi prompt
+  // YAZMADAN şema üretebiliyor — ürünün tek girişi bir cümle yazmak olmamalı.
+  const [starterModalOpen, setStarterModalOpen] = useState(false);
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [dbModalOpen, setDbModalOpen] = useState(false);
 
   const router = useRouter();
   // V2: dbType artık global store'dan geliyor
   const { 
     setIsGenerating, 
     loadFromSchema, 
+    setProjectName,
     isGenerating, 
     naiModel,
     dbType, 
@@ -124,17 +133,34 @@ export default function NewProjectPage() {
   const selectedModel = models.find(m => m.id === naiModel);
 
   /**
-   * Menüden seçilen kaynağı bu ekrandaki karşılığına yönlendirir.
+   * Menüden seçilen kaynağı ekranına yönlendirir.
    *
-   * Karşılığı olmayan kaynaklar (kod dosyası, DB bağlantısı, örnek JSON,
-   * hazır şemalar) canvas'ta yaşıyor. Sessizce hiçbir şey yapmamak menüyü
-   * bozuk gösterirdi, o yüzden nerede olduğu söyleniyor.
+   * <b>Hepsi prompt YAZMADAN şema üretiyor.</b> Ürünün tek girişi bir cümle
+   * yazmak olmamalı: hazır şema, kod dosyası, canlı veritabanı, depo, API
+   * tanımı ve resim — altısı da doğrudan canvas'a çıkıyor.
    */
   const handleSourceSelect = (id: string) => {
     if (id === 'github') { setGithubModalOpen(true); return; }
+    if (id === 'starter') { setStarterModalOpen(true); return; }
+    if (id === 'code') { setCodeModalOpen(true); return; }
+    if (id === 'dbconnect') { setDbModalOpen(true); return; }
     if (id === 'openapi') { setShowUrlInput(true); return; }
     if (id === 'image') { fileInputRef.current?.click(); return; }
-    showToast('Available on the canvas — open or generate a schema first.', 'info');
+
+    // Kalan tek kaynak: gözlenen JSON yanıtlarından çıkarım. Ucu var ama
+    // sonucu bir ŞEMA değil, kullanıcının tek tek kabul etmesi gereken aday
+    // listesi (second-phase/06'nın açık kuralı: otomatik onay yok). O ekran
+    // yazılana kadar sessiz kalmak yerine nerede olduğunu söylüyoruz.
+    showToast('Sample JSON inference is available on the canvas.', 'info');
+  };
+
+  /** Şema geldi: canvas'a geç. Üretim akışının bitişiyle aynı yol. */
+  const goToCanvasWithCurrentSchema = () => {
+    setGithubModalOpen(false);
+    setStarterModalOpen(false);
+    setCodeModalOpen(false);
+    setDbModalOpen(false);
+    router.push('/canvas');
   };
 
 
@@ -623,6 +649,37 @@ export default function NewProjectPage() {
           }}
         />
       )}
+
+      {starterModalOpen && (
+        <StarterPickerModal
+          onPick={(template) => {
+            // Ağ yok, kota yok, bekleme yok: şema zaten elimizde.
+            loadFromSchema(template.schema);
+            // Ad da şablondan geliyor: aksi hâlde yeni proje bir önceki
+            // projenin adını miras alıyor ve çalışma alanında içeriği
+            // tamamen farklı, aynı adlı ikinci bir proje beliriyor
+            // (canlı doğrulamada görüldü).
+            setProjectName(template.label);
+            goToCanvasWithCurrentSchema();
+          }}
+          onClose={() => setStarterModalOpen(false)}
+        />
+      )}
+
+      {/* Canvas'taki panellerin AYNISI — ikinci bir kopya yazmak, iki ekranın
+          ayrışması demekti. `onApplied` yalnızca şema gerçekten geldiğinde
+          çalışıyor, iptal edildiğinde değil. */}
+      <CodeImportPanel
+        isOpen={codeModalOpen}
+        onClose={() => setCodeModalOpen(false)}
+        onApplied={goToCanvasWithCurrentSchema}
+      />
+
+      <DbConnectionPanel
+        isOpen={dbModalOpen}
+        onClose={() => setDbModalOpen(false)}
+        onApplied={goToCanvasWithCurrentSchema}
+      />
 
       {githubModalOpen && (
         <GithubScanModal

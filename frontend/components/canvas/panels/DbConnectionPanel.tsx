@@ -27,9 +27,18 @@ const PLACEHOLDERS: Record<string, string> = {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * Sema GERCEKTEN uygulandiginda cagrilir (iptal edildiginde DEGIL).
+   *
+   * Neden `onClose`'tan ayri: `/new` ekraninda bu panel "prompt yazmadan
+   * basla" yolunun bir adimi ve sema geldiginde canvas'a gecilmesi gerekiyor.
+   * `onClose` iptal ederken de calisiyor; ona baglanmak, kullanici vazgectiginde
+   * de canvas'a atmak demekti.
+   */
+  onApplied?: () => void;
 }
 
-export default function DbConnectionPanel({ isOpen, onClose }: Props) {
+export default function DbConnectionPanel({ isOpen, onClose, onApplied }: Props) {
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
   const showToast = useToastStore(s => s.showToast);
 
@@ -66,6 +75,7 @@ export default function DbConnectionPanel({ isOpen, onClose }: Props) {
       loadFromSchema(schema);
       showToast(`Imported ${schema.tables?.length ?? 0} tables from ${dbType}.`, 'success');
       onClose();
+      onApplied?.();
     } catch {
       setError('Network error. Check your connection.');
     } finally {
