@@ -40,8 +40,18 @@ public class GithubBotServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<string?> GetFileContentAsync(GithubRepository repository, long installationId, string path, string reference, CancellationToken ct = default) =>
+        public Task<string?> GetFileContentAsync(GithubRepository repository, long? installationId, string path, string reference, CancellationToken ct = default) =>
             Task.FromResult(Files.TryGetValue(reference, out var content) ? content : null);
+
+        // Bot bu iki okumayı kullanmıyor (deponun ağacını taramıyor, tek bir
+        // .nsl dosyasına bakıyor). Sessiz bir varsayılan döndürmek yerine
+        // fırlatıyorlar: bot ileride bunlara başvurmaya başlarsa test bunu
+        // GÖRÜNÜR bir hatayla söylesin, boş bir ağaçla sessizce geçmesin.
+        public Task<string?> GetDefaultBranchAsync(GithubRepository repository, long? installationId, CancellationToken ct = default) =>
+            throw new NotSupportedException("The bot does not read the default branch.");
+
+        public Task<RepositoryTree> GetRepositoryTreeAsync(GithubRepository repository, string reference, long? installationId, CancellationToken ct = default) =>
+            throw new NotSupportedException("The bot does not scan the repository tree.");
     }
 
     private static (GithubBotService Bot, FakeGithub Github) Bot()

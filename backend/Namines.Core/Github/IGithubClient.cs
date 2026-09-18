@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,6 +10,31 @@ namespace Namines.Core.Github;
 public sealed record GithubRepository(string Owner, string Name)
 {
     public override string ToString() => $"{Owner}/{Name}";
+}
+
+/// <param name="Paths">Ağaçtaki dosya (blob) yolları.</param>
+/// <param name="Truncated">
+/// GitHub ağacı kesti mi. <b>Taşınması şart:</b> kesilmiş bir ağaçta
+/// "deponda şema dosyası yok" demek yanlış olur — bakmadığımız bir kısım var.
+/// </param>
+public sealed record RepositoryTree(IReadOnlyList<string> Paths, bool Truncated);
+
+/// <summary>
+/// Depo yok ya da elimizdeki kimlikle görünmüyor.
+///
+/// <b>İkisi ayrı tip değil, çünkü GitHub ikisini ayırt ETTİRMİYOR</b> —
+/// göremediğimiz depoya da 404 döner (varlığını sızdırmamak için). Uydurmak
+/// yerine mesaj iki ihtimali birlikte söylüyor.
+/// </summary>
+public sealed class GithubRepositoryUnavailableException : Exception
+{
+    public GithubRepositoryUnavailableException(string message) : base(message) { }
+}
+
+/// <summary>Anonim okumanın saatlik sınırı doldu — kullanıcıya ne yapacağı söylenebilsin diye ayrı tip.</summary>
+public sealed class GithubRateLimitedException : Exception
+{
+    public GithubRateLimitedException(string message) : base(message) { }
 }
 
 /// <summary>
@@ -52,6 +79,27 @@ public interface IGithubClient
     /// <c>.nsl</c> dosyalarını okuyup aradaki farkı analiz ediyoruz.
     /// </summary>
     Task<string?> GetFileContentAsync(
-        GithubRepository repository, long installationId, string path, string reference,
+        GithubRepository repository, long? installationId, string path, string reference,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deponun varsayılan dalı; okunamazsa <c>null</c>.
+    ///
+    /// Kullanıcı dal seçmediğinde "main" varsaymak, varsayılanı "master" ya da
+    /// "develop" olan depolarda sessizce boş sonuç üretirdi.
+    /// </summary>
+    Task<string?> GetDefaultBranchAsync(
+        GithubRepository repository, long? installationId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Bir ref'teki bütün dosya yollarını TEK çağrıda verir
+    /// (github/01-DEPO-TARAMA.md).
+    ///
+    /// <paramref name="installationId"/> <c>null</c> ise istek ANONİM gider ve
+    /// public depo okunur — F1'in GitHub App'i beklememesinin sebebi bu.
+    /// </summary>
+    Task<RepositoryTree> GetRepositoryTreeAsync(
+        GithubRepository repository, string reference, long? installationId,
         CancellationToken cancellationToken = default);
 }

@@ -92,14 +92,16 @@ public sealed class GithubClient : IGithubClient
     }
 
     public async Task<string?> GetFileContentAsync(
-        GithubRepository repository, long installationId, string path, string reference,
+        GithubRepository repository, long? installationId, string path, string reference,
         CancellationToken cancellationToken = default)
     {
-        var token = await InstallationTokenAsync(installationId, cancellationToken);
+        // Yol bölümlerinin arasındaki '/' KORUNUYOR: bütün yolu tek parça
+        // kodlamak "prisma%2Fschema.prisma" üretir ve GitHub onu bulamaz.
+        var encodedPath = string.Join('/', path.Split('/').Select(Uri.EscapeDataString));
 
-        using var request = Request(HttpMethod.Get,
-            $"/repos/{repository.Owner}/{repository.Name}/contents/{Uri.EscapeDataString(path)}" +
-            $"?ref={Uri.EscapeDataString(reference)}", token);
+        using var request = await RequestAsync(HttpMethod.Get,
+            $"/repos/{repository.Owner}/{repository.Name}/contents/{encodedPath}" +
+            $"?ref={Uri.EscapeDataString(reference)}", installationId, cancellationToken);
 
         using var response = await _http.SendAsync(request, cancellationToken);
 
@@ -120,6 +122,102 @@ public sealed class GithubClient : IGithubClient
         if (string.IsNullOrEmpty(encoded)) return null;
 
         return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+    }
+
+    public async Task<string?> GetDefaultBranchAsync(
+        GithubRepository repository, long? installationId, CancellationToken cancellationToken = default)
+    {
+        using var request = await RequestAsync(HttpMethod.Get,
+            $"/repos/{repository.Owner}/{repository.Name}", installationId, cancellationToken);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+        await EnsureReadSuccessAsync(response, repository, cancellationToken);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        return json.TryGetProperty("default_branch", out var branch) ? branch.GetString() : null;
+    }
+
+    public async Task<RepositoryTree> GetRepositoryTreeAsync(
+        GithubRepository repository, string reference, long? installationId,
+        CancellationToken cancellationToken = default)
+    {
+        // recursive=1: ağacın tamamı TEK çağrıda. Dizin dizin gezmek büyük bir
+        // depoda yüzlerce istek ve anonim kotanın (saatte 60) anında tükenmesi
+        // demek olurdu.
+        using var request = await RequestAsync(HttpMethod.Get,
+            $"/repos/{repository.Owner}/{repository.Name}/git/trees/{Uri.EscapeDataString(reference)}?recursive=1",
+            installationId, cancellationToken);
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+        await EnsureReadSuccessAsync(response, repository, cancellationToken);
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+
+        var paths = new List<string>();
+        if (json.TryGetProperty("tree", out var tree) && tree.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var entry in tree.EnumerateArray())
+            {
+                // Yalnızca blob: "tree" girdileri dizin, içerikleri okunamaz.
+                if (entry.TryGetProperty("type", out var type) && type.GetString() == "blob" &&
+                    entry.TryGetProperty("path", out var path) && path.GetString() is { } value)
+                    paths.Add(value);
+            }
+        }
+
+        var truncated = json.TryGetProperty("truncated", out var t) && t.ValueKind == JsonValueKind.True;
+        return new RepositoryTree(paths, truncated);
+    }
+
+    /// <summary>
+    /// İsteği hazırlar; <paramref name="installationId"/> <c>null</c> ise
+    /// ANONİM çıkar.
+    ///
+    /// Public depo okuması App kimliği gerektirmiyor ve gerektirmemeli —
+    /// F1'in GitHub App'i beklemeden çalışabilmesinin tek sebebi bu yol.
+    /// Kimliğin olup olmadığı kararı tek bir yerde veriliyor; her okuma
+    /// metodunda tekrarlansaydı biri unutulduğunda sessizce kimlik isteyen
+    /// bir çağrı kalırdı.
+    /// </summary>
+    private async Task<HttpRequestMessage> RequestAsync(
+        HttpMethod method, string path, long? installationId, CancellationToken ct)
+    {
+        var request = new HttpRequestMessage(method, ApiBase + path);
+
+        if (installationId is { } id)
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer", await InstallationTokenAsync(id, ct));
+
+        return request;
+    }
+
+    /// <summary>
+    /// Okuma yolunun hata ayrımı.
+    ///
+    /// Yazma yolundan ayrı, çünkü okumada iki durum kullanıcıya AYRI AYRI
+    /// söylenmeli: 404 "depo yok ya da private", 403 + kalan kota 0 ise
+    /// "saatlik sınır doldu". İkisini tek bir "GitHub hata verdi"ye indirgemek,
+    /// kullanıcının ne yapacağını bilememesi demek — biri beklemekle, diğeri
+    /// kurulum yapmakla çözülüyor.
+    /// </summary>
+    private async Task EnsureReadSuccessAsync(
+        HttpResponseMessage response, GithubRepository repository, CancellationToken ct)
+    {
+        if (response.IsSuccessStatusCode) return;
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            throw new GithubRepositoryUnavailableException(
+                $"{repository} could not be read. It does not exist, or it is private — " +
+                "a private repository needs a GitHub App installation.");
+
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests &&
+            response.Headers.TryGetValues("x-ratelimit-remaining", out var remaining) &&
+            remaining.FirstOrDefault() == "0")
+            throw new GithubRateLimitedException(
+                "GitHub's hourly limit for anonymous requests is used up. " +
+                "Try again later, or connect a GitHub App.");
+
+        await EnsureSuccessAsync(response, ct);
     }
 
     private HttpRequestMessage Request(HttpMethod method, string path, string token)
