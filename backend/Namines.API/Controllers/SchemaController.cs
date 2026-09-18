@@ -110,6 +110,22 @@ public class SchemaController : ControllerBase
     /// gösterip cevabı `Answers`'a ekleyerek uçu tekrar çağırmalı. Üç turdan
     /// sonra (bkz. <see cref="PlanBuilder"/>) hiç soru dönmez.
     /// </summary>
+    /// <summary>
+    /// Plan modu: cevaplardan KURAL TABANLI bir tablo listesi. AI'ya gidilmiyor.
+    ///
+    /// <b>Bu liste üretimin girdisi DEĞİL, yalnızca kullanıcıya gösterilen bir
+    /// önizleme.</b> Onay verildiğinde istemci sunucuya yalnızca CEVAPLARI
+    /// gönderiyor; plan metni hiçbir yere taşınmıyor.
+    ///
+    /// <b>Bilerek böyle — eskiden burada bir <c>planSummary</c> alanı vardı</b> ve
+    /// yorumu "istemci bunu prompt'a ekleyip /generate'i çağırıyor" diyordu.
+    /// İstemci bunu hiç yapmıyordu ve alan hiçbir yerde okunmuyordu. Bağlanmadı
+    /// da, çünkü bağlamak ürünü KÖTÜLEŞTİRİRDİ: plan kural tabanlı ve proje türü
+    /// tanınmazsa yalnızca altyapı tablolarını biliyor. Canlı ölçüm: bir blog
+    /// prompt'unda plan 4 tablo derken, plan gönderilmeden yapılan üretim 11
+    /// tablo çıkardı. O metni prompt'a eklemek, modele kendi bulduğu alanı
+    /// unutturup dörde razı olmasını söylemek olurdu.
+    /// </summary>
     [HttpPost("plan")]
     [AllowAnonymous]
     public IActionResult Plan([FromBody] PlanRequest request)
@@ -135,17 +151,6 @@ public class SchemaController : ControllerBase
                 plan.FollowUp.DefaultOption,
             },
             round = plan.Round,
-            // <b>planSummary KALDIRILDI.</b> Yorumu "istemci bu metni prompt'a
-            // ekleyip /generate'i çağırıyor" diyordu; istemci bunu hiç yapmıyordu
-            // (PlanScreen yalnızca CEVAPLARI geçiyor) ve alan hiçbir yerde
-            // okunmuyordu.
-            //
-            // Bağlanmadı da, çünkü bağlamak ÜRÜNÜ KÖTÜLEŞTİRİRDİ: plan kural
-            // tabanlı ve tür tanınmazsa yalnızca altyapı tablolarını biliyor.
-            // Canlı ölçüm: bir blog prompt'unda plan 4 tablo derken, plan
-            // gönderilmeden yapılan üretim 11 tablo çıkardı. Bu metni prompt'a
-            // eklemek, modele kendi bulduğu alanı unutturup 4 tabloya
-            // razı olmasını söylemek olurdu.
         });
     }
 
