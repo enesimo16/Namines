@@ -59,7 +59,11 @@ public sealed class StaticSchemaSourceCatalog : ISchemaSourceCatalog
 
         new SchemaSourceDescriptor(
             "starter", "Starter schemas",
-            "Five ready-made schemas to begin from.",
+            // SAYI YAZILMIYOR: katalog sabit, şablon listesi (frontend
+            // lib/templates.ts) büyüyor. "Five" yazıyordu, gerçekte 20 vardı —
+            // menüde görülen ilk yalan buydu. Sayıyı gösteren yer, listeyi
+            // gerçekten okuyan ekran olmalı.
+            "Ready-made schemas to begin from — no prompt needed.",
             SchemaSourceKind.Starter,
             SchemaSourceCapability.Import,
             ProducesGuess: false),
