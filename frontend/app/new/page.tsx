@@ -323,8 +323,13 @@ export default function NewProjectPage() {
     if (!isGenerating) router.push('/canvas');
   };
 
+  // `justify-center` YOK, yerine içerikte `my-auto` (aşağıdaki <main>).
+  // Flex'te ortalanan bir içerik kabından uzun olduğunda taşma İKİ yandan
+  // oluyor ve üst kenar erişilemez hâle geliyor — kaynak şeridi eklendikten
+  // sonra hero başlığı tam olarak böyle kırpıldı. Otomatik kenar boşluğu yer
+  // varken ortalıyor, yer yokken kırpmadan akıtıyor.
   return (
-    <div className="relative font-sans text-content-primary flex-1 flex flex-col items-center justify-center overflow-x-hidden min-h-[calc(100vh-56px)] py-8 pb-20">
+    <div className="relative font-sans text-content-primary flex-1 flex flex-col items-center overflow-x-hidden min-h-[calc(100vh-56px)] py-8 pb-20">
       {/* Background Effects */}
       <div aria-hidden="true" className="ocean-wave pointer-events-none z-0">
         <div className="wave wave1"></div>
@@ -334,7 +339,7 @@ export default function NewProjectPage() {
       <div aria-hidden="true" id="stars-container" className="fixed inset-0 pointer-events-none z-0 overflow-hidden"></div>
 
       {/* Main Content Container */}
-      <main className="relative z-10 w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center">
+      <main className="relative z-10 my-auto w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 flex flex-col items-center">
         {/* Hero Section — minimalist, ikon kutusu kaldırıldı (bkz. FRONTEND.md)
 
             Tipografi ölçeğe taşındı: `text-3xl sm:text-4xl font-bold` yerine
