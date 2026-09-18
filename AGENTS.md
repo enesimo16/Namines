@@ -16,10 +16,14 @@
 3. **[new-phase/CHECKLIST.md](new-phase/CHECKLIST.md)** — bugüne kadar yapılan
    her işin doğrulama kanıtıyla birlikte listesi. **"G" = görev grubu, gün değil.**
    Yeni bir işe başlamadan önce buraya bak, hangi G'de kaldığımızı gör.
-4. **[second-phase/README.md](second-phase/README.md)** — Faz 1 bitti; bundan
+4. **[github/07-FAZ-PLANI.md](github/07-FAZ-PLANI.md)** — GitHub platformu işinin
+   fazları ve güncel durumu (G53). Depo tarama, 3-yollu merge ve bot; hangi fazın
+   bittiği, hangisinin GitHub App'i beklediği burada. App kurulumu:
+   [github/F2-GITHUB-APP-KURULUMU.md](github/F2-GITHUB-APP-KURULUMU.md).
+5. **[second-phase/README.md](second-phase/README.md)** — Faz 1 bitti; bundan
    sonrası burada. `00-NEREDEYIZ.md` ürünün bugünkü hâli, `01-SIRADAKI-ISLER.md`
    sıradaki işler ve sırası. **Yeni bir işe başlamadan önce 01'e bak.**
-5. **[FRONTEND.md](FRONTEND.md)** — `frontend/` altında görsel/UX işi yapıyorsan
+6. **[FRONTEND.md](FRONTEND.md)** — `frontend/` altında görsel/UX işi yapıyorsan
    ÖNCE bu dosyayı oku. Sabit renk paleti, tipografi, `ui-ux-pro-max` skill
    kullanım zorunluluğu ve kütüphane kuralları burada.
 
