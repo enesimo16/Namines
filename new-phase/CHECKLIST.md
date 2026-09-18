@@ -1916,7 +1916,7 @@ Tasarım ve fazlandırma: [`github/`](../github/) klasörü
   `latest` olarak çözüldü (**"main varsay" bu depoda boş sonuç verirdi**).
   Merge önizlemesi gerçek dallarda: tek taraflı iki değişiklik sorulmadan
   birleşti, `status` ad çakışması yakalandı, silme/değiştirme çakışması
-  **bloke** etti. `DdlExecutionTests` **28/28** (önceden 26/28), `Namines.Tests.RunTests` **19/19**.
+  **bloke** etti. `DdlExecutionTests` **28/28** (önceden 26/28). **Paketin tamamı ilk kez yeşil:** `Namines.Tests` **1980/1980**, `Namines.Tests.RunTests` **19/19**, frontend **102/102**.
 
 - **Kapsam dışı, bilinçli:** merge kuyruğu ve migration versiyonunun merge anında
   atanması (integration DB ister), canvas'taki "PR #12'de değiştiriliyor" rozeti,
