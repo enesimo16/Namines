@@ -12,6 +12,16 @@ public sealed class StaticSchemaSourceCatalog : ISchemaSourceCatalog
 {
     private static readonly IReadOnlyList<SchemaSourceDescriptor> Sources = new[]
     {
+        // Menüde ilk sırada: ürünün bugün en çok anlatılan girişi.
+        // Grup "import", çünkü F1 tek seferlik okuma yapıyor; drift takibi
+        // (Watch) F3'te gelince "connect"e terfi edecek.
+        new SchemaSourceDescriptor(
+            "github", "GitHub repository",
+            "Read the schema out of a public repository's code.",
+            SchemaSourceKind.Import,
+            SchemaSourceCapability.Import | SchemaSourceCapability.Compare,
+            ProducesGuess: false),
+
         new SchemaSourceDescriptor(
             "dbconnect", "Database connection",
             "Read the schema straight from a live database.",

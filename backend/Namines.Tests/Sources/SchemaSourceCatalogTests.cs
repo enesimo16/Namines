@@ -14,6 +14,7 @@ public class SchemaSourceCatalogTests
     {
         var ids = Catalog.All().Select(s => s.Id).ToArray();
 
+        Assert.Contains("github", ids);
         Assert.Contains("dbconnect", ids);
         Assert.Contains("openapi", ids);
         Assert.Contains("code", ids);
@@ -52,6 +53,20 @@ public class SchemaSourceCatalogTests
 
         Assert.False(Catalog.All().Single(s => s.Id == "dbconnect").ProducesGuess);
         Assert.False(Catalog.All().Single(s => s.Id == "code").ProducesGuess);
+    }
+
+    [Fact]
+    public void Github_promises_only_what_it_can_do_today()
+    {
+        // F1 tek seferlik bir içe aktarma: drift takibi (Watch) ve geri yazma
+        // (WriteBack) F3/F5'te geliyor. Bugün "Connect" grubuna koymak,
+        // kullanıcıya tutulmayacak bir söz vermek olurdu.
+        var github = Catalog.All().Single(s => s.Id == "github");
+
+        Assert.Equal(SchemaSourceKind.Import, github.Kind);
+        Assert.False(github.Capabilities.HasFlag(SchemaSourceCapability.Watch));
+        Assert.False(github.Capabilities.HasFlag(SchemaSourceCapability.WriteBack));
+        Assert.False(github.ProducesGuess);   // ayrıştırıcılar deterministik
     }
 
     [Fact]
