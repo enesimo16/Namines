@@ -57,7 +57,6 @@ export interface SchemaPlan {
   followUp: ClarifyingQuestion | null;
   round: number;
   /** Onaylandığında üretim prompt'una eklenecek hazır metin. */
-  planSummary: string;
 }
 
 /** Plana göre kullanılabilirliğiyle birlikte bir NAI modeli. */

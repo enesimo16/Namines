@@ -113,8 +113,28 @@ export default function PlanScreen({ prompt, initialAnswers, isGenerating, onCan
               <ListChecks className="w-4 h-4 text-content-muted" />
               <h2 className="text-lg font-semibold text-content-primary">Plan</h2>
             </div>
+            {/*
+              Bu liste üretimin TAMAMI DEĞİL, sadece cevaplarınızdan ve proje
+              türünden çıkan altyapı tabloları. Açıklamanızdaki alan tabloları
+              (bir blogda posts/comments gibi) bunlara EKLENİYOR.
+
+              Eski metin "I will create N tables. Approving starts generation
+              with this plan." diyordu ve iki kere yanlıştı: plan sunucuya hiç
+              gönderilmiyor (yalnızca cevaplar gidiyor), ve gerçek sonuç bu
+              sayıdan çok daha büyük oluyor. Canlı testte plan "4 tablo" derken
+              üretim 11 tablo çıkardı — kullanıcıya ürünün kendi kapasitesini
+              olduğundan küçük gösteren bir vaat.
+            */}
             <p className="text-xs text-content-muted mb-4">
-              I will create {plan.tables.length} tables. Approving starts generation with this plan.
+              {plan.tables.length > 0 ? (
+                <>
+                  Based on your answers I&apos;ll include {plan.tables.length} supporting{' '}
+                  {plan.tables.length === 1 ? 'table' : 'tables'}, plus the tables your
+                  description implies.
+                </>
+              ) : (
+                <>Your description drives the tables. Approving starts generation.</>
+              )}
             </p>
 
             <div className="flex flex-col gap-2 mb-4">

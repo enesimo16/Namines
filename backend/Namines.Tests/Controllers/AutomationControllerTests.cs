@@ -67,8 +67,17 @@ public sealed class AutomationControllerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetRules_proje_sahibi_olmayan_kullanici_icin_NotFound_donuyor()
+    public async Task GetRules_proje_sahibi_olmayan_kullanici_icin_bos_liste_donuyor()
     {
+        // DAVRANIŞ DEĞİŞTİ (404 -> boş liste) ve bu bilinçli.
+        //
+        // Bilgi saklama korunuyor: saldırgan boş listeye bakarak projenin var
+        // olup boş mu olduğunu, kendisine ait olmadığını mı, yoksa hiç var
+        // olmadığını mı ayırt edemiyor — 404'te de edemiyordu.
+        //
+        // Kazanılan şey: projeler istemcide üretiliyor ve sunucuya ancak
+        // kaydedilince yazılıyor. Yeni üretilen her şemada canvas, sunucunun
+        // bilmediği bir kimlikle bu ucu çağırıp her açılışta iki 404 alıyordu.
         await using var db = NewContext();
         await SeedProjectAsync(db, ownerId: "owner-1");
 
@@ -76,7 +85,36 @@ public sealed class AutomationControllerTests : IAsyncLifetime
 
         var result = await controller.GetRules("proj-1", default);
 
-        Assert.IsType<NotFoundResult>(result);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Empty(Assert.IsAssignableFrom<System.Collections.IEnumerable>(ok.Value).Cast<object>());
+    }
+
+    [Fact]
+    public async Task GetRules_baskasinin_kurallari_bos_listede_sizmiyor()
+    {
+        // Boş liste "her şeyi göster" demek DEĞİL: sahibin gerçek kuralları
+        // varken bile saldırgan hiçbirini görmemeli.
+        await using var db = NewContext();
+        await SeedProjectAsync(db, ownerId: "owner-1");
+        db.AutomationRules.Add(new Namines.Core.Models.AutomationRule
+        {
+            ProjectId = "proj-1",
+            ScopeTableId = "t_users",
+            TriggerType = "TableAdded",
+            ActionType = "Toast",
+            ActionConfigJson = "{}",
+        });
+        await db.SaveChangesAsync();
+
+        var controller = NewController(db, userId: "intruder-1");
+
+        var ok = Assert.IsType<OkObjectResult>(await controller.GetRules("proj-1", default));
+        Assert.Empty(Assert.IsAssignableFrom<System.Collections.IEnumerable>(ok.Value).Cast<object>());
+
+        // Sahibi ise kendi kuralını görüyor — boş liste bir susturma değil.
+        var owner = NewController(db, userId: "owner-1");
+        var ownerOk = Assert.IsType<OkObjectResult>(await owner.GetRules("proj-1", default));
+        Assert.Single(Assert.IsAssignableFrom<System.Collections.IEnumerable>(ownerOk.Value).Cast<object>());
     }
 
     [Fact]

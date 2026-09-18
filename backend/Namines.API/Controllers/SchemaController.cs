@@ -135,37 +135,18 @@ public class SchemaController : ControllerBase
                 plan.FollowUp.DefaultOption,
             },
             round = plan.Round,
-            // İstemci onayladığında bu metni prompt'a ekleyip /generate'i
-            // çağırıyor — plan ile üretim arasındaki tek köprü bu metin,
-            // ikinci bir "planı hatırla" durumu sunucuda tutulmuyor.
-            planSummary = BuildPlanSummaryText(plan),
+            // <b>planSummary KALDIRILDI.</b> Yorumu "istemci bu metni prompt'a
+            // ekleyip /generate'i çağırıyor" diyordu; istemci bunu hiç yapmıyordu
+            // (PlanScreen yalnızca CEVAPLARI geçiyor) ve alan hiçbir yerde
+            // okunmuyordu.
+            //
+            // Bağlanmadı da, çünkü bağlamak ÜRÜNÜ KÖTÜLEŞTİRİRDİ: plan kural
+            // tabanlı ve tür tanınmazsa yalnızca altyapı tablolarını biliyor.
+            // Canlı ölçüm: bir blog prompt'unda plan 4 tablo derken, plan
+            // gönderilmeden yapılan üretim 11 tablo çıkardı. Bu metni prompt'a
+            // eklemek, modele kendi bulduğu alanı unutturup 4 tabloya
+            // razı olmasını söylemek olurdu.
         });
-    }
-
-    /// <summary>
-    /// Planı, üretim prompt'una eklenecek tek bir metne çevirir.
-    ///
-    /// Sunucu turlar arasında hiçbir şey saklamıyor (bkz. Plan uç notu) —
-    /// bu metin kullanıcının onayladığı planın YERİNE geçiyor ve prompt'a
-    /// eklendiğinde modelin planı YENİDEN İCAT ETMESİ değil, gerçekleştirmesi
-    /// bekleniyor.
-    /// </summary>
-    private static string BuildPlanSummaryText(SchemaPlan plan)
-    {
-        var lines = new List<string>
-        {
-            $"Planned tables ({plan.Tables.Count}):",
-        };
-        lines.AddRange(plan.Tables.Select(t => $"- {t.Name}: {t.Reason}"));
-
-        if (plan.Assumptions.Count > 0)
-        {
-            lines.Add("");
-            lines.Add("Assumptions used (user did not answer these):");
-            lines.AddRange(plan.Assumptions.Select(a => $"- {a}"));
-        }
-
-        return string.Join('\n', lines);
     }
 
     /// <summary>

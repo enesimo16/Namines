@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -55,12 +56,29 @@ public class AutomationController : ControllerBase
             .AnyAsync(p => p.Id == projectId && p.UserId == userId, ct);
     }
 
+    /// <summary>
+    /// Bir projenin kuralları.
+    ///
+    /// <b>Tanınmayan/başkasına ait proje için BOŞ LİSTE, 404 değil.</b> Yazma
+    /// uçları 404 döndürmeye devam ediyor; orada sessiz kalmak yanlış olurdu.
+    /// Ama bu bir LİSTE ucu ve iki davranış aynı derecede bilgi saklıyor:
+    /// saldırgan <c>[]</c> gördüğünde projenin var olup boş mu olduğunu, size mi
+    /// ait olmadığını, yoksa hiç var olmadığını ayırt EDEMİYOR — tıpkı 404'te
+    /// olduğu gibi.
+    ///
+    /// <b>404'ün gerçek bedeli:</b> projeler istemcide üretilip yerel olarak
+    /// saklanıyor ve sunucuya ancak kaydedilince yazılıyor. Yeni üretilmiş her
+    /// şemada canvas, sunucunun hiç bilmediği bir proje kimliğiyle bu ucu
+    /// çağırıyordu; sonuç, her açılışta iki adet 404 ve konsolda hata satırları
+    /// oluyordu. Canlı testte tam olarak bu görüldü. "Henüz kaydedilmemiş bir
+    /// projenin kuralı yok" bir arıza değil, normal durum.
+    /// </summary>
     [HttpGet("rules")]
     public async Task<IActionResult> GetRules([FromQuery] string projectId, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        if (!await OwnsProjectAsync(projectId, userId, ct)) return NotFound();
+        if (!await OwnsProjectAsync(projectId, userId, ct)) return Ok(Array.Empty<AutomationRule>());
 
         var rules = await _context.AutomationRules.AsNoTracking()
             .Where(r => r.ProjectId == projectId).ToListAsync(ct);
