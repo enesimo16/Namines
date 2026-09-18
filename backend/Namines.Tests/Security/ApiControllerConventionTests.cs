@@ -140,6 +140,10 @@ public class ApiControllerConventionTests
         ["CompileController"] = "Saf dönüşüm (.nsl → DDL, şema → kod). Kalıcı durum yok, rate limit var.",
         ["SchemaController"] = "AI şema üretimi: girdiden çıktı. Kota ve rate limit var.",
         ["MigrationController"] = "Saf dönüşüm: iki şemadan migration metni.",
+        ["MergeController"] =
+            "Saf dönüşüm: üç şemadan birleştirme önizlemesi. Kalıcı durum yok. " +
+            "Kimlik istemek, misafir kullanıcıların bugün canvas'ta sahip olduğu " +
+            "birleştirmeyi ellerinden alırdı.",
         ["LintController"] = "Saf dönüşüm: şemadan uyarı listesi.",
         ["ScaffolderController"] = "Saf dönüşüm: şemadan proje iskeleti.",
         ["ReverseEngineerController"] = "Saf dönüşüm: SQL metninden şema.",

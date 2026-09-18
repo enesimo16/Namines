@@ -27,6 +27,33 @@ export interface SchemaSourceDescriptor {
   producesGuess: boolean;
 }
 
+/** Sunucunun ürettiği birleştirme çakışması (github/F4). */
+export interface ServerMergeConflict {
+  id: string;
+  /**
+   * Sunucunun kategorisi. STRING: enum'u istemcide kopyalamak bu projede bir
+   * kez kırıldı. Tanınmayan bir değer YANLIŞ değil, bilinmeyendir — ve
+   * bilinmeyen bir çakışma listeden DÜŞÜRÜLMEZ, genel satır olarak gösterilir.
+   */
+  kind: string;
+  tableName: string;
+  columnName?: string | null;
+  ours: unknown;
+  theirs: unknown;
+  /** Elle seçimle çözülemez; birleştirme durdurulmalı. */
+  blocking: boolean;
+  explanation: string;
+}
+
+/** `POST /api/merge/preview` yanıtı. */
+export interface MergePreviewResult {
+  /** Sorulmadan uygulanan değişikliklerin insan diliyle listesi. */
+  autoMerged: string[];
+  conflicts: ServerMergeConflict[];
+  blocked: boolean;
+  merged: unknown;
+}
+
 /** Okunmayan bir dosya ve NEDENİ; ikisi birlikte gösterilir. */
 export interface RepositoryScanSkip {
   name: string;

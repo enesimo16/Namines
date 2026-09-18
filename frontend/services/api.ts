@@ -12,7 +12,7 @@ import { ProjectMember, OrgRole } from '../types/member';
 import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
 import { ClarifyResponse, NaiModelOption, SchemaPlan } from '../types/nai';
 import { CodeExtractionResponse } from '../types/codeSchema';
-import type { RepositoryScanResult, SchemaSourceDescriptor } from '../types/source';
+import type { MergePreviewResult, RepositoryScanResult, SchemaSourceDescriptor } from '../types/source';
 import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
@@ -64,6 +64,19 @@ export const schemaService = {
    */
   plan: async (prompt: string, answers: Record<string, string>, round: number): Promise<SchemaPlan> => {
     const response = await api.post<SchemaPlan>('/schema/plan', { prompt, answers, round });
+    return response.data;
+  },
+
+  /**
+   * İki dalı ORTAK ATALARINA göre birleştirmenin önizlemesi (github/F4).
+   *
+   * Durumsuz: üç şema gövdede gider, sunucuda dal kimliği aranmaz — canvas'ın
+   * dalları tarayıcıda yaşıyor. AI kullanmıyor, kotayı etkilemiyor.
+   */
+  mergePreview: async (
+    base: DatabaseSchema, ours: DatabaseSchema, theirs: DatabaseSchema,
+  ): Promise<MergePreviewResult> => {
+    const response = await api.post<MergePreviewResult>('/merge/preview', { base, ours, theirs });
     return response.data;
   },
 

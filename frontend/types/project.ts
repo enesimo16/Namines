@@ -20,6 +20,18 @@ export interface Branch {
   createdAt: string;
   updatedAt: string;
   migrationBaseline?: DatabaseSchema | null;
+  /**
+   * Dalın açıldığı andaki ata şema — birleştirmenin ORTAK ATASI.
+   *
+   * **Neden gerekli:** ortak ata olmadan "yalnızca bir taraf değiştirdi" ile
+   * "ikisi de değiştirdi" ayırt edilemez ve kullanıcıya HER fark sorulmak
+   * zorunda kalınır (bkz. github/03-COKLU-GELISTIRICI-MERGE.md).
+   *
+   * **Opsiyonel, çünkü eski projelerde yok.** Yokluğunda birleştirme eski iki
+   * yollu yoluna düşer ve kullanıcıya bunun neden olduğu söylenir — sessizce
+   * üç yolluymuş gibi davranmak, olmayan bir güvence vermek olurdu.
+   */
+  forkBase?: DatabaseSchema | null;
 }
 
 /** Tek bir projenin tüm durumunu temsil eder. IndexedDB'de saklanır. */

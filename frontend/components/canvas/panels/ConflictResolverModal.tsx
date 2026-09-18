@@ -17,6 +17,35 @@ import { useFocusTrap } from '../../../hooks/useFocusTrap';
  * `columns` sayisi gosteriliyordu -- calisiyordu ama kazara. `'type' in value`
  * kontrolu ayrimi ACIK hale getiriyor ve yanlis dal artik DERLENMEZ.
  */
+/**
+ * Arayüzün zengin gösterimi olmayan bir çakışmanın değeri.
+ *
+ * **Neden ayrı bir bileşen:** sunucu yeni bir çakışma kategorisi eklediğinde
+ * bu modal onu tanımaz. Tanımadığını listeden DÜŞÜRMEK, kullanıcının çakışmayı
+ * çözdüğünü sanarak bozuk bir şema üretmesi demek olurdu; bunun yerine elde ne
+ * varsa okunabilir biçimde gösteriliyor ve gerekçe satırı üstte duruyor.
+ */
+function UnknownValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined) {
+    return <span className="text-danger-text italic font-sans">Not in this branch</span>;
+  }
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return <span>{String(value)}</span>;
+  }
+
+  const named = value as { name?: unknown; type?: unknown };
+  if (typeof named.name === 'string') {
+    return (
+      <span className="truncate">
+        {named.name}
+        {typeof named.type === 'string' && <span className="text-content-muted"> · {named.type}</span>}
+      </span>
+    );
+  }
+
+  return <span className="text-content-muted italic font-sans">Changed</span>;
+}
+
 function ConflictValue({ value }: { value: SchemaTable | SchemaColumn | string | null }) {
   if (!value) {
     return <span className="text-danger-text italic font-sans">Not in this branch</span>;
@@ -44,6 +73,7 @@ export default function ConflictResolverModal() {
     mergeSourceBranch, 
     mergeTargetBranch, 
     conflicts, 
+    autoMerged,
     updateConflictChoice, 
     resetMergeSession,
     setIsDiffMode
@@ -61,6 +91,12 @@ export default function ConflictResolverModal() {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   if (!activeProject) return null;
+
+  // Bloke eden çakışma varsa birleştirme UYGULANAMAZ: bir taraf silmiş,
+  // diğeri değiştirmişse iki seçenekten biri her hâlükârda iş kaybediyor.
+  // Belirsizlikte en kısıtlayıcı davranışa düşme kuralı (ReferentialActionSql)
+  // burada da geçerli.
+  const hasBlockingConflict = conflicts.some(c => c.blocking);
 
   // Auto-resolve helper
   const handleAutoResolve = (choice: 'source' | 'target') => {
@@ -100,9 +136,12 @@ export default function ConflictResolverModal() {
           }
         } else if (item.type === 'column_added') {
           // Target is null (didn't exist in compare), so we remove this column
+          // Kimlik TAŞINIYORSA o kullanılır; `id`'yi `-` ile parçalamak
+          // GUID'lerde GUID'in ilk bölümünü tablo kimliği sanıyor ve yanlış
+          // tabloyu buluyor (sunucudan gelen çakışmalar GUID taşıyor).
           const parts = item.id.split('-'); // tableId-colId-added
-          const tableId = parts[0];
-          const colId = parts[1];
+          const tableId = item.tableId ?? parts[0];
+          const colId = item.columnId ?? parts[1];
           const targetTable = mergedSchema.tables.find(t => t.id === tableId);
           if (targetTable) {
             targetTable.columns = targetTable.columns.filter(c => c.id !== colId);
@@ -110,7 +149,7 @@ export default function ConflictResolverModal() {
         } else if (item.type === 'column_deleted') {
           // Target is the column (existed in compare, missing here), so we restore it
           const parts = item.id.split('-'); // tableId-colId-deleted
-          const tableId = parts[0];
+          const tableId = item.tableId ?? parts[0];
           if (item.targetValue) {
             const targetTable = mergedSchema.tables.find(t => t.id === tableId);
             if (targetTable) {
@@ -120,8 +159,8 @@ export default function ConflictResolverModal() {
         } else if (item.type === 'column_modified') {
           // Target is the modified column structure, so we overwrite it
           const parts = item.id.split('-'); // tableId-colId-modified
-          const tableId = parts[0];
-          const colId = parts[1];
+          const tableId = item.tableId ?? parts[0];
+          const colId = item.columnId ?? parts[1];
           const targetTable = mergedSchema.tables.find(t => t.id === tableId);
           // `item.targetValue`u sabite aliyoruz: TypeScript, degistirilebilir bir
           // ozelligin daralmasini kapanis (closure) icinde KORUMUYOR -- `map`
@@ -131,6 +170,18 @@ export default function ConflictResolverModal() {
             targetTable.columns = targetTable.columns.map(c =>
               c.id === colId ? replacement : c
             );
+          }
+        } else if (item.type === 'unknown' && item.tableId && item.columnName) {
+          // Ad çakışması gibi, arayüzün zengin gösterimi olmayan kolon
+          // çakışmaları. "Incoming" seçildiğinde HİÇBİR ŞEY YAPMAMAK en kötü
+          // sonuç olurdu: kullanıcı seçimini yapar, ekran kapanır ve şema
+          // seçtiğinin tersini taşır.
+          const targetTable = mergedSchema.tables.find(t => t.id === item.tableId);
+          const incoming = item.targetValue as SchemaColumn | null;
+          if (targetTable && incoming && typeof incoming === 'object' && 'name' in incoming) {
+            targetTable.columns = targetTable.columns.filter(
+              c => c.id !== item.columnId && c.name !== item.columnName);
+            targetTable.columns.push(incoming);
           }
         }
       }
@@ -225,7 +276,14 @@ export default function ConflictResolverModal() {
         <div className="bg-surface-700 border-b border-content-primary/10 px-5 py-2.5 flex items-center justify-between text-xs text-content-primary">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-3.5 h-3.5 text-content-muted" />
-            <span><strong>{conflicts.length}</strong> structural changes detected. Choose a version for each row.</span>
+            <span>
+              <strong>{conflicts.length}</strong> structural changes detected. Choose a version for each row.
+              {/* Ortak ata sayesinde sorulmayanlar da SAYILIYOR: kullanıcının
+                  gördüğü kısa listenin neden kısa olduğunu bilmesi gerekiyor. */}
+              {autoMerged.length > 0 && (
+                <span className="text-content-muted"> · {autoMerged.length} merged automatically</span>
+              )}
+            </span>
           </div>
           <div className="flex gap-2">
             <button
@@ -264,6 +322,14 @@ export default function ConflictResolverModal() {
                   </span>
                 </div>
 
+                {/* Sunucunun gerekçesi olduğu gibi gösteriliyor: "neden
+                    çakışma" sorusunun cevabını yalnızca o metin taşıyor. */}
+                {item.explanation && (
+                  <p className={`text-micro mb-2.5 ${item.blocking ? 'text-danger-text' : 'text-content-muted'}`}>
+                    {item.explanation}
+                  </p>
+                )}
+
                 {/* Side-by-Side comparison cards */}
                 <div className="grid grid-cols-2 gap-3">
                   {/* Left Choice: Keep Source (Active Branch) */}
@@ -281,7 +347,9 @@ export default function ConflictResolverModal() {
                     </div>
 
                     <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-[var(--radius-control)] min-h-[40px] flex items-center">
-                      <ConflictValue value={item.sourceValue} />
+                      {item.type === 'unknown'
+                        ? <UnknownValue value={item.sourceValue} />
+                        : <ConflictValue value={item.sourceValue} />}
                     </div>
                   </div>
 
@@ -300,7 +368,9 @@ export default function ConflictResolverModal() {
                     </div>
 
                     <div className="text-xs font-mono text-content-primary bg-scrim/20 p-2 rounded-[var(--radius-control)] min-h-[40px] flex items-center">
-                      <ConflictValue value={item.targetValue} />
+                      {item.type === 'unknown'
+                        ? <UnknownValue value={item.targetValue} />
+                        : <ConflictValue value={item.targetValue} />}
                     </div>
                   </div>
                 </div>
@@ -318,12 +388,18 @@ export default function ConflictResolverModal() {
             Cancel
           </button>
 
+          {/* Bloke eden çakışma (bir taraf sildi, diğeri değiştirdi) elle
+              seçimle çözülemez: iki seçenekten biri her hâlükârda iş
+              kaybediyor. Düğmeyi açık bırakıp "son yazan kazanır"a izin
+              vermek, şemada veri kaybı demektir. */}
           <button
             onClick={handleCompleteMerge}
-            className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-[var(--radius-control)] text-xs font-semibold flex items-center gap-2 transition-all"
+            disabled={hasBlockingConflict}
+            title={hasBlockingConflict ? 'A blocking conflict must be resolved in the branches first.' : undefined}
+            className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-[var(--radius-control)] text-xs font-semibold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <GitMerge className="w-3.5 h-3.5" />
-            <span>Apply & Complete Merge</span>
+            <span>Apply &amp; Complete Merge</span>
           </button>
         </div>
 

@@ -21,6 +21,25 @@ interface MergeConflictBase {
   columnName?: string;
   /** Kullanicinin secimi; varsayilan olarak bir tarafi isaret eder. */
   selectedChoice: 'source' | 'target';
+  /**
+   * Sunucunun kategorisi (github/F4). STRING olarak taşınıyor — enum'u
+   * istemcide kopyalamak bu projede bir kez kırıldı.
+   */
+  kind?: string;
+  /** Elle seçimle çözülemez; birleştirme uygulanamaz. */
+  blocking?: boolean;
+  /** Sunucunun insan diliyle açıklaması; kullanıcıya olduğu gibi gösterilir. */
+  explanation?: string;
+  /**
+   * Çakışmanın ait olduğu tablo/kolon kimlikleri.
+   *
+   * **Neden ayrı alanlar:** uygulama yolu bunları `id`'yi `-` ile PARÇALAYARAK
+   * okuyordu (`tableId-colId-durum`). Kimlikler GUID olduğunda — ki sunucudan
+   * gelenler öyle — parçalama GUID'in ilk bölümünü tablo kimliği sanıyor ve
+   * yanlış tabloyu buluyor. Kimliği taşımak, onu tahmin etmekten güvenli.
+   */
+  tableId?: string;
+  columnId?: string;
 }
 
 export type MergeConflictItem =
@@ -38,6 +57,20 @@ export type MergeConflictItem =
       type: 'column_added' | 'column_deleted' | 'column_modified';
       sourceValue: SchemaColumn | null;
       targetValue: SchemaColumn | null;
+    })
+  /**
+   * Arayüzün zengin gösterimi olmayan çakışma türü (ör. ad çakışması, ya da
+   * sunucunun sonradan eklediği bir kategori).
+   *
+   * **Neden var: tanınmayan bir çakışma DÜŞÜRÜLMEMELİ.** Listeden sessizce
+   * çıkan bir çakışma, kullanıcının onu çözdüğünü sanarak bozuk bir şema
+   * üretmesi demek. Bilinmeyen tür genel bir satır olarak, sunucunun
+   * açıklamasıyla gösterilir.
+   */
+  | (MergeConflictBase & {
+      type: 'unknown';
+      sourceValue: unknown;
+      targetValue: unknown;
     });
 
 interface BranchState {
@@ -47,11 +80,13 @@ interface BranchState {
   mergeSourceBranch: string | null; // birleşen dal (örn: feature/siparisler)
   mergeTargetBranch: string | null; // üzerine birleşilen dal (örn: main)
   conflicts: MergeConflictItem[];
+  /** Sorulmadan uygulanan degisikliklerin ozeti; kullaniciya gosterilir. */
+  autoMerged: string[];
 
   setCompareBranchName: (name: string | null) => void;
   setIsDiffMode: (active: boolean) => void;
   setIsConflictModalOpen: (open: boolean) => void;
-  startMergeSession: (source: string, target: string, conflicts: MergeConflictItem[]) => void;
+  startMergeSession: (source: string, target: string, conflicts: MergeConflictItem[], autoMerged?: string[]) => void;
   updateConflictChoice: (id: string, choice: 'source' | 'target') => void;
   resetMergeSession: () => void;
 }
@@ -63,15 +98,17 @@ export const useBranchStore = create<BranchState>((set) => ({
   mergeSourceBranch: null,
   mergeTargetBranch: null,
   conflicts: [],
+  autoMerged: [],
 
   setCompareBranchName: (name) => set({ compareBranchName: name }),
   setIsDiffMode: (active) => set({ isDiffMode: active }),
   setIsConflictModalOpen: (open) => set({ isConflictModalOpen: open }),
   
-  startMergeSession: (source, target, conflicts) => set({
+  startMergeSession: (source, target, conflicts, autoMerged = []) => set({
     mergeSourceBranch: source,
     mergeTargetBranch: target,
     conflicts,
+    autoMerged,
     isConflictModalOpen: true
   }),
 
@@ -83,6 +120,7 @@ export const useBranchStore = create<BranchState>((set) => ({
     mergeSourceBranch: null,
     mergeTargetBranch: null,
     conflicts: [],
+    autoMerged: [],
     isConflictModalOpen: false
   })
 }));

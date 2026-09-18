@@ -7,8 +7,74 @@ import { confirmDialog } from '../../../store/useConfirmStore';
 import { useBranchStore } from '../../../store/useBranchStore';
 import { calculateSchemaDiff } from '../../../utils/schemaDiff';
 import { useToastStore } from '../../../store/useToastStore';
+import { schemaService } from '../../../services/api';
+import type { MergePreviewResult } from '../../../types/source';
+import type { DatabaseSchema, SchemaColumn, SchemaTable } from '../../../types/schema';
+
 import ContextualHelpTooltip from '../../help/ContextualHelpTooltip';
 import { helpContent } from '../../../lib/helpContent';
+
+/**
+ * Sunucunun çakışma kategorilerini arayüzün zengin gösterimine eşler.
+ *
+ * <b>Tanınmayan kategori DÜŞÜRÜLMEZ</b>, `unknown` olarak geçer ve sunucunun
+ * açıklamasıyla gösterilir: listeden sessizce çıkan bir çakışma, kullanıcının
+ * onu çözdüğünü sanarak bozuk bir şema üretmesi demek olurdu.
+ */
+function toConflictItems(preview: MergePreviewResult, ourSchema: DatabaseSchema): MergeConflictItem[] {
+  return preview.conflicts.map((c) => {
+    // Kimlikler PARÇALANARAK değil, taşınarak veriliyor. Sunucu nesneleri
+    // `id` alanını içinde getiriyor; tablo kimliği ise mevcut şemadan ADLA
+    // bulunuyor çünkü çakışma kaydı tablonun kendisini taşımayabiliyor.
+    const value = (c.ours ?? c.theirs) as { id?: string } | null;
+    const table = ourSchema.tables.find(t => t.name === c.tableName);
+
+    const base = {
+      id: c.id,
+      tableName: c.tableName,
+      columnName: c.columnName ?? undefined,
+      selectedChoice: 'source' as const,
+      kind: c.kind,
+      blocking: c.blocking,
+      explanation: c.explanation,
+      tableId: table?.id,
+      columnId: c.columnName ? value?.id : undefined,
+    };
+
+    switch (c.kind) {
+      case 'ColumnModified':
+      case 'ColumnAdded':
+      case 'ColumnDeleted':
+        return {
+          ...base,
+          type: c.kind === 'ColumnAdded' ? 'column_added'
+            : c.kind === 'ColumnDeleted' ? 'column_deleted' : 'column_modified',
+          sourceValue: (c.theirs as SchemaColumn) ?? null,
+          targetValue: (c.ours as SchemaColumn) ?? null,
+        } as MergeConflictItem;
+
+      case 'TableAdded':
+      case 'TableDeleted':
+        return {
+          ...base,
+          type: c.kind === 'TableAdded' ? 'table_added' : 'table_deleted',
+          sourceValue: (c.theirs as SchemaTable) ?? null,
+          targetValue: (c.ours as SchemaTable) ?? null,
+        } as MergeConflictItem;
+
+      case 'TableRenamed':
+        return {
+          ...base,
+          type: 'table_name',
+          sourceValue: String(c.theirs ?? ''),
+          targetValue: String(c.ours ?? ''),
+        } as MergeConflictItem;
+
+      default:
+        return { ...base, type: 'unknown', sourceValue: c.theirs, targetValue: c.ours } as MergeConflictItem;
+    }
+  });
+}
 
 export default function BranchControlPanel() {
   const { projects, activeProjectId, createBranch, switchBranch, deleteBranch } = useProjectHistoryStore();
@@ -105,7 +171,7 @@ export default function BranchControlPanel() {
     }
   };
 
-  const handleStartMerge = () => {
+  const handleStartMerge = async () => {
     if (!schema) {
       triggerToast("Failed to load active schema.", "error");
       return;
@@ -119,6 +185,38 @@ export default function BranchControlPanel() {
 
     const targetBranch = branches.find(b => b.name === targetBranchName);
     if (!targetBranch) return;
+
+    // ORTAK ATA VARSA üç yollu birleştirme: yalnızca bir tarafın değiştirdiği
+    // şeyler sorulmadan birleşir, kullanıcıya yalnızca gerçek çakışmalar
+    // kalır (github/03-COKLU-GELISTIRICI-MERGE.md).
+    const currentBranch = branches.find(b => b.name === currentBranchName);
+    const forkBase = currentBranch?.forkBase ?? targetBranch.forkBase;
+
+    if (forkBase) {
+      try {
+        const preview = await schemaService.mergePreview(forkBase, targetBranch.schema, schema);
+        startMergeSession(targetBranchName, currentBranchName, toConflictItems(preview, schema), preview.autoMerged);
+
+        if (preview.conflicts.length === 0) {
+          triggerToast(
+            preview.autoMerged.length > 0
+              ? `${preview.autoMerged.length} changes merged automatically — nothing to decide.`
+              : "Branches are already identical! No merge needed.",
+            "info");
+        }
+        return;
+      } catch {
+        // Sunucuya ulaşılamadıysa eski iki yollu yola düşülüyor; ama bunun
+        // OLDUĞU söyleniyor — sessizce daha zayıf bir birleştirme yapmak,
+        // kullanıcının "otomatik birleşti" beklentisini karşılamaz.
+        triggerToast("Could not reach the merge service — falling back to a simple two-way comparison.", "warning");
+      }
+    } else {
+      // Bu dal, fork noktası kaydedilmeden önce açılmış. Ortak ata sonradan
+      // ÜRETİLEMEZ: iki dal da ilerledikten sonra ayrıldıkları nokta hiçbir
+      // yerde kalmaz.
+      triggerToast("This branch was created before fork points were recorded, so every difference is listed.", "info");
+    }
 
     const diffResult = calculateSchemaDiff(schema, targetBranch.schema);
 

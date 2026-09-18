@@ -403,6 +403,10 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           nodePositions: { ...activeBranch.nodePositions },
           createdAt: now,
           updatedAt: now,
+          // Fork anındaki ata şema saklanıyor: birleştirmenin ortak atası bu.
+          // Fork sırasında kaydedilmezse sonradan ÜRETİLEMEZ — iki dal da
+          // ilerledikten sonra "ayrıldıkları nokta" hiçbir yerde kalmaz.
+          forkBase: JSON.parse(JSON.stringify(activeBranch.schema)),
         };
 
         currentBranches.push(newBranch);
