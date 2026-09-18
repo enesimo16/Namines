@@ -1925,6 +1925,59 @@ Tasarım ve fazlandırma: [`github/`](../github/) klasörü
 
 ---
 
+## G54 — Prompt yazmadan başlama: `+` menüsü her kaynağı açıyor ✅ TAMAMLANDI
+
+Kullanıcının isteği net: *"insanları prompt yazmaya mahkûm etmeyelim, promptsuz da
+bir şeyler yapabilmeliler."* `+ Add source` menüsündeki YEDİ kaynağın hepsi artık
+tek bir cümle yazmadan canvas'a çıkıyor.
+
+| Kaynak | Ekran | Ağ / kota |
+|---|---|---|
+| Hazır şemalar (20) | `StarterPickerModal` — üç ölçek grubunda, tablo/ilişki sayısı seçmeden önce yazıyor | hiçbiri |
+| Kod dosyaları | Canvas'taki `CodeImportPanel`'in AYNISI | AI yok |
+| Veritabanı bağlantısı | Canvas'taki `DbConnectionPanel`'in AYNISI | AI yok |
+| GitHub deposu | `GithubScanModal` (G53) | AI yok |
+| OpenAPI / GraphQL | Mevcut URL alanı | AI yok |
+| Örnek JSON yanıtı | `JsonShapeModal` — **ilk kez bir ekranı var** | AI yok |
+| Resim | Mevcut dosya seçici | vision |
+
+- **Paneller KOPYALANMADI.** Canvas'takiler olduğu gibi kullanılıyor; ikinci bir
+  kopya, iki ekranın zamanla ayrışması demekti. Tek ekleme: yalnızca şema
+  gerçekten geldiğinde çalışan (iptalde DEĞİL) opsiyonel `onApplied`.
+- **⚠️ `infer-shapes` ucunun hiçbir arayüzü yoktu** — motor sunucuda duruyordu ve
+  özellik kullanıcıya hiç ulaşmıyordu. Doc'un iki kuralı ekranda somutlaştı:
+  sonuç "tahmin" diye yazıyor ve **otomatik onay yok** (kabul edilmeyen varlık
+  şemaya girmiyor, tek ucu kabul edilmiş ilişki de girmiyor).
+- **⚠️ Hazır şemayla açılan proje, bir önceki projenin ADINI miras alıyordu** —
+  çalışma alanında içeriği bambaşka, aynı adlı ikinci bir proje beliriyordu.
+  Canlı doğrulamada görüldü; ad artık şablondan geliyor.
+- **⚠️ `confidence` sayı sanılmıştı**, oysa sunucu `"high" | "medium" | "low"`
+  gönderiyor — ekranda `NaN%` çıkıyordu. Birim test kendi uydurduğu 0–1 değerini
+  kullandığı için görmemişti; canlı doğrulama yakaladı.
+
+- Doğrulama: frontend **113 test**, `tsc` ve `check:design` temiz.
+  **Canlı:** hazır şema seçildi → canvas'ta 6 tablo/9 ilişki, proje adı şablondan;
+  iki JSON yanıtı yapıştırıldı → `orders` ve `users` çıkarıldı, kabul edildi →
+  canvas'ta **2 tablo, 1 ilişki** (`orders.user_id → users.id`).
+
+### Aynı turda yapılan kod incelemesi
+
+`1054822..HEAD` aralığı gözden geçirildi; **6 bulgunun altısı da düzeltildi**:
+
+1. **Otomatik birleşenler uygulanmıyordu** (kritik). Birleştirme aktif dalın
+   şemasından başlıyor, sunucunun birleştirdiği şema atılıyordu: "1 merged
+   automatically" denen kolon sonuçta HİÇ bulunmuyordu.
+2. **İlişki ve enum'lar düşüyordu** — birleşen şema `ours`'un klonuydu; karşı
+   tarafta eklenen yabancı anahtar hiçbir uyarı olmadan kayboluyordu.
+3. **Yanlış ortak ata** — kardeş dalları birleştirirken birinin fork noktası
+   kullanılıyordu; artık ata YALNIZCA fork ebeveyniyle birleştirirken geçerli
+   (`Branch.forkParent`).
+4. Tablo seviyesi ad çakışmasında "incoming" seçimi sessiz bir hiçti.
+5. Yeni çakışma türleri rozetsiz görünüyordu.
+6. Menü yüksekliği bir kez ölçülüyor, pencere değişince eskiyordu.
+
+---
+
 ## G-ekstra — Yol boyunca bulunanlar
 
 - [x] `launchSettings.json` port çelişkisi — **zaten çözülmüştü** (`dfdfc49`, bu G14
