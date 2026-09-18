@@ -82,7 +82,6 @@ internal static class GroqResponseReader
 public class GroqAIService : IAIService, IAgentChatClient
 {
     private readonly HttpClient _httpClient;
-    private readonly string _modelName;
     /// <summary>
     /// Sağlayıcıya özgü olan her şey: adres, kimlik, model tablosu.
     /// Bu sınıfın kendisi hangi sağlayıcıyla konuştuğunu BİLMİYOR.
@@ -97,6 +96,7 @@ public class GroqAIService : IAIService, IAgentChatClient
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
     private readonly int _retryMaxTotalWaitSeconds;
     private readonly int _retryMaxSingleWaitSeconds;
+    private readonly int _retryMaxAttempts;
 
     public GroqAIService(
         HttpClient httpClient,
@@ -125,8 +125,6 @@ public class GroqAIService : IAIService, IAgentChatClient
         _modelCatalog = _provider.Models;
 
         _configuration = configuration;
-        // Varsayılan model sağlayıcının kataloğundan; yapılandırma yalnızca override.
-        _modelName = configuration["Groq:Model"] ?? _modelCatalog.UpstreamModel(NaiModel.Standard);
 
         _logger = logger;
         // Testte gerçek zaman harcanmasın diye uyku dışarıdan verilebiliyor.
@@ -138,6 +136,7 @@ public class GroqAIService : IAIService, IAgentChatClient
         // yeniden denemeyi tamamen kapatır (bkz. AiRetryPolicy).
         _retryMaxTotalWaitSeconds = ReadInt(configuration, "Ai:RateLimitRetry:MaxTotalWaitSeconds", 600);
         _retryMaxSingleWaitSeconds = ReadInt(configuration, "Ai:RateLimitRetry:MaxSingleWaitSeconds", 60);
+        _retryMaxAttempts = ReadInt(configuration, "Ai:RateLimitRetry:MaxAttempts", AiRetryPolicy.DefaultMaxAttempts);
 
         _httpClient.BaseAddress = _provider.BaseAddress;
         // DefaultRequestHeaders.Authorization kasitlı olarak KALDIRILDI.
@@ -420,7 +419,7 @@ public class GroqAIService : IAIService, IAgentChatClient
 
         json = ClampMaxTokensToModelLimit(json, modelInPayload);
 
-        var retryPolicy = new AiRetryPolicy(_retryMaxTotalWaitSeconds, _retryMaxSingleWaitSeconds);
+        var retryPolicy = ResolveRetryPolicy();
 
         while (true)
         {
@@ -449,8 +448,8 @@ public class GroqAIService : IAIService, IAgentChatClient
                 // versin — yeniden deneme, hata yolunu DEĞİŞTİRMİYOR, yalnızca
                 // ondan önce araya giriyor.
                 _logger?.LogWarning(
-                    "AI rate limit retry budget exhausted after {Spent}s; surfacing the rate limit to the caller.",
-                    retryPolicy.Spent.TotalSeconds);
+                    "AI rate limit retry budget exhausted after {Spent}s over {Attempts}/{MaxAttempts} attempts; surfacing the rate limit to the caller.",
+                    retryPolicy.Spent.TotalSeconds, retryPolicy.Attempts, retryPolicy.MaxAttempts);
                 return response;
             }
 
@@ -464,6 +463,35 @@ public class GroqAIService : IAIService, IAgentChatClient
             // dakika daha beklemek, iptali yok saymak olurdu.
             await _delay(wait, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Bu çağrının kullanacağı bekleme bütçesi.
+    ///
+    /// <b>İstek kapsamlı olan tercih ediliyor</b> (bkz. <see cref="AiRetryBudget"/>):
+    /// parçalı bir şema üretimi yedi ayrı sağlayıcı çağrısı yapıyor ve her
+    /// birine ayrı bütçe vermek, kullanıcıya söz verilen toplam bekleme süresini
+    /// parça sayısıyla çarpmak demekti.
+    ///
+    /// <b>İstek bağlamı yoksa yerel bütçe:</b> arka plan işlerinde paylaşılacak
+    /// bir istek yok ve orada kimse sonucu beklemiyor.
+    /// </summary>
+    private AiRetryPolicy ResolveRetryPolicy()
+    {
+        try
+        {
+            var budget = _httpContextAccessor.HttpContext?.RequestServices
+                .GetService(typeof(AiRetryBudget)) as AiRetryBudget;
+
+            if (budget is not null) return budget.Policy;
+        }
+        catch
+        {
+            // Kapsam çözümlenemediyse istek düşmemeli; yerel bütçeye dönülür.
+            // Yeniden deneme bir emniyet ağı, kendisi bir arıza kaynağı olmamalı.
+        }
+
+        return new AiRetryPolicy(_retryMaxTotalWaitSeconds, _retryMaxSingleWaitSeconds, _retryMaxAttempts);
     }
 
     /// <summary>
@@ -498,7 +526,7 @@ public class GroqAIService : IAIService, IAgentChatClient
             // biniyor ve sonuç yine hata oluyordu — üstelik genel bir 500 olarak, yani
             // arayüz onu "beklenmedik hata" sayıp sessizce yutuyordu.
             if (!_provider.IsConfigured)
-                throw new AiNotConfiguredException(_provider.Name);
+                throw new AiNotConfiguredException(_provider.DisplayName);
 
             // Kimlik per-request inject edilir (DefaultRequestHeaders KULLANILMAZ).
             _provider.Authenticate(request);

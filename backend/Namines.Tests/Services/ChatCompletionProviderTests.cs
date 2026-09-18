@@ -163,4 +163,14 @@ public class ChatCompletionProviderTests
         var provider = ChatCompletionProviderFactory.Create(Config(("Ai:Provider", "openai")));
         Assert.Equal("groq", provider.Name);
     }
+
+    [Fact]
+    public void Providers_expose_a_prose_name_separate_from_the_config_token()
+    {
+        // Yapılandırma jetonu düzyazıda kullanılınca hata mesajı "groq is not
+        // configured on this server" oluyordu — yanındaki Gemini dalı düzgün
+        // yazarken. Ayrı alan, jetonun cümleye sızmasını engelliyor.
+        Assert.Equal("Groq", new GroqChatCompletionProvider(Config()).DisplayName);
+        Assert.Equal("DeepSeek", new DeepSeekChatCompletionProvider(Config()).DisplayName);
+    }
 }

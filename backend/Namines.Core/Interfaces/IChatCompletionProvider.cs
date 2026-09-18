@@ -21,6 +21,17 @@ public interface IChatCompletionProvider
     /// <summary>Yapılandırmada geçen ad: <c>groq</c>, <c>deepseek</c>.</summary>
     string Name { get; }
 
+    /// <summary>
+    /// Kullanıcıya gösterilen ad: <c>Groq</c>, <c>DeepSeek</c>.
+    ///
+    /// <b>Neden <see cref="Name"/>'den ayrı:</b> biri yapılandırma anahtarı,
+    /// diğeri düzyazı. İkisi tek alanda birleştirilince hata mesajı "groq is not
+    /// configured on this server" oluyordu — hemen yanındaki Gemini dalı düzgün
+    /// yazarken. Yapılandırma jetonunu cümle içinde kullanmak, anahtar ne zaman
+    /// küçük harfe çevrilse kullanıcıya sızıyor.
+    /// </summary>
+    string DisplayName { get; }
+
     /// <summary>Sağlayıcının OpenAI uyumlu kök adresi, sonunda eğik çizgiyle.</summary>
     Uri BaseAddress { get; }
 

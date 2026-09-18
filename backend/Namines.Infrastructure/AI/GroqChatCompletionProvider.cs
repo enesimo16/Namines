@@ -20,6 +20,8 @@ public sealed class GroqChatCompletionProvider : IChatCompletionProvider
 
     public string Name => "groq";
 
+    public string DisplayName => "Groq";
+
     public Uri BaseAddress => new("https://api.groq.com/openai/v1/");
 
     public bool IsConfigured => _apiKey is not null;

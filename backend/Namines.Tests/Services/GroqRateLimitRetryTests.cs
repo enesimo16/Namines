@@ -26,15 +26,16 @@ public class GroqRateLimitRetryTests
     private static (GroqAIService Service, List<TimeSpan> Waits) Build(
         RecordingHttpMessageHandler handler,
         int maxTotalWaitSeconds = 600,
-        int maxSingleWaitSeconds = 60)
+        int maxSingleWaitSeconds = 60,
+        int maxAttempts = AiRetryPolicy.DefaultMaxAttempts)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Groq:ApiKey"] = "test-key",
-                ["Groq:Model"] = "openai/gpt-oss-20b",
                 ["Ai:RateLimitRetry:MaxTotalWaitSeconds"] = maxTotalWaitSeconds.ToString(),
                 ["Ai:RateLimitRetry:MaxSingleWaitSeconds"] = maxSingleWaitSeconds.ToString(),
+                ["Ai:RateLimitRetry:MaxAttempts"] = maxAttempts.ToString(),
             })
             .Build();
 
@@ -49,6 +50,27 @@ public class GroqRateLimitRetryTests
             delay: (d, _) => { waits.Add(d); return Task.CompletedTask; });
 
         return (service, waits);
+    }
+
+    [Fact]
+    public async Task A_provider_that_always_says_retry_immediately_still_terminates()
+    {
+        // BULUNMA YERİ (code review): tek durdurucu süre bütçesiydi ve sıfır
+        // bekleme bütçeden hiçbir şey yemiyordu. "Retry-After: 0" tekrarlandığında
+        // döngü hiç bitmiyor, istek kullanıcıya dönmüyor ve sağlayıcı ağ hızında
+        // dövülüyordu. Sahte aktarım kuyruğu tükendiğinde fırlattığı için, bu
+        // test düzeltme olmadan SONSUZA KADAR çalışmaz — patlar.
+        var handler = new RecordingHttpMessageHandler();
+        for (var i = 0; i < 4; i++) handler.EnqueueRateLimited("0");
+
+        var (service, waits) = Build(handler, maxAttempts: 3);
+
+        await Assert.ThrowsAsync<AiRateLimitException>(() => service.CompleteAsync(
+            Messages, Array.Empty<AgentToolDefinition>(), 0.2));
+
+        // 1 ilk deneme + 3 yeniden deneme hakkı = 4 gönderim, sonra vazgeç.
+        Assert.Equal(4, handler.CallCount);
+        Assert.Equal(new[] { TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero }, waits);
     }
 
     private static readonly IReadOnlyList<AgentChatMessage> Messages =

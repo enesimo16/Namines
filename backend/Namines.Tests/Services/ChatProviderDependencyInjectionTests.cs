@@ -108,4 +108,42 @@ public sealed class ChatProviderDependencyInjectionTests
 
         Assert.Equal("groq", scope.ServiceProvider.GetRequiredService<IChatCompletionProvider>().Name);
     }
+
+    [Fact]
+    public void Bekleme_butcesi_istek_basina_paylasiliyor()
+    {
+        // BULUNMA YERİ (code review): bütçe her sağlayıcı ÇAĞRISINDA yeniden
+        // kuruluyordu. Parçalı bir üretim yedi çağrı yapıyor, yani kullanıcıya
+        // söz verilen on dakika pratikte yetmiş dakikaya çıkabiliyordu. Aynı
+        // kapsamda iki çözümleme AYNI nesneyi vermeli.
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+
+        using var provider = BuildProductionLikeProvider(connection);
+        using var scope = provider.CreateScope();
+
+        var first = scope.ServiceProvider.GetRequiredService<AiRetryBudget>();
+        var second = scope.ServiceProvider.GetRequiredService<AiRetryBudget>();
+
+        Assert.Same(first, second);
+        Assert.Same(first.Policy, second.Policy);
+    }
+
+    [Fact]
+    public void Ayri_istekler_ayri_butce_aliyor()
+    {
+        // Paylaşım İSTEK içinde olmalı, istekler ARASINDA değil: aksi hâlde bir
+        // kullanıcının tükettiği bütçe sonraki isteği hiç denemeden düşürürdü.
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+
+        using var provider = BuildProductionLikeProvider(connection);
+
+        using var first = provider.CreateScope();
+        using var second = provider.CreateScope();
+
+        Assert.NotSame(
+            first.ServiceProvider.GetRequiredService<AiRetryBudget>(),
+            second.ServiceProvider.GetRequiredService<AiRetryBudget>());
+    }
 }

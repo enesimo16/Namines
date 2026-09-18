@@ -33,6 +33,19 @@ public static class ServiceCollectionExtensions
                 sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
                     ?.CreateLogger(nameof(ChatCompletionProviderFactory))));
 
+        // Hız-sınırı bekleme bütçesi İSTEK başına, çağrı başına DEĞİL: parçalı bir
+        // şema üretimi yedi ayrı sağlayıcı çağrısı yapıyor ve her birine ayrı
+        // bütçe vermek, söz verilen toplam bekleme süresini parça sayısıyla
+        // çarpardı. Aynı istekteki paralel parçalar bu tek nesneyi paylaşıyor.
+        services.AddScoped(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            return new AiRetryBudget(new AiRetryPolicy(
+                ReadInt(config, "Ai:RateLimitRetry:MaxTotalWaitSeconds", 600),
+                ReadInt(config, "Ai:RateLimitRetry:MaxSingleWaitSeconds", 60),
+                ReadInt(config, "Ai:RateLimitRetry:MaxAttempts", AiRetryPolicy.DefaultMaxAttempts)));
+        });
+
         services.AddHttpClient<GroqAIService>(client =>
         {
             client.Timeout = TimeSpan.FromMinutes(5);
@@ -219,4 +232,7 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    private static int ReadInt(IConfiguration configuration, string key, int fallback)
+        => int.TryParse(configuration[key], out var value) ? value : fallback;
 }

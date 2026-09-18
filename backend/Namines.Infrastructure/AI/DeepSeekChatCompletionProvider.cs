@@ -30,6 +30,8 @@ public sealed class DeepSeekChatCompletionProvider : IChatCompletionProvider
 
     public string Name => "deepseek";
 
+    public string DisplayName => "DeepSeek";
+
     public Uri BaseAddress => new("https://api.deepseek.com/v1/");
 
     public bool IsConfigured => _apiKey is not null;

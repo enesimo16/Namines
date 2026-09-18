@@ -178,8 +178,9 @@ tam olarak öyle bir boşluk uygulamayı açılmaz yapmıştı.
 | Anahtar | Varsayılan | Ne işe yarıyor |
 |---|---|---|
 | `Ai:Provider` | `groq` | `groq` veya `deepseek`. Tanınmayan değer Groq'a düşer ve loglanır. |
-| `Ai:RateLimitRetry:MaxTotalWaitSeconds` | `600` | Bir istek boyunca hız sınırı için beklenebilecek toplam süre. `0` yeniden denemeyi kapatır. |
+| `Ai:RateLimitRetry:MaxTotalWaitSeconds` | `600` | **Bir istek boyunca** (tüm sağlayıcı çağrıları toplamında) beklenebilecek süre. `0` yeniden denemeyi kapatır. |
 | `Ai:RateLimitRetry:MaxSingleWaitSeconds` | `60` | Tek bir beklemenin tavanı; sağlayıcı süre bildirmediğinde kullanılan süre de budur. |
+| `Ai:RateLimitRetry:MaxAttempts` | `10` | Süre bütçesi ne kadar geniş olursa olsun bu sayıdan fazla denenmez. |
 | `DeepSeek:ApiKey` | — | DeepSeek seçiliyse zorunlu. |
 | `DeepSeek:Models:Flash\|Standard\|Pro` | katalog | Sağlayıcı bir modeli kaldırırsa sürüm beklemeden geçmek için. |
 
@@ -198,3 +199,42 @@ bir kota (DeepSeek ya da Dev Tier), bu faz değil.
 
 Ayrıca: daha geniş bir kota AKIŞ sorununu çözer, modelin 54 tabloyu gerçekten
 SAYIP DÖKECEĞİNİ kanıtlamaz. O hâlâ sınanmadı.
+
+
+---
+
+## Kod incelemesi sonrası düzeltmeler
+
+İlk uygulamadan sonra yapılan incelemede dört bulgu çıktı; dördü de kapatıldı.
+
+**1. Sonsuz yeniden deneme döngüsü (yüksek).** Tek durdurucu süre bütçesiydi ve
+sıfır süreli bir bekleme bütçeden hiçbir şey yemiyordu. Sağlayıcı
+`Retry-After: 0` derse döngü hiç bitmiyor, istek kullanıcıya dönmüyor ve
+sağlayıcı ağ hızında dövülüyordu. Sıfır gerekmiyordu bile: tekrarlayan bir
+"0.017s" 600 saniyelik bütçede otuz beş bin istek demekti.
+
+Daha da kötüsü, bu davranışı sabitleyen bir test yazılmıştı
+(`A_zero_or_negative_requested_delay_still_costs_nothing_and_is_allowed`), yani
+test paketi hatayı yakalamak bir yana onu şartname sayıyordu.
+
+Düzeltme: `AiRetryPolicy` artık deneme sayısını da sınırlıyor
+(`MaxAttempts`, varsayılan 10). Süre bütçesi "ne kadar bekleyeceğiz"i, deneme
+sayacı "kaç kere deneyeceğiz"i cevaplıyor; biri diğerinin yerine geçemiyor.
+
+**2. Bütçe istek başına değil çağrı başına (orta).** Ayarın adı
+`MaxTotalWaitSeconds`, belgesi "bir istek boyunca" diyordu; gerçekte her
+`PostAsync` kendi politikasını kuruyordu. 54 tabloluk bir üretim yedi çağrı
+yapıyor, yani söz verilen on dakika yetmiş dakikaya kadar çıkabiliyordu.
+
+Düzeltme: istek kapsamlı `AiRetryBudget` servisi. Aynı istekteki paralel
+parçalar tek bütçeyi paylaşıyor — bu yüzden `AiRetryPolicy` kilitli hâle
+getirildi. İstek bağlamı olmayan arka plan işleri kendi yerel bütçesini kuruyor.
+
+**3. `Groq:Model` ölü ayardı (orta).** `_modelName` alanına yazılıyor ve hiçbir
+yerde okunmuyordu; `appsettings.json` bu anahtarı gönderiyordu. Bir modeli
+değiştirmek için onu ayarlayan operatör hiçbir şeyin değişmediğini görürdü,
+çünkü gerçek override `Nai:Flash|Standard|Pro`. Ölü alan ve anahtar kaldırıldı.
+
+**4. Hata metni yapılandırma jetonunu kullanıyordu (düşük).** Anahtar eksikken
+kullanıcı "groq is not configured on this server" görüyordu — hemen yanındaki
+Gemini dalı düzgün yazarken. Sağlayıcılara `DisplayName` eklendi.
