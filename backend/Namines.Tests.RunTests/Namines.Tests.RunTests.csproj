@@ -25,6 +25,16 @@
   <ItemGroup>
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
+    <!--
+      LaunchService'in yedek dali pg_dump'i BIR CONTAINER ICINDE calistiriyor
+      (PostgresBackupProvider : ContainerBackupProvider), yani ham Docker.DotNet
+      kullaniyor. Testi Namines.Tests'te tutmak yukaridaki cakismanin ta kendisi:
+      orada Testcontainers'in forku yukleniyor ve cagri MissingMethodException
+      ile dusuyordu ("Initial backup failed: Method not found"). Bu yuzden Vault
+      ve Ground referanslari da buraya tasindi.
+    -->
+    <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
+    <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />
   </ItemGroup>
 
   <ItemGroup>

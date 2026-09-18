@@ -1896,6 +1896,16 @@ Tasarım ve fazlandırma: [`github/`](../github/) klasörü
   `Split(';')` ayırıcısı trigger fonksiyonunun `$$ ... $$` gövdesini ortadan
   kesiyor, `RETURN NEW;` ayrı ifade olarak gönderiliyordu. Üretilen DDL
   geçerliydi; **bölen bozuktu**. `SqlStatementSplitter` + 7 Docker'sız test.
+- **⚠️ Üçüncü kırık test de üründe değildi — aynı Docker.DotNet çakışması.**
+  `LaunchServiceTests` yedek adımında `MissingMethodException` alıyordu
+  (*"Initial backup failed: Method not found"*), çünkü `PostgresBackupProvider`
+  pg_dump'ı bir container içinde çalıştırıyor (ham `Docker.DotNet`) ve
+  `Namines.Tests`'teki Testcontainers kendi forkunu aynı dosya adıyla
+  yüklüyor. Test `Namines.Tests.RunTests`'e taşındı (csproj'un yıllardır
+  anlattığı çözüm), container'ı artık `BranchDatabaseProvisioner` veriyor.
+  O projeye ayrıca **paralellik kapatıldı** — taşımadan sonra
+  `BranchTestRunnerServiceTests` tek başına geçip paket içinde düşmeye
+  başlamıştı; kırmızı, eşzamanlı container'ların çakışmasıydı.
 
 - Doğrulama: yeni testler **`SchemaSourceCatalog` 7**, **`RepositoryCandidateSelector` 14**,
   **`GithubClientRead` 8**, **`RepositoryScanner` 9**, **`GithubScanController` 6**,
@@ -1906,7 +1916,7 @@ Tasarım ve fazlandırma: [`github/`](../github/) klasörü
   `latest` olarak çözüldü (**"main varsay" bu depoda boş sonuç verirdi**).
   Merge önizlemesi gerçek dallarda: tek taraflı iki değişiklik sorulmadan
   birleşti, `status` ad çakışması yakalandı, silme/değiştirme çakışması
-  **bloke** etti. `DdlExecutionTests` **28/28** (önceden 26/28).
+  **bloke** etti. `DdlExecutionTests` **28/28** (önceden 26/28), `Namines.Tests.RunTests` **19/19**.
 
 - **Kapsam dışı, bilinçli:** merge kuyruğu ve migration versiyonunun merge anında
   atanması (integration DB ister), canvas'taki "PR #12'de değiştiriliyor" rozeti,
