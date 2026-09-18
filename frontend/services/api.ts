@@ -12,6 +12,7 @@ import { ProjectMember, OrgRole } from '../types/member';
 import { GatewayKey, GatewayKeyCreated, GatewayTablePermission } from '../types/gatewayKey';
 import { ClarifyResponse, NaiModelOption, SchemaPlan } from '../types/nai';
 import { CodeExtractionResponse } from '../types/codeSchema';
+import type { SchemaSourceDescriptor } from '../types/source';
 import { TeamStatus, CreatedInvite, TeamProject } from '../types/team';
 import { useAuthStore } from '../store/useAuthStore';
 import { useQuotaStore } from '../store/useQuotaStore';
@@ -225,6 +226,19 @@ export const schemaService = {
   generateMermaid: async (schema: DatabaseSchema): Promise<string> => {
     const response = await api.post('/documentation/mermaid', schema);
     return response.data.mermaid;
+  }
+};
+
+export const sourceService = {
+  /**
+   * `+ Add source` menüsünün içeriği (github/06-EKLENTI-MIMARISI.md).
+   *
+   * Anonim uç: liste sabit, kullanıcıya göre değişmiyor ve giriş öncesi
+   * görünmesi gereken şey ürünün ne yapabildiği.
+   */
+  catalog: async (): Promise<SchemaSourceDescriptor[]> => {
+    const response = await api.get<SchemaSourceDescriptor[]>('/sources');
+    return response.data;
   }
 };
 
