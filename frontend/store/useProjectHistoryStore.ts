@@ -407,6 +407,9 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
           // Fork sırasında kaydedilmezse sonradan ÜRETİLEMEZ — iki dal da
           // ilerledikten sonra "ayrıldıkları nokta" hiçbir yerde kalmaz.
           forkBase: JSON.parse(JSON.stringify(activeBranch.schema)),
+          // Atanın HANGİ dala ait olduğu da saklanıyor: kardeş dallar
+          // birleştirilirken bu ata geçerli değil (bkz. Branch.forkParent).
+          forkParent: activeBranch.name,
         };
 
         currentBranches.push(newBranch);

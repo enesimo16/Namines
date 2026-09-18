@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SchemaColumn, SchemaTable } from '../types/schema';
+import type { DatabaseSchema, SchemaColumn, SchemaTable } from '../types/schema';
 
 /**
  * Birlestirme cakismasi.
@@ -82,11 +82,20 @@ interface BranchState {
   conflicts: MergeConflictItem[];
   /** Sorulmadan uygulanan degisikliklerin ozeti; kullaniciya gosterilir. */
   autoMerged: string[];
+  /**
+   * Sunucunun OTOMATIK kararlari uygulanmis semasi.
+   *
+   * **Uygulamanin tabani bu olmak zorunda.** Onceden birlestirme, aktif dalin
+   * semasindan baslayip yalnizca cakisma secimlerini uyguluyordu; uc yollu
+   * akista farklarin cogu hic cakisma olarak gosterilmiyor, dolayisiyla
+   * "otomatik birlesti" denen her sey sessizce KAYBOLUYORDU.
+   */
+  serverMerged: DatabaseSchema | null;
 
   setCompareBranchName: (name: string | null) => void;
   setIsDiffMode: (active: boolean) => void;
   setIsConflictModalOpen: (open: boolean) => void;
-  startMergeSession: (source: string, target: string, conflicts: MergeConflictItem[], autoMerged?: string[]) => void;
+  startMergeSession: (source: string, target: string, conflicts: MergeConflictItem[], autoMerged?: string[], serverMerged?: DatabaseSchema | null) => void;
   updateConflictChoice: (id: string, choice: 'source' | 'target') => void;
   resetMergeSession: () => void;
 }
@@ -99,16 +108,18 @@ export const useBranchStore = create<BranchState>((set) => ({
   mergeTargetBranch: null,
   conflicts: [],
   autoMerged: [],
+  serverMerged: null,
 
   setCompareBranchName: (name) => set({ compareBranchName: name }),
   setIsDiffMode: (active) => set({ isDiffMode: active }),
   setIsConflictModalOpen: (open) => set({ isConflictModalOpen: open }),
   
-  startMergeSession: (source, target, conflicts, autoMerged = []) => set({
+  startMergeSession: (source, target, conflicts, autoMerged = [], serverMerged = null) => set({
     mergeSourceBranch: source,
     mergeTargetBranch: target,
     conflicts,
     autoMerged,
+    serverMerged,
     isConflictModalOpen: true
   }),
 
@@ -121,6 +132,7 @@ export const useBranchStore = create<BranchState>((set) => ({
     mergeTargetBranch: null,
     conflicts: [],
     autoMerged: [],
+    serverMerged: null,
     isConflictModalOpen: false
   })
 }));

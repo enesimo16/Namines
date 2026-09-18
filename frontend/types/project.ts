@@ -32,6 +32,15 @@ export interface Branch {
    * üç yolluymuş gibi davranmak, olmayan bir güvence vermek olurdu.
    */
   forkBase?: DatabaseSchema | null;
+  /**
+   * `forkBase`'in HANGİ dala ait olduğu.
+   *
+   * **Ata yalnızca o dalla birleştirirken geçerli:** iki kardeş dal (ikisi de
+   * main'den çıkmış) birleştirilirken birinin fork noktası diğerinin atası
+   * değildir, ve yanlış ata üç yollu birleştirmeyi sessizce yanlış karar
+   * vermeye iter.
+   */
+  forkParent?: string | null;
 }
 
 /** Tek bir projenin tüm durumunu temsil eder. IndexedDB'de saklanır. */

@@ -130,6 +130,13 @@ public static class SchemaThreeWayMerger
         // bırakır. Ad çakışması bu yüzden birleştirmeden SONRA ayrıca aranıyor.
         ResolveNameCollisions(baseSchema, merged, conflicts, autoMerged);
 
+        // Tablo dışındaki koleksiyonlar da birleştirilmeli. `ours`'un klonuyla
+        // yetinmek, karşı tarafta eklenen bir ilişkiyi ya da enum'u hiçbir
+        // çakışma ve hiçbir "otomatik birleşti" satırı olmadan DÜŞÜRÜYORDU
+        // (kod incelemesinde bulundu).
+        MergeRelations(baseSchema, ours, theirs, merged, autoMerged);
+        MergeEnums(ours, theirs, merged, autoMerged);
+
         return new ThreeWayMergeResult(merged, conflicts, autoMerged.Select(n => n.Text).ToList());
     }
 
@@ -261,6 +268,76 @@ public static class SchemaThreeWayMerger
 
         return new Decision(Outcome.Conflict, null, null, kind,
             "Both branches changed this in different ways.");
+    }
+
+    // ── Tablo dışı koleksiyonlar ─────────────────────────────────────────────
+
+    /// <summary>
+    /// İlişkileri birleştirir: iki taraftan gelen her ilişki alınır, base'de
+    /// olup İKİ tarafta da silinmiş olanlar düşer.
+    ///
+    /// <b>Uçları kalmayan ilişki taşınmaz:</b> kolonu ya da tablosu artık
+    /// olmayan bir yabancı anahtar, hiçbir motorda çalışmayan bir şema üretir.
+    /// Bu eleme, sessiz bir veri kaybı değil — ilgili tabloyu kaybeden karar
+    /// zaten çakışma ya da otomatik birleşme olarak raporlanmış durumda.
+    /// </summary>
+    private static void MergeRelations(
+        DatabaseSchema baseSchema, DatabaseSchema ours, DatabaseSchema theirs,
+        DatabaseSchema merged, List<(string Key, string Text)> autoMerged)
+    {
+        static string Key(SchemaRelation r) =>
+            $"{r.SourceTableId}|{r.SourceColumnId}|{r.TargetTableId}|{r.TargetColumnId}";
+
+        var baseKeys = baseSchema.Relations.Select(Key).ToHashSet(StringComparer.Ordinal);
+        var ourKeys = ours.Relations.Select(Key).ToHashSet(StringComparer.Ordinal);
+        var theirKeys = theirs.Relations.Select(Key).ToHashSet(StringComparer.Ordinal);
+
+        var kept = new Dictionary<string, SchemaRelation>(StringComparer.Ordinal);
+
+        foreach (var relation in ours.Relations.Concat(theirs.Relations))
+        {
+            var key = Key(relation);
+
+            // Base'de VARDI ve iki taraf da attıysa silme kasıtlıdır.
+            if (baseKeys.Contains(key) && !ourKeys.Contains(key) && !theirKeys.Contains(key)) continue;
+
+            kept.TryAdd(key, Clone(relation));
+        }
+
+        var tables = merged.Tables.ToDictionary(t => t.Id, StringComparer.Ordinal);
+
+        bool EndpointsExist(SchemaRelation r) =>
+            tables.TryGetValue(r.SourceTableId, out var source) &&
+            tables.TryGetValue(r.TargetTableId, out var target) &&
+            source.Columns.Any(c => c.Id == r.SourceColumnId) &&
+            target.Columns.Any(c => c.Id == r.TargetColumnId);
+
+        merged.Relations = kept.Values.Where(EndpointsExist).ToList();
+
+        foreach (var key in theirKeys.Where(k => !ourKeys.Contains(k)))
+            if (kept.TryGetValue(key, out var added) && EndpointsExist(added))
+                autoMerged.Add((key, "relation added"));
+    }
+
+    /// <summary>
+    /// Enum'ları birleştirir. Eşleşme <c>StableUuid</c>, yoksa ad üzerinden —
+    /// kimliği olmayan eski kayıtlarda ada düşmek, her enum'u "iki kez eklendi"
+    /// göstermekten iyidir.
+    /// </summary>
+    private static void MergeEnums(
+        DatabaseSchema ours, DatabaseSchema theirs, DatabaseSchema merged,
+        List<(string Key, string Text)> autoMerged)
+    {
+        static string Key(SchemaEnum e) => Fallback(e.StableUuid, e.Id, e.Name);
+
+        var kept = new Dictionary<string, SchemaEnum>(StringComparer.Ordinal);
+        foreach (var value in ours.Enums.Concat(theirs.Enums)) kept.TryAdd(Key(value), Clone(value));
+
+        var ourKeys = ours.Enums.Select(Key).ToHashSet(StringComparer.Ordinal);
+        merged.Enums = kept.Values.ToList();
+
+        foreach (var value in theirs.Enums.Where(e => !ourKeys.Contains(Key(e))))
+            autoMerged.Add((Key(value), $"enum {value.Name} added"));
     }
 
     // ── Ad çakışmaları ───────────────────────────────────────────────────────

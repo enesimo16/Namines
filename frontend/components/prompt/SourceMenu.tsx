@@ -43,10 +43,26 @@ export function SourceMenu({ sources, onSelect, disabled }: SourceMenuProps) {
   // çünkü boşluğun ne kadar olduğunu yalnızca ölçüm biliyor.
   useEffect(() => {
     if (!open) return;
-    const top = containerRef.current?.getBoundingClientRect().top ?? 0;
-    // jsdom ve ilk kare gibi ölçümün anlamsız olduğu durumlarda sınır
-    // KOYULMUYOR: 0'a yakın bir tavan menüyü tamamen görünmez yapardı.
-    setMaxHeight(top > 80 ? top - 16 : null);
+
+    const measure = () => {
+      const top = containerRef.current?.getBoundingClientRect().top ?? 0;
+      // jsdom ve ilk kare gibi ölçümün anlamsız olduğu durumlarda sınır
+      // KOYULMUYOR: 0'a yakın bir tavan menüyü tamamen görünmez yapardı.
+      setMaxHeight(top > 80 ? top - 16 : null);
+    };
+
+    measure();
+
+    // Menü AÇIKKEN pencere değişebilir. Tek ölçüm, eski viewport'a göre
+    // hesaplanmış bir tavanla kalmak demekti — yani menünün ilk grubunun
+    // yine ekranın üstüne taşması (düzeltmenin engellemek için eklendiği
+    // durumun ta kendisi).
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
   }, [open]);
 
   useEffect(() => {

@@ -74,6 +74,7 @@ export default function ConflictResolverModal() {
     mergeTargetBranch, 
     conflicts, 
     autoMerged,
+    serverMerged,
     updateConflictChoice, 
     resetMergeSession,
     setIsDiffMode
@@ -107,8 +108,16 @@ export default function ConflictResolverModal() {
 
   // Compile resolutions and perform Git Merge
   const handleCompleteMerge = () => {
-    // Clone active branch schema as a baseline
-    const mergedSchema: DatabaseSchema = JSON.parse(JSON.stringify(schema));
+    // TABAN: sunucunun OTOMATİK kararları uygulanmış şeması, varsa.
+    //
+    // **Aktif dalın şemasından başlamak, otomatik birleşenleri yok sayıyordu.**
+    // Üç yollu akışta farkların çoğu hiç çakışma olarak gösterilmiyor; taban
+    // aktif dal olduğunda "1 merged automatically" denen kolon sonuçta HİÇ
+    // bulunmuyordu. Kod incelemesinde bulundu.
+    //
+    // Sunucu şeması çakışmalarda AKTİF tarafı tutuyor, yani aşağıdaki
+    // "kullanıcı 'target' seçtiyse uygula" mantığı değişmeden geçerli.
+    const mergedSchema: DatabaseSchema = JSON.parse(JSON.stringify(serverMerged ?? schema));
     
     // Fetch source branch (the compared branch we are pulling changes from)
     const sourceBranch = activeProject.branches?.find(b => b.name === mergeSourceBranch);
@@ -170,6 +179,15 @@ export default function ConflictResolverModal() {
             targetTable.columns = targetTable.columns.map(c =>
               c.id === colId ? replacement : c
             );
+          }
+        } else if (item.type === 'unknown' && !item.columnName) {
+          // Tablo seviyesi çakışma (ör. iki dalın aynı adla eklediği tablo).
+          // Sessizce hiçbir şey yapmamak, kullanıcının seçimini yok saymaktı.
+          const incomingTable = item.targetValue as SchemaTable | null;
+          if (incomingTable && typeof incomingTable === 'object' && 'columns' in incomingTable) {
+            mergedSchema.tables = mergedSchema.tables.filter(
+              t => t.id !== item.tableId && t.name !== item.tableName);
+            mergedSchema.tables.push(incomingTable);
           }
         } else if (item.type === 'unknown' && item.tableId && item.columnName) {
           // Ad çakışması gibi, arayüzün zengin gösterimi olmayan kolon
@@ -239,6 +257,9 @@ export default function ConflictResolverModal() {
       case 'column_added': return <span className="bg-success-subtle text-success-text border border-success/20 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px]">New Column</span>;
       case 'column_deleted': return <span className="bg-danger-subtle text-danger-text border border-danger/20 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px]">Deleted Column</span>;
       case 'column_modified': return <span className="bg-surface-600 text-content-secondary border border-content-primary/15 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px]">Column Modification</span>;
+      // Arayüzün zengin gösterimi olmayan türler de ETİKETLENİR: rozetsiz bir
+      // satır, kullanıcının neye karar verdiğini söylemeyen tek satır olurdu.
+      case 'unknown': return <span className="bg-surface-600 text-content-secondary border border-content-primary/15 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px]">Needs a decision</span>;
       default: return null;
     }
   };

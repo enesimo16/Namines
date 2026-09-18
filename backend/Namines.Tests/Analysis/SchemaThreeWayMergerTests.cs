@@ -179,6 +179,68 @@ public class SchemaThreeWayMergerTests
     }
 
     [Fact]
+    public void A_relation_added_on_one_side_survives_the_merge()
+    {
+        // KOD İNCELEMESİNDE BULUNDU: birleşen şema `ours`'un klonuydu ve
+        // yalnızca tabloları yeniden hesaplanıyordu — karşı tarafta eklenen
+        // ilişki hiçbir çakışma ve hiçbir "otomatik birleşti" satırı olmadan
+        // KAYBOLUYORDU.
+        var baseSchema = Schema(
+            Table("t1", "users", Column("c1", "id")),
+            Table("t2", "orders", Column("c2", "user_id")));
+
+        var ours = Clone(baseSchema);
+        var theirs = Clone(baseSchema);
+        theirs.Relations.Add(new SchemaRelation
+        {
+            Id = "r1", Type = "1:N",
+            SourceTableId = "t2", SourceColumnId = "c2",
+            TargetTableId = "t1", TargetColumnId = "c1",
+        });
+
+        var result = SchemaThreeWayMerger.Merge(baseSchema, ours, theirs);
+
+        Assert.Contains(result.Merged.Relations, r => r.Id == "r1");
+        Assert.NotEmpty(result.AutoMerged);
+    }
+
+    [Fact]
+    public void A_relation_whose_table_did_not_survive_is_dropped()
+    {
+        // Uçları kalmayan bir ilişkiyi taşımak, hiçbir motorda çalışmayan bir
+        // şema üretir.
+        var baseSchema = Schema(
+            Table("t1", "users", Column("c1", "id")),
+            Table("t2", "orders", Column("c2", "user_id")));
+        baseSchema.Relations.Add(new SchemaRelation
+        {
+            Id = "r1", SourceTableId = "t2", SourceColumnId = "c2",
+            TargetTableId = "t1", TargetColumnId = "c1",
+        });
+
+        var ours = Clone(baseSchema);
+        var theirs = Clone(baseSchema);
+        theirs.Tables.RemoveAll(t => t.StableUuid == "t2");   // orders silindi
+
+        var result = SchemaThreeWayMerger.Merge(baseSchema, ours, theirs);
+
+        Assert.DoesNotContain(result.Merged.Relations, r => r.Id == "r1");
+    }
+
+    [Fact]
+    public void An_enum_added_on_one_side_survives_the_merge()
+    {
+        var baseSchema = Schema(Table("t1", "users", Column("c1", "id")));
+        var ours = Clone(baseSchema);
+        var theirs = Clone(baseSchema);
+        theirs.Enums.Add(new SchemaEnum { Id = "e1", Name = "order_status", StableUuid = "e1" });
+
+        var result = SchemaThreeWayMerger.Merge(baseSchema, ours, theirs);
+
+        Assert.Contains(result.Merged.Enums, e => e.Name == "order_status");
+    }
+
+    [Fact]
     public void Identical_branches_produce_nothing_to_do()
     {
         var baseSchema = Schema(Table("t1", "users", Column("c1", "email")));

@@ -49,8 +49,8 @@ function toConflictItems(preview: MergePreviewResult, ourSchema: DatabaseSchema)
           ...base,
           type: c.kind === 'ColumnAdded' ? 'column_added'
             : c.kind === 'ColumnDeleted' ? 'column_deleted' : 'column_modified',
-          sourceValue: (c.theirs as SchemaColumn) ?? null,
-          targetValue: (c.ours as SchemaColumn) ?? null,
+          sourceValue: (c.ours as SchemaColumn) ?? null,
+          targetValue: (c.theirs as SchemaColumn) ?? null,
         } as MergeConflictItem;
 
       case 'TableAdded':
@@ -58,20 +58,20 @@ function toConflictItems(preview: MergePreviewResult, ourSchema: DatabaseSchema)
         return {
           ...base,
           type: c.kind === 'TableAdded' ? 'table_added' : 'table_deleted',
-          sourceValue: (c.theirs as SchemaTable) ?? null,
-          targetValue: (c.ours as SchemaTable) ?? null,
+          sourceValue: (c.ours as SchemaTable) ?? null,
+          targetValue: (c.theirs as SchemaTable) ?? null,
         } as MergeConflictItem;
 
       case 'TableRenamed':
         return {
           ...base,
           type: 'table_name',
-          sourceValue: String(c.theirs ?? ''),
-          targetValue: String(c.ours ?? ''),
+          sourceValue: String(c.ours ?? ''),
+          targetValue: String(c.theirs ?? ''),
         } as MergeConflictItem;
 
       default:
-        return { ...base, type: 'unknown', sourceValue: c.theirs, targetValue: c.ours } as MergeConflictItem;
+        return { ...base, type: 'unknown', sourceValue: c.ours, targetValue: c.theirs } as MergeConflictItem;
     }
   });
 }
@@ -189,13 +189,28 @@ export default function BranchControlPanel() {
     // ORTAK ATA VARSA üç yollu birleştirme: yalnızca bir tarafın değiştirdiği
     // şeyler sorulmadan birleşir, kullanıcıya yalnızca gerçek çakışmalar
     // kalır (github/03-COKLU-GELISTIRICI-MERGE.md).
+    //
+    // **Ata YALNIZCA fork ebeveyniyle birleştirirken geçerli.** İki kardeş dalı
+    // (ikisi de main'den çıkmış) birleştirirken birinin fork noktası diğerinin
+    // atası DEĞİLDİR: o noktadan sonra main'e giren bir kolon, karşı dalda hiç
+    // var olmadığı hâlde "onlar silmiş" gibi okunur ve sessizce düşerdi.
+    // Kod incelemesinde bulundu.
     const currentBranch = branches.find(b => b.name === currentBranchName);
-    const forkBase = currentBranch?.forkBase ?? targetBranch.forkBase;
+    const forkBase =
+      currentBranch?.forkParent === targetBranchName ? currentBranch.forkBase
+      : targetBranch.forkParent === currentBranchName ? targetBranch.forkBase
+      : null;
 
     if (forkBase) {
       try {
-        const preview = await schemaService.mergePreview(forkBase, targetBranch.schema, schema);
-        startMergeSession(targetBranchName, currentBranchName, toConflictItems(preview, schema), preview.autoMerged);
+        // ours = AKTİF dal, theirs = gelen dal. Sunucunun `merged`'i çakışmada
+        // ours tarafını tutuyor; arayüzün varsayılan seçimi de "Active", yani
+        // ikisi aynı tarafı gösteriyor.
+        const preview = await schemaService.mergePreview(forkBase, schema, targetBranch.schema);
+        startMergeSession(
+          targetBranchName, currentBranchName,
+          toConflictItems(preview, schema), preview.autoMerged,
+          (preview.merged as DatabaseSchema) ?? null);
 
         if (preview.conflicts.length === 0) {
           triggerToast(
@@ -215,7 +230,7 @@ export default function BranchControlPanel() {
       // Bu dal, fork noktası kaydedilmeden önce açılmış. Ortak ata sonradan
       // ÜRETİLEMEZ: iki dal da ilerledikten sonra ayrıldıkları nokta hiçbir
       // yerde kalmaz.
-      triggerToast("This branch was created before fork points were recorded, so every difference is listed.", "info");
+      triggerToast("No common ancestor with this branch is recorded, so every difference is listed.", "info");
     }
 
     const diffResult = calculateSchemaDiff(schema, targetBranch.schema);
