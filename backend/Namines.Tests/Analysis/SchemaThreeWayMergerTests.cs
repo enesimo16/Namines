@@ -86,6 +86,25 @@ public class SchemaThreeWayMergerTests
         // Birleşen şemada İKİ tane "status" kalmamalı — bozuk şema üretmektense
         // çakışmayı bildirip tek bir taraf koymak doğru.
         Assert.Single(result.Merged.Tables[0].Columns.Where(c => c.Name == "status"));
+
+        // Ve çakışan kolon "otomatik birleşti" diye SAYILMAMALI: canlı
+        // doğrulamada tam olarak bu görüldü — rapor hem "status otomatik
+        // birleşti" hem "status çakıştı" diyordu.
+        Assert.DoesNotContain(result.AutoMerged, note => note.Contains("status"));
+    }
+
+    [Fact]
+    public void An_added_column_is_described_as_added_not_changed()
+    {
+        // Kullanıcıya gösterilen metin: canlı doğrulamada yeni eklenen bir
+        // kolon "changed" diye anlatılıyordu.
+        var baseSchema = Schema(Table("t1", "users"));
+        var ours = Clone(baseSchema);
+        var theirs = Schema(Table("t1", "users", Column("c2", "phone", "varchar")));
+
+        var result = SchemaThreeWayMerger.Merge(baseSchema, ours, theirs);
+
+        Assert.Contains(result.AutoMerged, note => note.Contains("phone") && note.Contains("added"));
     }
 
     [Fact]

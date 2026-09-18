@@ -71,7 +71,12 @@ public static class SchemaThreeWayMerger
         DatabaseSchema baseSchema, DatabaseSchema ours, DatabaseSchema theirs)
     {
         var conflicts = new List<MergeConflict>();
-        var autoMerged = new List<string>();
+
+        // Notlar ANAHTARLI tutuluyor: ad çakışması çözümü bir nesneyi geri
+        // çektiğinde ona ait "otomatik birleşti" notunun da düşmesi gerekiyor.
+        // Aksi hâlde rapor aynı kolon için hem "otomatik birleşti" hem
+        // "çakıştı" diyor — canlı doğrulamada tam olarak bu görüldü.
+        var autoMerged = new List<(string Key, string Text)>();
 
         // Tablo dışındaki her şey (ilişkiler, enum'lar, motor bilgisi) hedef
         // taraftan geliyor — birleştirme onun üzerine yapılıyor. Alan alan
@@ -104,7 +109,7 @@ public static class SchemaThreeWayMerger
                 var survivor = o ?? t;
                 if (Same(b, survivor))
                 {
-                    autoMerged.Add($"{b.Name} removed");
+                    autoMerged.Add((uuid, $"{b.Name} removed"));
                     continue;
                 }
 
@@ -117,22 +122,22 @@ public static class SchemaThreeWayMerger
 
             merged.Tables.Add(MergeTable(b, o, t, conflicts, autoMerged));
 
-            if (b is null) autoMerged.Add($"{(o ?? t)!.Name} added");
+            if (b is null) autoMerged.Add((uuid, $"{(o ?? t)!.Name} added"));
         }
 
         // Yeni eklenen tablolar iki tarafta da AYRI uuid'lerle gelmiş olabilir;
         // uuid eşleşmesi onları ayrı tablo sayar ve aynı isimde iki tablo
         // bırakır. Ad çakışması bu yüzden birleştirmeden SONRA ayrıca aranıyor.
-        ResolveNameCollisions(baseSchema, merged, conflicts);
+        ResolveNameCollisions(baseSchema, merged, conflicts, autoMerged);
 
-        return new ThreeWayMergeResult(merged, conflicts, autoMerged);
+        return new ThreeWayMergeResult(merged, conflicts, autoMerged.Select(n => n.Text).ToList());
     }
 
     // ── Tablo içi birleştirme ────────────────────────────────────────────────
 
     private static SchemaTable MergeTable(
         SchemaTable? b, SchemaTable? o, SchemaTable? t,
-        List<MergeConflict> conflicts, List<string> autoMerged)
+        List<MergeConflict> conflicts, List<(string Key, string Text)> autoMerged)
     {
         var winner = Clone((o ?? t)!);
 
@@ -154,7 +159,7 @@ public static class SchemaThreeWayMerger
             {
                 winner.Name = (string)nameDecision.Value!;
                 if (nameDecision.Note is not null && winner.Name != b.Name)
-                    autoMerged.Add($"{b.Name} renamed to {winner.Name}");
+                    autoMerged.Add((winner.StableUuid, $"{b.Name} renamed to {winner.Name}"));
             }
         }
 
@@ -176,12 +181,12 @@ public static class SchemaThreeWayMerger
             {
                 case Outcome.Take:
                     winner.Columns.Add(Clone((SchemaColumn)decision.Value!));
-                    if (decision.Note is { } note) autoMerged.Add($"{winner.Name}.{((SchemaColumn)decision.Value!).Name} {note}");
+                    if (decision.Note is { } note) autoMerged.Add((uuid, $"{winner.Name}.{((SchemaColumn)decision.Value!).Name} {note}"));
                     break;
 
                 case Outcome.Drop:
                     if (decision.Note is not null && bc is not null)
-                        autoMerged.Add($"{winner.Name}.{bc.Name} removed");
+                        autoMerged.Add((uuid, $"{winner.Name}.{bc.Name} removed"));
                     break;
 
                 case Outcome.Conflict:
@@ -233,11 +238,17 @@ public static class SchemaThreeWayMerger
 
         // Tek taraf dokunmuş: o taraf kazanır, sorulmaz. Ortak atanın bütün
         // değeri bu satırda.
+        //
+        // "added" ile "changed" ayrımı kullanıcıya gösterilen metin: base'de
+        // olmayan bir şey eklenmiştir, değiştirilmemiştir (canlı doğrulamada
+        // yeni kolonlar "changed" diye anlatılıyordu).
+        var verb = b is null ? "added" : "changed";
+
         if (ourChanged && !theirChanged)
-            return o is null ? new Decision(Outcome.Drop, null, "removed") : new Decision(Outcome.Take, o, "changed");
+            return o is null ? new Decision(Outcome.Drop, null, "removed") : new Decision(Outcome.Take, o, verb);
 
         if (!ourChanged && theirChanged)
-            return t is null ? new Decision(Outcome.Drop, null, "removed") : new Decision(Outcome.Take, t, "changed");
+            return t is null ? new Decision(Outcome.Drop, null, "removed") : new Decision(Outcome.Take, t, verb);
 
         // İkisi de dokunmuş ve farklı sonuçlar.
         if (o is null || t is null)
@@ -267,7 +278,8 @@ public static class SchemaThreeWayMerger
     /// kimlik eşleşmesiyle zaten çözülmüştür.
     /// </summary>
     private static void ResolveNameCollisions(
-        DatabaseSchema baseSchema, DatabaseSchema merged, List<MergeConflict> conflicts)
+        DatabaseSchema baseSchema, DatabaseSchema merged, List<MergeConflict> conflicts,
+        List<(string Key, string Text)> autoMerged)
     {
         var baseTableNames = baseSchema.Tables.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -278,6 +290,12 @@ public static class SchemaThreeWayMerger
         {
             var kept = group.First();
             foreach (var extra in group.Skip(1)) merged.Tables.Remove(extra);
+
+            // Çakışmaya karışan HER İKİ tarafın da "otomatik birleşti" notu
+            // düşer — geri çekilenin de, kalanın da. Kalan da otomatik
+            // birleşmedi: kullanıcının seçeceği bir şey. Aksi hâlde rapor aynı
+            // nesneyi hem birleşmiş hem çakışmış gösterir.
+            foreach (var member in group) autoMerged.RemoveAll(n => n.Key == KeyOf(member));
 
             conflicts.Add(new MergeConflict(
                 $"collision-table-{group.Key}", MergeConflictKind.NameCollision,
@@ -299,6 +317,8 @@ public static class SchemaThreeWayMerger
             {
                 var kept = group.First();
                 foreach (var extra in group.Skip(1)) table.Columns.Remove(extra);
+
+                foreach (var member in group) autoMerged.RemoveAll(n => n.Key == KeyOf(member));
 
                 conflicts.Add(new MergeConflict(
                     $"collision-{table.StableUuid}-{group.Key}", MergeConflictKind.NameCollision,

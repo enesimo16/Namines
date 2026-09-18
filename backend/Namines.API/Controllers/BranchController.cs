@@ -381,6 +381,105 @@ public class BranchController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// İki branch'i ORTAK ATALARINA bakarak birleştirmenin önizlemesi
+    /// (github/03-COKLU-GELISTIRICI-MERGE.md).
+    ///
+    /// <b>Uygulamıyor, yalnızca söylüyor.</b> Önce "ne olacağını doğru
+    /// anlatmak", sonra "yapmak" — tersi, yanlış bir birleştirmeyi kalıcı
+    /// hâle getirir.
+    ///
+    /// Ortak ata için yeni bir alan gerekmedi: <see cref="Branch.ParentBranchId"/>
+    /// ve <see cref="Branch.ForkedFromVersion"/> fork anında zaten yazılıyor.
+    /// </summary>
+    [HttpPost("{branchId}/merge/preview")]
+    public async Task<IActionResult> MergePreview(string branchId, CancellationToken cancellationToken)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var source = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
+        if (source is null) return NotFound(new { error = "Branch not found." });
+        if (!await UserOwnsProjectAsync(source.ProjectId, userId))
+            return NotFound(new { error = "Branch not found." });
+
+        // Ata kaydı yoksa üç yollu birleştirme YAPILAMAZ. Sessizce iki yollu
+        // bir diff'e düşmek, kullanıcıya olmayan bir güvence vermek olurdu:
+        // "otomatik birleşti" ifadesinin anlamı tamamen ortak atadan geliyor.
+        if (source.ParentBranchId is null || source.ForkedFromVersion is null)
+            return BadRequest(new
+            {
+                error = "This branch has no recorded ancestor, so it cannot be merged three-way. " +
+                        "Only branches forked from another branch carry the fork point a merge needs.",
+            });
+
+        var target = await _context.Branches
+            .FirstOrDefaultAsync(b => b.Id == source.ParentBranchId, cancellationToken);
+        if (target is null) return BadRequest(new { error = "The branch this one was forked from no longer exists." });
+
+        var baseSchema = await LoadSchemaAsync(target.Id, source.ForkedFromVersion.Value, cancellationToken);
+        if (baseSchema is null)
+            return BadRequest(new { error = "The ancestor version this branch was forked from is missing." });
+
+        var ours = await LoadLatestSchemaAsync(target.Id, cancellationToken);
+        var theirs = await LoadLatestSchemaAsync(source.Id, cancellationToken);
+
+        if (ours is null || theirs is null)
+            return BadRequest(new { error = "Both branches need at least one committed schema version before they can be merged." });
+
+        var result = SchemaThreeWayMerger.Merge(baseSchema, ours, theirs);
+
+        return Ok(new
+        {
+            sourceBranch = source.Name,
+            targetBranch = target.Name,
+            baseVersion = source.ForkedFromVersion.Value,
+            autoMerged = result.AutoMerged,
+            // `kind` STRING olarak geçiyor: sunucu enum'unu istemcide bire bir
+            // kopyalamak bu projede bir kez kırıldı. Tanınmayan bir değer
+            // istemcide yanlış değil, bilinmeyen olur.
+            conflicts = result.Conflicts.Select(c => new
+            {
+                c.Id,
+                kind = c.Kind.ToString(),
+                c.TableName,
+                c.ColumnName,
+                ours = c.OursValue,
+                theirs = c.TheirsValue,
+                c.Blocking,
+                c.Explanation,
+            }),
+            blocked = result.Conflicts.Any(c => c.Blocking),
+            merged = result.Merged,
+        });
+    }
+
+    /// <summary>Bir branch'in belirli versiyonundaki şema; yoksa null.</summary>
+    private async Task<DatabaseSchema?> LoadSchemaAsync(string branchId, int version, CancellationToken ct)
+    {
+        var json = await _context.SchemaVersions
+            .Where(v => v.BranchId == branchId && v.Version == version)
+            .Select(v => v.SchemaJson)
+            .FirstOrDefaultAsync(ct);
+
+        return Deserialize(json);
+    }
+
+    /// <summary>Bir branch'in en son şeması; hiç versiyon yoksa null.</summary>
+    private async Task<DatabaseSchema?> LoadLatestSchemaAsync(string branchId, CancellationToken ct)
+    {
+        var json = await _context.SchemaVersions
+            .Where(v => v.BranchId == branchId)
+            .OrderByDescending(v => v.Version)
+            .Select(v => v.SchemaJson)
+            .FirstOrDefaultAsync(ct);
+
+        return Deserialize(json);
+    }
+
+    private static DatabaseSchema? Deserialize(string? json) =>
+        string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<DatabaseSchema>(json, SchemaJsonOptions);
+
     [HttpGet("{branchId}/database")]
     public async Task<IActionResult> GetDatabase(string branchId, CancellationToken cancellationToken)
     {
