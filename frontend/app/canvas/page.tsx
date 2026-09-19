@@ -21,6 +21,7 @@ import '@xyflow/react/dist/style.css';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAutomationStore } from '../../store/useAutomationStore';
 import { useFlowNodePositionStore } from '../../store/useFlowNodePositionStore';
+import { useFlowBarStore } from '../../store/useFlowBarStore';
 import { useAIDba } from '../../hooks/useAIDba';
 import { useNaminesFlowRuntime } from '../../hooks/useNaminesFlowRuntime';
 import { useDbaStore } from '../../store/useDbaStore';
@@ -63,6 +64,8 @@ import RegionalPromptPanel from '../../components/canvas/panels/RegionalPromptPa
 import ToolbarPanel from '../../components/canvas/panels/ToolbarPanel';
 import CanvasExportToolbar from '../../components/canvas/panels/CanvasExportToolbar';
 import CanvasContextMenu from '../../components/canvas/CanvasContextMenu';
+import NaminesFlowBar from '../../components/canvas/panels/NaminesFlowBar';
+import NaminesFlowPanel from '../../components/canvas/panels/NaminesFlowPanel';
 import TableEditorDrawer from '../../components/canvas/TableEditorDrawer';
 import AutomationRuleDrawer from '../../components/canvas/AutomationRuleDrawer';
 import SqlExplorerPanel from '../../components/canvas/panels/SqlExplorerPanel';
@@ -517,6 +520,26 @@ export default function CanvasPage() {
   // Namines Flow node/edge'leri `processedNodes`'un (diff modunda tablo
   // node'larına diff bilgisi eklenmiş hâli) ÜZERİNE ekleniyor — böylece
   // branch karşılaştırma modunda da doğru şekilde görünmeye devam ederler.
+  /**
+   * Flow çubuğundaki "New" düğmesi bir tablo seçme moduna giriyor — kural her
+   * zaman bir tabloya bağlı olduğu için (scopeTableId) çubuktan doğrudan
+   * oluşturulamıyor, önce çapa tablonun seçilmesi gerekiyor.
+   */
+  const handleNodeClick = useCallback((_e: React.MouseEvent, node: { id: string; type?: string }) => {
+    const { pickingTable, setPickingTable } = useFlowBarStore.getState();
+    if (!pickingTable || node.type !== 'tableNode') return;
+    const ruleId = useAutomationStore.getState().addRule(node.id, 'TableDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(ruleId);
+    setPickingTable(false);
+  }, []);
+
+  const handlePaneClick = useCallback(() => {
+    useActiveEdgeMenuStore.getState().close();
+    // Boşluğa tıklamak seçim modundan çıkmanın en beklenen yolu; aksi hâlde
+    // kullanıcı modu yalnızca çubuktaki düğmeyle kapatabilirdi.
+    if (useFlowBarStore.getState().pickingTable) useFlowBarStore.getState().setPickingTable(false);
+  }, []);
+
   const nodesWithAutomation = useMemo(() => {
     const automationNodes = automationRules.map((rule, i) => {
       // Kullanıcı bu düğümü daha önce elle sürüklediyse o konum kazanır —
@@ -709,7 +732,8 @@ export default function CanvasPage() {
             onConnect={handleConnect}
             onNodesDelete={handleNodesDelete}
             onEdgesDelete={handleEdgesDelete}
-            onPaneClick={() => useActiveEdgeMenuStore.getState().close()}
+            onNodeClick={handleNodeClick}
+            onPaneClick={handlePaneClick}
             onMoveStart={() => useActiveEdgeMenuStore.getState().close()}
             // Diff görünümü salt-okunur (sanal "silinmiş tablo" node'ları gerçek şemadan
             // silinememeli) ve çevrimdışıyken değişiklik yayınlanamaz → silme tuşunu kapat.
@@ -786,6 +810,11 @@ export default function CanvasPage() {
         <RegionalPromptPanel />
         <CanvasExportToolbar />
         <ConflictResolverModal />
+
+        {/* Namines Flow çubuğu ve kural listesi — panel `setCenter` kullandığı
+            için ReactFlowProvider'ın İÇİNDE olmak zorunda. */}
+        <NaminesFlowBar />
+        <NaminesFlowPanel />
 
         {/* Canvas arama (ReactFlowProvider içinde olmalı — fitBounds kullanır) */}
         <CanvasSearch

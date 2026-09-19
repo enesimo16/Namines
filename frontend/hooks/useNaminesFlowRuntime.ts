@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { naminesFlow } from '../lib/naminesFlowEventBus';
 import { matchRules, toastMessageFor } from '../lib/naminesFlowRuntime';
 import { useAutomationStore } from '../store/useAutomationStore';
+import { useFlowBarStore } from '../store/useFlowBarStore';
 import { useFlowFiringStore } from '../store/useFlowFiringStore';
 import { useToastStore } from '../store/useToastStore';
 
@@ -21,6 +22,10 @@ export function useNaminesFlowRuntime(): void {
     // kural listesi her değiştiğinde abonelik sökülüp yeniden kurulurdu ve
     // tam o anda gelen bir olay kaybolabilirdi.
     return naminesFlow.on('*', (event) => {
+      // Flow çubuğundaki duraklatma: kuralları tek tek kapatmadan tüm istemci
+      // tarafı tepkileri susturmanın yolu.
+      if (useFlowBarStore.getState().paused) return;
+
       const matched = matchRules(event, useAutomationStore.getState().rules);
       if (matched.length === 0) return;
 

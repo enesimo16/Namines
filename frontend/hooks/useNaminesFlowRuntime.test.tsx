@@ -5,6 +5,7 @@ import { renderHook, act, cleanup } from '@testing-library/react';
 import { useNaminesFlowRuntime } from './useNaminesFlowRuntime';
 import { naminesFlow } from '../lib/naminesFlowEventBus';
 import { useAutomationStore, type AutomationRule } from '../store/useAutomationStore';
+import { useFlowBarStore } from '../store/useFlowBarStore';
 import { useFlowFiringStore } from '../store/useFlowFiringStore';
 import { useToastStore } from '../store/useToastStore';
 
@@ -28,6 +29,7 @@ const rule = (over: Partial<AutomationRule> = {}): AutomationRule => ({
 beforeEach(() => {
   useAutomationStore.setState({ rules: [], selectedRuleId: null });
   useFlowFiringStore.setState({ firings: {} });
+  useFlowBarStore.setState({ paused: false });
   useToastStore.getState().clearAll();
 });
 
@@ -88,6 +90,19 @@ describe('useNaminesFlowRuntime', () => {
     });
 
     expect(useToastStore.getState().toasts).toHaveLength(1);
+  });
+
+  it('flow bar duraklatilmisken hicbir sey tetiklenmez', () => {
+    useAutomationStore.setState({ rules: [rule()] });
+    useFlowBarStore.setState({ paused: true });
+    renderHook(() => useNaminesFlowRuntime());
+
+    act(() => {
+      naminesFlow.emit({ type: 'TableDeleted', tableId: 't1', tableName: 'Orders' });
+    });
+
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+    expect(useFlowFiringStore.getState().firings).toEqual({});
   });
 
   it('unmount sonrasi artik dinlemez', () => {
