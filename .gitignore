@@ -74,6 +74,11 @@ nohup.out
 # =========================
 bin/
 obj/
+# packaging/npm/bin/ TUTULUR — yukarıdaki genel `bin/` kuralı .NET derleme
+# çıktısı içindir; @namines/mcp'nin gerçek kaynak dosyası (namines-mcp.js)
+# orada duruyor, .NET çıktısı değil.
+!packaging/npm/bin/
+!packaging/npm/bin/**
 TestResults/
 artifacts/
 *.dll

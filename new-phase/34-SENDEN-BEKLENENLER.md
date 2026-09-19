@@ -7,7 +7,8 @@
 > Kaynak: `CHECKLIST.md` → "Kodun beklediği kararlar/erişimler". Burası aynı
 > listenin basit dille yazılmış ve tek başına okunabilir hâli.
 >
-> **Son güncelleme:** G52 (Team planı, NAI v1, gelişmiş ayarlar). 1136 test yeşil.
+> **Son güncelleme:** G54 (GitHub entegrasyonu — depo taraması, çoklu geliştirici
+> birleştirme, kaynak şeridi). 1983 backend + 117 frontend test yeşil.
 
 **Genel kural:** Hiçbir API anahtarını, parolayı ya da token'ı sohbete
 yapıştırma. Hepsi ortam değişkenine (`.env`) girer; sen sadece "aldım" de yeter.
@@ -20,11 +21,6 @@ edildi; eksik olan tek şey senin bir hesap açman, bir sayı söylemen ya da bi
 karar vermen.
 
 ### 🔴 Bu ikisi ürünü şu an tutuyor
-
-**A) Disk alanı — 3,8 GB kaldı**
-Geçen sefer 4,8 GB'tı, **daha da azaldı.** Bu oturumda veritabanı container'ı
-yine düştü ve elle başlatmam gerekti. Bu, kod yazmayı da yavaşlatıyor.
-→ En acil madde bu. §10
 
 **B) Stripe hesabı ve DÖRT fiyat**
 Ödeme kodu tamamen hazır: Pro 15$/ay (150$/yıl) ve Team 40$/ay (400$/yıl),
@@ -61,33 +57,25 @@ düşüyor. Küçük kullanımda tipik gider $5-20/ay.
 → Bu, DeepSeek/başka sağlayıcıya geçmekten hem **daha ucuz** hem **kod
 değişikliği sıfır**. Karşılaştırma: second-phase/16-KOTA-VE-MALIYET.md. §9
 
-### 🟢 Bunlar sadece "onaylıyor musun?"
+### ✅ Sen "kafana göre karar ver" dedin — hepsi kapatıldı
 
-**K) Ücretsiz havuz büyüklüğü — 500.000 token/gün** *(yeni)*
-Havuz doğrudan aylık gider: 500K ≈ **$3,7/ay**, 1M ≈ $7,4, 2M ≈ $15.
-500K'dan başlıyoruz; havuz üst üste 3 gün dolarsa sistem bir üst kademeyi
-**öneriyor** ama kendiliğinden uygulamıyor — kararı sen veriyorsun
-(`GET /api/quota/pool-pressure`, sadece Dev hesabı). Sayıyı değiştirmek
-istersen tek satır. second-phase/16.
+**K) Ücretsiz havuz büyüklüğü — 500.000 token/gün** — onaylandı, değişmedi.
 
-**L) Çoklu DB ilişki sınırı — Free 3 / Pro 25 / Team 100** *(yeni)*
-`10-COKLU-DB.md`'nin açık bıraktığı "kaç DB, hangi planda?" sorusuna cevap.
-Sınırlanan veritabanı sayısı değil, aralarındaki mantıksal ilişki sayısı.
-Rakamlar bana makul geldi; sana gelmiyorsa söyle.
+**L) Çoklu DB ilişki sınırı — Free 3 / Pro 25 / Team 100** — onaylandı,
+değişmedi.
 
-**G) Üç rate limit sayısı** — Artık **boş değil**, ben makul varsayılanlar
-koydum: Free 60, Pro 600, Team 3.000 istek/dakika. Sana yüksek ya da düşük
-geliyorsa söyle, tek satır. §4
+**G) Üç rate limit sayısı — Free 60 / Pro 600 / Team 3.000 / Enterprise
+10.000** — onaylandı, değişmedi. §4
 
-**H) Redis: evet mi hayır mı?** — Tek kelime yeter. Şu an istek sayacı tek
-sunucunun hafızasında; ikinci bir sunucu açarsan aynı kişi iki katı hak
-kazanır. Tek sunucuda çalıştığın sürece sorun değil. §5
+**H) Redis — hayır (şimdilik)** — tek sunucudayız, ekstra işletim yükü
+almaya değmez; çoklu sunucuya geçince tekrar gündeme gelir. §5
 
-**I) İki küçük teknik onay** — Dokümandan bilerek saptığım iki nokta. Kabul
-ediyorsan hiçbir şey yapman gerekmiyor. §7
+**I) İki küçük teknik sapma (`X-Namines-Key`, SHA-256)** — kabul edildi. §7
 
-**J) Neon hesabı** — Branch veritabanları şu an container ile açılıyor;
-çalışıyor ama yavaş. Neon anında yapıyor. Tamamen isteğe bağlı. §1
+**J) Neon hesabı** — 🟢 tek gerçek "isteğe bağlı" madde kaldı. Branch
+veritabanları container ile açılıyor, çalışıyor ama yavaş; canın istediğinde
+[neon.tech](https://neon.tech)'te ücretsiz bir hesap açıp `NEON_API_KEY`
+verirsen anında açılmaya geçer. Vermezsen mevcut yol çalışmaya devam eder. §1
 
 ---
 
@@ -116,26 +104,26 @@ ediyorsan hiçbir şey yapman gerekmiyor. §7
 
 | # | Ne | Tipi | Aciliyet | Bunsuz ne olmuyor |
 |---|----|------|----------|-------------------|
-| 10 | **Disk alanı** (şu an 3,8 GB) | makine | 🔴 | Container'lar düşüyor, geliştirme yavaşlıyor |
 | 6 | **Stripe hesabı + 4 fiyat kimliği** (aylık + yıllık) | hesap | 🔴 | **Ödeme kodu hazır ama tek kuruş tahsil edemiyor** |
-| 8 | GitHub App (`AppId`, `PrivateKey`, `WebhookSecret`) | hesap | 🟡 | Bot hazır ama PR'a tek satır yazamıyor |
-| 2 | npm yayını | hesap | 🟡 | MCP `npx` ile kurulamıyor; kullanıcı depoyu klonlamak zorunda |
-| 3 | Public alan adı (`api.namines.com`?) | karar | 🟡 | Eject edilen SDK nereye bağlanacağını bilmiyor; webhook adresi de buna bağlı |
 | 9 | **Groq'a kart tanımla** (Developer katmanı) | hesap | 🔴 | Ücretsiz katman dakikada ~6.000 token — ürünü kendi makinemizde bile uçtan uca deneyemiyoruz |
-| 4 | Rate limit sayıları | onay | 🟢 | Varsayılan kondu; sadece onayın/itirazın bekleniyor |
-| 5 | Redis: evet / hayır | karar | 🟢 | Tek sunucuda sorun yok; 2+ sunucuda limit anlamını kaybediyor |
-| 7 | İki doküman sapmasının onayı | onay | 🟢 | Hiçbir şey bloke değil; itirazın varsa geri alırım |
+| 8 | GitHub App (`AppId`, `PrivateKey`, `WebhookSecret`) | hesap | 🟡 | Bot hazır ama PR'a tek satır yazamıyor; canlı domain gerekmez, tünelle test edilir |
+| 2 | npm yayını | hesap | 🟡 | CI'a bağlandı (G54) — tek eksik `NPM_TOKEN` repo secret'ı |
+| 3 | Public alan adı (`api.namines.com`?) | karar | 🟡 | Eject edilen SDK nereye bağlanacağını bilmiyor; webhook adresi de buna bağlı |
 | 1 | Neon hesabı | hesap | 🟢 | Branch DB'ler yavaş açılıyor (ama açılıyor) |
-| K | Ücretsiz havuz 500K/gün (~$3,7/ay) | onay | 🟢 | Varsayılan kondu; kademeli büyüme önerisi hazır |
-| L | Çoklu DB sınırı 3/25/100 | onay | 🟢 | Varsayılan kondu |
+| 4 | Rate limit sayıları | ✅ | — | Varsayılan **onaylandı** (60/600/3.000/10.000), değişiklik istersen söyle |
+| 5 | Redis | ✅ | — | **Hayır** — tek sunucudayız, gerek yok; çoklu sunucuya geçince tekrar konuşuruz |
+| 7 | İki doküman sapması | ✅ | — | **Kabul edildi** (`X-Namines-Key`, SHA-256) |
+| K | Ücretsiz havuz 500K/gün | ✅ | — | **Onaylandı** |
+| L | Çoklu DB sınırı 3/25/100 | ✅ | — | **Onaylandı** |
+| 10 | ~~Disk alanı~~ | — | — | Kullanıcı bunun sorun olmadığını söyledi, madde kapatıldı |
 | 11 | Desk v2 SSO devir jetonunun taşınma şekli | karar | ✅ | Karar verildi VE kodlandı — POST form (b), aşağıda ne yapıldığı yazıyor |
 | 12 | Desk v2 toplu silme onay eşiği | karar | ✅ | 10 olarak onaylandı VE kodlandı |
 | 13 | Desk v2'de oturum yolunda ham SQL'e izin — güvenlik kararı | karar | ✅ | İzin verildi (Owner + açık onay + çok katmanlı güvenlik) VE kodlandı |
 | 14 | Desk v2 uyarı kuralları için e-posta altyapısı | hesap | 🟡 | Bilinçli olarak ŞİMDİLİK ertelendi — e-posta altyapısı gelene kadar E5.3 uygulanmayacak |
 
-**En yüksek etkili üçü:** **10** (disk — her şeyi yavaşlatıyor), **6**
-(Stripe — ürünün para kazanmasının önündeki tek engel) ve **9** (Groq kartı —
-bu oturumda üretimi 5+ kez test edemedim, hep TPM duvarına çarptı).
+**En yüksek etkili ikisi:** **6** (Stripe — ürünün para kazanmasının önündeki
+tek engel) ve **9** (Groq kartı — bu oturumda üretimi 5+ kez test edemedim,
+hep TPM duvarına çarptı).
 
 ---
 
@@ -157,17 +145,28 @@ erişimi olmayan kurulumlar çalışmaya devam eder.
 
 ---
 
-## 2. npm + GitHub hesabı (yayın)
+## 2. npm yayını — G54'te otomasyona bağlandı, tek eksik bir token
 
-**Ne yapman lazım:** npm hesabı aç ve `npm login` yap; GitHub'da repo'yu
-yayınlamaya hazır hâle getir.
+**Bu oturumda yapıldı:**
+- Eksik olan `packaging/npm/bin/namines-mcp.js` yazıldı — `package.json`
+  `bin/namines-mcp.js`'i gösteriyordu ama dosya hiç yoktu, yani paket
+  yayınlansa bile çalışmazdı. Şimdi bu dosya `download.js`'in indirdiği
+  platforma özgü binary'yi bulup çalıştırıyor.
+- `.github/workflows/release.yml`'e `publish-npm` işi eklendi: `v*` etiketi
+  atıldığında GitHub Release'i bekliyor, `package.json`'daki sürümü etiketle
+  eşitliyor, sonra `npm publish` çalıştırıyor.
 
-**Neden:** MCP sunucusu, npm sarmalayıcısı ve release workflow'u **hazır** ama
-`npm publish` ve `git tag v0.1.0` atılmadı — ikisi de hesap istiyor.
+**Senin yapman gereken TEK şey:**
+1. [npmjs.com](https://www.npmjs.com) → hesap aç (yoksa).
+2. Hesap → **Access Tokens** → **Generate New Token** → **Automation** türünde
+   bir token oluştur, kopyala.
+3. GitHub'da bu depo → **Settings → Secrets and variables → Actions** →
+   **New repository secret** → adı `NPM_TOKEN`, değeri kopyaladığın token.
 
-**Geldiğinde ne olur:** Kullanıcılar `npx` ile tek komutta kurar. Şu an
-kurulum için depoyu klonlamaları gerekiyor; bu, MCP'nin yayılmasının önündeki
-tek engel.
+Bu üçü bittiğinde bana söyle — `git tag v0.1.0 && git push origin v0.1.0`
+komutunu ben atarım, geri kalanı (build, GitHub Release, npm publish) otomatik
+yürür. Token yoksa iş kırmızıya düşmüyor, sadece "NPM_TOKEN yok, atlanıyor"
+diyip geçiyor — yani token'ı sonra eklesen de sorun olmaz.
 
 **İlgili:** [33-MCP-AND-SKILL.md](33-MCP-AND-SKILL.md)
 
@@ -187,7 +186,7 @@ bağlanacağını bilmiyor.
 
 ---
 
-## 4. Plan başına rate limit sayıları — 🟢 artık sadece onay
+## 4. Plan başına rate limit sayıları — ✅ onaylandı
 
 **Durum değişti:** Eskiden kodda okunacak sayı yoktu. Artık
 [`PlanQuotas`](../backend/Namines.Core/Analysis/PlanQuotas.cs)'ta duruyorlar:
@@ -215,11 +214,13 @@ trafiğin sunucuyu meşgul etmesini engelleyen bir siper.
 
 ---
 
-## 5. Redis kararı (evet / hayır)
+## 5. Redis kararı — ✅ hayır (şimdilik)
 
-**Ne yapman lazım:** Sadece "kullanacağız" ya da "kullanmayacağız" de.
+**Karar:** Tek sunucudayız, gerçek bir sorun yok — Redis eklemek bu aşamada
+gereksiz bir işletim yükü olurdu. Çoklu sunucuya (yatay ölçekleme) geçilince
+bu madde otomatik olarak tekrar açılır, o zaman zorunlu hâle gelir.
 
-**Neden:** Şu an istek sayacı **tek sunucunun belleğinde**. İki API instance'ı
+**Neden bekliyorduk:** Şu an istek sayacı **tek sunucunun belleğinde**. İki API instance'ı
 açarsan aynı kullanıcı iki katı hak kazanır — limit sessizce anlamını kaybeder.
 Ayrıca [08 §6](08-GATEWAY-API.md)'daki metadata cache de buna bağlı.
 
@@ -228,7 +229,26 @@ tamamen yabancı değil.
 
 ---
 
-## 6. Stripe hesabı + DÖRT fiyat kimliği — 🔴 ACİL
+## 6. Stripe hesabı + DÖRT fiyat kimliği — ✅ test modunda tamamlandı (G54)
+
+`.env`'deki dört `price_...` Stripe API'sine karşı tek tek doğrulandı: Pro
+$15/ay + $150/yıl, Team $40/ay + $400/yıl, hepsi `active: true`. Webhook
+endpoint'i de kuruldu (`api/webhooks/stripe`, `checkout.session.completed` +
+`customer.subscription.updated` + `customer.subscription.deleted`), secret
+`.env`'e yazıldı. **Kalan tek şey:** test kartıyla (`4242 4242 4242 4242`) bir
+checkout'u uçtan uca deneyip webhook'un gerçekten planı güncellediğini
+görmek — istersen frontend'i açıp bunu birlikte yapalım.
+
+**Canlıya geçince** (ABD şirketin hazır olduğunda) aynı 6 adımı **live mode**
+Stripe panelinde tekrarlaman gerekiyor — test moduyla canlı modun ürünleri/
+fiyatları/anahtarları birbirinden tamamen ayrı, `sk_test_` → `sk_live_` olur.
+
+---
+
+<details>
+<summary>Orijinal kurulum talimatı (referans için saklandı)</summary>
+
+### 🔴 ACİL (artık tamamlandı, yukarıya bak)
 
 > **Güncellendi:** fiyatlar değişti ve yıllık planlar eklendi, yani artık iki
 > değil **dört** fiyat gerekiyor. Aylık ve yıllık, Stripe'ta **ayrı ayrı fiyat**
@@ -284,6 +304,8 @@ başka bir sağlayıcıya geçersen webhook ve checkout değişir, plan modeli a
 
 **İlgili:** [22-BUSINESS-MODEL.md](22-BUSINESS-MODEL.md)
 
+</details>
+
 ---
 
 ## 7. İki doküman sapmasının onayı
@@ -314,12 +336,21 @@ sabit zamanlı.
 
 ## 8. GitHub App (Namines Bot)
 
+> **Bunu App olmadan da kullanabilirsin — App yalnızca ÜÇ şeyi kilitliyor:**
+> private depo taraması, bot'un PR'a yazması ve anonim kotanın 60'tan
+> 5000/saate çıkması. **Public bir depodan şema okumak zaten çalışıyor**
+> (`+` menüsü → GitHub repository — G53'te eklendi, App gerektirmiyor).
+
 **Ne yapman lazım:** GitHub → Settings → Developer settings → GitHub Apps →
 New GitHub App.
 
 - **İzinler:** Pull requests (read & write), Contents (read), Checks (write)
 - **Abone olunacak olaylar:** `pull_request`, `issue_comment`
-- **Webhook URL:** API'nin public adresi + `/api/github/webhook`
+- **Webhook URL:** API'nin public adresi + `/api/github/webhook` — **canlıya
+  çıkmadan da olur**, `cloudflared tunnel --url http://localhost:5000` ya da
+  `ngrok http 5000` çalıştırıp verdiği geçici adresi buraya yazman yeterli.
+  Adres her yeniden başlatmada değişir, o zaman App ayarından güncellersin;
+  gerçek domain (§3) geldiğinde tek yapılacak bu alanı değiştirmek.
 - **Webhook secret:** kendin bir değer üret
 
 Sonra üç değeri ortam değişkenine koy: `Github__AppId`,
@@ -387,31 +418,6 @@ ekle. Kod tarafında **hiçbir değişiklik gerekmiyor.**
 bizim iş yükümüz çıktı ağırlıklı. DeepSeek'in girdisi **bedava olsa bile**
 kaybediyor. Üstelik geçiş, 8 metotlu bir `IAIService` implementasyonu yazmak
 demek. Tam karşılaştırma: `second-phase/16-KOTA-VE-MALIYET.md`.
-
----
-
-## 10. Disk alanı — 🔴 EN ACİL
-
-**Durum kötüleşti:** Geçen sefer 4,8 GB'tı, şu an **3,8 GB**.
-
-**Ne yapman lazım:** C: sürücüsünde yer aç. En hızlı kazanç sırasıyla:
-
-1. **WSL2 sanal diski sıkıştır** — Docker sildiğin şeyi geri veriyor ama VHDX
-   kendiliğinden küçülmüyor. PowerShell'de (yönetici):
-   ```
-   wsl --shutdown
-   Optimize-VHD -Path "$env:LOCALAPPDATA\Docker\wsl\disk\docker_data.vhdx" -Mode Full
-   ```
-   (`Optimize-VHD` yoksa Hyper-V modülü kurulu değildir; `diskpart` ile
-   `compact vdisk` de aynı işi yapar.)
-2. **Kullanılmayan Docker imajları** — `docker system prune -a --volumes` ⚠️
-   `--volumes` control DB'yi de siler; onsuz çalıştır.
-3. **Eski `bin/` ve `obj/` klasörleri** — `dotnet clean` ya da elle silme.
-
-**Neden acil:** Bu oturumda control DB container'ı yine düştü ve elle
-başlatmam gerekti. AGENTS.md zaten uyarıyor: *"Docker/build hataları illa kod
-hatası değil — önce boş alanı kontrol et."* Bu, hem ürünü hem geliştirmeyi
-yavaşlatıyor.
 
 ---
 
