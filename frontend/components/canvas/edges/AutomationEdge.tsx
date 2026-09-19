@@ -34,7 +34,10 @@ export default function AutomationEdge({
     targetX,
     targetY,
     targetPosition,
-    borderRadius: 12,
+    // Geniş yarıçap: köşeler dik açı gibi "kırılmıyor", geniş bir yay
+    // çiziyor. Yine de yatay/dikey düz hatlar korunuyor — ilişki kenarının
+    // baştan sona eğri olan bezier'inden ayıran şey o düz koşular.
+    borderRadius: 40,
   });
 
   return (
