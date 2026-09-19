@@ -11,6 +11,7 @@ import {
   Panel,
   ReactFlowProvider,
   BackgroundVariant,
+  Position,
   useReactFlow,
   type Connection,
   type Node,
@@ -54,7 +55,7 @@ const SchemaTemplateGallery = dynamic(
 );
 import CanvasSearch from '../../components/canvas/CanvasSearch';
 import KeyboardShortcutsModal from '../../components/canvas/KeyboardShortcutsModal';
-import TableNode from '../../components/canvas/nodes/TableNode';
+import TableNode, { FLOW_HANDLE_ID } from '../../components/canvas/nodes/TableNode';
 import AutomationNode from '../../components/canvas/nodes/AutomationNode';
 import RelationEdge from '../../components/canvas/edges/RelationEdge';
 import AutomationEdge from '../../components/canvas/edges/AutomationEdge';
@@ -77,6 +78,38 @@ import { token } from '../../lib/designTokens';
 import { useHomeThemeStore } from '../../store/useHomeThemeStore';
 import { useActiveEdgeMenuStore } from '../../store/useActiveEdgeMenuStore';
 import { decideCanvasBoot } from '../../lib/canvasBoot';
+
+/**
+ * Namines Flow düğümünün boyutu ve bağlantı noktası — DOM ölçümüne
+ * bırakılmadan, açıkça bildiriliyor.
+ *
+ * <b>Neden elle bildirmek zorundayız:</b> bu düğümler React Flow state'inde
+ * yaşamıyor, her render'da kural listesinden yeniden türetiliyor. React
+ * Flow'un `adoptUserNodes`'u bir düğüm nesnesini yeni kimlikle gördüğünde
+ * `measured` değerini KULLANICI nesnesinden okuyor ve `parseHandles`
+ * (@xyflow/system) `measured` yoksa `handleBounds`'u kasıtlı olarak
+ * sıfırlıyor — "düğüm yeniden ölçülsün" diye. Türetilmiş düğümlerde bu her
+ * render tekrarlandığı için `handleBounds` hiçbir zaman dolmuyordu; kenar da
+ * konumlandırılamadığı için SESSİZCE ÇİZİLMİYORDU.
+ *
+ * `handles` + `measured` vermek ölçüm ihtiyacını tamamen ortadan kaldırıyor:
+ * her iki değer de ilk kareden itibaren biliniyor ve yeniden türetmeden
+ * etkilenmiyor. AutomationNode'daki Handle id'siz olduğu için burada da
+ * `id: null` — kenar `targetHandle` vermiyor ve React Flow bu durumda
+ * listenin ilk handle'ını kullanıyor.
+ */
+const AUTOMATION_NODE_SIZE = { width: 190, height: 58 };
+const AUTOMATION_NODE_HANDLES = [
+  {
+    id: null,
+    type: 'target' as const,
+    position: Position.Left,
+    x: 0,
+    y: AUTOMATION_NODE_SIZE.height / 2,
+    width: 1,
+    height: 1,
+  },
+];
 
 export default function CanvasPage() {
   const router = useRouter();
@@ -497,8 +530,8 @@ export default function CanvasPage() {
           type: 'automationNode',
           position: manualPosition,
           data: { ruleId: rule.id },
-          width: 180,
-          height: 58,
+          measured: AUTOMATION_NODE_SIZE,
+          handles: AUTOMATION_NODE_HANDLES,
         };
       }
       const anchor = nodes.find(n => n.id === rule.scopeTableId);
@@ -509,15 +542,8 @@ export default function CanvasPage() {
         type: 'automationNode',
         position: { x: anchorX + 320, y: anchorY + i * 70 },
         data: { ruleId: rule.id },
-        // React Flow, boyutu ResizeObserver ile ÖLÇENE kadar node'u
-        // `visibility: hidden` tutar ve ölçülen boyutu node nesnesine geri
-        // yazar. Bu node'lar her render'da YENİDEN üretiliyor (kural
-        // listesinden türetiliyor, kalıcı React Flow state'inde yaşamıyor),
-        // yani ölçülen değer hiçbir zaman kalıcı olmuyor ve node sonsuza
-        // kadar görünmez kalıyordu. Sabit width/height vermek, React Flow'a
-        // ölçmeyi hiç beklemeden node'u hemen "ölçülmüş" saydırıyor.
-        width: 180,
-        height: 58,
+        measured: AUTOMATION_NODE_SIZE,
+        handles: AUTOMATION_NODE_HANDLES,
       };
     });
     return [...processedNodes, ...automationNodes];
@@ -527,6 +553,10 @@ export default function CanvasPage() {
     const automationEdges = automationRules.map(rule => ({
       id: `automation-edge-${rule.id}`,
       source: rule.scopeTableId,
+      // TableNode'un tüm handle'ları bir kolona ait ve id taşıyor; id'siz bir
+      // handle olmadığı için sourceHandle verilmezse React Flow kenarı
+      // konumlandıramıyor ve HİÇ çizmiyor. Çapa handle'ı bunun için var.
+      sourceHandle: FLOW_HANDLE_ID,
       target: `automation-${rule.id}`,
       // Kendi kenar tipi: bir FK ilişkisiyle karıştırılmasın diye üzerinde
       // "Flow" etiketi taşıyor ve kural tetiklendiğinde vurgulanıyor.

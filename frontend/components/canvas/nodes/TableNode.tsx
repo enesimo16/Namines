@@ -3,6 +3,13 @@ import type { ColumnDiffDetails } from '../../../utils/schemaDiff';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
 import { Key, Link, Pencil, Plus, Minus, RefreshCw } from 'lucide-react';
 import { SchemaTable } from '../../../types/schema';
+
+/**
+ * Namines Flow kenarının tablo ucundaki çapası. `app/canvas/page.tsx` bu id'yi
+ * `sourceHandle` olarak veriyor — iki taraf aynı sabiti kullanmazsa kenar
+ * sessizce çizilmez (bkz. header'daki Handle açıklaması).
+ */
+export const FLOW_HANDLE_ID = 'namines-flow-source';
 import { useLinterStore } from '../../../store/useLinterStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useAutomationStore } from '../../../store/useAutomationStore';
@@ -266,6 +273,22 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
         {table.color && (
           <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: table.color }} />
         )}
+
+        {/* Namines Flow kenarının bağlanma noktası.
+            Diğer handle'ların HEPSİ bir kolona ait ve `id={col.id}` taşıyor;
+            id'siz (varsayılan) bir handle yoktu. Flow kenarı da sourceHandle
+            belirtmediği için React Flow bağlanacak nokta bulamıyor ve çizgiyi
+            HİÇ ÇİZMİYORDU — otomasyon düğümü tabloya bağlıymış gibi durup
+            aslında görünür hiçbir bağı olmuyordu.
+            `isConnectable={false}`: bu yalnızca bir çapa; kullanıcı buradan
+            elle bir ilişki çekemesin, yoksa kolonsuz bir FK denemesi olurdu. */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          id={FLOW_HANDLE_ID}
+          className="!w-2 !h-2 !bg-warning !border-0 !opacity-0"
+        />
+
         <div className="flex items-center gap-2 min-w-0">
           <span className="truncate">{table.name}</span>
           {diffBadge}
