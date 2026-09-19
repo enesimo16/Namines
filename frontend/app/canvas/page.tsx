@@ -19,6 +19,7 @@ import '@xyflow/react/dist/style.css';
 
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAutomationStore } from '../../store/useAutomationStore';
+import { useFlowNodePositionStore } from '../../store/useFlowNodePositionStore';
 import { useAIDba } from '../../hooks/useAIDba';
 import { useDbaStore } from '../../store/useDbaStore';
 import { useProjectAutoSave } from '../../hooks/useProjectAutoSave';
@@ -330,12 +331,17 @@ export default function CanvasPage() {
       // nodesWithAutomation) — Backspace ile silinirse gerçek işlem kural
       // listesinden silmek, `deleteTable`'ı çağırmak değil.
       if (node.id.startsWith('automation-')) {
-        useAutomationStore.getState().deleteRule(node.id.replace('automation-', ''));
+        const ruleId = node.id.replace('automation-', '');
+        useAutomationStore.getState().deleteRule(ruleId);
+        useFlowNodePositionStore.getState().clearPosition(ruleId);
         return;
       }
       // Tablo silinirken ona bağlı Namines Flow kuralları da temizlenir —
       // aksi hâlde artık var olmayan bir tabloya bağlı, asla ateşlenemeyecek
-      // "hayalet" kurallar kalırdı.
+      // "hayalet" kurallar kalırdı. Elle sürüklenmiş konumları da aynı anda
+      // temizliyoruz, yoksa localStorage'da hiç kullanılmayacak girdiler birikir.
+      useAutomationStore.getState().rulesForTable(node.id)
+        .forEach(rule => useFlowNodePositionStore.getState().clearPosition(rule.id));
       useAutomationStore.getState().deleteRulesForTable(node.id);
       deleteTable(node.id);
     });
@@ -391,6 +397,30 @@ export default function CanvasPage() {
   // otomasyon kurallarını bilmek zorunda kalmaz (bkz. spec'in "şemadan
   // ayrı depolama" kararı).
   const automationRules = useAutomationStore(s => s.rules);
+  const flowNodePositions = useFlowNodePositionStore(s => s.positions);
+  const setFlowNodePosition = useFlowNodePositionStore(s => s.setPosition);
+
+  /**
+   * ReactFlow'un `onNodesChange`'i tek bir dizi içinde HEM gerçek tablo
+   * node'larının hem de türetilmiş Flow node'larının değişikliklerini
+   * bildiriyor. Şema deposunun `onNodesChange`'i yalnızca kendi bildiği
+   * (tablo) node id'lerini tanıyor — bir Flow node'unun `position`
+   * değişikliğini sessizce yok sayıyordu, sürüklemenin hiçbir yerde kalıcı
+   * olmamasının ikinci parçası buydu. Flow'a ait değişiklikleri burada
+   * ayırıp `useFlowNodePositionStore`'a yönlendiriyoruz; geri kalanı (gerçek
+   * tablo node'ları) olduğu gibi şema deposuna gidiyor.
+   */
+  const handleNodesChange = useCallback((changes: Parameters<typeof onNodesChange>[0]) => {
+    const schemaChanges: typeof changes = [];
+    for (const change of changes) {
+      if (change.type === 'position' && change.id.startsWith('automation-') && change.position) {
+        setFlowNodePosition(change.id.slice('automation-'.length), change.position);
+        continue;
+      }
+      schemaChanges.push(change);
+    }
+    if (schemaChanges.length > 0) onNodesChange(schemaChanges);
+  }, [onNodesChange, setFlowNodePosition]);
 
   // Compute final nodes list with diff states
   const processedNodes = useMemo(() => {
@@ -449,6 +479,21 @@ export default function CanvasPage() {
   // branch karşılaştırma modunda da doğru şekilde görünmeye devam ederler.
   const nodesWithAutomation = useMemo(() => {
     const automationNodes = automationRules.map((rule, i) => {
+      // Kullanıcı bu düğümü daha önce elle sürüklediyse o konum kazanır —
+      // aksi hâlde her render ankor tabloya göre YENİDEN hesaplanan sabit
+      // ofsete geri dönerdi ve sürükleme hiç kalıcı olmazdı (bkz.
+      // useFlowNodePositionStore'daki açıklama).
+      const manualPosition = flowNodePositions[rule.id];
+      if (manualPosition) {
+        return {
+          id: `automation-${rule.id}`,
+          type: 'automationNode',
+          position: manualPosition,
+          data: { ruleId: rule.id },
+          width: 180,
+          height: 58,
+        };
+      }
       const anchor = nodes.find(n => n.id === rule.scopeTableId);
       const anchorX = anchor?.position.x ?? 0;
       const anchorY = anchor?.position.y ?? 0;
@@ -469,7 +514,7 @@ export default function CanvasPage() {
       };
     });
     return [...processedNodes, ...automationNodes];
-  }, [processedNodes, nodes, automationRules]);
+  }, [processedNodes, nodes, automationRules, flowNodePositions]);
 
   const edgesWithAutomation = useMemo(() => {
     const automationEdges = automationRules.map(rule => ({
@@ -619,7 +664,7 @@ export default function CanvasPage() {
             id="react-flow-canvas"
             nodes={nodesWithAutomation}
             edges={edgesWithAutomation}
-            onNodesChange={onNodesChange}
+            onNodesChange={handleNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
             onNodesDelete={handleNodesDelete}
