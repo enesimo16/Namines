@@ -21,6 +21,7 @@ import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAutomationStore } from '../../store/useAutomationStore';
 import { useFlowNodePositionStore } from '../../store/useFlowNodePositionStore';
 import { useAIDba } from '../../hooks/useAIDba';
+import { useNaminesFlowRuntime } from '../../hooks/useNaminesFlowRuntime';
 import { useDbaStore } from '../../store/useDbaStore';
 import { useProjectAutoSave } from '../../hooks/useProjectAutoSave';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
@@ -56,6 +57,7 @@ import KeyboardShortcutsModal from '../../components/canvas/KeyboardShortcutsMod
 import TableNode from '../../components/canvas/nodes/TableNode';
 import AutomationNode from '../../components/canvas/nodes/AutomationNode';
 import RelationEdge from '../../components/canvas/edges/RelationEdge';
+import AutomationEdge from '../../components/canvas/edges/AutomationEdge';
 import RegionalPromptPanel from '../../components/canvas/panels/RegionalPromptPanel';
 import ToolbarPanel from '../../components/canvas/panels/ToolbarPanel';
 import CanvasExportToolbar from '../../components/canvas/panels/CanvasExportToolbar';
@@ -388,8 +390,13 @@ export default function CanvasPage() {
     useAutomationStore.getState().loadRules(activeProjectId);
   }, [activeProjectId]);
 
+  // Namines Flow'un istemci tarafı çalışma zamanı — olay veriyolunu dinler,
+  // eşleşen kurallar için toast basar ve node/edge'e "tetiklendi" damgası
+  // koyar. Bu çağrı olmadan `Toast` aksiyonu hiçbir şey yapmaz.
+  useNaminesFlowRuntime();
+
   const nodeTypes = useMemo(() => ({ tableNode: TableNode, automationNode: AutomationNode }), []);
-  const edgeTypes = useMemo(() => ({ relationEdge: RelationEdge }), []);
+  const edgeTypes = useMemo(() => ({ relationEdge: RelationEdge, automationEdge: AutomationEdge }), []);
 
   // Namines Flow node/edge'leri React Flow state'inde YAŞAMAZ — kural
   // listesinden (useAutomationStore) her render'da TÜRETİLİR. Böylece
@@ -521,7 +528,10 @@ export default function CanvasPage() {
       id: `automation-edge-${rule.id}`,
       source: rule.scopeTableId,
       target: `automation-${rule.id}`,
-      style: { strokeDasharray: '4 4', stroke: 'var(--color-warning-text)' },
+      // Kendi kenar tipi: bir FK ilişkisiyle karıştırılmasın diye üzerinde
+      // "Flow" etiketi taşıyor ve kural tetiklendiğinde vurgulanıyor.
+      type: 'automationEdge',
+      data: { ruleId: rule.id },
       animated: false,
     }));
     return [...edges, ...automationEdges];

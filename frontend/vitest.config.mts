@@ -22,7 +22,13 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['store/**/*.test.ts', 'lib/**/*.test.ts', 'utils/**/*.test.ts', 'components/**/*.test.tsx'],
+    include: [
+      'store/**/*.test.ts',
+      'lib/**/*.test.ts',
+      'utils/**/*.test.ts',
+      'hooks/**/*.test.tsx',
+      'components/**/*.test.tsx',
+    ],
     setupFiles: ['./test/setup.ts', './test/setup-dom.ts'],
     // Next.js derlemesi ve `.next` çıktısı testlerin ilgi alanı değil.
     exclude: ['node_modules/**', '.next/**'],
