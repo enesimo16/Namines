@@ -6,6 +6,7 @@ import { useReactFlow } from '@xyflow/react';
 import { Plus, Trash2, Pencil, Table2, Copy, Zap } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAutomationStore } from '../../store/useAutomationStore';
+import { useToastStore } from '../../store/useToastStore';
 
 interface ContextMenuState {
   x: number;
@@ -30,6 +31,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
   const { isEditMode, schema, addTable, deleteTable, duplicateTable, setSelectedTableForEdit } = useSchemaStore();
   const addAutomationRule = useAutomationStore(s => s.addRule);
   const deleteRulesForTable = useAutomationStore(s => s.deleteRulesForTable);
+  const showToast = useToastStore(s => s.showToast);
   const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
 
   // Sağ tıklanan node bir GERÇEK tablo mu yoksa bir Namines Flow node'u mu?
@@ -38,7 +40,13 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
   const isTableNode = !!menuState?.nodeId && !!schema?.tables.some(t => t.id === menuState.nodeId);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (!isEditMode) return; // Don't show menu if not in edit mode
+    if (!isEditMode) {
+      // Sessizce hiçbir şey açmamak, "sağ tık kırık" izlenimi veriyordu —
+      // menü zaten görüntüleme modunda yok, ama kullanıcı NEDENİNİ bilmeli.
+      e.preventDefault();
+      showToast('Right-click actions need Edit Mode — click the pencil icon to turn it on.', 'info');
+      return;
+    }
 
     // Was a node clicked?
     const nodeEl = (e.target as HTMLElement).closest('[data-id]');
