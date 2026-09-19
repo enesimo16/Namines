@@ -3,10 +3,21 @@ import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import AutomationRuleDrawer from './AutomationRuleDrawer';
 import { useAutomationStore } from '../../store/useAutomationStore';
+import { useSchemaStore } from '../../store/useSchemaStore';
 
 describe('AutomationRuleDrawer', () => {
   beforeEach(() => {
     useAutomationStore.setState({ rules: [], selectedRuleId: null });
+    // Kapsam seçici tabloları şemadan okuyor; şemasız bir canvas'ta zaten
+    // kural kurulamıyor, bu yüzden testler de gerçekçi bir şema ile çalışıyor.
+    useSchemaStore.setState({
+      schema: {
+        schemaId: 's1',
+        name: 'test',
+        tables: [{ id: 't-orders', name: 'orders', columns: [] }],
+        relations: [],
+      },
+    } as never);
   });
   afterEach(() => cleanup());
 
@@ -64,6 +75,108 @@ describe('AutomationRuleDrawer', () => {
     render(<AutomationRuleDrawer />);
 
     expect(screen.queryByLabelText(/webhook url/i)).not.toBeInTheDocument();
+  });
+
+  it('proje geneline gecince iliski tetikleyicileri aciliyor', () => {
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    fireEvent.change(screen.getByLabelText(/scope/i), { target: { value: '__project__' } });
+
+    const offered = Array.from((screen.getByLabelText(/trigger/i) as HTMLSelectElement).options).map(o => o.value);
+    expect(offered).toContain('RelationAdded');
+    expect(offered).toContain('RelationDeleted');
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.scopeTableId).toBe('');
+  });
+
+  it('tablo kapsamina donerken iliski tetikleyicisi gecerli bir degere cekiliyor', () => {
+    // Aksi hâlde kural sessizce asla tetiklenemez hâle gelirdi.
+    const id = useAutomationStore.getState().addRule('', 'RelationAdded', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    fireEvent.change(screen.getByLabelText(/scope/i), { target: { value: 't-orders' } });
+
+    const saved = useAutomationStore.getState().rules.find(r => r.id === id);
+    expect(saved?.scopeTableId).toBe('t-orders');
+    expect(saved?.triggerType).toBe('TableDeleted');
+  });
+
+  it('kosul eklenip degeri kaydediliyor', () => {
+    const id = useAutomationStore.getState().addRule('t-orders', 'ColumnDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    fireEvent.click(screen.getByLabelText(/add condition/i));
+    fireEvent.change(screen.getByLabelText(/condition 1 field/i), { target: { value: 'columnName' } });
+    fireEvent.change(screen.getByLabelText(/condition 1 operator/i), { target: { value: 'endsWith' } });
+    const value = screen.getByLabelText(/condition 1 value/i);
+    fireEvent.change(value, { target: { value: '_id' } });
+    fireEvent.blur(value);
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.conditions).toEqual([
+      { field: 'columnName', op: 'endsWith', value: '_id' },
+    ]);
+  });
+
+  it('iliski tetikleyicisinde kosul bolumu sunulmuyor', () => {
+    // Olay tablo/kolon adı taşımadığı için yazılan her koşul kuralı ölü
+    // hâle getirirdi.
+    const id = useAutomationStore.getState().addRule('', 'RelationAdded', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    expect(screen.queryByLabelText(/add condition/i)).not.toBeInTheDocument();
+  });
+
+  it('aksiyon eklenip sirasi degistirilebiliyor', () => {
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    fireEvent.click(screen.getByLabelText(/add action/i));
+    fireEvent.change(screen.getByLabelText(/^action 2$/i), { target: { value: 'Webhook' } });
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.actions.map(a => a.actionType))
+      .toEqual(['Toast', 'Webhook']);
+
+    fireEvent.click(screen.getByLabelText(/move action 2 up/i));
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.actions.map(a => a.actionType))
+      .toEqual(['Webhook', 'Toast']);
+  });
+
+  it('aksiyon silinebiliyor', () => {
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    fireEvent.click(screen.getByLabelText(/remove action 1/i));
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.actions).toEqual([]);
+  });
+
+  it('kural adi kaydediliyor', () => {
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    const name = screen.getByLabelText(/flow name/i);
+    fireEvent.change(name, { target: { value: 'Kritik tablo bekcisi' } });
+    fireEvent.blur(name);
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.name).toBe('Kritik tablo bekcisi');
+  });
+
+  it('enabled anahtari kurali kapatiyor', () => {
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    fireEvent.click(screen.getByLabelText(/enabled/i));
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.enabled).toBe(false);
   });
 
   it('the close button clears the selection without deleting the rule', () => {

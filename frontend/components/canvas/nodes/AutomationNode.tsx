@@ -56,9 +56,15 @@ function AutomationNode({ data, selected }: NodeProps<AutomationNodeType>) {
         className="flex items-center gap-1.5 w-full text-left cursor-pointer"
       >
         <Zap className={`w-3.5 h-3.5 text-warning-text shrink-0 ${isFiring ? 'animate-pulse' : ''}`} />
+        {/* Marka adı HER ZAMAN duruyor, kuralın kendi adı varsa bile —
+            kullanıcının açık talebi bu sistemin canvas'ta adıyla görünmesi. */}
         <span className="text-xs font-semibold text-warning-text">Namines Flow</span>
         {disabled && <PauseCircle className="w-3 h-3 text-content-muted shrink-0 ml-auto" />}
       </button>
+
+      {rule.name && (
+        <div className="mt-0.5 truncate text-[11px] font-medium text-content-primary">{rule.name}</div>
+      )}
       <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-content-secondary">
         <span>{TRIGGER_LABEL[rule.triggerType] ?? rule.triggerType}</span>
         <span aria-hidden="true">→</span>
