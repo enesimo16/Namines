@@ -4,8 +4,3 @@ table users {
   created_at timestamp not null
 }
 
-table projects {
-  id int pk
-  owner_id int not null
-  name varchar(255) not null
-}
