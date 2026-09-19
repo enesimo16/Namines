@@ -72,9 +72,18 @@ jobs:
           cp "out/mcp/namines-mcp${{ matrix.ext }}" "dist/namines-mcp-${{ matrix.rid }}${{ matrix.ext }}"
           cp "out/cli/namines${{ matrix.ext }}"     "dist/namines-${{ matrix.rid }}${{ matrix.ext }}"
 
+      # `shasum` macOS/Linux'ta var, Windows runner'ının Git Bash'inde yok
+      # (exit 127); `sha256sum` ise tersi. İkisi de aynı "hash  dosya" biçimini
+      # üretiyor (download.js'in beklediği biçim), o yüzden var olanı kullan.
       - name: Checksums
         shell: bash
-        run: cd dist && shasum -a 256 * > "checksums-${{ matrix.rid }}.txt"
+        run: |
+          cd dist
+          if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 * > "checksums-${{ matrix.rid }}.txt"
+          else
+            sha256sum * > "checksums-${{ matrix.rid }}.txt"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
