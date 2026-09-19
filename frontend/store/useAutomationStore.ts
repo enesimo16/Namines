@@ -36,12 +36,30 @@ const pendingCreates = new Map<string, Promise<string | null>>();
 
 export type AutomationActionType = 'Webhook' | 'DbaCheck' | 'SeedData' | 'Toast';
 
-export interface AutomationRule {
-  id: string;
-  scopeTableId: string;
-  triggerType: NaminesFlowEvent['type'];
+export type AutomationConditionField = 'tableName' | 'columnName' | 'columnType';
+export type AutomationConditionOp = 'equals' | 'notEquals' | 'contains' | 'startsWith' | 'endsWith';
+
+/** Tetikleyiciyi daraltan tek bir koşul. Koşullar arasında VE mantığı var. */
+export interface AutomationCondition {
+  field: AutomationConditionField;
+  op: AutomationConditionOp;
+  value: string;
+}
+
+/** Zincirdeki tek bir adım. Sıra, dizideki konumdan geliyor. */
+export interface AutomationActionStep {
   actionType: AutomationActionType;
   actionConfig: { url?: string };
+}
+
+export interface AutomationRule {
+  id: string;
+  /** Boş string = proje geneli (sunucuda `ScopeTableId == null`). */
+  scopeTableId: string;
+  name: string;
+  triggerType: NaminesFlowEvent['type'];
+  conditions: AutomationCondition[];
+  actions: AutomationActionStep[];
   enabled: boolean;
 }
 
@@ -50,7 +68,10 @@ interface AutomationStoreState {
   selectedRuleId: string | null;
   loadRules: (projectId: string) => Promise<void>;
   addRule: (scopeTableId: string, triggerType: NaminesFlowEvent['type'], actionType: AutomationActionType) => string;
-  updateRule: (id: string, patch: Partial<Pick<AutomationRule, 'triggerType' | 'actionType' | 'actionConfig' | 'enabled'>>) => void;
+  updateRule: (
+    id: string,
+    patch: Partial<Pick<AutomationRule, 'name' | 'scopeTableId' | 'triggerType' | 'conditions' | 'actions' | 'enabled'>>,
+  ) => void;
   deleteRule: (id: string) => void;
   deleteRulesForTable: (tableId: string) => void;
   rulesForTable: (tableId: string) => AutomationRule[];
@@ -89,7 +110,15 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
   addRule: (scopeTableId, triggerType, actionType) => {
     const id = genId();
     set(state => ({
-      rules: [...state.rules, { id, scopeTableId, triggerType, actionType, actionConfig: {}, enabled: true }],
+      rules: [...state.rules, {
+        id,
+        scopeTableId,
+        name: '',
+        triggerType,
+        conditions: [],
+        actions: [{ actionType, actionConfig: {} }],
+        enabled: true,
+      }],
     }));
     // İyimser: yerel state anında güncellendi, sunucuya arka planda bildiriliyor.
     // Sunucu KENDİ id'sini üretiyor (AutomationRule.Id = Guid.NewGuid()), yani
@@ -160,23 +189,13 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
         if (!resolvedId) return;
         const rule = get().rules.find(r => r.id === resolvedId);
         if (!rule) return;
-        void updateAutomationRule(resolvedId, {
-          triggerType: rule.triggerType,
-          actionType: rule.actionType,
-          actionConfig: rule.actionConfig,
-          enabled: rule.enabled,
-        })?.catch?.(() => {});
+        void updateAutomationRule(resolvedId, rule)?.catch?.(() => {});
       });
       return;
     }
     const merged = get().rules.find(r => r.id === id);
     if (!merged) return;
-    void updateAutomationRule(id, {
-      triggerType: merged.triggerType,
-      actionType: merged.actionType,
-      actionConfig: merged.actionConfig,
-      enabled: merged.enabled,
-    })?.catch?.(() => {});
+    void updateAutomationRule(id, merged)?.catch?.(() => {});
   },
 
   deleteRule: (id) => {

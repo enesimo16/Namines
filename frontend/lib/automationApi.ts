@@ -11,37 +11,75 @@
  * o istemcide merkezi — ham `fetch` burada TEKRAR uygulanmıyor.
  */
 import api from '../services/api';
-import type { AutomationRule, AutomationActionType } from '../store/useAutomationStore';
+import type {
+  AutomationRule,
+  AutomationActionType,
+  AutomationActionStep,
+  AutomationCondition,
+} from '../store/useAutomationStore';
 import type { NaminesFlowEvent } from './naminesFlowEventBus';
 
-/** Sunucunun döndürdüğü/beklediği ham şekil — `ActionConfigJson` düz bir JSON string. */
+/**
+ * Sunucunun döndürdüğü/beklediği ham şekil. Koşullar ve aksiyon
+ * yapılandırmaları tel üzerinde JSON STRING olarak taşınıyor (sunucu tarafında
+ * serbest biçimli saklandıkları için); çeviri yalnızca burada yapılıyor ki
+ * store ve bileşenler yazılı tiplerle çalışsın.
+ */
+interface AutomationActionDto {
+  actionType: string;
+  actionConfigJson: string;
+}
+
 interface AutomationRuleDto {
   id: string;
   projectId: string;
   scopeTableId: string | null;
+  name: string;
   triggerType: string;
-  actionType: string;
-  actionConfigJson: string;
+  conditionsJson: string;
+  actions: AutomationActionDto[];
   enabled: boolean;
 }
 
-const parseActionConfig = (json: string): { url?: string } => {
+/** Bozuk/eksik JSON sessizce yedek değere düşüyor — tek bir kayıt yüzünden canvas boş kalmasın. */
+const parseObject = (json: string | undefined): { url?: string } => {
+  if (!json) return {};
   try {
     const parsed = JSON.parse(json);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
+  }
+};
+
+const parseConditions = (json: string | undefined): AutomationCondition[] => {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 };
 
 const fromDto = (dto: AutomationRuleDto): AutomationRule => ({
   id: dto.id,
   scopeTableId: dto.scopeTableId ?? '',
+  name: dto.name ?? '',
   triggerType: dto.triggerType as NaminesFlowEvent['type'],
-  actionType: dto.actionType as AutomationActionType,
-  actionConfig: parseActionConfig(dto.actionConfigJson),
+  conditions: parseConditions(dto.conditionsJson),
+  actions: (dto.actions ?? []).map(a => ({
+    actionType: a.actionType as AutomationActionType,
+    actionConfig: parseObject(a.actionConfigJson),
+  })),
   enabled: dto.enabled,
 });
+
+const toActionDtos = (actions: AutomationActionStep[]): AutomationActionDto[] =>
+  actions.map(a => ({
+    actionType: a.actionType,
+    actionConfigJson: JSON.stringify(a.actionConfig ?? {}),
+  }));
 
 export async function fetchAutomationRules(projectId: string): Promise<AutomationRule[]> {
   const response = await api.get<AutomationRuleDto[]>('/automation/rules', { params: { projectId } });
@@ -54,10 +92,12 @@ export async function createAutomationRule(
 ): Promise<AutomationRule> {
   const response = await api.post<AutomationRuleDto>('/automation/rules', {
     projectId,
-    scopeTableId,
+    // Boş string proje geneli demek; sunucu bunu null olarak bekliyor.
+    scopeTableId: scopeTableId === '' ? null : scopeTableId,
+    name: '',
     triggerType,
-    actionType,
-    actionConfigJson: '{}',
+    conditionsJson: '[]',
+    actions: [{ actionType, actionConfigJson: '{}' }],
   });
   return fromDto(response.data);
 }
@@ -69,20 +109,14 @@ export async function createAutomationRule(
  * birleştirilmiş nihai hâli geçirmeli — `useAutomationStore.updateRule` bunu
  * yerel state'i güncelledikten SONRA oradan okuyarak yapıyor.
  */
-export async function updateAutomationRule(
-  id: string,
-  fields: {
-    triggerType: NaminesFlowEvent['type'];
-    actionType: AutomationActionType;
-    actionConfig: { url?: string };
-    enabled: boolean;
-  },
-): Promise<AutomationRule> {
+export async function updateAutomationRule(id: string, rule: AutomationRule): Promise<AutomationRule> {
   const response = await api.put<AutomationRuleDto>(`/automation/rules/${id}`, {
-    triggerType: fields.triggerType,
-    actionType: fields.actionType,
-    actionConfigJson: JSON.stringify(fields.actionConfig ?? {}),
-    enabled: fields.enabled,
+    name: rule.name,
+    scopeTableId: rule.scopeTableId === '' ? null : rule.scopeTableId,
+    triggerType: rule.triggerType,
+    conditionsJson: JSON.stringify(rule.conditions ?? []),
+    actions: toActionDtos(rule.actions ?? []),
+    enabled: rule.enabled,
   });
   return fromDto(response.data);
 }

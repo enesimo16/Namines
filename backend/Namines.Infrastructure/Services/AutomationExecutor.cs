@@ -20,6 +20,9 @@ namespace Namines.Infrastructure.Services;
 public interface IAutomationExecutor
 {
     Task RunAsync(string projectId, SchemaDiffResult diff, DatabaseSchema oldSchema, DatabaseSchema newSchema, CancellationToken ct = default);
+
+    /// <summary>Tek bir kuralın zincirini çalıştırır — "şimdi test et" bu yolu kullanır.</summary>
+    Task RunRuleAsync(AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, bool isTest, CancellationToken ct);
 }
 
 /// <summary>
@@ -59,6 +62,7 @@ public sealed class AutomationExecutor : IAutomationExecutor
         if (project is null) return; // Proje bu arada silinmiş olabilir — iş düşer.
 
         var rules = await _db.AutomationRules.AsNoTracking()
+            .Include(r => r.Actions)
             .Where(r => r.ProjectId == projectId && r.Enabled).ToListAsync(ct);
         if (rules.Count == 0) return;
 
@@ -68,53 +72,75 @@ public sealed class AutomationExecutor : IAutomationExecutor
         var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsedEngine)
             ? parsedEngine : DatabaseType.PostgreSQL;
 
-        foreach (var rule in matched)
+        foreach (var match in matched)
+        {
+            await RunRuleAsync(match.Rule, project.UserId, newSchema, engine, isTest: false, ct);
+        }
+    }
+
+    /// <summary>
+    /// Bir kuralın aksiyon zincirini sırayla çalıştırır.
+    ///
+    /// Her adım KENDİ try/catch'inde: bir adımın hatası (webhook 5xx, AI
+    /// hatası, kota reddi) sonraki adımları düşürmüyor. "Bir kuralın hatası
+    /// diğer kuralları etkilemez" ilkesinin adım seviyesindeki karşılığı —
+    /// zincirin ikinci adımı ilk adım patladı diye sessizce atlanırsa
+    /// kullanıcı bunu hiçbir yerden anlayamazdı.
+    /// </summary>
+    public async Task RunRuleAsync(
+        AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, bool isTest, CancellationToken ct)
+    {
+        foreach (var action in rule.Actions.OrderBy(a => a.SortOrder))
         {
             // "Toast" sunucuda HİÇ işlenmiyor — istemci kendi event bus'ından
             // dinliyor. Log dahi yazılmıyor: sunucunun hiç bilmediği bir şeyin
             // "çalıştı" kaydı tutması yanıltıcı olurdu.
-            if (rule.ActionType == "Toast") continue;
+            if (action.ActionType == "Toast") continue;
 
             try
             {
-                await RunOneAsync(rule, project.UserId, newSchema, engine, ct);
+                await RunOneAsync(rule, action, userId, schema, engine, isTest, ct);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Namines Flow: {RuleId} kurali calistirilirken beklenmeyen hata.", rule.Id);
-                await LogAsync(rule.Id, "Failed", ex.Message, null, ct);
+                _logger.LogError(ex, "Namines Flow: {RuleId} kuralinin {ActionType} adimi calistirilirken beklenmeyen hata.",
+                    rule.Id, action.ActionType);
+                await LogAsync(rule.Id, action.ActionType, "Failed", ex.Message, null, isTest, ct);
             }
         }
     }
 
-    private async Task RunOneAsync(AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, CancellationToken ct)
+    private async Task RunOneAsync(
+        AutomationRule rule, AutomationAction action, string userId, DatabaseSchema schema,
+        DatabaseType engine, bool isTest, CancellationToken ct)
     {
-        switch (rule.ActionType)
+        switch (action.ActionType)
         {
             case "Webhook":
-                await RunWebhookAsync(rule, ct);
+                await RunWebhookAsync(rule, action, isTest, ct);
                 return;
             case "DbaCheck":
-                await RunDbaCheckAsync(rule, userId, schema, engine, ct);
+                await RunDbaCheckAsync(rule, action, userId, schema, engine, isTest, ct);
                 return;
             case "SeedData":
-                await RunSeedDataAsync(rule, userId, schema, ct);
+                await RunSeedDataAsync(rule, action, userId, schema, isTest, ct);
                 return;
             default:
-                await LogAsync(rule.Id, "Failed", $"Unknown action type: {rule.ActionType}", null, ct);
+                await LogAsync(rule.Id, action.ActionType, "Failed", $"Unknown action type: {action.ActionType}", null, isTest, ct);
                 return;
         }
     }
 
-    private async Task RunWebhookAsync(AutomationRule rule, CancellationToken ct)
+    private async Task RunWebhookAsync(AutomationRule rule, AutomationAction action, bool isTest, CancellationToken ct)
     {
-        var url = ExtractUrl(rule.ActionConfigJson);
+        var url = ExtractUrl(action.ActionConfigJson);
 
         // HER ÇALIŞTIRMADA yeniden doğrulanıyor — kaydedilen bir URL zamanla
-        // farklı bir IP'ye çözülebilir (DNS rebinding).
+        // farklı bir IP'ye çözülebilir (DNS rebinding). Test çalıştırması da
+        // bu kontrolden MUAF DEĞİL, aksi hâlde "test" bir SSRF kapısı olurdu.
         if (url is null || !SsrfGuard.IsUrlSafe(url))
         {
-            await LogAsync(rule.Id, "Skipped", "Webhook URL is missing or not a safe public target.", null, ct);
+            await LogAsync(rule.Id, action.ActionType, "Skipped", "Webhook URL is missing or not a safe public target.", null, isTest, ct);
             return;
         }
 
@@ -127,17 +153,21 @@ public sealed class AutomationExecutor : IAutomationExecutor
         }, ct);
 
         if (response.IsSuccessStatusCode)
-            await LogAsync(rule.Id, "Success", null, null, ct);
+            await LogAsync(rule.Id, action.ActionType, "Success", null, null, isTest, ct);
         else
-            await LogAsync(rule.Id, "Failed", $"Webhook returned {(int)response.StatusCode}.", null, ct);
+            await LogAsync(rule.Id, action.ActionType, "Failed", $"Webhook returned {(int)response.StatusCode}.", null, isTest, ct);
     }
 
-    private async Task RunDbaCheckAsync(AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, CancellationToken ct)
+    private async Task RunDbaCheckAsync(
+        AutomationRule rule, AutomationAction action, string userId, DatabaseSchema schema,
+        DatabaseType engine, bool isTest, CancellationToken ct)
     {
+        // Kota rezervasyonu test çalıştırmasında da yapılıyor: gerçek bir AI
+        // çağrısı gidiyor, bedeli de gerçek.
         var decision = await _quota.TryReserveAsync(userId, AutomationTokenEstimate, ct);
         if (decision != AiQuotaDecision.Allowed)
         {
-            await LogAsync(rule.Id, "Skipped", "Quota exceeded.", null, ct);
+            await LogAsync(rule.Id, action.ActionType, "Skipped", "Quota exceeded.", null, isTest, ct);
             return;
         }
 
@@ -145,22 +175,23 @@ public sealed class AutomationExecutor : IAutomationExecutor
         var summary = issues.Count == 0
             ? "No issues found."
             : $"{issues.Count} issue(s) found.";
-        await LogAsync(rule.Id, "Success", null, summary, ct);
+        await LogAsync(rule.Id, action.ActionType, "Success", null, summary, isTest, ct);
     }
 
-    private async Task RunSeedDataAsync(AutomationRule rule, string userId, DatabaseSchema schema, CancellationToken ct)
+    private async Task RunSeedDataAsync(
+        AutomationRule rule, AutomationAction action, string userId, DatabaseSchema schema, bool isTest, CancellationToken ct)
     {
         var decision = await _quota.TryReserveAsync(userId, AutomationTokenEstimate, ct);
         if (decision != AiQuotaDecision.Allowed)
         {
-            await LogAsync(rule.Id, "Skipped", "Quota exceeded.", null, ct);
+            await LogAsync(rule.Id, action.ActionType, "Skipped", "Quota exceeded.", null, isTest, ct);
             return;
         }
 
         // v1'de otomatik veritabanına YAZILMAZ — yalnızca üretilip özetlenir.
         var sql = await _aiService.GenerateMockDataAsync(schema);
         var summary = sql.Length > 500 ? sql[..500] + "…" : sql;
-        await LogAsync(rule.Id, "Success", null, summary, ct);
+        await LogAsync(rule.Id, action.ActionType, "Success", null, summary, isTest, ct);
     }
 
     private static string? ExtractUrl(string actionConfigJson)
@@ -176,11 +207,13 @@ public sealed class AutomationExecutor : IAutomationExecutor
         }
     }
 
-    private async Task LogAsync(string ruleId, string status, string? error, string? summary, CancellationToken ct)
+    private async Task LogAsync(
+        string ruleId, string actionType, string status, string? error, string? summary, bool isTest, CancellationToken ct)
     {
         _db.AutomationRunLogs.Add(new AutomationRunLog
         {
-            RuleId = ruleId, Status = status, ErrorMessage = error, ResultSummary = summary,
+            RuleId = ruleId, ActionType = actionType, Status = status,
+            ErrorMessage = error, ResultSummary = summary, IsTest = isTest,
         });
         await _db.SaveChangesAsync(ct);
     }

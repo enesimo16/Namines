@@ -15,6 +15,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<OrgAiUsage> OrgAiUsages { get; set; } = null!;
         public DbSet<Branch> Branches { get; set; } = null!;
         public DbSet<Namines.Core.Models.AutomationRule> AutomationRules { get; set; } = null!;
+        public DbSet<Namines.Core.Models.AutomationAction> AutomationActions { get; set; } = null!;
         public DbSet<Namines.Core.Models.AutomationRunLog> AutomationRunLogs { get; set; } = null!;
         public DbSet<SchemaVersion> SchemaVersions { get; set; } = null!;
         public DbSet<ChangeRequest> ChangeRequests { get; set; } = null!;
@@ -162,6 +163,16 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<Namines.Core.Models.AutomationRule>()
                 .HasIndex(r => new { r.ProjectId, r.Enabled });
+
+            // Aksiyonlar kuralın parçası — kural silinince onlarla birlikte gider.
+            builder.Entity<Namines.Core.Models.AutomationRule>()
+                .HasMany(r => r.Actions)
+                .WithOne()
+                .HasForeignKey(a => a.RuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Namines.Core.Models.AutomationAction>()
+                .HasIndex(a => new { a.RuleId, a.SortOrder });
 
             builder.Entity<Namines.Core.Models.AutomationRunLog>()
                 .HasOne<Namines.Core.Models.AutomationRule>()

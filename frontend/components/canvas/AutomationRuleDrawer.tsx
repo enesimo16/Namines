@@ -40,6 +40,10 @@ export default function AutomationRuleDrawer() {
 
   const isOpen = !!selectedRuleId && !!rule;
 
+  // Zincir boş olabilir (sunucudan aksiyonsuz bir kural gelirse); seçicinin
+  // kontrolsüz duruma düşmemesi için varsayılan bir adım varsayılıyor.
+  const firstAction = rule?.actions[0] ?? { actionType: 'Toast' as AutomationActionType, actionConfig: {} };
+
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) setSelectedRuleId(null); }}>
       <Dialog.Portal>
@@ -72,12 +76,20 @@ export default function AutomationRuleDrawer() {
                 </select>
               </label>
 
+              {/* Faz 3: model çoklu aksiyonu taşıyor ama bu çekmece hâlâ
+                  yalnızca İLK adımı düzenletiyor. Adım ekleme/sıralama arayüzü
+                  Faz 4'te geliyor; o zamana kadar mevcut davranış korunuyor. */}
               <label className="flex flex-col gap-1.5 text-xs font-medium text-content-secondary">
                 Action
                 <select
                   className={inputClass}
-                  value={rule.actionType}
-                  onChange={(e) => updateRule(rule.id, { actionType: e.target.value as AutomationActionType })}
+                  value={firstAction.actionType}
+                  onChange={(e) => updateRule(rule.id, {
+                    actions: [
+                      { ...firstAction, actionType: e.target.value as AutomationActionType },
+                      ...rule.actions.slice(1),
+                    ],
+                  })}
                 >
                   {ACTION_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -85,16 +97,21 @@ export default function AutomationRuleDrawer() {
                 </select>
               </label>
 
-              {rule.actionType === 'Webhook' && (
+              {firstAction.actionType === 'Webhook' && (
                 <label className="flex flex-col gap-1.5 text-xs font-medium text-content-secondary">
                   Webhook URL
                   <input
                     type="url"
                     aria-label="Webhook URL"
                     className={inputClass}
-                    defaultValue={rule.actionConfig.url ?? ''}
+                    defaultValue={firstAction.actionConfig.url ?? ''}
                     placeholder="https://example.com/hook"
-                    onBlur={(e) => updateRule(rule.id, { actionConfig: { ...rule.actionConfig, url: e.target.value } })}
+                    onBlur={(e) => updateRule(rule.id, {
+                      actions: [
+                        { ...firstAction, actionConfig: { ...firstAction.actionConfig, url: e.target.value } },
+                        ...rule.actions.slice(1),
+                      ],
+                    })}
                   />
                 </label>
               )}

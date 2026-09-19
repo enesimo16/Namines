@@ -165,8 +165,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
                 ProjectId = "proj-1",
                 ScopeTableId = null,
                 TriggerType = "TableAdded",
-                ActionType = "Webhook",
-                ActionConfigJson = "{}",
+                Actions = { new Namines.Core.Models.AutomationAction { ActionType = "Webhook" } },
                 Enabled = true,
             });
             await ruleDb.SaveChangesAsync();
@@ -197,8 +196,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
             {
                 ProjectId = "proj-1",
                 TriggerType = "TableAdded",
-                ActionType = "Webhook",
-                ActionConfigJson = "{}",
+                Actions = { new Namines.Core.Models.AutomationAction { ActionType = "Webhook" } },
                 Enabled = false,
             });
             await ruleDb.SaveChangesAsync();
@@ -252,8 +250,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
             {
                 ProjectId = "proj-1",
                 TriggerType = "TableAdded",
-                ActionType = "Webhook",
-                ActionConfigJson = "{}",
+                Actions = { new Namines.Core.Models.AutomationAction { ActionType = "Webhook" } },
                 Enabled = true,
             });
             await ruleDb.SaveChangesAsync();

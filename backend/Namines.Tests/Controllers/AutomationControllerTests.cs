@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -101,8 +101,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
             ProjectId = "proj-1",
             ScopeTableId = "t_users",
             TriggerType = "TableAdded",
-            ActionType = "Toast",
-            ActionConfigJson = "{}",
+            Actions = { new Namines.Core.Models.AutomationAction { ActionType = "Toast" } },
         });
         await db.SaveChangesAsync();
 
@@ -129,8 +128,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
             ProjectId = "proj-1",
             ScopeTableId = null,
             TriggerType = "TableAdded",
-            ActionType = "Toast",
-            ActionConfigJson = "{}",
+            Actions = { new AutomationActionDto { ActionType = "Toast" } },
         };
 
         var result = await controller.CreateRule(request, default);
@@ -151,8 +149,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         {
             ProjectId = projectId,
             TriggerType = "TableDeleted",
-            ActionType = "Toast",
-            ActionConfigJson = "{}",
+            Actions = { new AutomationAction { SortOrder = 0, ActionType = "Toast" } },
         };
         db.AutomationRules.Add(rule);
         await db.SaveChangesAsync();
@@ -172,21 +169,34 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         var result = await controller.UpdateRule(rule.Id, new UpdateAutomationRuleRequest
         {
             TriggerType = "ColumnAdded",
-            ActionType = "Webhook",
-            ActionConfigJson = "{\"url\":\"https://example.test/hook\"}",
+            ConditionsJson = "[{\"field\":\"columnName\",\"op\":\"endsWith\",\"value\":\"_id\"}]",
+            Actions =
+            {
+                new AutomationActionDto { ActionType = "Toast" },
+                new AutomationActionDto { ActionType = "Webhook", ActionConfigJson = "{\"url\":\"https://example.test/hook\"}" },
+            },
             Enabled = false,
         }, default);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var returned = Assert.IsType<AutomationRule>(ok.Value);
-        Assert.Equal("Webhook", returned.ActionType);
+        Assert.Equal(2, returned.Actions.Count);
 
         await using var verifyDb = NewContext();
-        var persisted = await verifyDb.AutomationRules.SingleAsync(r => r.Id == rule.Id);
+        var persisted = await verifyDb.AutomationRules.Include(r => r.Actions).SingleAsync(r => r.Id == rule.Id);
         Assert.Equal("ColumnAdded", persisted.TriggerType);
-        Assert.Equal("Webhook", persisted.ActionType);
-        Assert.Equal("{\"url\":\"https://example.test/hook\"}", persisted.ActionConfigJson);
+        Assert.Contains("endsWith", persisted.ConditionsJson);
         Assert.False(persisted.Enabled);
+
+        // Sıra, istek gövdesindeki diziden alınıyor — zincirin anlamının parçası.
+        var ordered = persisted.Actions.OrderBy(a => a.SortOrder).ToList();
+        Assert.Equal("Toast", ordered[0].ActionType);
+        Assert.Equal("Webhook", ordered[1].ActionType);
+        Assert.Equal("{\"url\":\"https://example.test/hook\"}", ordered[1].ActionConfigJson);
+
+        // Eski adımlar toptan değiştiriliyor, yerinde eşleştirilmiyor: güncelleme
+        // sonrası DB'de yalnızca yeni iki adım kalmalı, eskisi sızmamalı.
+        Assert.Equal(2, await verifyDb.AutomationActions.CountAsync(a => a.RuleId == rule.Id));
     }
 
     [Fact]
@@ -201,16 +211,15 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         var result = await controller.UpdateRule(rule.Id, new UpdateAutomationRuleRequest
         {
             TriggerType = "ColumnAdded",
-            ActionType = "Webhook",
-            ActionConfigJson = "{\"url\":\"https://evil.test\"}",
+            Actions = { new AutomationActionDto { ActionType = "Webhook", ActionConfigJson = "{\"url\":\"https://evil.test\"}" } },
             Enabled = true,
         }, default);
 
         Assert.IsType<NotFoundResult>(result);
 
         await using var verifyDb = NewContext();
-        var persisted = await verifyDb.AutomationRules.SingleAsync(r => r.Id == rule.Id);
-        Assert.Equal("Toast", persisted.ActionType);
+        var persisted = await verifyDb.AutomationRules.Include(r => r.Actions).SingleAsync(r => r.Id == rule.Id);
+        Assert.Equal("Toast", Assert.Single(persisted.Actions).ActionType);
         Assert.Equal("TableDeleted", persisted.TriggerType);
     }
 
@@ -235,8 +244,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         {
             ProjectId = project.Id,
             TriggerType = "TableAdded",
-            ActionType = "Toast",
-            ActionConfigJson = "{}",
+            Actions = { new AutomationAction { SortOrder = 0, ActionType = "Toast" } },
         };
         db.AutomationRules.Add(rule);
         await db.SaveChangesAsync();

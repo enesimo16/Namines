@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -58,8 +58,8 @@ public sealed class AutomationExecutorTests : IAsyncLifetime
     {
         var (db, project) = await SeedAsync(new AutomationRule
         {
-            ScopeTableId = null, TriggerType = "TableAdded", ActionType = "Webhook",
-            ActionConfigJson = "{\"url\":\"http://127.0.0.1/hook\"}", Enabled = true,
+            ScopeTableId = null, TriggerType = "TableAdded", Enabled = true,
+            Actions = { new AutomationAction { ActionType = "Webhook", ActionConfigJson = "{\"url\":\"http://127.0.0.1/hook\"}" } },
         });
 
         var executor = new AutomationExecutor(
@@ -81,8 +81,8 @@ public sealed class AutomationExecutorTests : IAsyncLifetime
     public async Task Bir_kuralin_basarisizligi_digerini_engellemiyor()
     {
         var (db, project) = await SeedAsync(
-            new AutomationRule { ScopeTableId = null, TriggerType = "TableAdded", ActionType = "Webhook", ActionConfigJson = "{\"url\":\"https://example.com/hook\"}", Enabled = true },
-            new AutomationRule { ScopeTableId = null, TriggerType = "TableAdded", ActionType = "Toast", Enabled = true });
+            new AutomationRule { ScopeTableId = null, TriggerType = "TableAdded", Enabled = true, Actions = { new AutomationAction { ActionType = "Webhook", ActionConfigJson = "{\"url\":\"https://example.com/hook\"}" } } },
+            new AutomationRule { ScopeTableId = null, TriggerType = "TableAdded", Enabled = true, Actions = { new AutomationAction { ActionType = "Toast" } } });
 
         var executor = new AutomationExecutor(
             db, new StubQuota(AiQuotaDecision.Allowed),

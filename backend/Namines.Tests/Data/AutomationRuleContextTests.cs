@@ -66,14 +66,48 @@ public sealed class AutomationRuleContextTests : IAsyncLifetime
             ProjectId = project.Id,
             ScopeTableId = "t1",
             TriggerType = "TableDeleted",
-            ActionType = "Webhook",
-            ActionConfigJson = "{\"url\":\"https://example.com/hook\"}",
+            Actions =
+            {
+                new AutomationAction
+                {
+                    SortOrder = 0,
+                    ActionType = "Webhook",
+                    ActionConfigJson = "{\"url\":\"https://example.com/hook\"}",
+                },
+            },
         });
         await db.SaveChangesAsync();
 
-        var saved = await db.AutomationRules.SingleAsync();
+        var saved = await db.AutomationRules.Include(r => r.Actions).SingleAsync();
         Assert.Equal("TableDeleted", saved.TriggerType);
         Assert.True(saved.Enabled);
+        Assert.Equal("Webhook", Assert.Single(saved.Actions).ActionType);
+    }
+
+    [Fact]
+    public async Task Kural_silinince_aksiyonlari_da_siliniyor()
+    {
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db);
+
+        var rule = new AutomationRule
+        {
+            ProjectId = project.Id,
+            TriggerType = "TableAdded",
+            Actions =
+            {
+                new AutomationAction { SortOrder = 0, ActionType = "Toast" },
+                new AutomationAction { SortOrder = 1, ActionType = "Webhook" },
+            },
+        };
+        db.AutomationRules.Add(rule);
+        await db.SaveChangesAsync();
+        Assert.Equal(2, await db.AutomationActions.CountAsync());
+
+        db.AutomationRules.Remove(rule);
+        await db.SaveChangesAsync();
+
+        Assert.Empty(await db.AutomationActions.ToListAsync());
     }
 
     [Fact]
@@ -82,7 +116,7 @@ public sealed class AutomationRuleContextTests : IAsyncLifetime
         await using var db = NewContext();
         var project = await SeedProjectAsync(db);
 
-        var rule = new AutomationRule { ProjectId = project.Id, TriggerType = "TableAdded", ActionType = "Toast" };
+        var rule = new AutomationRule { ProjectId = project.Id, TriggerType = "TableAdded" };
         db.AutomationRules.Add(rule);
         await db.SaveChangesAsync();
 

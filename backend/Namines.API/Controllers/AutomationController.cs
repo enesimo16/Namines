@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,27 +12,38 @@ using Namines.Infrastructure.Data;
 
 namespace Namines.API.Controllers;
 
-public class CreateAutomationRuleRequest
+/// <summary>Zincirdeki tek bir adım. Sıra, dizideki konumdan alınıyor.</summary>
+public class AutomationActionDto
 {
-    public string ProjectId { get; set; } = string.Empty;
-    public string? ScopeTableId { get; set; }
-    public string TriggerType { get; set; } = string.Empty;
     public string ActionType { get; set; } = string.Empty;
     public string ActionConfigJson { get; set; } = "{}";
 }
 
+public class CreateAutomationRuleRequest
+{
+    public string ProjectId { get; set; } = string.Empty;
+    public string? ScopeTableId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string TriggerType { get; set; } = string.Empty;
+    public string ConditionsJson { get; set; } = "[]";
+    public List<AutomationActionDto> Actions { get; set; } = new();
+}
+
 /// <summary>
-/// Kuralın DÜZENLENEBİLİR alanları. ProjectId/ScopeTableId bilerek yok:
-/// bir kuralın kapsamı oluşturulduktan sonra değişmiyor (istemci tarafında da
-/// öyle — AutomationRuleDrawer yalnızca tetikleyici/aksiyon/URL/enabled'ı
-/// düzenletiyor). Alan adları CreateAutomationRuleRequest ile aynı şekilde
-/// yazılmış ki istemcideki DTO tek bir biçimde kalsın.
+/// Kuralın DÜZENLENEBİLİR alanları. ProjectId bilerek yok: bir kural
+/// oluşturulduğu projeden başka bir projeye taşınmıyor.
+///
+/// <b>ScopeTableId artık düzenlenebilir</b> — çekmecede "bu tablo ↔ tüm proje"
+/// kapsam seçicisi var ve proje geneline geçmek ilişki tetikleyicilerini
+/// açıyor; kapsam sabit kalsaydı o tetikleyiciler erişilemez kalırdı.
 /// </summary>
 public class UpdateAutomationRuleRequest
 {
+    public string Name { get; set; } = string.Empty;
+    public string? ScopeTableId { get; set; }
     public string TriggerType { get; set; } = string.Empty;
-    public string ActionType { get; set; } = string.Empty;
-    public string ActionConfigJson { get; set; } = "{}";
+    public string ConditionsJson { get; set; } = "[]";
+    public List<AutomationActionDto> Actions { get; set; } = new();
     public bool Enabled { get; set; } = true;
 }
 
@@ -44,6 +57,20 @@ public class AutomationController : ControllerBase
     public AutomationController(AuthDbContext context) => _context = context;
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    /// <summary>
+    /// İstek gövdesindeki adımları kalıcı varlıklara çevirir. Sıra, dizideki
+    /// konumdan alınıyor — istemcinin ayrıca bir sıra numarası göndermesi
+    /// gerekmiyor ve iki tarafın sıralaması ayrışamıyor.
+    /// </summary>
+    private static List<AutomationAction> BuildActions(string ruleId, List<AutomationActionDto> actions) =>
+        actions.Select((a, index) => new AutomationAction
+        {
+            RuleId = ruleId,
+            SortOrder = index,
+            ActionType = a.ActionType,
+            ActionConfigJson = string.IsNullOrWhiteSpace(a.ActionConfigJson) ? "{}" : a.ActionConfigJson,
+        }).ToList();
 
     private async Task<bool> OwnsProjectAsync(string projectId, string userId, CancellationToken ct)
     {
@@ -81,7 +108,10 @@ public class AutomationController : ControllerBase
         if (!await OwnsProjectAsync(projectId, userId, ct)) return Ok(Array.Empty<AutomationRule>());
 
         var rules = await _context.AutomationRules.AsNoTracking()
+            .Include(r => r.Actions)
             .Where(r => r.ProjectId == projectId).ToListAsync(ct);
+        // Aksiyonlar istemciye SIRALI gitmeli — sıra zincirin anlamının parçası.
+        foreach (var rule in rules) rule.Actions = rule.Actions.OrderBy(a => a.SortOrder).ToList();
         return Ok(rules);
     }
 
@@ -96,10 +126,11 @@ public class AutomationController : ControllerBase
         {
             ProjectId = request.ProjectId,
             ScopeTableId = request.ScopeTableId,
+            Name = request.Name,
             TriggerType = request.TriggerType,
-            ActionType = request.ActionType,
-            ActionConfigJson = request.ActionConfigJson,
+            ConditionsJson = request.ConditionsJson,
         };
+        rule.Actions = BuildActions(rule.Id, request.Actions);
         _context.AutomationRules.Add(rule);
         await _context.SaveChangesAsync(ct);
         return Ok(rule);
@@ -121,14 +152,24 @@ public class AutomationController : ControllerBase
         // DeleteRule ile AYNI sıra ve AYNI yardımcı: önce kaydı bul, sonra
         // sahipliği doğrula; ikisinden biri tutmazsa 404 (varlığı sızdırmamak
         // için 403 değil) — diğer üç uçla tutarlı.
-        var rule = await _context.AutomationRules.FirstOrDefaultAsync(r => r.Id == id, ct);
+        var rule = await _context.AutomationRules
+            .Include(r => r.Actions)
+            .FirstOrDefaultAsync(r => r.Id == id, ct);
         if (rule is null) return NotFound();
         if (!await OwnsProjectAsync(rule.ProjectId, userId, ct)) return NotFound();
 
+        rule.Name = request.Name;
+        rule.ScopeTableId = request.ScopeTableId;
         rule.TriggerType = request.TriggerType;
-        rule.ActionType = request.ActionType;
-        rule.ActionConfigJson = request.ActionConfigJson;
+        rule.ConditionsJson = request.ConditionsJson;
         rule.Enabled = request.Enabled;
+
+        // Aksiyonlar yerinde eşleştirilmek yerine TOPTAN değiştiriliyor: istemci
+        // adımları yeniden sıralayabiliyor, araya ekleyip silebiliyor ve
+        // adımların istemci tarafında kalıcı bir kimliği yok. Tek tek eşleştirme
+        // bu yüzden yanlış adımı güncellemeye açık olurdu.
+        _context.AutomationActions.RemoveRange(rule.Actions);
+        rule.Actions = BuildActions(rule.Id, request.Actions);
 
         await _context.SaveChangesAsync(ct);
         return Ok(rule);

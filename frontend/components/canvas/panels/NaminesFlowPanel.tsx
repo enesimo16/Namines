@@ -51,7 +51,9 @@ export default function NaminesFlowPanel() {
   if (!panelOpen) return null;
 
   const tableName = (tableId: string) =>
-    tables?.find(t => t.id === tableId)?.name ?? 'unknown table';
+    tableId === ''
+      ? 'Whole project'
+      : tables?.find(t => t.id === tableId)?.name ?? 'unknown table';
 
   const focusRule = (ruleId: string) => {
     const node = getNode(`automation-${ruleId}`);
@@ -121,13 +123,15 @@ export default function NaminesFlowPanel() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold text-content-primary">
-                    {tableName(rule.scopeTableId)}
+                    {rule.name || tableName(rule.scopeTableId)}
                   </p>
                   <p className="mt-0.5 text-micro text-content-secondary">
                     {TRIGGER_LABEL[rule.triggerType] ?? rule.triggerType}
                     {' → '}
                     <span className="text-warning-text">
-                      {ACTION_LABEL[rule.actionType] ?? rule.actionType}
+                      {rule.actions.length === 0
+                        ? 'no action'
+                        : rule.actions.map(a => ACTION_LABEL[a.actionType] ?? a.actionType).join(' + ')}
                     </span>
                   </p>
                 </div>

@@ -53,7 +53,7 @@ describe('AutomationRuleDrawer', () => {
     fireEvent.change(urlInput, { target: { value: 'https://example.com/hook' } });
     fireEvent.blur(urlInput);
 
-    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.actionConfig.url)
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.actions[0].actionConfig.url)
       .toBe('https://example.com/hook');
   });
 

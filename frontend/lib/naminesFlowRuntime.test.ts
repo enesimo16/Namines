@@ -5,9 +5,10 @@ import type { AutomationRule } from '../store/useAutomationStore';
 const rule = (over: Partial<AutomationRule> = {}): AutomationRule => ({
   id: 'r1',
   scopeTableId: 't1',
+  name: '',
   triggerType: 'TableDeleted',
-  actionType: 'Toast',
-  actionConfig: {},
+  conditions: [],
+  actions: [{ actionType: 'Toast', actionConfig: {} }],
   enabled: true,
   ...over,
 });
@@ -60,10 +61,53 @@ describe('matchRules', () => {
     expect(matched).toHaveLength(1);
   });
 
+  it('proje geneli kural (bos kapsam) her tabloyla eslesir', () => {
+    const matched = matchRules(
+      { type: 'TableDeleted', tableId: 'baska-tablo', tableName: 'X' },
+      [rule({ scopeTableId: '' })],
+    );
+    expect(matched).toHaveLength(1);
+  });
+
+  it('kolon adi kosuluna uymayan olay kurali tetiklemez', () => {
+    const matched = matchRules(
+      { type: 'ColumnDeleted', tableId: 't1', columnId: 'c1', columnName: 'title' },
+      [rule({
+        triggerType: 'ColumnDeleted',
+        conditions: [{ field: 'columnName', op: 'endsWith', value: '_id' }],
+      })],
+    );
+    expect(matched).toHaveLength(0);
+  });
+
+  it('kolon adi kosuluna uyan olay kurali tetikler', () => {
+    const matched = matchRules(
+      { type: 'ColumnDeleted', tableId: 't1', columnId: 'c1', columnName: 'user_id' },
+      [rule({
+        triggerType: 'ColumnDeleted',
+        conditions: [{ field: 'columnName', op: 'endsWith', value: '_id' }],
+      })],
+    );
+    expect(matched).toHaveLength(1);
+  });
+
+  it('istemcide degerlendirilemeyen kosul kurali DUSURMEZ', () => {
+    // `columnType` olay icinde yok. Yanlis susmaktansa fazladan gostermek
+    // daha az zararli — sunucu tarafi dogru degerlendiriyor.
+    const matched = matchRules(
+      { type: 'ColumnAdded', tableId: 't1', columnId: 'c1', columnName: 'total' },
+      [rule({
+        triggerType: 'ColumnAdded',
+        conditions: [{ field: 'columnType', op: 'equals', value: 'INT' }],
+      })],
+    );
+    expect(matched).toHaveLength(1);
+  });
+
   it('ayni olaya bagli birden fazla kurali birlikte dondurur', () => {
     const matched = matchRules({ type: 'TableDeleted', tableId: 't1', tableName: 'Orders' }, [
       rule({ id: 'r1' }),
-      rule({ id: 'r2', actionType: 'Webhook' }),
+      rule({ id: 'r2', actions: [{ actionType: 'Webhook', actionConfig: {} }] }),
     ]);
     expect(matched.map(r => r.id)).toEqual(['r1', 'r2']);
   });

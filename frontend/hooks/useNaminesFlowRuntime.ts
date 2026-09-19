@@ -35,8 +35,12 @@ export function useNaminesFlowRuntime(): void {
       for (const rule of matched) {
         markFired(rule.id);
         // Sunucu "Toast"u hiç işlemez (bkz. AutomationExecutor) — bu aksiyonun
-        // tek gerçekleştiği yer burası.
-        if (rule.actionType === 'Toast') showToast(toastMessageFor(event), 'info');
+        // tek gerçekleştiği yer burası. Zincirde birden fazla Toast olsa bile
+        // tek bildirim çıkıyor: aynı olay için aynı metni iki kez göstermenin
+        // kullanıcıya bir faydası yok.
+        if (rule.actions.some(a => a.actionType === 'Toast')) {
+          showToast(toastMessageFor(event), 'info');
+        }
       }
     });
   }, []);

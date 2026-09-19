@@ -19,9 +19,10 @@ import { useToastStore } from '../store/useToastStore';
 const rule = (over: Partial<AutomationRule> = {}): AutomationRule => ({
   id: 'r1',
   scopeTableId: 't1',
+  name: '',
   triggerType: 'TableDeleted',
-  actionType: 'Toast',
-  actionConfig: {},
+  conditions: [],
+  actions: [{ actionType: 'Toast', actionConfig: {} }],
   enabled: true,
   ...over,
 });
@@ -55,7 +56,7 @@ describe('useNaminesFlowRuntime', () => {
   it('Toast disi aksiyonda toast basmaz ama node yine de isaretlenir', () => {
     // Webhook sunucuda calisir; istemcide gorunen tek sey "bu kural tetiklendi"
     // animasyonu olmali — sessizlik degil.
-    useAutomationStore.setState({ rules: [rule({ actionType: 'Webhook' })] });
+    useAutomationStore.setState({ rules: [rule({ actions: [{ actionType: 'Webhook', actionConfig: {} }] })] });
     renderHook(() => useNaminesFlowRuntime());
 
     act(() => {

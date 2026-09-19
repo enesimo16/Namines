@@ -34,11 +34,64 @@ export function eventTableIds(event: NaminesFlowEvent): string[] {
   }
 }
 
+/**
+ * Olayın koşullara sunduğu değerler. İstemci tarafında kolon TİPİ elde
+ * olmadığı için (`NaminesFlowEvent` yalnızca ad taşıyor) `columnType`
+ * koşulları burada eşleşemiyor — sunucu tarafı onları doğru değerlendiriyor.
+ */
+function contextOf(event: NaminesFlowEvent): { columnName?: string } {
+  switch (event.type) {
+    case 'ColumnAdded':
+    case 'ColumnDeleted':
+    case 'ColumnChanged':
+      return { columnName: event.columnName };
+    default:
+      return {};
+  }
+}
+
+/**
+ * Koşulların istemci tarafı karşılığı — sunucudaki
+ * `AutomationConditionEvaluator` ile AYNI anlamda olmalı, yoksa aynı kural
+ * tarayıcıda toast basarken sunucuda sessiz kalır (ya da tersi) ve kullanıcı
+ * hangisinin doğru olduğunu anlayamaz.
+ *
+ * `tableName` bilgisi olay içinde YOK (olaylar tabloyu id ile taşıyor, adla
+ * değil); o koşul burada değerlendirilemediği için kural düşürülmüyor —
+ * istemci tarafı yalnızca anlık geri bildirim veriyor ve yanlış susmaktansa
+ * fazladan göstermek daha az zararlı.
+ */
+function conditionsHold(rule: AutomationRule, event: NaminesFlowEvent): boolean {
+  if (rule.conditions.length === 0) return true;
+  const ctx = contextOf(event);
+
+  return rule.conditions.every(condition => {
+    if (condition.field !== 'columnName') return true;
+    const actual = ctx.columnName;
+    if (actual === undefined) return false;
+
+    const a = actual.toLowerCase();
+    const b = (condition.value ?? '').toLowerCase();
+    switch (condition.op) {
+      case 'equals': return a === b;
+      case 'notEquals': return a !== b;
+      case 'contains': return a.includes(b);
+      case 'startsWith': return a.startsWith(b);
+      case 'endsWith': return a.endsWith(b);
+      default: return false;
+    }
+  });
+}
+
 /** Bu olayın tetiklediği, etkin kurallar. */
 export function matchRules(event: NaminesFlowEvent, rules: AutomationRule[]): AutomationRule[] {
   const tableIds = eventTableIds(event);
-  return rules.filter(
-    rule => rule.enabled && rule.triggerType === event.type && tableIds.includes(rule.scopeTableId),
+  return rules.filter(rule =>
+    rule.enabled &&
+    rule.triggerType === event.type &&
+    // Boş kapsam = proje geneli: tablo eşleşmesi aranmıyor.
+    (rule.scopeTableId === '' || tableIds.includes(rule.scopeTableId)) &&
+    conditionsHold(rule, event),
   );
 }
 

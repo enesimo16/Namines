@@ -59,12 +59,23 @@ function AutomationNode({ data, selected }: NodeProps<AutomationNodeType>) {
         <span className="text-xs font-semibold text-warning-text">Namines Flow</span>
         {disabled && <PauseCircle className="w-3 h-3 text-content-muted shrink-0 ml-auto" />}
       </button>
-      <div className="mt-1 flex items-center gap-1 text-[11px] text-content-secondary">
+      <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-content-secondary">
         <span>{TRIGGER_LABEL[rule.triggerType] ?? rule.triggerType}</span>
         <span aria-hidden="true">→</span>
-        <span className="px-1.5 py-0.5 rounded-[var(--radius-control)] bg-warning/20 text-warning-text font-medium">
-          {ACTION_LABEL[rule.actionType] ?? rule.actionType}
-        </span>
+        {rule.actions.length === 0 ? (
+          // Aksiyonsuz kural sessizce hiçbir şey yapmaz; bunu node üzerinde
+          // söylemek, kullanıcının "neden çalışmıyor" diye aramasını önlüyor.
+          <span className="text-content-muted italic">no action yet</span>
+        ) : (
+          rule.actions.map((action, i) => (
+            <span
+              key={`${action.actionType}-${i}`}
+              className="px-1.5 py-0.5 rounded-[var(--radius-control)] bg-warning/20 text-warning-text font-medium"
+            >
+              {ACTION_LABEL[action.actionType] ?? action.actionType}
+            </span>
+          ))
+        )}
       </div>
     </div>
   );
