@@ -98,6 +98,16 @@ export function useMultiplayer() {
           const newUrl = window.location.protocol + '//' + window.location.host + pathnameAtStart + '?roomId=' + roomId;
           window.history.pushState({ path: newUrl }, '', newUrl);
           setRoomIdFromUrl(roomId);
+          // page.tsx'teki `joinedSharedRoom`, "bu KENDİ projemin odası mı yoksa
+          // biri bana bir davet linki mi gönderdi" sorusunu SADECE URL'de
+          // `roomId` olup olmadığına bakarak cevaplıyordu — ama biz de aynı
+          // parametreyi kendi projemiz için buraya YAZIYORUZ. Sonuç: sayfa
+          // yenilendiğinde (URL artık kalıcı olarak `?roomId=...` taşıyor)
+          // kullanıcının kendi projesi sanki paylaşılan bir davet linkiymiş gibi
+          // okunuyor, yerel IndexedDB'deki şema hiç yüklenmiyor, "Connecting to
+          // Room" ekranında kilitli kalıyordu. Burada kendi ürettiğimiz oda
+          // kimliğini işaretliyoruz; page.tsx bunu görürse "gerçek davet" saymaz.
+          try { sessionStorage.setItem('namines_own_room', roomId); } catch { /* private mode vb. */ }
         };
         const randomRoomId = () => {
           const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)

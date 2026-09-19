@@ -119,10 +119,32 @@ export default function CanvasPage() {
    * Ayrım, VARIŞ URL'inden yapılıyor: `useState` başlatıcısı ilk render'da,
    * yani herhangi bir effect (ve dolayısıyla pushState) çalışmadan ÖNCE
    * okunuyor. `?roomId=` ile gelindiyse gerçekten bir davet bağlantısı var.
+   *
+   * **Bu tek başına YETMİYORDU.** `useMultiplayer`, kimliği doğrulanmış bir
+   * kullanıcının KENDİ projesi için de aynı `?roomId=` parametresini üretip
+   * `pushState` ile URL'e yazıyor (G17 — roomId = projenin varsayılan
+   * branch'i). `pushState` sonraki her sayfa yenilemesinde de URL'de kalıcı
+   * kalıyor. Sonuç: kullanıcı kendi canvas'ını yenilediğinde URL zaten
+   * `?roomId=...` taşıyor, bu da "davet linkiyle geldi" sanılıp yerel
+   * IndexedDB'deki şema hiç yüklenmeden "Connecting to Room" ekranında
+   * kilitli kalınmasına yol açıyordu — davet asla gelmiyordu çünkü davet
+   * hiç yoktu, kullanıcı kendi projesindeydi.
+   *
+   * `useMultiplayer`, kendi ürettiği oda kimliğini `sessionStorage`'a
+   * yazıyor; burada URL'deki roomId o kayıtla eşleşiyorsa gerçek bir davet
+   * SAYILMIYOR. (Sınırı: farklı bir sekmede/oturumda kendi canvas URL'in
+   * yer imliyse bu kontrol onu ayırt edemez — o daha nadir bir durum, asıl
+   * bildirilen hata her yenilemede yaşanıyordu.)
    */
   const [joinedSharedRoom] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return new URLSearchParams(window.location.search).has('roomId');
+    const urlRoomId = new URLSearchParams(window.location.search).get('roomId');
+    if (!urlRoomId) return false;
+    try {
+      return sessionStorage.getItem('namines_own_room') !== urlRoomId;
+    } catch {
+      return true; // sessionStorage okunamıyorsa eski (güvenli) davranışa düş
+    }
   });
 
   const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, toggleEditMode, addTable, connectColumns, deleteTable, deleteRelation, undo, redo } = useSchemaStore();
