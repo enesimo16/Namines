@@ -1076,10 +1076,10 @@ public sealed class GatewayService : IGatewayService
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(dbType);
 
-        // DbIntrospectionService ile PAYLAŞILAN host-çıkarma mantığı — bkz. o dosyadaki
-        // ExtractHost yorumu (kopyalanırsa biri güncellenip diğeri unutulabilir).
-        var host = DbIntrospectionService.ExtractHost(connectionString, dbType);
-        if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
+        // DbIntrospectionService ile PAYLAŞILAN host doğrulaması — bkz. o dosyadaki
+        // FindDisallowedHost yorumu (kopyalanırsa biri güncellenip diğeri
+        // unutulabilir). Tek host değil, bulunan TÜM adaylar kontrol ediliyor.
+        if (DbIntrospectionService.FindDisallowedHost(_hostPolicy, connectionString, dbType) is { } denyReason)
             throw new InvalidOperationException(denyReason);
 
         return await UserDbConnection.OpenAsync(connectionString, dbType, readOnly, ct);

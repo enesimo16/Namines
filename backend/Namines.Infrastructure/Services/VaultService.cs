@@ -503,8 +503,11 @@ public class VaultService
 
         connectionString = _protector.Unprotect(project.EncryptedConnectionString);
 
-        var host = DbIntrospectionService.ExtractHost(connectionString, project.ConnectionDbType!);
-        if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
+        // Tek host değil, TÜM adaylar (bkz. DbIntrospectionService.FindDisallowedHost) —
+        // Vault'un yedekleme/geri yükleme araçları DbConnectionParts.Parse ile
+        // AYRI bir ayrıştırıcı kullanıyor; ikisi yinelenen anahtarda farklı
+        // host seçerse bu satır o farkı kapatan tek yer.
+        if (DbIntrospectionService.FindDisallowedHost(_hostPolicy, connectionString, project.ConnectionDbType!) is { } denyReason)
         {
             connectionString = null;
             error = denyReason;

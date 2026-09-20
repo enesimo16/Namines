@@ -43,8 +43,8 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(dbType);
 
-        var host = ExtractHost(connectionString, dbType);
-        if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
+        // Tek host değil, TÜM adaylar (bkz. FindDisallowedHost class yorumu).
+        if (FindDisallowedHost(_hostPolicy, connectionString, dbType) is { } denyReason)
             throw new InvalidOperationException(denyReason);
 
         return dbType.ToUpperInvariant() switch
@@ -66,30 +66,95 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     /// <c>internal</c> -> <c>public</c>: Namines.API'deki bağlantı kaydetme ucu
     /// (GatewayKeyController) host'u SSRF politikasına sormadan saklamamalı.
     /// Saf bir yardımcı, durum tutmuyor — genişletmenin riski yok.
+    ///
+    /// <b>GÜVENLİK — bir bağlantı dizesinde BİRDEN FAZLA host adayı olabilir:</b>
+    /// <c>Host=public.example.com;Host=169.254.169.254;...</c> (yinelenen anahtar)
+    /// ya da <c>Host=public.example.com,169.254.169.254</c> (Npgsql'in
+    /// çoklu-host/failover söz dizimi). Sürücüler (Npgsql, MSSQL, MySqlConnector)
+    /// ve <see cref="Namines.Vault.Providers.DbConnectionParts"/> bunları
+    /// <c>Dictionary</c> üzerinden ayrıştırıyor — SON tekrar eden anahtar
+    /// KAZANIR. Eskiden bu metot yalnızca İLK eşleşen değeri döndürüyordu: SSRF
+    /// guard'ı ilk (masum) host'u onaylıyor, sürücü ise ikinci (özel/ayrılmış)
+    /// host'a bağlanıyordu — hiç DNS'e dokunmadan allowlist'i tamamen atlayan
+    /// bir yol. Artık BULUNAN HER host adayı ayrı ayrı doğrulanıyor; sürücünün
+    /// hangisini "gerçekten" kullanacağını tahmin etmeye çalışmak yerine,
+    /// listedeki herhangi biri reddedilirse bağlantının TAMAMI reddediliyor.
     /// </remarks>
-    public static string ExtractHost(string cs, string dbType)
+    public static IReadOnlyList<string> ExtractHosts(string cs, string dbType)
     {
-        // Anahtar-değer çiftlerinden host/server/data source değerini çıkar.
-        // Her sağlayıcının farklı anahtar isimleri olduğu için regex ile eşleştir.
-        var patterns = new[]
-        {
-            @"(?:^|;)\s*(?:server|host|data\s*source|datasource)\s*=\s*([^;,]+)",
-        };
+        // Değer artık virgülde DURMUYOR (`[^;]+`, öncekinden farklı olarak) —
+        // "host1,host2" gibi çoklu-host listesini BÜTÜN olarak yakalayıp
+        // aşağıda kendimiz ayırıyoruz. Yalnızca `;` gerçek alan sınırı.
+        const string pattern = @"(?:^|;)\s*(?:server|host|data\s*source|datasource)\s*=\s*([^;]+)";
 
-        foreach (var pattern in patterns)
+        // Virgülün anlamı MOTORA GÖRE DEĞİŞİYOR: Npgsql'de host LİSTESİ ayıracı
+        // ("Host=a,b" — failover), MSSQL'de ise TEK host'un port'undan ayıracı
+        // ("Server=host,1433"). İkisini aynı kurala tabi tutmak MSSQL'de port
+        // numarasını ikinci bir "host" sanıp gereksiz yere reddederdi (ya da
+        // tersi, bir hostu numaraymış gibi atlardı). Bu ayrım `UserDbConnection.
+        // Create`'in AYNI `dbType` değerine göre hangi sürücüyü seçtiğiyle
+        // birebir örtüşüyor — burada yeni bir güven sınırı açılmıyor.
+        var isPostgres = dbType.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)
+            || dbType.Equals("Postgres", StringComparison.OrdinalIgnoreCase);
+
+        var hosts = new List<string>();
+        foreach (Match m in Regex.Matches(cs, pattern, RegexOptions.IgnoreCase))
         {
-            var m = Regex.Match(cs, pattern, RegexOptions.IgnoreCase);
-            if (m.Success)
+            var raw = m.Groups[1].Value.Trim();
+
+            if (isPostgres)
             {
-                var raw = m.Groups[1].Value.Trim();
-                // MSSQL: "host,port" → "host"
-                // PostgreSQL: "host:port" → "host"
-                // Oracle EZConnect: "host:port/SID" → "host"
-                return raw.Split(',', ':', '/')[0].Trim();
+                // "host1:port1,host2:port2" — virgül BÜTÜN host[:port] çiftlerini
+                // ayırıyor; port'tan değil.
+                foreach (var segment in raw.Split(','))
+                {
+                    var host = segment.Trim().Split(':', '/')[0].Trim();
+                    if (host.Length > 0) hosts.Add(host);
+                }
+            }
+            else
+            {
+                // MSSQL: "host,port" → "host". Oracle EZConnect: "host:port/SID" → "host".
+                var host = raw.Split(',', ':', '/')[0].Trim();
+                if (host.Length > 0) hosts.Add(host);
             }
         }
 
-        return string.Empty;
+        return hosts;
+    }
+
+    /// <summary>
+    /// Geriye dönük uyumluluk / SSRF-DIŞI kullanım (ör. TLS gerekip
+    /// gerekmediğine karar vermek) için TEK host. <b>SSRF izin kontrolü için
+    /// KULLANILMAMALI</b> — <see cref="ExtractHosts"/>'un class yorumuna bakın.
+    /// </summary>
+    public static string ExtractHost(string cs, string dbType) =>
+        ExtractHosts(cs, dbType) is [var first, ..] ? first : string.Empty;
+
+    /// <summary>
+    /// Bir bağlantı dizesindeki HER host adayını <paramref name="hostPolicy"/>'ye
+    /// karşı doğrular; SSRF guard'ının önündeki tek giriş noktası olsun diye
+    /// beş çağrı yeri (introspection, privilege inspector, gateway, vault,
+    /// anahtar kaydı) burayı paylaşıyor — <see cref="ExtractHosts"/>'un kendi
+    /// gerekçesi.
+    /// </summary>
+    /// <returns>İzin verilmiyorsa red sebebi; hepsi geçtiyse null.</returns>
+    public static string? FindDisallowedHost(IDbHostAccessPolicy hostPolicy, string cs, string dbType)
+    {
+        var hosts = ExtractHosts(cs, dbType);
+
+        // Hiç host bulunamadıysa GÜVENLİ VARSAYILAN reddir — `IsHostAllowed`'ın
+        // boş/null girdide zaten yaptığı şey. Boş listede foreach'in hiç
+        // dönmemesi burada YANLIŞLIKLA "her şey izinli" gibi davranmasın.
+        if (hosts.Count == 0)
+            return hostPolicy.IsHostAllowed(null, out var emptyReason) ? null : emptyReason;
+
+        foreach (var host in hosts)
+        {
+            if (!hostPolicy.IsHostAllowed(host, out var denyReason))
+                return denyReason;
+        }
+        return null;
     }
 
     // ── SQL Server ────────────────────────────────────────────────────────────

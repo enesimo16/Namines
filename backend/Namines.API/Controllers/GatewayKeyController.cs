@@ -418,8 +418,9 @@ public class GatewayKeyController : ControllerBase
 
         // SSRF: kaydetmeden ÖNCE. Reddedilecek bir hedefi şifreleyip saklamak,
         // sonra her istekte reddetmek; hatayı kullanıcıdan bir adım uzaklaştırırdı.
-        var host = DbIntrospectionService.ExtractHost(request.ConnectionString, request.DbType);
-        if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
+        // Tek host değil, TÜM adaylar doğrulanıyor (bkz. FindDisallowedHost
+        // class yorumu — yinelenen anahtar/çoklu-host allowlist atlatması).
+        if (DbIntrospectionService.FindDisallowedHost(_hostPolicy, request.ConnectionString, request.DbType) is { } denyReason)
             return BadRequest(new { error = denyReason });
 
         // Namines Desk (02-PROJECTS.md §3 kabul kriteri 4): yanlış bir bağlantı

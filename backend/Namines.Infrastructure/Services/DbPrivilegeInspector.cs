@@ -29,8 +29,8 @@ public sealed class DbPrivilegeInspector : IDbPrivilegeInspector
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(dbType);
 
-        var host = DbIntrospectionService.ExtractHost(connectionString, dbType);
-        if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
+        // Tek host değil, TÜM adaylar (bkz. DbIntrospectionService.FindDisallowedHost).
+        if (DbIntrospectionService.FindDisallowedHost(_hostPolicy, connectionString, dbType) is { } denyReason)
             throw new InvalidOperationException(denyReason);
 
         await using var conn = await UserDbConnection.OpenAsync(connectionString, dbType, readOnly: true, cancellationToken);

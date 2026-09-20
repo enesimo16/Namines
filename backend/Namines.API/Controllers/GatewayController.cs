@@ -1197,6 +1197,16 @@ public class GatewayController : ControllerBase
     ///
     /// Oturum yolunda (JWT) bayrak aranmaz: kullanıcı bağlantı dizesini zaten
     /// kendisi giriyor, yani veritabanına erişimi ham SQL'den bağımsız olarak var.
+    ///
+    /// <b>DÜZELTME (bkz. AuthorizeSessionRawSqlAsync):</b> yukarıdaki varsayım
+    /// yalnızca çağıran KENDİ bağlantı dizesini gönderdiğinde doğru. Bu uç,
+    /// gövdede dize yoksa <paramref name="request"/>'teki <c>ProjectId</c> ile
+    /// PROJEYE KAYITLI şifreli bağlantıyı da çözecek şekilde genişletildiğinde
+    /// ("list/detail gibi" — aşağıdaki yorum) bu öncül sessizce çürüdü: artık
+    /// kullanıcının bağlantıya erişimi bu uçtan BAĞIMSIZ değil, tam olarak bu
+    /// uç ONA veriyor. O zamandan beri herhangi bir Editor, Desk SQL konsolunun
+    /// (yalnızca Owner + projede açıkça <c>AllowDeskSql</c>) uyguladığı iki
+    /// kısıtı da atlayıp saklı bağlantı üzerinden keyfi DDL/DML çalıştırabiliyordu.
     /// </summary>
     [HttpPost("query")]
     public async Task<IActionResult> Query([FromBody] GatewayQueryRequest request, CancellationToken cancellationToken)
@@ -1215,6 +1225,20 @@ public class GatewayController : ControllerBase
         if (!request.ReadOnly && key is not null && !key.CanWrite)
             return StatusCode(403, new { message = "This API key may run read-only SQL only." });
 
+        // Oturum yolu (anahtarsız) ve PROJEYE KAYITLI bağlantı (gövdede kendi
+        // dizesini vermemiş): "kullanıcının zaten DB erişimi var" öncülü burada
+        // GEÇERSİZ — erişimi tam olarak bu istek veriyor. Desk SQL konsoluyla
+        // AYNI eşik uygulanıyor: yalnızca Owner, yalnızca proje açıkça izin
+        // verdiyse. Kendi dizesini gönderen bir çağrı bu kapıdan GEÇMİYOR —
+        // o zaten kendi bağlantısıyla DB'ye erişebiliyor, bu uç ona ekstra
+        // bir şey vermiyor.
+        if (key is null && string.IsNullOrWhiteSpace(request.ConnectionString)
+            && !string.IsNullOrWhiteSpace(request.ProjectId))
+        {
+            var sessionDenied = await AuthorizeSessionRawSqlAsync(request.ProjectId, cancellationToken);
+            if (sessionDenied is not null) return sessionDenied;
+        }
+
         // list/detail gibi projeye kayıtlı şifreli bağlantıyı da çözer. Önceden
         // yalnızca gövdedeki dizeyi kabul ediyordu: bağlantısını Namines'e emanet
         // etmiş bir kullanıcı, ham SQL için onu tekrar ağa çıkarmak zorundaydı.
@@ -1232,8 +1256,16 @@ public class GatewayController : ControllerBase
         {
             return await ExecuteAsync(async () =>
             {
-                var result = await _gateway.QueryAsync(
-                    connectionString, effectiveDbType, request.Sql, true, cancellationToken);
+                // `readOnly: true` TEK BAŞINA veritabanı bağlantısının salt-okunur
+                // oturum moduna güveniyordu — <see cref="UserDbConnection.AppliesReadOnlySession"/>
+                // bu modu yalnızca PostgreSQL/MySQL/MariaDB'de uyguluyor; MSSQL/
+                // Oracle/SQLite'ta hiçbir şey yapmıyor. Yani o motorlarda
+                // "readOnly: true" iddiası hiç doğrulanmadan kabul ediliyordu ve
+                // bir DELETE/DROP tam olarak çalışıyordu. `DeskSqlQueryAsync`
+                // metnin GERÇEKTEN SELECT/WITH/EXPLAIN/SHOW olduğunu ayrıca
+                // doğruluyor — motordan bağımsız, metin seviyesinde.
+                var result = await _gateway.DeskSqlQueryAsync(
+                    connectionString, effectiveDbType, request.Sql, MaxReadOnlyQueryRows, cancellationToken);
                 return Ok(result);
             });
         }
@@ -1245,6 +1277,49 @@ public class GatewayController : ControllerBase
 
             return (Ok(result), result.AffectedRows);
         });
+    }
+
+    /// <summary>Desk SQL konsoluyla aynı sayfa boyutu tavanı — bkz. <see cref="DeskSql"/>.</summary>
+    private const int MaxReadOnlyQueryRows = 2000;
+
+    /// <summary>
+    /// Oturum yoluyla PROJEYE KAYITLI bağlantı üzerinden ham SQL çalıştırmak
+    /// için Desk SQL konsoluyla AYNI eşik: yalnızca Owner, yalnızca proje
+    /// açıkça <c>AllowDeskSql</c> ile izin verdiyse.
+    ///
+    /// <b>Neden <see cref="ResolveSessionAccessAsync"/>'in Editor eşiği
+    /// yetmiyor:</b> o eşik "bu projenin verisini CRUD uçlarıyla düzenleyebilir
+    /// mi" sorusuna cevap veriyor — satır/kolon seviyesinde, her zaman
+    /// parametreli sorgularla. Ham SQL kategorik olarak farklı bir yetki:
+    /// keyfi DDL çalıştırabiliyor, değişiklik incelemesini (Change Review)
+    /// tamamen atlıyor ve geri alınamaz. Editor rolünün belgelenen anlamı
+    /// (05 §6: "şema düzenler ve PR açabilir") bunu kapsamıyor.
+    /// </summary>
+    private async Task<IActionResult?> AuthorizeSessionRawSqlAsync(string projectId, CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var role = await _context.GetRoleAsync(projectId, userId, ct);
+        // 404 ile "Owner değilsin" ayrımı DeskSql ucuyla AYNI gerekçeyle:
+        // proje hiç görünmüyorsa (Viewer bile değilsen) 404, görüyorsan ama
+        // Owner değilsen 403 + açık sebep.
+        if (role is null) return NotFound(new { message = "Project not found." });
+        if (role != OrgRole.Owner)
+            return StatusCode(403, new
+            {
+                message = "Only the project Owner can run raw SQL against the stored connection. " +
+                          "Send your own connection string, or use the Desk SQL console.",
+            });
+
+        var allowDeskSql = await _context.CloudProjects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.AllowDeskSql)
+            .FirstOrDefaultAsync(ct);
+        if (!allowDeskSql)
+            return StatusCode(403, new { message = "The SQL console is not enabled for this project yet." });
+
+        return null;
     }
 
     /// <summary>
