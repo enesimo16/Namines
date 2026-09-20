@@ -110,8 +110,18 @@ public class LaunchController : ControllerBase
         DatabaseSchema schema;
         try
         {
-            schema = JsonSerializer.Deserialize<DatabaseSchema>(project.SchemaJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new DatabaseSchema();
+            // `SchemaJsonOptions.Default` — kayıtlı proje şemasını okuyan HER
+            // yerin kullandığı tek ayar. Burada çıplak bir `JsonSerializerOptions`
+            // kuruluyordu, yani `TolerantStringConverter` yoktu: şemada
+            // `"length": "255"` gibi tek bir tip uyuşmazlığı deserileştirmeyi
+            // düşürüyor ve indirme "The project's stored schema is not valid."
+            // ile başarısız oluyordu — üstelik launch'ın kendisi AYNI şemayla
+            // sorunsuz çalıştıktan sonra.
+            //
+            // O sınıfın kendi açıklaması bu hatanın daha önce iki kez
+            // tekrarlandığını söylüyor; burası üçüncüsüydü.
+            schema = JsonSerializer.Deserialize<DatabaseSchema>(
+                project.SchemaJson, SchemaJsonOptions.Default) ?? new DatabaseSchema();
         }
         catch (JsonException)
         {
