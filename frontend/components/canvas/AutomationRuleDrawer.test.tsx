@@ -179,6 +179,50 @@ describe('AutomationRuleDrawer', () => {
     expect(useAutomationStore.getState().rules.find(r => r.id === id)?.enabled).toBe(false);
   });
 
+  it('webhook basliklari satir satir ayristiriliyor, degerdeki iki nokta korunuyor', () => {
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Webhook');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    const headers = screen.getByLabelText(/headers 1/i);
+    fireEvent.change(headers, {
+      // İkinci satır boş, üçüncüde ad yok, dördüncünün DEĞERİNDE iki nokta var.
+      target: { value: 'Authorization: Bearer a:b\n\n: yalnizca-deger\nX-Source:namines' },
+    });
+    fireEvent.blur(headers);
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.actions[0].actionConfig.headers)
+      .toEqual({ Authorization: 'Bearer a:b', 'X-Source': 'namines' });
+  });
+
+  it('tum basliklar silinince alan undefined oluyor', () => {
+    // Bos nesne birakmak yapilandirma JSON'unda gereksiz "headers":{} birakirdi.
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Webhook');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    const headers = screen.getByLabelText(/headers 1/i);
+    fireEvent.change(headers, { target: { value: '' } });
+    fireEvent.blur(headers);
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.actions[0].actionConfig.headers)
+      .toBeUndefined();
+  });
+
+  it('Toast icin de mesaj alani sunuluyor', () => {
+    // Bildirim metni sunucuya hic ugramiyor ama sablon ayni degiskenleri okuyor.
+    const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
+    useAutomationStore.getState().setSelectedRuleId(id);
+    render(<AutomationRuleDrawer />);
+
+    const message = screen.getByLabelText(/message 1/i);
+    fireEvent.change(message, { target: { value: '{{tableName}} gitti' } });
+    fireEvent.blur(message);
+
+    expect(useAutomationStore.getState().rules.find(r => r.id === id)?.actions[0].actionConfig.message)
+      .toBe('{{tableName}} gitti');
+  });
+
   it('the close button clears the selection without deleting the rule', () => {
     const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Webhook');
     useAutomationStore.getState().setSelectedRuleId(id);

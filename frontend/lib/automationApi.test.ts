@@ -127,6 +127,62 @@ describe('updateAutomationRule', () => {
     });
   });
 
+  it('yeni yapilandirma alanlari (method/headers/body/message) tel uzerinde korunuyor', async () => {
+    // Bu alanlar sunucuda `ActionConfig`'in tanidigi adlarla eslesmek zorunda.
+    // Yanlis ad gonderilse sunucu yine 200 doner ve alani sessizce yok sayar —
+    // kullanici webhook'unun neden baslik gondermedigini hicbir yerden
+    // anlayamazdi.
+    vi.mocked(api.put).mockResolvedValue({ data: serverDto });
+
+    await updateAutomationRule('r1', {
+      ...rule,
+      actions: [
+        {
+          actionType: 'Webhook',
+          actionConfig: {
+            url: 'https://example.test/hook',
+            method: 'PUT',
+            body: '{"table":"{{tableName}}"}',
+            headers: { Authorization: 'Bearer secret', 'X-Source': 'namines' },
+          },
+        },
+        { actionType: 'Slack', actionConfig: { url: 'https://hooks.example/x', message: '{{trigger}}' } },
+      ],
+    });
+
+    const sent = vi.mocked(api.put).mock.calls[0][1] as { actions: { actionConfigJson: string }[] };
+    expect(JSON.parse(sent.actions[0].actionConfigJson)).toEqual({
+      url: 'https://example.test/hook',
+      method: 'PUT',
+      body: '{"table":"{{tableName}}"}',
+      headers: { Authorization: 'Bearer secret', 'X-Source': 'namines' },
+    });
+    expect(JSON.parse(sent.actions[1].actionConfigJson)).toEqual({
+      url: 'https://hooks.example/x',
+      message: '{{trigger}}',
+    });
+  });
+
+  it('sunucudan gelen yapilandirma geri okunabiliyor', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: [{
+        ...serverDto,
+        actions: [{
+          actionType: 'Webhook',
+          actionConfigJson: '{"url":"https://a.test","method":"PATCH","headers":{"X-A":"1"}}',
+        }],
+      }],
+    });
+
+    const [parsed] = await fetchAutomationRules('p1');
+
+    expect(parsed.actions[0].actionConfig).toEqual({
+      url: 'https://a.test',
+      method: 'PATCH',
+      headers: { 'X-A': '1' },
+    });
+  });
+
   it('aksiyon SIRASI korunuyor — zincirin anlami buna bagli', async () => {
     vi.mocked(api.put).mockResolvedValue({ data: serverDto });
 
