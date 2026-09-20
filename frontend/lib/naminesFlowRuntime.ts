@@ -129,6 +129,30 @@ export function matchRules(
   );
 }
 
+/**
+ * Kuralın bağlı olduğu tablo bu şemada var mı?
+ *
+ * <b>Neden görünür kılınması gerekiyor:</b> şema tamamen değiştirildiğinde
+ * (yeniden üretme, içe aktarma, farklı bir şemayla değiştirme) eski tablolara
+ * bağlı kurallar geride kalıyor. Sunucudaki eşleştirici bunları sessizce
+ * düşürüyor — tablo id'si sözlükte yoksa kural hiç değerlendirilmiyor — ve
+ * canvas'ta kaynak düğüm bulunamadığı için kenarları da çizilmiyor.
+ *
+ * Sonuç: hiçbir şeye bağlı olmayan, asla tetiklenemeyecek kutular. Kullanıcı
+ * açısından "sistem var ama çalışmıyor"un ta kendisi. Arayüz bu durumu
+ * adlandırmazsa sebebi bulmanın yolu yok.
+ */
+export function isDetachedRule(
+  rule: Pick<AutomationRule, 'scopeTableId'>,
+  tables: { id: string }[] | undefined,
+): boolean {
+  // Boş kapsam = proje geneli; bağlanacak bir tablosu zaten yok.
+  if (rule.scopeTableId === '') return false;
+  // Şema henüz yüklenmediyse "yetim" demek yanlış olur.
+  if (!tables) return false;
+  return !tables.some(t => t.id === rule.scopeTableId);
+}
+
 /** Kullanıcı bir mesaj yazmadıysa gösterilecek varsayılan toast metni. */
 export function toastMessageFor(event: NaminesFlowEvent): string {
   switch (event.type) {

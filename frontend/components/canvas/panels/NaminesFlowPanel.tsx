@@ -9,6 +9,7 @@ import { useFlowNodePositionStore } from '../../../store/useFlowNodePositionStor
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { NAMINES_FLOW_TEMPLATES, instantiateTemplate, type NaminesFlowTemplate } from '../../../lib/naminesFlowTemplates';
 import { testAutomationRule } from '../../../lib/automationApi';
+import { isDetachedRule } from '../../../lib/naminesFlowRuntime';
 import { useToastStore } from '../../../store/useToastStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 
@@ -101,6 +102,13 @@ export default function NaminesFlowPanel() {
     clearFlowNodePosition(ruleId);
   };
 
+  // Şema değiştirildiğinde eski tablolara bağlı kurallar geride kalıyor:
+  // sunucu onları hiç değerlendirmiyor, canvas'ta kenarları çizilmiyor ve
+  // listede yalnızca "unknown table" yazıyordu. Toplu temizlik, tek tek
+  // avlamaktan çok daha gerçekçi — sekiz tanesi birden kalabiliyor.
+  const detachedRules = rules.filter(r => isDetachedRule(r, tables));
+  const removeDetached = () => detachedRules.forEach(r => removeRule(r.id));
+
   /**
    * Listeden doğrudan test. Sonuç toast olarak veriliyor — panelde satır
    * başına ayrıntılı çıktı göstermek listeyi okunmaz hâle getirirdi; tam
@@ -183,6 +191,21 @@ export default function NaminesFlowPanel() {
         </p>
       )}
 
+      {detachedRules.length > 0 && (
+        <div className="flex items-center gap-2 border-b border-danger/30 bg-danger/10 px-4 py-2">
+          <p className="text-micro leading-snug text-danger-text">
+            {detachedRules.length} flow(s) point at tables that are no longer in this schema and can never run.
+          </p>
+          <button
+            type="button"
+            onClick={removeDetached}
+            className="ml-auto shrink-0 rounded-[var(--radius-control)] border border-danger/40 px-2 py-1 text-micro font-semibold text-danger-text transition-colors hover:bg-danger/20 cursor-pointer"
+          >
+            Remove them
+          </button>
+        </div>
+      )}
+
       <section className="border-b border-content-primary/10 p-2">
         <h3 className="px-1 pb-1 text-micro font-semibold uppercase tracking-wider text-content-muted">
           Start from a template
@@ -240,12 +263,22 @@ export default function NaminesFlowPanel() {
                     <span className="text-warning-text">
                       {rule.actions.length === 0
                         ? 'no action'
-                        : rule.actions.map(a => ACTION_LABEL[a.actionType] ?? a.actionType).join(' + ')}
+                        : rule.actions
+                            // Boş/tanınmayan tip, sunucuda "Unknown action type"
+                            // ile başarısız oluyor; listede boşluk bırakmak
+                            // yerine adlandırılıyor.
+                            .map(a => ACTION_LABEL[a.actionType] ?? (a.actionType || 'invalid action'))
+                            .join(' + ')}
                     </span>
                   </p>
                   {/* Son çalışma kural listesiyle birlikte geliyor (tek sorgu),
                       böylece "hangi kural patlıyor" sorusu kuralları tek tek
                       açmadan cevaplanabiliyor. */}
+                  {isDetachedRule(rule, tables) && (
+                    <p className="mt-0.5 text-micro leading-snug text-danger-text">
+                      Table “{rule.scopeTableId}” is not in this schema — this flow can never run.
+                    </p>
+                  )}
                   {rule.lastRun && (
                     <p className={`mt-0.5 text-micro ${LAST_RUN_STYLE[rule.lastRun.status] ?? 'text-content-muted'}`}>
                       Last run: {rule.lastRun.status}

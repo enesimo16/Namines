@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildContext, eventTableIds, matchRules, toastMessageFor } from './naminesFlowRuntime';
+import { buildContext, eventTableIds, isDetachedRule, matchRules, toastMessageFor } from './naminesFlowRuntime';
 import type { AutomationRule } from '../store/useAutomationStore';
 
 const rule = (over: Partial<AutomationRule> = {}): AutomationRule => ({
@@ -174,5 +174,29 @@ describe('toastMessageFor', () => {
     expect(
       toastMessageFor({ type: 'RelationDeleted', relationId: 'r', sourceTableId: 'a', targetTableId: 'b' }),
     ).not.toBe('');
+  });
+});
+
+describe('isDetachedRule', () => {
+  const tables = [{ id: 't1' }, { id: 't2' }];
+
+  it('semada olmayan tabloya bagli kural YETIM', () => {
+    // Şema tamamen değiştirildiğinde geride kalan kurallar: sunucu onları
+    // hiç değerlendirmiyor, canvas'ta kenarları çizilmiyor.
+    expect(isDetachedRule({ scopeTableId: 't_eski' }, tables)).toBe(true);
+  });
+
+  it('semada olan tabloya bagli kural yetim DEGIL', () => {
+    expect(isDetachedRule({ scopeTableId: 't1' }, tables)).toBe(false);
+  });
+
+  it('proje geneli kural yetim SAYILMIYOR', () => {
+    // Bağlanacak bir tablosu zaten yok.
+    expect(isDetachedRule({ scopeTableId: '' }, tables)).toBe(false);
+  });
+
+  it('sema henuz yuklenmemisse yetim denmiyor', () => {
+    // Aksi hâlde canvas açılırken her kural bir an "bozuk" görünürdü.
+    expect(isDetachedRule({ scopeTableId: 't1' }, undefined)).toBe(false);
   });
 });
