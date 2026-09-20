@@ -187,6 +187,35 @@ public sealed class AutomationExecutorTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Yonlendirme_TAKIP_EDILMIYOR_ve_sebebi_yaziliyor()
+    {
+        // SSRF kaçağı buydu: SsrfGuard yalnızca YAZILAN URL'i doğruluyor.
+        // Yönlendirme açık olsaydı, guard'dan geçen bir public host
+        // `302 Location: http://169.254.169.254/...` döndürüp isteği
+        // kullanıcının gövdesi ve başlıklarıyla iç ağa taşıyabilirdi.
+        var (db, project) = await SeedAsync(new AutomationRule
+        {
+            ScopeTableId = null, TriggerType = "TableAdded", Enabled = true,
+            Actions = { new AutomationAction { ActionType = "Webhook", ActionConfigJson = """{"url":"https://example.com/hook"}""" } },
+        });
+
+        var executor = new AutomationExecutor(
+            db, new StubQuota(AiQuotaDecision.Allowed),
+            groqDba: null!, aiService: null!,
+            httpClientFactory: new StubHttpClientFactory(HttpStatusCode.Redirect),
+            linter: new Namines.Infrastructure.LinterService(),
+            logger: Microsoft.Extensions.Logging.Abstractions.NullLogger<AutomationExecutor>.Instance);
+
+        await executor.RunAsync(
+            project.Id, new SchemaDiffResult { AddedTables = { "orders" } },
+            new DatabaseSchema(), SchemaWith("orders"), CancellationToken.None);
+
+        var log = await db.AutomationRunLogs.SingleAsync();
+        Assert.Equal("Skipped", log.Status);
+        Assert.Contains("Redirects are not followed", log.ErrorMessage);
+    }
+
+    [Fact]
     public async Task Slack_mesaji_text_alanina_konuyor()
     {
         var (db, project) = await SeedAsync(new AutomationRule
