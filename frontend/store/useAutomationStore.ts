@@ -40,8 +40,18 @@ export type AutomationActionType =
 export type AutomationConditionField = 'tableName' | 'columnName' | 'columnType';
 export type AutomationConditionOp = 'equals' | 'notEquals' | 'contains' | 'startsWith' | 'endsWith';
 
-/** Tetikleyiciyi daraltan tek bir koşul. Koşullar arasında VE mantığı var. */
+/**
+ * Tetikleyiciyi daraltan tek bir koşul. Koşullar arasında VE mantığı var.
+ *
+ * `uid` YALNIZCA istemci tarafı ve tel biçimine sızmıyor (bkz. automationApi).
+ * Varlık sebebi React: çekmecedeki metin kutuları kontrolsüz (her tuş vuruşunda
+ * sunucuya yazmamak için `defaultValue` + `onBlur`). Liste dizin numarasıyla
+ * anahtarlanırsa, bir satır silindiğinde ya da yeri değiştiğinde React DOM
+ * düğümünü TAŞIMAZ — kutularda önceki komşunun metni kalır ve sonraki `onBlur`
+ * o metni yanlış satıra yazar.
+ */
 export interface AutomationCondition {
+  uid: string;
   field: AutomationConditionField;
   op: AutomationConditionOp;
   value: string;
@@ -62,9 +72,14 @@ export interface AutomationActionConfig {
 
 /** Zincirdeki tek bir adım. Sıra, dizideki konumdan geliyor. */
 export interface AutomationActionStep {
+  /** İstemci tarafı kimlik — gerekçesi `AutomationCondition.uid` ile aynı. */
+  uid: string;
   actionType: AutomationActionType;
   actionConfig: AutomationActionConfig;
 }
+
+/** Yeni bir adım/koşul için istemci tarafı kimlik. */
+export const newUid = genId;
 
 /** Kuralın en son çalışmasının özeti — listede tek bakışta durum rozeti için. */
 export interface AutomationLastRun {
@@ -140,7 +155,7 @@ export const useAutomationStore = create<AutomationStoreState>((set, get) => ({
         name: '',
         triggerType,
         conditions: [],
-        actions: [{ actionType, actionConfig: {} }],
+        actions: [{ uid: genId(), actionType, actionConfig: {} }],
         enabled: true,
       }],
     }));

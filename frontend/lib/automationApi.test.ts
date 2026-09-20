@@ -43,10 +43,14 @@ describe('fetchAutomationRules', () => {
     expect(rule.name).toBe('Kritik kolon');
     // null kapsam istemcide BOS STRING: store her yerde string bekliyor.
     expect(rule.scopeTableId).toBe('');
-    expect(rule.conditions).toEqual([{ field: 'columnName', op: 'endsWith', value: '_id' }]);
+    // `uid` istemcide RASTGELE üretiliyor (React listeleri için) ve sunucudan
+    // gelmiyor — eşitlenecek bir değeri yok, yalnızca varlığı anlamlı.
+    expect(rule.conditions).toEqual([
+      { uid: expect.any(String), field: 'columnName', op: 'endsWith', value: '_id' },
+    ]);
     expect(rule.actions).toEqual([
-      { actionType: 'Toast', actionConfig: {} },
-      { actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } },
+      { uid: expect.any(String), actionType: 'Toast', actionConfig: {} },
+      { uid: expect.any(String), actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } },
     ]);
   });
 
@@ -58,7 +62,7 @@ describe('fetchAutomationRules', () => {
     const [rule] = await fetchAutomationRules('p1');
 
     expect(rule.conditions).toEqual([]);
-    expect(rule.actions).toEqual([{ actionType: 'Toast', actionConfig: {} }]);
+    expect(rule.actions).toEqual([{ uid: expect.any(String), actionType: 'Toast', actionConfig: {} }]);
   });
 
   it('aksiyonsuz kural bos dizi olarak geliyor', async () => {
@@ -101,10 +105,10 @@ describe('updateAutomationRule', () => {
     scopeTableId: '',
     name: 'Kritik kolon',
     triggerType: 'ColumnDeleted',
-    conditions: [{ field: 'columnName', op: 'endsWith', value: '_id' }],
+    conditions: [{ uid: 'c', field: 'columnName', op: 'endsWith', value: '_id' }],
     actions: [
-      { actionType: 'Toast', actionConfig: {} },
-      { actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } },
+      { uid: 'u', actionType: 'Toast', actionConfig: {} },
+      { uid: 'u', actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } },
     ],
     enabled: true,
   };
@@ -138,6 +142,7 @@ describe('updateAutomationRule', () => {
       ...rule,
       actions: [
         {
+          uid: 'u',
           actionType: 'Webhook',
           actionConfig: {
             url: 'https://example.test/hook',
@@ -146,7 +151,7 @@ describe('updateAutomationRule', () => {
             headers: { Authorization: 'Bearer secret', 'X-Source': 'namines' },
           },
         },
-        { actionType: 'Slack', actionConfig: { url: 'https://hooks.example/x', message: '{{trigger}}' } },
+        { uid: 'u', actionType: 'Slack', actionConfig: { url: 'https://hooks.example/x', message: '{{trigger}}' } },
       ],
     });
 

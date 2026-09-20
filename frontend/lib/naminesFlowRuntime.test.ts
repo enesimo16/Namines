@@ -8,7 +8,7 @@ const rule = (over: Partial<AutomationRule> = {}): AutomationRule => ({
   name: '',
   triggerType: 'TableDeleted',
   conditions: [],
-  actions: [{ actionType: 'Toast', actionConfig: {} }],
+  actions: [{ uid: 'u', actionType: 'Toast', actionConfig: {} }],
   enabled: true,
   ...over,
 });
@@ -86,7 +86,7 @@ describe('matchRules', () => {
       { type: 'ColumnDeleted', tableId: 't1', columnId: 'c1', columnName: 'title' },
       [rule({
         triggerType: 'ColumnDeleted',
-        conditions: [{ field: 'columnName', op: 'endsWith', value: '_id' }],
+        conditions: [{ uid: 'c', field: 'columnName', op: 'endsWith', value: '_id' }],
       })],
     );
     expect(matched).toHaveLength(0);
@@ -97,7 +97,7 @@ describe('matchRules', () => {
       { type: 'ColumnDeleted', tableId: 't1', columnId: 'c1', columnName: 'user_id' },
       [rule({
         triggerType: 'ColumnDeleted',
-        conditions: [{ field: 'columnName', op: 'endsWith', value: '_id' }],
+        conditions: [{ uid: 'c', field: 'columnName', op: 'endsWith', value: '_id' }],
       })],
     );
     expect(matched).toHaveLength(1);
@@ -107,13 +107,34 @@ describe('matchRules', () => {
     // Olay tabloyu ID ile taşıyor; ad çözücü verildiğinde koşul çalışıyor ve
     // sunucuyla aynı sonucu veriyor.
     const resolve = (id: string) => (id === 't1' ? 'orders' : undefined);
-    const rules = [rule({ conditions: [{ field: 'tableName', op: 'equals', value: 'orders' }] })];
+    const rules = [rule({ conditions: [{ uid: 'c', field: 'tableName', op: 'equals', value: 'orders' }] })];
     const event = { type: 'TableDeleted', tableId: 't1', tableName: 'orders' } as const;
 
     expect(matchRules(event, rules, buildContext(event, resolve))).toHaveLength(1);
 
-    const other = [rule({ conditions: [{ field: 'tableName', op: 'equals', value: 'users' }] })];
+    const other = [rule({ conditions: [{ uid: 'c', field: 'tableName', op: 'equals', value: 'users' }] })];
     expect(matchRules(event, other, buildContext(event, resolve))).toHaveLength(0);
+  });
+
+  it('olayda karsiligi olmayan kolon kosulu kurali DUSURUYOR (sunucuyla ayni)', () => {
+    // Tablo olayinda columnName yok. Affedilseydi tarayicida bildirim cikar,
+    // sunucu ise sessiz kalirdi.
+    const matched = matchRules(
+      { type: 'TableDeleted', tableId: 't1', tableName: 'orders' },
+      [rule({ conditions: [{ uid: 'c', field: 'columnName', op: 'equals', value: 'x' }] })],
+    );
+    expect(matched).toHaveLength(0);
+  });
+
+  it('iliski olayinda tablo adi COZULMUYOR — sunucu da bos birakiyor', () => {
+    const resolve = () => 'orders';
+    const event = { type: 'RelationAdded', relationId: 'r', sourceTableId: 't1', targetTableId: 't2' } as const;
+    const matched = matchRules(
+      event,
+      [rule({ triggerType: 'RelationAdded', scopeTableId: '', conditions: [{ uid: 'c', field: 'tableName', op: 'equals', value: 'orders' }] })],
+      buildContext(event, resolve),
+    );
+    expect(matched).toHaveLength(0);
   });
 
   it('istemcide degerlendirilemeyen kosul kurali DUSURMEZ', () => {
@@ -123,7 +144,7 @@ describe('matchRules', () => {
       { type: 'ColumnAdded', tableId: 't1', columnId: 'c1', columnName: 'total' },
       [rule({
         triggerType: 'ColumnAdded',
-        conditions: [{ field: 'columnType', op: 'equals', value: 'INT' }],
+        conditions: [{ uid: 'c', field: 'columnType', op: 'equals', value: 'INT' }],
       })],
     );
     expect(matched).toHaveLength(1);
@@ -132,7 +153,7 @@ describe('matchRules', () => {
   it('ayni olaya bagli birden fazla kurali birlikte dondurur', () => {
     const matched = matchRules({ type: 'TableDeleted', tableId: 't1', tableName: 'Orders' }, [
       rule({ id: 'r1' }),
-      rule({ id: 'r2', actions: [{ actionType: 'Webhook', actionConfig: {} }] }),
+      rule({ id: 'r2', actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: {} }] }),
     ]);
     expect(matched.map(r => r.id)).toEqual(['r1', 'r2']);
   });

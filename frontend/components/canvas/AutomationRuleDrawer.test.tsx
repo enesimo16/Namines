@@ -116,7 +116,7 @@ describe('AutomationRuleDrawer', () => {
     fireEvent.blur(value);
 
     expect(useAutomationStore.getState().rules.find(r => r.id === id)?.conditions).toEqual([
-      { field: 'columnName', op: 'endsWith', value: '_id' },
+      { uid: expect.any(String), field: 'columnName', op: 'endsWith', value: '_id' },
     ]);
   });
 

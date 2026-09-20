@@ -198,6 +198,21 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient("AutomationWebhook", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(5);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            // YÖNLENDİRME KAPALI — bu bir SSRF kaçağıydı.
+            //
+            // SsrfGuard yalnızca kullanıcının YAZDIĞI URL'i doğruluyor. Otomatik
+            // yönlendirme açıkken saldırgan kontrolündeki bir public host
+            // (guard'dan geçer) `302 Location: http://169.254.169.254/...`
+            // döndürdüğünde HttpClient o adrese, kullanıcının gövdesi ve
+            // başlıklarıyla birlikte gidiyordu. "Şimdi test et" bunu anında ve
+            // kendi kendine yapılabilir hâle getiriyordu.
+            //
+            // 3xx artık takip edilmiyor; yanıt başarısız sayılıp sebebiyle
+            // loglanıyor (bkz. AutomationExecutor.RunHttpAsync).
+            AllowAutoRedirect = false,
         });
 
         // Namines Ground -- yonetilen veritabani.

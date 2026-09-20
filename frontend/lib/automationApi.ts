@@ -11,6 +11,7 @@
  * o istemcide merkezi — ham `fetch` burada TEKRAR uygulanmıyor.
  */
 import api from '../services/api';
+import { newUid } from '../store/useAutomationStore';
 import type {
   AutomationRule,
   AutomationActionType,
@@ -58,7 +59,9 @@ const parseConditions = (json: string | undefined): AutomationCondition[] => {
   if (!json) return [];
   try {
     const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed : [];
+    // `uid` sunucuda saklanmıyor; okurken üretiliyor (React listeleri için,
+    // bkz. AutomationCondition).
+    return Array.isArray(parsed) ? parsed.map(c => ({ ...c, uid: newUid() })) : [];
   } catch {
     return [];
   }
@@ -71,6 +74,7 @@ const fromDto = (dto: AutomationRuleDto): AutomationRule => ({
   triggerType: dto.triggerType as NaminesFlowEvent['type'],
   conditions: parseConditions(dto.conditionsJson),
   actions: (dto.actions ?? []).map(a => ({
+    uid: newUid(),
     actionType: a.actionType as AutomationActionType,
     actionConfig: parseObject(a.actionConfigJson),
   })),
@@ -78,11 +82,15 @@ const fromDto = (dto: AutomationRuleDto): AutomationRule => ({
   lastRun: dto.lastRun ?? null,
 });
 
+/** `uid` istemci tarafı; tele çıkmıyor. */
 const toActionDtos = (actions: AutomationActionStep[]): AutomationActionDto[] =>
   actions.map(a => ({
     actionType: a.actionType,
     actionConfigJson: JSON.stringify(a.actionConfig ?? {}),
   }));
+
+const toConditionsJson = (conditions: AutomationCondition[]): string =>
+  JSON.stringify((conditions ?? []).map(({ field, op, value }) => ({ field, op, value })));
 
 export async function fetchAutomationRules(projectId: string): Promise<AutomationRule[]> {
   const response = await api.get<AutomationRuleDto[]>('/automation/rules', { params: { projectId } });
@@ -117,7 +125,7 @@ export async function updateAutomationRule(id: string, rule: AutomationRule): Pr
     name: rule.name,
     scopeTableId: rule.scopeTableId === '' ? null : rule.scopeTableId,
     triggerType: rule.triggerType,
-    conditionsJson: JSON.stringify(rule.conditions ?? []),
+    conditionsJson: toConditionsJson(rule.conditions),
     actions: toActionDtos(rule.actions ?? []),
     enabled: rule.enabled,
   });

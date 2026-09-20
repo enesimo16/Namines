@@ -1,7 +1,20 @@
 import type {
   AutomationActionStep,
+  AutomationActionType,
+  AutomationActionConfig,
   AutomationCondition,
+  AutomationConditionField,
+  AutomationConditionOp,
 } from '../store/useAutomationStore';
+import { newUid } from '../store/useAutomationStore';
+
+/**
+ * Şablon tanımları `uid` TAŞIMIYOR: uid bir örneğin kimliği, şablonun değil.
+ * İki kural aynı şablondan kurulursa adımları ayrı kimlikler almalı, yoksa
+ * React ikisini aynı satır sanardı. Kimlikler `instantiate` sırasında üretiliyor.
+ */
+type TemplateAction = { actionType: AutomationActionType; actionConfig: AutomationActionConfig };
+type TemplateCondition = { field: AutomationConditionField; op: AutomationConditionOp; value: string };
 import type { NaminesFlowEvent } from './naminesFlowEventBus';
 
 /**
@@ -23,8 +36,8 @@ export interface NaminesFlowTemplate {
   requiresTable: boolean;
   triggerType: NaminesFlowEvent['type'];
   name: string;
-  conditions: AutomationCondition[];
-  actions: AutomationActionStep[];
+  conditions: TemplateCondition[];
+  actions: TemplateAction[];
 }
 
 export const NAMINES_FLOW_TEMPLATES: NaminesFlowTemplate[] = [
@@ -75,3 +88,14 @@ export const NAMINES_FLOW_TEMPLATES: NaminesFlowTemplate[] = [
     ],
   },
 ];
+
+/** Şablonu, her adımı kendi kimliğini taşıyan somut bir kurala çevirir. */
+export function instantiateTemplate(template: NaminesFlowTemplate): {
+  conditions: AutomationCondition[];
+  actions: AutomationActionStep[];
+} {
+  return {
+    conditions: template.conditions.map(c => ({ ...c, uid: newUid() })),
+    actions: template.actions.map(a => ({ ...a, uid: newUid() })),
+  };
+}

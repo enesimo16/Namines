@@ -199,20 +199,47 @@ public sealed class AutomationExecutor : IAutomationExecutor
         {
             foreach (var (key, value) in config.Headers)
             {
-                if (string.IsNullOrWhiteSpace(key)) continue;
-                // Başlık adı/değeri kullanıcıdan geliyor; geçersiz olanı
-                // eklemeye çalışmak tüm isteği istisna ile düşürürdü.
-                request.Headers.TryAddWithoutValidation(key, Render(value));
+                // Başlık ADI kullanıcıdan geliyor; satır sonu ya da iki nokta
+                // içeren bir ad protokol seviyesinde bozuk istek üretir.
+                if (!IsSafeHeaderName(key)) continue;
+
+                // DEĞER şablondan geçiyor ve şablon tablo/kolon ADINI
+                // dolduruyor — yani hedef sunucuya giden başlık değerine
+                // kullanıcının şema içeriği giriyor. İçinde CR/LF olan bir ad
+                // başlık enjeksiyonu denemesi olurdu; satır sonları atılıyor.
+                var safeValue = StripLineBreaks(Render(value));
+
+                // `TryAddWithoutValidation`: doğrulamaya takılan bir başlık
+                // istisna fırlatıp TÜM isteği düşürürdü — bu adım sessizce
+                // atlanmalı, zincirin geri kalanı çalışmaya devam etmeli.
+                request.Headers.TryAddWithoutValidation(key, safeValue);
             }
         }
 
         var client = _httpClientFactory.CreateClient("AutomationWebhook");
-        var response = await client.SendAsync(request, ct);
+        // `using`: yanıt atılmazsa gövde arabelleği ve bağlantı, çöp
+        // toplayıcıya kadar tutulur. Otomasyonlar toplu tetiklendiğinde
+        // havuzdaki bağlantıları gereksiz yere meşgul ederdi.
+        using var response = await client.SendAsync(request, ct);
 
         if (response.IsSuccessStatusCode)
+        {
             await LogAsync(rule.Id, action.ActionType, "Success", null, null, isTest, ct);
+        }
+        else if ((int)response.StatusCode is >= 300 and < 400)
+        {
+            // Yönlendirme TAKİP EDİLMİYOR (bkz. AutomationWebhook istemcisinin
+            // kaydı): SsrfGuard yalnızca yazılan URL'i doğruluyor, hedefin
+            // gösterdiği adresi değil. Kullanıcı sessiz bir başarısızlıkla
+            // kalmasın diye sebep açıkça yazılıyor.
+            await LogAsync(rule.Id, action.ActionType, "Skipped",
+                $"Webhook redirected ({(int)response.StatusCode}). Redirects are not followed — use the final URL.",
+                null, isTest, ct);
+        }
         else
+        {
             await LogAsync(rule.Id, action.ActionType, "Failed", $"Webhook returned {(int)response.StatusCode}.", null, isTest, ct);
+        }
     }
 
     private async Task RunLintAsync(
@@ -279,6 +306,26 @@ public sealed class AutomationExecutor : IAutomationExecutor
     }
 
     private static readonly JsonSerializerOptions ConfigJsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    /// <summary>
+    /// RFC 9110'un izin verdiği token karakterleri. Boşluk, iki nokta ve satır
+    /// sonu içeren bir ad bozuk istek üretir.
+    /// </summary>
+    private static bool IsSafeHeaderName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        foreach (var c in name)
+        {
+            var ok = char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or '!' or '#' or '$' or '%'
+                or '&' or '\'' or '*' or '+' or '^' or '`' or '|' or '~';
+            if (!ok) return false;
+        }
+        return true;
+    }
+
+    /// <summary>Başlık değerinden satır sonlarını atar (başlık enjeksiyonu).</summary>
+    private static string StripLineBreaks(string value) =>
+        value.Replace("\r", string.Empty).Replace("\n", string.Empty);
 
     private static ActionConfig ParseConfig(string actionConfigJson)
     {

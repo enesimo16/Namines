@@ -23,7 +23,7 @@ const rule = (over: Partial<AutomationRule> = {}): AutomationRule => ({
   name: '',
   triggerType: 'TableDeleted',
   conditions: [],
-  actions: [{ actionType: 'Toast', actionConfig: {} }],
+  actions: [{ uid: 'u', actionType: 'Toast', actionConfig: {} }],
   enabled: true,
   ...over,
 });
@@ -58,7 +58,7 @@ describe('useNaminesFlowRuntime', () => {
   it('Toast disi aksiyonda toast basmaz ama node yine de isaretlenir', () => {
     // Webhook sunucuda calisir; istemcide gorunen tek sey "bu kural tetiklendi"
     // animasyonu olmali — sessizlik degil.
-    useAutomationStore.setState({ rules: [rule({ actions: [{ actionType: 'Webhook', actionConfig: {} }] })] });
+    useAutomationStore.setState({ rules: [rule({ actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: {} }] })] });
     renderHook(() => useNaminesFlowRuntime());
 
     act(() => {
@@ -113,7 +113,7 @@ describe('useNaminesFlowRuntime', () => {
       schema: { schemaId: 's1', name: 'Shop', tables: [{ id: 't1', name: 'orders', columns: [] }], relations: [] },
     } as never);
     useAutomationStore.setState({
-      rules: [rule({ actions: [{ actionType: 'Toast', actionConfig: { message: '{{projectName}}: {{tableName}} gitti' } }] })],
+      rules: [rule({ actions: [{ uid: 'u', actionType: 'Toast', actionConfig: { message: '{{projectName}}: {{tableName}} gitti' } }] })],
     });
     renderHook(() => useNaminesFlowRuntime());
 
@@ -126,7 +126,7 @@ describe('useNaminesFlowRuntime', () => {
 
   it('mesaj bos birakilirsa varsayilan metne dusuyor', () => {
     useAutomationStore.setState({
-      rules: [rule({ actions: [{ actionType: 'Toast', actionConfig: { message: '   ' } }] })],
+      rules: [rule({ actions: [{ uid: 'u', actionType: 'Toast', actionConfig: { message: '   ' } }] })],
     });
     renderHook(() => useNaminesFlowRuntime());
 

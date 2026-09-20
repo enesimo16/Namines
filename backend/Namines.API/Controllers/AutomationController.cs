@@ -284,11 +284,23 @@ public class AutomationController : ControllerBase
 
         // Kural başına hız sınırı: her adım gerçek bir webhook çağrısı ya da
         // AI isteği demek, düğmeye basılı tutmak pahalı.
+        //
+        // Sınır ÇALIŞTIRMA sayar, log SATIRI değil. Satır sayılsaydı beş adımlı
+        // bir zincir tek testte sınırı doldururdu; yalnızca Toast içeren bir
+        // kural ise hiç satır yazmadığı için hiç sınırlanmazdı.
+        // Satır sayısı, sunucuda çalışan adım sayısına bölünüyor: bu, yeni bir
+        // sütun eklemeden çalıştırma sayısına en yakın ölçü. Zincirde hiç
+        // sunucu adımı yoksa (yalnızca Toast) hiç satır yazılmıyor ve sınır
+        // uygulanmıyor — sınırlanacak bir maliyet de yok.
         var since = DateTime.UtcNow - TestRunWindow;
-        var recentTests = await _context.AutomationRunLogs.AsNoTracking()
-            .CountAsync(l => l.RuleId == id && l.IsTest && l.TriggeredAt >= since, ct);
-        if (recentTests >= MaxTestRunsPerWindow)
-            return StatusCode(429, new { error = "Too many test runs for this rule. Try again in a minute." });
+        var serverSideSteps = rule.Actions.Count(a => a.ActionType != "Toast");
+        if (serverSideSteps > 0)
+        {
+            var recentRows = await _context.AutomationRunLogs.AsNoTracking()
+                .CountAsync(l => l.RuleId == id && l.IsTest && l.TriggeredAt >= since, ct);
+            if (recentRows / serverSideSteps >= MaxTestRunsPerWindow)
+                return StatusCode(429, new { error = "Too many test runs for this rule. Try again in a minute." });
+        }
 
         var schema = DeserializeSchema(project.SchemaJson);
         var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsed)
@@ -303,14 +315,16 @@ public class AutomationController : ControllerBase
             : schema.Tables.FirstOrDefault(t => t.Id == rule.ScopeTableId)?.Name;
         var context = new AutomationTriggerContext(scopeTableName, null, null);
 
+        // Çalıştırmadan HEMEN ÖNCEKİ an: sonuçlar bununla sınırlanıyor.
+        // Pencereye göre filtreleyip adım sayısı kadar satır almak, zincirde
+        // Toast varken eksik kalan satırları ÖNCEKİ bir test çalıştırmasının
+        // satırlarıyla doldururdu.
+        var runStartedAt = DateTime.UtcNow;
         await _executor.RunRuleAsync(rule, userId, schema, engine, context, project.Name, isTest: true, ct);
 
-        // Yalnızca BU çalıştırmanın satırları dönüyor; istemci sonucu anında
-        // gösterebilsin diye geçmişi ayrıca çekmesi gerekmiyor.
         var results = await _context.AutomationRunLogs.AsNoTracking()
-            .Where(l => l.RuleId == id && l.IsTest && l.TriggeredAt >= since)
+            .Where(l => l.RuleId == id && l.IsTest && l.TriggeredAt >= runStartedAt)
             .OrderByDescending(l => l.TriggeredAt)
-            .Take(rule.Actions.Count == 0 ? 1 : rule.Actions.Count)
             .ToListAsync(ct);
 
         return Ok(new

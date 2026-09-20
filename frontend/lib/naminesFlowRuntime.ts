@@ -46,17 +46,21 @@ export function buildContext(
   event: NaminesFlowEvent,
   resolveTableName?: (tableId: string) => string | undefined,
 ): FlowTemplateContext {
-  const tableName = resolveTableName
-    ? eventTableIds(event).map(resolveTableName).find(Boolean)
-    : undefined;
-
   switch (event.type) {
     case 'ColumnAdded':
     case 'ColumnDeleted':
     case 'ColumnChanged':
-      return { tableName, columnName: event.columnName };
+      return { tableName: resolveTableName?.(event.tableId), columnName: event.columnName };
+
+    // İlişki olaylarının TEK bir tablosu yok; sunucudaki eşleştirici de
+    // bağlamı boş bırakıyor. Kaynak ya da hedeften birini seçmek, tarayıcıda
+    // eşleşip sunucuda eşleşmeyen bir `tableName` koşulu üretirdi.
+    case 'RelationAdded':
+    case 'RelationDeleted':
+      return {};
+
     default:
-      return { tableName };
+      return { tableName: resolveTableName?.(event.tableId) };
   }
 }
 
@@ -75,13 +79,19 @@ function conditionsHold(rule: AutomationRule, context: FlowTemplateContext): boo
   if (rule.conditions.length === 0) return true;
 
   return rule.conditions.every(condition => {
-    const actual =
-      condition.field === 'tableName' ? context.tableName
-      : condition.field === 'columnName' ? context.columnName
-      : context.columnType;
+    // `columnType` olay içinde HİÇ taşınmıyor — bu alan istemcide asla
+    // değerlendirilemez ve şüpheden yararlanıyor. Diğer alanlar için değerin
+    // yokluğu gerçek bir "eşleşmedi"dir: sunucudaki değerlendirici de
+    // (AutomationConditionEvaluator) null bir alanda koşulu DÜŞÜRÜYOR.
+    // Hepsini birden affetmek, tablo olayına yazılmış bir `columnName`
+    // koşulunun tarayıcıda geçip sunucuda kalmasına yol açardı.
+    if (condition.field === 'columnType') return true;
 
-    // İstemcide bilinmeyen alan: kural düşürülmüyor (yukarıdaki gerekçe).
-    if (actual === undefined) return true;
+    // Tanınmayan bir alan sunucuda koşulu düşürüyor; burada da öyle.
+    if (condition.field !== 'tableName' && condition.field !== 'columnName') return false;
+
+    const actual = condition.field === 'tableName' ? context.tableName : context.columnName;
+    if (actual === undefined) return false;
 
     const a = actual.toLowerCase();
     const b = (condition.value ?? '').toLowerCase();

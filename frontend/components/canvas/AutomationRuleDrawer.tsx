@@ -3,6 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { ArrowDown, ArrowUp, Plus, Trash2, X, Zap } from 'lucide-react';
 import {
+  newUid,
   useAutomationStore,
   type AutomationActionStep,
   type AutomationActionType,
@@ -146,8 +147,21 @@ export default function AutomationRuleDrawer() {
     // tetikleyiciyi geçerli bir değere çekiyoruz.
     const triggerType: TriggerType =
       scopeTableId !== '' && isRelationTrigger(rule.triggerType) ? 'TableDeleted' : rule.triggerType;
-    updateRule(rule.id, { scopeTableId, triggerType });
+    updateRule(rule.id, { scopeTableId, triggerType, ...conditionsPatchFor(triggerType) });
   };
+
+  /**
+   * İlişki tetikleyicisine geçerken koşullar TEMİZLENİYOR.
+   *
+   * Bölüm yalnızca GİZLENSEYDİ koşullar kayıtta kalırdı: ilişki olayında tablo
+   * ve kolon adı yok, sunucu bunları boş görüp koşulu düşürür ve kural sessizce
+   * hiç tetiklenmez. Kullanıcı ekranda koşul görmediği için sebebini
+   * bulamazdı — görünmeyen ama canlı bir ayar, olmayan bir ayardan kötüdür.
+   */
+  const conditionsPatchFor = (triggerType: TriggerType) =>
+    isRelationTrigger(triggerType) && rule.conditions.length > 0
+      ? { conditions: [] as AutomationCondition[] }
+      : {};
 
   const setActions = (actions: AutomationActionStep[]) => updateRule(rule.id, { actions });
   const setConditions = (conditions: AutomationCondition[]) => updateRule(rule.id, { conditions });
@@ -248,7 +262,10 @@ export default function AutomationRuleDrawer() {
               <select
                 className={inputClass}
                 value={rule.triggerType}
-                onChange={(e) => updateRule(rule.id, { triggerType: e.target.value as TriggerType })}
+                onChange={(e) => {
+                  const triggerType = e.target.value as TriggerType;
+                  updateRule(rule.id, { triggerType, ...conditionsPatchFor(triggerType) });
+                }}
               >
                 {triggerOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -269,7 +286,7 @@ export default function AutomationRuleDrawer() {
                   className={iconButtonClass}
                   onClick={() => setConditions([
                     ...rule.conditions,
-                    { field: conditionFields[0].value, op: 'contains', value: '' },
+                    { uid: newUid(), field: conditionFields[0].value, op: 'contains', value: '' },
                   ])}
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -287,7 +304,10 @@ export default function AutomationRuleDrawer() {
             ) : (
               <ul className="flex flex-col gap-1.5">
                 {rule.conditions.map((condition, index) => (
-                  <li key={index} className="flex items-center gap-1">
+                  // `key` DİZİN DEĞİL: kutular kontrolsüz (defaultValue), dizinle
+                  // anahtarlanınca bir satır silindiğinde React DOM'u taşımıyor ve
+                  // kutuda önceki komşunun metni kalıyordu.
+                  <li key={condition.uid} className="flex items-center gap-1">
                     <select
                       aria-label={`Condition ${index + 1} field`}
                       className={smallInputClass}
@@ -341,7 +361,7 @@ export default function AutomationRuleDrawer() {
                 type="button"
                 aria-label="Add action"
                 className={iconButtonClass}
-                onClick={() => setActions([...rule.actions, { actionType: 'Toast', actionConfig: {} }])}
+                onClick={() => setActions([...rule.actions, { uid: newUid(), actionType: 'Toast', actionConfig: {} }])}
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -355,7 +375,7 @@ export default function AutomationRuleDrawer() {
               <ul className="flex flex-col gap-2">
                 {rule.actions.map((action, index) => (
                   <li
-                    key={index}
+                    key={action.uid}
                     className="rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-700 p-2.5"
                   >
                     <div className="flex items-center gap-1">

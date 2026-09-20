@@ -109,6 +109,11 @@ public class AutomationRunLogRetentionService : BackgroundService
             {
                 db.AutomationRunLogs.RemoveRange(old);
                 deleted += old.Count;
+                // HEMEN kaydediliyor: aşağıdaki kural-başına geçiş VERİTABANINI
+                // sorguluyor, yalnızca "Removed" işaretlenmiş satırları değil.
+                // Kaydetmeden devam edilirse o satırlar hem sayımda hem de
+                // fazlalık listesinde yeniden görünür ve `deleted` şişerdi.
+                await db.SaveChangesAsync(ct);
             }
         }
 

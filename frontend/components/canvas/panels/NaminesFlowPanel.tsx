@@ -7,7 +7,7 @@ import { useFlowBarStore } from '../../../store/useFlowBarStore';
 import { useAutomationStore } from '../../../store/useAutomationStore';
 import { useFlowNodePositionStore } from '../../../store/useFlowNodePositionStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
-import { NAMINES_FLOW_TEMPLATES, type NaminesFlowTemplate } from '../../../lib/naminesFlowTemplates';
+import { NAMINES_FLOW_TEMPLATES, instantiateTemplate, type NaminesFlowTemplate } from '../../../lib/naminesFlowTemplates';
 import { testAutomationRule } from '../../../lib/automationApi';
 import { useToastStore } from '../../../store/useToastStore';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
@@ -145,13 +145,10 @@ export default function NaminesFlowPanel() {
    */
   const applyTemplate = (template: NaminesFlowTemplate) => {
     const scopeTableId = template.requiresTable ? (selectedTableId ?? '') : '';
-    const firstAction = template.actions[0] ?? { actionType: 'Toast' as const, actionConfig: {} };
-    const ruleId = addRule(scopeTableId, template.triggerType, firstAction.actionType);
-    updateRule(ruleId, {
-      name: template.name,
-      conditions: template.conditions,
-      actions: template.actions,
-    });
+    const { conditions, actions } = instantiateTemplate(template);
+    const firstType = actions[0]?.actionType ?? 'Toast';
+    const ruleId = addRule(scopeTableId, template.triggerType, firstType);
+    updateRule(ruleId, { name: template.name, conditions, actions });
     // Çekmece açılıyor ki eksik kalan alan (ör. webhook URL'i) hemen görülsün.
     setSelectedRuleId(ruleId);
     setPanelOpen(false);

@@ -317,6 +317,28 @@ public sealed class AutomationControllerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetRules_son_calismayi_da_donduruyor()
+    {
+        // Bu sorgu (GroupBy + en yeniyi seç) sağlayıcıya çevrilemezse uç 500
+        // döner ve kural listesi HİÇ yüklenmez — rozet değil, panelin tamamı
+        // gider. Çalışma kaydı OLAN bir projede koşuyor ki yol gerçekten
+        // yürütülsün.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+        await SeedRunAsync(db, rule.Id, "Failed", DateTime.UtcNow.AddMinutes(-5));
+        await SeedRunAsync(db, rule.Id, "Skipped", DateTime.UtcNow);
+
+        var controller = NewController(db, userId: "owner-1");
+        var ok = Assert.IsType<OkObjectResult>(await controller.GetRules(project.Id, default));
+
+        var row = Assert.Single(Assert.IsAssignableFrom<System.Collections.IEnumerable>(ok.Value).Cast<object>());
+        var lastRun = row.GetType().GetProperty("LastRun")!.GetValue(row);
+        Assert.NotNull(lastRun);
+        Assert.Equal("Skipped", lastRun!.GetType().GetProperty("Status")!.GetValue(lastRun));
+    }
+
+    [Fact]
     public async Task GetRuns_baskasinin_kuralinda_NotFound_donuyor()
     {
         // Diğer uçlarla AYNI desen: varlığı sızdırmamak için 403 değil 404.
@@ -402,7 +424,16 @@ public sealed class AutomationControllerTests : IAsyncLifetime
     {
         await using var db = NewContext();
         var project = await SeedProjectAsync(db, ownerId: "owner-1");
-        var rule = await SeedRuleAsync(db, project.Id);
+        // Sunucu tarafı TEK adımı olan bir kural: satır sayısı = çalıştırma
+        // sayısı. (Yalnızca Toast içeren bir kural hiç satır yazmaz ve
+        // bilerek sınırlanmaz — sınırlanacak bir maliyeti yok.)
+        var rule = new AutomationRule
+        {
+            ProjectId = project.Id, TriggerType = "TableDeleted",
+            Actions = { new AutomationAction { SortOrder = 0, ActionType = "Webhook" } },
+        };
+        db.AutomationRules.Add(rule);
+        await db.SaveChangesAsync();
 
         // Pencere içinde sınır kadar test çalışması zaten var.
         for (var i = 0; i < 5; i++)
@@ -414,6 +445,38 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         var result = Assert.IsType<ObjectResult>(await controller.TestRule(rule.Id, default));
         Assert.Equal(429, result.StatusCode);
         Assert.Empty(executor.Runs);
+    }
+
+    [Fact]
+    public async Task TestRule_hiz_siniri_ZINCIR_UZUNLUGUNDAN_etkilenmiyor()
+    {
+        // Sınır log SATIRI sayarsa, beş adımlı bir zincir TEK testte dolar.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = new AutomationRule
+        {
+            ProjectId = project.Id, TriggerType = "TableDeleted",
+            Actions =
+            {
+                new AutomationAction { SortOrder = 0, ActionType = "Webhook" },
+                new AutomationAction { SortOrder = 1, ActionType = "Webhook" },
+                new AutomationAction { SortOrder = 2, ActionType = "Webhook" },
+                new AutomationAction { SortOrder = 3, ActionType = "Webhook" },
+                new AutomationAction { SortOrder = 4, ActionType = "Webhook" },
+            },
+        };
+        db.AutomationRules.Add(rule);
+        await db.SaveChangesAsync();
+
+        // Tek bir test çalıştırmasının ürettiği kadar satır (5 adım × 1 tur).
+        for (var i = 0; i < 5; i++)
+            await SeedRunAsync(db, rule.Id, "Success", DateTime.UtcNow.AddSeconds(-i), isTest: true);
+
+        var executor = new RecordingExecutor();
+        var controller = NewController(db, userId: "owner-1", executor);
+
+        Assert.IsType<OkObjectResult>(await controller.TestRule(rule.Id, default));
+        Assert.Single(executor.Runs);
     }
 
     [Fact]

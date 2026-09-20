@@ -13,7 +13,8 @@ describe('useAutomationStore', () => {
     expect(rules).toHaveLength(1);
     expect(rules[0]).toMatchObject({
       id, scopeTableId: 't-orders', name: '', triggerType: 'TableDeleted', conditions: [],
-      actions: [{ actionType: 'Webhook', actionConfig: {} }], enabled: true,
+      // `uid` store tarafından üretiliyor — sabit bir değere eşitlenemez.
+      actions: [{ uid: expect.any(String), actionType: 'Webhook', actionConfig: {} }], enabled: true,
     });
   });
 
@@ -30,7 +31,7 @@ describe('useAutomationStore', () => {
     const id = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Webhook');
     const otherId = useAutomationStore.getState().addRule('t-users', 'ColumnAdded', 'Toast');
 
-    useAutomationStore.getState().updateRule(id, { actions: [{ actionType: 'Webhook', actionConfig: { url: 'https://example.com/hook' } }] });
+    useAutomationStore.getState().updateRule(id, { actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: { url: 'https://example.com/hook' } }] });
 
     const rules = useAutomationStore.getState().rules;
     expect(rules.find(r => r.id === id)?.actions[0].actionConfig).toEqual({ url: 'https://example.com/hook' });
@@ -125,7 +126,7 @@ describe('useAutomationStore.loadRules', () => {
 
   it('sunucudan gelen kuralları state e yazıyor', async () => {
     vi.mocked(fetchAutomationRules).mockResolvedValue([
-      { id: 'r1', scopeTableId: 't1', name: '', triggerType: 'TableDeleted', conditions: [], actions: [{ actionType: 'Webhook', actionConfig: {} }], enabled: true },
+      { id: 'r1', scopeTableId: 't1', name: '', triggerType: 'TableDeleted', conditions: [], actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: {} }], enabled: true },
     ]);
 
     await useAutomationStore.getState().loadRules('proj-1');
@@ -135,7 +136,7 @@ describe('useAutomationStore.loadRules', () => {
 
   it('ağ hatasında mevcut state i koruyor', async () => {
     vi.mocked(fetchAutomationRules).mockRejectedValue(new Error('network'));
-    useAutomationStore.setState({ rules: [{ id: 'r1', scopeTableId: 't1', name: '', triggerType: 'TableAdded', conditions: [], actions: [{ actionType: 'Toast', actionConfig: {} }], enabled: true }], selectedRuleId: null });
+    useAutomationStore.setState({ rules: [{ id: 'r1', scopeTableId: 't1', name: '', triggerType: 'TableAdded', conditions: [], actions: [{ uid: 'u', actionType: 'Toast', actionConfig: {} }], enabled: true }], selectedRuleId: null });
 
     await useAutomationStore.getState().loadRules('proj-1');
 
@@ -158,7 +159,7 @@ describe('useAutomationStore kural yaşam döngüsü (yerel id → sunucu id)', 
   const serverRule = () => ({
     id: SERVER_ID, scopeTableId: 't-orders',
     name: '', triggerType: 'TableDeleted' as const, conditions: [],
-    actions: [{ actionType: 'Toast' as const, actionConfig: {} }], enabled: true,
+    actions: [{ uid: 'u', actionType: 'Toast' as const, actionConfig: {} }], enabled: true,
   });
 
   beforeEach(async () => {
@@ -200,16 +201,16 @@ describe('useAutomationStore kural yaşam döngüsü (yerel id → sunucu id)', 
     });
 
     // Kullanıcı çekmecede aksiyonu Webhook'a çevirip URL giriyor.
-    useAutomationStore.getState().updateRule(SERVER_ID, { actions: [{ actionType: 'Webhook', actionConfig: {} }] });
+    useAutomationStore.getState().updateRule(SERVER_ID, { actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: {} }] });
     useAutomationStore.getState().updateRule(SERVER_ID, {
-      actions: [{ actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }],
+      actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }],
     });
 
     // C2: updateRule artık SUNUCUYA da yazıyor — hem de birleştirilmiş nihai
     // hâliyle (ikinci çağrı ilk çağrının aksiyon tipini korumalı).
     expect(updateAutomationRule).toHaveBeenLastCalledWith(SERVER_ID, expect.objectContaining({
       triggerType: 'TableDeleted',
-      actions: [{ actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }],
+      actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }],
       enabled: true,
     }));
     expect(updateAutomationRule).not.toHaveBeenCalledWith(localId, expect.anything());
@@ -253,7 +254,7 @@ describe('useAutomationStore FIX ROUND 2: updateRule/deleteRule create ile yarı
   const serverRule = () => ({
     id: SERVER_ID, scopeTableId: 't-orders',
     name: '', triggerType: 'TableDeleted' as const, conditions: [],
-    actions: [{ actionType: 'Toast' as const, actionConfig: {} }], enabled: true,
+    actions: [{ uid: 'u', actionType: 'Toast' as const, actionConfig: {} }], enabled: true,
   });
 
   /** Manuel kontrol edilebilir (deferred) promise: create'i "sunucudan yanıt beklerken" durumunda dondurmak için. */
@@ -282,12 +283,12 @@ describe('useAutomationStore FIX ROUND 2: updateRule/deleteRule create ile yarı
     const localId = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
 
     // Create HENÜZ sunucudan dönmedi — çekmece hemen açılıp düzenleniyor.
-    useAutomationStore.getState().updateRule(localId, { actions: [{ actionType: 'Webhook', actionConfig: {} }] });
-    useAutomationStore.getState().updateRule(localId, { actions: [{ actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }] });
+    useAutomationStore.getState().updateRule(localId, { actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: {} }] });
+    useAutomationStore.getState().updateRule(localId, { actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }] });
 
     // Yerel state senkron güncellendi (drawer anında yansımalı).
     expect(useAutomationStore.getState().rules[0]).toMatchObject({
-      actions: [{ actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }],
+      actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }],
     });
 
     // Ama create henüz çözülmedi: PUT hiç atılmamış olmalı — ne yerel id ile
@@ -304,7 +305,7 @@ describe('useAutomationStore FIX ROUND 2: updateRule/deleteRule create ile yarı
     // PUT SUNUCU id'siyle, en son birleştirilmiş (nihai) alanlarla atıldı.
     expect(updateAutomationRule).toHaveBeenCalledWith(SERVER_ID, expect.objectContaining({
       triggerType: 'TableDeleted',
-      actions: [{ actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }],
+      actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: { url: 'https://example.test/hook' } }],
       enabled: true,
     }));
     expect(updateAutomationRule).not.toHaveBeenCalledWith(localId, expect.anything());
@@ -315,7 +316,7 @@ describe('useAutomationStore FIX ROUND 2: updateRule/deleteRule create ile yarı
     vi.mocked(createAutomationRule).mockReturnValue(promise);
 
     const localId = useAutomationStore.getState().addRule('t-orders', 'TableDeleted', 'Toast');
-    useAutomationStore.getState().updateRule(localId, { actions: [{ actionType: 'Webhook', actionConfig: {} }] });
+    useAutomationStore.getState().updateRule(localId, { actions: [{ uid: 'u', actionType: 'Webhook', actionConfig: {} }] });
 
     expect(updateAutomationRule).not.toHaveBeenCalled();
 
