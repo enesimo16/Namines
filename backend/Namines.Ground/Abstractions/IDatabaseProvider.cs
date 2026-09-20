@@ -61,11 +61,36 @@ public sealed record DatabaseMetrics(long? StorageBytes, int? ActiveConnections)
 /// <param name="ResponsibilityNote">
 /// Kullanıcıya gösterilecek sorumluluk notu — "bu kaynağı kim işletiyor".
 /// </param>
+/// <param name="SupportsBranching">Copy-on-write dal açabiliyor mu (v2).</param>
+/// <param name="SupportsRegionChoice">Bölge seçtirilebiliyor mu.</param>
+/// <param name="IsLiveVerified">Bu sağlayıcı gerçek bir kaynağa karşı CANLI denendi mi.</param>
+/// <param name="ResponsibilityNote">Kullanıcıya gösterilecek sorumluluk notu.</param>
+/// <param name="CreateIsIdempotentByProjectId">
+/// <see cref="IDatabaseProvider.CreateAsync"/>, AYNI <see cref="ProvisionSpec.ProjectId"/>
+/// ile ikinci kez çağrıldığında YENİ bir üst kaynak AÇMADAN var olanı bulup
+/// kimlik bilgisini tazeliyor mu.
+///
+/// <b>Neden gerekli — gerçek bir olaydan çıktı:</b> <c>GroundService.
+/// CancelDeleteAsync</c> bekleme penceresi içindeki bir silmeyi geri alırken
+/// bağlantıyı yeniden kurmak için <c>CreateAsync</c>'i TEKRAR çağırıyordu ve
+/// yorumu "CreateAsync idempotan" diyordu. Bu yalnızca <see cref="LocalPostgresProvider"/>
+/// için doğru (veritabanı/rol adları <c>ProjectId</c>'den DETERMİNİSTİK
+/// türetiliyor, "IF NOT EXISTS" ile ensure ediliyor). Neon/Supabase sağlayıcıları
+/// her çağrıda KOŞULSUZ yeni bir uzak proje açıyor: iptal, KULLANICININ
+/// ORİJİNAL VERİSİNİ erişilemez bırakıp yerine boş, ikinci ve sonsuza dek
+/// faturalanan bir kaynak koyuyordu — hem veri kaybı hem gizli fatura.
+///
+/// Bu bayrak <c>false</c> olan bir sağlayıcı için <c>CancelDeleteAsync</c>
+/// artık ikinci bir kaynak AÇMIYOR; iptalin bu sağlayıcıda desteklenmediğini
+/// açıkça söylüyor. Yanlış ama "çalışıyormuş gibi görünen" bir kurtarmadan,
+/// dürüst bir "yapılamıyor" mesajı her zaman daha güvenli.
+/// </param>
 public sealed record ProviderCapabilities(
     bool SupportsBranching,
     bool SupportsRegionChoice,
     bool IsLiveVerified,
-    string ResponsibilityNote);
+    string ResponsibilityNote,
+    bool CreateIsIdempotentByProjectId = false);
 
 /// <summary>
 /// Yönetilen bir veritabanı açan/silen sağlayıcı.

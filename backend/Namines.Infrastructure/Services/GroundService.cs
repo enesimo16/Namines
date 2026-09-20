@@ -179,12 +179,31 @@ public class GroundService
     ///
     /// Bağlantı dizesi geri getirilemiyor (şifreli metin silindi), bu yüzden
     /// sağlayıcıdan yeni bir kimlik bilgisi alınıyor — parola tazeleniyor.
+    ///
+    /// <b>YALNIZCA <see cref="ProviderCapabilities.CreateIsIdempotentByProjectId"/>
+    /// olan sağlayıcılarda.</b> Bu kontrol OLMADAN önce, Neon/Supabase'de
+    /// <c>CreateAsync</c>'i tekrar çağırmak KOŞULSUZ ikinci bir uzak proje
+    /// açıyordu: kullanıcının orijinal verisi erişilemez kalıyor (bağlantı artık
+    /// yeni/boş projeye işaret ediyor) ve <c>record.ProviderProjectId</c> hiç
+    /// güncellenmediği için ileride tetiklenecek gerçek silme YANLIŞ (eski, terk
+    /// edilmiş) projeyi siliyor — yeni proje sonsuza dek faturalanan, kimsenin
+    /// bilmediği bir kaynak olarak kalıyordu. Desteklenmeyen bir sağlayıcıda
+    /// yanlış ama "başarılı görünen" bir kurtarma yerine dürüst bir ret.
     /// </summary>
     public async Task<GroundResult> CancelDeleteAsync(
         GroundDatabase record, IDatabaseProvider provider, CancellationToken ct)
     {
         if (record.Status != GroundStatus.PendingDelete)
             return new GroundResult(false, "There is no pending deletion for this database.");
+
+        if (!provider.Capabilities.CreateIsIdempotentByProjectId)
+        {
+            return new GroundResult(false,
+                $"Canceling deletion is not supported for {provider.Name} yet: recovering the " +
+                "connection would require opening a second database, abandoning the original " +
+                "and billing both. Let the deletion proceed, or contact support before the " +
+                "grace window ends if you need the original data back.");
+        }
 
         var project = await _context.CloudProjects
             .FirstOrDefaultAsync(p => p.Id == record.ProjectId, ct);
@@ -194,7 +213,8 @@ public class GroundService
         try
         {
             // CreateAsync idempotan: var olan veritabanına dokunmuyor, yalnızca
-            // rolün parolasını tazeleyip yeni bağlantıyı döndürüyor.
+            // rolün parolasını tazeleyip yeni bağlantıyı döndürüyor. (Yukarıdaki
+            // kontrol bunu YALNIZCA bunu garanti eden sağlayıcılar için sağlıyor.)
             var provisioned = await provider.CreateAsync(
                 new ProvisionSpec(project.Id, project.Name), ct);
 

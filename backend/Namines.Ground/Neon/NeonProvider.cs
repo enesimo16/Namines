@@ -40,7 +40,11 @@ public sealed class NeonProvider : IDatabaseProvider
         IsLiveVerified: true,
         ResponsibilityNote:
             "The database is created on Neon and operated by Neon. Neon's own " +
-            "service level and availability apply.");
+            "service level and availability apply.",
+        // CreateAsync KOŞULSUZ yeni bir Neon projesi açıyor (bkz. aşağıdaki
+        // metot) — aynı ProjectId ile ikinci çağrı var olanı BULMUYOR, ikinci
+        // bir kaynak yaratıyor. Bkz. ProviderCapabilities.CreateIsIdempotentByProjectId.
+        CreateIsIdempotentByProjectId: false);
 
     public Task<string?> ProbeAsync(CancellationToken ct) => _client.ProbeAsync(ct);
 

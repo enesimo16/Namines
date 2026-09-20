@@ -47,7 +47,10 @@ public sealed class SupabaseProvider : IDatabaseProvider
         ResponsibilityNote:
             "The database is created on Supabase and operated by Supabase. Supabase's own " +
             "service level and availability apply. This provider has not been verified " +
-            "against a live Supabase account yet.");
+            "against a live Supabase account yet.",
+        // Neon ile AYNI gerekçe: CreateAsync koşulsuz yeni bir Supabase projesi
+        // açıyor. Bkz. ProviderCapabilities.CreateIsIdempotentByProjectId.
+        CreateIsIdempotentByProjectId: false);
 
     public Task<string?> ProbeAsync(CancellationToken ct) => _client.ProbeAsync(ct);
 

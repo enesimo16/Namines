@@ -57,7 +57,12 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
         ResponsibilityNote:
             "The database is created on your own PostgreSQL server. Backups, " +
             "availability and capacity are your responsibility — Namines gives no " +
-            "service level commitment for this server.");
+            "service level commitment for this server.",
+        // Veritabanı/rol adları ProjectId'den DETERMİNİSTİK türetiliyor
+        // (BuildIdentifier) ve CreateAsync "IF NOT EXISTS" ile ensure ediyor —
+        // aynı proje için tekrar çağrılması yeni bir kaynak AÇMIYOR, var olanın
+        // parolasını tazeliyor. Bkz. ProviderCapabilities.CreateIsIdempotentByProjectId.
+        CreateIsIdempotentByProjectId: true);
 
     /// <summary>
     /// Yönetici bağlantısı — <c>CREATE DATABASE</c>/<c>CREATE ROLE</c> yetkisi olan.
