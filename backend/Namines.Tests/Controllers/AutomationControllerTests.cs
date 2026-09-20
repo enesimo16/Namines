@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
@@ -67,7 +68,9 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         public Task RunAsync(string projectId, SchemaDiffResult diff, DatabaseSchema oldSchema, DatabaseSchema newSchema, CancellationToken ct = default)
             => Task.CompletedTask;
 
-        public Task RunRuleAsync(AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, bool isTest, CancellationToken ct)
+        public Task RunRuleAsync(
+            AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine,
+            AutomationTriggerContext context, string projectName, bool isTest, CancellationToken ct)
         {
             Runs.Add((rule.Id, isTest));
             return Task.CompletedTask;

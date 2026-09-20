@@ -1,11 +1,12 @@
 'use client';
 
-import { useReactFlow } from '@xyflow/react';
+import { useNodes, useReactFlow } from '@xyflow/react';
 import { Crosshair, Pencil, Trash2, X, Zap } from 'lucide-react';
 import { useFlowBarStore } from '../../../store/useFlowBarStore';
 import { useAutomationStore } from '../../../store/useAutomationStore';
 import { useFlowNodePositionStore } from '../../../store/useFlowNodePositionStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
+import { NAMINES_FLOW_TEMPLATES, type NaminesFlowTemplate } from '../../../lib/naminesFlowTemplates';
 
 const TRIGGER_LABEL: Record<string, string> = {
   TableAdded: 'Table added',
@@ -25,7 +26,10 @@ const LAST_RUN_STYLE: Record<string, string> = {
 
 const ACTION_LABEL: Record<string, string> = {
   Toast: 'Notify',
+  Slack: 'Slack',
+  Discord: 'Discord',
   Webhook: 'Webhook',
+  Lint: 'Lint',
   DbaCheck: 'DBA check',
   SeedData: 'Sample data',
 };
@@ -47,12 +51,19 @@ export default function NaminesFlowPanel() {
   const paused = useFlowBarStore(s => s.paused);
 
   const rules = useAutomationStore(s => s.rules);
+  const addRule = useAutomationStore(s => s.addRule);
   const updateRule = useAutomationStore(s => s.updateRule);
   const deleteRule = useAutomationStore(s => s.deleteRule);
   const setSelectedRuleId = useAutomationStore(s => s.setSelectedRuleId);
   const clearFlowNodePosition = useFlowNodePositionStore(s => s.clearPosition);
 
   const tables = useSchemaStore(s => s.schema?.tables);
+
+  // Tabloya bağlı şablonların çapası: canvas'ta seçili olan tablo.
+  // `useNodes` REAKTİF — `getNodes()` render sırasında bir kez okunurdu ve
+  // kullanıcı başka bir tablo seçtiğinde şablon düğmeleri eski durumda
+  // (yanlış şekilde devre dışı ya da yanlış tabloya bağlı) kalırdı.
+  const selectedTableId = useNodes().find(n => n.selected && n.type === 'tableNode')?.id;
 
   if (!panelOpen) return null;
 
@@ -80,6 +91,26 @@ export default function NaminesFlowPanel() {
   const removeRule = (ruleId: string) => {
     deleteRule(ruleId);
     clearFlowNodePosition(ruleId);
+  };
+
+  /**
+   * Şablonu gerçek bir kurala çeviriyor. `addRule` yalnızca tek aksiyonlu bir
+   * iskelet kurabildiği için (imzası öyle), zincir ve koşullar hemen ardından
+   * `updateRule` ile yazılıyor — store zaten iyimser, ikisi tek karede
+   * birleşiyor.
+   */
+  const applyTemplate = (template: NaminesFlowTemplate) => {
+    const scopeTableId = template.requiresTable ? (selectedTableId ?? '') : '';
+    const firstAction = template.actions[0] ?? { actionType: 'Toast' as const, actionConfig: {} };
+    const ruleId = addRule(scopeTableId, template.triggerType, firstAction.actionType);
+    updateRule(ruleId, {
+      name: template.name,
+      conditions: template.conditions,
+      actions: template.actions,
+    });
+    // Çekmece açılıyor ki eksik kalan alan (ör. webhook URL'i) hemen görülsün.
+    setSelectedRuleId(ruleId);
+    setPanelOpen(false);
   };
 
   const iconButtonClass =
@@ -110,6 +141,37 @@ export default function NaminesFlowPanel() {
           Flows are paused — nothing will fire until you resume.
         </p>
       )}
+
+      <section className="border-b border-content-primary/10 p-2">
+        <h3 className="px-1 pb-1 text-micro font-semibold uppercase tracking-wider text-content-muted">
+          Start from a template
+        </h3>
+        <ul className="flex flex-col gap-1">
+          {NAMINES_FLOW_TEMPLATES.map(template => {
+            // Tabloya bağlı bir şablon, hangi tabloya bağlanacağı belli
+            // olmadan kurulamaz. Düğmeyi gizlemek yerine devre dışı bırakıp
+            // SEBEBİNİ söylüyoruz — aksi hâlde şablonun neden görünmediği
+            // anlaşılmazdı.
+            const blocked = template.requiresTable && !selectedTableId;
+            return (
+              <li key={template.id}>
+                <button
+                  type="button"
+                  disabled={blocked}
+                  onClick={() => applyTemplate(template)}
+                  title={blocked ? 'Select a table on the canvas first' : template.description}
+                  className="w-full rounded-[var(--radius-control)] border border-content-primary/10 bg-surface-700 px-2 py-1.5 text-left transition-colors hover:border-warning/50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span className="block text-micro font-semibold text-content-primary">{template.label}</span>
+                  <span className="block text-micro leading-snug text-content-muted">
+                    {blocked ? 'Select a table on the canvas first.' : template.description}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
       {rules.length === 0 ? (
         <p className="px-4 py-6 text-xs leading-relaxed text-content-muted">

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Infrastructure.Data;
@@ -293,7 +294,16 @@ public class AutomationController : ControllerBase
         var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsed)
             ? parsed : DatabaseType.PostgreSQL;
 
-        await _executor.RunRuleAsync(rule, userId, schema, engine, isTest: true, ct);
+        // Test çalıştırmasının gerçek bir olayı yok; şablon değişkenleri için
+        // elimizdeki en doğru bağlam kuralın kapsam tablosu. Proje geneli bir
+        // kuralda tablo adı da yok — şablonlar o alanları boş görüyor, ki
+        // gerçek tetiklenmede de ilişki olaylarında durum tam olarak budur.
+        var scopeTableName = rule.ScopeTableId is null
+            ? null
+            : schema.Tables.FirstOrDefault(t => t.Id == rule.ScopeTableId)?.Name;
+        var context = new AutomationTriggerContext(scopeTableName, null, null);
+
+        await _executor.RunRuleAsync(rule, userId, schema, engine, context, project.Name, isTest: true, ct);
 
         // Yalnızca BU çalıştırmanın satırları dönüyor; istemci sonucu anında
         // gösterebilsin diye geçmişi ayrıca çekmesi gerekmiyor.

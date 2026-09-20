@@ -1,7 +1,8 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,7 +23,9 @@ public interface IAutomationExecutor
     Task RunAsync(string projectId, SchemaDiffResult diff, DatabaseSchema oldSchema, DatabaseSchema newSchema, CancellationToken ct = default);
 
     /// <summary>Tek bir kuralın zincirini çalıştırır — "şimdi test et" bu yolu kullanır.</summary>
-    Task RunRuleAsync(AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, bool isTest, CancellationToken ct);
+    Task RunRuleAsync(
+        AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine,
+        AutomationTriggerContext context, string projectName, bool isTest, CancellationToken ct);
 }
 
 /// <summary>
@@ -42,17 +45,19 @@ public sealed class AutomationExecutor : IAutomationExecutor
     private readonly GroqAIService _groqDba;
     private readonly IAIService _aiService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILinterService _linter;
     private readonly ILogger<AutomationExecutor> _logger;
 
     public AutomationExecutor(
         AuthDbContext db, IAiQuotaReserver quota, GroqAIService groqDba, IAIService aiService,
-        IHttpClientFactory httpClientFactory, ILogger<AutomationExecutor> logger)
+        IHttpClientFactory httpClientFactory, ILinterService linter, ILogger<AutomationExecutor> logger)
     {
         _db = db;
         _quota = quota;
         _groqDba = groqDba;
         _aiService = aiService;
         _httpClientFactory = httpClientFactory;
+        _linter = linter;
         _logger = logger;
     }
 
@@ -74,7 +79,9 @@ public sealed class AutomationExecutor : IAutomationExecutor
 
         foreach (var match in matched)
         {
-            await RunRuleAsync(match.Rule, project.UserId, newSchema, engine, isTest: false, ct);
+            // Eşleşmeyi SAĞLAYAN bağlam aşağı taşınıyor: aksiyon şablonları
+            // "hangi tablo / hangi kolon" sorusunu buradan cevaplıyor.
+            await RunRuleAsync(match.Rule, project.UserId, newSchema, engine, match.Context, project.Name, isTest: false, ct);
         }
     }
 
@@ -88,7 +95,8 @@ public sealed class AutomationExecutor : IAutomationExecutor
     /// kullanıcı bunu hiçbir yerden anlayamazdı.
     /// </summary>
     public async Task RunRuleAsync(
-        AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, bool isTest, CancellationToken ct)
+        AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine,
+        AutomationTriggerContext context, string projectName, bool isTest, CancellationToken ct)
     {
         foreach (var action in rule.Actions.OrderBy(a => a.SortOrder))
         {
@@ -99,7 +107,7 @@ public sealed class AutomationExecutor : IAutomationExecutor
 
             try
             {
-                await RunOneAsync(rule, action, userId, schema, engine, isTest, ct);
+                await RunOneAsync(rule, action, userId, schema, engine, context, projectName, isTest, ct);
             }
             catch (Exception ex)
             {
@@ -112,12 +120,20 @@ public sealed class AutomationExecutor : IAutomationExecutor
 
     private async Task RunOneAsync(
         AutomationRule rule, AutomationAction action, string userId, DatabaseSchema schema,
-        DatabaseType engine, bool isTest, CancellationToken ct)
+        DatabaseType engine, AutomationTriggerContext context, string projectName, bool isTest, CancellationToken ct)
     {
         switch (action.ActionType)
         {
+            // Slack ve Discord ayrı bir yürütücü DEĞİL: ikisi de "bir URL'e
+            // JSON gönder" işi. Fark yalnızca gövdenin şekli — ve o da burada,
+            // kullanıcı JSON yazmak zorunda kalmasın diye hazırlanıyor.
             case "Webhook":
-                await RunWebhookAsync(rule, action, isTest, ct);
+            case "Slack":
+            case "Discord":
+                await RunHttpAsync(rule, action, context, projectName, isTest, ct);
+                return;
+            case "Lint":
+                await RunLintAsync(rule, action, schema, isTest, ct);
                 return;
             case "DbaCheck":
                 await RunDbaCheckAsync(rule, action, userId, schema, engine, isTest, ct);
@@ -131,31 +147,86 @@ public sealed class AutomationExecutor : IAutomationExecutor
         }
     }
 
-    private async Task RunWebhookAsync(AutomationRule rule, AutomationAction action, bool isTest, CancellationToken ct)
+    private async Task RunHttpAsync(
+        AutomationRule rule, AutomationAction action, AutomationTriggerContext context,
+        string projectName, bool isTest, CancellationToken ct)
     {
-        var url = ExtractUrl(action.ActionConfigJson);
+        var config = ParseConfig(action.ActionConfigJson);
+        var url = config.Url;
 
         // HER ÇALIŞTIRMADA yeniden doğrulanıyor — kaydedilen bir URL zamanla
         // farklı bir IP'ye çözülebilir (DNS rebinding). Test çalıştırması da
         // bu kontrolden MUAF DEĞİL, aksi hâlde "test" bir SSRF kapısı olurdu.
-        if (url is null || !SsrfGuard.IsUrlSafe(url))
+        if (string.IsNullOrWhiteSpace(url) || !SsrfGuard.IsUrlSafe(url))
         {
             await LogAsync(rule.Id, action.ActionType, "Skipped", "Webhook URL is missing or not a safe public target.", null, isTest, ct);
             return;
         }
 
-        var client = _httpClientFactory.CreateClient("AutomationWebhook");
-        var response = await client.PostAsJsonAsync(url, new
+        var now = DateTime.UtcNow;
+        string Render(string? t) => AutomationTemplate.Render(t, rule.TriggerType, context, projectName, now);
+
+        var payload = action.ActionType switch
         {
-            trigger = rule.TriggerType,
-            table = rule.ScopeTableId,
-            timestamp = DateTime.UtcNow,
-        }, ct);
+            // Slack ve Discord'un gelen-kutusu webhook'ları farklı alan
+            // bekliyor: Slack "text", Discord "content". Kullanıcının bunu
+            // bilmesi gerekmesin diye mesaj tek bir alandan alınıp doğru
+            // zarfa konuyor.
+            "Slack" => JsonSerializer.Serialize(new { text = Render(config.Message ?? DefaultMessage) }),
+            "Discord" => JsonSerializer.Serialize(new { content = Render(config.Message ?? DefaultMessage) }),
+            // Gövde boş bırakılırsa ESKİ varsayılan gövde korunuyor: bu alan
+            // eklenmeden önce kurulmuş webhook'ların alıcıları aynı şekli
+            // beklemeye devam ediyor.
+            _ => string.IsNullOrWhiteSpace(config.Body)
+                ? JsonSerializer.Serialize(new
+                {
+                    trigger = rule.TriggerType,
+                    table = rule.ScopeTableId,
+                    tableName = context.TableName,
+                    columnName = context.ColumnName,
+                    timestamp = now,
+                })
+                : Render(config.Body),
+        };
+
+        var method = action.ActionType == "Webhook" ? ParseMethod(config.Method) : HttpMethod.Post;
+        using var request = new HttpRequestMessage(method, url)
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+        };
+
+        if (config.Headers is not null)
+        {
+            foreach (var (key, value) in config.Headers)
+            {
+                if (string.IsNullOrWhiteSpace(key)) continue;
+                // Başlık adı/değeri kullanıcıdan geliyor; geçersiz olanı
+                // eklemeye çalışmak tüm isteği istisna ile düşürürdü.
+                request.Headers.TryAddWithoutValidation(key, Render(value));
+            }
+        }
+
+        var client = _httpClientFactory.CreateClient("AutomationWebhook");
+        var response = await client.SendAsync(request, ct);
 
         if (response.IsSuccessStatusCode)
             await LogAsync(rule.Id, action.ActionType, "Success", null, null, isTest, ct);
         else
             await LogAsync(rule.Id, action.ActionType, "Failed", $"Webhook returned {(int)response.StatusCode}.", null, isTest, ct);
+    }
+
+    private async Task RunLintAsync(
+        AutomationRule rule, AutomationAction action, DatabaseSchema schema, bool isTest, CancellationToken ct)
+    {
+        // Linter saf ve yerel: AI çağrısı yok, dolayısıyla kota da harcamıyor.
+        var result = _linter.Lint(schema);
+        var errors = result.Messages.Count(m => m.Severity == LintSeverity.Error);
+        var warnings = result.Messages.Count(m => m.Severity == LintSeverity.Warning);
+        var summary = result.Messages.Count == 0
+            ? "No lint findings."
+            : $"{errors} error(s), {warnings} warning(s).";
+
+        await LogAsync(rule.Id, action.ActionType, "Success", null, summary, isTest, ct);
     }
 
     private async Task RunDbaCheckAsync(
@@ -194,18 +265,47 @@ public sealed class AutomationExecutor : IAutomationExecutor
         await LogAsync(rule.Id, action.ActionType, "Success", null, summary, isTest, ct);
     }
 
-    private static string? ExtractUrl(string actionConfigJson)
+    /// <summary>Varsayılan Slack/Discord mesajı — kullanıcı bir şey yazmadıysa.</summary>
+    private const string DefaultMessage = "Namines Flow: {{trigger}} on {{tableName}} in {{projectName}}";
+
+    /// <summary>Aksiyon yapılandırmasının serbest JSON'unun tanınan alanları.</summary>
+    private sealed class ActionConfig
     {
+        public string? Url { get; set; }
+        public string? Method { get; set; }
+        public string? Body { get; set; }
+        public string? Message { get; set; }
+        public Dictionary<string, string>? Headers { get; set; }
+    }
+
+    private static readonly JsonSerializerOptions ConfigJsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private static ActionConfig ParseConfig(string actionConfigJson)
+    {
+        if (string.IsNullOrWhiteSpace(actionConfigJson)) return new ActionConfig();
         try
         {
-            using var doc = JsonDocument.Parse(actionConfigJson);
-            return doc.RootElement.TryGetProperty("url", out var v) ? v.GetString() : null;
+            return JsonSerializer.Deserialize<ActionConfig>(actionConfigJson, ConfigJsonOptions) ?? new ActionConfig();
         }
         catch (JsonException)
         {
-            return null;
+            // Bozuk yapılandırma URL'siz sayılıyor; çağıran bunu "Skipped"
+            // olarak, sebebiyle birlikte loglayacak.
+            return new ActionConfig();
         }
     }
+
+    /// <summary>
+    /// Yalnızca gövde taşıyan güvenli metotlara izin veriliyor. Serbest bırakmak
+    /// (ör. DELETE) bir otomasyonun uzak sistemde beklenmedik yıkıcı çağrı
+    /// yapmasına kapı açardı; tanınmayan değer POST'a düşüyor.
+    /// </summary>
+    private static HttpMethod ParseMethod(string? method) => method?.ToUpperInvariant() switch
+    {
+        "PUT" => HttpMethod.Put,
+        "PATCH" => HttpMethod.Patch,
+        _ => HttpMethod.Post,
+    };
 
     private async Task LogAsync(
         string ruleId, string actionType, string status, string? error, string? summary, bool isTest, CancellationToken ct)

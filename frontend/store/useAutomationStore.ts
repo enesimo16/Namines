@@ -34,7 +34,8 @@ let currentProjectId: string | null = null;
  */
 const pendingCreates = new Map<string, Promise<string | null>>();
 
-export type AutomationActionType = 'Webhook' | 'DbaCheck' | 'SeedData' | 'Toast';
+export type AutomationActionType =
+  | 'Toast' | 'Webhook' | 'Slack' | 'Discord' | 'Lint' | 'DbaCheck' | 'SeedData';
 
 export type AutomationConditionField = 'tableName' | 'columnName' | 'columnType';
 export type AutomationConditionOp = 'equals' | 'notEquals' | 'contains' | 'startsWith' | 'endsWith';
@@ -46,10 +47,23 @@ export interface AutomationCondition {
   value: string;
 }
 
+/**
+ * Bir adımın yapılandırması. Alanların hangisinin kullanıldığı aksiyon tipine
+ * bağlı: `message` Slack/Discord'da, `method`/`headers`/`body` yalnızca ham
+ * webhook'ta. Hepsi `{{tableName}}` gibi şablon değişkeni içerebilir.
+ */
+export interface AutomationActionConfig {
+  url?: string;
+  method?: 'POST' | 'PUT' | 'PATCH';
+  body?: string;
+  message?: string;
+  headers?: Record<string, string>;
+}
+
 /** Zincirdeki tek bir adım. Sıra, dizideki konumdan geliyor. */
 export interface AutomationActionStep {
   actionType: AutomationActionType;
-  actionConfig: { url?: string };
+  actionConfig: AutomationActionConfig;
 }
 
 /** Kuralın en son çalışmasının özeti — listede tek bakışta durum rozeti için. */

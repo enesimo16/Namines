@@ -14,6 +14,7 @@ import api from '../services/api';
 import type {
   AutomationRule,
   AutomationActionType,
+  AutomationActionConfig,
   AutomationActionStep,
   AutomationCondition,
 } from '../store/useAutomationStore';
@@ -43,7 +44,7 @@ interface AutomationRuleDto {
 }
 
 /** Bozuk/eksik JSON sessizce yedek değere düşüyor — tek bir kayıt yüzünden canvas boş kalmasın. */
-const parseObject = (json: string | undefined): { url?: string } => {
+const parseObject = (json: string | undefined): AutomationActionConfig => {
   if (!json) return {};
   try {
     const parsed = JSON.parse(json);

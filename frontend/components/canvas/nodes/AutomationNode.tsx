@@ -17,7 +17,10 @@ const TRIGGER_LABEL: Record<string, string> = {
 
 const ACTION_LABEL: Record<string, string> = {
   Toast: 'Notify',
+  Slack: 'Slack',
+  Discord: 'Discord',
   Webhook: 'Webhook',
+  Lint: 'Lint',
   DbaCheck: 'DBA check',
   SeedData: 'Sample data',
 };

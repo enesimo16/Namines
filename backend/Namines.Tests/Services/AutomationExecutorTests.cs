@@ -66,6 +66,7 @@ public sealed class AutomationExecutorTests : IAsyncLifetime
             db, new StubQuota(AiQuotaDecision.Allowed),
             groqDba: null!, aiService: null!,
             httpClientFactory: new StubHttpClientFactory(HttpStatusCode.OK),
+            linter: new Namines.Infrastructure.LinterService(),
             logger: Microsoft.Extensions.Logging.Abstractions.NullLogger<AutomationExecutor>.Instance);
 
         var diff = new SchemaDiffResult { AddedTables = { "orders" } };
@@ -88,6 +89,7 @@ public sealed class AutomationExecutorTests : IAsyncLifetime
             db, new StubQuota(AiQuotaDecision.Allowed),
             groqDba: null!, aiService: null!,
             httpClientFactory: new StubHttpClientFactory(HttpStatusCode.InternalServerError),
+            linter: new Namines.Infrastructure.LinterService(),
             logger: Microsoft.Extensions.Logging.Abstractions.NullLogger<AutomationExecutor>.Instance);
 
         var diff = new SchemaDiffResult { AddedTables = { "orders" } };

@@ -39,10 +39,20 @@ const isColumnTrigger = (t: TriggerType) =>
 
 const ACTION_OPTIONS: { value: AutomationActionType; label: string; hint: string }[] = [
   { value: 'Toast', label: 'Show a notification', hint: 'Instant, in this browser only.' },
+  { value: 'Slack', label: 'Post to Slack', hint: 'Sends your message to a Slack incoming webhook.' },
+  { value: 'Discord', label: 'Post to Discord', hint: 'Sends your message to a Discord webhook.' },
   { value: 'Webhook', label: 'Call a webhook', hint: 'Runs on the server, within ~30s of the next sync.' },
+  { value: 'Lint', label: 'Run the linter', hint: 'Checks the schema locally. No AI quota.' },
   { value: 'DbaCheck', label: 'Run a DBA check', hint: 'Runs on the server and spends AI quota.' },
   { value: 'SeedData', label: 'Generate sample data', hint: 'Spends AI quota. The result is shown, never written to your database.' },
 ];
+
+/** URL isteyen aksiyonlar — hepsi aynı HTTP yürütücüsünü kullanıyor. */
+const URL_ACTIONS: AutomationActionType[] = ['Webhook', 'Slack', 'Discord'];
+/** Serbest mesaj yazılan aksiyonlar; ham webhook yerine hazır zarf kullanıyorlar. */
+const MESSAGE_ACTIONS: AutomationActionType[] = ['Slack', 'Discord'];
+
+const TEMPLATE_VARIABLES = '{{trigger}} {{tableName}} {{columnName}} {{columnType}} {{projectName}} {{timestamp}}';
 
 const CONDITION_OPS: { value: AutomationConditionOp; label: string }[] = [
   { value: 'equals', label: 'is' },
@@ -360,7 +370,7 @@ export default function AutomationRuleDrawer() {
                       {ACTION_OPTIONS.find(o => o.value === action.actionType)?.hint}
                     </p>
 
-                    {action.actionType === 'Webhook' && (
+                    {URL_ACTIONS.includes(action.actionType) && (
                       <input
                         type="url"
                         aria-label={index === 0 ? 'Webhook URL' : `Webhook URL ${index + 1}`}
@@ -371,6 +381,52 @@ export default function AutomationRuleDrawer() {
                           actionConfig: { ...action.actionConfig, url: e.target.value },
                         })}
                       />
+                    )}
+
+                    {MESSAGE_ACTIONS.includes(action.actionType) && (
+                      <textarea
+                        aria-label={`Message ${index + 1}`}
+                        rows={2}
+                        className={`${smallInputClass} mt-1.5 w-full resize-y`}
+                        defaultValue={action.actionConfig.message ?? ''}
+                        placeholder="Namines Flow: {{trigger}} on {{tableName}}"
+                        onBlur={(e) => patchAction(index, {
+                          actionConfig: { ...action.actionConfig, message: e.target.value },
+                        })}
+                      />
+                    )}
+
+                    {action.actionType === 'Webhook' && (
+                      <>
+                        <select
+                          aria-label={`Method ${index + 1}`}
+                          className={`${smallInputClass} mt-1.5 w-full`}
+                          value={action.actionConfig.method ?? 'POST'}
+                          onChange={(e) => patchAction(index, {
+                            actionConfig: { ...action.actionConfig, method: e.target.value as 'POST' | 'PUT' | 'PATCH' },
+                          })}
+                        >
+                          <option value="POST">POST</option>
+                          <option value="PUT">PUT</option>
+                          <option value="PATCH">PATCH</option>
+                        </select>
+                        <textarea
+                          aria-label={`Body ${index + 1}`}
+                          rows={2}
+                          className={`${smallInputClass} mt-1.5 w-full resize-y font-mono`}
+                          defaultValue={action.actionConfig.body ?? ''}
+                          placeholder='Leave empty for the default payload'
+                          onBlur={(e) => patchAction(index, {
+                            actionConfig: { ...action.actionConfig, body: e.target.value },
+                          })}
+                        />
+                      </>
+                    )}
+
+                    {(URL_ACTIONS.includes(action.actionType)) && (
+                      <p className="mt-1 text-micro leading-snug text-content-subtle">
+                        Variables: <span className="font-mono">{TEMPLATE_VARIABLES}</span>
+                      </p>
                     )}
                   </li>
                 ))}
