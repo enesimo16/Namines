@@ -1,6 +1,11 @@
-﻿using System.Linq;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
+using Namines.Core.Enums;
+using Namines.Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
@@ -50,9 +55,28 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         return project;
     }
 
-    private static AutomationController NewController(AuthDbContext db, string userId)
+    /// <summary>
+    /// Test ucu dışındaki her uç yürütücüye hiç dokunmuyor; bu sahte, yalnızca
+    /// hangi kuralın çalıştırıldığını kaydediyor ve gerçek bir webhook/AI
+    /// çağrısı yapmıyor.
+    /// </summary>
+    private sealed class RecordingExecutor : IAutomationExecutor
     {
-        var controller = new AutomationController(db)
+        public List<(string RuleId, bool IsTest)> Runs { get; } = new();
+
+        public Task RunAsync(string projectId, SchemaDiffResult diff, DatabaseSchema oldSchema, DatabaseSchema newSchema, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task RunRuleAsync(AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, bool isTest, CancellationToken ct)
+        {
+            Runs.Add((rule.Id, isTest));
+            return Task.CompletedTask;
+        }
+    }
+
+    private static AutomationController NewController(AuthDbContext db, string userId, IAutomationExecutor? executor = null)
+    {
+        var controller = new AutomationController(db, executor ?? new RecordingExecutor())
         {
             ControllerContext = new ControllerContext
             {
@@ -258,5 +282,171 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         await using var verifyDb = NewContext();
         var persisted = await verifyDb.AutomationRules.SingleOrDefaultAsync(r => r.Id == rule.Id);
         Assert.Null(persisted);
+    }
+
+    // ── Çalışma geçmişi (Faz 5) ─────────────────────────────────────────────
+
+    private async Task SeedRunAsync(AuthDbContext db, string ruleId, string status, DateTime at, bool isTest = false)
+    {
+        db.AutomationRunLogs.Add(new AutomationRunLog
+        {
+            RuleId = ruleId, ActionType = "Webhook", Status = status, TriggeredAt = at, IsTest = isTest,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task GetRuns_en_yeniden_eskiye_donuyor()
+    {
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+
+        var now = DateTime.UtcNow;
+        await SeedRunAsync(db, rule.Id, "Failed", now.AddMinutes(-5));
+        await SeedRunAsync(db, rule.Id, "Success", now);
+
+        var controller = NewController(db, userId: "owner-1");
+        var ok = Assert.IsType<OkObjectResult>(await controller.GetRuns(rule.Id, 20, default));
+        var runs = Assert.IsAssignableFrom<List<AutomationRunLog>>(ok.Value);
+
+        Assert.Equal(new[] { "Success", "Failed" }, runs.Select(r => r.Status));
+    }
+
+    [Fact]
+    public async Task GetRuns_baskasinin_kuralinda_NotFound_donuyor()
+    {
+        // Diğer uçlarla AYNI desen: varlığı sızdırmamak için 403 değil 404.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+        await SeedRunAsync(db, rule.Id, "Success", DateTime.UtcNow);
+
+        var controller = NewController(db, userId: "intruder-1");
+
+        Assert.IsType<NotFoundResult>(await controller.GetRuns(rule.Id, 20, default));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-3)]
+    public async Task GetRuns_gecersiz_limit_bos_liste_degil_varsayilan_kullaniyor(int limit)
+    {
+        // `Take(0)` sessizce boş liste döner ve kullanıcı geçmişi yokmuş sanır.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+        await SeedRunAsync(db, rule.Id, "Success", DateTime.UtcNow);
+
+        var controller = NewController(db, userId: "owner-1");
+        var ok = Assert.IsType<OkObjectResult>(await controller.GetRuns(rule.Id, limit, default));
+
+        Assert.Single(Assert.IsAssignableFrom<List<AutomationRunLog>>(ok.Value));
+    }
+
+    [Fact]
+    public async Task GetRuns_asiri_buyuk_limit_kelepceleniyor()
+    {
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+        for (var i = 0; i < 120; i++)
+            await SeedRunAsync(db, rule.Id, "Success", DateTime.UtcNow.AddSeconds(-i));
+
+        var controller = NewController(db, userId: "owner-1");
+        var ok = Assert.IsType<OkObjectResult>(await controller.GetRuns(rule.Id, 10_000, default));
+
+        Assert.Equal(100, Assert.IsAssignableFrom<List<AutomationRunLog>>(ok.Value).Count);
+    }
+
+    // ── "Şimdi test et" (Faz 5) ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task TestRule_kurali_test_isaretiyle_calistiriyor()
+    {
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+
+        var executor = new RecordingExecutor();
+        var controller = NewController(db, userId: "owner-1", executor);
+
+        Assert.IsType<OkObjectResult>(await controller.TestRule(rule.Id, default));
+
+        var run = Assert.Single(executor.Runs);
+        Assert.Equal(rule.Id, run.RuleId);
+        Assert.True(run.IsTest);
+    }
+
+    [Fact]
+    public async Task TestRule_baskasinin_kuralini_CALISTIRMIYOR()
+    {
+        // Yabancı bir kullanıcı bu uçla başkasının webhook'unu ateşleyebilseydi
+        // "test" düğmesi bir tetikleme silahına dönerdi.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+
+        var executor = new RecordingExecutor();
+        var controller = NewController(db, userId: "intruder-1", executor);
+
+        Assert.IsType<NotFoundResult>(await controller.TestRule(rule.Id, default));
+        Assert.Empty(executor.Runs);
+    }
+
+    [Fact]
+    public async Task TestRule_hiz_siniri_asilinca_429_donuyor_ve_calistirmiyor()
+    {
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+
+        // Pencere içinde sınır kadar test çalışması zaten var.
+        for (var i = 0; i < 5; i++)
+            await SeedRunAsync(db, rule.Id, "Success", DateTime.UtcNow.AddSeconds(-i), isTest: true);
+
+        var executor = new RecordingExecutor();
+        var controller = NewController(db, userId: "owner-1", executor);
+
+        var result = Assert.IsType<ObjectResult>(await controller.TestRule(rule.Id, default));
+        Assert.Equal(429, result.StatusCode);
+        Assert.Empty(executor.Runs);
+    }
+
+    [Fact]
+    public async Task TestRule_eski_test_calismalari_hiz_sinirini_doldurmuyor()
+    {
+        // Pencere dışındaki kayıtlar sayılsaydı, bir kez test eden kullanıcı
+        // o kuralı bir daha hiç test edemezdi.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+
+        for (var i = 0; i < 10; i++)
+            await SeedRunAsync(db, rule.Id, "Success", DateTime.UtcNow.AddHours(-2), isTest: true);
+
+        var executor = new RecordingExecutor();
+        var controller = NewController(db, userId: "owner-1", executor);
+
+        Assert.IsType<OkObjectResult>(await controller.TestRule(rule.Id, default));
+        Assert.Single(executor.Runs);
+    }
+
+    [Fact]
+    public async Task TestRule_gercek_calismalari_hiz_sinirina_saymiyor()
+    {
+        // Sık tetiklenen bir kural, elle test edilemez hâle gelmemeli.
+        await using var db = NewContext();
+        var project = await SeedProjectAsync(db, ownerId: "owner-1");
+        var rule = await SeedRuleAsync(db, project.Id);
+
+        for (var i = 0; i < 20; i++)
+            await SeedRunAsync(db, rule.Id, "Success", DateTime.UtcNow.AddSeconds(-i), isTest: false);
+
+        var executor = new RecordingExecutor();
+        var controller = NewController(db, userId: "owner-1", executor);
+
+        Assert.IsType<OkObjectResult>(await controller.TestRule(rule.Id, default));
+        Assert.Single(executor.Runs);
     }
 }

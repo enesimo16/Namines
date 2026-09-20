@@ -2,13 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Infrastructure.Data;
+using Namines.Infrastructure.Services;
 
 namespace Namines.API.Controllers;
 
@@ -52,9 +55,36 @@ public class UpdateAutomationRuleRequest
 [Authorize]
 public class AutomationController : ControllerBase
 {
-    private readonly AuthDbContext _context;
+    /// <summary>Hız sınırı penceresi ve pencere başına izin verilen test sayısı.</summary>
+    private static readonly TimeSpan TestRunWindow = TimeSpan.FromMinutes(1);
+    private const int MaxTestRunsPerWindow = 5;
 
-    public AutomationController(AuthDbContext context) => _context = context;
+    private readonly AuthDbContext _context;
+    private readonly IAutomationExecutor _executor;
+
+    public AutomationController(AuthDbContext context, IAutomationExecutor executor)
+    {
+        _context = context;
+        _executor = executor;
+    }
+
+    /// <summary>
+    /// Projenin kayıtlı şeması. Bozuk/boş JSON boş şemaya düşüyor — test
+    /// çalıştırması bu yüzden patlamamalı; aksiyonların çoğu şemaya hiç
+    /// bakmıyor zaten.
+    /// </summary>
+    private static DatabaseSchema DeserializeSchema(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new DatabaseSchema();
+        try
+        {
+            return JsonSerializer.Deserialize<DatabaseSchema>(json, SchemaJsonOptions.Default) ?? new DatabaseSchema();
+        }
+        catch (JsonException)
+        {
+            return new DatabaseSchema();
+        }
+    }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -112,7 +142,25 @@ public class AutomationController : ControllerBase
             .Where(r => r.ProjectId == projectId).ToListAsync(ct);
         // Aksiyonlar istemciye SIRALI gitmeli — sıra zincirin anlamının parçası.
         foreach (var rule in rules) rule.Actions = rule.Actions.OrderBy(a => a.SortOrder).ToList();
-        return Ok(rules);
+
+        // Son çalışma durumu listeyle BİRLİKTE gidiyor. Arayüz her satır için
+        // ayrı istek atsaydı, on kurallı bir projede panelin açılması on
+        // istek demek olurdu (N+1) — üstelik yalnızca bir rozet için.
+        var ruleIds = rules.Select(r => r.Id).ToList();
+        var lastRuns = (await _context.AutomationRunLogs.AsNoTracking()
+                .Where(l => ruleIds.Contains(l.RuleId))
+                .GroupBy(l => l.RuleId)
+                .Select(g => g.OrderByDescending(l => l.TriggeredAt).First())
+                .ToListAsync(ct))
+            .ToDictionary(l => l.RuleId);
+
+        return Ok(rules.Select(r => new
+        {
+            r.Id, r.ProjectId, r.ScopeTableId, r.Name, r.TriggerType, r.ConditionsJson, r.Enabled, r.Actions,
+            LastRun = lastRuns.TryGetValue(r.Id, out var run)
+                ? new { run.Status, run.TriggeredAt, run.ActionType, run.ErrorMessage }
+                : null,
+        }));
     }
 
     [HttpPost("rules")]
@@ -173,6 +221,97 @@ public class AutomationController : ControllerBase
 
         await _context.SaveChangesAsync(ct);
         return Ok(rule);
+    }
+
+    /// <summary>
+    /// Bir kuralın son çalışmaları — teşhis için.
+    ///
+    /// Bu uç OLMADAN <see cref="AutomationRunLog"/> yalnızca sunucuda birikiyor
+    /// ve kullanıcı hiç göremiyordu: SSRF kontrolüne takılıp "Skipped" olan bir
+    /// webhook ile hiç tetiklenmemiş bir kural, arayüzde birbirinden
+    /// ayırt edilemiyordu — ikisi de sessizdi.
+    /// </summary>
+    [HttpGet("rules/{id}/runs")]
+    public async Task<IActionResult> GetRuns(string id, [FromQuery] int limit, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var rule = await _context.AutomationRules.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, ct);
+        if (rule is null) return NotFound();
+        if (!await OwnsProjectAsync(rule.ProjectId, userId, ct)) return NotFound();
+
+        // Sınır kullanıcıdan geliyor: 0/negatif değer boş liste, aşırı büyük
+        // değer ise tek istekte tüm geçmişi çeker. İkisi de kelepçeleniyor.
+        var take = limit <= 0 ? 20 : Math.Min(limit, 100);
+
+        var runs = await _context.AutomationRunLogs.AsNoTracking()
+            .Where(l => l.RuleId == id)
+            .OrderByDescending(l => l.TriggeredAt)
+            .Take(take)
+            .ToListAsync(ct);
+
+        return Ok(runs);
+    }
+
+    /// <summary>
+    /// Kuralı ELLE, hemen çalıştırır ve sonucunu döner.
+    ///
+    /// <b>Neden gerekli:</b> sunucu tarafı aksiyonlar senkronizasyon
+    /// döngüsünde, en geç ~30 saniye içinde çalışıyor. Kullanıcı bir webhook
+    /// tanımladıktan sonra hiçbir şey görmüyor ve çalışıp çalışmadığını
+    /// anlamanın yolu yok — bu düğme o boşluğu kapatıyor.
+    ///
+    /// <b>Test gerçek bir çalıştırmadır:</b> SSRF doğrulaması ve AI kota
+    /// rezervasyonu ATLANMIYOR. Atlansaydı "test" düğmesi hem bir SSRF kapısı
+    /// hem de kota bypass'ı olurdu.
+    /// </summary>
+    [HttpPost("rules/{id}/test")]
+    public async Task<IActionResult> TestRule(string id, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var rule = await _context.AutomationRules.AsNoTracking()
+            .Include(r => r.Actions)
+            .FirstOrDefaultAsync(r => r.Id == id, ct);
+        if (rule is null) return NotFound();
+
+        var project = await _context.CloudProjects.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == rule.ProjectId && p.UserId == userId, ct);
+        if (project is null) return NotFound();
+
+        // Kural başına hız sınırı: her adım gerçek bir webhook çağrısı ya da
+        // AI isteği demek, düğmeye basılı tutmak pahalı.
+        var since = DateTime.UtcNow - TestRunWindow;
+        var recentTests = await _context.AutomationRunLogs.AsNoTracking()
+            .CountAsync(l => l.RuleId == id && l.IsTest && l.TriggeredAt >= since, ct);
+        if (recentTests >= MaxTestRunsPerWindow)
+            return StatusCode(429, new { error = "Too many test runs for this rule. Try again in a minute." });
+
+        var schema = DeserializeSchema(project.SchemaJson);
+        var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsed)
+            ? parsed : DatabaseType.PostgreSQL;
+
+        await _executor.RunRuleAsync(rule, userId, schema, engine, isTest: true, ct);
+
+        // Yalnızca BU çalıştırmanın satırları dönüyor; istemci sonucu anında
+        // gösterebilsin diye geçmişi ayrıca çekmesi gerekmiyor.
+        var results = await _context.AutomationRunLogs.AsNoTracking()
+            .Where(l => l.RuleId == id && l.IsTest && l.TriggeredAt >= since)
+            .OrderByDescending(l => l.TriggeredAt)
+            .Take(rule.Actions.Count == 0 ? 1 : rule.Actions.Count)
+            .ToListAsync(ct);
+
+        return Ok(new
+        {
+            // Zincirdeki Toast adımları sunucuda hiç çalışmıyor (istemci
+            // tarafı aksiyon), dolayısıyla log satırı da üretmiyorlar —
+            // kullanıcı "2 adım tanımladım ama 1 sonuç var" demesin diye
+            // bu açıkça bildiriliyor.
+            clientOnlyActions = rule.Actions.Count(a => a.ActionType == "Toast"),
+            runs = results,
+        });
     }
 
     [HttpDelete("rules/{id}")]

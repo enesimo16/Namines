@@ -11,6 +11,7 @@ import {
   type AutomationConditionOp,
 } from '../../store/useAutomationStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import AutomationRunHistory from './AutomationRunHistory';
 import type { NaminesFlowEvent } from '../../lib/naminesFlowEventBus';
 
 type TriggerType = NaminesFlowEvent['type'];
@@ -376,6 +377,8 @@ export default function AutomationRuleDrawer() {
               </ul>
             )}
           </section>
+
+          <AutomationRunHistory ruleId={rule.id} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

@@ -52,6 +52,14 @@ export interface AutomationActionStep {
   actionConfig: { url?: string };
 }
 
+/** Kuralın en son çalışmasının özeti — listede tek bakışta durum rozeti için. */
+export interface AutomationLastRun {
+  status: string;
+  triggeredAt: string;
+  actionType: string;
+  errorMessage: string | null;
+}
+
 export interface AutomationRule {
   id: string;
   /** Boş string = proje geneli (sunucuda `ScopeTableId == null`). */
@@ -61,6 +69,8 @@ export interface AutomationRule {
   conditions: AutomationCondition[];
   actions: AutomationActionStep[];
   enabled: boolean;
+  /** Yalnızca sunucudan gelir; yerel olarak oluşturulan kuralda yoktur. */
+  lastRun?: AutomationLastRun | null;
 }
 
 interface AutomationStoreState {

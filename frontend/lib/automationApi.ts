@@ -39,6 +39,7 @@ interface AutomationRuleDto {
   conditionsJson: string;
   actions: AutomationActionDto[];
   enabled: boolean;
+  lastRun?: { status: string; triggeredAt: string; actionType: string; errorMessage: string | null } | null;
 }
 
 /** Bozuk/eksik JSON sessizce yedek değere düşüyor — tek bir kayıt yüzünden canvas boş kalmasın. */
@@ -73,6 +74,7 @@ const fromDto = (dto: AutomationRuleDto): AutomationRule => ({
     actionConfig: parseObject(a.actionConfigJson),
   })),
   enabled: dto.enabled,
+  lastRun: dto.lastRun ?? null,
 });
 
 const toActionDtos = (actions: AutomationActionStep[]): AutomationActionDto[] =>
@@ -123,4 +125,32 @@ export async function updateAutomationRule(id: string, rule: AutomationRule): Pr
 
 export async function deleteAutomationRule(id: string): Promise<void> {
   await api.delete(`/automation/rules/${id}`);
+}
+
+/** Sunucunun tuttuğu tek bir çalıştırma kaydı. */
+export interface AutomationRun {
+  id: string;
+  ruleId: string;
+  triggeredAt: string;
+  actionType: string;
+  status: 'Success' | 'Failed' | 'Skipped' | string;
+  isTest: boolean;
+  errorMessage: string | null;
+  resultSummary: string | null;
+}
+
+export async function fetchRuleRuns(ruleId: string, limit = 20): Promise<AutomationRun[]> {
+  const response = await api.get<AutomationRun[]>(`/automation/rules/${ruleId}/runs`, { params: { limit } });
+  return response.data;
+}
+
+export interface AutomationTestResult {
+  /** Sunucuda hiç çalışmayan (dolayısıyla log üretmeyen) istemci aksiyonu sayısı. */
+  clientOnlyActions: number;
+  runs: AutomationRun[];
+}
+
+export async function testAutomationRule(ruleId: string): Promise<AutomationTestResult> {
+  const response = await api.post<AutomationTestResult>(`/automation/rules/${ruleId}/test`);
+  return response.data;
 }

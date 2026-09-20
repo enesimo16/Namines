@@ -17,6 +17,12 @@ const TRIGGER_LABEL: Record<string, string> = {
   RelationDeleted: 'Relation deleted',
 };
 
+const LAST_RUN_STYLE: Record<string, string> = {
+  Success: 'text-success-text',
+  Failed: 'text-danger-text',
+  Skipped: 'text-warning-text',
+};
+
 const ACTION_LABEL: Record<string, string> = {
   Toast: 'Notify',
   Webhook: 'Webhook',
@@ -134,6 +140,15 @@ export default function NaminesFlowPanel() {
                         : rule.actions.map(a => ACTION_LABEL[a.actionType] ?? a.actionType).join(' + ')}
                     </span>
                   </p>
+                  {/* Son çalışma kural listesiyle birlikte geliyor (tek sorgu),
+                      böylece "hangi kural patlıyor" sorusu kuralları tek tek
+                      açmadan cevaplanabiliyor. */}
+                  {rule.lastRun && (
+                    <p className={`mt-0.5 text-micro ${LAST_RUN_STYLE[rule.lastRun.status] ?? 'text-content-muted'}`}>
+                      Last run: {rule.lastRun.status}
+                      {rule.lastRun.errorMessage ? ` — ${rule.lastRun.errorMessage}` : ''}
+                    </p>
+                  )}
                 </div>
 
                 <label className="flex shrink-0 cursor-pointer items-center gap-1 text-micro text-content-muted">
