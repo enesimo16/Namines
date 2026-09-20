@@ -179,6 +179,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAutomationJobQueue, AutomationJobQueue>();
         services.AddScoped<IAutomationExecutor, AutomationExecutor>();
         services.AddHostedService<AutomationExecutorWorker>();
+        // Çalışma kayıtları hiçbir şey tarafından silinmiyordu; sık tetiklenen
+        // bir kural tabloyu süresiz büyütür.
+        services.AddHostedService<AutomationRunLogRetentionService>();
 
         // AutomationExecutor, AI aksiyonlarının kotasını IAiQuotaReserver
         // üzerinden rezerve ediyor; bu arayüzü AiQuotaService uyguluyor ama

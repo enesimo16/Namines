@@ -37,6 +37,29 @@ uzantısı olarak gelir.
 
 ## 2. Jenerik otomasyon platformu ("Namines Flow" marka hedefi)
 
+> **GÜNCELLEME (2026-09-20) — bu erteleme kararı ARTIK GEÇERLİ DEĞİL.**
+>
+> Namines Flow, ürün sahibinin açık kararıyla bu bölümün tavsiye ettiği "yalnızca
+> event kaynağı" kapsamının ötesine geçirildi ve uygulandı: tetikleyici +
+> koşullar + **sıralı aksiyon zinciri**, çalışma geçmişi, elle test, şablon
+> değişkenleri ve Slack/Discord/webhook/lint/DBA/seed aksiyonları.
+>
+> Aşağıdaki gerekçe (n8n/Zapier'i kötü yeniden icat etme riski) **çürütülmedi** —
+> bilerek kabul edildi. Karar verirken bilinmesi gerekenler:
+>
+> - Kapsam hâlâ DAR: koşullar yalnızca tablo/kolon adı ve tipi üzerinde metin
+>   karşılaştırması yapıyor. Dallanma, döngü, ifade değerlendirme YOK ve
+>   bilinçli olarak yok — kullanıcıdan gelen ifadeyi sunucuda çalıştırmak
+>   ayrı bir güvenlik sınıfı açardı.
+> - Sunucu tarafı aksiyonlar senkronizasyon döngüsüne bağlı, gerçek zamanlı
+>   değil (~30 sn).
+> - "Event kaynağı ol" tavsiyesi hâlâ tamamlayıcı olarak geçerli: zengin webhook
+>   yayını (A2.09) bu işi ORTADAN KALDIRMIYOR, n8n/Zapier kullanan müşteriler
+>   için doğru yol olmaya devam ediyor.
+>
+> Bu blok, dokümanın geri kalanıyla çelişkiyi görünür kılmak için eklendi;
+> aşağısı tarihsel gerekçe olarak korunuyor.
+
 **Neden şimdi değil:** n8n 2.0 (70+ AI node, LangChain, kalıcı ajan hafızası),
 Zapier (7.000+ entegrasyon), Make — hepsi 2026'da AI-native olgunluğa ulaşmış.
 Kendi otomasyon motorunu yazmak, bunları kötü şekilde yeniden icat etmek olur.
@@ -113,7 +136,7 @@ zaman bile yalnızca ölçek ekonomisi gerçekten anlamlıysa.
 | Fikir | Şimdi | Koşullu gelecek | Ucuz versiyon bugün var mı |
 |---|---|---|---|
 | Jenerik app üretici | ❌ | Console müşterisi tekrar isterse | ✔ Console Eject → PWA |
-| Jenerik otomasyon platformu | ❌ | DB-özel otomasyon talebi tekrarlanırsa | ✔ webhook/event kaynağı |
+| Jenerik otomasyon platformu | ✅ **yapıldı (2026-09-20)** | — erteleme kaldırıldı, bkz. §2 güncellemesi | ✔ Namines Flow: koşul + aksiyon zinciri + run log |
 | AI Dataset Factory | ❌ | Muhtemelen hiçbir zaman (bu ürün kimliğiyle) | ✖ |
 | DBA "%X iyileştirme" iddiası | ❌ (doğruluk sorunu) | Data Plane + gerçek telemetri sonrası | ✔ yapısal bulgu dili |
 | Kendi altyapı (PG/K8s) | ❌ | ~$8-15K MRR sonrası, ölçek gerekirse | ✖ (plan zaten doğru) |

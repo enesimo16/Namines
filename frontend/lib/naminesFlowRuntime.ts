@@ -1,5 +1,6 @@
 import type { NaminesFlowEvent } from './naminesFlowEventBus';
 import type { AutomationRule } from '../store/useAutomationStore';
+import type { FlowTemplateContext } from './naminesFlowTemplate';
 
 /**
  * Namines Flow'un İSTEMCİ TARAFI çalışma zamanı — saf eşleştirme mantığı.
@@ -11,18 +12,14 @@ import type { AutomationRule } from '../store/useAutomationStore';
  * senkronizasyon döngüsünde sunucunun kendi diff'inden tetiklenir.
  *
  * React'ten bağımsız saf fonksiyonlar olarak duruyor ki birim testi
- * yazılabilsin ve koşul desteği (Faz 3) buraya tek noktadan eklenebilsin.
+ * yazılabilsin.
  */
 
 /**
  * Olayın hangi tablo(lar)a ait olduğu.
  *
  * İlişki olaylarının tek bir sahibi yok — hem kaynak hem hedef tabloyu
- * ilgilendiriyorlar, bu yüzden ikisi de döner. Sunucudaki
- * `AutomationRuleMatcher` şu an ilişki tetikleyicilerini yalnızca proje
- * geneli kurallarda eşleştiriyor (diff ilişkileri bir tabloya atfetmiyor);
- * istemci tarafında bu bilgi elimizde olduğu için tabloya bağlı kurallar da
- * eşleşebiliyor.
+ * ilgilendiriyorlar, bu yüzden ikisi de döner.
  */
 export function eventTableIds(event: NaminesFlowEvent): string[] {
   switch (event.type) {
@@ -35,40 +32,56 @@ export function eventTableIds(event: NaminesFlowEvent): string[] {
 }
 
 /**
- * Olayın koşullara sunduğu değerler. İstemci tarafında kolon TİPİ elde
- * olmadığı için (`NaminesFlowEvent` yalnızca ad taşıyor) `columnType`
- * koşulları burada eşleşemiyor — sunucu tarafı onları doğru değerlendiriyor.
+ * Olayın koşullara ve şablonlara sunduğu değerler.
+ *
+ * <b>`resolveTableName` neden dışarıdan geliyor:</b> olaylar tabloyu ID ile
+ * taşıyor, ADLA değil. Ad çözülmeden `tableName` koşulu istemcide hiç
+ * değerlendirilemiyordu ve sunucuyla ayrışıyordu; şema deposu bu eşlemeyi
+ * bildiği için çağıran taraf sağlıyor, bu fonksiyon saf kalıyor.
+ *
+ * `columnType` HÂLÂ yok: olay yalnızca kolon adını taşıyor. Aşağıdaki
+ * `conditionsHold` bunu bilerek "düşürmüyor" — bkz. oradaki açıklama.
  */
-function contextOf(event: NaminesFlowEvent): { columnName?: string } {
+export function buildContext(
+  event: NaminesFlowEvent,
+  resolveTableName?: (tableId: string) => string | undefined,
+): FlowTemplateContext {
+  const tableName = resolveTableName
+    ? eventTableIds(event).map(resolveTableName).find(Boolean)
+    : undefined;
+
   switch (event.type) {
     case 'ColumnAdded':
     case 'ColumnDeleted':
     case 'ColumnChanged':
-      return { columnName: event.columnName };
+      return { tableName, columnName: event.columnName };
     default:
-      return {};
+      return { tableName };
   }
 }
 
 /**
  * Koşulların istemci tarafı karşılığı — sunucudaki
  * `AutomationConditionEvaluator` ile AYNI anlamda olmalı, yoksa aynı kural
- * tarayıcıda toast basarken sunucuda sessiz kalır (ya da tersi) ve kullanıcı
- * hangisinin doğru olduğunu anlayamaz.
+ * tarayıcıda toast basarken sunucuda sessiz kalır (ya da tersi).
  *
- * `tableName` bilgisi olay içinde YOK (olaylar tabloyu id ile taşıyor, adla
- * değil); o koşul burada değerlendirilemediği için kural düşürülmüyor —
- * istemci tarafı yalnızca anlık geri bildirim veriyor ve yanlış susmaktansa
- * fazladan göstermek daha az zararlı.
+ * <b>Değerlendirilemeyen koşul kuralı DÜŞÜRMÜYOR.</b> `columnType` olay içinde
+ * taşınmıyor; o koşulu "eşleşmedi" saymak, sunucunun tetikleyeceği bir kuralda
+ * istemcinin sessiz kalması demek olurdu. Fazladan bildirim göstermek, hiç
+ * göstermemekten daha az zararlı — sunucu tarafı aksiyonlar zaten doğru
+ * değerlendiriliyor.
  */
-function conditionsHold(rule: AutomationRule, event: NaminesFlowEvent): boolean {
+function conditionsHold(rule: AutomationRule, context: FlowTemplateContext): boolean {
   if (rule.conditions.length === 0) return true;
-  const ctx = contextOf(event);
 
   return rule.conditions.every(condition => {
-    if (condition.field !== 'columnName') return true;
-    const actual = ctx.columnName;
-    if (actual === undefined) return false;
+    const actual =
+      condition.field === 'tableName' ? context.tableName
+      : condition.field === 'columnName' ? context.columnName
+      : context.columnType;
+
+    // İstemcide bilinmeyen alan: kural düşürülmüyor (yukarıdaki gerekçe).
+    if (actual === undefined) return true;
 
     const a = actual.toLowerCase();
     const b = (condition.value ?? '').toLowerCase();
@@ -84,18 +97,29 @@ function conditionsHold(rule: AutomationRule, event: NaminesFlowEvent): boolean 
 }
 
 /** Bu olayın tetiklediği, etkin kurallar. */
-export function matchRules(event: NaminesFlowEvent, rules: AutomationRule[]): AutomationRule[] {
+export function matchRules(
+  event: NaminesFlowEvent,
+  rules: AutomationRule[],
+  context: FlowTemplateContext = buildContext(event),
+): AutomationRule[] {
   const tableIds = eventTableIds(event);
+  const isRelation = event.type === 'RelationAdded' || event.type === 'RelationDeleted';
+
   return rules.filter(rule =>
     rule.enabled &&
     rule.triggerType === event.type &&
-    // Boş kapsam = proje geneli: tablo eşleşmesi aranmıyor.
-    (rule.scopeTableId === '' || tableIds.includes(rule.scopeTableId)) &&
-    conditionsHold(rule, event),
+    // İlişki olayları bir tabloya atfedilemiyor; sunucudaki eşleştirici de
+    // onları YALNIZCA proje geneli kurallarda değerlendiriyor. İstemcinin
+    // kaynak/hedef tabloya bağlı kuralları da eşleştirmesi, aynı kuralın
+    // tarayıcıda tetiklenip sunucuda sessiz kalmasına yol açıyordu.
+    (isRelation
+      ? rule.scopeTableId === ''
+      : rule.scopeTableId === '' || tableIds.includes(rule.scopeTableId)) &&
+    conditionsHold(rule, context),
   );
 }
 
-/** Kullanıcıya gösterilecek toast metni. */
+/** Kullanıcı bir mesaj yazmadıysa gösterilecek varsayılan toast metni. */
 export function toastMessageFor(event: NaminesFlowEvent): string {
   switch (event.type) {
     case 'TableAdded':

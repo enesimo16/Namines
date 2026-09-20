@@ -7,6 +7,7 @@ import { naminesFlow } from '../lib/naminesFlowEventBus';
 import { useAutomationStore, type AutomationRule } from '../store/useAutomationStore';
 import { useFlowBarStore } from '../store/useFlowBarStore';
 import { useFlowFiringStore } from '../store/useFlowFiringStore';
+import { useSchemaStore } from '../store/useSchemaStore';
 import { useToastStore } from '../store/useToastStore';
 
 /**
@@ -32,6 +33,7 @@ beforeEach(() => {
   useFlowFiringStore.setState({ firings: {} });
   useFlowBarStore.setState({ paused: false });
   useToastStore.getState().clearAll();
+  useSchemaStore.setState({ schema: null } as never);
 });
 
 // Bu projede RTL'in otomatik temizligi kurulu DEGIL (vitest `globals: false`).
@@ -104,6 +106,35 @@ describe('useNaminesFlowRuntime', () => {
 
     expect(useToastStore.getState().toasts).toHaveLength(0);
     expect(useFlowFiringStore.getState().firings).toEqual({});
+  });
+
+  it('kullanici mesaji sablon degiskenleriyle doldurularak gosteriliyor', () => {
+    useSchemaStore.setState({
+      schema: { schemaId: 's1', name: 'Shop', tables: [{ id: 't1', name: 'orders', columns: [] }], relations: [] },
+    } as never);
+    useAutomationStore.setState({
+      rules: [rule({ actions: [{ actionType: 'Toast', actionConfig: { message: '{{projectName}}: {{tableName}} gitti' } }] })],
+    });
+    renderHook(() => useNaminesFlowRuntime());
+
+    act(() => {
+      naminesFlow.emit({ type: 'TableDeleted', tableId: 't1', tableName: 'orders' });
+    });
+
+    expect(useToastStore.getState().toasts[0].message).toBe('Shop: orders gitti');
+  });
+
+  it('mesaj bos birakilirsa varsayilan metne dusuyor', () => {
+    useAutomationStore.setState({
+      rules: [rule({ actions: [{ actionType: 'Toast', actionConfig: { message: '   ' } }] })],
+    });
+    renderHook(() => useNaminesFlowRuntime());
+
+    act(() => {
+      naminesFlow.emit({ type: 'TableDeleted', tableId: 't1', tableName: 'Orders' });
+    });
+
+    expect(useToastStore.getState().toasts[0].message).toContain('Orders');
   });
 
   it('unmount sonrasi artik dinlemez', () => {

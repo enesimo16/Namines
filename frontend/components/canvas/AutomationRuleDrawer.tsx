@@ -49,8 +49,12 @@ const ACTION_OPTIONS: { value: AutomationActionType; label: string; hint: string
 
 /** URL isteyen aksiyonlar — hepsi aynı HTTP yürütücüsünü kullanıyor. */
 const URL_ACTIONS: AutomationActionType[] = ['Webhook', 'Slack', 'Discord'];
-/** Serbest mesaj yazılan aksiyonlar; ham webhook yerine hazır zarf kullanıyorlar. */
-const MESSAGE_ACTIONS: AutomationActionType[] = ['Slack', 'Discord'];
+/**
+ * Serbest mesaj yazılan aksiyonlar. Toast da burada: bildirimi sunucu değil
+ * tarayıcı basıyor ama şablon aynı değişkenleri okuyor, dolayısıyla kullanıcı
+ * açısından fark yok.
+ */
+const MESSAGE_ACTIONS: AutomationActionType[] = ['Toast', 'Slack', 'Discord'];
 
 const TEMPLATE_VARIABLES = '{{trigger}} {{tableName}} {{columnName}} {{columnType}} {{projectName}} {{timestamp}}';
 
@@ -68,6 +72,34 @@ const labelClass = 'flex flex-col gap-1.5 text-xs font-medium text-content-secon
 const iconButtonClass = 'rounded-[var(--radius-control)] p-1 text-content-muted transition-colors hover:bg-content-primary/12 hover:text-content-primary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed';
 
 const PROJECT_SCOPE = '__project__';
+
+/**
+ * Başlıkları düzenlenebilir düz metne ve geri çevirir.
+ *
+ * Değerdeki iki nokta korunuyor (`Authorization: Bearer a:b` geçerli bir
+ * başlıktır), bu yüzden yalnızca İLK iki noktadan bölünüyor. Adı boş olan
+ * satır atılıyor — geçersiz bir başlık sunucuda sessizce düşerdi.
+ */
+function headersToText(headers: Record<string, string> | undefined): string {
+  if (!headers) return '';
+  return Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\n');
+}
+
+function textToHeaders(text: string): Record<string, string> | undefined {
+  const entries = text
+    .split('\n')
+    .map(line => {
+      const at = line.indexOf(':');
+      if (at < 0) return null;
+      const name = line.slice(0, at).trim();
+      return name === '' ? null : ([name, line.slice(at + 1).trim()] as const);
+    })
+    .filter((e): e is readonly [string, string] => e !== null);
+
+  // Boş nesne yerine undefined: yapılandırma JSON'unda gereksiz `"headers":{}`
+  // bırakmamak için.
+  return entries.length === 0 ? undefined : Object.fromEntries(entries);
+}
 
 /**
  * Namines Flow kural çekmecesi — bir kuralın kapsamını, tetikleyicisini,
@@ -420,10 +452,25 @@ export default function AutomationRuleDrawer() {
                             actionConfig: { ...action.actionConfig, body: e.target.value },
                           })}
                         />
+                        {/* Başlıklar tek bir metin alanından düzenleniyor.
+                            Anahtar/değer için ayrı satır arayüzü kurmak, bu
+                            alanın beklenen kullanımına (bir Authorization
+                            başlığı) göre fazla ağır kaçardı. */}
+                        <textarea
+                          aria-label={`Headers ${index + 1}`}
+                          rows={2}
+                          className={`${smallInputClass} mt-1.5 w-full resize-y font-mono`}
+                          defaultValue={headersToText(action.actionConfig.headers)}
+                          placeholder={'Authorization: Bearer …\nX-Source: namines'}
+                          onBlur={(e) => patchAction(index, {
+                            actionConfig: { ...action.actionConfig, headers: textToHeaders(e.target.value) },
+                          })}
+                        />
+                        <p className="mt-0.5 text-micro text-content-subtle">One header per line, as Name: value</p>
                       </>
                     )}
 
-                    {(URL_ACTIONS.includes(action.actionType)) && (
+                    {(URL_ACTIONS.includes(action.actionType) || action.actionType === 'Toast') && (
                       <p className="mt-1 text-micro leading-snug text-content-subtle">
                         Variables: <span className="font-mono">{TEMPLATE_VARIABLES}</span>
                       </p>

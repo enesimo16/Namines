@@ -2,10 +2,12 @@
 
 import { useEffect } from 'react';
 import { naminesFlow } from '../lib/naminesFlowEventBus';
-import { matchRules, toastMessageFor } from '../lib/naminesFlowRuntime';
+import { buildContext, matchRules, toastMessageFor } from '../lib/naminesFlowRuntime';
+import { renderFlowTemplate } from '../lib/naminesFlowTemplate';
 import { useAutomationStore } from '../store/useAutomationStore';
 import { useFlowBarStore } from '../store/useFlowBarStore';
 import { useFlowFiringStore } from '../store/useFlowFiringStore';
+import { useSchemaStore } from '../store/useSchemaStore';
 import { useToastStore } from '../store/useToastStore';
 
 /**
@@ -26,21 +28,30 @@ export function useNaminesFlowRuntime(): void {
       // tarafı tepkileri susturmanın yolu.
       if (useFlowBarStore.getState().paused) return;
 
-      const matched = matchRules(event, useAutomationStore.getState().rules);
+      const schema = useSchemaStore.getState().schema;
+      // Olaylar tabloyu ID ile taşıyor; ad yalnızca şemada var. Çözücüyü
+      // buradan geçirmek `tableName` koşullarının ve şablonlarının istemcide
+      // de çalışmasını sağlıyor.
+      const context = buildContext(event, (id) => schema?.tables.find(t => t.id === id)?.name);
+
+      const matched = matchRules(event, useAutomationStore.getState().rules, context);
       if (matched.length === 0) return;
 
       const { markFired } = useFlowFiringStore.getState();
       const { showToast } = useToastStore.getState();
+      const projectName = schema?.name ?? '';
 
       for (const rule of matched) {
         markFired(rule.id);
+
         // Sunucu "Toast"u hiç işlemez (bkz. AutomationExecutor) — bu aksiyonun
         // tek gerçekleştiği yer burası. Zincirde birden fazla Toast olsa bile
-        // tek bildirim çıkıyor: aynı olay için aynı metni iki kez göstermenin
-        // kullanıcıya bir faydası yok.
-        if (rule.actions.some(a => a.actionType === 'Toast')) {
-          showToast(toastMessageFor(event), 'info');
-        }
+        // ilki kullanılıyor: aynı olay için iki bildirim göstermenin faydası yok.
+        const toast = rule.actions.find(a => a.actionType === 'Toast');
+        if (!toast) continue;
+
+        const custom = renderFlowTemplate(toast.actionConfig.message, rule.triggerType, context, projectName);
+        showToast(custom.trim() !== '' ? custom : toastMessageFor(event), 'info');
       }
     });
   }, []);

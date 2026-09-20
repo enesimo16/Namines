@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { eventTableIds, matchRules, toastMessageFor } from './naminesFlowRuntime';
+import { buildContext, eventTableIds, matchRules, toastMessageFor } from './naminesFlowRuntime';
 import type { AutomationRule } from '../store/useAutomationStore';
 
 const rule = (over: Partial<AutomationRule> = {}): AutomationRule => ({
@@ -53,10 +53,22 @@ describe('matchRules', () => {
     expect(matched).toHaveLength(0);
   });
 
-  it('iliski olayinda hedef tabloya bagli kural da eslesir', () => {
+  it('iliski olayi TABLOYA BAGLI kurali eslestirmiyor', () => {
+    // Sunucudaki AutomationRuleMatcher ilişki olaylarını yalnızca proje geneli
+    // kurallarda değerlendiriyor (diff ilişkileri bir tabloya atfetmiyor).
+    // İstemci kaynak/hedef tabloya bağlı kuralları da eşleştirseydi, aynı
+    // kural tarayıcıda tetiklenip sunucuda sessiz kalırdı.
     const matched = matchRules(
       { type: 'RelationAdded', relationId: 'rel1', sourceTableId: 'a', targetTableId: 't1' },
       [rule({ triggerType: 'RelationAdded' })],
+    );
+    expect(matched).toHaveLength(0);
+  });
+
+  it('iliski olayi PROJE GENELI kurali eslestiriyor', () => {
+    const matched = matchRules(
+      { type: 'RelationAdded', relationId: 'rel1', sourceTableId: 'a', targetTableId: 'b' },
+      [rule({ triggerType: 'RelationAdded', scopeTableId: '' })],
     );
     expect(matched).toHaveLength(1);
   });
@@ -89,6 +101,19 @@ describe('matchRules', () => {
       })],
     );
     expect(matched).toHaveLength(1);
+  });
+
+  it('tablo adi kosulu artik istemcide de degerlendirilebiliyor', () => {
+    // Olay tabloyu ID ile taşıyor; ad çözücü verildiğinde koşul çalışıyor ve
+    // sunucuyla aynı sonucu veriyor.
+    const resolve = (id: string) => (id === 't1' ? 'orders' : undefined);
+    const rules = [rule({ conditions: [{ field: 'tableName', op: 'equals', value: 'orders' }] })];
+    const event = { type: 'TableDeleted', tableId: 't1', tableName: 'orders' } as const;
+
+    expect(matchRules(event, rules, buildContext(event, resolve))).toHaveLength(1);
+
+    const other = [rule({ conditions: [{ field: 'tableName', op: 'equals', value: 'users' }] })];
+    expect(matchRules(event, other, buildContext(event, resolve))).toHaveLength(0);
   });
 
   it('istemcide degerlendirilemeyen kosul kurali DUSURMEZ', () => {

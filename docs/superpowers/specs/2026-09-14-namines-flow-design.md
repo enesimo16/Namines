@@ -1,6 +1,34 @@
 # Namines Flow — Spec
 
-**Durum:** Onaylandı (brainstorming sürecinde bölüm bölüm onaylandı) — kullanıcı incelemesi bekleniyor.
+**Durum:** Uygulandı. **Bu doküman v1'i anlatıyor ve BAZI BÖLÜMLERİ ARTIK
+GÜNCEL DEĞİL** — aşağıdaki "v2 farkları" bölümüne bakın.
+
+---
+
+## v2 farkları (2026-09-20) — aşağıyı okumadan önce
+
+Aşağıdaki metin "bir kural = bir tetikleyici + **bir aksiyon**" varsayıyor.
+Bu artık doğru değil. Uygulanan hâl:
+
+| Konu | v1 (aşağıdaki metin) | v2 (kod) |
+|---|---|---|
+| Kural yapısı | 1 tetikleyici + 1 aksiyon | 1 tetikleyici + **koşullar** + **sıralı aksiyon zinciri** |
+| Koşullar | yok | `tableName`/`columnName`/`columnType` üzerinde 5 metin operatörü, aralarında VE. Regex **bilerek yok** (ReDoS) |
+| Aksiyon tipleri | Webhook, DbaCheck, SeedData, Toast | + **Slack**, **Discord**, **Lint** |
+| Webhook | sabit gövde | method + başlıklar + şablonlanabilir gövde (gövde boşsa v1 gövdesi korunur) |
+| Şablon | yok | `{{trigger}} {{tableName}} {{columnName}} {{columnType}} {{projectName}} {{timestamp}}` — sunucuda `AutomationTemplate`, istemcide `naminesFlowTemplate.ts` |
+| Kapsam | yalnızca tabloya bağlı | tablo **veya proje geneli**; ilişki tetikleyicileri yalnızca proje genelinde anlamlı |
+| Teşhis | yok (`AutomationRunLog` yazılıyor ama okunmuyordu) | `GET /rules/{id}/runs`, `POST /rules/{id}/test`, kural listesinde `lastRun` |
+| Saklama | yok | `AutomationRunLogRetentionService` (yaş + kural başına sayı) |
+
+**Veritabanı notu:** `AutomationRules.ActionType` / `ActionConfigJson`
+sütunları hâlâ DURUYOR. Aksiyonlar `AutomationActions` tablosuna taşındı, ama
+eski sütunlar ileriye uyumluluk için (kod geri alınırsa eski sürüm onları
+okuyor) bilerek düşürülmedi. **Silinmeleri ayrı bir sürümde, elle yazılmış bir
+migration ile yapılmalı** — `dotnet ef migrations add` bunu üretmez, çünkü
+model bu alanları zaten içermiyor.
+
+---
 
 **Sorun:** Canvas'ta (`frontend/store/useSchemaStore.ts`) `addTable`/
 `deleteTable` gibi işlemler doğrudan senkron Zustand mutasyonu — dinleyen

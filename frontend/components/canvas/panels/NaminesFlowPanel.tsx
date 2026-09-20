@@ -1,12 +1,16 @@
 'use client';
 
 import { useNodes, useReactFlow } from '@xyflow/react';
-import { Crosshair, Pencil, Trash2, X, Zap } from 'lucide-react';
+import { useState } from 'react';
+import { Crosshair, Pencil, Play, Trash2, X, Zap } from 'lucide-react';
 import { useFlowBarStore } from '../../../store/useFlowBarStore';
 import { useAutomationStore } from '../../../store/useAutomationStore';
 import { useFlowNodePositionStore } from '../../../store/useFlowNodePositionStore';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { NAMINES_FLOW_TEMPLATES, type NaminesFlowTemplate } from '../../../lib/naminesFlowTemplates';
+import { testAutomationRule } from '../../../lib/automationApi';
+import { useToastStore } from '../../../store/useToastStore';
+import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 
 const TRIGGER_LABEL: Record<string, string> = {
   TableAdded: 'Table added',
@@ -58,6 +62,10 @@ export default function NaminesFlowPanel() {
   const clearFlowNodePosition = useFlowNodePositionStore(s => s.clearPosition);
 
   const tables = useSchemaStore(s => s.schema?.tables);
+  const loadRules = useAutomationStore(s => s.loadRules);
+  const showToast = useToastStore(s => s.showToast);
+  const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   // Tabloya bağlı şablonların çapası: canvas'ta seçili olan tablo.
   // `useNodes` REAKTİF — `getNodes()` render sırasında bir kez okunurdu ve
@@ -91,6 +99,42 @@ export default function NaminesFlowPanel() {
   const removeRule = (ruleId: string) => {
     deleteRule(ruleId);
     clearFlowNodePosition(ruleId);
+  };
+
+  /**
+   * Listeden doğrudan test. Sonuç toast olarak veriliyor — panelde satır
+   * başına ayrıntılı çıktı göstermek listeyi okunmaz hâle getirirdi; tam
+   * geçmiş zaten çekmecede.
+   */
+  const runTest = async (ruleId: string) => {
+    setTestingId(ruleId);
+    try {
+      const result = await testAutomationRule(ruleId);
+      const failed = result.runs.filter(r => r.status === 'Failed').length;
+      const skipped = result.runs.filter(r => r.status === 'Skipped').length;
+      if (result.runs.length === 0) {
+        showToast('This flow has no server-side steps to run.', 'info');
+      } else if (failed > 0) {
+        showToast(`Test finished: ${failed} step(s) failed. Open the flow for details.`, 'error');
+      } else if (skipped > 0) {
+        showToast(`Test finished: ${skipped} step(s) were skipped. Open the flow for details.`, 'warning');
+      } else {
+        showToast('Test finished: every server-side step succeeded.', 'success');
+      }
+      // Rozet sunucudan geliyor; testten sonra tazelenmezse eski durumu
+      // gösterirdi.
+      if (activeProjectId) void loadRules(activeProjectId);
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      showToast(
+        status === 429
+          ? 'Too many test runs for this flow — wait a minute and try again.'
+          : 'The test run could not be started.',
+        'error',
+      );
+    } finally {
+      setTestingId(null);
+    }
   };
 
   /**
@@ -243,6 +287,16 @@ export default function NaminesFlowPanel() {
                   className={iconButtonClass}
                 >
                   <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runTest(rule.id)}
+                  disabled={testingId === rule.id}
+                  title="Run the server-side steps now"
+                  aria-label="Test this flow now"
+                  className={iconButtonClass}
+                >
+                  <Play className={`h-3.5 w-3.5 ${testingId === rule.id ? 'opacity-50' : ''}`} />
                 </button>
                 <button
                   type="button"
