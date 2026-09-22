@@ -15,6 +15,7 @@ import AIPreferencesModal from '../canvas/panels/AIPreferencesModal';
 import TeamModal from './TeamModal';
 import QuotaExhaustedModal from '../canvas/panels/QuotaExhaustedModal';
 import ProjectSidebar from './ProjectSidebar';
+import WorkspaceNav from './WorkspaceNav';
 import Logo from './Logo';
 import HomeBanner from '../landing/HomeBanner';
 import ThemeToggleButton from '../landing/ThemeToggleButton';
@@ -332,6 +333,14 @@ export default function Header() {
             </>
           )}
         </nav>
+
+        {/* Middle — Flow/Ground/Vault/Desk switcher. Yalnızca proje çalışma
+            alanı rotalarında görünür (WorkspaceNav kendi içinde karar
+            veriyor); dar ekranda gizli, aşağıdaki sağ taraftaki hesap/ayar
+            grubuyla üst üste binmesin diye. */}
+        <div className="hidden md:flex flex-1 items-center justify-center px-2 min-w-0">
+          <WorkspaceNav />
+        </div>
 
         {/* Right — Actions depending on path */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
