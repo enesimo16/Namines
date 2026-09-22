@@ -7,23 +7,23 @@
 
 ## Önce oku
 
-1. **[new-phase/BASLA-BURADAN.md](new-phase/BASLA-BURADAN.md)** — projenin hikâyesi,
+1. **[new-phase/BASLA-BURADAN.md](docs/new-phase/BASLA-BURADAN.md)** — projenin hikâyesi,
    ~20 dakika, anlatı formatında. İlk kez buraya bakan biri buradan başlamalı.
-2. **[new-phase/27-LIFECYCLE-PIVOT.md](new-phase/27-LIFECYCLE-PIVOT.md)** — güncel
+2. **[new-phase/27-LIFECYCLE-PIVOT.md](docs/new-phase/27-LIFECYCLE-PIVOT.md)** — güncel
    stratejik yön. Ürün artık "AI ile database üret" değil, **"AI ile database/backend
    lifecycle'ını güvenle yönet."** Bu doküman güncel yön; 24-ROADMAP.md'nin
    önceliklendirmesini bu geçersiz kılar (roadmap'in kendisi değil, sırası).
-3. **[new-phase/CHECKLIST.md](new-phase/CHECKLIST.md)** — bugüne kadar yapılan
+3. **[new-phase/CHECKLIST.md](docs/new-phase/CHECKLIST.md)** — bugüne kadar yapılan
    her işin doğrulama kanıtıyla birlikte listesi. **"G" = görev grubu, gün değil.**
    Yeni bir işe başlamadan önce buraya bak, hangi G'de kaldığımızı gör.
-4. **[github/07-FAZ-PLANI.md](github/07-FAZ-PLANI.md)** — GitHub platformu işinin
+4. **[github/07-FAZ-PLANI.md](docs/github/07-FAZ-PLANI.md)** — GitHub platformu işinin
    fazları ve güncel durumu (G53). Depo tarama, 3-yollu merge ve bot; hangi fazın
    bittiği, hangisinin GitHub App'i beklediği burada. App kurulumu:
-   [github/F2-GITHUB-APP-KURULUMU.md](github/F2-GITHUB-APP-KURULUMU.md).
-5. **[second-phase/README.md](second-phase/README.md)** — Faz 1 bitti; bundan
+   [github/F2-GITHUB-APP-KURULUMU.md](docs/github/F2-GITHUB-APP-KURULUMU.md).
+5. **[second-phase/README.md](docs/second-phase/README.md)** — Faz 1 bitti; bundan
    sonrası burada. `00-NEREDEYIZ.md` ürünün bugünkü hâli, `01-SIRADAKI-ISLER.md`
    sıradaki işler ve sırası. **Yeni bir işe başlamadan önce 01'e bak.**
-6. **[FRONTEND.md](FRONTEND.md)** — `frontend/` altında görsel/UX işi yapıyorsan
+6. **[FRONTEND.md](docs/FRONTEND.md)** — `frontend/` altında görsel/UX işi yapıyorsan
    ÖNCE bu dosyayı oku. Sabit renk paleti, tipografi, `ui-ux-pro-max` skill
    kullanım zorunluluğu ve kütüphane kuralları burada.
 
@@ -64,8 +64,8 @@ gerçek-Docker testi).
 > ya da uç eklerken **gerçek motorda çalıştır ve uygulamayı ayağa kaldır**.
 
 Kalan işler iki dosyada toplu hâlde duruyor:
-[34-SENDEN-BEKLENENLER.md](new-phase/34-SENDEN-BEKLENENLER.md) (kod hazır, bir
-hesap/karar bekliyor) ve [35-KALAN-BUYUK-ISLER.md](new-phase/35-KALAN-BUYUK-ISLER.md)
+[34-SENDEN-BEKLENENLER.md](docs/new-phase/34-SENDEN-BEKLENENLER.md) (kod hazır, bir
+hesap/karar bekliyor) ve [35-KALAN-BUYUK-ISLER.md](docs/new-phase/35-KALAN-BUYUK-ISLER.md)
 (sıradaki büyük başlıklar + önerilen sıra). Yeni bir işe başlamadan önce 35'e bak.
 
 ---
@@ -74,7 +74,7 @@ hesap/karar bekliyor) ve [35-KALAN-BUYUK-ISLER.md](new-phase/35-KALAN-BUYUK-ISLE
 
 - **`docker.sock` ASLA container'a mount edilmez.** Host'ta root eşdeğeri yetki
   verir. Sandbox/branch DB provisioning ayrı bir mekanizma kullanır (bkz.
-  [06-DATA-PLANE.md](new-phase/06-DATA-PLANE.md), [30 §5](new-phase/30-SERVER-SIDE-BRANCHING.md)).
+  [06-DATA-PLANE.md](docs/new-phase/06-DATA-PLANE.md), [30 §5](docs/new-phase/30-SERVER-SIDE-BRANCHING.md)).
 - **Her DDL değişikliği golden-file testleriyle korunmalı.** `backend/Namines.Tests/Golden/`
   altında 6 motor × fixture. Değişiklik golden dosyayı kırarsa `diff` ile incele,
   bilerek kabul et (`.received.sql` → `.verified.sql`), körlemesine kabul etme.

@@ -32,7 +32,7 @@ reddedince öğrenirdi.
 
 ### Tek karar noktası
 
-Plan → hak eşlemesi [`PlanQuotas`](../backend/Namines.Core/Analysis/PlanQuotas.cs)
+Plan → hak eşlemesi [`PlanQuotas`](../../backend/Namines.Core/Analysis/PlanQuotas.cs)
 içinde, **tek yerde**. Aynı sayının iki yerde yazılması bu kod tabanında zaten
 bir kez gerçek hataya yol açtı (bkz. CHECKLIST G49): kotanın ikinci bir kopyası
 token yerine çağrı sayıyor, paylaşılan havuza hiç dokunmuyor ve günü farklı bir

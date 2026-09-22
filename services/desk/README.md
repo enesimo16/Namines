@@ -13,7 +13,7 @@ sonra çözülür (`namines_desk/01-KIMLIK-VE-OTURUM.md`).
 > akışı" altındaki not).
 >
 > **Durum: Desk v1 (D1-D7) + Desk v2 (E1-E4, E5.1-E5.2) tamamlandı.**
-> Bitiş dokümanı: [`namines_desk/11-DESK-V2-TAMAMLANDI.md`](../../namines_desk/11-DESK-V2-TAMAMLANDI.md).
+> Bitiş dokümanı: [`namines_desk/11-DESK-V2-TAMAMLANDI.md`](../../docs/namines_desk/11-DESK-V2-TAMAMLANDI.md).
 
 ---
 
@@ -68,7 +68,7 @@ okuyor, hiçbiri "hangi temadayım" diye sormuyor.
 **Mobil:** 900px altında sol panel çekmeceye dönüşür (üst şeritte hamburger),
 seçim yapılınca kendiliğinden kapanır.
 
-Ayrıntı ve karar kayıtları: [`namines_desk/12-DESK-PANO-KABUGU.md`](../../namines_desk/12-DESK-PANO-KABUGU.md).
+Ayrıntı ve karar kayıtları: [`namines_desk/12-DESK-PANO-KABUGU.md`](../../docs/namines_desk/12-DESK-PANO-KABUGU.md).
 
 ---
 
@@ -202,7 +202,7 @@ yok — mevcut kapsam tamamen network/DOM'suz, saf mantık.
 
 Ayrıntılı bitiş durumu, kanıt tablosu ve öğrenilen dersler (ör. "konteyner
 `Up` ≠ güncel kod çalışıyor" — Docker imajını yeniden derlemeden backend
-değişikliği yayılmaz): [`namines_desk/11-DESK-V2-TAMAMLANDI.md`](../../namines_desk/11-DESK-V2-TAMAMLANDI.md).
+değişikliği yayılmaz): [`namines_desk/11-DESK-V2-TAMAMLANDI.md`](../../docs/namines_desk/11-DESK-V2-TAMAMLANDI.md).
 
 ### v0.1 — API anahtarı yolu, gerçek PostgreSQL'e karşı tarayıcıdan uçtan uca (2026-09-01)
 

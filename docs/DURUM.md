@@ -116,7 +116,7 @@ CI'da Docker'a yeterli bellek verilmeli — orada atlanan test bir uyarıdır.
 ## Güvenlik turu KAPANDI (10.09.2026)
 
 Denetim sonrası güvenlik listesinin **kod tarafı bitti**. Ayrıntı ve gerekçeler:
-[`docs/audit/29-IYILESTIRME-PLANI-2026-09-10.md`](docs/audit/29-IYILESTIRME-PLANI-2026-09-10.md)
+[`docs/audit/29-IYILESTIRME-PLANI-2026-09-10.md`](audit/29-IYILESTIRME-PLANI-2026-09-10.md)
 
 | İş | Durum |
 |---|---|
@@ -152,7 +152,7 @@ tıklanmadı (B-64).
 
 Projenin tamamı denetlendi — mimari, backend, frontend, veritabanı, güvenlik,
 kimlik/yetki, performans, güvenilirlik, DevOps, test, UI/UX, erişilebilirlik,
-ürün ve teknik borç. 28 rapor: [`docs/audit/`](docs/audit/).
+ürün ve teknik borç. 28 rapor: [`docs/audit/`](audit/).
 
 **Sonuç:** 54 bulgu. Kod kalitesi 72/100, üretime hazırlık 64/100, karar
 **ALMOST** — mimari sağlam, engel altı noktasal açıktı.

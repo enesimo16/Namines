@@ -68,8 +68,8 @@ handoff ucu canlı doğrulandı.
 ### E1.1 API anahtarı yönetim ekranı — ✅
 
 Backend zaten hazırdı (`GatewayKeyController`); eklenen tamamen arayüz:
-[`lib/apiKeys.ts`](../services/desk/lib/apiKeys.ts),
-[`app/ApiKeys.tsx`](../services/desk/app/ApiKeys.tsx). Owner'a gösterilen
+[`lib/apiKeys.ts`](../../services/desk/lib/apiKeys.ts),
+[`app/ApiKeys.tsx`](../../services/desk/app/ApiKeys.tsx). Owner'a gösterilen
 yeni bir "API" sekmesi — anahtar listesi, oluşturma formu (ad + yazma izni),
 **yalnızca oluşturma anında bir kez** gösterilen ham anahtar, iptal düğmesi.
 
@@ -94,9 +94,9 @@ girmiyor, dolayısıyla tarayıcı geçmişine ve `Referer` başlığına düşm
   gerçek bir eşzamanlılık testiyle doğrulandı (`Task.WhenAll` ile iki eşzamanlı
   değişim denemesi, yalnızca biri geçiyor).
 - Ana uygulamada gizli, otomatik gönderilen `<form method="POST"
-  target="_blank">` ([`app/compile/page.tsx`](../frontend/app/compile/page.tsx));
+  target="_blank">` ([`app/compile/page.tsx`](../../frontend/app/compile/page.tsx));
   Desk tarafında karşılayan Route Handler
-  ([`app/handoff/route.ts`](../services/desk/app/handoff/route.ts)) —
+  ([`app/handoff/route.ts`](../../services/desk/app/handoff/route.ts)) —
   jetonu değiştirip JWT'yi `sessionStorage`'a yazıyor.
 
 ---
@@ -105,8 +105,8 @@ girmiyor, dolayısıyla tarayıcı geçmişine ve `Referer` başlığına düşm
 
 ### E2.1 Takım/üye yönetimi (salt-okunur) — ✅
 
-[`lib/members.ts`](../services/desk/lib/members.ts) +
-[`app/Members.tsx`](../services/desk/app/Members.tsx) — herkese açık yeni
+[`lib/members.ts`](../../services/desk/lib/members.ts) +
+[`app/Members.tsx`](../../services/desk/app/Members.tsx) — herkese açık yeni
 "Ekip" sekmesi, `ProjectMemberController.List`'i tüketiyor (`CanViewAsync`,
 her rol görebilir). Davet gönderme/rol değiştirme/çıkarma **bilinçli olarak
 yok** — plandaki gerekçe korundu (iki yerde aynı işi yapmak "hangi ekran
@@ -114,7 +114,7 @@ yetkili" sorusunu bulanıklaştırır).
 
 ### E2.2 Arama/filtreleme — ✅
 
-[`app/Projects.tsx`](../services/desk/app/Projects.tsx) — 20+ projede
+[`app/Projects.tsx`](../../services/desk/app/Projects.tsx) — 20+ projede
 görünen ad/motor/bağlantı-durumu filtre şeridi, tamamen istemci tarafı.
 Backend değişikliği gerekmedi.
 
@@ -126,7 +126,7 @@ Backend değişikliği gerekmedi.
 
 `@dagrejs/dagre` Desk'in **kendi** bağımlılığı olarak eklendi (ana
 uygulamanın `lib/autoLayout.ts`'i kopyalanmadı — mikroservis sınırı
-korundu). [`app/Canvas.tsx`](../services/desk/app/Canvas.tsx)'a "Otomatik
+korundu). [`app/Canvas.tsx`](../../services/desk/app/Canvas.tsx)'a "Otomatik
 yerleştir" düğmesi — TÜM düğümleri (hayaletler dahil) yeniden konumlandırır,
 "Düzeni sıfırla" ile geri alınabilir. Konum **hâlâ hiç kaydedilmiyor** —
 Canvas'ın en üstteki "Desk kendi düzenini yaratmaz" kararı korundu.
@@ -171,8 +171,8 @@ güvenlikle:
 
 Backend: `GatewayService.DeskSqlQueryAsync`,
 `GatewayController.DeskSql`. Frontend:
-[`lib/deskSql.ts`](../services/desk/lib/deskSql.ts) +
-[`app/SqlConsole.tsx`](../services/desk/app/SqlConsole.tsx) — üç durumlu
+[`lib/deskSql.ts`](../../services/desk/lib/deskSql.ts) +
+[`app/SqlConsole.tsx`](../../services/desk/app/SqlConsole.tsx) — üç durumlu
 arayüz (Owner değilse bilgi, kapalıysa "aç" düğmesi, açıksa editör).
 
 ---

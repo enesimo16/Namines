@@ -22,6 +22,7 @@
 - [Başlangıç](#başlangıç)
 - [AI token modeli](#ai-token-modeli)
 - [Güvenlik](#güvenlik)
+- [Belgeler](#belgeler)
 - [Lisans](#lisans)
 
 ## Bu nedir
@@ -137,6 +138,7 @@ backend/
   Namines.Vault/           Yedekleme sağlayıcıları ve depolama
 frontend/                  Next.js uygulaması (canvas, compile, Ground/Vault sayfaları, store'lar, hook'lar)
 services/desk/             Ayrı Next.js uygulaması: bir projenin canlı veritabanı için CRUD/SQL paneli
+docs/                      İç planlama, mimari ve denetim belgeleri (aşağıya bakın)
 docker-compose.yml         Control DB + arka uç + ön yüz konteynerleri
 ```
 
@@ -240,6 +242,32 @@ gerekmez.
   limiting ve AI prompt'larında prompt-injection sertleştirmesi.
 - Desk'in SSO devir jetonu bir URL'de değil, bir POST gövdesinde taşınır ve aynı-site ya da açıkça
   güvenilen origin'lerle sınırlıdır.
+
+## Belgeler
+
+İç planlama, mimari ve denetim belgeleri [`docs/`](docs/) altında duruyor:
+
+- [`docs/new-phase/BASLA-BURADAN.md`](docs/new-phase/BASLA-BURADAN.md) — ürünün hikâyesi ve güncel yön;
+  ilk kez bakan biri için en iyi başlangıç noktası
+- [`docs/new-phase/README.md`](docs/new-phase/README.md) — ürün/mimari/pazar planlama belgelerinin tam indeksi
+- [`docs/second-phase/README.md`](docs/second-phase/README.md) ve
+  [`docs/third-phase/00-BASLA-BURADAN.md`](docs/third-phase/00-BASLA-BURADAN.md) — her fazdan sonra
+  neyin bittiği ve sırada ne olduğu
+- [`docs/audit/`](docs/audit/) — 28 raporluk bağımsız bir denetim (mimari, güvenlik, performans, UX,
+  yol haritası ve nihai değerlendirme)
+- [`docs/github/`](docs/github/) — GitHub App / bot entegrasyonu tasarımı ve faz planı
+- [`docs/namines-ground/00-GENEL-BAKIS.md`](docs/namines-ground/00-GENEL-BAKIS.md),
+  [`docs/namines-vault/00-GENEL-BAKIS.md`](docs/namines-vault/00-GENEL-BAKIS.md),
+  [`docs/namines_desk/00-GENEL-BAKIS.md`](docs/namines_desk/00-GENEL-BAKIS.md) — Ground, Vault ve Desk
+  için tasarım belgeleri
+- [`docs/superpowers/`](docs/superpowers/) — yakın zamandaki özellik çalışmalarından tarihli
+  spesifikasyonlar, planlar ve inceleme raporları
+- [`docs/DURUM.md`](docs/DURUM.md) — belirli bir andaki durum özeti
+- [`docs/FRONTEND.md`](docs/FRONTEND.md) — ön yüz görsel/UX kuralları
+
+Bu belgelerin çoğu Türkçe yazılmıştır — bu projenin planlama sürecinin ana çalışma dilini yansıtıyor.
+Kök dizindeki [`AGENTS.md`](AGENTS.md) dosyası, bu depoda çalışmaya başlayan bir yapay zeka ajanının
+önce hangi belgeleri okuması gerektiğini indeksliyor.
 
 ## Lisans
 

@@ -1,7 +1,7 @@
 # Namines Desk v1 — Genel Bakış
 
 > **Durum:** plan. v0.1 (deterministik CRUD) çalışıyor ve
-> [`services/desk/`](../services/desk/) altında; bu klasör **v1'in** kapsamını
+> [`services/desk/`](../../services/desk/) altında; bu klasör **v1'in** kapsamını
 > tanımlıyor.
 >
 > Ana faz dokümanı: [`third-phase/00-BASLA-BURADAN.md`](../third-phase/00-BASLA-BURADAN.md)

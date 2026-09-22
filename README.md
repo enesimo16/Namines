@@ -22,6 +22,7 @@
 - [Getting started](#getting-started)
 - [AI token model](#ai-token-model)
 - [Security](#security)
+- [Documentation](#documentation)
 - [License](#license)
 
 ## What this is
@@ -136,6 +137,7 @@ backend/
   Namines.Vault/           Backup providers and storage
 frontend/                  Next.js app (canvas, compile, Ground/Vault pages, stores, hooks)
 services/desk/             Separate Next.js app: CRUD/SQL panel for a project's live database
+docs/                      Internal planning, architecture, and audit documentation (see below)
 docker-compose.yml         Control DB + backend + frontend containers
 ```
 
@@ -239,6 +241,33 @@ needed.
   sensitive endpoints, and prompt-injection hardening on AI prompts.
 - Desk's SSO handoff passes its one-time token in a POST body, never a URL, and is restricted to
   same-site or explicitly trusted origins.
+
+## Documentation
+
+Internal planning, architecture, and audit documents live under [`docs/`](docs/):
+
+- [`docs/new-phase/BASLA-BURADAN.md`](docs/new-phase/BASLA-BURADAN.md) — product history and current
+  direction; the best starting point for a first-time reader
+- [`docs/new-phase/README.md`](docs/new-phase/README.md) — full index of product/architecture/market
+  planning docs
+- [`docs/second-phase/README.md`](docs/second-phase/README.md) and
+  [`docs/third-phase/00-BASLA-BURADAN.md`](docs/third-phase/00-BASLA-BURADAN.md) — what shipped after
+  each phase, and what's next
+- [`docs/audit/`](docs/audit/) — a 28-report independent audit (architecture, security, performance,
+  UX, roadmap, and a final verdict)
+- [`docs/github/`](docs/github/) — the GitHub App / bot integration design and phase plan
+- [`docs/namines-ground/00-GENEL-BAKIS.md`](docs/namines-ground/00-GENEL-BAKIS.md),
+  [`docs/namines-vault/00-GENEL-BAKIS.md`](docs/namines-vault/00-GENEL-BAKIS.md),
+  [`docs/namines_desk/00-GENEL-BAKIS.md`](docs/namines_desk/00-GENEL-BAKIS.md) — design docs for Ground,
+  Vault, and Desk
+- [`docs/superpowers/`](docs/superpowers/) — dated specs, plans, and review reports from recent feature
+  work
+- [`docs/DURUM.md`](docs/DURUM.md) — a point-in-time status snapshot
+- [`docs/FRONTEND.md`](docs/FRONTEND.md) — frontend visual/UX conventions
+
+Most of this documentation is written in Turkish, reflecting the primary working language of this
+project's planning process. The root [`AGENTS.md`](AGENTS.md) file indexes the documents an AI coding
+agent should read first when picking up work on this repo.
 
 ## License
 

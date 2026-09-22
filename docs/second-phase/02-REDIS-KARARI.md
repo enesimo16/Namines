@@ -64,7 +64,7 @@ yer bırakmamak için.
 
 ### Kalan tek iş: rate limiter
 
-[`GatewayRateLimiter`](../backend/Namines.Infrastructure/Data/GatewayRateLimiter.cs)
+[`GatewayRateLimiter`](../../backend/Namines.Infrastructure/Data/GatewayRateLimiter.cs)
 şu an `ConcurrentDictionary` ile sabit pencere (fixed window) sayıyor.
 
 Sınıfın kendi yorumunda zaten yazıyor: *"Redis geldiğinde yalnızca bu sınıfın

@@ -3,7 +3,7 @@
 Claude Code / Cursor / Zed gibi MCP istemcilerinin Namines'in **deterministik şema
 analizi** ve **gerçek motorda kanıtlama** yeteneklerini araç olarak kullanmasını sağlar.
 
-Tasarım kararları: [new-phase/33-MCP-AND-SKILL.md](../../new-phase/33-MCP-AND-SKILL.md)
+Tasarım kararları: [new-phase/33-MCP-AND-SKILL.md](../../docs/new-phase/33-MCP-AND-SKILL.md)
 
 ---
 

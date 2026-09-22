@@ -194,15 +194,15 @@ Kapsam dışı (bu oturumda dokunulmuyor, ayrı iş): canvas sayfası, compile s
 table editor drawer — palet migrasyonu aşamalı yapılacak, hepsini tek seferde
 kırma riski almıyoruz.
 
-**İkinci tur (tamamlandı):** Login/Sign Up modalı ([AuthModal.tsx](frontend/components/canvas/panels/AuthModal.tsx))
+**İkinci tur (tamamlandı):** Login/Sign Up modalı ([AuthModal.tsx](../frontend/components/canvas/panels/AuthModal.tsx))
 minimalist + mobil uyumlu (`max-h-[90vh] overflow-y-auto`) hale getirildi;
 Google/GitHub butonları eklendi (**şu an sadece UI** — backend'de OAuth altyapısı
 yok, tıklanınca "coming soon" toast'ı gösteriyor; gerçek OAuth ayrı bir iş,
 client ID/secret ve backend endpoint gerektirir). Workspace paneli
-([ProjectSidebar.tsx](frontend/components/layout/ProjectSidebar.tsx)) ve
-Feedback widget'ı ([FeedbackWidget.tsx](frontend/components/feedback/FeedbackWidget.tsx))
+([ProjectSidebar.tsx](../frontend/components/layout/ProjectSidebar.tsx)) ve
+Feedback widget'ı ([FeedbackWidget.tsx](../frontend/components/feedback/FeedbackWidget.tsx))
 aynı palete taşındı ve sadeleştirildi. Eski gradyanlı/yıldızlı SVG logo
-kaldırıldı — yerine [Logo.tsx](frontend/components/layout/Logo.tsx) (tek renkli,
+kaldırıldı — yerine [Logo.tsx](../frontend/components/layout/Logo.tsx) (tek renkli,
 lucide `Database` ikonlu minimalist rozet) geldi. Header artık `sm`/`md`
 breakpoint'lerinde daralıyor (workspace/login metinleri ikona düşüyor, proje adı
 düzenleyici dar ekranda gizleniyor).

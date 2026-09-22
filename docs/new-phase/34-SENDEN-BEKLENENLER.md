@@ -189,7 +189,7 @@ bağlanacağını bilmiyor.
 ## 4. Plan başına rate limit sayıları — ✅ onaylandı
 
 **Durum değişti:** Eskiden kodda okunacak sayı yoktu. Artık
-[`PlanQuotas`](../backend/Namines.Core/Analysis/PlanQuotas.cs)'ta duruyorlar:
+[`PlanQuotas`](../../backend/Namines.Core/Analysis/PlanQuotas.cs)'ta duruyorlar:
 
 | Plan | Gateway istek/dakika | Günlük AI token |
 |------|---------------------|-----------------|
