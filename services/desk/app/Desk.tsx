@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import EmptyState from './EmptyState';
 import {
   deskApi, DeskApiError, type DeskRow, type DeskSession,
@@ -128,9 +128,14 @@ export default function Desk({
   // Sıralama/filtre sıfırlaması ARTIK BURADA DEĞİL — `criteria` tabloya bağlı
   // olduğu için türetiliyor (yukarı bkz.). Burada yalnızca seçim temizleniyor;
   // seçim hiçbir isteği beslemediği için efekt gecikmesi zararsız.
+  //
+  // Table change is NOT the only reset trigger anymore: sort/filter also
+  // clear it. Otherwise a user could select rows, then apply a filter that
+  // hides them (still selected, just off-screen) and hit "Delete selected",
+  // deleting rows they can no longer see and no longer intended to touch.
   useEffect(() => {
     setSelectedPks(new Set());
-  }, [active]);
+  }, [active, sortColumn, sortDir, appliedFilters]);
 
   const reloadSchema = useCallback(async () => {
     try {
@@ -179,22 +184,42 @@ export default function Desk({
     return () => { cancelled = true; clearInterval(id); };
   }, [session]);
 
+  // `loadRows` is fired both from effects (table/sort/filter change) and from
+  // direct user actions (pager, CRUD callbacks). Two overlapping calls can
+  // resolve out of order — e.g. the user switches tables (or a slow filtered
+  // request laps a later, faster one) and the OLDER response lands last,
+  // overwriting the newer rows with stale data. `latestRequestRef` tags each
+  // call so only the most recent one is allowed to apply its result — the
+  // same "cancelled"-guard idea as Analytics.tsx's fetch effect, generalized
+  // to a token since this fetch is also reachable outside an effect.
+  const latestRequestRef = useRef<symbol | null>(null);
+
   const loadRows = useCallback(async (tableName: string, p: number) => {
+    const requestToken = Symbol();
+    latestRequestRef.current = requestToken;
     setLoading(true);
     setError(null);
     try {
       const res = await deskApi.list(session, tableName, p, PAGE_SIZE, {
         orderByColumn: sortColumn, sortDirection: sortDir, filters: appliedFilters,
       });
+      if (latestRequestRef.current !== requestToken) return; // superseded or unmounted
       setRows(res.rows);
       setTotal(res.totalCount);
     } catch (err) {
+      if (latestRequestRef.current !== requestToken) return;
       setRows([]);
       setError(err instanceof Error ? err.message : 'Could not load rows.');
     } finally {
-      setLoading(false);
+      if (latestRequestRef.current === requestToken) setLoading(false);
     }
   }, [session, sortColumn, sortDir, appliedFilters]);
+
+  // Unmounting invalidates any in-flight request so its response can never
+  // apply after the component is gone.
+  useEffect(() => {
+    return () => { latestRequestRef.current = null; };
+  }, []);
 
   useEffect(() => {
     if (active) { setPage(1); loadRows(active, 1); }

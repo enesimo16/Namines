@@ -144,19 +144,26 @@ export const vaultApi = {
    * yalnizca arayuz beklemeyi birakip kullaniciya listeden takip etmesini
    * soyluyor. "Basarisiz" demek yanlis olurdu.
    */
+  /**
+   * `signal` lets the caller stop the loop early (e.g. the component that
+   * started it unmounted) — without it, navigating away from Vault mid-backup
+   * leaves this loop polling every `intervalMs` for up to `timeoutMs` and
+   * then calling back into a component that no longer exists.
+   */
   waitForBackup: async (
     session: DeskSession,
     backupId: string,
-    { timeoutMs = 10 * 60 * 1000, intervalMs = 2000 }: { timeoutMs?: number; intervalMs?: number } = {},
+    { timeoutMs = 10 * 60 * 1000, intervalMs = 2000, signal }: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal } = {},
   ): Promise<{ done: boolean; status: string; errorMessage: string | null }> => {
     const deadline = Date.now() + timeoutMs;
 
     for (;;) {
+      if (signal?.aborted) return { done: false, status: 'Running', errorMessage: null };
       const snapshot = await vaultApi.status(session, backupId);
       if (snapshot.done) {
         return { done: true, status: snapshot.status, errorMessage: snapshot.errorMessage };
       }
-      if (Date.now() >= deadline) {
+      if (Date.now() >= deadline || signal?.aborted) {
         return { done: false, status: snapshot.status, errorMessage: null };
       }
       await new Promise(resolve => setTimeout(resolve, intervalMs));

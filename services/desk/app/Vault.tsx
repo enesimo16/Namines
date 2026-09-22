@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import EmptyState from './EmptyState';
 import { type DeskSession } from '../lib/api';
 import { formatSize } from '../lib/format';
@@ -67,18 +67,33 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
 
   useEffect(() => { reload(); }, [reload]);
 
+  // `handleCreate` awaits `waitForBackup`, which polls every couple of
+  // seconds for up to 10 minutes. If the user navigates away from Vault
+  // while that's in flight, the component unmounts but the poll loop (and
+  // this function) kept running, later calling setState on a component that
+  // no longer exists. This aborts the poll and skips further state updates
+  // once the component is gone.
+  const unmountAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    return () => { unmountAbortRef.current?.abort(); };
+  }, []);
+
   async function handleCreate() {
     setBusy(true);
     setError(null);
     setNotice(null);
+    const controller = new AbortController();
+    unmountAbortRef.current = controller;
     try {
       // The server returns 202 and the job runs in the background (B-35),
       // so it hasn't finished the moment this call returns — waiting for
       // that has to happen by polling `status`.
       const started = await vaultApi.create(session);
+      if (controller.signal.aborted) return;
       setNotice('Backup started, running…');
 
-      const outcome = await vaultApi.waitForBackup(session, started.backupId);
+      const outcome = await vaultApi.waitForBackup(session, started.backupId, { signal: controller.signal });
+      if (controller.signal.aborted) return;
 
       if (!outcome.done) {
         // Polling timed out. The job was NOT cancelled — it may still be
@@ -93,9 +108,11 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
 
       await reload();
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Backup failed.');
+      if (!controller.signal.aborted) {
+        setError(err instanceof VaultError ? err.message : 'Backup failed.');
+      }
     } finally {
-      setBusy(false);
+      if (!controller.signal.aborted) setBusy(false);
     }
   }
 
