@@ -103,7 +103,14 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
         }
         catch (Exception ex)
         {
-            return $"Could not connect to the managed database server: {Shorten(ex.Message)}";
+            // GroundController.Providers bu metni doğrudan AUTHORIZE OLMUŞ
+            // HERKESE (proje/rol kontrolü yok) döndürüyor. Npgsql bağlantı
+            // hatalarında AdminConnectionString'in host/port'unu mesaja gömer
+            // (ör. "Failed to connect to 10.0.0.5:5432") — bu, sunucunun
+            // yönetici veritabanı adresini herhangi bir kimliği doğrulanmış
+            // kullanıcıya ifşa ederdi. Ayrıntı yalnızca loga gidiyor.
+            _logger.LogWarning(ex, "Ground: LocalPostgres yonetici baglantisi probu basarisiz.");
+            return "Could not connect to the managed database server. Try again shortly.";
         }
     }
 

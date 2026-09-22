@@ -129,8 +129,13 @@ public class GroundService
         }
         catch (Exception ex)
         {
+            // record.Error, GroundController.Describe uzerinden GET
+            // /api/ground/{projectId} yanitina ve bu metodun donus degeri
+            // uzerinden Provision uc noktasinin BadRequest gövdesine gidiyor.
+            // Ham istisna metni (saglayici API'sinin ham HTTP govdesi ya da
+            // surucu mesaji) İSTEMCİYE degil, yalnizca loga yazilir.
             record.Status = GroundStatus.Failed;
-            record.Error = Shorten(ex.Message);
+            record.Error = "Provisioning failed. Contact support if this persists.";
             _logger.LogError(ex, "Ground: {ProjectId} icin provizyon basarisiz.", project.Id);
         }
         finally
@@ -228,7 +233,9 @@ public class GroundService
         }
         catch (Exception ex)
         {
-            record.Error = Shorten(ex.Message);
+            // Ayni sebep: ham istisna metni CancelDelete uc noktasinin
+            // BadRequest govdesine ve Describe uzerinden GET ucuna gider.
+            record.Error = "Canceling deletion failed. Contact support if this persists.";
             _logger.LogError(ex, "Ground: {ProjectId} icin silme geri alinamadi.", record.ProjectId);
             await _context.SaveChangesAsync(CancellationToken.None);
             return new GroundResult(false, record.Error);
@@ -268,11 +275,27 @@ public class GroundService
                 continue;
             }
 
+            // ProviderProjectId yoksa (provizyon hiç sağlayıcıya ulaşamadan
+            // Failed oldu, ya da zaten temizlendi) silinecek DIŞ bir kaynak
+            // yok. provider.DeleteAsync'i yine de çağırmak GARANTİ başarısız
+            // olurdu (sağlayıcılar bunu boş/geçersiz bir kimlikle çağırınca
+            // hata döner) — kayıt sonsuza kadar PendingDelete'te kalır ve her
+            // turda aynı başarısız çağrı tekrarlanırdı. Temizlenecek dış
+            // kaynak olmadığından kaydı doğrudan silinmiş işaretlemek doğru.
+            if (string.IsNullOrWhiteSpace(record.ProviderProjectId))
+            {
+                record.Status = GroundStatus.Deleted;
+                record.DeletedAt = DateTime.UtcNow;
+                record.Error = null;
+                purged++;
+                continue;
+            }
+
             try
             {
                 await provider.DeleteAsync(
                     new ProvisionedDatabase(
-                        record.ProviderProjectId ?? string.Empty,
+                        record.ProviderProjectId,
                         record.ProviderBranchId,
                         record.Region ?? string.Empty,
                         ConnectionString: string.Empty),
@@ -287,7 +310,9 @@ public class GroundService
             {
                 // Kayıt PendingDelete kalıyor: bir sonraki turda tekrar denenir.
                 // "Deleted" işaretlemek, duran bir kaynağı kaybetmek olurdu.
-                record.Error = Shorten(ex.Message);
+                // Ham istisna metni burada da GET /api/ground/{projectId}
+                // (Describe.error) üzerinden istemciye gidiyordu.
+                record.Error = "Deletion failed and will be retried automatically.";
                 _logger.LogError(ex, "Ground: {ProjectId} kalici olarak silinemedi.", record.ProjectId);
             }
         }

@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Namines.Ground.Neon;
 
@@ -40,11 +41,13 @@ public sealed class NeonClient : INeonClient
 
     private readonly HttpClient _http;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<NeonClient> _logger;
 
-    public NeonClient(HttpClient http, IConfiguration configuration)
+    public NeonClient(HttpClient http, IConfiguration configuration, ILogger<NeonClient> logger)
     {
         _http = http;
         _configuration = configuration;
+        _logger = logger;
 
         _http.BaseAddress = new Uri(BaseAddress);
 
@@ -98,7 +101,12 @@ public sealed class NeonClient : INeonClient
         }
         catch (Exception ex)
         {
-            return $"The Neon API could not be reached: {ex.Message}";
+            // GroundController.Providers bu metni doğrudan AUTHORIZE OLMUŞ
+            // HERKESE (proje/rol kontrolü yok) döndürüyor — ham istisna mesajı
+            // Neon Management API'ye giden ağ/DNS ayrıntısını taşıyabilir.
+            // Ayrıntı yalnızca loga gidiyor.
+            _logger.LogWarning(ex, "Ground: Neon API probu basarisiz.");
+            return "The Neon API could not be reached. Try again shortly.";
         }
     }
 

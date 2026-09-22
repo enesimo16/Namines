@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace Namines.Ground.Supabase;
@@ -47,11 +48,13 @@ public sealed class SupabaseClient : ISupabaseClient
 
     private readonly HttpClient _http;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<SupabaseClient> _logger;
 
-    public SupabaseClient(HttpClient http, IConfiguration configuration)
+    public SupabaseClient(HttpClient http, IConfiguration configuration, ILogger<SupabaseClient> logger)
     {
         _http = http;
         _configuration = configuration;
+        _logger = logger;
 
         _http.BaseAddress = new Uri(BaseAddress);
 
@@ -103,7 +106,12 @@ public sealed class SupabaseClient : ISupabaseClient
         }
         catch (Exception ex)
         {
-            return $"The Supabase API could not be reached: {ex.Message}";
+            // GroundController.Providers bu metni doğrudan AUTHORIZE OLMUŞ
+            // HERKESE (proje/rol kontrolü yok) döndürüyor — ham istisna mesajı
+            // Supabase Management API'ye giden ağ/DNS ayrıntısını taşıyabilir.
+            // Ayrıntı yalnızca loga gidiyor.
+            _logger.LogWarning(ex, "Ground: Supabase API probu basarisiz.");
+            return "The Supabase API could not be reached. Try again shortly.";
         }
     }
 

@@ -210,7 +210,12 @@ public class VaultService
         catch (Exception ex)
         {
             record.Status = VaultBackupStatus.Failed;
-            record.ErrorMessage = Shorten(ex.Message);
+            // Ham sürücü mesajı bu kayda yazılıp GetBackup/List uçlarından
+            // İSTEMCİYE gidiyordu (Gateway'in kendi genel catch'inin tersine).
+            // DbConnectionFailure.Classify aynı Gateway/GatewayKeyController
+            // deseniyle host/port/sürücü ayrıntısı taşımayan bir kategori döner;
+            // ham mesaj yalnızca loga gidiyor.
+            record.ErrorMessage = DbConnectionFailure.Classify(ex);
             _logger.LogError(ex, "Vault: {ProjectId} projesinin yedegi alinamadi.", project.Id);
 
             // Yarım yazılmış dosya bırakma: geçerli GÖRÜNEN bir yedek,
@@ -312,7 +317,10 @@ public class VaultService
         catch (Exception ex)
         {
             log.Status = VaultBackupStatus.Failed;
-            log.ErrorMessage = Shorten(ex.Message);
+            // Yukarıdaki NotSupportedException dalının aksine bu ARIZA bir
+            // sürücü/bağlantı hatası olabilir — ham mesaj İSTEMCİYE gitmesin
+            // diye Gateway'le aynı sınıflandırıcı kullanılıyor.
+            log.ErrorMessage = DbConnectionFailure.Classify(ex);
             _logger.LogError(ex, "Vault: {ProjectId} projesine geri yukleme basarisiz.", project.Id);
         }
         finally
@@ -368,7 +376,9 @@ public class VaultService
         catch (Exception ex)
         {
             backup.VerifiedAt = null;
-            backup.VerifyError = Shorten(ex.Message);
+            // VerifyError da List/Verify uçlarından doğrudan istemciye gidiyor —
+            // ham sürücü mesajı değil, Gateway'le aynı güvenli kategori.
+            backup.VerifyError = DbConnectionFailure.Classify(ex);
             _logger.LogWarning(ex, "Vault: {BackupId} dogrulanamadi.", backup.Id);
         }
 
@@ -392,8 +402,19 @@ public class VaultService
     {
         if (retainCount < 1) return 0;
 
+        // Yalnızca BAŞARILI yedekler "saklanan N" sayısına dahil edilir.
+        //
+        // Failed bir kayıt kullanılabilir bir yedek değil (ExecuteBackupAsync
+        // zaten başarısız denemenin dosyasını depodan siliyor) — sayıma dahil
+        // edilirse bir dizi başarısız deneme, retainCount'u dolduramayan ama
+        // aslında var olan başarılı yedekleri "eski" sayıp silebilirdi. Bu
+        // sorgu Failed/diğer durumları hem sayımın hem silmenin dışında tutar;
+        // bu metodun işi yalnızca başarılı yedekler arasında saklama politikası
+        // uygulamak.
         var expired = await _context.VaultBackups
-            .Where(b => b.ProjectId == projectId && b.Kind == VaultBackupKind.Scheduled)
+            .Where(b => b.ProjectId == projectId
+                && b.Kind == VaultBackupKind.Scheduled
+                && b.Status == VaultBackupStatus.Succeeded)
             .OrderByDescending(b => b.CreatedAt)
             .Skip(retainCount)
             .ToListAsync(ct);
