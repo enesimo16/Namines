@@ -39,6 +39,38 @@ public class GatewayBulkTests
         Assert.Contains("one statement", error.Message);
     }
 
+    // ── Yorum/tırnak desync bypass'ı (bulunan açık) ──────────────────────────
+    //
+    // Bir yorumun İÇİNDEKİ tek bir tırnak, yorumdan habersiz bir taramanın
+    // dize durumunu yanlış bırakmasına yol açabilir; sonra gelen GERÇEK
+    // ayırıcı noktalı virgül "dize içinde" sanılıp atlanır — ama veritabanı
+    // yorumu doğru okuduğu için ikinci ifade GERÇEKTEN çalışır.
+
+    [Theory]
+    [InlineData("SELECT 1 -- '\n; DROP TABLE users")]
+    [InlineData("SELECT 1 /* ' */; DROP TABLE users")]
+    [InlineData("SELECT 1 -- \"\n; DROP TABLE users")]
+    public void A_quote_hidden_inside_a_comment_cannot_smuggle_a_second_statement(string sql)
+    {
+        var error = Assert.Throws<ArgumentException>(() => GatewayService.EnsureSingleStatement(sql));
+
+        Assert.Contains("one statement", error.Message);
+    }
+
+    [Theory]
+    [InlineData("SELECT 1 -- trailing line comment, no quotes")]
+    [InlineData("SELECT 1 /* block comment with ; inside */")]
+    [InlineData("SELECT 1 -- it's a comment with an apostrophe\nSELECT 2")]
+    public void Comments_with_or_without_quotes_do_not_trip_the_single_statement_check(string sql)
+    {
+        // İkinci örnek: yorumun İÇİNDEKİ noktalı virgül gerçek bir ayırıcı
+        // DEĞİL — yorum satırı bittiğinde ifade zaten tek. Üçüncü örnek: SELECT 2
+        // yeni bir SATIR'da, önceki satırın YORUMU bittikten SONRA geliyor, o
+        // yüzden bu aslında iki ayrı ifade değil, tek SELECT + yorum + tek
+        // SELECT'in kendi kendine yeten metni (aralarında noktalı virgül yok).
+        GatewayService.EnsureSingleStatement(sql);
+    }
+
     // ── Namines Desk v2 §E4.2: SQL konsolunun ekstra katmanı ─────────────────
     //
     // Bu testlerin varlık sebebi: DB'nin kendi salt-okunur oturumu SQL Server/

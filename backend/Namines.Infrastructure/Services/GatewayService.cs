@@ -441,6 +441,16 @@ public sealed class GatewayService : IGatewayService
     /// sorgunun yanına ikinci bir sorgu iliştirmenin klasik yoludur. Dize sonundaki
     /// tek bir noktalı virgül zararsız, o yüzden yalnızca ARDINDAN kod gelen
     /// noktalı virgül reddediliyor.
+    ///
+    /// <b>Bulunan açık — yorum/tırnak desync bypass'ı:</b> bir SQL yorumunun
+    /// (<c>-- ...</c> veya <c>/* ... */</c>) İÇİNDEKİ tek bir tırnak karakteri,
+    /// yorumdan habersiz bu taramanın <c>inSingle</c>/<c>inDouble</c> durumunu
+    /// yanlışlıkla açık bırakmasına yol açabiliyordu. Sonra gelen GERÇEK ayırıcı
+    /// noktalı virgül "dize içinde" sanılıp atlanıyor, denetim geçiyor — ama
+    /// veritabanının kendisi yorumu doğru yorumladığı için ikinci ifade GERÇEKTEN
+    /// çalışıyordu. Örnek: <c>SELECT 1 -- '\n; DROP TABLE users</c>. Düzeltme:
+    /// tırnak durumunun dışındayken yorumları tanı ve içeriklerini atla, ki
+    /// içlerindeki hiçbir karakter tırnak durumunu etkilemesin.
     /// </summary>
     internal static void EnsureSingleStatement(string sql)
     {
@@ -450,6 +460,23 @@ public sealed class GatewayService : IGatewayService
         for (var i = 0; i < sql.Length; i++)
         {
             var c = sql[i];
+
+            if (!inSingle && !inDouble)
+            {
+                if (c == '-' && i + 1 < sql.Length && sql[i + 1] == '-')
+                {
+                    var newline = sql.IndexOf('\n', i);
+                    i = newline < 0 ? sql.Length - 1 : newline;
+                    continue;
+                }
+
+                if (c == '/' && i + 1 < sql.Length && sql[i + 1] == '*')
+                {
+                    var closing = sql.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = closing < 0 ? sql.Length - 1 : closing + 1;
+                    continue;
+                }
+            }
 
             // Dize ve tanımlayıcı sınırlayıcıları atlanmalı: 'a;b' geçerli bir
             // değerdir ve içindeki noktalı virgül ifade sonu DEĞİLDİR.
