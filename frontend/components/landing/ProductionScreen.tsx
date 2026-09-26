@@ -193,7 +193,7 @@ export default function ProductionScreen({ steps, isRunning, summary, onClose }:
               <details className="text-[11px]">
                 <summary className="cursor-pointer text-content-muted hover:text-content-secondary">
                   {summary.mergeNotes.length} note{summary.mergeNotes.length === 1 ? '' : 's'} from
-                  merging this schema's parts
+                  merging this schema&apos;s parts
                 </summary>
                 <ul className="flex flex-col gap-1 mt-1.5 pl-3 max-h-28 overflow-y-auto">
                   {summary.mergeNotes.map((note, i) => (
