@@ -1,5 +1,7 @@
 # 12 — UI/UX denetimi
 
+> ✅ **Durum (2026-09-26):** bu raporun bulguları backlog'a işlendi — tek liste [`22-product-backlog.md`](22-product-backlog.md). 64 maddenin **62'si kapandı**; açık kalan yalnızca **B-38** (`AIPreferencesModal` bölme) ve **B-56** (i18n birleştirme), bkz. [`KALAN-ISLER.md`](KALAN-ISLER.md). Kapanışlar backlog kaydına dayanıyor; kodda örneklenerek doğrulananlar: B-01, B-02, B-08, B-12, B-13, B-25, B-35, B-43. Aşağıdaki metin 2026-09-10 denetim anının kaydıdır; bugünkü durum için backlog esastır.
+
 > ⚠️ **Sınır:** Bu denetim sırasında uygulama tıklanarak gezilmedi. Aşağıdakiler
 > kod okumasından ve durum sinyallerinin sayımından çıkarıldı. Bir UX denetimi
 > normalde ekrana bakılarak yapılır; bu rapor onun yerini tutmaz, ona hazırlık

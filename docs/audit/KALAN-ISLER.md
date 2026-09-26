@@ -4,6 +4,21 @@ Backlog'daki 64 maddeden 61'i kapandı. Açık kalan 3 madde:
 
 > **2026-09-26 yeniden doğrulama:**
 >
+> ✅ **B-12 bitmiştir — Oracle yarısı da kapandı** (aynı gün, ikinci tur):
+> yeni `Namines.Tests/Integration/OracleIntrospectionTests.cs` gerçek Oracle
+> Free 23'e (`gvenzl/oracle-free:23-slim-faststart`, `Testcontainers.Oracle`)
+> karşı FK'yı (ON DELETE CASCADE, ON UPDATE = NO ACTION), UNIQUE'i, index'i ve
+> identity'nin "bilinmiyor" (null) raporlandığını doğruluyor. Bu test **iki
+> gerçek hata buldu:** (1) Oracle'ın tek sayı tipi `NUMBER` ölçeğine
+> bakılmadan hep `INT`'e çevriliyordu — `NUMBER(12,2)` bir para kolonu tamsayı
+> okunuyor, şema yeniden üretildiğinde küsurat kayboluyordu; artık ölçekli
+> olanlar `DECIMAL`, 9 haneyi aşan tamsayılar `BIGINT`. (2) Oracle sayısal
+> kolonlarda `CHAR_LENGTH`'i 0 döndürüyor ve bu "bilinen uzunluk" sayılıp
+> hassasiyet okunmuyordu; Oracle sorgusunda 0 → NULL.
+> Oracle'da CHECK ve varsayılan değer hâlâ BİLEREK okunmuyor (LONG kolonları).
+>
+> İlk turun kaydı (MSSQL yarısı):
+>
 > ◐ **B-12 yarı yarıya bitmiştir.** Docker engeli kalktı (makinede Docker
 > 29.7 çalışıyor, MSSQL container'ı ayağa kalkıyor) ve **MSSQL yarısı canlı
 > doğrulandı:** yeni `Namines.Tests/Integration/MssqlIntrospectionTests.cs`

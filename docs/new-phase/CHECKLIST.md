@@ -2025,10 +2025,19 @@ tek bir cümle yazmadan canvas'a çıkıyor.
   kalkınca yazılan `MssqlIntrospectionTests` gerçek SQL Server 2022'ye karşı
   kırmızıya düşürüp buldu; `COLUMNPROPERTY(..., 'IsIdentity')` ile düzeltildi.
   Aynı test backlog **B-12'nin MSSQL yarısını kapattı** (FK + ON DELETE,
-  UNIQUE/CHECK, index canlı doğrulandı). Oracle yarısı açık (bu turda).
+  UNIQUE/CHECK, index canlı doğrulandı) (bu turda).
+- **Oracle introspection para kolonlarını tamsayı okuyordu** — `NUMBER`
+  ölçeğine bakılmadan hep `INT`'e çevriliyordu, yani `NUMBER(12,2)` şema
+  yeniden üretilince küsuratını kaybederdi (veri kaybına doğru düşen
+  varsayılan). Artık ölçekli `NUMBER` → `DECIMAL`, 9 haneyi aşan tamsayı →
+  `BIGINT`. Aynı yerde ikinci hata: Oracle sayısal kolonlarda `CHAR_LENGTH`'i
+  0 döndürür ve bu bilinen uzunluk sayılıp hassasiyet okunmuyordu (0 → NULL).
+  `Testcontainers.Oracle` + gerçek Oracle Free 23'e karşı yazılan
+  `OracleIntrospectionTests` ikisini de yakaladı. Böylece **B-12 tamamen
+  kapandı** (bu turda).
 
-- Doğrulama (2026-09-26, Docker 29.7 ayakta): backend **2078/2078** (0
-  atlanan — gerçek PostgreSQL/MySQL/SQL Server testleri dahil),
+- Doğrulama (2026-09-26, Docker 29.7 ayakta): backend **2082/2082** (0
+  atlanan — gerçek PostgreSQL/MySQL/SQL Server/Oracle testleri dahil),
   `Namines.Tests.RunTests` **19/19** (LaunchService gerçek Docker'a karşı),
   frontend **188/188**, Desk **101/101**; `tsc` (frontend + Desk),
   `check:design` temiz, lint **0 hata** (28 uyarı). Dokümanlardaki 545 göreli

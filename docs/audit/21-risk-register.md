@@ -1,5 +1,7 @@
 # 21 — Risk kaydı
 
+> ✅ **Durum (2026-09-26):** bu raporun bulguları backlog'a işlendi — tek liste [`22-product-backlog.md`](22-product-backlog.md). 64 maddenin **62'si kapandı**; açık kalan yalnızca **B-38** (`AIPreferencesModal` bölme) ve **B-56** (i18n birleştirme), bkz. [`KALAN-ISLER.md`](KALAN-ISLER.md). Kapanışlar backlog kaydına dayanıyor; kodda örneklenerek doğrulananlar: B-01, B-02, B-08, B-12, B-13, B-25, B-35, B-43. Aşağıdaki metin 2026-09-10 denetim anının kaydıdır; bugünkü durum için backlog esastır.
+
 Olasılık ve etki 1-5. **Şiddet = Olasılık × Etki.**
 
 ---
@@ -24,7 +26,7 @@ uçuk yüksek — önce onlar yapılmalı.
 |---|---|---|---|---|---|
 | R-05 | **Üretim dağıtımı yeniden kurulamıyor** (tanım depoda yok) | 3 | 4 | 12 | DEVOPS-001: üretim compose/manifest yaz. Efor M. |
 | R-06 | **Frontend regresyonu üretimde fark ediliyor** (test yok) | 4 | 3 | 12 | FE-001: store'lardan başlayarak test. Efor L. |
-| R-07 | **MSSQL/Oracle FK okuma hatası** (MySQL'de aynı hata bulundu, bu ikisi doğrulanmadı) | 3 | 4 | 12 | I-06: canlı doğrula. Efor M. |
+| ~~R-07~~ | ~~**MSSQL/Oracle FK okuma hatası** (MySQL'de aynı hata bulundu, bu ikisi doğrulanmadı)~~ | 3 | 4 | 12 | ✅ **Kapandı (2026-09-26):** iki motor da gerçek sunucuya karşı doğrulandı; FK doğru okunuyor, yol boyunca MSSQL identity ve Oracle NUMBER hataları düzeltildi. |
 | R-08 | **Sahte jeton ekranı** → kullanıcı yanlış güvenlik varsayımıyla hareket ediyor | 4 | 3 | 12 | SEC-003: kaldır. Efor S. |
 | R-09 | **Çalınmış jeton iptal edilemiyor** | 2 | 5 | 10 | AUTH-001: `SecurityStamp` claim'i. Efor M. |
 | R-10 | **Kaba kuvvet ile hesap ele geçirme** (lockout yok, parola 8 karakter) | 3 | 4 | 12 | AUTH-002 + SEC-007. Efor S. |

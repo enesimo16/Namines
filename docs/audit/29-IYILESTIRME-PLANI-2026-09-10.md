@@ -1,5 +1,7 @@
 # 29 — İyileştirme planı: güvenlik, üretime hazırlık, kod kalitesi ve ürünler
 
+> ✅ **Durum (2026-09-26):** bu raporun bulguları backlog'a işlendi — tek liste [`22-product-backlog.md`](22-product-backlog.md). 64 maddenin **62'si kapandı**; açık kalan yalnızca **B-38** (`AIPreferencesModal` bölme) ve **B-56** (i18n birleştirme), bkz. [`KALAN-ISLER.md`](KALAN-ISLER.md). Kapanışlar backlog kaydına dayanıyor; kodda örneklenerek doğrulananlar: B-01, B-02, B-08, B-12, B-13, B-25, B-35, B-43. Aşağıdaki metin 2026-09-10 denetim anının kaydıdır; bugünkü durum için backlog esastır.
+
 **Tarih:** 10.09.2026
 **Başlangıç noktası:** 2026-09-09 denetimi + düzeltme turu (`d95cd5d`)
 **Sınırlar:** [28-DENETIMIN-SINIRLARI-2026-09-10.md](28-DENETIMIN-SINIRLARI-2026-09-10.md)

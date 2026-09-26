@@ -3,10 +3,11 @@
 > **2026-09-26 koddan doğrulama özeti** — aşağıdaki maddelerden:
 >
 > - ✅ **Bitmiştir (kısmen):** "FK yalnızca PostgreSQL'de" — `DbIntrospectionService`
->   artık MSSQL, MySQL/MariaDB ve Oracle için de ilişki okuyor. MySQL ve
->   **MSSQL canlı doğrulandı** (MSSQL: `MssqlIntrospectionTests`, yol boyunca
->   bulunan identity okuma hatası düzeltildi); Oracle canlı denenmedi (B-12'nin
->   kalan yarısı).
+>   artık MSSQL, MySQL/MariaDB ve Oracle için de ilişki okuyor ve **üçü de
+>   gerçek motorlara karşı doğrulandı** (backlog B-12 kapandı). Yol boyunca üç
+>   hata bulunup düzeltildi: MSSQL'de IDENTITY okunmuyordu; Oracle'da
+>   `NUMBER(12,2)` gibi para kolonları `INT` okunuyordu (küsurat kaybı) ve
+>   sayısal uzunluk 0 geliyordu.
 > - ✅ **Bitmiştir:** "Disk alanı kritik" — 2026-09-26'da C: sürücüsünde 287 GB
 >   boş, Docker 29.7 çalışıyor.
 > - ✅ **Bitmiştir (kısmen):** "Groq tek hata noktası" — `IChatCompletionProvider`

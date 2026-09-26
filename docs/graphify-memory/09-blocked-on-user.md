@@ -5,7 +5,7 @@ Bu liste kod eksikliği DEĞİL — hepsinin kodu yazılmış ve test edilmiş; 
 > ⏳ **2026-09-26'da yeniden doğrulandı — madde 1 dışındakiler hâlâ sende.**
 > ✅ **Madde 1 (disk) bitmiştir:** C: sürücüsünde bugün **287 GB boş** ve Docker
 > 29.7 çalışıyor; `34-SENDEN-BEKLENENLER.md` madde 10 de kapalı.
-> Diğer güncellemeler: (1) test sayısı bugün backend **2078**, hepsi geçiyor —
+> Diğer güncellemeler: (1) test sayısı bugün backend **2082**, hepsi geçiyor —
 > Docker ayakta olduğu için gerçek-motor testleri de koşuyor —, frontend 188; (2) madde 3 (Groq)
 > için kod tarafında artık bir alternatif var — `Ai:Provider=DeepSeek` ile
 > sağlayıcı değiştirilebiliyor — ama önerilen yol hâlâ Groq'a kart tanımlamak.

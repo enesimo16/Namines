@@ -79,8 +79,16 @@ kullanıcıya bakan tek yüzleri Desk içindeki görünümler. Gerekçe:
 |---|---|---|
 | PostgreSQL | ✅ | Canlı kullanımda |
 | MySQL | ✅ | Gerçek MySQL 8'e karşı test edildi (`MySqlIntrospectionTests`) |
-| MSSQL | ⚪ | **Bu makinede çalıştırılamıyor** (Docker VM 1.9 GB, motor 2000 MB istiyor) |
-| Oracle | ⚪ | İmaj yok, diskte yer yok |
+| MSSQL | ✅ | Gerçek SQL Server 2022'ye karşı test edildi (`MssqlIntrospectionTests`, 2026-09-26) |
+| Oracle | ✅ | Gerçek Oracle Free 23'e karşı test edildi (`OracleIntrospectionTests`, 2026-09-26) |
+
+> ✅ **MSSQL ve Oracle satırları bitmiştir** (2026-09-26). Docker ve disk
+> engelleri kalkınca iki motor da gerçek sunucuya karşı doğrulandı ve üç
+> gerçek hata daha çıktı: MSSQL'de `IDENTITY` hiç okunmuyordu; Oracle'da
+> `NUMBER(12,2)` gibi para kolonları `INT` okunuyordu (şema yeniden
+> üretilince küsurat kaybolurdu) ve sayısal uzunluk 0 geliyordu. Üçü de
+> düzeltildi. Oracle'da CHECK ve varsayılan değer hâlâ bilerek okunmuyor
+> (LONG kolonları).
 
 > MySQL testi yazılınca **iki gerçek hata** çıktı ve düzeltildi:
 > yabancı anahtar ilişkileri hiç okunmuyordu (Canvas çizgi çizmiyor, DDL

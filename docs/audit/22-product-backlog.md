@@ -15,9 +15,11 @@
 >
 > **Açık kalan (4):**
 > - **B-12** (Docker/disk engeli — MSSQL 2000 MB VM istiyor, mevcut 1904 MB)
->   — ◐ **MSSQL yarısı bitmiştir (2026-09-26):** engel kalktı,
->   `MssqlIntrospectionTests` gerçek SQL Server'a karşı geçiyor ve yol boyunca
->   bulunan identity okuma hatası düzeltildi. Oracle yarısı açık (imaj yok).
+>   — ✅ **Bitmiştir (2026-09-26):** engel kalktı; `MssqlIntrospectionTests`
+>   (gerçek SQL Server 2022) ve `OracleIntrospectionTests` (gerçek Oracle Free
+>   23) geçiyor. Yol boyunca üç gerçek hata bulunup düzeltildi: MSSQL'de
+>   IDENTITY hiç okunmuyordu; Oracle'da `NUMBER(12,2)` gibi para kolonları
+>   `INT` okunuyordu (küsurat kaybı) ve sayısal uzunluk 0 geliyordu.
 > - **B-38** (`AIPreferencesModal` bölme — bilinçli ertelendi, 1651 satır/30+
 >   state'i körlemesine bölmek regresyon riski taşırdı)
 > - **B-56** (i18n birleştirme — bilinçli ertelendi, yüzlerce görünür string)
@@ -58,7 +60,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-09~~ | Security | ✅ `sstamp` claim + `SecurityStampValidation` + `POST /api/auth/revoke-all-sessions` | AUTH-001, F-04 | M |
 | ~~B-10~~ | Security | ✅ `OrgRoleExtensions.IsAtLeast` + testler | AUTHZ-001 | S |
 | ~~B-11~~ | Security | ✅ 4 alan: bağlantı dizesi + 3 hash | ARCH-004 | S |
-| B-12 | Bug | MSSQL + Oracle FK introspection'ını **canlı doğrula** | I-06 | M |
+| ~~B-12~~ | Bug | ~~MSSQL + Oracle FK introspection'ını **canlı doğrula**~~ ✅ İkisi de gerçek motora karşı doğrulandı (`MssqlIntrospectionTests`, `OracleIntrospectionTests`); MSSQL identity, Oracle NUMBER→INT (küsurat kaybı) ve Oracle sayısal uzunluk hataları düzeltildi (2026-09-26) | I-06 | M |
 | ~~B-13~~ | Stability | ✅ 120 sn zaman aşımı + iptal | REL-001 | S |
 | ~~B-14~~ | Stability | ✅ `PartialApplyPossible` + UI uyarısı | DB-007 | S |
 | ~~B-15~~ | Testing | ~~`frontend` store'ları için test~~ ✅ vitest altyapısı kuruldu (hiç yoktu) + 28 test; test yazarken GERÇEK bir hata bulundu ve düzeltildi | FE-001, TD-001 | L |

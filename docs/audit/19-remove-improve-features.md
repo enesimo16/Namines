@@ -1,5 +1,7 @@
 # 19 — Kaldırılacak / geliştirilecek özellikler
 
+> ✅ **Durum (2026-09-26):** bu raporun bulguları backlog'a işlendi — tek liste [`22-product-backlog.md`](22-product-backlog.md). 64 maddenin **62'si kapandı**; açık kalan yalnızca **B-38** (`AIPreferencesModal` bölme) ve **B-56** (i18n birleştirme), bkz. [`KALAN-ISLER.md`](KALAN-ISLER.md). Kapanışlar backlog kaydına dayanıyor; kodda örneklenerek doğrulananlar: B-01, B-02, B-08, B-12, B-13, B-25, B-35, B-43. Aşağıdaki metin 2026-09-10 denetim anının kaydıdır; bugünkü durum için backlog esastır.
+
 ## Özellik kararları tablosu
 
 | Feature | Amaç | Kullanıcı değeri | Teknik durum | UX | Security | **Karar** |
@@ -85,7 +87,7 @@ Bu bir kod kararı değil **ürün kararı**; kod değişikliği asgari.
 | I-03 | Compile uçları | `[Authorize]` veya rate limit (BACK-002) | XS | P1 |
 | I-04 | Paylaşım sayfası | Mermaid `securityLevel: 'strict'` (SEC-004) | XS | **P0** |
 | I-05 | Vault | Kısmi geri yükleme; yedeği arka plan işine taşı | M | P2 |
-| I-06 | Introspection | MSSQL + Oracle FK sorgularını **canlı doğrula** | M | **P1** |
+| ~~I-06~~ | Introspection | ~~MSSQL + Oracle FK sorgularını **canlı doğrula**~~ ✅ yapıldı (2026-09-26, `MssqlIntrospectionTests` + `OracleIntrospectionTests`) | M | **P1** |
 | I-07 | Hata mesajları | `ClassifyConnectionFailure`'ı ortak servise taşı | S | P1 |
 | I-08 | `frontend` | Store'lar için test yaz | L | P1 |
 
