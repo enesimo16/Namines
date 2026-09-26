@@ -4,7 +4,9 @@
 >
 > - ✅ **Bitmiştir (kısmen):** "FK yalnızca PostgreSQL'de" — `DbIntrospectionService`
 >   artık MSSQL, MySQL/MariaDB ve Oracle için de ilişki okuyor ve **üçü de
->   gerçek motorlara karşı doğrulandı** (backlog B-12 kapandı). Yol boyunca üç
+>   gerçek motorlara karşı doğrulandı** (backlog B-12 kapandı; testler
+>   `MySqlIntrospectionTests`, `MssqlIntrospectionTests`,
+>   `OracleIntrospectionTests`). Yol boyunca üç
 >   hata bulunup düzeltildi: MSSQL'de IDENTITY okunmuyordu; Oracle'da
 >   `NUMBER(12,2)` gibi para kolonları `INT` okunuyordu (küsurat kaybı) ve
 >   sayısal uzunluk 0 geliyordu.
