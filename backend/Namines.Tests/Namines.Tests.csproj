@@ -20,6 +20,7 @@
     <PackageReference Include="Serilog.Sinks.TestCorrelator" Version="4.0.0" />
     <PackageReference Include="Testcontainers.MsSql" Version="4.13.0" />
     <PackageReference Include="Testcontainers.MySql" Version="4.13.0" />
+    <PackageReference Include="Testcontainers.Oracle" Version="4.13.0" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <PackageReference Include="Testcontainers.Redis" Version="4.13.0" />
     <!-- Golden-file (snapshot) testleri: üretilen DDL'i kayıtlı çıktıyla karşılaştırır.

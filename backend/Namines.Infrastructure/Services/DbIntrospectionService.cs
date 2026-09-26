@@ -728,7 +728,11 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 c.TABLE_NAME,
                 c.COLUMN_NAME,
                 c.DATA_TYPE,
-                c.CHAR_LENGTH  AS CHARACTER_MAXIMUM_LENGTH,
+                -- Oracle karakter DIŞI kolonlarda CHAR_LENGTH'i NULL değil 0
+                -- döndürür. Ortak kurucu 0'ı "bilinen uzunluk" sayıp hassasiyete
+                -- hiç bakmıyordu: NUMBER(12,2) uzunluk 0 olarak okunuyordu
+                -- (canlı testte yakalandı). 0 → NULL, hassasiyet devreye girer.
+                CASE WHEN c.CHAR_LENGTH > 0 THEN c.CHAR_LENGTH END AS CHARACTER_MAXIMUM_LENGTH,
                 c.NULLABLE     AS IS_NULLABLE,
                 CASE WHEN p.COLUMN_NAME IS NOT NULL THEN 'PRI' ELSE '' END AS COLUMN_KEY,
                 CASE WHEN f.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS IS_FK,
@@ -768,8 +772,8 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         // 'NO ACTION' donuyor. Bos birakmak "bilinmiyor" demek olurdu; oysa
         // burada cevap kesin.
         //
-        // ⚠️ CANLI DOGRULANMADI: Oracle imaji bu makinede yok ve diskte yeri
-        // yok. MSSQL icin yazilan notun aynisi burada da gecerli.
+        // Canlı doğrulandı: gerçek Oracle Free 23'e karşı
+        // `OracleIntrospectionTests` (FK + ON DELETE, UNIQUE, index, NUMBER hassasiyeti).
         const string relationSql = """
             SELECT  ac.TABLE_NAME       AS source_table,
                     acc.COLUMN_NAME     AS source_column,
@@ -845,7 +849,9 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                     ? Convert.ToInt32(reader.GetValue(9))
                     : (int?)null;
 
-                var canonicalType = NormalizeType(dataType);
+                var canonicalType = string.Equals(dataType, "NUMBER", StringComparison.OrdinalIgnoreCase)
+                    ? OracleNumberType(precision, scale)
+                    : NormalizeType(dataType);
 
                 // DECIMAL/NUMERIC'te uzunluk CHARACTER_MAXIMUM_LENGTH'te değil
                 // NUMERIC_PRECISION'da durur. Ölçeği 0 olan bir sayı zaten tam sayıdır;
@@ -1050,6 +1056,22 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     // ── Tip normalleştirme ────────────────────────────────────────────────────
     // Ham DB tipini (varchar, int4, NUMBER vb.) frontend'in gösterdiği kısa
     // canonical forma dönüştürür.
+
+    /// <summary>
+    /// Oracle'ın tek sayı tipi <c>NUMBER</c>'ı hassasiyet/ölçeğe göre ayırır.
+    ///
+    /// <b>Neden:</b> <see cref="NormalizeType"/> onu ölçeğe bakmadan <c>INT</c>'e
+    /// çeviriyordu — <c>NUMBER(12,2)</c> bir para kolonu tamsayı okunuyor, şema
+    /// yeniden üretildiğinde küsurat sessizce kayboluyordu (gerçek Oracle'a karşı
+    /// canlı testte yakalandı). Şüphede genişe düşülür: 18 haneyi aşan tamsayı
+    /// <c>BIGINT</c>'e sığmaz, <c>DECIMAL</c> olur. Hassasiyeti verilmemiş çıplak
+    /// <c>NUMBER</c> önceki davranışıyla <c>INT</c> kalıyor (identity kolonlarının tipi).
+    /// </summary>
+    private static string OracleNumberType(int? precision, int? scale) =>
+        scale is > 0 ? "DECIMAL"
+        : precision is > 18 ? "DECIMAL"
+        : precision is > 9 ? "BIGINT"
+        : "INT";
 
     private static string NormalizeType(string raw) => raw.ToLowerInvariant() switch
     {
