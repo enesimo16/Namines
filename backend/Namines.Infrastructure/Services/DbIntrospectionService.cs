@@ -174,7 +174,13 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
                 c.IS_NULLABLE,
                 CASE WHEN pk.COLUMN_NAME IS NOT NULL THEN 'PRI' ELSE '' END AS COLUMN_KEY,
                 CASE WHEN fk.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS IS_FK,
-                c.COLUMN_DEFAULT,
+                -- IDENTITY bir varsayılan değil kolon ÖZELLİĞİ: COLUMN_DEFAULT
+                -- identity kolonunda NULL döner, işaret hiç okunmuyordu (Desk
+                -- otomatik PK'yı zorunlu alan sanıyordu). MySQL'in EXTRA dalıyla
+                -- aynı desen: işaret ortak satır şekli bozulmasın diye bu alana.
+                CASE WHEN COLUMNPROPERTY(OBJECT_ID(QUOTENAME(t.TABLE_SCHEMA) + '.' + QUOTENAME(t.TABLE_NAME)),
+                                         c.COLUMN_NAME, 'IsIdentity') = 1
+                     THEN 'IDENTITY' ELSE c.COLUMN_DEFAULT END AS COLUMN_DEFAULT,
                 c.NUMERIC_PRECISION,
                 c.NUMERIC_SCALE
             FROM INFORMATION_SCHEMA.TABLES t
@@ -205,10 +211,8 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         // davranisi (delete_referential_action_desc) yalnizca sys katalogunda var
         // ve bilesik anahtarlarda kolon SIRASI ancak burada garanti.
         //
-        // ⚠️ CANLI DOGRULANMADI: SQL Server bu makinede calistirilamiyor
-        // (Docker VM 1.9 GB, motor en az 2000 MB istiyor). MySQL karsiligi
-        // gercek bir MySQL'e karsi test edildi; bu sorgu ayni deseni izliyor
-        // ama gercek bir sunucuya karsi kosulana kadar VARSAYIM.
+        // Canlı doğrulandı: gerçek SQL Server 2022'ye karşı
+        // `MssqlIntrospectionTests` (FK + ON DELETE, UNIQUE/CHECK, index, identity).
         const string relationSql = """
             SELECT  src.name  AS source_table,
                     sc.name   AS source_column,
