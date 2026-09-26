@@ -3,6 +3,17 @@
 > ⚠️ **Bu Namines değil.** Ayrı ürün. Fikri kaybetmemek için yazıldı;
 > **şimdi başlanacak diye değil.**
 
+> ✅ **Bitmiştir — ve yukarıdaki "ayrı ürün, şimdi değil" kararı tersine
+> çevrildi.** Namines Flow, ürün sahibinin açık kararıyla (2026-09-20) Namines'in
+> **içinde** genel amaçlı bir otomasyon katmanı olarak yazıldı: koşul + çok
+> adımlı aksiyon zinciri (Webhook, Slack, Discord, Lint, DbaCheck, SeedData,
+> Toast), çalışma geçmişi, "şimdi test et", canvas'ta Flow bar/panel/çekmece.
+> Karar kaydı: [`../new-phase/32-DEFERRED-NOT-REJECTED.md`](../new-phase/32-DEFERRED-NOT-REJECTED.md) §2.
+> Bu dokümandaki "kuyruk/teslim garantisi" itirazı **kısmen** geçerli kalıyor:
+> kuyruk sınırlı ama bellek içi (`System.Threading.Channels`), yani sunucu
+> yeniden başlarsa bekleyen iş kaybolur ve otomatik yeniden deneme yok.
+> (2026-09-26'da koddan doğrulandı.)
+
 ---
 
 ## Fikir

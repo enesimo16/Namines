@@ -1,5 +1,9 @@
 # 09 — Yol Haritası ve Kabul Kriterleri
 
+> ✅ **Bitmiştir.** Desk v1'in tamamı (D1–D7) yazıldı ve canlı doğrulandı; bitiş
+> kaydı [`11-DESK-V2-TAMAMLANDI.md`](11-DESK-V2-TAMAMLANDI.md)'de (v2 ile
+> birlikte). Kod `services/desk/` altında. (Doğrulama: 2026-09-23.)
+
 > Sıra bağımlılığa göre. Her adımın kabul kriteri **canlı kanıt** ister —
 > "test geçti" tek başına yeterli değil.
 

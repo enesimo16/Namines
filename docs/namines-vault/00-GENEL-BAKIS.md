@@ -1,9 +1,15 @@
-# Namines Vault — Genel Bakış (plan)
+# Namines Vault — Genel Bakış
 
-> **Durum:** plan, henüz kod yok. Sıra: [`third-phase/00-BASLA-BURADAN.md`](../third-phase/00-BASLA-BURADAN.md)
-> §3'e göre **Desk → Vault → Ground**. Desk v2 bitti
-> ([`namines_desk/11-DESK-V2-TAMAMLANDI.md`](../namines_desk/11-DESK-V2-TAMAMLANDI.md)) —
-> bu, sıradaki servis.
+> ✅ **Bitmiştir.** Bu doküman yazıldığında "plan, henüz kod yok" durumundaydı;
+> bugün Vault **canlı kod**. `backend/Namines.Vault/` altında `IBackupProvider`/
+> `IBackupStore` soyutlamaları, Postgres ve MySQL ailesi sağlayıcıları,
+> `BackupCipher` (AES-256-GCM) ve iki depo (dosya sistemi, S3) duruyor;
+> `VaultService` + `VaultController` + `VaultJobQueue` + `VaultBackupWorker` +
+> `VaultScheduleBackgroundService` hatta; migration'lar
+> `20260908175607_AddVaultBackups` ve `20260908184405_AddVaultScheduleAndVerification`;
+> arayüz tarafı `frontend/app/vault/page.tsx`. Testler:
+> `Namines.Tests/Services/Vault*.cs`. Aşağıdaki bölümler **neden öyle
+> tasarlandığının** kaydı olarak duruyor. (Doğrulama: 2026-09-23, koddan okundu.)
 
 ---
 

@@ -1,5 +1,12 @@
 # Namines Flow — Event Sistemi Tasarım Dokümanı
 
+> ✅ **Bitmiştir.** `frontend/lib/naminesFlowEventBus.ts` yazıldı, şema
+> mutasyonları olay yayınlıyor ve `frontend/lib/naminesFlowRuntime.ts`
+> (`useNaminesFlowRuntime` üzerinden) bu olayları dinleyip eşleşen kuralları
+> çalıştırıyor. Uygulama planı:
+> [`2026-09-14-namines-flow-events-plan.md`](2026-09-14-namines-flow-events-plan.md).
+> (2026-09-26'da koddan doğrulandı.)
+
 > Bite-sized TDD planı değil; mimari kararlar netleşsin diye yazılan
 > tasarım dokümanı. Onaydan sonra `superpowers:writing-plans` ile gerçek
 > plana dönüştürülür.

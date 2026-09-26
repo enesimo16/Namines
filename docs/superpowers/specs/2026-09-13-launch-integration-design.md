@@ -2,6 +2,12 @@
 
 **Tarih:** 2026-09-13
 **Durum:** Onaylandı (brainstorming), plan aşamasına geçiliyor
+
+> ✅ **Bitmiştir.** Plan ([`../plans/2026-09-14-launch-integration.md`](../plans/2026-09-14-launch-integration.md))
+> dokuz görevin tamamıyla uygulandı: `LaunchService`, `LaunchController`
+> (`POST /api/launch`, `POST /api/launch/{projectId}/download`),
+> `frontend/components/compile/LaunchPanel.tsx`, Desk handoff derin bağlantısı.
+> (2026-09-26'da koddan doğrulandı.)
 **Kapsam:** Bu doküman yalnızca "Launch" omurgasını kapsar. Namines Flow (olay
 kaynağı + bildirim) **bu spec'in dışında** — kullanıcının kendi ifadesiyle
 sıradaki, ayrı bir spec.

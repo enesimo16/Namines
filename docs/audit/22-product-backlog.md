@@ -15,6 +15,9 @@
 >
 > **Açık kalan (4):**
 > - **B-12** (Docker/disk engeli — MSSQL 2000 MB VM istiyor, mevcut 1904 MB)
+>   — ◐ **MSSQL yarısı bitmiştir (2026-09-26):** engel kalktı,
+>   `MssqlIntrospectionTests` gerçek SQL Server'a karşı geçiyor ve yol boyunca
+>   bulunan identity okuma hatası düzeltildi. Oracle yarısı açık (imaj yok).
 > - **B-38** (`AIPreferencesModal` bölme — bilinçli ertelendi, 1651 satır/30+
 >   state'i körlemesine bölmek regresyon riski taşırdı)
 > - **B-56** (i18n birleştirme — bilinçli ertelendi, yüzlerce görünür string)

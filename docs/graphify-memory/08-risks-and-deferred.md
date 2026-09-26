@@ -21,6 +21,11 @@
 
 Generic app builder, generic automation platform ("Namines Flow"), an AI Dataset Factory ("Namines Data"), unverified "%X performance improvement" marketing claims, and running Namines' own self-hosted PostgreSQL/Kubernetes cluster.
 
+> ✅ **"Namines Flow" bitmiştir — erteleme 2026-09-20'de ürün sahibinin kararıyla
+> kaldırıldı** ve genel amaçlı otomasyon katmanı olarak yazıldı (koşul + aksiyon
+> zinciri + run log + "şimdi test et"; bkz. `docs/new-phase/32-DEFERRED-NOT-REJECTED.md`
+> §2). Listedeki diğerleri hâlâ ertelenmiş durumda.
+
 ## Desk-specific deferred items (doc `namines_desk/09-YOL-HARITASI.md`)
 
 - Applying DDL changes directly to a live database — blocked on Namines Vault existing.
@@ -30,6 +35,17 @@ Generic app builder, generic automation platform ("Namines Flow"), an AI Dataset
 - An API-key management screen — pushed to v1.1, since Desk v1 uses session auth rather than API keys.
 - SSO handoff from the main app — pushed to v1.1, needs a new token-lifetime design.
 - Live log streaming via SignalR — pushed to v1.1.
+
+> ✅ **Bu listeden bitenler** (2026-09-26'da koddan doğrulandı): API anahtarı
+> yönetim ekranı (`services/desk/app/ApiKeys.tsx`) ve ana uygulamadan SSO devri
+> (`services/desk/app/handoff/route.ts`, jeton POST gövdesinde) Desk v2'de
+> yazıldı. Okuma logu **kısmen**: maskeli kolon içeren tablolardan okumalar
+> `GatewayWriteKind.Read` ile kaydediliyor, genel okuma logu yok.
+>
+> **Hâlâ açık:** canlı DB'ye DDL uygulama (Vault artık var, ama özellik
+> yazılmadı), GitHub push dağıtımı (GitHub App bekliyor), proje bazlı
+> kullanım/fatura (`UsageEvent`'te hâlâ `ProjectId` yok), SignalR ile canlı
+> log akışı.
 
 ## Business-line ideas deliberately parked (doc 31-NEW-BUSINESS-LINES.md), in the doc's own priority order for after MVP
 

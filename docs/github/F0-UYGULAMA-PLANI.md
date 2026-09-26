@@ -55,6 +55,8 @@ tasarımı), [`07-FAZ-PLANI.md`](07-FAZ-PLANI.md) (F0'ın kapsamı).
 
 ### Görev 1: Katalog sözleşmesi ve statik katalog
 
+> ✅ **Bitmiştir.** Katalog yazıldı; `Namines.Tests/Sources/SchemaSourceCatalogTests.cs` kapsıyor.
+
 **Dosyalar:**
 - Oluştur: `backend/Namines.Core/Sources/SchemaSourceDescriptor.cs`
 - Oluştur: `backend/Namines.Core/Sources/ISchemaSourceCatalog.cs`
@@ -305,6 +307,8 @@ git commit -m "feat: add schema source catalog contract"
 
 ### Görev 2: `GET /api/sources` ucu
 
+> ✅ **Bitmiştir.** `GET /api/sources` canlı; `Controllers/SourcesControllerTests.cs` kapsıyor.
+
 **Dosyalar:**
 - Oluştur: `backend/Namines.API/Controllers/SourcesController.cs`
 - Değiştir: `backend/Namines.API/Extensions/ServiceCollectionExtensions.cs` (DI kaydı)
@@ -458,6 +462,8 @@ git commit -m "feat: expose the schema source catalog at GET /api/sources"
 
 ### Görev 3: Frontend tipleri ve servis çağrısı
 
+> ✅ **Bitmiştir.** Yazıldı — ama ayrı bir `sourceService.ts` yerine `frontend/services/api.ts` içindeki `/sources` çağrısı olarak; tipler `frontend/types/source.ts`'te.
+
 **Dosyalar:**
 - Oluştur: `frontend/types/source.ts`
 - Değiştir: `frontend/services/api.ts` (yeni `sourceService`)
@@ -558,6 +564,8 @@ git commit -m "feat: add the source catalog client contract"
 ---
 
 ### Görev 4: `SourceMenu` bileşeni
+
+> ✅ **Bitmiştir.** Yazıldı — bileşen `SourceMenu` yerine `frontend/components/prompt/SourceStrip.tsx` adıyla indi; `SourceStrip.test.tsx` kapsıyor.
 
 **Dosyalar:**
 - Oluştur: `frontend/components/prompt/SourceMenu.tsx`
@@ -782,6 +790,8 @@ git commit -m "feat: add the add-source menu component"
 ---
 
 ### Görev 5: `/new` sayfasına bağlama
+
+> ✅ **Bitmiştir.** `/new` sayfasına bağlandı.
 
 **Dosyalar:**
 - Değiştir: `frontend/app/new/page.tsx` (textarea'nın altındaki düğme satırı)

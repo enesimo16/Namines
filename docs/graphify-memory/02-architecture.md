@@ -35,6 +35,17 @@ Described as "the most important new product" in the new-phase plan. Runtime-ren
 
 Namines Ground, Namines Vault, and Namines Desk are each their own microservice with their own `.sln`/`package.json`, own `docker-compose.yml`, own migrations, own tests, own port. The design rule (from `namines_desk/00-GENEL-BAKIS.md` §6 and `services/desk/README.md`) is deliberate: Ground/Vault/Desk serve a different user than the design tool (operator vs. designer), have a different session model, and deploy on a different cadence.
 
+> ✅ **Bitmiştir — ama bu paragraftaki mimari 2026-09-07'de düzeltildi.**
+> Yalnızca **Desk** ayrı mikroservis (`services/desk/`, port 3200). **Vault** ve
+> **Ground** ayrı deploy birimi DEĞİL: ana backend'in içindeki .NET projeleri
+> (`backend/Namines.Vault/`, `backend/Namines.Ground/`), `Namines.Infrastructure`
+> onlara `ProjectReference` veriyor, migration'ları ana `Infrastructure/Migrations`
+> altında. Gerekçe: kendi arayüzleri yok ve ana backend'in bağlantı şifreleyicisine
+> (`AesGcmConnectionSecretProtector`) muhtaçlar. İzolasyon kod seviyesinde:
+> kendi isim alanı ve `/api/vault/*`, `/api/ground/*` rota önekleri. Kaynak:
+> `docs/third-phase/00-BASLA-BURADAN.md` "Mimari" notu. Üçü de bugün yazılmış
+> ve çalışıyor. (2026-09-26'da koddan doğrulandı.)
+
 Concretely for Desk: its own `package.json`, its own port (3200), its own `node_modules`, **zero code references** to `frontend/` or `Namines.Core`. All communication is HTTP-only, via `/api/gateway/*`. Types like `DeskTable` are **intentionally duplicated** rather than shared through a common package.
 
 The explicit rule stated in the docs: **"Bu kural olmasaydı bu, klasörü ayrılmış tek bir monolit olurdu"** — "without this rule, this would just be a monolith with separated folders." The only sanctioned exception: if a shared type truly becomes necessary, either publish a small contracts package or deliberately copy it — never take a project reference to `Namines.Core`.

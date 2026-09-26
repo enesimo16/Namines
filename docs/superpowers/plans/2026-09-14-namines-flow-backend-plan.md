@@ -55,6 +55,8 @@ Zustand, Vitest.
 
 ### Task 1: `AutomationRule`/`AutomationRunLog` modelleri ve migration
 
+> ✅ **Bitmiştir.** `AutomationRule`/`AutomationAction`/`AutomationRunLog` modelleri ve migration inşa edildi; `AutomationRuleContextTests.cs` kapsıyor.
+
 **Files:**
 - Create: `backend/Namines.Core/Models/AutomationRule.cs`
 - Modify: `backend/Namines.Infrastructure/Data/AuthDbContext.cs`
@@ -278,6 +280,8 @@ git commit -m "feat: add AutomationRule/AutomationRunLog models and migration"
 ---
 
 ### Task 2: `AutomationRuleMatcher` — saf eşleştirme mantığı
+
+> ✅ **Bitmiştir.** `Core/Analysis/AutomationRuleMatcher.cs` + testi yazıldı; sonradan koşul değerlendirmesiyle genişletildi.
 
 **Files:**
 - Create: `backend/Namines.Core/Analysis/AutomationRuleMatcher.cs`
@@ -524,6 +528,8 @@ git commit -m "feat: add pure AutomationRuleMatcher for diff-to-rule matching"
 
 ### Task 3: `IAutomationJobQueue` — bounded iş kuyruğu
 
+> ✅ **Bitmiştir.** `Infrastructure/Services/AutomationJobQueue.cs` + testi yazıldı (sınırlı kuyruk).
+
 **Files:**
 - Create: `backend/Namines.Infrastructure/Services/AutomationJobQueue.cs`
 - Test: `backend/Namines.Tests/Services/AutomationJobQueueTests.cs`
@@ -677,6 +683,8 @@ git commit -m "feat: add bounded AutomationJobQueue mirroring VaultJobQueue"
 ---
 
 ### Task 4: `AutomationExecutor` + `AutomationExecutorWorker`
+
+> ✅ **Bitmiştir.** `AutomationExecutor.cs` ve `AutomationExecutorWorker.cs` + testleri yazıldı; her aksiyon kendi run-log satırıyla çalışıyor.
 
 **Files:**
 - Create: `backend/Namines.Infrastructure/Services/AutomationExecutor.cs`
@@ -1185,6 +1193,8 @@ git commit -m "feat: add AutomationExecutor and background worker"
 
 ### Task 5: DI kaydı + `AuthController.SyncProjects` entegrasyonu
 
+> ✅ **Bitmiştir.** DI kaydı yapıldı ve `AuthController.SyncProjects` gerçek kayıt akışına bağlandı.
+
 **Files:**
 - Modify: `backend/Namines.API/Extensions/ServiceCollectionExtensions.cs`
 - Modify: `backend/Namines.API/Controllers/AuthController.cs`
@@ -1351,6 +1361,8 @@ git commit -m "feat: wire Namines Flow diff computation and job enqueue into Syn
 
 ### Task 6: `AutomationController` — CRUD uç noktaları
 
+> ✅ **Bitmiştir.** `AutomationController` altı uçla canlı: `GET/POST/PUT/DELETE rules`, `GET rules/{id}/runs`, `POST rules/{id}/test`.
+
 **Files:**
 - Create: `backend/Namines.API/Controllers/AutomationController.cs`
 - Test: `backend/Namines.Tests/Controllers/AutomationControllerTests.cs`
@@ -1476,6 +1488,8 @@ git commit -m "feat: add AutomationController CRUD endpoints"
 ---
 
 ### Task 7: Frontend — `useAutomationStore` gerçek API'ye bağlanıyor
+
+> ✅ **Bitmiştir.** `frontend/lib/automationApi.ts` yazıldı; `useAutomationStore` gerçek API'ye bağlandı.
 
 **Files:**
 - Create: `frontend/lib/automationApi.ts`
@@ -1675,6 +1689,8 @@ git commit -m "feat: connect useAutomationStore to the real backend, keeping its
 ---
 
 ### Task 8: Frontend — canvas açılışında kuralları yükle
+
+> ✅ **Bitmiştir.** `canvas/page.tsx` açılışta kuralları yüklüyor.
 
 **Files:**
 - Modify: `frontend/app/canvas/page.tsx`

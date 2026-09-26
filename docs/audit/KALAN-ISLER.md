@@ -2,6 +2,23 @@
 
 Backlog'daki 64 maddeden 61'i kapandı. Açık kalan 3 madde:
 
+> **2026-09-26 yeniden doğrulama:**
+>
+> ◐ **B-12 yarı yarıya bitmiştir.** Docker engeli kalktı (makinede Docker
+> 29.7 çalışıyor, MSSQL container'ı ayağa kalkıyor) ve **MSSQL yarısı canlı
+> doğrulandı:** yeni `Namines.Tests/Integration/MssqlIntrospectionTests.cs`
+> gerçek SQL Server 2022'ye karşı FK'yı (ON DELETE CASCADE dahil), UNIQUE/CHECK
+> kısıtlarını ve index'leri okuyor. Test **gerçek bir hata da buldu**: MSSQL'de
+> `IDENTITY` kolonları `Identity = null` dönüyordu (IDENTITY bir kolon özelliği,
+> `COLUMN_DEFAULT` onu taşımaz) — Desk otomatik artan PK'yı zorunlu alan
+> sanıyordu. `COLUMNPROPERTY(..., 'IsIdentity')` ile düzeltildi. **Oracle yarısı
+> açık:** Oracle imajı makinede yok ve Oracle yolu varsayılan/identity bilgisini
+> bilerek okumuyor (LONG kolonu) — `Identity` orada "bilinmiyor" anlamında null.
+>
+> ⏳ **B-38 ve B-56 hâlâ açık:** `AIPreferencesModal.tsx` bugün **1653 satır /
+> 42 `useState`** (bölünmedi, hafifçe büyüdü); `frontend` ya da `services/desk`
+> paketlerinde hiçbir i18n kütüphanesi kurulu değil.
+
 ## B-12 — MSSQL/Oracle FK introspection canlı doğrulaması
 **Engel:** Docker/disk. MSSQL container'ı en az 2000 MB VM istiyor, mevcut
 Docker VM'i 1904 MB. Büyütmek disk kısıtına takılıyor ("docker'a hiç bulaşma

@@ -41,6 +41,8 @@ geçiyor; fark yalnızca modelin bulguları düzeltmek için tur harcamaması.
 
 ### Task 1: Backend — `Advanced` bayrağı ve bütçe kapısı
 
+> ✅ **Bitmiştir.** `GenerateRequest.Advanced` bayrağı ve bütçe kapısı yazıldı; `SchemaAgentBudgetTests.cs` kapsıyor.
+
 **Files:**
 - Modify: `backend/Namines.Core/Models/GenerateRequest.cs`
 - Modify: `backend/Namines.API/Controllers/SchemaController.cs`
@@ -231,6 +233,8 @@ git commit -m "feat: gate plan and repair rounds behind an advanced request flag
 
 ### Task 2: Frontend sözleşmesi — `plan` adımı ve `advanced` alanı
 
+> ✅ **Bitmiştir.** `sseSchemaStream.ts` ve `services/api.ts` `plan` adımını ve `advanced` alanını taşıyor.
+
 **Neden acil:** `ProductionScreen` `KIND_ICON[step.kind]` ile ikon
 seçiyor. `plan` anahtarı yokken değer `undefined` oluyor ve React onu
 bileşen olarak render etmeye çalışıp ÇÖKÜYOR. Bölüm 2'de backend'e
@@ -298,6 +302,8 @@ Bu istenen sonuç: tip sistemi Task 3'ü zorunlu kılıyor.
 ---
 
 ### Task 3: `ProductionScreen` — plan ikonu ve bulgu özeti
+
+> ✅ **Bitmiştir.** `ProductionScreen.tsx` plan ikonu ve bulgu özetini gösteriyor.
 
 **Files:**
 - Modify: `frontend/components/landing/ProductionScreen.tsx`
@@ -415,6 +421,8 @@ and render it between the step list and the Continue button:
 
 ### Task 4: Üretim sayfası — "Gelişmiş" toggle'ı ve özetin bağlanması
 
+> ✅ **Bitmiştir.** `app/new/page.tsx` "Gelişmiş" toggle'ını taşıyor.
+
 **Files:**
 - Modify: `frontend/app/new/page.tsx`
 
@@ -522,6 +530,8 @@ git commit -m "feat: surface agent findings and add an advanced-mode toggle"
 ---
 
 ### Task 5: Tam doğrulama
+
+> ✅ **Bitmiştir.** Doğrulandı.
 
 - [ ] **Step 1:** `dotnet test backend/Namines.Tests` — yalnızca Docker
   gerektiren 8 `Integration` testi düşmeli, başka hiçbir şey.

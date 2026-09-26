@@ -48,6 +48,9 @@ Explicitly rejected-for-now ideas, each with a why-not-now / when-yes / cheap-ve
 
 1. **Generic web/mobile/PWA app builder** — rejected because Lovable/Bolt/v0/Replit Agent already dominate that space. Cheap version today: Console Eject → PWA.
 2. **Generic automation platform ("Namines Flow")** — rejected vs. n8n/Zapier/Make. Cheap version: webhook/event source only.
+   > ✅ **Bitmiştir — bu ret 2026-09-20'de ürün sahibinin kararıyla kaldırıldı**;
+   > Namines Flow genel amaçlı otomasyon katmanı olarak yazıldı (koşul + aksiyon
+   > zinciri + run log + "şimdi test et").
 3. **AI Dataset Factory ("Namines Data")** — probably never; wrong buyer persona.
 4. **"Database Doctor" performance-improvement claims (e.g. "%X faster")** — rejected as a *correctness* issue, not a feature rejection: no real query telemetry exists yet. OK once Data Plane + `pg_stat_statements` exist.
 5. **Running Namines' own PostgreSQL/Kubernetes cluster** — rejected until roughly $8-15K MRR justifies hiring a platform engineer.
@@ -73,6 +76,13 @@ Introduces three **separate microservices**:
 Order chosen deliberately: **Desk → Vault → Ground**, because Desk's backend was already 100% proven (see 02-architecture doc), Vault has code but backs up the wrong thing, and Ground would require the largest new infrastructure investment (provisioning, quota, isolation, backup, on-call) with the highest risk (data loss ends the product).
 
 Desk status: v0.1 shipped (deterministic CRUD, no AI) and verified end-to-end against a real PostgreSQL database; v1 planning moved into a dedicated `namines_desk/` folder with one document per screen (00 through 09).
+
+> ✅ **Bitmiştir — üçü de yazıldı** (2026-09-26'da koddan doğrulandı). Sıra
+> uygulandı: Desk v1 + v2 + pano kabuğu (2026-09-06/07), Vault (2026-09-08,
+> artık **canlı** veritabanını yedekliyor — "yanlış şeyi yedekliyor" sorunu
+> çözüldü), Ground (2026-09-09, LocalPostgres/Neon/Supabase). "Üç ayrı
+> mikroservis" tanımı 2026-09-07'de düzeltildi: yalnızca Desk ayrı servis,
+> Vault ve Ground ana backend içinde modül.
 
 Key facts already established for Desk:
 - Backend proven live: list/create/update/delete/introspect endpoints all verified against real Postgres, including independent verification via direct `psql` queries (not trusting the API's own claims).

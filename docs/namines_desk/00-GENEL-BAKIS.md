@@ -1,8 +1,12 @@
 # Namines Desk v1 — Genel Bakış
 
-> **Durum:** plan. v0.1 (deterministik CRUD) çalışıyor ve
-> [`services/desk/`](../../services/desk/) altında; bu klasör **v1'in** kapsamını
-> tanımlıyor.
+> ✅ **Bitmiştir.** Bu doküman yazıldığında yalnızca v0.1 (deterministik CRUD)
+> çalışıyordu ve burası v1'in **planıydı**; bugün hem v1 hem v2 bitti — bitiş
+> kaydı [`11-DESK-V2-TAMAMLANDI.md`](11-DESK-V2-TAMAMLANDI.md), pano kabuğu
+> [`12-DESK-PANO-KABUGU.md`](12-DESK-PANO-KABUGU.md), güncel durum
+> [`13-DESK-DURUM-VE-DEVAM.md`](13-DESK-DURUM-VE-DEVAM.md). Kod
+> [`services/desk/`](../../services/desk/) altında.
+> (Doğrulama: 2026-09-23, koddan okundu.)
 >
 > Ana faz dokümanı: [`third-phase/00-BASLA-BURADAN.md`](../third-phase/00-BASLA-BURADAN.md)
 

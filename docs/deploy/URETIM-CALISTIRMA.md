@@ -2,7 +2,7 @@
 
 > Bu belge, denetimin iki bulgusunu kapatmak için yazıldı:
 > **DEVOPS-001** (dağıtım tanımı depoda yok) ve **DR** (şifreleme anahtarı
-> kurtarma planı yok). Bkz. [`docs/audit/`](../docs/audit/).
+> kurtarma planı yok). Bkz. [`docs/audit/`](../audit/).
 
 ---
 

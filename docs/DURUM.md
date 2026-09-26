@@ -247,9 +247,35 @@ veriliyor ve regresyonun testi yazıldı.
 | 2 | Kısmi (tek tablo) geri yükleme | v2 kapsamı |
 | 3 | Geri yükleme sonrası otomatik doğrulama | Bugün elle tetikleniyor (`POST .../verify`) |
 
+> ✅ **1. madde bitmiştir.** `POST /api/vault/{projectId}/backups` artık işi
+> `VaultJobQueue`'ya koyup `202 Accepted` dönüyor; `VaultBackupWorker` arka
+> planda çalıştırıyor, istemci durumu yoklayarak ilerlemeyi gösteriyor
+> (Desk: `vaultApi.waitForBackup`). İstek artık yedek bitene kadar açık kalmıyor.
+>
+> ◐ **3. madde yarım:** zamanlanmış yedekler alındıktan hemen sonra otomatik
+> doğrulanıyor (`VaultScheduleBackgroundService.VerifyQuietlyAsync`); **elle
+> alınan** yedekler hâlâ `POST .../verify` ile elle doğrulanıyor.
+>
+> ✅ **2. madde bitmiştir (PostgreSQL için).** `POST .../restore` gövdesi
+> `Tables` listesi alıyor (`RestoreBackupRequest.Tables`) ve PostgreSQL
+> sağlayıcısı bunu `pg_restore -t <tablo>` olarak uyguluyor (backlog B-43).
+> MySQL/MariaDB'de dump düz SQL olduğu için seçici geri yükleme mümkün değil ve
+> sessizce tamamını yüklemek yerine **açıkça reddediliyor**. Canlı bir
+> `pg_restore -t` çalıştırması henüz yapılmadı; kanıt komut-üretim testleri.
+> (2026-09-26'da koddan doğrulandı.)
+
 **Sıradaki iş — Ground:** Free plan için kendi barındırdığımız 1 veritabanı ve
 boyut **uyarısı** duruyor (kısıtlama YOK — kararı böyle verildi). Neon ek bir
 seçenek olarak canlı doğrulandı. Supabase'e taşıma henüz açılmadı.
+
+> ✅ **Supabase kısmı bitmiştir — ama yarısı.** (2026-09-23'te koddan
+> doğrulandı.) `SupabaseProvider` + `SupabaseClient` yazıldı ve DI'ye kayıtlı,
+> yani sağlayıcı listesinde seçilebiliyor. **Canlı denenmedi:** bu oturumda
+> Supabase erişim jetonu yoktu, sağlayıcı bunu
+> `Capabilities.IsLiveVerified: false` ile kendisi bildiriyor ve arayüz
+> gösteriyor. Deponun kuralına göre (`new-phase/00-GENEL-BAKIS.md` §9) canlı
+> doğrulanmayan sağlayıcı "destekleniyor" sayılmaz — bu yüzden madde
+> tamamen kapanmış değil, **kodu bitti, kanıtı bekliyor**.
 
 ---
 

@@ -44,3 +44,19 @@ Bunlar unutulmadı — ya bir karara bağlı ya da sırası gelmedi:
 6. **Ground bitince:** Projects panosuna "yönetilen veritabanı oluştur" akışı (bugün yalnızca BYODB var).
 
 Bunların hiçbiri şu an açık bir görev değil — bu liste bir sonraki oturumun başlangıç noktası.
+
+> ✅ **6. madde bitmiştir.** Desk'in kendi Ground ekranı var
+> (`services/desk/app/Ground.tsx` + `lib/ground.ts`) ve yönetilen veritabanını
+> `groundApi.provision` ile oradan açıyor — artık yalnızca BYODB değil.
+>
+> ◐ **5. madde yarım:** "restore öncesi otomatik yedek" bitmiştir —
+> `VaultService` geri yüklemeden önce `VaultBackupKind.PreRestore` yedeği alıp
+> kimliğini kayda yazıyor. Deployments ekranına "yedek al" kısayolu ise
+> **yazılmadı**.
+>
+> **1–4 hâlâ açık** (2026-09-26'da koddan doğrulandı): Analytics'te periyot
+> karşılaştırma yok, Logs'ta CSV dışa aktarma yok, bileşen testi yok
+> (`BulkDeleteConfirm.test.ts` yalnızca eşik sabitini kilitliyor, render
+> etmiyor), klavye/ekran okuyucu turu yapılmadı. Yukarıdaki §2 tablosunun
+> maddeleri (toplu güncelleme, log CSV, uyarı kuralları, DDL push, bileşen
+> testleri) de hâlâ açık.

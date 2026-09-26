@@ -41,6 +41,8 @@ başına çalışan, test edilebilir bir teslim.
 
 ### Task 1: `useAutomationStore` — kural deposu
 
+> ✅ **Bitmiştir.** `frontend/store/useAutomationStore.ts` + testi yazıldı; iyimser güncelleme ve `pendingCreates` yarış çözümü dahil.
+
 **Files:**
 - Create: `frontend/store/useAutomationStore.ts`
 - Test: `frontend/store/useAutomationStore.test.ts`
@@ -250,6 +252,8 @@ git commit -m "feat: add Namines Flow automation rule store"
 
 ### Task 2: `AutomationNode` — canvas görseli
 
+> ✅ **Bitmiştir.** `components/canvas/nodes/AutomationNode.tsx` + testi yazıldı; ateşlenme animasyonu ve devre dışı görünümü eklendi.
+
 **Files:**
 - Create: `frontend/components/canvas/nodes/AutomationNode.tsx`
 - Test: `frontend/components/canvas/nodes/AutomationNode.test.tsx`
@@ -405,6 +409,8 @@ git commit -m "feat: add the Namines Flow canvas node"
 ---
 
 ### Task 3: `AutomationRuleDrawer` — yapılandırma çekmecesi
+
+> ✅ **Bitmiştir.** `components/canvas/AutomationRuleDrawer.tsx` + testi yazıldı; koşul kurucu ve çok adımlı aksiyon listesiyle birlikte.
 
 **Files:**
 - Create: `frontend/components/canvas/AutomationRuleDrawer.tsx`
@@ -608,6 +614,8 @@ git commit -m "feat: add the Namines Flow rule drawer"
 
 ### Task 4: Canvas kablolama — context menu, node tipi, silme
 
+> ✅ **Bitmiştir.** `CanvasContextMenu.tsx` Flow öğelerini Edit Mode dışında da gösteriyor; `canvas/page.tsx` `nodeTypes`/`edgeTypes` bağlandı.
+
 **Files:**
 - Modify: `frontend/components/canvas/CanvasContextMenu.tsx`
 - Modify: `frontend/app/canvas/page.tsx:335-336` (`nodeTypes`), plus mount points
@@ -779,6 +787,8 @@ git commit -m "feat: wire Namines Flow nodes into the canvas"
 ---
 
 ### Task 5: Tam doğrulama
+
+> ✅ **Bitmiştir.** Tarayıcıda doğrulandı; frontend testleri yeşil.
 
 - [ ] **Step 1:** `cd frontend && npx vitest run` — tümü geçmeli.
 - [ ] **Step 2:** `cd frontend && npx tsc --noEmit` — temiz.

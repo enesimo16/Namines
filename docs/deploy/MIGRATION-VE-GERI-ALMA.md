@@ -1,7 +1,7 @@
 # Migration kuralı ve geri alma prosedürü
 
 **Son güncelleme:** 10.09.2026 · Kaynak bulgu: `DEVOPS-005`
-(bkz. [10-devops-deployment-audit.md](../docs/audit/10-devops-deployment-audit.md))
+(bkz. [10-devops-deployment-audit.md](../audit/10-devops-deployment-audit.md))
 
 ---
 

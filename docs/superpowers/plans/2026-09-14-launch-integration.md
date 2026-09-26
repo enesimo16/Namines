@@ -64,6 +64,8 @@ React 19 / Zustand (frontend), vitest.
 
 ### Task 1: Extract the shared connection-target describer
 
+> ✅ **Bitmiştir.** Yazıldı — ama `backend/Namines.Core/ConnectionTargetDescriber.cs` olarak (plandaki `API/Controllers/Shared/` yerine), çünkü `LaunchService` de kullanıyor. `ConnectionTargetDescriberTests.cs` kapsıyor.
+
 **Files:**
 - Create: `backend/Namines.API/Controllers/Shared/ConnectionTargetDescriber.cs`
 - Modify: `backend/Namines.API/Controllers/DatabaseExecutorController.cs:169-` (the existing `private static (string?, string?) DescribeTarget(...)` method)
@@ -180,6 +182,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ---
 
 ### Task 2: `LaunchService` — the empty-target path (provision → introspect → apply → backup)
+
+> ✅ **Bitmiştir.** `Infrastructure/Services/LaunchService.cs` yazıldı; testleri gerçek Docker gerektirdiği için `Namines.Tests.RunTests/LaunchServiceTests.cs` altında.
 
 **Files:**
 - Create: `backend/Namines.Infrastructure/Services/LaunchService.cs`
@@ -563,6 +567,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ### Task 3: `LaunchController` — `POST /api/launch`
 
+> ✅ **Bitmiştir.** `LaunchController` `POST /api/launch` ile canlı; servis DI'ye kayıtlı.
+
 **Files:**
 - Create: `backend/Namines.API/Controllers/LaunchController.cs`
 - Modify: `backend/Namines.API/Extensions/ServiceCollectionExtensions.cs` (register `LaunchService`)
@@ -696,6 +702,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ### Task 4: Desk handoff route — deep-link to a specific project + view
 
+> ✅ **Bitmiştir.** `services/desk/app/handoff/route.ts` proje ve görünüm derin bağlantısını taşıyor.
+
 **Files:**
 - Modify: `services/desk/app/handoff/route.ts`
 
@@ -771,6 +779,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ---
 
 ### Task 5: Download endpoint — Gateway-keyed project zip
+
+> ✅ **Bitmiştir.** `POST /api/launch/{projectId}/download` yazıldı; `LaunchDownloadZipTests.cs` kapsıyor.
 
 **Files:**
 - Create: `backend/Namines.API/Controllers/LaunchController.cs:` (add a second action to the same controller from Task 3 — same responsibility: "turn an approved schema into something usable")
@@ -961,6 +971,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ### Task 6: Frontend client — `launchApi.ts`
 
+> ✅ **Bitmiştir.** `frontend/services/launchApi.ts` yazıldı.
+
 **Files:**
 - Create: `frontend/services/launchApi.ts`
 
@@ -1045,6 +1057,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ---
 
 ### Task 7: `LaunchPanel.tsx` — the step checklist component
+
+> ✅ **Bitmiştir.** `components/compile/LaunchPanel.tsx` + testi yazıldı.
 
 **Files:**
 - Create: `frontend/components/compile/LaunchPanel.tsx`
@@ -1404,6 +1418,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 ### Task 8: Wire `LaunchPanel` into `/compile`
 
+> ✅ **Bitmiştir.** `/compile` sayfasına bağlandı.
+
 **Files:**
 - Modify: `frontend/app/compile/page.tsx`
 
@@ -1534,6 +1550,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ---
 
 ### Task 9: Full-plan self-review and final verification pass
+
+> ✅ **Bitmiştir.** Uçtan uca doğrulandı; ayrıca bu turda şema JSON enum dönüştürücü hatası (`8f753a2`) bulunup düzeltildi.
 
 - [ ] **Step 1: Re-read the spec against this plan**
 

@@ -395,6 +395,16 @@ Sıradaki iki servisin planı, Desk'in kendi planlama disipliniyle
 (`namines_desk/00-GENEL-BAKIS.md` formatı) ayrı klasörlere yazıldı — henüz
 kod yok, bu bir planlama turu:
 
+> ✅ **Bitmiştir — üçü de yazıldı.** Yukarıdaki "henüz kod yok" cümlesi bu
+> satırın yazıldığı 2026-09-06 günü doğruydu; bugün üç plan da koda döndü
+> (doğrulama: 2026-09-23, koddan okundu): Desk v2.1 pano kabuğu canlı,
+> **Namines Vault** `backend/Namines.Vault/` + `VaultService`/`VaultController`
+> + iki migration, **Namines Ground** `backend/Namines.Ground/` + üç sağlayıcı
+> + `GroundService`/`GroundController`. §3'teki sıra (Vault önce, Ground sonra)
+> uygulandı. Tek çekince: Supabase sağlayıcısı yazıldı ama gerçek bir Supabase
+> hesabına karşı hiç denenmedi ve bunu kendisi bildiriyor
+> (`SupabaseProvider.Capabilities.IsLiveVerified: false`).
+
 | Servis | Doküman |
 |---|---|
 | Desk v2.1 pano kabuğu | [`namines_desk/12-DESK-PANO-KABUGU.md`](../namines_desk/12-DESK-PANO-KABUGU.md) |

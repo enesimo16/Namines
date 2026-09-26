@@ -65,6 +65,8 @@ xUnit.
 
 ### Task 1: Bekleme bütçesi mantığı
 
+> ✅ **Bitmiştir.** `Core/Interfaces/AiRetryPolicy.cs` yazıldı; `AiRetryPolicyTests.cs` kapsıyor.
+
 Yeniden denemenin KARAR kısmı saf bir sınıfa alınıyor: ne kadar beklenecek,
 bütçe bitti mi. HTTP'den ayrı olduğu için gerçek zaman ve gerçek ağ olmadan
 sınanabiliyor — ve asıl kazanç bu, çünkü "20 saniye bekledi mi" sorusunu
@@ -270,6 +272,8 @@ git commit -m "feat: add a pure wait-budget policy for rate-limit retries"
 ---
 
 ### Task 2: `PostAsync` 429'da bekleyip yeniden denesin
+
+> ✅ **Bitmiştir.** `GroqAIService.PostAsync` 429da bekleyip yeniden deniyor; `RecordingHttpMessageHandler.cs` + `GroqRateLimitRetryTests.cs` kapsıyor.
 
 **Files:**
 - Modify: `backend/Namines.Infrastructure/AI/GroqAIService.cs`
@@ -839,6 +843,8 @@ git commit -m "feat: wait and retry when the AI provider reports a rate limit"
 
 ### Task 3: Model kataloğunu ürün ve sağlayıcı olarak ayır
 
+> ✅ **Bitmiştir.** Katalog `IModelCatalog` arkasına alındı; `GroqModelCatalog.cs` yazıldı.
+
 `NaiCatalog` bugün iki farklı şeyi birden tutuyor: ürünün kendi kademeleri
 (Flash/Standard/Pro, fiyat çarpanı, plan kısıtı) ve GROQ'un model kimlikleri ile
 sınırları. İkincisi sağlayıcıya göre değişiyor; ayrılmadan ikinci sağlayıcı
@@ -1103,6 +1109,8 @@ git commit -m "refactor: separate the product model tiers from the provider's mo
 
 ### Task 4: `IChatCompletionProvider` ve Groq implementasyonu
 
+> ✅ **Bitmiştir.** `IChatCompletionProvider` ve `GroqChatCompletionProvider` yazıldı; `ChatCompletionProviderTests.cs` kapsıyor.
+
 Sağlayıcıya özgü kalan her şey (temel adres, kimlik doğrulama, katalog) tek bir
 arayüzün arkasına alınıyor. Bu görevde de davranış DEĞİŞMİYOR — ikinci sağlayıcı
 bir sonraki görevde geliyor. Ayırmayı önce tek sağlayıcıyla yapmak bilinçli:
@@ -1337,6 +1345,8 @@ git commit -m "refactor: move provider-specific endpoint and auth behind IChatCo
 ---
 
 ### Task 5: DeepSeek sağlayıcısı ve yapılandırmayla seçim
+
+> ✅ **Bitmiştir.** `DeepSeekModelCatalog`/`DeepSeekChatCompletionProvider`/`ChatCompletionProviderFactory` yazıldı; sağlayıcı `Ai:Provider` yapılandırmasıyla seçiliyor, örnek gizli anahtar dosyasında karşılığı var.
 
 **Files:**
 - Create: `backend/Namines.Infrastructure/AI/DeepSeekModelCatalog.cs`

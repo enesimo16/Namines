@@ -44,6 +44,8 @@ Next.js/TypeScript.
 
 ### Task 1: Backend model — `SchemaTrigger` / `SchemaStoredProcedure`
 
+> ✅ **Bitmiştir.** `DatabaseSchema` `SchemaTrigger`/`SchemaStoredProcedure` taşıyor; `SchemaTriggerModelTests.cs` kapsıyor.
+
 **Files:**
 - Modify: `backend/Namines.Core/Models/DatabaseSchema.cs`
 - Test: `backend/Namines.Tests/Analysis/SchemaTriggerModelTests.cs` (yeni)
@@ -208,6 +210,8 @@ git commit -m "feat: add SchemaTrigger and SchemaStoredProcedure models"
 ---
 
 ### Task 2: DDL generator — motor-gated trigger/SP append
+
+> ✅ **Bitmiştir.** `TriggerProcedureSql.cs` yazıldı ve altı motor üreticisine bağlandı; `Ddl/TriggerProcedureSqlTests.cs` kapsıyor.
 
 **Files:**
 - Create: `backend/Namines.Infrastructure/Generators/DdlGenerator/TriggerProcedureSql.cs`
@@ -456,6 +460,8 @@ git commit -m "feat: engine-gated trigger/stored procedure DDL generation"
 
 ### Task 3: `SchemaPromptBuilder` — üst düzey alanları LLM'e tanıt
 
+> ✅ **Bitmiştir.** `SchemaPromptBuilder` üst düzey alanları tanıtıyor; `Prompts/SchemaPromptBuilderTests.cs` kapsıyor.
+
 **Files:**
 - Modify: `backend/Namines.Core/Prompts/SchemaPromptBuilder.cs`
 - Test: `backend/Namines.Tests/Prompts/SchemaPromptBuilderTests.cs` (yeni)
@@ -635,6 +641,8 @@ git commit -m "feat: teach schema generation prompt about generated columns, con
 
 ### Task 4: `RevisionPromptBuilder` — aynı genişletme, revizyon akışı için
 
+> ✅ **Bitmiştir.** `RevisionPromptBuilder` aynı şekilde genişletildi; `Prompts/RevisionPromptBuilderTests.cs` kapsıyor.
+
 **Files:**
 - Modify: `backend/Namines.Core/Prompts/RevisionPromptBuilder.cs`
 - Test: `backend/Namines.Tests/Prompts/RevisionPromptBuilderTests.cs` (yeni)
@@ -731,6 +739,8 @@ git commit -m "feat: teach revision prompt about generated columns, constraints,
 ---
 
 ### Task 5: Frontend types — `SchemaTrigger` / `SchemaStoredProcedure` mirror
+
+> ✅ **Bitmiştir.** `frontend/types/schema.ts` C# modelini yansıtıyor.
 
 **Files:**
 - Modify: `frontend/types/schema.ts`

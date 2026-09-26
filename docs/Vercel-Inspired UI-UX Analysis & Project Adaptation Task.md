@@ -1,5 +1,12 @@
 # Vercel-Inspired UI/UX Analysis & Project Adaptation Task
 
+> ✅ **Bitmiştir.** Bu dosya bir **görev tanımı** (prompt); aşağıdaki §15
+> kontrol listesi doldurulacak bir şablon. Görevin çıktısı ve işaretlenmiş
+> uygulama listesi [`VERCEL_DESIGN_ADAPTATION.md`](VERCEL_DESIGN_ADAPTATION.md)'de
+> — orada 13 maddenin tamamı `[x]` (token onarımı, motion/radius/tipografi/layout
+> token'ları, `Container`/`Button` primitifleri, denetim kuralları, focus
+> görünürlüğü, `xl:` uyarlaması, final QA). `npm run check:design` bugün temiz.
+
 You are acting as a **Senior Product Designer, UI/UX Engineer, Design Systems Architect, and Senior Frontend Developer**.
 
 Your task is to deeply analyze the visual design language, layout philosophy, interaction patterns, and design system used by:

@@ -2,6 +2,12 @@
 
 **Durum:** Onaylandı (üç mimari karar kullanıcı tarafından seçildi) — uygulama planı bekleniyor.
 
+> ✅ **Bitmiştir.** Plan yazıldı ([`../plans/2026-09-15-schema-scale-plan.md`](../plans/2026-09-15-schema-scale-plan.md))
+> ve dokuz görevin tamamı uygulandı: `SchemaScopePlan`, `SchemaScopePartitioner`,
+> `SchemaChunkMerger`, `AiOutputTruncatedException`, `ISchemaDraftSource.DraftChunkAsync`,
+> hattın parçalı yola bağlanması ve kapsam-farkında onarım.
+> (2026-09-26'da koddan doğrulandı.)
+
 **Sorun:** "Kapsamlı bir proje" istendiğinde motor 5-6 tablo üretiyor. Kullanıcı
 Pro planda, Advanced açık, istek metni açıkça kapsamlı — yine de küçük bir şema
 geliyor. Hedef: istendiğinde 50-60 tablolu şema üretebilmek.

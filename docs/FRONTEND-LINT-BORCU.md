@@ -12,6 +12,13 @@
 uyarıda çıkış kodu 0 döndürdüğü için adım yalnızca **hata** seviyesinde kırıyor
 — yani bu dosyadaki kalan maddeler CI'ı kırmıyor ama görünür kalıyor.
 
+> **Yeniden ölçüm (2026-09-26):** hata **0**'da kalıyor — arada
+> `ProductionScreen.tsx`'e giren bir `react/no-unescaped-entities` hatası
+> (`ddbb2e9` ile gelen, CI'ı kıracak olan kaçışsız `'`) bu turda düzeltildi.
+> Uyarı **24 → 28** arttı: `react-hooks/set-state-in-effect` 21,
+> `react-hooks/exhaustive-deps` 6 (+1 diğer). Artış aynı iki desenden geliyor;
+> aşağıdaki gerekçe hâlâ geçerli, yeni bir kural türü eklenmedi.
+
 ---
 
 ## Kalan uyarılar (24)

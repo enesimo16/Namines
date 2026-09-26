@@ -4,7 +4,7 @@ Bu dosya "yarım bırakılmış iş" listesi değil — her biri bilinçli olara
 
 ## Öneri sırası (new-phase doc'unun kendi tablosu)
 
-0. Stripe'ta dört fiyat + disk açmak (kod değil, hesap/karar — bkz. 09-blocked-on-user.md)
+0. Stripe'ta dört fiyat + disk açmak (kod değil, hesap/karar — bkz. 09-blocked-on-user.md) — ✅ disk kısmı bitmiştir (2026-09-26: 287 GB boş); Stripe hâlâ açık.
 1. Namines Bot'un kalanı (PR'da önizleme veritabanı, `/namines plan|preview|approve` komutlarının gerçekten çalışması)
 2. Ekibin derinleşmesi (aynı şema üzerinde canlı birlikte düzenleme — SignalR altyapısı hazır, ekip modeline bağlanmadı)
 3. GraphQL (Redis kararına bağlı)
@@ -24,6 +24,28 @@ Bu dosya "yarım bırakılmış iş" listesi değil — her biri bilinçli olara
 Bugün var: branch başına gerçek bir yerel PostgreSQL (docker.sock mount edilmeden), TTL, rastgele parola. **Eksik:** Neon copy-on-write branch'leri (Neon hesabı bekliyor), MinIO/S3'e yedek, Namines Bridge (on-prem tünel agent), veri düzlemi PII maskeleme, plan bazlı kotalar, Vault ile kimlik saklama. ⚠️ Bugünkü sağlayıcı yalnızca **yerel geliştirme veritabanı** üretir, prod verisi için değildir.
 
 ## third-phase — Ground / Vault / Desk güncel gerçek durum (kod incelemesiyle doğrulandı)
+
+> ✅ **Bu bölümün tamamı bitmiştir — aşağıdaki maddeler 2026-09-05 durumunu
+> anlatıyor, bugün geçerli değil.** (2026-09-26'da koddan doğrulandı.)
+>
+> - **Ground:** artık kod var — `backend/Namines.Ground/` altında LocalPostgres,
+>   Neon ve Supabase sağlayıcıları; `GroundService`, `GroundController`, arka
+>   planda kalıcı silme (`GroundPurgeBackgroundService`), 7 günlük bekleme
+>   penceresi. Aşağıdaki "Neon'u arkada sağlayıcı kullan" önerisi uygulandı.
+>   Supabase canlı denenmedi.
+> - **Vault:** "yanlış şeyi yedekliyor" sorunu çözüldü — artık kullanıcının
+>   **canlı** veritabanına bağlanıp gerçek `pg_dump`/`mysqldump` alıyor
+>   (`PostgresBackupProvider`, `MySqlFamilyBackupProvider`), AES-256-GCM ile
+>   şifreliyor, disk ya da S3'e yazıyor, zamanlıyor ve temiz bir sunucuya geri
+>   yükleyerek doğruluyor. MSSQL/Oracle bilinçli kapsam dışı.
+> - **Desk:** v0.1 → D1–D7 (v1) → E1–E5.2 (v2) → pano kabuğu, hepsi bitti
+>   (`docs/namines_desk/11-DESK-V2-TAMAMLANDI.md`). D1'in "canlı doğrulama henüz
+>   yapılmadı" notu da kapandı.
+> - **Launch** ve **Namines Flow** bu listede hiç yoktu; ikisi de yazıldı.
+>
+> Yukarıdaki "Öneri sırası"ndan hâlâ açık olanlar: Bot'un kalanı (GitHub App),
+> ekibin derinleşmesi (imleç paylaşımı var; oda yetkisinin ekibe bağlanması ve
+> çakışma çözümü yok), GraphQL, NSL'in kalanı, Console'un kalanı.
 
 - **Namines Ground:** Hiç kod yok. `services/` altında klasörü bile yok. En büyük ve en riskli iş (7/24 nöbet, kötüye kullanım, veri kaybı sorumluluğu). Öneri: kendi Postgres'i işletmek yerine Neon'u arkada sağlayıcı olarak kullanıp üstüne kota/izolasyon katmanı yazmak.
 - **Namines Vault:** Kod var (`DockerBackupService.cs`) ama **yanlış şeyi** yedekliyor — DDL'den geçici bir container kurup o boş container'ı yedekliyor (şema yedeği, veri yedeği değil). Yapılması gereken: kullanıcının canlı veritabanına bağlanıp gerçek `pg_dump`/`mysqldump`/`BACKUP DATABASE` çalıştırmak.

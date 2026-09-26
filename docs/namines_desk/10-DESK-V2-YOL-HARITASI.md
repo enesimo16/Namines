@@ -1,5 +1,7 @@
 # 10 — Namines Desk v2 Yol Haritası
 
+> ✅ **Bitmiştir.** Desk v2 (E1–E4, E5.1–E5.2) tamamlandı; bitiş kaydı [`11-DESK-V2-TAMAMLANDI.md`](11-DESK-V2-TAMAMLANDI.md), ardından gelen pano kabuğu [`12-DESK-PANO-KABUGU.md`](12-DESK-PANO-KABUGU.md). (Doğrulama: 2026-09-23.)
+
 > **Neden "v1.1" değil "v2":** Namines (ana ürün) şu an kendi v2 sürümünde.
 > Desk'in bir sonraki büyük sürümünü "v1.1" diye adlandırmak iki ayrı versiyon
 > şeması yaratıp kafa karıştırırdı. Bundan sonra: **Desk v1** = D1-D7 (bitti,

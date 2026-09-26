@@ -57,6 +57,15 @@ sayfaları ve gözlemlenebilirlik/faturalama ölçümü.
 **1052 test yeşil** (+ ayrı `Namines.Tests.RunTests/` projesinde 6
 gerçek-Docker testi).
 
+**G50-G55 de tamamlandı** — NAI modeli ve kota, Team planı, GitHub platformu,
+promptsuz başlangıç, ve G55'te üçüncü faz ürünleri (**Desk, Vault, Ground,
+Launch**), **Namines Flow** otomasyon katmanı, agent hattı, 50-60 tablo parçalı
+üretim, sağlayıcı soyutlaması (Groq/DeepSeek) ve bir güvenlik turu (Gateway
+yetki aşımı, SSRF bypass, Ground çift faturalama). Bugün (2026-09-26, Docker
+ayakta) backend **2078/2078**, `Namines.Tests.RunTests` **19/19**, frontend
+**188**, Desk **101** — hepsi yeşil.
+Ayrıntı: `docs/new-phase/CHECKLIST.md` G55.
+
 > **Bu oturumlarda öğrenilen en pahalı ders:** "testler geçiyor" hiçbir şey
 > kanıtlamıyor. G39'da 857 test yeşilken **uygulama hiç başlamıyordu**; G44'te
 > Türkçe kültür hatası geliştirme makinesinde üretimdeydi; G45'te iki hata
@@ -101,10 +110,13 @@ hesap/karar bekliyor) ve [35-KALAN-BUYUK-ISLER.md](docs/new-phase/35-KALAN-BUYUK
   `Microsoft.Data.Sqlite` paketi hâlâ duruyor ve duracak — `DatabaseExecutorService`/
   `ScaffolderService`'te kullanıcının hedef motor olarak SQLite seçebilmesi (6 motordan
   biri) için gerekli, control DB ile ilgisi yok. İkisini karıştırma.
-- **`.gitignore`'da genel bir `*.md` kuralı var**, `!README.md`/`!AGENTS.md`/
-  `!new-phase/*.md`/`!second-phase/*.md` istisnalarıyla. Yeni bir kök-dizin veya alt-dizin markdown
-  dosyası eklersen (new-phase dışında) `git status`'ta gerçekten göründüğünü
-  doğrula — sessizce yutulabilir (bir kere oldu, `49bc637` bunu düzeltti).
+- **Markdown artık varsayılan olarak TAKİP EDİLİYOR** (DOC-005 ile eski genel
+  `*.md` yok sayma kuralı tersine çevrildi — o kural yeni belgeleri sessizce
+  yutuyordu, `49bc637`). Yalnızca üretilen markdown yok sayılıyor
+  (`node_modules`, `.next`, `bin`, `obj` altı), `graphify-out/` ve
+  `graphify-memory/` — ikincisinin mevcut dosyaları zaten takipte, ama oraya
+  eklenen YENİ bir dosya sessizce yutulur, `git status` ile doğrula. Tüm belgeler
+  `docs/` altında; kökte yalnızca `README.md`, `README.tr.md` ve bu dosya var.
 - **`C:\Users\Enes Yel` kendisi ayrı, ilgisiz bir git deposu** (remote:
   `automated-recruitment-pipeline`). Repo kökü burası (`namines/`), oradaki `.git`'e
   dokunma.

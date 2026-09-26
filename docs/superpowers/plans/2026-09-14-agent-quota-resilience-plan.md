@@ -31,6 +31,8 @@ muhasebe yolu açmaz.
 
 ### Task 1: Onarım turu tavanını plana bağla
 
+> ✅ **Bitmiştir.** Onarım turu tavanı `PlanQuotas` üzerinden plana bağlandı; `PlanQuotaAgentRoundsTests.cs` kapsıyor.
+
 **Neden:** `PlanLimits` içinde `DailyAiTokens` plana göre değişiyor ama
 onarım derinliği değişmiyor. `AffordableRoundsAsync` herkesi
 `DefaultTotalRounds`'a sabitliyor, yani Pro'nun tek farkı daha büyük bir
@@ -215,6 +217,8 @@ git commit -m "feat: make agent repair depth a plan-tier limit"
 ---
 
 ### Task 2: Onarım turu hatası eldeki şemayı çöpe atmasın
+
+> ✅ **Bitmiştir.** Onarım turu hatası artık eldeki şemayı korumakta; `SchemaAgentResilienceTests.cs` kapsıyor.
 
 **Neden:** `RunAsync` içinde try/catch yok. Taslak başarıyla üretildikten
 sonra bir onarım turu hız sınırına takılırsa istisna yukarı çıkıyor,
@@ -454,6 +458,8 @@ git commit -m "fix: keep the best schema when a repair round fails"
 ---
 
 ### Task 3: Tam doğrulama
+
+> ✅ **Bitmiştir.** Doğrulandı.
 
 - [ ] **Step 1:** `dotnet test backend/Namines.Tests` — yalnızca Docker
   gerektiren 8 `Integration` testi düşmeli.

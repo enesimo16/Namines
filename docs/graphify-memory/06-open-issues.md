@@ -1,5 +1,28 @@
 # Namines — Known Unresolved Issues & Open Questions
 
+> **2026-09-26 koddan doğrulama özeti** — aşağıdaki maddelerden:
+>
+> - ✅ **Bitmiştir (kısmen):** "FK yalnızca PostgreSQL'de" — `DbIntrospectionService`
+>   artık MSSQL, MySQL/MariaDB ve Oracle için de ilişki okuyor. MySQL ve
+>   **MSSQL canlı doğrulandı** (MSSQL: `MssqlIntrospectionTests`, yol boyunca
+>   bulunan identity okuma hatası düzeltildi); Oracle canlı denenmedi (B-12'nin
+>   kalan yarısı).
+> - ✅ **Bitmiştir:** "Disk alanı kritik" — 2026-09-26'da C: sürücüsünde 287 GB
+>   boş, Docker 29.7 çalışıyor.
+> - ✅ **Bitmiştir (kısmen):** "Groq tek hata noktası" — `IChatCompletionProvider`
+>   soyutlaması, `DeepSeekChatCompletionProvider` ve `Ai:Provider` ile seçim
+>   yazıldı; 429'da bekleyip yeniden deneme (`AiRetryPolicy`) var. Varsayılan
+>   hâlâ Groq ve ücretsiz katmanın TPM duvarı hesap işi olarak duruyor.
+> - ✅ **Bitmiştir (kısmen):** "Denetim kaydı yalnızca yazma" — maskeli kolon
+>   içeren tablolardan okumalar artık `GatewayWriteKind.Read` ile kaydediliyor.
+>   Genel okuma logu yok; Logs/Analytics'in "tüm istekler" dememesi kuralı geçerli.
+> - ✅ **Bitmiştir:** son maddedeki "canlı DB'ye uygulama Vault'a bağlı" engelinin
+>   ön koşulu — Vault yazıldı. Özelliğin kendisi yazılmadı.
+> - ⏳ **Hâlâ açık:** `UsageEvent.ProjectId` yok; `components/ui/Button` ve
+>   `Container` hâlâ **sıfır** dosyada kullanılıyor; bileşik PK tablolar Desk'te
+>   hâlâ salt-okunur (bilinçli); Stripe fiyatları, GitHub App, disk, ödeme
+>   altyapısı ve ev dizinindeki yanlış git deposu hesap/karar işi olarak açık.
+
 - **FK relations only populate correctly for PostgreSQL** in `dbintrospect` — the third-phase fix used `pg_catalog` and was PostgreSQL-specific. MSSQL, MySQL, MariaDB, Oracle, and SQLite still return an empty `relations: []`. This blocks full functionality of Desk's canvas view (`namines_desk/03-CANVAS.md`) and any cross-engine introspection feature for those five engines.
 - **`UsageEvent` has no `ProjectId` field** — this blocks any per-project billing or usage analytics, both for Desk's planned Analytics screen and for general observability. Fixing it requires a schema migration that "touches the billing path," which is explicitly flagged as a decision Desk cannot make on its own.
 - **`GatewayAuditEntry` records writes only, never reads** — by deliberate design (to avoid audit-table bloat from high-volume read traffic), but this means Desk's "Logs" and "Analytics" screens must never claim to show "all requests" — documented as an honesty/wording requirement rather than a bug to fix.

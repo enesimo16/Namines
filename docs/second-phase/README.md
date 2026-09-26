@@ -54,6 +54,23 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 | 14 | [Development + Hosting](14-AYRI-URUN-DEVELOPMENT-HOSTING.md) | Barındırma seni altyapı sağlayıcısına çevirir: 7/24 nöbet, kötüye kullanım, yasal sorumluluk |
 | 15 | [Flow (otomasyon)](15-AYRI-URUN-FLOW.md) | Kuyruk/teslim garantisi altyapısı ister, çekirdek farkla ilgisi yok, pazar kalabalık |
 
+> ✅ **15 bitmiştir — ve "şimdi başlanmayacak" kararı bilerek tersine
+> çevrildi.** Ürün sahibi Namines Flow'u **genel amaçlı bir otomasyon katmanı**
+> olarak inşa etmeye karar verdi ve uygulandı: `AutomationRule`/`AutomationAction`/
+> `AutomationRunLog` modelleri, `AutomationRuleMatcher` + koşul değerlendirici,
+> sınırlı `AutomationJobQueue` + `AutomationExecutorWorker`, `AutomationController`
+> (6 uç: CRUD, çalışma geçmişi, "şimdi test et"), Webhook/Slack/Discord/Lint/DbaCheck/
+> SeedData/Toast aksiyonları, canvas'ta taşınabilir Flow bar + panel + kural
+> çekmecesi. Yukarıdaki "kuyruk/teslim garantisi" itirazı sınırlı kuyruk + adım
+> başına run-log ile karşılandı; tam teslim garantisi (kalıcı kuyruk, yeniden
+> deneme) **yok** — bu hâlâ geçerli bir sınır. Tasarım:
+> [`../superpowers/specs/2026-09-14-namines-flow-design.md`](../superpowers/specs/2026-09-14-namines-flow-design.md).
+>
+> **14 hâlâ ayrı ve başlanmadı** — ancak kısmen örtüşen bir parça var:
+> [Namines Ground](../namines-ground/00-GENEL-BAKIS.md) yönetilen **veritabanı**
+> açıyor (LocalPostgres/Neon/Supabase). Uygulama barındırma (hosting) yok.
+> (2026-09-26'da koddan doğrulandı.)
+
 > **Bilerek reddedilenler** ayrıca her dosyanın sonunda "🔴 Yapılmayacak"
 > başlığı altında duruyor. Bir şeyi yapmama kararı da bir karardır ve
 > gerekçesi kaybolursa altı ay sonra yeniden tartışılır.

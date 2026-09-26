@@ -1,7 +1,7 @@
 # Namines — Frontend Tasarım Talimatları
 
 > Bu dosya `frontend/` altında **görsel/UX** işi yaparken okunur. Backend/mimari
-> işi için [AGENTS.md](AGENTS.md)'ye bak. İkisi birbirini geçersiz kılmaz —
+> işi için [AGENTS.md](../AGENTS.md)'ye bak. İkisi birbirini geçersiz kılmaz —
 > AGENTS.md genel proje kuralları, bu dosya sadece frontend/tasarım kuralları.
 
 ---
@@ -10,7 +10,7 @@
 
 Bu proje `.claude/skills/ui-ux-pro-max/` altında kurulu bir tasarım zekası
 aracına sahip (CSV veri tabanlı, 79 stil, 192 renk paleti, 119 UX kuralı,
-22 teknoloji stack'i). **Görsel bir karar vermeden önce** ([SKILL.md](.claude/skills/ui-ux-pro-max/SKILL.md)'deki
+22 teknoloji stack'i). **Görsel bir karar vermeden önce** (`ui-ux-pro-max` skill'inin `SKILL.md`'deki
 tam protokole uy):
 
 ```bash

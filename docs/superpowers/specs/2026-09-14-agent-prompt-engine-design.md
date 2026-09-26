@@ -2,6 +2,15 @@
 
 **Durum:** Onaylandı (brainstorming sürecinde bölüm bölüm onaylandı) — kullanıcı incelemesi bekleniyor.
 
+> ✅ **Bitmiştir** — ama plandaki isimlerle değil. Burada öngörülen ayrı
+> `SchemaAgentOrchestrator` ve `SchemaValidator` sınıfları yazılmadı; aynı iş
+> `backend/Namines.Infrastructure/Services/SchemaAgentPipeline.cs` (plan →
+> taslak → doğrula → onar hattı) ve doğrulama kapısı olarak mevcut
+> `NslValidator` ile yapıldı. Plan turu `AgentPlanPromptBuilder`, araçlar
+> `Infrastructure/AI/Agent/AgentTools.cs`, tool-calling `IAgentChatClient`.
+> Uygulama planı: [`../plans/2026-09-14-agent-orchestration-plan.md`](../plans/2026-09-14-agent-orchestration-plan.md).
+> (2026-09-26'da koddan doğrulandı.)
+
 **Sorun:** `GroqAIService.cs` ve `backend/Namines.Core/Prompts/*` altındaki tüm
 şema üretimi tek turlu (system+user → tek istek → JSON parse → kör retry).
 Şema kontratı (`tables/columns/relations`) computed column, view, trigger,

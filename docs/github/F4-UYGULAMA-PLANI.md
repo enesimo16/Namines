@@ -60,6 +60,8 @@ kayıtlı: `Branch.ParentBranchId` + `Branch.ForkedFromVersion`. Uç bu üç şe
 
 ### Görev 1: `SchemaThreeWayMerger` (saf motor)
 
+> ✅ **Bitmiştir.** `SchemaThreeWayMerger` yazıldı; `Analysis/SchemaThreeWayMergerTests.cs` kapsıyor.
+
 **Dosyalar:**
 - Oluştur: `backend/Namines.Core/Analysis/SchemaThreeWayMerger.cs`
 - Test: `backend/Namines.Tests/Analysis/SchemaThreeWayMergerTests.cs`
@@ -287,6 +289,8 @@ git commit -m "feat: merge two branch schemas against their common ancestor"
 
 ### Görev 2: `POST /api/branch/{branchId}/merge/preview`
 
+> ✅ **Bitmiştir.** `POST /api/branch/{branchId}/merge/preview` canlı; `Controllers/BranchMergePreviewTests.cs` kapsıyor.
+
 **Dosyalar:**
 - Değiştir: `backend/Namines.API/Controllers/BranchController.cs`
 - Test: `backend/Namines.Tests/Controllers/BranchMergePreviewTests.cs`
@@ -329,6 +333,8 @@ git commit -m "feat: preview a branch merge against the common ancestor"
 ---
 
 ### Görev 3: Arayüzü sunucuya bağla
+
+> ✅ **Bitmiştir.** `components/canvas/panels/ConflictResolverModal.tsx` yazıldı ve sunucuya bağlandı — plandaki ayrı bileşen testi yazılmadı, kapsam sunucu tarafı testlerinde.
 
 **Dosyalar:**
 - Değiştir: `frontend/store/useBranchStore.ts` (bilinmeyen tür + otomatik özet)

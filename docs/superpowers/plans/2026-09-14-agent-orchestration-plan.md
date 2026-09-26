@@ -41,6 +41,8 @@ tool-calling ona ek bir katman olarak gelir, yerine geçmez.
 
 ### Task 1: Onarım turunda trigger/SP/enum kaybını durdur
 
+> ✅ **Bitmiştir.** `ReviseRequest` artık `Triggers`/`StoredProcedures`/`Enums` taşıyor ve `GroqSchemaDraftSource` onarım turunda aktarıyor. Koruma testi plandaki dosya yerine `Namines.Tests/Services/SchemaMergeTests.cs` içinde (`Triggers_the_partial_omitted_are_preserved`, `Enums_and_procedures_the_partial_omitted_are_preserved`).
+
 **Neden:** `GroqSchemaDraftSource.RepairAsync`, şemayı `ReviseSchemaAsync`'e
 yalnızca `SelectedTables` + `ExistingRelations` olarak veriyor. Dönen JSON'dan
 yeni bir `DatabaseSchema` kuruluyor, `Triggers`/`StoredProcedures`/`Enums`
@@ -317,6 +319,8 @@ git commit -m "fix: stop repair rounds from silently dropping triggers, procedur
 
 ### Task 2: Agent kapısını `NslValidator`'a bağla
 
+> ✅ **Bitmiştir.** `SchemaAgentPipeline` `NslValidator` kapısına bağlandı; `SchemaAgentPipelineTests.cs` genişletildi.
+
 **Neden:** Kapı bugün `LinterService`'i kullanıyor — 3 kurallı eski linter.
 Üstelik kuralı yanlış: `pkColumns.Count > 1` durumunu **error** sayıyor, oysa
 bu kod tabanının kendi fixture'ı (`03-composite-key`) bileşik birincil anahtarı
@@ -445,6 +449,8 @@ git commit -m "fix: use NslValidator as the agent gate instead of the three-rule
 ---
 
 ### Task 3: `NSL024` — hedef motorda desteklenmeyen özellik
+
+> ✅ **Bitmiştir.** `NSL024` `NslValidator.cs` içinde tanımlı ve test ediliyor.
 
 **Neden:** Bölüm 1'de yazılan `TriggerProcedureSql`, `TargetEngine` eşleşmeyen
 trigger/SP'yi **sessizce atlıyor** — doğru davranış, ama DDL üretimi hata
@@ -608,6 +614,8 @@ git commit -m "feat: implement NSL024 engine-support rule for triggers, procedur
 ---
 
 ### Task 4: Tool-calling yeteneği — `IAgentChatClient`
+
+> ✅ **Bitmiştir.** `Core/Interfaces/IAgentChatClient.cs` yazıldı; `AgentChatMessageTests.cs` kapsıyor.
 
 **Files:**
 - Create: `backend/Namines.Core/Interfaces/IAgentChatClient.cs`
@@ -830,6 +838,8 @@ git commit -m "feat: add tool-calling capable chat client to the Groq AI service
 ---
 
 ### Task 5: Araçlar (`AgentTools`) ve plan turu
+
+> ✅ **Bitmiştir.** `Infrastructure/AI/Agent/AgentTools.cs` ve `Core/Prompts/AgentPlanPromptBuilder.cs` yazıldı; `AgentToolsTests.cs` kapsıyor.
 
 **Files:**
 - Create: `backend/Namines.Infrastructure/AI/Agent/AgentTools.cs`
@@ -1279,6 +1289,8 @@ git commit -m "feat: add agent tools and a planning turn to the schema agent"
 
 ### Task 6: Plan turunu hatta bağla ve tool-calling'i onarım turunda kullan
 
+> ✅ **Bitmiştir.** Plan turu hatta bağlandı; onarım turu tool-calling kullanıyor.
+
 **Files:**
 - Modify: `backend/Namines.Infrastructure/Services/SchemaAgentPipeline.cs`
 - Modify: `backend/Namines.Infrastructure/Services/GroqSchemaDraftSource.cs`
@@ -1526,6 +1538,8 @@ git commit -m "feat: run a planning turn and let the repair turn call agent tool
 ---
 
 ### Task 7: Tam takım doğrulaması
+
+> ✅ **Bitmiştir.** Tam takım yeşil (Docker isteyen entegrasyon testleri hariç — bu makinede Docker yok).
 
 - [ ] **Step 1: Run the whole backend suite**
 

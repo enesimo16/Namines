@@ -218,6 +218,6 @@ görüyorsanız 3. şart sağlanmamış demektir.
 | MSSQL ve Oracle yok | Mimari, eksiklik değil. `BACKUP DATABASE TO DISK` ve `expdp`, dosyayı **sunucunun kendi diskine** yazar; istemci tarafına akıtılabilen bir çıktı vermezler. Namines yedeği kendi tarafına çekemediği için şifreleyemez, nesne depoya koyamaz ve geri yüklenebilirliğini kanıtlayamaz. Sunucu diskine dosya bırakan bir "yedek" ise Vault'un vaadini karşılamaz. |
 | SQLite yok | Aynı sınıf sınır. SQLite bir sunucu değil, **dosya**: uzaktan bir bağlantı dizesiyle erişilemiyor. Namines kullanıcının veritabanına ağ üzerinden bağlanıyor; SQLite'ta bağlanılacak bir uç yok. |
 | ~~Yedekler sunucu diskinde~~ | **Kapatıldı:** S3 uyumlu nesne depo eklendi ve gerçek MinIO'ya karşı doğrulandı. Disk artık nesne depo yapılandırılmamışsa devreye giren geri düşüş. |
-| Kısmi geri yükleme yok | Tek tablo değil, veritabanının tamamı geri yüklenir |
+| ~~Kısmi geri yükleme yok~~ | ✅ **Bitmiştir (PostgreSQL):** geri yükleme isteği `Tables` listesi alıyor, `pg_restore -t` ile yalnızca seçilen tablolar yükleniyor (backlog B-43). MySQL/MariaDB'de düz SQL dump yüzünden mümkün değil — açıkça reddediliyor. Canlı `pg_restore -t` henüz koşulmadı. (2026-09-26'da koddan doğrulandı.) |
 | Kaçırılan çalıştırma telafi edilmez | Bilinçli: sunucu iki gün kapalı kaldıysa açılışta iki yedek almak diski doldurmaktan başka işe yaramaz |
-| Yedekleme sırasında ilerleme göstergesi yok | İstek, yedek bitene kadar açık kalır. Büyük veritabanlarında arka plan işine taşınmalı. |
+| ~~Yedekleme sırasında ilerleme göstergesi yok~~ | ✅ **Bitmiştir:** yedek artık arka plan işi — uç `VaultJobQueue`'ya koyup `202 Accepted` dönüyor, `VaultBackupWorker` çalıştırıyor, istemci durumu yokluyor. (2026-09-26'da koddan doğrulandı.) |

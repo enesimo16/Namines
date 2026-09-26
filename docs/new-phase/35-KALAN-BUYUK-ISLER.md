@@ -101,6 +101,24 @@ fatura geçmişi ekranı, plan yükseltme/düşürme kenar durumları.
 
 Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyorlar.
 
+> ✅ **Bu tablo yazıldıktan SONRA kapananlar** (2026-09-23'te koddan doğrulandı):
+>
+> | İş | Kanıt |
+> |----|-------|
+> | **Namines Desk v1 + v2** | `services/desk/` — [`../namines_desk/11-DESK-V2-TAMAMLANDI.md`](../namines_desk/11-DESK-V2-TAMAMLANDI.md) |
+> | **Namines Vault** | `backend/Namines.Vault/` + `VaultService`/`VaultController` + iki migration + `frontend/app/vault/` |
+> | **Namines Ground** | `backend/Namines.Ground/` (LocalPostgres/Neon/Supabase) + `GroundService`/`GroundController` + `frontend/app/ground/` |
+> | **Launch (tek tık)** | `LaunchService` + `LaunchController` (`POST /api/launch`, `/download`) + `frontend/components/compile/LaunchPanel.tsx` |
+> | **Namines Flow** | `AutomationRule`/`AutomationAction` + matcher + kuyruk + executor + `AutomationController` (6 uç) + canvas bar/panel/drawer |
+> | **Sağlayıcı soyutlaması** | `IChatCompletionProvider` + Groq/DeepSeek + `Ai:Provider` seçimi |
+> | **Büyük şema ölçeklemesi** | `SchemaScopePlan`/`SchemaScopePartitioner`/`SchemaChunkMerger` + parçalı taslak yolu |
+>
+> Aşağıdaki "hangi sırayla" tablosundaki sıra **2 (ekibin derinleşmesi)**
+> kısmen ilerledi: imleç paylaşımı canlı (`CanvasHub.MoveCursor` +
+> `MultiplayerCursors.tsx`), ama oda yetkisinin ekip modeline bağlanması ve
+> çakışma çözümü hâlâ açık — ayrıntı
+> [`../second-phase/01-SIRADAKI-ISLER.md`](../second-phase/01-SIRADAKI-ISLER.md) §1.
+
 ---
 
 ## Öneri: hangi sırayla?
@@ -111,7 +129,7 @@ Her biri kapanırken bölümünde **kalan alt maddeler** var; aşağıda duruyor
 | Sıra | İş | Neden bu sırada |
 |------|-----|-----------------|
 | 0 | **Stripe'ta iki fiyat** | Ödeme kodunun tamamı hazır ve test edildi; ürün bugün satış yapamıyor ve sebebi kod değil. En küçük iş, en büyük etki. |
-| 0 | **Disk açmak** | 3,8 GB kaldı; container'lar düşüyor ve her şeyi yavaşlatıyor. |
+| 0 | ~~**Disk açmak**~~ | ~~3,8 GB kaldı; container'lar düşüyor ve her şeyi yavaşlatıyor.~~ ✅ **Bitmiştir** — 2026-09-26'da C: sürücüsünde 287 GB boş. |
 | 1 | **§5 Bot'un kalanı** | PR'da önizleme veritabanı + `/namines` komutları. GitHub App'in geldiği an anlamlı hâle gelir ve bot zaten yazabiliyor. |
 | 2 | **Ekibin derinleşmesi** | Koltuk/davet/ortak workspace kuruldu; sıradaki doğal adım aynı şema üzerinde canlı birlikte düzenleme. SignalR altyapısı zaten var, ekip modeline bağlanması gerekiyor. |
 | 3 | **§2 GraphQL** | Bir GraphQL motoru bağımlılığı + proje başına şema önbelleği ister; ikincisi Redis kararına bağlı. |

@@ -39,6 +39,8 @@ ekleniyor. Yayın senkron ve yan etki; ağa çıkmıyor.
 
 ### Task 1: `naminesFlowEventBus` — çekirdek pub/sub
 
+> ✅ **Bitmiştir.** `frontend/lib/naminesFlowEventBus.ts` + testi yazıldı; `NaminesFlowEvent` yedi olay tipiyle dışa açık.
+
 **Files:**
 - Create: `frontend/lib/naminesFlowEventBus.ts`
 - Test: `frontend/lib/naminesFlowEventBus.test.ts`
@@ -202,6 +204,8 @@ git commit -m "feat: add Namines Flow core event bus"
 
 ### Task 2: Tablo olayları — `addTable`/`deleteTable`
 
+> ✅ **Bitmiştir.** `useSchemaStore.addTable`/`deleteTable` olay yayınlıyor; `useSchemaStore.test.ts` kapsıyor.
+
 **Files:**
 - Modify: `frontend/store/useSchemaStore.ts:334-402` (`addTable`, `deleteTable`)
 - Test: `frontend/store/useSchemaStore.test.ts` (append)
@@ -335,6 +339,8 @@ git commit -m "feat: emit Namines Flow TableAdded/TableDeleted events"
 ---
 
 ### Task 3: Kolon olayları — `updateTable` diff'i
+
+> ✅ **Bitmiştir.** `updateTable` eski/yeni tabloyu diffleyip `ColumnAdded`/`ColumnDeleted`/`ColumnChanged` yayınlıyor.
 
 **Files:**
 - Modify: `frontend/store/useSchemaStore.ts:446-480` (`updateTable`)
@@ -522,6 +528,8 @@ git commit -m "feat: emit Namines Flow column events from updateTable"
 
 ### Task 4: İlişki olayları — `connectColumns`/`deleteRelation`
 
+> ✅ **Bitmiştir.** `connectColumns`/`deleteRelation` `RelationAdded`/`RelationDeleted` yayınlıyor.
+
 **Files:**
 - Modify: `frontend/store/useSchemaStore.ts:489-592` (`connectColumns`, `deleteRelation`)
 - Test: `frontend/store/useSchemaStore.test.ts` (append)
@@ -649,6 +657,8 @@ git commit -m "feat: emit Namines Flow relation events from connectColumns/delet
 ---
 
 ### Task 5: Tam doğrulama
+
+> ✅ **Bitmiştir.** Frontend paketi 188/188 test yeşil.
 
 - [ ] **Step 1:** `cd frontend && npx vitest run` — tüm frontend test dosyaları geçmeli.
 - [ ] **Step 2:** `cd frontend && npx tsc --noEmit` — temiz.

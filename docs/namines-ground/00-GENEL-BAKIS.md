@@ -1,10 +1,14 @@
-# Namines Ground — Genel Bakış (plan)
+# Namines Ground — Genel Bakış
 
-> **Durum:** plan, henüz kod yok. Sıra: [`third-phase/00-BASLA-BURADAN.md`](../third-phase/00-BASLA-BURADAN.md)
-> §3'e göre **Desk → Vault → Ground** — Ground **en son**, çünkü en büyük efor
-> ve en yüksek risk odur (aşağıdaki §2). Bu doküman, Vault planlanıp bitmeden
-> **başlanmayacağını** varsayar; burada yazılanlar sıradaki adımlar için
-> referans, bugünün işi değil.
+> ✅ **Bitmiştir.** Bu doküman yazıldığında "plan, henüz kod yok" durumundaydı;
+> bugün Ground **canlı kod**. `backend/Namines.Ground/` altında
+> `IDatabaseProvider` soyutlaması ve üç sağlayıcı (LocalPostgres, Neon,
+> Supabase) duruyor; `GroundService` + `GroundController` + `GroundPurgeBackgroundService`
+> ve `20260909044550_AddGroundDatabases` migration'ı hatta; arayüz tarafı
+> `frontend/app/ground/page.tsx`. Testler: `Namines.Tests/Services/Ground*.cs`.
+> Aşağıdaki bölümler **neden öyle tasarlandığının** kaydı olarak duruyor —
+> "bugünün işi değil" uyarısı artık geçerli değil. (Doğrulama: 2026-09-23,
+> koddan okundu.)
 
 ---
 

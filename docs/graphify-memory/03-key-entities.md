@@ -30,7 +30,7 @@
 
 ## Third-phase / Desk-specific
 
-Namines Ground, Namines Vault, Namines Desk (`services/desk/`, port 3200), the `DeskTable` type (intentionally duplicated rather than shared), the `dbintrospect` FK-relations bug (fixed for PostgreSQL only, via `pg_catalog`), `ResolveConnectionAsync` (the Gateway's connection-resolution chain — the exact place where a new "resolve via authenticated session + `projectId`" branch has to be added to support Desk's JWT-only auth model), `GET /api/gateway/schema`, `PUT /api/gateway/keys/project/{id}/connection`, `AuditTrailAsync` (will need pagination/date-range support to power Desk's Logs screen).
+Namines Ground, Namines Vault, Namines Desk (`services/desk/`, port 3200), the `DeskTable` type (intentionally duplicated rather than shared), the `dbintrospect` FK-relations bug (fixed for PostgreSQL only, via `pg_catalog` — **✅ bitmiştir, genişletildi:** bugün `DbIntrospectionService` MSSQL'de `sys.foreign_keys`, MySQL/MariaDB'de `KEY_COLUMN_USAGE` + `REFERENTIAL_CONSTRAINTS`, Oracle'da kendi kataloğuyla da ilişki okuyor; MySQL ve MSSQL yolları gerçek motorlara karşı doğrulandı, Oracle yolu henüz canlı denenmedi, bkz. backlog B-12), `ResolveConnectionAsync` (the Gateway's connection-resolution chain — the exact place where a new "resolve via authenticated session + `projectId`" branch has to be added to support Desk's JWT-only auth model), `GET /api/gateway/schema`, `PUT /api/gateway/keys/project/{id}/connection`, `AuditTrailAsync` (will need pagination/date-range support to power Desk's Logs screen).
 
 ## NSL / compiler ecosystem
 
@@ -41,6 +41,14 @@ NSL (Namines Schema Language), the canonical JSON IR (shipped as `ir.json` at ga
 Namines (umbrella brand), Namines Studio, Namines Copilot, NSL, Namines Cloud, **Namines Console**, **Namines Gateway**, Namines CLI, **Namines Bot** (a GitHub App — code complete at gate G43, but blocked on GitHub App credentials existing), Namines Bridge (an on-prem agent, priority tier P2, not built), Namines Hub (a blueprint marketplace), Namines Docs, Namines Status.
 
 Third-phase introduces **Namines Ground**, **Namines Vault**, **Namines Desk** as separate services sitting outside this original brand map entirely.
+
+> ✅ **Bitmiştir — üçü de yazıldı, markaya iki isim daha eklendi.** Desk ayrı
+> servis; Vault/Ground ana backend içinde modül (bkz. `02-architecture.md` notu).
+> Sonradan eklenen iki ürün yüzeyi: **Launch** (`LaunchService` — tek tıkla
+> provizyon → DDL uygula → ilk yedek → Desk'e devir) ve **Namines Flow**
+> (`AutomationRule`/`AutomationAction`/`AutomationRunLog`, `AutomationController`,
+> canvas'ta Flow bar/panel). Dördü arasında geçiş için ortak gezinme:
+> `frontend/components/layout/WorkspaceNav.tsx`. (2026-09-26'da koddan doğrulandı.)
 
 ## Test/quality infrastructure
 

@@ -21,7 +21,7 @@ olduğunu, nereye kadar çalıştığını ve **nerede eksik kaldığını** yaz
 ## 2. Erişilebilir alternatif: `.nsl` metin dili
 
 Şemanın tamamı `.nsl` adlı düz metin dilinde tanımlanabilir. Dil şartnamesi:
-[`new-phase/04-NSL-SCHEMA-IR.md`](../new-phase/04-NSL-SCHEMA-IR.md).
+[`new-phase/04-NSL-SCHEMA-IR.md`](new-phase/04-NSL-SCHEMA-IR.md).
 
 Metin olduğu için:
 
@@ -102,6 +102,15 @@ Ayrıca hâlâ denetlenmemiş olanlar (`13-accessibility-audit.md` §"Denetlenme
 ama gerekli kontroller"): renk kontrastı (WCAG AA 4.5:1), tam klavye gezinmesi,
 `:focus-visible` görünürlüğü, form etiketleri (`B-41` — 51 girdinin 5'inde
 `htmlFor` var).
+
+> ⏳ **Tablodaki üç iş hâlâ açık** (2026-09-26'da koddan doğrulandı):
+> frontend'de `nsl/parse` çağıran bir içe aktarma arayüzü yok ve bu belgeye
+> ürün içinden bağlantı verilmiyor.
+>
+> ✅ **`:focus-visible` görünürlüğü bitmiştir** — Vercel uyarlaması turunda
+> `app/globals.css`'e eklendi (bkz. [`VERCEL_DESIGN_ADAPTATION.md`](VERCEL_DESIGN_ADAPTATION.md)
+> "Focus görünürlüğü"). Kontrast, tam klavye gezinmesi ve form etiketleri hâlâ
+> denetlenmedi.
 
 ---
 

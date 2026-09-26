@@ -49,6 +49,8 @@ asıl kararları HTTP olmadan test edilebiliyor.
 
 ### Görev 1: Depo URL'i ve aday dosya seçimi (saf, ağsız)
 
+> ✅ **Bitmiştir.** Aday dosya seçimi yazıldı; `Github/RepositoryCandidateSelectorTests.cs` kapsıyor.
+
 **Dosyalar:**
 - Oluştur: `backend/Namines.Core/Github/GithubRepositoryUrl.cs`
 - Oluştur: `backend/Namines.Core/Github/RepositoryCandidateSelector.cs`
@@ -328,6 +330,8 @@ git commit -m "feat: pick schema files out of a repository tree"
 ---
 
 ### Görev 2: İstemcinin OKUMA yüzeyi (public depo dahil)
+
+> ✅ **Bitmiştir.** İstemcinin okuma yüzeyi yazıldı; `Github/GithubClientReadTests.cs` kapsıyor.
 
 **Dosyalar:**
 - Değiştir: `backend/Namines.Core/Github/IGithubClient.cs`
@@ -617,6 +621,8 @@ git commit -m "feat: read public repository trees without credentials"
 
 ### Görev 3: `RepositoryScanner` — zinciri birleştir
 
+> ✅ **Bitmiştir.** `Infrastructure/Services/RepositoryScanner.cs` yazıldı; `Github/RepositoryScannerTests.cs` kapsıyor.
+
 **Dosyalar:**
 - Oluştur: `backend/Namines.Core/Interfaces/IRepositoryScanner.cs`
 - Oluştur: `backend/Namines.Infrastructure/Services/RepositoryScanner.cs`
@@ -870,6 +876,8 @@ git commit -m "feat: scan a repository into a schema"
 
 ### Görev 4: `POST /api/github/scan` ucu
 
+> ✅ **Bitmiştir.** `POST /api/github/scan` canlı; `Controllers/GithubScanControllerTests.cs` kapsıyor.
+
 **Dosyalar:**
 - Oluştur: `backend/Namines.API/Controllers/GithubScanController.cs`
 - Değiştir: `backend/Namines.API/Extensions/ServiceCollectionExtensions.cs`
@@ -1101,6 +1109,8 @@ git commit -m "feat: add the repository scan endpoint"
 
 ### Görev 5: Kataloğa GitHub kaynağı
 
+> ✅ **Bitmiştir.** GitHub kaynağı kataloğa eklendi.
+
 **Dosyalar:**
 - Değiştir: `backend/Namines.Infrastructure/Services/StaticSchemaSourceCatalog.cs`
 - Değiştir: `backend/Namines.Tests/Sources/SchemaSourceCatalogTests.cs`
@@ -1151,6 +1161,8 @@ git commit -m "feat: list GitHub as a schema source"
 ---
 
 ### Görev 6: Frontend — depo tarama modal'ı
+
+> ✅ **Bitmiştir.** `components/prompt/GithubScanModal.tsx` + testi yazıldı.
 
 **Dosyalar:**
 - Oluştur: `frontend/components/prompt/GithubScanModal.tsx`

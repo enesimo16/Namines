@@ -1978,6 +1978,64 @@ tek bir cümle yazmadan canvas'a çıkıyor.
 
 ---
 
+## G55 — Üçüncü faz ürünleri, Namines Flow, agent hattı ve güvenlik turu ✅ TAMAMLANDI
+
+> Bu giriş, G54'ten sonra yapılan ama bu listeye hiç işlenmemiş işleri toplu
+> kaydediyor (2026-09-26'da koddan doğrulanarak yazıldı). Ayrıntılı kanıt her
+> maddenin kendi dokümanında; burası yalnızca "hangi G'de kaldık" sorusuna
+> cevap versin diye.
+
+| İş | Kanıt (kod) | Ayrıntı |
+|---|---|---|
+| **Namines Desk v1 + v2 + pano kabuğu** | `services/desk/` | [`../namines_desk/11-DESK-V2-TAMAMLANDI.md`](../namines_desk/11-DESK-V2-TAMAMLANDI.md) |
+| **Namines Vault** (Postgres + MySQL ailesi, AES-256-GCM, disk/S3, zamanlama, doğrulama) | `backend/Namines.Vault/`, `VaultService`, `VaultBackupWorker` | [`../namines-vault/01-INSA-PLANI.md`](../namines-vault/01-INSA-PLANI.md) |
+| **Namines Ground** (LocalPostgres, Neon, Supabase*) | `backend/Namines.Ground/`, `GroundService` | [`../namines-ground/01-INSA-PLANI.md`](../namines-ground/01-INSA-PLANI.md) |
+| **Launch** (tek tık: provizyon → uygula → yedek → Desk) | `LaunchService`, `LaunchController` | [`../superpowers/plans/2026-09-14-launch-integration.md`](../superpowers/plans/2026-09-14-launch-integration.md) |
+| **Namines Flow** (koşul + aksiyon zinciri + run log + test) | `AutomationController`, `AutomationExecutor`, canvas bar/panel | [`../superpowers/specs/2026-09-14-namines-flow-design.md`](../superpowers/specs/2026-09-14-namines-flow-design.md) |
+| **Agent hattı** (plan → taslak → NSL kapısı → tool-calling onarım) | `SchemaAgentPipeline`, `AgentTools` | [`../superpowers/plans/2026-09-14-agent-orchestration-plan.md`](../superpowers/plans/2026-09-14-agent-orchestration-plan.md) |
+| **Büyük şema** (50-60 tablo, parçalı üretim) | `SchemaScopePartitioner`, `SchemaChunkMerger` | [`../superpowers/plans/2026-09-15-schema-scale-plan.md`](../superpowers/plans/2026-09-15-schema-scale-plan.md) |
+| **Sağlayıcı soyutlaması** (429 bekleme, Groq/DeepSeek) | `IChatCompletionProvider`, `ChatCompletionProviderFactory` | [`../superpowers/plans/2026-09-17-provider-abstraction.md`](../superpowers/plans/2026-09-17-provider-abstraction.md) |
+| **Ortak çalışma alanı gezinmesi** | `frontend/components/layout/WorkspaceNav.tsx` | `b8b6dc3` |
+
+\* Supabase yazıldı ama canlı denenmedi (`IsLiveVerified: false`).
+
+### Aynı dönemde bulunan ve düzeltilen hatalar
+
+- **Launch indirme 400 veriyordu** — paylaşılan `SchemaJsonOptions` enum
+  dönüştürücüsüzdü, ilişkisi olan HER kayıtlı şema okunamıyordu (`8f753a2`).
+- **🔴 Gateway `/query` yetki aşımı** — session ile kayıtlı bağlantıdan ham SQL
+  çalıştırmak Editor'a açıktı, Viewer'ın "readOnly" iddiası doğrulanmıyordu;
+  artık Owner + `AllowDeskSql` şart ve readOnly metin düzeyinde denetleniyor (`05c4080`).
+- **🔴 SSRF allowlist bypass** — bağlantı dizesindeki yalnızca İLK host
+  denetleniyordu; ikinci `Host=`/virgüllü çoklu host geçiyordu (`05c4080`).
+- **🔴 Ground cancel-delete çift faturalama** — Neon/Supabase'de silme iptali
+  ikinci bir kaynak açıp orijinali terk ediyordu (`48d23de`).
+- **Tek-ifade kapısında yorum/tırnak desync bypass'ı** — yorumun içindeki tırnak
+  ikinci ifadeyi kaçırtıyordu (`5cd5678`).
+- Vault retention'ın başarısız yedekleri sayması, Vault/Ground'un ham sürücü
+  hatasını istemciye sızdırması, `/api/ground/providers`'ın admin host'u
+  sızdırması, purge'ün `ProviderProjectId` yokken sonsuz yeniden denemesi (`fe221bc`).
+- Desk'te üç yarış durumu: eski satır yanıtı, filtre değişince kalan seçim,
+  unmount'ta durmayan yedek yoklaması (`eeee522`).
+- `ProductionScreen.tsx`'teki kaçışsız `'` — CI'daki `npm run lint` adımını
+  kıracak bir hataydı (bu turda).
+- **MSSQL introspection identity'yi hiç okumuyordu** — IDENTITY bir kolon
+  özelliği, `COLUMN_DEFAULT` onu taşımaz; kolon `Identity = null` dönüyor ve
+  Desk otomatik artan PK'yı zorunlu alan sanıyordu. Docker ve disk engelleri
+  kalkınca yazılan `MssqlIntrospectionTests` gerçek SQL Server 2022'ye karşı
+  kırmızıya düşürüp buldu; `COLUMNPROPERTY(..., 'IsIdentity')` ile düzeltildi.
+  Aynı test backlog **B-12'nin MSSQL yarısını kapattı** (FK + ON DELETE,
+  UNIQUE/CHECK, index canlı doğrulandı). Oracle yarısı açık (bu turda).
+
+- Doğrulama (2026-09-26, Docker 29.7 ayakta): backend **2078/2078** (0
+  atlanan — gerçek PostgreSQL/MySQL/SQL Server testleri dahil),
+  `Namines.Tests.RunTests` **19/19** (LaunchService gerçek Docker'a karşı),
+  frontend **188/188**, Desk **101/101**; `tsc` (frontend + Desk),
+  `check:design` temiz, lint **0 hata** (28 uyarı). Dokümanlardaki 545 göreli
+  linkin hepsi var olan dosyaya çıkıyor.
+
+---
+
 ## G-ekstra — Yol boyunca bulunanlar
 
 - [x] `launchSettings.json` port çelişkisi — **zaten çözülmüştü** (`dfdfc49`, bu G14
@@ -1999,8 +2057,8 @@ tek bir cümle yazmadan canvas'a çıkıyor.
 
 ## Kod dışı işler (sen yapacaksın)
 
-- [ ] 🔴 **Disk aç — 3,8 GB kaldı.** Container'lar bu yüzden düşüyor; bu oturumda
-      control DB'yi elle başlatmak gerekti.
+- [x] ~~🔴 **Disk aç — 3,8 GB kaldı.** Container'lar bu yüzden düşüyor; bu oturumda
+      control DB'yi elle başlatmak gerekti.~~ ✅ **Bitmiştir:** 2026-09-26 ölçümü C: sürücüsünde **287 GB boş**; `34-SENDEN-BEKLENENLER.md` madde 10 da kapalı.
 - [ ] `C:\Users\Enes Yel` dizinindeki yanlış git deposunu düzelt (remote'u
       `automated-recruitment-pipeline`)
 - [ ] Ödeme altyapısı araştırması (Stripe TR sınırlı → Paddle / LemonSqueezy)

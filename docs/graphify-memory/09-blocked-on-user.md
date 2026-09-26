@@ -2,6 +2,16 @@
 
 Bu liste kod eksikliği DEĞİL — hepsinin kodu yazılmış ve test edilmiş; eksik olan yalnızca bir hesap açmak, bir sayı onaylamak ya da bir karar vermek. Son güncelleme: Gate G52 (1136 test yeşil).
 
+> ⏳ **2026-09-26'da yeniden doğrulandı — madde 1 dışındakiler hâlâ sende.**
+> ✅ **Madde 1 (disk) bitmiştir:** C: sürücüsünde bugün **287 GB boş** ve Docker
+> 29.7 çalışıyor; `34-SENDEN-BEKLENENLER.md` madde 10 de kapalı.
+> Diğer güncellemeler: (1) test sayısı bugün backend **2078**, hepsi geçiyor —
+> Docker ayakta olduğu için gerçek-motor testleri de koşuyor —, frontend 188; (2) madde 3 (Groq)
+> için kod tarafında artık bir alternatif var — `Ai:Provider=DeepSeek` ile
+> sağlayıcı değiştirilebiliyor — ama önerilen yol hâlâ Groq'a kart tanımlamak.
+> Yeni bir madde de eklendi: Supabase sağlayıcısını canlı denemek için bir
+> Supabase erişim jetonu (kod hazır, `IsLiveVerified: false`).
+
 ## 🔴 Kritik — ürünü şu an durduran ikisi
 
 1. **Disk alanı — 3,8 GB kaldı (EN ACİL).** Control DB container'ı oturumlar boyunca defalarca düştü, elle yeniden başlatılması gerekti. Çözüm: WSL2 VHDX'i `Optimize-VHD` ile sıkıştırmak, kullanılmayan Docker imajlarını temizlemek, eski `bin/`/`obj/` klasörlerini silmek.

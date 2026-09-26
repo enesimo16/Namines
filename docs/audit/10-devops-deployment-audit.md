@@ -166,7 +166,7 @@ kod seviyesinde mümkün kılan tek yaklaşım.
 
 ### ✅ Yapıldı (10.09.2026) — B-47
 
-**Kural + prosedür:** [`deploy/MIGRATION-VE-GERI-ALMA.md`](../../deploy/MIGRATION-VE-GERI-ALMA.md)
+**Kural + prosedür:** [`deploy/MIGRATION-VE-GERI-ALMA.md`](../deploy/MIGRATION-VE-GERI-ALMA.md)
 — izin verilen/yasak işlem tabloları, üç iki-aşamalı desen (yeniden adlandırma,
 `NOT NULL`, silme), geri al/ileri düzelt karar akışı ve migration yazma
 kontrol listesi.

@@ -15,7 +15,7 @@
 
 | # | İş | Kim yapıyor | Neden bu sırada |
 |---|----|-------------|-----------------|
-| 0 | **Disk aç** | sen | 3,8 GB kaldı; container'lar düşüyor, her şeyi yavaşlatıyor |
+| 0 | ~~**Disk aç**~~ | sen | ~~3,8 GB kaldı; container'lar düşüyor, her şeyi yavaşlatıyor~~ ✅ **Bitmiştir** — 2026-09-26'da 287 GB boş |
 | 0 | **Stripe'ta 2 fiyat** | sen | Ödeme kodu bitti; ürünün para kazanmasının önündeki tek engel |
 | 1 | **Canlı birlikte düzenleme** | ben | Team'in vaadini tamamlayan tek büyük parça; altyapı zaten hazır |
 | 2 | **Rol bazlı arayüz** | ben | Viewer bugün düzenleme araçlarını görüyor (sunucu reddediyor ama kullanıcıya yalan söylüyoruz) |
@@ -47,6 +47,16 @@ yalanlar.
    ama "bu kullanıcı bu ekipte mi" kontrolü ekip modeline bağlanmadı
 2. **İmleç ve seçim paylaşımı** — kim nereye bakıyor
 3. **Çakışma çözümü** — asıl zor kısım (aşağıda)
+
+> ✅ **2. madde bitmiştir.** `CanvasHub.MoveCursor` imleci odadaki diğerlerine
+> yayınlıyor; istemci tarafı `frontend/hooks/useMultiplayer.ts`,
+> `frontend/store/useMultiplayerStore.ts` ve
+> `frontend/components/canvas/MultiplayerCursors.tsx`.
+>
+> **1. ve 3. madde hâlâ açık** (2026-09-23'te koddan doğrulandı): `JoinRoom`
+> yalnızca oda kimliğinin biçimini denetliyor, organizasyon üyeliğine
+> bakmıyor; `UpdateSchema` ise şemayı olduğu gibi yayınlıyor — yani hâlâ
+> "son yazan kazanır", alan bazlı kilit yazılmadı.
 
 **Zor karar — çakışma:** İki kişi aynı tabloyu aynı anda değiştirirse ne olacak?
 Üç seçenek var ve **hiçbiri bedava değil**:

@@ -1,5 +1,10 @@
 # Namines Agent Prompt Engine — Tasarım Dokümanı
 
+> ✅ **Bitmiştir** — tasarım `SchemaAgentPipeline` + `NslValidator` kapısı
+> olarak uygulandı (burada adı geçen `SchemaAgentOrchestrator`/`SchemaValidator`
+> ayrı sınıflar olarak yazılmadı). Ayrıntı ve kanıt:
+> [`../specs/2026-09-14-agent-prompt-engine-design.md`](../specs/2026-09-14-agent-prompt-engine-design.md).
+
 > Bu bir bite-sized TDD implementasyon planı değil; önce mimari kararların
 > netleşmesi için yazılmış bir tasarım dokümanıdır. Onaylandıktan sonra
 > `superpowers:writing-plans` ile gerçek görev-bazlı plana dönüştürülür.

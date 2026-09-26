@@ -24,6 +24,8 @@
 
 ### Task 1: Yapısal plan modeli, ayrıştırıcı ve kimlik sözleşmesi
 
+> ✅ **Bitmiştir.** `SchemaScopePlan.cs` ve `SchemaIdConvention.cs` yazıldı; `SchemaScopePlanTests.cs` kapsıyor.
+
 **Files:**
 - Create: `backend/Namines.Core/Analysis/SchemaScopePlan.cs`
 - Create: `backend/Namines.Core/Analysis/SchemaIdConvention.cs`
@@ -168,6 +170,8 @@ git commit -m "feat: add structured schema plan model, parser and id convention"
 
 ### Task 2: Alan gruplama (partitioner)
 
+> ✅ **Bitmiştir.** `SchemaScopePartitioner.cs` yazıldı; `SchemaScopePartitionerTests.cs` kapsıyor.
+
 **Files:**
 - Create: `backend/Namines.Core/Analysis/SchemaScopePartitioner.cs`
 - Test: `backend/Namines.Tests/Analysis/SchemaScopePartitionerTests.cs`
@@ -284,6 +288,8 @@ git commit -m "feat: add deterministic domain partitioner for chunked generation
 ---
 
 ### Task 3: Parça birleştirme (merge)
+
+> ✅ **Bitmiştir.** `SchemaChunkMerger.cs` yazıldı; `Models/SchemaChunkMergerTests.cs` kapsıyor.
 
 **Files:**
 - Create: `backend/Namines.Core/Models/SchemaChunkMerger.cs`
@@ -426,6 +432,8 @@ git commit -m "feat: merge chunked schema drafts with name-based relation resolu
 
 ### Task 4: Kesilmenin görünür olması (`finish_reason`)
 
+> ✅ **Bitmiştir.** `AiOutputTruncatedException` ile kesilme görünür; `OutputTruncationTests.cs` kapsıyor.
+
 **Files:**
 - Create: `backend/Namines.Core/Interfaces/AiOutputTruncatedException.cs`
 - Modify: `backend/Namines.Infrastructure/AI/GroqAIService.cs`
@@ -512,6 +520,8 @@ git commit -m "feat: surface provider output truncation instead of retrying at a
 ---
 
 ### Task 5: Plan ve parça prompt'ları
+
+> ✅ **Bitmiştir.** Plan ve parça prompt'ları yazıldı; `Prompts/ChunkPromptTests.cs` kapsıyor.
 
 **Files:**
 - Modify: `backend/Namines.Core/Prompts/AgentPlanPromptBuilder.cs`
@@ -641,6 +651,8 @@ git commit -m "feat: structured plan prompt and per-chunk draft prompt"
 
 ### Task 6: `ISchemaDraftSource.DraftChunkAsync`
 
+> ✅ **Bitmiştir.** `ISchemaDraftSource.DraftChunkAsync` eklendi; `DraftChunkContractTests.cs` sözleşmeyi kilitliyor.
+
 **Files:**
 - Modify: `backend/Namines.Core/Interfaces/ISchemaDraftSource.cs`
 - Modify: `backend/Namines.Infrastructure/Services/GroqSchemaDraftSource.cs`
@@ -769,6 +781,8 @@ git commit -m "feat: add per-chunk draft entry point to the draft source"
 
 ### Task 7: Hattın parçalı yola bağlanması
 
+> ✅ **Bitmiştir.** Hat parçalı yola bağlandı; `SchemaAgentPipelinePartitionTests.cs` kapsıyor.
+
 **Files:**
 - Modify: `backend/Namines.Infrastructure/Services/SchemaAgentPipeline.cs`
 - Test: `backend/Namines.Tests/Services/SchemaAgentPipelinePartitionTests.cs`
@@ -879,6 +893,8 @@ git commit -m "feat: generate large schemas as parallel per-domain chunks"
 
 ### Task 8: Kapsam-farkında onarım ve kota
 
+> ✅ **Bitmiştir.** Kapsam-farkında onarım ve kota yazıldı; `ScopedRepairTests.cs` kapsıyor.
+
 **Files:**
 - Modify: `backend/Namines.Core/Models/SchemaMerge.cs` (yeni `SpliceTables`)
 - Modify: `backend/Namines.Infrastructure/Services/GroqSchemaDraftSource.cs` (`RepairAsync` kapsamı)
@@ -936,6 +952,8 @@ git commit -m "feat: scope repair rounds and token ceilings to schema size"
 ---
 
 ### Task 9: Uçtan uca kontrol ve `SchemaController` bağlantısı
+
+> ✅ **Bitmiştir.** `SchemaController` bağlandı; tam takım yeşil.
 
 **Files:**
 - Modify: `backend/Namines.API/Controllers/SchemaController.cs`

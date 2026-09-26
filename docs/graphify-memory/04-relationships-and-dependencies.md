@@ -10,6 +10,14 @@ These are explicit dependency / blocking / supersession / part-of relationships 
 - **Namines Desk requires connection-string encryption to exist before it can store live-DB credentials** — the backend explicitly refuses to save an unencrypted connection if `Security__ConnectionEncryptionKey` is not configured (fails closed, not silently).
 - **"Push schema changes directly to the live database" (planned in `namines_desk/05-DEPLOYMENTS.md` §4.3) is explicitly blocked until Namines Vault exists** — because `ALTER TABLE`/`DROP COLUMN` is irreversible without a pre-migration backup, and Vault is the only planned component that provides that backup.
 - **Desk's planned GitHub-push deployment feature (`05-DEPLOYMENTS.md` §4.4) is blocked on GitHub App credentials** — the same blocking dependency that stalls Namines Bot from ever writing to a pull request.
+
+> ✅ **Ön koşul bitmiştir, özellik değil** (2026-09-26'da koddan doğrulandı):
+> "canlı DB'ye şema uygula" özelliğini bloklayan **Vault artık var** — ve
+> `VaultService` geri yüklemeden önce otomatik bir `PreRestore` yedeği alıyor,
+> yani engelin gerekçesi olan "geri alınamaz değişiklik öncesi yedek" altyapısı
+> hazır. Ama DDL push özelliğinin kendisi **yazılmadı**. Launch'ın boş hedefe
+> DDL uygulaması (yeni açılan yönetilen DB) bundan farklı: dolu bir canlı
+> veritabanını değiştirmiyor. GitHub push dağıtımı hâlâ GitHub App bekliyor.
 - **Redis is a soft dependency gate, not a hard code-blocking one.** The SignalR backplane and `RedisPresenceStore` were already written at gate G6 and activate via a single `.env` line; only `GatewayRateLimiter`'s internal body needs rewriting (~1 hour of work) once Redis is actually adopted. Redis gates: multi-instance rate-limit correctness, the Gateway's metadata cache, and GraphQL support (explicitly marked in second-phase doc "kalan büyük işler" item #2 as blocked on the Redis adoption decision).
 - **The MCP server's `namines_open_change_request` tool is the only MCP tool that writes anywhere, and it writes to the Namines server (opening a review) — never to the user's own database.** A deliberate architectural firewall (doc 33 §7).
 - **NSL model expansion follows a hard prerequisite chain**: `identity` support (gate G42) → enum support (gate G44, which also surfaced a Turkish-culture `ToUpper()` bug) → `generated`/`collation`/array column types (gate G45) → canonical JSON IR `ir.json` (gate G46). Each addition is described as "the later it's added, the more expensive," because every DDL generator built on top of the model raises the cost of retrofitting it.

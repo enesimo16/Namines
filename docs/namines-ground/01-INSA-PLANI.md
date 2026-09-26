@@ -4,9 +4,14 @@
 > sorusunu cevaplıyor; bu doküman **nasıl** sorusunu — iş paketleri, dosya
 > dosya yapı, veri modeli, API sözleşmesi ve her adımın kabul kanıtı.
 >
-> **Durum:** kod yok. Ön koşul: **Vault bitmiş olmalı**
-> ([`00-GENEL-BAKIS.md`](00-GENEL-BAKIS.md) §6 — Ground'un "otomatik
-> yedekleniyor" vaadi Vault'a dayanıyor, boş bir söz olamaz).
+> ✅ **Bitmiştir — G0–G4 tamamlandı.** (Doğrulama: 2026-09-23, koddan okundu.)
+> G0 `Namines.Ground/Abstractions/IDatabaseProvider.cs` +
+> `DependencyInjection/GroundServiceCollectionExtensions.cs`; G1
+> `Neon/NeonClient.CreateProjectAsync` (ayrıca LocalPostgres ve Supabase
+> sağlayıcıları); G2 `GroundService` bağlantıyı şifreleyip projeye bağlıyor;
+> G3 `GroundStatus.PendingDelete` + `DeleteRequestedAt` + `GroundPurgeBackgroundService`;
+> G4 `GroundController` `GetMetricsAsync` üzerinden kullanım gösteriyor.
+> Ön koşul olan Vault da bitti ([`../namines-vault/01-INSA-PLANI.md`](../namines-vault/01-INSA-PLANI.md)).
 >
 > **Biçim:** Vault'un [`01-INSA-PLANI.md`](../namines-vault/01-INSA-PLANI.md)'siyle
 > aynı.
