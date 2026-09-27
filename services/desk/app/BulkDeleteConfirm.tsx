@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useT } from '../lib/i18n';
+import { rich } from '../lib/rich';
 
 /**
  * Namines Desk v2 §E4.1 / 34-SENDEN-BEKLENENLER.md madde 12 — toplu silme
@@ -22,6 +24,7 @@ export default function BulkDeleteConfirm({ count, onCancel, onConfirm }: {
   onCancel: () => void;
   onConfirm: () => Promise<void>;
 }) {
+  const t = useT();
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +38,7 @@ export default function BulkDeleteConfirm({ count, onCancel, onConfirm }: {
     try {
       await onConfirm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed.');
+      setError(err instanceof Error ? err.message : t('common.deleteFailed'));
       setBusy(false);
     }
   }
@@ -43,15 +46,13 @@ export default function BulkDeleteConfirm({ count, onCancel, onConfirm }: {
   return (
     <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
       <div className="dialog">
-        <h2>{count} row{count === 1 ? '' : 's'} will be permanently deleted</h2>
-        <p className="hint">
-          This cannot be undone. Type <b>{CONFIRM_WORD}</b> below to continue.
-        </p>
+        <h2>{t(count === 1 ? 'bulkDelete.titleOne' : 'bulkDelete.titleOther', { count })}</h2>
+        <p className="hint">{rich(t('bulkDelete.hint', { word: CONFIRM_WORD }))}</p>
 
         {error && <div className="notice notice-error">{error}</div>}
 
         <div className="field">
-          <label htmlFor="confirm-word">Confirm</label>
+          <label htmlFor="confirm-word">{t('bulkDelete.confirm')}</label>
           <input
             id="confirm-word" type="text" value={typed} autoFocus
             placeholder={CONFIRM_WORD}
@@ -60,9 +61,9 @@ export default function BulkDeleteConfirm({ count, onCancel, onConfirm }: {
         </div>
 
         <div className="dialog-actions">
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="button" className="btn" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
           <button type="button" className="btn btn-danger" disabled={!canConfirm || busy} onClick={handleConfirm}>
-            {busy ? 'Deleting…' : `Delete ${count} row${count === 1 ? '' : 's'}`}
+            {busy ? t('bulkDelete.deleting') : t(count === 1 ? 'bulkDelete.buttonOne' : 'bulkDelete.buttonOther', { count })}
           </button>
         </div>
       </div>

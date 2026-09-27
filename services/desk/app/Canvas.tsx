@@ -9,6 +9,7 @@ import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
 import { type DeskTable } from '../lib/schema';
 import { parseDesignTables, parseNodePositions } from '../lib/designSchema';
+import { useT } from '../lib/i18n';
 
 /**
  * D3 — Canvas (namines_desk/03-CANVAS.md). Salt-okunur şema haritası.
@@ -39,6 +40,7 @@ interface SchemaNodeData extends Record<string, unknown> {
 
 function SchemaTableNode({ data }: NodeProps<Node<SchemaNodeData>>) {
   const { table, name, drift, selected } = data;
+  const t = useT();
   const ghost = drift === 'not_in_db';
 
   return (
@@ -64,7 +66,7 @@ function SchemaTableNode({ data }: NodeProps<Node<SchemaNodeData>>) {
       }}>
         <span>{name}</span>
         <span style={{ fontWeight: 400, color: 'var(--content-subtle)' }}>
-          {table ? `${table.columns.length} cols` : ''}
+          {table ? t('canvas.cols', { count: table.columns.length }) : ''}
         </span>
       </div>
 
@@ -74,7 +76,7 @@ function SchemaTableNode({ data }: NodeProps<Node<SchemaNodeData>>) {
           color: drift === 'not_in_db' ? 'var(--content-subtle)' : 'var(--accent-text)',
           background: 'var(--surface-700)',
         }}>
-          {drift === 'not_in_db' ? 'not in database' : 'not in design'}
+          {drift === 'not_in_db' ? t('canvas.notInDb') : t('canvas.notInDesign')}
         </div>
       )}
 
@@ -95,7 +97,7 @@ function SchemaTableNode({ data }: NodeProps<Node<SchemaNodeData>>) {
         </div>
       ) : (
         <div style={{ padding: '8px 10px', color: 'var(--content-subtle)' }}>
-          This table only exists in the design — not found in the live database.
+          {t('canvas.designOnly')}
         </div>
       )}
     </div>
@@ -150,6 +152,7 @@ export default function Canvas({
   nodePositionsJson: string | null;
   onOpenTable: (tableName: string) => void;
 }) {
+  const t = useT();
   const [selected, setSelected] = useState<string | null>(null);
   // Namines Desk v2 §E3.1 — yalnızca bu oturumun görüntüsü, ASLA kaydedilmez.
   const [layoutOverride, setLayoutOverride] = useState<Record<string, { x: number; y: number }> | null>(null);
@@ -243,9 +246,9 @@ export default function Canvas({
           <Controls showInteractive={false} />
           <MiniMap pannable zoomable style={{ background: 'var(--surface-800)' }} />
           <Panel position="top-right" style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-sm" onClick={autoLayout}>Auto-arrange</button>
+            <button className="btn btn-sm" onClick={autoLayout}>{t('canvas.autoArrange')}</button>
             {layoutOverride && (
-              <button className="btn btn-sm" onClick={() => setLayoutOverride(null)}>Reset layout</button>
+              <button className="btn btn-sm" onClick={() => setLayoutOverride(null)}>{t('canvas.resetLayout')}</button>
             )}
           </Panel>
         </ReactFlow>
@@ -258,7 +261,7 @@ export default function Canvas({
         }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>{selectedTable.name}</div>
           <div style={{ fontSize: 11.5, color: 'var(--content-muted)', marginBottom: 12 }}>
-            {selectedTable.columns.length} columns{!selectedTable.canWrite && ' · read-only'}
+            {t('common.columns', { count: selectedTable.columns.length })}{!selectedTable.canWrite && t('common.readOnlySuffix')}
           </div>
           {selectedTable.columns.map(c => (
             <div key={c.name} style={{ fontSize: 12, marginBottom: 6 }}>
@@ -275,7 +278,7 @@ export default function Canvas({
           ))}
           <button className="btn btn-sm btn-primary" style={{ width: '100%', marginTop: 8 }}
                   onClick={() => onOpenTable(selectedTable.name)}>
-            Veriye git
+            {t('canvas.goToData')}
           </button>
         </aside>
       )}

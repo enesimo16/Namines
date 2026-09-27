@@ -20,6 +20,7 @@ import Ground from './Ground';
 import Members from './Members';
 import BulkDeleteConfirm, { BULK_DELETE_THRESHOLD } from './BulkDeleteConfirm';
 import { deploymentsApi } from '../lib/deployments';
+import { useT } from '../lib/i18n';
 
 const PAGE_SIZE = 25;
 /** Sabit referans — `loadRows`'un useCallback kimliği her render'da değişmesin. */
@@ -68,6 +69,7 @@ export default function Desk({
   // yoklama sonucu farklı bir id gelirse şerit gösterilir. `ChangeRequest`
   // zaten her yeni `SchemaVersion`'a eşlik ediyor (CreateQuick'in kendi
   // yorumu), yani bu, ayrı bir uç eklemeden aynı sinyali veriyor.
+  const t = useT();
   const [latestVersionSeen, setLatestVersionSeen] = useState<string | null>(null);
   const [newVersionBanner, setNewVersionBanner] = useState(false);
   const [tables, setTables] = useState<DeskTable[] | null>(null);
@@ -146,9 +148,9 @@ export default function Desk({
       // satırlara düşmek demek olurdu. Varsayılanı kabuk belirliyor
       // (`page.tsx` → handleTablesLoaded), görünümü değiştirmeden.
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load the schema.');
+      setError(err instanceof Error ? err.message : t('data.schemaLoadFailed'));
     }
-  }, [session]);
+  }, [session, t]);
 
   // Şema bir kez: tablo listesi ve form tanımlarının ikisi de buradan geliyor.
   useEffect(() => { reloadSchema(); }, [reloadSchema]);
@@ -209,11 +211,11 @@ export default function Desk({
     } catch (err) {
       if (latestRequestRef.current !== requestToken) return;
       setRows([]);
-      setError(err instanceof Error ? err.message : 'Could not load rows.');
+      setError(err instanceof Error ? err.message : t('data.rowsLoadFailed'));
     } finally {
       if (latestRequestRef.current === requestToken) setLoading(false);
     }
-  }, [session, sortColumn, sortDir, appliedFilters]);
+  }, [session, sortColumn, sortDir, appliedFilters, t]);
 
   // Unmounting invalidates any in-flight request so its response can never
   // apply after the component is gone.
@@ -275,7 +277,7 @@ export default function Desk({
       a.href = url; a.download = fileName; a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export failed.');
+      setError(err instanceof Error ? err.message : t('data.exportFailed'));
     } finally {
       setExporting(false);
     }
@@ -330,12 +332,12 @@ export default function Desk({
     // Silme geri alınamaz; onay bilinçli olarak satırı adlandırıyor ki
     // kullanıcı hangi kaydı sildiğini görsün.
     const shown = String(row[displayColumn(table)] ?? row[pk]);
-    if (!confirm(`"${shown}" will be permanently deleted. Are you sure?`)) return;
+    if (!confirm(t('data.confirmDelete', { name: shown }))) return;
     try {
       await deskApi.remove(session, table.name, pk, String(row[pk]));
       await loadRows(table.name, page);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed.');
+      setError(err instanceof Error ? err.message : t('common.deleteFailed'));
     }
   }
 
@@ -356,13 +358,13 @@ export default function Desk({
   function requestBulkDelete() {
     if (selectedPks.size === 0) return;
     if (selectedPks.size < BULK_DELETE_THRESHOLD) {
-      if (!confirm(`${selectedPks.size} row${selectedPks.size === 1 ? '' : 's'} will be permanently deleted. Are you sure?`)) return;
+      if (!confirm(t(selectedPks.size === 1 ? 'data.confirmBulkOne' : 'data.confirmBulkOther', { count: selectedPks.size }))) return;
       // Hata BURADA yakalanıyor: bu yol `BulkDeleteConfirm`'den geçmiyor, yani
       // modalın kendi try/catch'i devrede değil. Yakalanmadığında silme
       // başarısız oluyor, hiçbir uyarı çıkmıyor ve satırlar seçili kaldığı için
       // kullanıcı "sildim ama liste yenilenmedi" sanıyordu.
       void executeBulkDelete().catch(err => {
-        setError(err instanceof Error ? err.message : 'Delete failed.');
+        setError(err instanceof Error ? err.message : t('common.deleteFailed'));
       });
       return;
     }
@@ -395,19 +397,17 @@ export default function Desk({
       <div className="page">
         <div className="page-head">
           <div>
-            <h1 className="page-title">Could not load the schema</h1>
-            <p className="page-desc">
-              Could not connect to this project&apos;s live database. The connection details may have changed.
-            </p>
+            <h1 className="page-title">{t('data.schemaErrorTitle')}</h1>
+            <p className="page-desc">{t('data.schemaErrorDesc')}</p>
           </div>
         </div>
         <div className="notice notice-error">{error}</div>
-        <button className="btn" onClick={onChangeProject}>Choose another project</button>
+        <button className="btn" onClick={onChangeProject}>{t('data.chooseAnother')}</button>
       </div>
     );
   }
 
-  if (!tables) return <div className="page"><div className="empty empty-plain">Loading schema…</div></div>;
+  if (!tables) return <div className="page"><div className="empty empty-plain">{t('data.loadingSchema')}</div></div>;
 
   const pk = table ? primaryKey(table) : null;
   const editable = table ? isEditable(table) : false;
@@ -418,9 +418,9 @@ export default function Desk({
       <div className="desk-content">
         {newVersionBanner && (
           <div className="notice" style={{ margin: 0, borderRadius: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Schema updated — Canvas and tables may be out of date.</span>
+            <span>{t('data.schemaUpdated')}</span>
             <button className="btn btn-sm btn-primary" onClick={() => { setNewVersionBanner(false); reloadSchema(); }}>
-              Yenile
+              {t('data.reload')}
             </button>
           </div>
         )}
@@ -449,12 +449,12 @@ export default function Desk({
         <>
         <div className="topbar">
           <div>
-            <h1>{table?.name ?? 'Select a table'}</h1>
+            <h1>{table?.name ?? t('data.selectTable')}</h1>
             {table && (
               <div className="meta">
-                {total !== null ? `${total} rows` : `${rows.length} rows`}
-                {' · '}{table.columns.length} columns
-                {!editable && ' · read-only'}
+                {t((total ?? rows.length) === 1 ? 'common.rowsOne' : 'common.rowsOther', { count: total ?? rows.length })}
+                {' · '}{t('common.columns', { count: table.columns.length })}
+                {!editable && t('common.readOnlySuffix')}
               </div>
             )}
           </div>
@@ -464,23 +464,23 @@ export default function Desk({
                 className="btn btn-sm"
                 aria-current={filtersOpen}
                 onClick={() => setFiltersOpen(o => !o)}
-                title="Column filters"
+                title={t('data.filtersTitle')}
               >
-                Filters{appliedFilters.length > 0 ? ` (${appliedFilters.length})` : ''}
+                {appliedFilters.length > 0 ? t('data.filtersCount', { count: appliedFilters.length }) : t('data.filters')}
               </button>
               <button className="btn btn-sm" disabled={exporting} onClick={() => handleExport('csv')}>
-                {exporting ? 'Exporting…' : 'CSV'}
+                {exporting ? t('data.exporting') : 'CSV'}
               </button>
               <button className="btn btn-sm" disabled={exporting} onClick={() => handleExport('json')}>
-                {exporting ? 'Exporting…' : 'JSON'}
+                {exporting ? t('data.exporting') : 'JSON'}
               </button>
               {editable && selectedPks.size > 0 && (
                 <button className="btn btn-sm btn-danger" onClick={requestBulkDelete}>
-                  Delete selected ({selectedPks.size})
+                  {t('data.deleteSelected', { count: selectedPks.size })}
                 </button>
               )}
               {editable && (
-                <button className="btn btn-primary" onClick={() => setEditing(null)}>New row</button>
+                <button className="btn btn-primary" onClick={() => setEditing(null)}>{t('data.newRow')}</button>
               )}
             </div>
           )}
@@ -490,10 +490,8 @@ export default function Desk({
           {error && <div className="notice notice-error">{error}</div>}
           {table && !editable && (
             <div className="notice">
-              This table is read-only.{' '}
-              {!table.canWrite
-                ? 'The API key has no write permission on this table.'
-                : 'It cannot be safely updated without a single-column primary key — misidentifying a composite-key row could change the wrong record.'}
+              {t('data.readOnly')}{' '}
+              {!table.canWrite ? t('data.noWritePermission') : t('data.noSinglePk')}
             </div>
           )}
 
@@ -507,9 +505,9 @@ export default function Desk({
                     <div key={c.name} className="field" style={{ margin: 0 }}>
                       <label>{c.name}</label>
                       <select aria-label={c.name} value={d.eq ?? ''} onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))}>
-                        <option value="">All</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="">{t('data.all')}</option>
+                        <option value="true">{t('data.yes')}</option>
+                        <option value="false">{t('data.no')}</option>
                       </select>
                     </div>
                   );
@@ -533,30 +531,30 @@ export default function Desk({
                 }
                 return (
                   <div key={c.name} className="field" style={{ margin: 0 }}>
-                    <label>{c.name} contains</label>
-                    <input type="text" aria-label={`${c.name} contains`} value={d.eq ?? ''} style={{ width: 140 }}
+                    <label>{t('data.contains', { column: c.name })}</label>
+                    <input type="text" aria-label={t('data.contains', { column: c.name })} value={d.eq ?? ''} style={{ width: 140 }}
                            onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))} />
                   </div>
                 );
               })}
-              <button className="btn btn-sm btn-primary" onClick={applyFilters}>Filter</button>
+              <button className="btn btn-sm btn-primary" onClick={applyFilters}>{t('data.filter')}</button>
               {appliedFilters.length > 0 && (
-                <button className="btn btn-sm" onClick={() => setCriteria({ table: active, sortColumn, sortDir, filters: NO_FILTERS, draft: {} })}>Clear</button>
+                <button className="btn btn-sm" onClick={() => setCriteria({ table: active, sortColumn, sortDir, filters: NO_FILTERS, draft: {} })}>{t('data.clear')}</button>
               )}
             </div>
           )}
 
           {loading ? (
-            <div className="empty">Loading…</div>
+            <div className="empty">{t('common.loading')}</div>
           ) : !table ? (
             <EmptyState
-              title="Select a table"
-              description="Pick a table from the list on the left to see, edit, add, and delete its rows here."
+              title={t('data.selectTable')}
+              description={t('data.selectTableDesc')}
             />
           ) : rows.length === 0 ? (
             <EmptyState
-              title="No records in this table"
-              description="This table is empty. Add the first row with &quot;New row&quot; above, or import a CSV."
+              title={t('data.emptyTitle')}
+              description={t('data.emptyDesc')}
             />
           ) : (
             <>
@@ -568,7 +566,7 @@ export default function Desk({
                         <th className="col-check" style={{ width: 28 }}>
                           <input
                             type="checkbox"
-                            aria-label="Select all rows"
+                            aria-label={t('data.selectAll')}
                             checked={rows.length > 0 && rows.every(r => selectedPks.has(String(r.values[pk])))}
                             onChange={e => {
                               setSelectedPks(prev => {
@@ -583,16 +581,18 @@ export default function Desk({
                           />
                         </th>
                       )}
+                      {/* lang="en": baslik CSS ile buyuk harfe cevriliyor ve kolon adi bir
+                          tanimlayici — Turkce arayuzde `id` "İD", `active` "ACTİVE" oluyordu. */}
                       {table.columns.map(c => (
-                        <th key={c.name} style={{ cursor: 'pointer', userSelect: 'none' }}
-                            onClick={() => toggleSort(c.name)} title="Click to sort">
+                        <th key={c.name} lang="en" style={{ cursor: 'pointer', userSelect: 'none' }}
+                            onClick={() => toggleSort(c.name)} title={t('data.clickToSort')}>
                           {c.name}
                           {sortColumn === c.name && <span className="col-badge">{sortDir === 'Asc' ? '▲' : '▼'}</span>}
                           {c.isPK && <span className="col-badge">PK</span>}
                           {c.references && <span className="col-badge">→{c.references.table}</span>}
                         </th>
                       ))}
-                      {editable && <th className="col-actions" style={{ textAlign: 'right' }}>Action</th>}
+                      {editable && <th className="col-actions" style={{ textAlign: 'right' }}>{t('common.action')}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -602,7 +602,7 @@ export default function Desk({
                           <td className="col-check">
                             <input
                               type="checkbox"
-                              aria-label={`Select row: ${String(r.values[pk])}`}
+                              aria-label={t('data.selectRow', { key: String(r.values[pk]) })}
                               checked={selectedPks.has(String(r.values[pk]))}
                               onChange={() => toggleRowSelected(String(r.values[pk]))}
                             />
@@ -616,8 +616,8 @@ export default function Desk({
                         {editable && (
                           <td className="col-actions">
                             <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
-                              <button className="btn btn-sm" onClick={() => setEditing(r.values)}>Edit</button>
-                              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(r.values)}>Delete</button>
+                              <button className="btn btn-sm" onClick={() => setEditing(r.values)}>{t('data.edit')}</button>
+                              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(r.values)}>{t('common.delete')}</button>
                             </div>
                           </td>
                         )}
@@ -629,10 +629,10 @@ export default function Desk({
 
               <div className="pager">
                 <button className="btn btn-sm" disabled={page <= 1}
-                        onClick={() => { const p = page - 1; setPage(p); loadRows(table.name, p); }}>Previous</button>
+                        onClick={() => { const p = page - 1; setPage(p); loadRows(table.name, p); }}>{t('common.previous')}</button>
                 <span>{page} / {lastPage}</span>
                 <button className="btn btn-sm" disabled={page >= lastPage}
-                        onClick={() => { const p = page + 1; setPage(p); loadRows(table.name, p); }}>Next</button>
+                        onClick={() => { const p = page + 1; setPage(p); loadRows(table.name, p); }}>{t('common.next')}</button>
               </div>
             </>
           )}

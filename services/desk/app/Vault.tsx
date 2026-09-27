@@ -9,15 +9,21 @@ import {
   type VaultBackup, type VaultRestore, type VaultSchedule, type VaultHealth,
 } from '../lib/vault';
 import PageHead from './PageHead';
+import { useI18n, type MessageKey } from '../lib/i18n';
+import { rich } from '../lib/rich';
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+// Sıra sunucunun `dayOfWeek`'iyle aynı: 0 = Pazar (.NET DayOfWeek).
+const DAY_KEYS: MessageKey[] = [
+  'vault.days.d0', 'vault.days.d1', 'vault.days.d2', 'vault.days.d3',
+  'vault.days.d4', 'vault.days.d5', 'vault.days.d6',
+];
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
-const KIND_LABELS: Record<VaultBackup['kind'], string> = {
-  Manual: 'Manual',
-  Scheduled: 'Scheduled',
-  PreRestore: 'Pre-restore',
+const KIND_KEYS: Record<VaultBackup['kind'], MessageKey> = {
+  Manual: 'vault.kinds.Manual',
+  Scheduled: 'vault.kinds.Scheduled',
+  PreRestore: 'vault.kinds.PreRestore',
 };
 
 /**
@@ -33,6 +39,7 @@ const KIND_LABELS: Record<VaultBackup['kind'], string> = {
  * HIDES destructive buttons — it doesn't replace the server's own check.
  */
 export default function Vault({ session, isOwner }: { session: DeskSession; isOwner: boolean }) {
+  const { t, dt } = useI18n();
   const [backups, setBackups] = useState<VaultBackup[] | null>(null);
   const [restores, setRestores] = useState<VaultRestore[]>([]);
   const [store, setStore] = useState<string | null>(null);
@@ -60,10 +67,10 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       setHealth(status);
       setError(null);
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Could not load backups.');
+      setError(err instanceof VaultError ? err.message : t('vault.loadFailed'));
       setBackups([]);
     }
-  }, [session]);
+  }, [session, t]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -90,7 +97,7 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       // that has to happen by polling `status`.
       const started = await vaultApi.create(session);
       if (controller.signal.aborted) return;
-      setNotice('Backup started, running…');
+      setNotice(t('vault.started'));
 
       const outcome = await vaultApi.waitForBackup(session, started.backupId, { signal: controller.signal });
       if (controller.signal.aborted) return;
@@ -98,18 +105,18 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       if (!outcome.done) {
         // Polling timed out. The job was NOT cancelled — it may still be
         // running server-side, so calling it "failed" would be wrong.
-        setNotice('Backup is still running. You can track its status from the list below.');
+        setNotice(t('vault.stillRunning'));
       } else if (outcome.status === 'Succeeded') {
-        setNotice('Backup created.');
+        setNotice(t('vault.created'));
       } else {
         setNotice(null);
-        setError(outcome.errorMessage ?? 'Backup failed.');
+        setError(outcome.errorMessage ?? t('vault.backupFailed'));
       }
 
       await reload();
     } catch (err) {
       if (!controller.signal.aborted) {
-        setError(err instanceof VaultError ? err.message : 'Backup failed.');
+        setError(err instanceof VaultError ? err.message : t('vault.backupFailed'));
       }
     } finally {
       if (!controller.signal.aborted) setBusy(false);
@@ -122,11 +129,11 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
     setNotice(null);
     try {
       await vaultApi.verify(session, backup.id);
-      setNotice('Backup verified: restored to a throwaway server and proven to work.');
+      setNotice(t('vault.verified'));
     } catch (err) {
       // A FAILED verification isn't a UI error, it's a real finding: the
       // backup is broken. So the message isn't suppressed — it's shown.
-      setError(err instanceof VaultError ? err.message : 'Verification failed.');
+      setError(err instanceof VaultError ? err.message : t('vault.verifyFailed'));
     } finally {
       setRowBusyId(null);
       await reload();
@@ -138,9 +145,9 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
     setError(null);
     try {
       setSchedule(await vaultApi.saveSchedule(session, next));
-      setNotice('Backup schedule saved.');
+      setNotice(t('vault.scheduleSaved'));
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Could not save the schedule.');
+      setError(err instanceof VaultError ? err.message : t('vault.scheduleFailed'));
     } finally {
       setSavingSchedule(false);
     }
@@ -159,21 +166,21 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       // Freeing the object URL — otherwise the blob stays in memory until the tab closes.
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Download failed.');
+      setError(err instanceof VaultError ? err.message : t('vault.downloadFailed'));
     } finally {
       setRowBusyId(null);
     }
   }
 
   async function handleDelete(backup: VaultBackup) {
-    if (!confirm(`The backup from ${new Date(backup.createdAt).toLocaleString('en-US')} will be permanently deleted. Continue?`)) return;
+    if (!confirm(t('vault.confirmDelete', { date: dt(backup.createdAt) }))) return;
     setRowBusyId(backup.id);
     setError(null);
     try {
       await vaultApi.remove(session, backup.id);
       await reload();
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Delete failed.');
+      setError(err instanceof VaultError ? err.message : t('common.deleteFailed'));
     } finally {
       setRowBusyId(null);
     }
@@ -191,12 +198,12 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       setConfirming(null);
       setNotice(
         result.preRestoreBackupId
-          ? 'Restore complete. The previous state was saved as a separate backup.'
-          : 'Restore complete.',
+          ? t('vault.restoreDoneSaved')
+          : t('vault.restoreDone'),
       );
       await reload();
     } catch (err) {
-      setError(err instanceof VaultError ? err.message : 'Restore failed.');
+      setError(err instanceof VaultError ? err.message : t('vault.restoreFailed'));
     } finally {
       setBusy(false);
     }
@@ -208,11 +215,7 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
     <div className="page">
       <PageHead
         title="Namines Vault"
-        desc={<>
-          A full copy of the project&apos;s live database. Files are stored <b>encrypted</b> and
-          arrive at the browser encrypted too. <b>Restoring overwrites the target&apos;s current data</b> —
-          a mandatory backup of the current state is taken automatically before every restore.
-        </>}
+        desc={rich(t('vault.desc'))}
         actions={
           <button
             className="btn btn-primary"
@@ -220,7 +223,7 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
             title={health?.problem ?? undefined}
             onClick={handleCreate}
           >
-            {busy ? 'Working…' : 'Back up now'}
+            {busy ? t('vault.working') : t('vault.backUpNow')}
           </button>
         }
       />
@@ -235,13 +238,13 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
 
       {/* WHERE backups sit is not a detail to hide: v1 uses the server's own
           disk, and the user shouldn't trust a backup without knowing that. */}
-      {store && <div className="notice">Backups are stored at: <code>{store}</code></div>}
+      {store && <div className="notice">{rich(t('vault.storedAt', { store }))}</div>}
 
       {/* Which engines can be backed up is stated on screen — otherwise an
           unsupported engine would only be discovered on the first failed attempt.
           The list comes from the server's registered providers, not hardcoded here. */}
       {health && health.engines.length > 0 && (
-        <div className="notice">Engines that can be backed up: <code>{health.engines.join(', ')}</code></div>
+        <div className="notice">{rich(t('vault.engines', { engines: health.engines.join(', ') }))}</div>
       )}
 
       {schedule && (
@@ -253,11 +256,11 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
               disabled={!isOwner || savingSchedule}
               onChange={e => handleSaveSchedule({ ...schedule, enabled: e.target.checked })}
             />
-            Automatic backups
+            {t('vault.automatic')}
           </label>
 
           <div className="field" style={{ margin: 0 }}>
-            <label htmlFor="vault-cadence">Frequency</label>
+            <label htmlFor="vault-cadence">{t('vault.frequency')}</label>
             <select
               id="vault-cadence"
               value={schedule.cadence}
@@ -270,28 +273,28 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
                 dayOfWeek: e.target.value === 'Weekly' ? (schedule.dayOfWeek ?? 0) : null,
               })}
             >
-              <option value="Daily">Daily</option>
-              <option value="Weekly">Weekly</option>
+              <option value="Daily">{t('vault.daily')}</option>
+              <option value="Weekly">{t('vault.weekly')}</option>
             </select>
           </div>
 
           {schedule.cadence === 'Weekly' && (
             <div className="field" style={{ margin: 0 }}>
-              <label htmlFor="vault-day">Day</label>
+              <label htmlFor="vault-day">{t('vault.day')}</label>
               <select
                 id="vault-day"
                 value={schedule.dayOfWeek ?? 0}
                 disabled={!isOwner || savingSchedule}
                 onChange={e => setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })}
               >
-                {DAY_NAMES.map((name, index) => <option key={name} value={index}>{name}</option>)}
+                {DAY_KEYS.map((key, index) => <option key={key} value={index}>{t(key)}</option>)}
               </select>
             </div>
           )}
 
           <div className="field" style={{ margin: 0 }}>
             {/* Hour is UTC so a server timezone change never shifts the schedule. */}
-            <label htmlFor="vault-hour">Hour (UTC)</label>
+            <label htmlFor="vault-hour">{t('vault.hourUtc')}</label>
             <select
               id="vault-hour"
               value={schedule.hourUtc}
@@ -303,7 +306,7 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
           </div>
 
           <div className="field" style={{ margin: 0 }}>
-            <label htmlFor="vault-retain">Backups to keep</label>
+            <label htmlFor="vault-retain">{t('vault.retain')}</label>
             <input
               id="vault-retain" type="number" min={1} max={60} style={{ width: 80 }}
               value={schedule.retainCount}
@@ -314,27 +317,25 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
 
           <button className="btn" disabled={!isOwner || savingSchedule}
                   onClick={() => handleSaveSchedule(schedule)}>
-            {savingSchedule ? 'Saving…' : 'Save schedule'}
+            {savingSchedule ? t('common.saving') : t('vault.saveSchedule')}
           </button>
 
           <span style={{ fontSize: 12.5, opacity: 0.75 }}>
             {/* Retention only prunes automatic backups — the user shouldn't think a manual one will vanish too. */}
-            Retention only limits automatic backups; manual ones are never touched.
-            {schedule.lastRunAt && ` Last automatic backup: ${new Date(schedule.lastRunAt).toLocaleString('en-US')}.`}
+            {t('vault.retentionNote')}
+            {schedule.lastRunAt && t('vault.lastRun', { date: dt(schedule.lastRunAt) })}
           </span>
         </div>
       )}
 
       {confirming && (
         <div className="notice notice-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <b>This cannot be undone.</b>
+          <b>{t('vault.cannotUndo')}</b>
           <span>
-            Current data in <code>{confirming.backup.databaseName}</code> will be deleted and replaced with
-            the backup from {new Date(confirming.backup.createdAt).toLocaleString('en-US')}.
-            Type the database name to continue.
+            {rich(t('vault.restoreWarning', { db: confirming.backup.databaseName, date: dt(confirming.backup.createdAt) }))}
           </span>
           <input
-            aria-label="Database name to confirm"
+            aria-label={t('vault.confirmDbLabel')}
             type="text"
             value={confirming.typed}
             placeholder={confirming.backup.databaseName}
@@ -343,59 +344,53 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
           />
           <div className="row-actions">
             <button className="btn btn-danger" disabled={busy || !confirmMatches} onClick={handleRestore}>
-              {busy ? 'Restoring…' : 'Restore'}
+              {busy ? t('vault.restoring') : t('vault.restore')}
             </button>
             <button className="btn btn-sm" disabled={busy} onClick={() => setConfirming(null)}>
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
       )}
 
       {!backups ? (
-        <div className="empty">Loading…</div>
+        <div className="empty">{t('common.loading')}</div>
       ) : backups.length === 0 ? (
         <EmptyState
-          title="No backups yet"
-          description={
-            <>
-              Backups are stored encrypted, and their restorability is <strong>proven</strong> by actually
-              restoring them to a clean server. Create the first one with &quot;Back up now&quot; above,
-              or turn on the schedule for regular backups.
-            </>
-          }
+          title={t('vault.emptyTitle')}
+          description={rich(t('vault.emptyDesc'))}
         />
       ) : (
         <div className="grid-wrap">
           <table>
             <thead>
               <tr>
-                <th>Date</th><th>Kind</th><th>Engine</th><th>Size</th>
-                <th>Duration</th><th>Status</th><th>Verified</th><th style={{ textAlign: 'right' }}>Action</th>
+                <th>{t('common.date')}</th><th>{t('vault.kind')}</th><th>{t('vault.engine')}</th><th>{t('vault.size')}</th>
+                <th>{t('common.duration')}</th><th>{t('common.status')}</th><th>{t('vault.verifiedCol')}</th><th style={{ textAlign: 'right' }}>{t('common.action')}</th>
               </tr>
             </thead>
             <tbody>
               {backups.map(b => (
                 <tr key={b.id}>
-                  <td className="nowrap">{new Date(b.createdAt).toLocaleString('en-US')}</td>
-                  <td className="nowrap">{KIND_LABELS[b.kind]}</td>
+                  <td className="nowrap">{dt(b.createdAt)}</td>
+                  <td className="nowrap">{t(KIND_KEYS[b.kind])}</td>
                   <td className="nowrap">{b.engine}</td>
                   <td className="nowrap">{b.status === 'Succeeded' ? formatSize(b.sizeBytes) : '—'}</td>
                   <td className="nowrap">{formatDuration(b.createdAt, b.completedAt) ?? '—'}</td>
                   <td className="nowrap">
-                    {b.status === 'Succeeded' ? 'Done'
-                      : b.status === 'Running' ? 'Running…'
+                    {b.status === 'Succeeded' ? t('common.done')
+                      : b.status === 'Running' ? t('common.running')
                       // The error text lives right in the row: the user shouldn't
                       // have to go to another screen to ask "why did this fail".
-                      : <span title={b.error ?? undefined}>Failed</span>}
+                      : <span title={b.error ?? undefined}>{t('common.failed')}</span>}
                   </td>
                   <td className="nowrap">
                     {/* Three distinct states: proven / found broken / never tried.
                         Merging the last two would make a broken backup look merely unverified. */}
                     {b.verifiedAt ? (
-                      <span title={`Verified: ${new Date(b.verifiedAt).toLocaleString('en-US')}`}>✓ Verified</span>
+                      <span title={t('vault.verifiedAt', { date: dt(b.verifiedAt) })}>{t('vault.verifiedBadge')}</span>
                     ) : b.verifyError ? (
-                      <span title={b.verifyError}>✗ Broken</span>
+                      <span title={b.verifyError}>{t('vault.broken')}</span>
                     ) : '—'}
                   </td>
                   <td>
@@ -405,22 +400,22 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
                       {b.status === 'Succeeded' && (
                         <button className="btn btn-sm" disabled={rowBusyId === b.id || busy}
                                 onClick={() => handleVerify(b)}>
-                          {rowBusyId === b.id ? 'Verifying…' : 'Verify'}
+                          {rowBusyId === b.id ? t('vault.verifying') : t('vault.verify')}
                         </button>
                       )}
                       {b.status === 'Succeeded' && isOwner && (
                         <>
                           <button className="btn btn-sm" disabled={rowBusyId === b.id || busy}
                                   onClick={() => handleDownload(b)}>
-                            Download
+                            {t('vault.download')}
                           </button>
                           <button className="btn btn-sm btn-danger" disabled={busy}
                                   onClick={() => setConfirming({ backup: b, typed: '' })}>
-                            Restore
+                            {t('vault.restore')}
                           </button>
                           <button className="btn btn-sm" disabled={rowBusyId === b.id || busy}
                                   onClick={() => handleDelete(b)}>
-                            Delete
+                            {t('common.delete')}
                           </button>
                         </>
                       )}
@@ -436,24 +431,24 @@ export default function Vault({ session, isOwner }: { session: DeskSession; isOw
       {restores.length > 0 && (
         <>
           <PageHead
-            title="Restore history"
-            desc="Who last restored this database, when, and from which backup."
+            title={t('vault.historyTitle')}
+            desc={t('vault.historyDesc')}
           />
           <div className="grid-wrap">
             <table>
               <thead>
-                <tr><th>Date</th><th>Source backup</th><th>Duration</th><th>Status</th></tr>
+                <tr><th>{t('common.date')}</th><th>{t('vault.sourceBackup')}</th><th>{t('common.duration')}</th><th>{t('common.status')}</th></tr>
               </thead>
               <tbody>
                 {restores.map(r => (
                   <tr key={r.id}>
-                    <td className="nowrap">{new Date(r.startedAt).toLocaleString('en-US')}</td>
+                    <td className="nowrap">{dt(r.startedAt)}</td>
                     <td className="nowrap"><code>{r.backupId.slice(0, 8)}</code></td>
                     <td className="nowrap">{formatDuration(r.startedAt, r.completedAt) ?? '—'}</td>
                     <td className="nowrap">
-                      {r.status === 'Succeeded' ? 'Done'
-                        : r.status === 'Running' ? 'Running…'
-                        : <span title={r.error ?? undefined}>Failed</span>}
+                      {r.status === 'Succeeded' ? t('common.done')
+                        : r.status === 'Running' ? t('common.running')
+                        : <span title={r.error ?? undefined}>{t('common.failed')}</span>}
                     </td>
                   </tr>
                 ))}

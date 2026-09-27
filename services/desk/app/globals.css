@@ -254,6 +254,22 @@ a { color: var(--accent-text); }
 }
 .icon-btn:hover { background: var(--surface-700); color: var(--content-primary); }
 
+/* Dil seçici — EN/TR. Tema anahtarıyla aynı yükseklikte, iki bölmeli. */
+.lang-toggle {
+  display: inline-flex; align-items: center; gap: 2px;
+  height: 32px; padding: 2px;
+  border: 1px solid var(--line); border-radius: var(--radius-control);
+}
+.lang-option {
+  height: 26px; min-width: 30px; padding: 0 6px;
+  border: none; border-radius: calc(var(--radius-control) - 2px);
+  background: transparent; color: var(--content-muted);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  transition: background 110ms var(--ease-out), color 110ms var(--ease-out);
+}
+.lang-option:hover { color: var(--content-primary); }
+.lang-option[aria-pressed="true"] { background: var(--accent-subtle); color: var(--accent-text); }
+
 /* Profil menüsü */
 .profile { position: relative; }
 .profile-btn {
@@ -499,6 +515,7 @@ tbody tr:hover td { background: var(--surface-700); }
   padding: 28px; box-shadow: var(--shadow-md);
 }
 .gate-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.gate-lang { margin-left: auto; }
 .gate-card h1 { margin: 0; font-size: 18px; font-weight: 650; display: flex; align-items: center; gap: 9px; }
 .gate-card p { margin: 0 0 20px; font-size: 12.5px; color: var(--content-muted); line-height: 1.6; }
 

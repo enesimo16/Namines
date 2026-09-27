@@ -9,6 +9,8 @@ import {
   type GroundDatabase, type GroundProvider, type GroundMetrics,
 } from '../lib/ground';
 import PageHead from './PageHead';
+import { useI18n, type MessageKey } from '../lib/i18n';
+import { rich } from '../lib/rich';
 
 /**
  * Namines Ground — managed database screen.
@@ -20,6 +22,7 @@ import PageHead from './PageHead';
  * through a recoverable grace window instead of happening instantly.
  */
 export default function Ground({ session, isOwner }: { session: DeskSession; isOwner: boolean }) {
+  const { t, dt } = useI18n();
   const [providers, setProviders] = useState<GroundProvider[] | null>(null);
   const [database, setDatabase] = useState<GroundDatabase | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,10 +54,10 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
         setMetrics(null);
       }
     } catch (err) {
-      setError(err instanceof GroundError ? err.message : 'Could not load the managed database.');
+      setError(err instanceof GroundError ? err.message : t('ground.loadFailed'));
       setProviders([]);
     }
-  }, [session]);
+  }, [session, t]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -67,24 +70,24 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       setNotice(success);
       await reload();
     } catch (err) {
-      setError(err instanceof GroundError ? err.message : 'The action failed.');
+      setError(err instanceof GroundError ? err.message : t('ground.actionFailed'));
     } finally {
       setBusy(false);
     }
   }
 
   const handleProvision = (provider: string) =>
-    run(() => groundApi.provision(session, provider), 'Managed database created.');
+    run(() => groundApi.provision(session, provider), t('ground.provisioned'));
 
   const handleDelete = () =>
     run(async () => {
       await groundApi.requestDelete(session, confirmText);
       setConfirming(false);
       setConfirmText('');
-    }, 'Deletion requested. You can still undo it during the grace window.');
+    }, t('ground.deleteRequested'));
 
   const handleCancelDelete = () =>
-    run(() => groundApi.cancelDelete(session), 'Deletion cancelled — the database is back in use.');
+    run(() => groundApi.cancelDelete(session), t('ground.deleteCancelled'));
 
   const remainingDays = database?.deleteRequestedAt
     ? daysUntilPurge(database.deleteRequestedAt, database.graceDays)
@@ -94,14 +97,14 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
     <div className="page">
       <PageHead
         title="Namines Ground"
-        desc="A managed PostgreSQL database for this project. The connection stays encrypted on the server and never reaches the browser."
+        desc={t('ground.desc')}
       />
 
       {error && <div className="notice notice-error">{error}</div>}
       {notice && <div className="notice">{notice}</div>}
 
       {!isOwner && (
-        <div className="notice">Only the project Owner can create or delete a managed database.</div>
+        <div className="notice">{t('ground.ownerOnly')}</div>
       )}
 
       {/* WARNING only — the database is never throttled or shut off. */}
@@ -113,26 +116,26 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
         <div className="grid-wrap">
           <table>
             <tbody>
-              <tr><th style={{ width: 160 }}>Status</th><td className="nowrap">{STATUS_LABELS[database.status]}</td></tr>
-              <tr><th>Provider</th><td className="nowrap">{database.provider}</td></tr>
+              <tr><th style={{ width: 160 }}>{t('common.status')}</th><td className="nowrap">{t(STATUS_KEYS[database.status])}</td></tr>
+              <tr><th>{t('ground.provider')}</th><td className="nowrap">{database.provider}</td></tr>
               <tr>
-                <th>Provider ID</th>
+                <th>{t('ground.providerId')}</th>
                 {/* So the resource can be found in the provider's own console. */}
                 <td><code>{database.providerProjectId ?? '—'}</code></td>
               </tr>
-              <tr><th>Region</th><td className="nowrap">{database.region ?? '—'}</td></tr>
-              <tr><th>Created</th><td className="nowrap">{new Date(database.createdAt).toLocaleString('en-US')}</td></tr>
+              <tr><th>{t('ground.region')}</th><td className="nowrap">{database.region ?? '—'}</td></tr>
+              <tr><th>{t('common.created')}</th><td className="nowrap">{dt(database.createdAt)}</td></tr>
               {/* null = unknown, not zero. "0 B" would look like an empty database. */}
               <tr>
-                <th>Storage used</th>
+                <th>{t('ground.storageUsed')}</th>
                 <td className="nowrap">{metrics?.storageBytes != null ? formatSize(metrics.storageBytes) : '—'}</td>
               </tr>
               <tr>
-                <th>Active connections</th>
+                <th>{t('ground.activeConnections')}</th>
                 <td className="nowrap">{metrics?.activeConnections ?? '—'}</td>
               </tr>
               {database.error && (
-                <tr><th>Error</th><td>{database.error}</td></tr>
+                <tr><th>{t('ground.error')}</th><td>{database.error}</td></tr>
               )}
             </tbody>
           </table>
@@ -141,16 +144,16 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
 
       {database?.status === 'PendingDelete' && (
         <div className="notice notice-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <b>This database is scheduled for deletion.</b>
+          <b>{t('ground.scheduled')}</b>
           <span>
             {remainingDays === 0
-              ? 'The grace window has ended; it will be permanently deleted on the next cleanup pass.'
-              : `${remainingDays} day${remainingDays === 1 ? '' : 's'} left before it's permanently deleted. You can still undo it.`}
+              ? t('ground.graceEnded')
+              : t(remainingDays === 1 ? 'ground.daysLeftOne' : 'ground.daysLeftOther', { count: remainingDays ?? 0 })}
           </span>
           {isOwner && (
             <button className="btn" style={{ alignSelf: 'flex-start' }} disabled={busy}
                     onClick={handleCancelDelete}>
-              {busy ? 'Undoing…' : 'Undo deletion'}
+              {busy ? t('ground.undoing') : t('ground.undo')}
             </button>
           )}
         </div>
@@ -159,25 +162,25 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       {database?.status === 'Active' && isOwner && (
         confirming ? (
           <div className="notice notice-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <b>This database and everything in it will be deleted.</b>
-            <span>Deletion isn&apos;t instant — you can undo it during the grace window. Type the project name to continue.</span>
-            <input type="text" aria-label="Project name to confirm" value={confirmText} style={{ maxWidth: 280 }}
+            <b>{t('ground.willDelete')}</b>
+            <span>{t('ground.deleteNote')}</span>
+            <input type="text" aria-label={t('ground.confirmLabel')} value={confirmText} style={{ maxWidth: 280 }}
                    onChange={e => setConfirmText(e.target.value)} />
             <div className="row-actions">
               <button className="btn btn-danger" disabled={busy || !confirmText.trim()}
                       onClick={handleDelete}>
-                {busy ? 'Requesting…' : 'Start deletion'}
+                {busy ? t('ground.requesting') : t('ground.startDeletion')}
               </button>
               <button className="btn btn-sm" disabled={busy}
                       onClick={() => { setConfirming(false); setConfirmText(''); }}>
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
         ) : (
           <div className="row-actions">
             <button className="btn btn-danger btn-sm" onClick={() => setConfirming(true)}>
-              Delete database
+              {t('ground.deleteDatabase')}
             </button>
           </div>
         )
@@ -186,16 +189,16 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       {!database || database.status === 'Deleted' ? (
         <>
           <PageHead
-            title="Providers"
-            desc="Choose where the database lives — each provider carries different responsibilities."
+            title={t('ground.providers')}
+            desc={t('ground.providersDesc')}
           />
 
           {!providers ? (
-            <div className="empty">Loading…</div>
+            <div className="empty">{t('common.loading')}</div>
           ) : providers.length === 0 ? (
             <EmptyState
-              title="No providers registered"
-              description={<>No provider is configured on the server yet — an admin needs to set the <code>Ground__*</code> settings.</>}
+              title={t('ground.noProvidersTitle')}
+              description={rich(t('ground.noProvidersDesc'))}
             />
           ) : (
             <div className="grid-wrap">
@@ -215,8 +218,8 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Provider</th><th>Status</th><th>Responsibility</th>
-                    <th style={{ textAlign: 'right' }}>Action</th>
+                    <th>{t('ground.provider')}</th><th>{t('common.status')}</th><th>{t('ground.responsibility')}</th>
+                    <th style={{ textAlign: 'right' }}>{t('common.action')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -230,11 +233,11 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
                             fixed column plus a forced single line pushed text past the
                             cell boundary and over the next column instead of wrapping. */}
                         {p.problem
-                          ? <span title={p.problem}>Not configured</span>
+                          ? <span title={p.problem}>{t('ground.notConfigured')}</span>
                           : p.liveVerified
-                            ? 'Ready'
-                            : <span title="This provider has never been tested against a real account.">
-                                ⚠ Unverified
+                            ? t('ground.ready')
+                            : <span title={t('ground.unverifiedTitle')}>
+                                {t('ground.unverified')}
                               </span>}
                       </td>
                       <td style={{ fontSize: 12.5 }}>{p.responsibility}</td>
@@ -246,7 +249,7 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
                             title={p.problem ?? undefined}
                             onClick={() => handleProvision(p.name)}
                           >
-                            {busy ? 'Creating…' : 'Use this provider'}
+                            {busy ? t('ground.creating') : t('ground.useProvider')}
                           </button>
                         </div>
                       </td>
@@ -262,10 +265,10 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
   );
 }
 
-const STATUS_LABELS: Record<GroundDatabase['status'], string> = {
-  Provisioning: 'Creating…',
-  Active: 'Active',
-  PendingDelete: 'Pending deletion',
-  Deleted: 'Deleted',
-  Failed: 'Failed',
+const STATUS_KEYS: Record<GroundDatabase['status'], MessageKey> = {
+  Provisioning: 'ground.statuses.Provisioning',
+  Active: 'ground.statuses.Active',
+  PendingDelete: 'ground.statuses.PendingDelete',
+  Deleted: 'ground.statuses.Deleted',
+  Failed: 'ground.statuses.Failed',
 };

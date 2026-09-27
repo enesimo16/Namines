@@ -21,19 +21,23 @@ import HomeBanner from '../landing/HomeBanner';
 import ThemeToggleButton from '../landing/ThemeToggleButton';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { activateOnKey } from '../../lib/a11y';
+import { useT, useLangAttr, type MessageKey } from '../../lib/i18n';
+import LanguageToggle from './LanguageToggle';
 
-const HOME_NAV_ITEMS = [
-  { id: 'how-it-works', label: 'How it works' },
-  { id: 'engines', label: 'Engines' },
-  { id: 'zero-drift', label: 'Zero Drift' },
-  { id: 'spotlights', label: 'Architecture' },
-  { id: 'builder-grid', label: 'Ecosystem' },
-  { id: 'security', label: 'Security' },
+const HOME_NAV_ITEMS: { id: string; labelKey: MessageKey }[] = [
+  { id: 'how-it-works', labelKey: 'header.homeNav.howItWorks' },
+  { id: 'engines', labelKey: 'header.homeNav.engines' },
+  { id: 'zero-drift', labelKey: 'header.homeNav.zeroDrift' },
+  { id: 'spotlights', labelKey: 'header.homeNav.architecture' },
+  { id: 'builder-grid', labelKey: 'header.homeNav.ecosystem' },
+  { id: 'security', labelKey: 'header.homeNav.security' },
 ];
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
+  const t = useT();
+  const lang = useLangAttr();
   const { projectName, setProjectName } = useSchemaStore();
   
   const isCanvas = pathname === '/canvas';
@@ -109,10 +113,10 @@ export default function Header() {
   const { dailyLimit, remaining, plan } = useQuotaStore();
   // Dev hesabi digerlerine gorunmuyor: rozet DEV yaziyor ama bu yalnizca o
   // hesabin kendi ekraninda goruluyor, baska kullaniciya asla gitmiyor.
-  const planLabel = plan === 'Dev' ? 'DEV'
-    : plan === 'Team' ? 'TEAM MEMBER'
-    : plan === 'Pro' ? 'PRO MEMBER'
-    : 'FREE MEMBER';
+  const planLabel = plan === 'Dev' ? t('header.plan.dev')
+    : plan === 'Team' ? t('header.plan.team')
+    : plan === 'Pro' ? t('header.plan.pro')
+    : t('header.plan.free');
   const remainingPercent = dailyLimit > 0 ? Math.min(100, Math.max(0, Math.round((remaining / dailyLimit) * 100))) : 100;
 
   // Sync projects, fetch AI Policy, and fetch quota when authenticated
@@ -196,6 +200,7 @@ export default function Header() {
       {isHome && <HomeBanner />}
 
       <header
+        lang={lang}
         className={`flex items-center justify-between h-14 px-3 sm:px-6 backdrop-blur-md sticky top-0 z-50 w-full transition-colors ${
           isHome
             ? 'bg-surface-900/90 border-b border-surface-500'
@@ -207,8 +212,8 @@ export default function Header() {
           <button
             onClick={handleLogoClick}
             className="shrink-0"
-            title={isHome ? 'Back to top' : 'Go to homepage'}
-            aria-label={isHome ? 'Scroll back to top' : 'Go to Namines homepage'}
+            title={isHome ? t('header.backToTop') : t('header.goToHomepage')}
+            aria-label={isHome ? t('header.scrollBackToTop') : t('header.goToNaminesHomepage')}
           >
             <Logo size="sm" />
           </button>
@@ -231,7 +236,7 @@ export default function Header() {
                         : 'text-content-muted hover:text-content-primary'
                     }`}
                   >
-                    <span>{item.label}</span>
+                    <span>{t(item.labelKey)}</span>
                     {isActive && (
                       <span
                         className="absolute -bottom-2.5 left-0 right-0 h-[2px] rounded-full"
@@ -245,7 +250,7 @@ export default function Header() {
                 href="/demo"
                 className="text-xs font-medium text-content-muted hover:text-content-primary transition-colors"
               >
-                Demo
+                {t('header.demo')}
               </Link>
             </div>
           ) : (
@@ -270,8 +275,8 @@ export default function Header() {
                     ? 'bg-white/[0.08] text-content-primary'
                     : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
                 }`}
-                title="Workspace — your saved projects"
-                aria-label="Workspace"
+                title={t('header.workspaceTitle')}
+                aria-label={t('header.workspace')}
               >
                 <FolderOpen className="w-4 h-4" />
               </button>
@@ -287,8 +292,8 @@ export default function Header() {
                       ? 'bg-white/[0.08] text-content-primary'
                       : 'text-content-muted hover:text-content-primary hover:bg-white/[0.04]'
                   }`}
-                  title="Team — members and shared projects"
-                  aria-label="Team"
+                  title={t('header.teamTitle')}
+                  aria-label={t('header.team')}
                 >
                   <Users className="w-4 h-4" />
                 </button>
@@ -302,7 +307,7 @@ export default function Header() {
                   <div className="flex items-center gap-2">
                     <input
                       ref={inputRef}
-                      aria-label="Project name"
+                      aria-label={t('header.projectName')}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onBlur={commitEdit}
@@ -314,7 +319,7 @@ export default function Header() {
                     <button
                       onClick={commitEdit}
                       className="text-success-text hover:text-success-text p-1"
-                      aria-label="Save"
+                      aria-label={t('header.save')}
                     >
                       <Check className="w-4 h-4" />
                     </button>
@@ -323,7 +328,7 @@ export default function Header() {
                   <button
                     onClick={startEditing}
                     className="group flex items-center gap-2 text-content-primary hover:text-content-primary px-2 py-1 rounded-[var(--radius-control)] transition-colors"
-                    title="Edit project name"
+                    title={t('header.editProjectName')}
                   >
                     <span className="text-sm font-medium max-w-[160px] truncate">{projectName}</span>
                     <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -344,6 +349,7 @@ export default function Header() {
 
         {/* Right — Actions depending on path */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <LanguageToggle />
           {!isCanvas && !isCompile && <ThemeToggleButton />}
           {isHome && !isAuthenticated ? (
             <>
@@ -351,27 +357,27 @@ export default function Header() {
                 href="/demo"
                 className="hidden lg:inline text-xs font-medium text-content-secondary hover:text-content-primary transition-colors px-2"
               >
-                Explore Demo
+                {t('header.exploreDemo')}
               </Link>
               <button
                 onClick={openAuthModal}
                 className="hidden sm:inline text-xs font-medium text-content-secondary hover:text-accent-text transition-colors px-2"
               >
-                Sign In
+                {t('header.signIn')}
               </button>
               <Link
                 href="/new"
                 className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm shadow-accent/15"
               >
-                Get Started
+                {t('header.getStarted')}
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </>
           ) : isCanvas || isCompile ? (
             <button
                 onClick={() => setIsAIPreferencesOpen(true)}
-                title="Settings"
-                aria-label="Open Settings"
+                title={t('header.settings')}
+                aria-label={t('header.openSettings')}
                 className="lg:hidden w-9 h-9 flex items-center justify-center rounded-full bg-white/[0.04] hover:bg-content-primary/15 border border-content-primary/10 hover:border-white/25 text-content-primary hover:text-content-primary transition-all duration-200 cursor-pointer active:scale-95"
               >
                 <Settings className="w-4 h-4" />
@@ -383,7 +389,7 @@ export default function Header() {
               role="button"
               tabIndex={0}
               aria-haspopup="dialog"
-              aria-label="Open account and AI settings"
+              aria-label={t('header.openAccountSettings')}
               className="flex items-center gap-2 sm:gap-3 pl-1.5 sm:pl-2 pr-1.5 sm:pr-3 py-1 bg-white/[0.06] border border-content-primary/15 hover:border-white/25 rounded-full select-none shadow-[0_2px_12px_color-mix(in srgb, var(--color-accent) 10%, transparent)] hover:bg-white/[0.08] transition-all duration-200 cursor-pointer"
             >
               {/* Clean Avatar Orb */}
@@ -405,11 +411,11 @@ export default function Header() {
                 onClick={(e) => {
                   e.stopPropagation();
                   logout();
-                  showToast('Logged out successfully.', 'info');
+                  showToast(t('header.loggedOut'), 'info');
                 }}
                 className="tap-44 p-1.5 text-content-muted hover:text-danger-text hover:bg-danger-subtle rounded-full transition-all duration-200 cursor-pointer ml-0 sm:ml-1.5 active:scale-95 shrink-0"
-                title="Log Out"
-                aria-label="Log Out"
+                title={t('header.logOut')}
+                aria-label={t('header.logOut')}
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -420,8 +426,8 @@ export default function Header() {
               onClick={openAuthModal}
               className="flex items-center justify-center py-1.5 px-3 sm:px-4 rounded-[var(--radius-card)] bg-content-primary hover:bg-content-primary-hover text-surface-900 text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap"
             >
-              <span className="hidden sm:inline">Login / Sign Up</span>
-              <span className="inline sm:hidden">Login</span>
+              <span className="hidden sm:inline">{t('header.loginSignUp')}</span>
+              <span className="inline sm:hidden">{t('header.login')}</span>
             </button>
           )}
         </div>
@@ -476,6 +482,8 @@ function getQuotaRange(percent: number): number {
 }
 
 function QuotaBottomRightAlert({ remainingPercent, show }: QuotaAlertProps) {
+  const t = useT();
+  const lang = useLangAttr();
   const [isDismissed, setIsDismissed] = useState(false);
   const currentRange = getQuotaRange(remainingPercent);
   const prevRange = useRef(currentRange);
@@ -497,28 +505,28 @@ function QuotaBottomRightAlert({ remainingPercent, show }: QuotaAlertProps) {
   let borderClass = "border-content-primary/10";
 
   if (remainingPercent === 0) {
-    message = "Out of tokens — minimum AI is active. All free features stay available.";
+    message = t('header.quota.exhausted');
     dotColor = "bg-danger";
     borderClass = "border-danger/30";
   } else if (remainingPercent <= 10) {
-    message = `AI tokens: ${remainingPercent}% left — switching to minimum AI soon.`;
+    message = t('header.quota.low', { percent: remainingPercent });
     dotColor = "bg-danger";
     borderClass = "border-danger/30";
   } else {
-    message = `AI tokens: ${remainingPercent}% left.`;
+    message = t('header.quota.remaining', { percent: remainingPercent });
     dotColor = "bg-content-muted";
     borderClass = "border-content-primary/10";
   }
 
   // Sağ altta; toast yığınının üstünde durması için bottom-24.
   return (
-    <div className={`fixed bottom-24 right-6 z-[9998] flex items-center gap-2.5 px-4.5 py-2.5 rounded-full bg-surface-800/95 border ${borderClass} backdrop-blur-md animate-in slide-in-from-bottom-3 duration-250 text-content-secondary font-sans text-xs select-none`}>
+    <div lang={lang} className={`fixed bottom-24 right-6 z-[9998] flex items-center gap-2.5 px-4.5 py-2.5 rounded-full bg-surface-800/95 border ${borderClass} backdrop-blur-md animate-in slide-in-from-bottom-3 duration-250 text-content-secondary font-sans text-xs select-none`}>
       <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0`} />
       <span className="font-semibold">{message}</span>
       <button
         onClick={() => setIsDismissed(true)}
         className="ml-1.5 p-0.5 text-content-subtle hover:text-content-secondary transition-colors shrink-0 cursor-pointer active:scale-90"
-        aria-label="Dismiss alert"
+        aria-label={t('header.quota.dismiss')}
       >
         <X className="w-3.5 h-3.5" />
       </button>

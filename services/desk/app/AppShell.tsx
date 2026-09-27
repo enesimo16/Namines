@@ -6,10 +6,12 @@ import {
   GitBranch, ScrollText, BarChart3, Users, KeyRound, PanelLeftClose, PanelLeftOpen,
   LogOut, ExternalLink, LifeBuoy, ArrowLeftRight, Lock, Menu, Check, Plug, Archive, Server,
 } from 'lucide-react';
-import { type DeskView, VIEW_LABELS, decodeSessionUser, initialsOf } from '../lib/nav';
+import { type DeskView, decodeSessionUser, initialsOf } from '../lib/nav';
+import { useT, type MessageKey } from '../lib/i18n';
 import type { DeskTable } from '../lib/schema';
 import type { DeskProject } from '../lib/auth';
 import ThemeToggle from './ThemeToggle';
+import LanguageToggle from './LanguageToggle';
 
 const NAMINES_FRONTEND = process.env.NAMINES_FRONTEND ?? 'http://localhost:3000';
 const COLLAPSE_KEY = 'namines-desk-sidebar-collapsed';
@@ -23,13 +25,13 @@ interface NavEntry {
   ownerOnly?: boolean;
 }
 
-const NAV_GROUPS: { label: string; items: NavEntry[] }[] = [
+const NAV_GROUPS: { labelKey: MessageKey; items: NavEntry[] }[] = [
   {
-    label: 'General',
+    labelKey: 'nav.groups.general',
     items: [{ view: 'overview', icon: LayoutGrid }],
   },
   {
-    label: 'Database',
+    labelKey: 'nav.groups.database',
     items: [
       { view: 'canvas', icon: Workflow, needsProject: true },
       { view: 'data', icon: Table2, needsProject: true },
@@ -37,7 +39,7 @@ const NAV_GROUPS: { label: string; items: NavEntry[] }[] = [
     ],
   },
   {
-    label: 'Operations',
+    labelKey: 'nav.groups.operations',
     items: [
       { view: 'deployments', icon: GitBranch, needsProject: true },
       { view: 'logs', icon: ScrollText, needsProject: true },
@@ -47,7 +49,7 @@ const NAV_GROUPS: { label: string; items: NavEntry[] }[] = [
     ],
   },
   {
-    label: 'Settings',
+    labelKey: 'nav.groups.settings',
     items: [
       { view: 'members', icon: Users, needsProject: true },
       { view: 'apikeys', icon: KeyRound, needsProject: true, ownerOnly: true },
@@ -93,6 +95,8 @@ export default function AppShell({
   contentFlush?: boolean;
   children: React.ReactNode;
 }) {
+  const t = useT();
+  const viewLabel = (v: DeskView) => t(`nav.views.${v}`);
   const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -138,9 +142,9 @@ export default function AppShell({
   useEffect(() => {
     if (!menuOpen && !projectMenuOpen) return;
     function onClick(e: MouseEvent) {
-      const t = e.target as Node;
-      if (menuOpen && profileRef.current && !profileRef.current.contains(t)) setMenuOpen(false);
-      if (projectMenuOpen && projectRef.current && !projectRef.current.contains(t)) setProjectMenuOpen(false);
+      const target = e.target as Node;
+      if (menuOpen && profileRef.current && !profileRef.current.contains(target)) setMenuOpen(false);
+      if (projectMenuOpen && projectRef.current && !projectRef.current.contains(target)) setProjectMenuOpen(false);
     }
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
@@ -152,7 +156,7 @@ export default function AppShell({
   useEffect(() => { setDrawerOpen(false); }, [view, activeTable]);
 
   const q = query.trim().toLowerCase();
-  const matchingTables = (tables ?? []).filter(t => !q || t.name.toLowerCase().includes(q));
+  const matchingTables = (tables ?? []).filter(table => !q || table.name.toLowerCase().includes(q));
 
   return (
     <div className={`app${collapsed ? ' is-collapsed' : ''}${drawerOpen ? ' is-drawer-open' : ''}`}>
@@ -176,8 +180,8 @@ export default function AppShell({
               ref={searchRef}
               type="search"
               value={query}
-              placeholder="Search…"
-              aria-label="Search navigation and tables"
+              placeholder={t('shell.search')}
+              aria-label={t('shell.searchLabel')}
               onChange={e => setQuery(e.target.value)}
             />
             {!query && <span className="search-kbd">Ctrl K</span>}
@@ -194,21 +198,21 @@ export default function AppShell({
             onClick={() => setProjectMenuOpen(o => !o)}
             aria-haspopup="listbox"
             aria-expanded={projectMenuOpen}
-            title="Switch project"
+            title={t('shell.switchProject')}
           >
             <ArrowLeftRight size={14} />
             <span className="ps-body">
-              <span className="ps-label">Project</span>
-              <span className="ps-name">{projectName ?? 'None selected'}</span>
+              <span className="ps-label">{t('shell.project')}</span>
+              <span className="ps-name">{projectName ?? t('shell.noneSelected')}</span>
             </span>
             <ChevronsUpDown size={13} />
           </button>
 
           {projectMenuOpen && (
             <div className="project-menu" role="listbox">
-              <div className="project-menu-label">Projects</div>
+              <div className="project-menu-label">{t('shell.projects')}</div>
               {(projects ?? []).length === 0 && (
-                <div className="nav-sub-empty">No projects.</div>
+                <div className="nav-sub-empty">{t('shell.noProjects')}</div>
               )}
               {(projects ?? []).map(p => (
                 <button
@@ -217,7 +221,7 @@ export default function AppShell({
                   role="option"
                   aria-current={p.id === projectId}
                   aria-selected={p.id === projectId}
-                  title={p.hasConnection ? p.name : `${p.name} — no live database connected`}
+                  title={p.hasConnection ? p.name : t('shell.noConnection', { name: p.name })}
                   onClick={() => {
                     setProjectMenuOpen(false);
                     // Baglantisi olmayan proje acilamaz (sema okunamaz);
@@ -242,24 +246,24 @@ export default function AppShell({
                 onClick={() => { setProjectMenuOpen(false); onChangeProject(); }}
               >
                 <LayoutGrid size={13} />
-                <span className="pm-name">All projects</span>
+                <span className="pm-name">{t('shell.allProjects')}</span>
               </button>
             </div>
           )}
         </div>
 
-        <nav className="side-scroll" aria-label="Main navigation">
+        <nav className="side-scroll" aria-label={t('shell.mainNavigation')}>
           {NAV_GROUPS.map(group => {
             const items = group.items.filter(item => {
               if (item.ownerOnly && !isOwner) return false;
-              if (q && !VIEW_LABELS[item.view].toLowerCase().includes(q)) return false;
+              if (q && !viewLabel(item.view).toLowerCase().includes(q)) return false;
               return true;
             });
             if (items.length === 0) return null;
 
             return (
-              <div className="side-group" key={group.label}>
-                <div className="side-group-label">{group.label}</div>
+              <div className="side-group" key={group.labelKey}>
+                <div className="side-group-label">{t(group.labelKey)}</div>
                 {items.map(item => {
                   const disabled = !!item.needsProject && !hasProject;
                   const Icon = item.icon;
@@ -269,11 +273,11 @@ export default function AppShell({
                         className="nav-item"
                         aria-current={view === item.view}
                         disabled={disabled}
-                        title={disabled ? 'Select a project first' : VIEW_LABELS[item.view]}
+                        title={disabled ? t('shell.selectProjectFirst') : viewLabel(item.view)}
                         onClick={() => onNavigate(item.view)}
                       >
                         <Icon size={15} />
-                        <span>{VIEW_LABELS[item.view]}</span>
+                        <span>{viewLabel(item.view)}</span>
                         {disabled && <Lock size={11} style={{ marginLeft: 'auto' }} />}
                         {!disabled && item.view === 'data' && tables && (
                           <span className="nav-count">{tables.length}</span>
@@ -285,20 +289,20 @@ export default function AppShell({
                           (20+ tablo) kendi bölümlerini görünmez kılardı. */}
                       {item.view === 'data' && !disabled && (view === 'data' || q) && (
                         <div className="nav-sub">
-                          {matchingTables.map(t => (
+                          {matchingTables.map(table => (
                             <button
-                              key={t.name}
+                              key={table.name}
                               className="nav-item"
-                              aria-current={view === 'data' && t.name === activeTable}
-                              onClick={() => onSelectTable(t.name)}
-                              title={t.name}
+                              aria-current={view === 'data' && table.name === activeTable}
+                              onClick={() => onSelectTable(table.name)}
+                              title={table.name}
                             >
-                              <span>{t.name}</span>
+                              <span>{table.name}</span>
                             </button>
                           ))}
                           {matchingTables.length === 0 && (
                             <div className="nav-sub-empty">
-                              {q ? 'No matching tables.' : 'No accessible tables.'}
+                              {q ? t('shell.noMatchingTables') : t('shell.noAccessibleTables')}
                             </div>
                           )}
                         </div>
@@ -315,11 +319,11 @@ export default function AppShell({
           <button
             className="collapse-btn"
             onClick={toggleCollapsed}
-            title={collapsed ? 'Expand panel' : 'Collapse panel'}
-            aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
+            title={collapsed ? t('shell.expandPanel') : t('shell.collapsePanel')}
+            aria-label={collapsed ? t('shell.expandPanel') : t('shell.collapsePanel')}
           >
             {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-            <span>Collapse panel</span>
+            <span>{t('shell.collapsePanel')}</span>
           </button>
         </div>
       </aside>
@@ -330,8 +334,8 @@ export default function AppShell({
           <button
             className="icon-btn top-menu-btn"
             onClick={() => setDrawerOpen(o => !o)}
-            aria-label="Open navigation"
-            title="Open navigation"
+            aria-label={t('shell.openNavigation')}
+            title={t('shell.openNavigation')}
           >
             <Menu size={16} />
           </button>
@@ -345,7 +349,7 @@ export default function AppShell({
               </>
             )}
             <span className="crumb-sep">/</span>
-            <span className="crumb-current">{VIEW_LABELS[view]}</span>
+            <span className="crumb-current">{viewLabel(view)}</span>
           </div>
 
           <div className="top-actions">
@@ -354,15 +358,16 @@ export default function AppShell({
               href={NAMINES_FRONTEND}
               target="_blank"
               rel="noreferrer"
-              title="Open Namines — the schema design app"
+              title={t('shell.openNaminesTitle')}
             >
               <ExternalLink size={14} />
               <span>Namines</span>
             </a>
-            <a className="top-link" href="mailto:support@namines.com" title="Email support">
+            <a className="top-link" href="mailto:support@namines.com" title={t('shell.emailSupport')}>
               <LifeBuoy size={14} />
-              <span>Support</span>
+              <span>{t('shell.support')}</span>
             </a>
+            <LanguageToggle />
             <ThemeToggle />
 
             <div className="profile" ref={profileRef}>
@@ -373,29 +378,29 @@ export default function AppShell({
                 aria-expanded={menuOpen}
               >
                 <span className="avatar">{initialsOf(user)}</span>
-                <span className="profile-email">{user.email ?? user.name ?? 'Account'}</span>
+                <span className="profile-email">{user.email ?? user.name ?? t('shell.account')}</span>
                 <ChevronsUpDown size={13} />
               </button>
 
               {menuOpen && (
                 <div className="menu" role="menu">
                   <div className="menu-head">
-                    <div className="mh-name">{user.name ?? 'Namines account'}</div>
+                    <div className="mh-name">{user.name ?? t('shell.naminesAccount')}</div>
                     {user.email && <div className="mh-mail">{user.email}</div>}
                   </div>
                   <a className="menu-item" href={NAMINES_FRONTEND} target="_blank" rel="noreferrer" role="menuitem">
-                    <ExternalLink size={14} /> Open Namines
+                    <ExternalLink size={14} /> {t('shell.openNamines')}
                   </a>
                   {hasProject && (
                     <button className="menu-item" role="menuitem" onClick={() => { setMenuOpen(false); onChangeProject(); }}>
-                      <ArrowLeftRight size={14} /> Switch project
+                      <ArrowLeftRight size={14} /> {t('shell.switchProject')}
                     </button>
                   )}
                   <a className="menu-item" href="mailto:support@namines.com" role="menuitem">
-                    <LifeBuoy size={14} /> Destek
+                    <LifeBuoy size={14} /> {t('shell.support')}
                   </a>
                   <button className="menu-item is-danger" role="menuitem" onClick={onSignOut}>
-                    <LogOut size={14} /> Sign out
+                    <LogOut size={14} /> {t('shell.signOut')}
                   </button>
                 </div>
               )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
+import { useT } from '../lib/i18n';
 
 const KEY = 'namines-desk-theme';
 type Theme = 'light' | 'dark';
@@ -19,6 +20,7 @@ type Theme = 'light' | 'dark';
  * açıkça seçmişse, sistemi değiştirdiğinde seçimi altından kaymasın.
  */
 export default function ThemeToggle() {
+  const t = useT();
   const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
@@ -45,8 +47,8 @@ export default function ThemeToggle() {
     <button
       className="icon-btn"
       onClick={toggle}
-      title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-      aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      title={theme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
+      aria-label={theme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
     >
       {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
     </button>

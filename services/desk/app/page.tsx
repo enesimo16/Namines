@@ -5,9 +5,11 @@ import { Database } from 'lucide-react';
 import AppShell from './AppShell';
 import Desk from './Desk';
 import Projects from './Projects';
+import LanguageToggle from './LanguageToggle';
 import { login, fetchProjects, getToken, setToken, clearToken, AuthError, type DeskProject } from '../lib/auth';
 import { type DeskView, PROJECT_VIEWS } from '../lib/nav';
 import type { DeskTable } from '../lib/schema';
+import { useT } from '../lib/i18n';
 
 /**
  * Giris kapisi + yonlendirme — D1 (namines_desk/01-KIMLIK-VE-OTURUM.md).
@@ -25,6 +27,7 @@ const PROJECT_KEY = 'namines-desk-project';
 const VIEW_KEY = 'namines-desk-view';
 
 export default function Page() {
+  const t = useT();
   const [token, setTok] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -88,9 +91,9 @@ export default function Page() {
         setTok(null);
         return;
       }
-      setProjectsError(err instanceof Error ? err.message : 'Could not load projects.');
+      setProjectsError(err instanceof Error ? err.message : t('login.loadProjectsFailed'));
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
@@ -181,11 +184,11 @@ export default function Page() {
             setLoginError(null);
             setLoggingIn(true);
             try {
-              const t = await login(email.trim(), password);
-              setToken(t);
-              setTok(t);
+              const jwt = await login(email.trim(), password);
+              setToken(jwt);
+              setTok(jwt);
             } catch (err) {
-              setLoginError(err instanceof Error ? err.message : 'Login failed.');
+              setLoginError(err instanceof Error ? err.message : t('login.failed'));
             } finally {
               setLoggingIn(false);
             }
@@ -194,24 +197,23 @@ export default function Page() {
           <div className="gate-brand">
             <span className="side-mark"><Database size={15} strokeWidth={2.2} /></span>
             <h1>Namines Desk <span className="brand-badge">beta</span></h1>
+            {/* Dil, giris YAPILMADAN once de secilebilmeli — metnin ilk goruldugu yer burasi. */}
+            <span className="gate-lang"><LanguageToggle /></span>
           </div>
-          <p>
-            Log in with your Namines account. Your database connection stays encrypted
-            on the server &mdash; your password never reaches this page.
-          </p>
+          <p>{t('login.intro')}</p>
           {loginError && <div className="notice notice-error">{loginError}</div>}
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t('login.email')}</label>
             <input id="email" type="email" value={email} placeholder="name@example.com"
                    onChange={e => setEmail(e.target.value)} autoFocus required />
           </div>
           <div className="field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('login.password')}</label>
             <input id="password" type="password" value={password}
                    onChange={e => setPassword(e.target.value)} required />
           </div>
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loggingIn}>
-            {loggingIn ? 'Logging in…' : 'Log in'}
+            {loggingIn ? t('login.submitting') : t('login.submit')}
           </button>
         </form>
       </div>

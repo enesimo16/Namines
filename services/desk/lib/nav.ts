@@ -24,22 +24,9 @@ export const PROJECT_VIEWS: DeskView[] = [
   'canvas', 'data', 'deployments', 'logs', 'analytics', 'sql', 'apikeys', 'vault', 'ground', 'members',
 ];
 
-/** Üst şeritteki ekmek kırıntısında ve sayfa başlığında kullanılan adlar. */
-export const VIEW_LABELS: Record<DeskView, string> = {
-  overview: 'Projects',
-  canvas: 'Schema',
-  data: 'Data',
-  deployments: 'Deployments',
-  logs: 'Logs',
-  analytics: 'Analytics',
-  sql: 'SQL console',
-  apikeys: 'API keys',
-  // Short brand name here; PageHead still shows the full name
-  // ("Namines Vault"/"Namines Ground") — this is just the nav/breadcrumb label.
-  vault: 'Vault',
-  ground: 'Ground',
-  members: 'Team',
-};
+// Görünüm adları artık sözlükte: `nav.views.<görünüm>` (lib/messages). Vault
+// ve Ground orada kısa marka adıyla duruyor; PageHead tam adı ("Namines
+// Vault") gösteriyor — bu yalnızca gezinme/ekmek kırıntısı etiketi.
 
 /**
  * JWT'nin gövdesinden kullanıcı adını/e-postasını okur — YALNIZCA GÖSTERİM

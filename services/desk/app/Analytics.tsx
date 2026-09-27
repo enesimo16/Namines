@@ -5,12 +5,14 @@ import { type DeskSession } from '../lib/api';
 import { fetchAnalytics, AnalyticsAccessError, type AnalyticsResult } from '../lib/analytics';
 import { type DeskTable } from '../lib/schema';
 import PageHead from './PageHead';
+import { useI18n, useT, dateLocaleOf, type Locale, type MessageKey } from '../lib/i18n';
+import { rich } from '../lib/rich';
 
 type Period = '24h' | '7d' | '30d';
-const PERIODS: { key: Period; label: string; hours: number; bucket: 'hour' | 'day' }[] = [
-  { key: '24h', label: 'Last 24 hours', hours: 24, bucket: 'hour' },
-  { key: '7d', label: '7 days', hours: 24 * 7, bucket: 'day' },
-  { key: '30d', label: '30 days', hours: 24 * 30, bucket: 'day' },
+const PERIODS: { key: Period; labelKey: MessageKey; hours: number; bucket: 'hour' | 'day' }[] = [
+  { key: '24h', labelKey: 'analytics.last24h', hours: 24, bucket: 'hour' },
+  { key: '7d', labelKey: 'analytics.days7', hours: 24 * 7, bucket: 'day' },
+  { key: '30d', labelKey: 'analytics.days30', hours: 24 * 30, bucket: 'day' },
 ];
 
 // Islem turu basina ayirt edilebilir renkler. Onceki palet bes farkli GRI
@@ -38,6 +40,7 @@ const KIND_LABELS: Record<string, string> = {
  * gibi gösterilir, bu analitik ekranında yanlış karar aldıran bir görsel yalan).
  */
 export default function Analytics({ session, tables }: { session: DeskSession; tables: DeskTable[] | null }) {
+  const { t, locale } = useI18n();
   const [period, setPeriod] = useState<Period>('7d');
   const [data, setData] = useState<AnalyticsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,10 +59,10 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
       .catch(err => {
         if (cancelled) return;
         if (err instanceof AnalyticsAccessError && err.status === 403) { setForbidden(true); return; }
-        setError(err instanceof Error ? err.message : 'Could not load analytics.');
+        setError(err instanceof Error ? err.message : t('analytics.loadFailed'));
       });
     return () => { cancelled = true; };
-  }, [session, period]);
+  }, [session, period, t]);
 
   // Canlı şemadan — "Tablo / kolon / ilişki sayısı" (§2), ayrı bir uç gerekmiyor:
   // Desk zaten şemayı okumuş durumda (D3/D4).
@@ -72,12 +75,8 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
 
   const head = (
     <PageHead
-      title="Analytics"
-      desc={<>
-        A summary of <b>write operations</b> on this project, all derived from the audit log.
-        Hosting metrics like CPU/requests/transfer are NOT here — Namines doesn&apos;t run anyone&apos;s
-        application, so those numbers wouldn&apos;t have a source.
-      </>}
+      title={t('nav.views.analytics')}
+      desc={rich(t('analytics.desc'))}
     />
   );
 
@@ -85,10 +84,7 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
     return (
       <div className="page">
         {head}
-        <div className="notice">
-          This section requires Admin access — the totals reveal all data activity on the
-          project, so it's gated behind an admin-level role.
-        </div>
+        <div className="notice">{t('analytics.adminOnly')}</div>
       </div>
     );
   }
@@ -100,42 +96,39 @@ export default function Analytics({ session, tables }: { session: DeskSession; t
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
         {PERIODS.map(p => (
           <button key={p.key} className="btn btn-sm" aria-current={period === p.key} onClick={() => setPeriod(p.key)}>
-            {p.label}
+            {t(p.labelKey)}
           </button>
         ))}
       </div>
 
       {!data ? (
-        <div className="empty">Loading…</div>
+        <div className="empty">{t('common.loading')}</div>
       ) : data.totalWrites === 0 ? (
-        <div className="empty">
-          No writes in this period. Reads aren&apos;t logged — this doesn&apos;t mean the project
-          is unused.
-        </div>
+        <div className="empty">{t('analytics.noWrites')}</div>
       ) : (
         <>
           <div className="stats">
-            <Card label="Writes" value={String(data.totalWrites)} />
-            <Card label="Success rate" value={`${(data.successRate * 100).toFixed(0)}%`} />
-            <Card label="Affected rows" value={String(data.totalAffectedRows)} />
-            <Card label="Schema versions" value={String(data.schemaVersionCount)} />
-            <Card label="Human / App" value={`${data.sourceBreakdown.human} / ${data.sourceBreakdown.application}`} />
+            <Card label={t('analytics.writes')} value={String(data.totalWrites)} />
+            <Card label={t('analytics.successRate')} value={`${(data.successRate * 100).toFixed(0)}%`} />
+            <Card label={t('analytics.affectedRows')} value={String(data.totalAffectedRows)} />
+            <Card label={t('analytics.schemaVersions')} value={String(data.schemaVersionCount)} />
+            <Card label={t('analytics.humanApp')} value={`${data.sourceBreakdown.human} / ${data.sourceBreakdown.application}`} />
             {schemaCounts && (
-              <Card label="Tables / Columns / Relations" value={`${schemaCounts.tableCount} / ${schemaCounts.columnCount} / ${schemaCounts.relationCount}`} />
+              <Card label={t('analytics.schemaCounts')} value={`${schemaCounts.tableCount} / ${schemaCounts.columnCount} / ${schemaCounts.relationCount}`} />
             )}
           </div>
 
-          <StackedBarChart buckets={data.buckets} bucketUnit={data.bucket} />
+          <StackedBarChart buckets={data.buckets} bucketUnit={data.bucket} locale={locale} />
 
           {data.topTables.length > 0 && (
             <div style={{ marginTop: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', marginBottom: 8 }}>
-                Most-written tables
+                {t('analytics.topTables')}
               </div>
-              {data.topTables.map(t => (
-                <div key={t.tableName} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
-                  <span>{t.tableName}</span>
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{t.count}</span>
+              {data.topTables.map(top => (
+                <div key={top.tableName} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
+                  <span>{top.tableName}</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{top.count}</span>
                 </div>
               ))}
             </div>
@@ -166,7 +159,8 @@ function Card({ label, value }: { label: string; value: string }) {
  * kaplayan tek bir dolu dikdörtgene dönüşüyordu — bir grafik değil, bir
  * blok. Artık çubuk en fazla 44px ve seri ortalanıyor.
  */
-function StackedBarChart({ buckets, bucketUnit }: { buckets: AnalyticsBucketLike[]; bucketUnit: 'hour' | 'day' }) {
+function StackedBarChart({ buckets, bucketUnit, locale }: { buckets: AnalyticsBucketLike[]; bucketUnit: 'hour' | 'day'; locale: Locale }) {
+  const t = useT();
   const kinds = ['create', 'update', 'delete', 'import', 'rpc', 'sql'] as const;
   const totals = buckets.map(b => kinds.reduce((s, k) => s + b[k], 0));
   const rawMax = Math.max(1, ...totals);
@@ -189,19 +183,19 @@ function StackedBarChart({ buckets, bucketUnit }: { buckets: AnalyticsBucketLike
         viewBox={`0 0 ${width} ${height}`}
         style={{ width: '100%', height: 'auto', display: 'block' }}
         role="img"
-        aria-label={`Write operations over time — peak ${rawMax}`}
+        aria-label={t('analytics.chartLabel', { peak: rawMax })}
       >
         {/* Yatay ızgara + Y ekseni etiketleri */}
-        {ticks.map(t => {
-          const y = padT + plotH * (1 - t);
+        {ticks.map(tick => {
+          const y = padT + plotH * (1 - tick);
           return (
-            <g key={t}>
+            <g key={tick}>
               <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="var(--line)" strokeWidth="1" />
               <text
                 x={padL - 7} y={y + 3} textAnchor="end"
                 fontSize="9" fill="var(--content-subtle)" fontFamily="ui-sans-serif, system-ui"
               >
-                {Math.round(max * t)}
+                {Math.round(max * tick)}
               </text>
             </g>
           );
@@ -215,7 +209,7 @@ function StackedBarChart({ buckets, bucketUnit }: { buckets: AnalyticsBucketLike
           const total = totals[i];
           return (
             <g key={i}>
-              <title>{`${formatBucketLabel(b, bucketUnit)} — ${total} ops`}</title>
+              <title>{t('analytics.ops', { label: formatBucketLabel(b, bucketUnit, locale), count: total })}</title>
               {kinds.map(k => {
                 const v = b[k];
                 if (v === 0) return null;
@@ -232,14 +226,14 @@ function StackedBarChart({ buckets, bucketUnit }: { buckets: AnalyticsBucketLike
         {buckets.length > 0 && (
           <>
             <text x={padL} y={height - 8} fontSize="9" fill="var(--content-subtle)" fontFamily="ui-sans-serif, system-ui">
-              {formatBucketLabel(buckets[0], bucketUnit)}
+              {formatBucketLabel(buckets[0], bucketUnit, locale)}
             </text>
             {buckets.length > 1 && (
               <text
                 x={width - padR} y={height - 8} textAnchor="end"
                 fontSize="9" fill="var(--content-subtle)" fontFamily="ui-sans-serif, system-ui"
               >
-                {formatBucketLabel(buckets[buckets.length - 1], bucketUnit)}
+                {formatBucketLabel(buckets[buckets.length - 1], bucketUnit, locale)}
               </text>
             )}
           </>
@@ -254,7 +248,7 @@ function StackedBarChart({ buckets, bucketUnit }: { buckets: AnalyticsBucketLike
           </span>
         ))}
         <span style={{ marginLeft: 'auto', color: 'var(--content-subtle)' }}>
-          bucket: {bucketUnit === 'hour' ? 'hour' : 'day'}
+          {bucketUnit === 'hour' ? t('analytics.bucketHour') : t('analytics.bucketDay')}
         </span>
       </div>
     </div>
@@ -269,15 +263,15 @@ function niceCeil(n: number): number {
   return Math.ceil(n / step) * step;
 }
 
-function formatBucketLabel(b: AnalyticsBucketLike, unit: 'hour' | 'day'): string {
+function formatBucketLabel(b: AnalyticsBucketLike, unit: 'hour' | 'day', locale: Locale): string {
   const raw = (b as { bucket?: string; timestamp?: string }).bucket
     ?? (b as { bucket?: string; timestamp?: string }).timestamp;
   if (!raw) return '';
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return '';
   return unit === 'hour'
-    ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' });
+    ? d.toLocaleTimeString(dateLocaleOf(locale), { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString(dateLocaleOf(locale), { day: '2-digit', month: '2-digit' });
 }
 
 interface AnalyticsBucketLike {

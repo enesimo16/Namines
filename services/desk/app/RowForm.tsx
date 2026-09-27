@@ -6,6 +6,7 @@ import {
   fieldKind, normalizeValue, insertableColumns, editableColumns, primaryKey,
   isRequired, formatForInput,
 } from '../lib/schema';
+import { useT } from '../lib/i18n';
 
 /** D4 §2.1 — FK açılır listesi sonucu: seçenekler, ya da eşik aşıldı, ya da hiç denenmedi. */
 export type FkOptionsResult =
@@ -36,6 +37,7 @@ export default function RowForm({
    */
   fetchFkOptions: (targetTable: string) => Promise<FkOptionsResult>;
 }) {
+  const t = useT();
   const isEdit = initial !== null;
   const columns = isEdit ? editableColumns(table) : insertableColumns(table);
   const pk = primaryKey(table);
@@ -64,7 +66,7 @@ export default function RowForm({
       for (const c of columns) payload[c.name] = normalizeValue(c, values[c.name] ?? '');
       await onSubmit(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save.');
+      setError(err instanceof Error ? err.message : t('rowForm.saveFailed'));
       setBusy(false);
     }
   }
@@ -72,7 +74,7 @@ export default function RowForm({
   return (
     <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
       <form className="dialog" onSubmit={submit}>
-        <h2>{isEdit ? 'Edit row' : 'New row'}</h2>
+        <h2>{isEdit ? t('rowForm.editTitle') : t('rowForm.newTitle')}</h2>
         <p className="hint">
           {table.name}
           {isEdit && pk ? ` · ${pk} = ${String(initial?.[pk])}` : ''}
@@ -86,9 +88,9 @@ export default function RowForm({
         ))}
 
         <div className="dialog-actions">
-          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="button" className="btn" onClick={onCancel} disabled={busy}>{t('common.cancel')}</button>
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Saving…' : isEdit ? 'Save' : 'Add'}
+            {busy ? t('common.saving') : isEdit ? t('rowForm.save') : t('rowForm.add')}
           </button>
         </div>
       </form>
@@ -172,6 +174,7 @@ function FkField({ column, value, onChange, required, label, fetchFkOptions }: {
   required: boolean; label: React.ReactNode;
   fetchFkOptions: (targetTable: string) => Promise<FkOptionsResult>;
 }) {
+  const t = useT();
   const [result, setResult] = useState<FkOptionsResult | 'loading'>('loading');
 
   useEffect(() => {
@@ -188,7 +191,7 @@ function FkField({ column, value, onChange, required, label, fetchFkOptions }: {
     return (
       <div className="field">
         {label}
-        <input id={`f-${column.name}`} type="text" value={value} disabled placeholder="Loading options…" />
+        <input id={`f-${column.name}`} type="text" value={value} disabled placeholder={t('rowForm.loadingOptions')} />
       </div>
     );
   }
@@ -199,7 +202,7 @@ function FkField({ column, value, onChange, required, label, fetchFkOptions }: {
         {label}
         <select id={`f-${column.name}`} value={value} required={required}
                 onChange={e => onChange(e.target.value)}>
-          <option value="">{required ? '— select —' : '— empty —'}</option>
+          <option value="">{required ? t('rowForm.select') : t('rowForm.empty')}</option>
           {result.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
@@ -214,8 +217,8 @@ function FkField({ column, value, onChange, required, label, fetchFkOptions }: {
              onChange={e => onChange(e.target.value)} />
       <div style={{ fontSize: 10.5, color: 'var(--content-subtle)', marginTop: 4 }}>
         {result.kind === 'too_many'
-          ? `${column.references!.table} has more than 200 rows — enter the raw ${column.references!.column} value.`
-          : 'Could not load options — enter the raw value.'}
+          ? t('rowForm.tooMany', { table: column.references!.table, column: column.references!.column })
+          : t('rowForm.optionsFailed')}
       </div>
     </div>
   );

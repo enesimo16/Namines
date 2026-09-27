@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { type DeskSession } from '../lib/api';
 import PageHead from './PageHead';
+import { useI18n } from '../lib/i18n';
+import { rich } from '../lib/rich';
 import { fetchAuditLog, LogsAccessError, type AuditLogEntry, type GatewayWriteKind } from '../lib/logs';
 
 const PAGE_SIZE = 50;
@@ -14,6 +16,7 @@ const ALL_KINDS: GatewayWriteKind[] = ['create', 'update', 'delete', 'import', '
  * kaydediyor, okuma hiç kaydedilmiyor (§1). Bu ekran bunu gizlemez.
  */
 export default function Logs({ session }: { session: DeskSession }) {
+  const { t, dt } = useI18n();
   const [kinds, setKinds] = useState<Set<GatewayWriteKind>>(new Set());
   const [tableName, setTableName] = useState('');
   const [onlyFailed, setOnlyFailed] = useState(false);
@@ -42,10 +45,10 @@ export default function Logs({ session }: { session: DeskSession }) {
       .catch(err => {
         if (cancelled) return;
         if (err instanceof LogsAccessError && err.status === 403) { setForbidden(true); setEntries([]); return; }
-        setError(err instanceof Error ? err.message : 'Could not load logs.');
+        setError(err instanceof Error ? err.message : t('logs.loadFailed'));
       });
     return () => { cancelled = true; };
-  }, [session, page, kinds, tableName, onlyFailed, from, to]);
+  }, [session, page, kinds, tableName, onlyFailed, from, to, t]);
 
   function toggleKind(k: GatewayWriteKind) {
     setPage(1);
@@ -60,12 +63,8 @@ export default function Logs({ session }: { session: DeskSession }) {
   // geldim?" sorusunu birakiyordu.
   const head = (
     <PageHead
-      title="Logs"
-      desc={<>
-        Audit log of <b>write operations</b> on this project — who changed what, where, and when.
-        Ordinary reads are NOT logged; the one exception is <b>reads from tables with a masked
-        column</b>, which are recorded. Filter for those with the <i>read</i> kind.
-      </>}
+      title={t('nav.views.logs')}
+      desc={rich(t('logs.desc'))}
     />
   );
 
@@ -73,10 +72,7 @@ export default function Logs({ session }: { session: DeskSession }) {
     return (
       <div className="page">
         {head}
-        <div className="notice">
-          This section requires Admin access — the audit log shows all data activity on the
-          project, so it's gated behind an admin-level role.
-        </div>
+        <div className="notice">{t('logs.adminOnly')}</div>
       </div>
     );
   }
@@ -90,58 +86,58 @@ export default function Logs({ session }: { session: DeskSession }) {
       <div className="split-col" style={{ display: 'flex', minHeight: 0 }}>
       <aside style={{ width: 200, flexShrink: 0, borderRight: '1px solid var(--line)', padding: 14, overflowY: 'auto' }}>
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', marginBottom: 8 }}>
-          Kind
+          {t('logs.kind')}
         </div>
         {ALL_KINDS.map(k => (
-          <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, marginBottom: 4, textTransform: 'capitalize' }}>
+          <label key={k} lang="en" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, marginBottom: 4, textTransform: 'capitalize' }}>
             <input type="checkbox" checked={kinds.has(k)} onChange={() => toggleKind(k)} />
             {k}
           </label>
         ))}
 
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', margin: '14px 0 8px' }}>
-          Table
+          {t('logs.table')}
         </div>
-        <input aria-label="Table" type="text" value={tableName} placeholder="e.g. customers"
+        <input aria-label={t('logs.table')} type="text" value={tableName} placeholder={t('logs.tablePlaceholder')}
                onChange={e => { setPage(1); setTableName(e.target.value); }} style={{ width: '100%' }} />
 
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', margin: '14px 0 8px' }}>
-          Time range
+          {t('logs.timeRange')}
         </div>
-        <input type="datetime-local" aria-label="Time range start" value={from} onChange={e => { setPage(1); setFrom(e.target.value); }}
+        <input type="datetime-local" aria-label={t('logs.rangeStart')} value={from} onChange={e => { setPage(1); setFrom(e.target.value); }}
                style={{ width: '100%', marginBottom: 6 }} />
-        <input type="datetime-local" aria-label="Time range end" value={to} onChange={e => { setPage(1); setTo(e.target.value); }} style={{ width: '100%' }} />
+        <input type="datetime-local" aria-label={t('logs.rangeEnd')} value={to} onChange={e => { setPage(1); setTo(e.target.value); }} style={{ width: '100%' }} />
 
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--content-subtle)', margin: '14px 0 8px' }}>
-          Result
+          {t('logs.result')}
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
           <input type="checkbox" checked={onlyFailed} onChange={e => { setPage(1); setOnlyFailed(e.target.checked); }} />
-          Failed only
+          {t('logs.failedOnly')}
         </label>
       </aside>
 
       <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '0 24px 24px' }}>
 
         {!entries ? (
-          <div className="empty">Loading…</div>
+          <div className="empty">{t('common.loading')}</div>
         ) : entries.length === 0 ? (
-          <div className="empty">No writes match these filters.</div>
+          <div className="empty">{t('logs.noMatch')}</div>
         ) : (
           <>
             <div className="grid-wrap">
               <table>
                 <thead>
-                  <tr><th>Time</th><th>Kind</th><th>Table</th><th>Row</th><th>Source</th><th>Result</th></tr>
+                  <tr><th>{t('logs.time')}</th><th>{t('logs.kind')}</th><th>{t('logs.table')}</th><th>{t('logs.row')}</th><th>{t('logs.source')}</th><th>{t('logs.result')}</th></tr>
                 </thead>
                 <tbody>
                   {entries.map(e => (
                     <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(e)}>
-                      <td className="nowrap">{new Date(e.createdAt).toLocaleString('en-US')}</td>
-                      <td className="nowrap" style={{ textTransform: 'uppercase' }}>{e.kind}</td>
+                      <td className="nowrap">{dt(e.createdAt)}</td>
+                      <td className="nowrap" lang="en" style={{ textTransform: 'uppercase' }}>{e.kind}</td>
                       <td className="nowrap">{e.tableName ?? '—'}</td>
                       <td className="nowrap">{e.rowKey ?? '—'}</td>
-                      <td className="nowrap">{e.apiKeyPrefix ? `🔑 ${e.apiKeyPrefix}` : e.actorUserId ? '👤 user' : '—'}</td>
+                      <td className="nowrap">{e.apiKeyPrefix ? `🔑 ${e.apiKeyPrefix}` : e.actorUserId ? t('logs.sourceUser') : '—'}</td>
                       <td className="nowrap">{e.succeeded ? `✓ ${e.affectedRows}` : '✗ 0'}</td>
                     </tr>
                   ))}
@@ -149,9 +145,9 @@ export default function Logs({ session }: { session: DeskSession }) {
               </table>
             </div>
             <div className="pager">
-              <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</button>
-              <span>{page} / {lastPage} · {totalCount} entries</span>
-              <button className="btn btn-sm" disabled={page >= lastPage} onClick={() => setPage(p => p + 1)}>Next</button>
+              <button className="btn btn-sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t('common.previous')}</button>
+              <span>{page} / {lastPage} · {t('logs.entries', { count: totalCount })}</span>
+              <button className="btn btn-sm" disabled={page >= lastPage} onClick={() => setPage(p => p + 1)}>{t('common.next')}</button>
             </div>
           </>
         )}
@@ -161,17 +157,17 @@ export default function Logs({ session }: { session: DeskSession }) {
         <div className="overlay" onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }}>
           <div className="dialog">
             <h2>{selected.kind.toUpperCase()} · {selected.tableName ?? '—'}</h2>
-            <p className="hint">{new Date(selected.createdAt).toLocaleString('en-US')}</p>
+            <p className="hint">{dt(selected.createdAt)}</p>
             <div style={{ fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div><b>Row key:</b> {selected.rowKey ?? '—'}</div>
-              <div><b>Columns:</b> {selected.columns ?? '—'}</div>
-              <div><b>Affected rows:</b> {selected.affectedRows}</div>
-              <div><b>Result:</b> {selected.succeeded ? 'Succeeded' : 'Failed'}</div>
-              <div><b>Key prefix:</b> {selected.apiKeyPrefix ?? '— (session)'}</div>
-              <div><b>User:</b> {selected.actorUserId ?? '—'}</div>
+              <div><b>{t('logs.rowKey')}</b> {selected.rowKey ?? '—'}</div>
+              <div><b>{t('logs.columns')}</b> {selected.columns ?? '—'}</div>
+              <div><b>{t('logs.affectedRows')}</b> {selected.affectedRows}</div>
+              <div><b>{t('logs.result')}:</b> {selected.succeeded ? t('logs.succeeded') : t('common.failed')}</div>
+              <div><b>{t('logs.keyPrefix')}</b> {selected.apiKeyPrefix ?? t('logs.session')}</div>
+              <div><b>{t('logs.user')}</b> {selected.actorUserId ?? '—'}</div>
             </div>
             <div className="dialog-actions">
-              <button className="btn" onClick={() => setSelected(null)}>Close</button>
+              <button className="btn" onClick={() => setSelected(null)}>{t('common.close')}</button>
             </div>
           </div>
         </div>

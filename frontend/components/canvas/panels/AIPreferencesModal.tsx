@@ -4,6 +4,7 @@ import { useToastStore } from '../../../store/useToastStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useQuotaStore } from '../../../store/useQuotaStore';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
+import { useT, useLangAttr } from '../../../lib/i18n';
 import { useOnOpen } from './preferences/useOnOpen';
 import { useProfileForm } from './preferences/useProfileForm';
 import { useMfaSettings } from './preferences/useMfaSettings';
@@ -24,23 +25,14 @@ interface AIPreferencesModalProps {
   onClose: () => void;
 }
 
-const NAV_ITEMS: { id: PreferencesTab; label: string; icon: typeof User }[] = [
-  { id: 'profile', label: 'Profile Settings', icon: User },
-  { id: 'account', label: 'Account & Tokens', icon: Lock },
-  { id: 'ai', label: 'AI Configurations', icon: SlidersHorizontal },
-  { id: 'analytics', label: 'System Analytics', icon: BarChart3 },
-  { id: 'pricing', label: 'Pricing', icon: CreditCard },
-  { id: 'help', label: 'Help & FAQ', icon: HelpCircle },
+const NAV_ITEMS: { id: PreferencesTab; icon: typeof User }[] = [
+  { id: 'profile', icon: User },
+  { id: 'account', icon: Lock },
+  { id: 'ai', icon: SlidersHorizontal },
+  { id: 'analytics', icon: BarChart3 },
+  { id: 'pricing', icon: CreditCard },
+  { id: 'help', icon: HelpCircle },
 ];
-
-const HEADINGS: Record<PreferencesTab, { title: string; subtitle: string }> = {
-  profile: { title: 'User Profile Settings', subtitle: 'Configure developer identity and portfolio information.' },
-  account: { title: 'Account Credentials & Tokens', subtitle: 'View access details, quotas, and manage API tokens.' },
-  ai: { title: 'AI Services Routing', subtitle: 'Configure custom LLM routing and advanced parameters.' },
-  analytics: { title: 'System Usage & Analytics', subtitle: 'Visual summary of database compiles, seeding logs, and AI request cycles.' },
-  pricing: { title: 'Membership Plans', subtitle: 'Explore plan differences and upgrade.' },
-  help: { title: 'Help & FAQ', subtitle: 'Frequently Asked Questions & support guidelines.' },
-};
 
 /**
  * Hesap, AI ve plan ayarları.
@@ -54,6 +46,8 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
   const { user, logout, isAuthenticated } = useAuthStore();
   const fetchQuota = useQuotaStore(state => state.fetchQuota);
   const showToast = useToastStore(state => state.showToast);
+  const t = useT();
+  const lang = useLangAttr();
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(isOpen, modalRef);
 
@@ -76,11 +70,10 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
   const handleLogout = () => {
     logout();
-    showToast('Logged out successfully.', 'info');
+    showToast(t('header.loggedOut'), 'info');
     onClose();
   };
 
-  const heading = HEADINGS[activeTab];
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -91,8 +84,8 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
       <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="ai-pref-title" className="relative w-full max-w-6xl h-[92dvh] md:h-[calc(100dvh-64px)] md:max-h-[880px] bg-surface-800 border border-content-primary/15 rounded-[var(--radius-modal)] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200 text-content-primary">
 
-        {/* Left Sidebar */}
-        <div className="w-full md:w-64 bg-surface-700 border-b md:border-b-0 md:border-r border-content-primary/15 p-5 flex flex-col justify-between shrink-0">
+        {/* Left Sidebar — çevrildi; sekme içerikleri henüz İngilizce, `lang` onlara verilmiyor. */}
+        <div lang={lang} className="w-full md:w-64 bg-surface-700 border-b md:border-b-0 md:border-r border-content-primary/15 p-5 flex flex-col justify-between shrink-0">
           <div className="space-y-6">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-[var(--radius-control)] bg-white/[0.06] flex items-center justify-center shrink-0">
@@ -100,9 +93,9 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
               </div>
               <div>
                 <h3 className="text-xs font-extrabold text-content-primary tracking-wide uppercase">
-                  Namines Hub
+                  {t('preferences.hub')}
                 </h3>
-                <p className="text-micro text-content-subtle font-bold tracking-wider uppercase">Settings & Panel</p>
+                <p className="text-micro text-content-subtle font-bold tracking-wider uppercase">{t('preferences.hubSubtitle')}</p>
               </div>
             </div>
 
@@ -129,7 +122,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
                     }`}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
-                    <span>{item.label}</span>
+                    <span>{t(`preferences.tabs.${item.id}.nav`)}</span>
                   </button>
                 );
               })}
@@ -142,7 +135,7 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
               className="hidden md:flex items-center justify-center gap-2 w-full py-2.5 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-[var(--radius-control)] transition-all cursor-pointer active:scale-95"
             >
               <LogOut className="w-4 h-4" />
-              <span>Log Out</span>
+              <span>{t('preferences.logOut')}</span>
             </button>
           )}
         </div>
@@ -151,17 +144,18 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
         <div className="flex-1 flex flex-col h-full overflow-hidden">
 
           {/* Header */}
-          <div className="flex justify-between items-center px-6 py-4 border-b border-content-primary/15 bg-surface-700 shrink-0">
+          <div lang={lang} className="flex justify-between items-center px-6 py-4 border-b border-content-primary/15 bg-surface-700 shrink-0">
             <div>
               <h4 id="ai-pref-title" className="text-sm font-bold text-content-primary">
-                {heading.title}
+                {t(`preferences.tabs.${activeTab}.title`)}
               </h4>
               <p className="text-[11px] text-content-subtle mt-0.5">
-                {heading.subtitle}
+                {t(`preferences.tabs.${activeTab}.subtitle`)}
               </p>
             </div>
             <button
               onClick={onClose}
+              aria-label={t('preferences.close')}
               className="p-1.5 rounded-[var(--radius-control)] text-content-subtle hover:text-content-secondary hover:bg-white/[0.06] transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
