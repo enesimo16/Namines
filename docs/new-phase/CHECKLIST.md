@@ -6,9 +6,14 @@
 > **"G" = Görev grubu, gün değil.** G0, G1, G2… sıralı iş paketleridir. Bir günde birkaç görev
 > grubu bitebilir; bir görev grubu birkaç güne yayılabilir. Sıra önemlidir, takvim değil.
 
-**Aktif faz:** Faz 0 — Temeli Sağlamlaştırma (G7 disk alanı bekliyor) → G8'den itibaren
-Lifecycle Pivot ([27-LIFECYCLE-PIVOT.md](27-LIFECYCLE-PIVOT.md))
-**Son güncelleme:** 2026-08-10
+**Son tamamlanan:** G56 — denetim backlog'u 64/64 kapalı. Sıradaki büyük işler:
+[35-KALAN-BUYUK-ISLER.md](35-KALAN-BUYUK-ISLER.md); senden beklenenler:
+[34-SENDEN-BEKLENENLER.md](34-SENDEN-BEKLENENLER.md).
+**Son güncelleme:** 2026-09-27
+
+> Eski başlık (2026-08-10): "Aktif faz: Faz 0 — Temeli Sağlamlaştırma (G7 disk
+> alanı bekliyor) → G8'den itibaren Lifecycle Pivot" — ✅ bitmiştir, Faz 0 ve
+> pivot G8-G55'te tamamlandı.
 
 ---
 
@@ -2042,6 +2047,21 @@ tek bir cümle yazmadan canvas'a çıkıyor.
   frontend **188/188**, Desk **101/101**; `tsc` (frontend + Desk),
   `check:design` temiz, lint **0 hata** (28 uyarı). Dokümanlardaki 545 göreli
   linkin hepsi var olan dosyaya çıkıyor.
+
+---
+
+## G56 — Backlog'un son iki maddesi: B-38 ve B-56 ✅ TAMAMLANDI
+
+> 2026-09-27. Denetim backlog'unun 64 maddesinin tamamı artık kapalı.
+
+| İş | Kanıt (kod) | Doğrulama |
+|---|---|---|
+| **B-38** — `AIPreferencesModal` 1653 satırdan ~200 satırlık kabuğa; 6 sekme bileşeni + 6 hook, tipli `aiAdvancedPrefs` | `frontend/components/canvas/panels/preferences/`, `frontend/lib/aiAdvancedPrefs.ts` (`755a3d3`) | 16 etkileşimin anlık görüntüsü önce/sonra birebir aynı; dosyanın lint uyarısı 1→0 |
+| **2FA oturum hatası** — 2FA açmak/kapatmak SecurityStamp'i döndürüp kullanıcının kendi oturumunu düşürüyordu | `AuthController.RenewCurrentSession`, `SecurityStampValidation.ForgetStamp` (`e62130b`) | `MfaSessionTests` (2, gerçek RFC 6238 TOTP); canlıda yeniden denendi |
+| **B-56** — bağımlılıksız EN/TR altyapısı; Desk tam iki dilli, ana uygulamada kabuk (TR beta) | `frontend/lib/i18n/`, `services/desk/lib/i18n.ts`, `services/desk/lib/messages/` (`f7aa4fc`) | Desk'in 11 görünümü + giriş + satır formu + filtreler canlı TR/EN dolaşıldı, konsol temiz; `lang` büyük harf hatası canlıda bulunup düzeltildi |
+
+Sayılar: backend **2084/2084**, frontend **199/199**, Desk **111/111**; `tsc`
+(frontend + Desk) temiz, `check:design` temiz, lint **0 hata**.
 
 ---
 

@@ -1,6 +1,12 @@
 # 22 — Ürün backlog'u
 
-> ## ✅ DURUM (2026-09-12): **60 kapandı, 4 açık**
+> ## ✅ DURUM (2026-09-27): **64/64 kapandı** — açık madde yok
+>
+> Aşağıdaki 2026-09-12 özeti tarihsel kayıt olarak duruyor; o gün açık olan
+> dört maddenin dördü de sonradan kapandı (B-12 2026-09-26, B-38 ve B-56
+> 2026-09-27).
+>
+> ## DURUM (2026-09-12): 60 kapandı, 4 açık
 >
 > P0'ların 6/6'sı kapalı. Tüm P1'ler kapalı (B-12 hariç — aşağıda tek istisna).
 >
@@ -22,7 +28,18 @@
 >   `INT` okunuyordu (küsurat kaybı) ve sayısal uzunluk 0 geliyordu.
 > - **B-38** (`AIPreferencesModal` bölme — bilinçli ertelendi, 1651 satır/30+
 >   state'i körlemesine bölmek regresyon riski taşırdı)
+>   — ✅ **Bitmiştir (2026-09-27, `755a3d3`):** modal ~200 satırlık bir kabuğa
+>   indi; altı sekme `panels/preferences/` altında ayrı bileşen, state'leri
+>   kabuktaki hook'larda (sekme değişince kaybolmasın diye), tercih okuma/yazma
+>   tipli `lib/aiAdvancedPrefs.ts`'de. Taşımadan önce ve sonra 16 etkileşim
+>   anlık görüntüsü birebir aynı çıktı.
 > - **B-56** (i18n birleştirme — bilinçli ertelendi, yüzlerce görünür string)
+>   — ✅ **Bitmiştir (2026-09-27, `f7aa4fc`):** iki uygulamaya da bağımlılıksız
+>   EN/TR altyapısı + dil seçici. Desk tamamen iki dilli (her ekran); ana
+>   uygulamada kabuk çevrildi, Türkçe orada "beta". Yol boyunca bulunan: Desk'in
+>   İngilizce arayüzünde üç Türkçe kalıntı ("Destek", "Yenile", "Veriye git")
+>   ve `lang="tr"` altında CSS büyük harfinin kolon adlarını "İD"/"ACTİVE",
+>   çevrilmemiş İngilizceyi "VİEW BLUEPRİNTS" yapması.
 >
 > Yeni regresyon testleri: `SecurityHardeningTests.cs` (23),
 > `SecurityStampValidationTests.cs` (7), `DockerServiceConstructionTests.cs` (5),
@@ -93,7 +110,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-35~~ | Performance | ~~Vault yedeğini arka plan işine taşı (202 Accepted)~~ ✅ kuyruk + `BackgroundService` (kendi DI kapsamı) + açılışta uzlaştırma; arayüz iş BİTİNCE "alındı" diyor | PERF-003 | M |
 | ~~B-36~~ | Performance | ~~`mermaid` + `sql.js` dinamik import (önce ölç)~~ ✅ ÖLÇÜLDÜ: `/compile` 1830→1268 KB. CANLI DOĞRULANDI | PERF-004 | S |
 | ~~B-37~~ | Architecture | ~~`ScaffolderService`'i böl~~ ✅ 1.761 → 120 satır, 5 üreteç; önce snapshot testi yazıldı, çıktı birebir aynı | ARCH-003, TD-003 | M |
-| B-38 | Architecture | `AIPreferencesModal`'ı böl + tipli tercih modülü — 🟡 **bilinçli olarak ertelendi:** dosya 1651 satır, 30+ birbirine bağlı `useState` (6 sekme: profil/hesap/AI/fiyat/yardım/analitik). Körlemesine bölmek — bu oturumun geri kalanında derinlemesine doğrulanamayacak kadar riskli; regresyon ihtimali kazancından yüksek. Güvenli yol: önce her sekmenin state bağımlılık haritası çıkarılıp, sonra TEK sekme taşınıp canlı doğrulanmalı — bu ayrı bir oturum gerektiriyor | FE-002, TD-004 | M |
+| ~~B-38~~ | Architecture | ✅ **Bitmiştir (2026-09-27):** kabuk + 6 sekme bileşeni + tipli `aiAdvancedPrefs`, canlı 16/16 aynı. ~~`AIPreferencesModal`'ı böl + tipli tercih modülü~~ — eski not: 🟡 **bilinçli olarak ertelendi:** dosya 1651 satır, 30+ birbirine bağlı `useState` (6 sekme: profil/hesap/AI/fiyat/yardım/analitik). Körlemesine bölmek — bu oturumun geri kalanında derinlemesine doğrulanamayacak kadar riskli; regresyon ihtimali kazancından yüksek. Güvenli yol: önce her sekmenin state bağımlılık haritası çıkarılıp, sonra TEK sekme taşınıp canlı doğrulanmalı — bu ayrı bir oturum gerektiriyor | FE-002, TD-004 | M |
 | ~~B-39~~ | Frontend | ~~`DbPushModal`'ı merkezi API istemcisine taşı~~ ✅ `executorService` | FE-005 | S |
 | ~~B-40~~ | Testing | ~~E2E: tek uçtan uca akış (Playwright)~~ ✅ **Karar değişti:** Playwright yerine mevcut `check-e2e.mjs` harness'ına zincir bloğu eklendi (kayıt→proje→DDL→409 çakışma kanıtı). Tarayıcı ikilisi indirmek disk kısıtını ihlal ederdi; DOM etkileşimi bu oturumda Browser paneliyle elle doğrulandı | TEST-005 | M |
 | ~~B-41~~ | A11y | ~~Form alanlarına etiket (51 input)~~ ✅ 117/118 (kalan 1 = yorum içi, yanlış pozitif) | A11Y-001 | M |
@@ -118,7 +135,7 @@ Efor: XS (<1s) · S (<1g) · M (1-3g) · L (1hafta+) · XL (1ay+)
 | ~~B-53~~ | A11y | ~~`.nsl` yolunu erişilebilir alternatif olarak belgele~~ ✅ `docs/ERISILEBILIRLIK.md` | A11Y-003 | XS |
 | ~~B-54~~ | UX | ❌ **Geri çekildi** — Desk gezinmesi zaten "Yedekler"/"Barındırma" diyor | 12 | XS |
 | ~~B-55~~ | Product | ~~Mobil hedefini açıkça belirle ve yaz~~ ✅ ÖLÇÜLDÜ + `docs/MOBIL-HEDEFI.md` (öneri, onay bekliyor) | Senaryo 7 | XS |
-| B-56 | i18n | Çok dil altyapısı — **ve iki uygulamanın dilini birleştir** (`frontend` İngilizce, `desk` Türkçe) — 🟡 **bilinçli olarak ertelendi:** kullanıcıya görünen yüzlerce string'i elle taşımak, bu oturumda derinlemesine test edilemeyecek bir kapsam (her ekranın hem yeni dizeleri hem de kırılmamış yerleşimi canlı doğrulanmalı). Önerilen yol: i18n altyapısını (kütüphane + dil seçici + sözlük iskeleti) kurup metinleri ekran ekran, her taşımadan sonra canlı doğrulayarak aşamalı taşımak | 24, UX-004 | M |
+| ~~B-56~~ | i18n | ✅ **Bitmiştir (2026-09-27):** EN/TR altyapısı iki uygulamada; Desk tam iki dilli, ana uygulamada kabuk (TR beta). ~~Çok dil altyapısı — ve iki uygulamanın dilini birleştir~~ (`frontend` İngilizce, `desk` Türkçe) — 🟡 **bilinçli olarak ertelendi:** kullanıcıya görünen yüzlerce string'i elle taşımak, bu oturumda derinlemesine test edilemeyecek bir kapsam (her ekranın hem yeni dizeleri hem de kırılmamış yerleşimi canlı doğrulanmalı). Önerilen yol: i18n altyapısını (kütüphane + dil seçici + sözlük iskeleti) kurup metinleri ekran ekran, her taşımadan sonra canlı doğrulayarak aşamalı taşımak | 24, UX-004 | M |
 
 ---
 

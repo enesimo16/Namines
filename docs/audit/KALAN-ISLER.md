@@ -30,7 +30,8 @@ Backlog'daki 64 maddeden 61'i kapandı. Açık kalan 3 madde:
 > açık:** Oracle imajı makinede yok ve Oracle yolu varsayılan/identity bilgisini
 > bilerek okumuyor (LONG kolonu) — `Identity` orada "bilinmiyor" anlamında null.
 >
-> ⏳ **B-38 ve B-56 hâlâ açık:** `AIPreferencesModal.tsx` bugün **1653 satır /
+> ✅ **B-38 ve B-56 de bitmiştir (2026-09-27)** — ayrıntı aşağıdaki bölümlerde.
+> Aşağıdaki not 2026-09-26 ölçümüdür: **B-38 ve B-56 o gün hâlâ açıktı:** `AIPreferencesModal.tsx` bugün **1653 satır /
 > 42 `useState`** (bölünmedi, hafifçe büyüdü); `frontend` ya da `services/desk`
 > paketlerinde hiçbir i18n kütüphanesi kurulu değil.
 
@@ -42,6 +43,17 @@ madem yer yok").
 `RunTests` projesindeki ilgili testleri canlı çalıştırmak.
 
 ## B-38 — `AIPreferencesModal` bölme
+> ✅ **Bitmiştir (2026-09-27, `755a3d3`).** Önerilen yol izlendi: önce sekme
+> başına state haritası çıkarıldı, sonra bölündü. Modal ~200 satırlık bir kabuk;
+> `panels/preferences/` altında 6 sekme bileşeni + `useProfileForm`,
+> `useMfaSettings`, `useAiSettings`, `usePlans`, `useLocalStats`, `useOnOpen`.
+> State kabuktaki hook'larda kalıyor — sekme değişince bileşen sökülüyor ve
+> state orada olsaydı kaydedilmemiş düzenleme kaybolurdu. Tercihler tipli
+> `lib/aiAdvancedPrefs.ts`'de (5 test). Canlı: 16 etkileşimin anlık görüntüsü
+> taşımadan önce ve sonra birebir aynı. Yol boyunca gerçek bir hata daha
+> bulundu: 2FA açmak/kapatmak kullanıcının kendi oturumunu düşürüyordu
+> (`e62130b`, `MfaSessionTests`).
+
 **Engel değil, bilinçli erteleme.** 1651 satır, 30+ state. Körlemesine
 bölmek (örn. sekmelere ayırmak) state paylaşımını kırma riski taşıyor ve bu
 oturumda uçtan uca doğrulanamayacak kadar geniş bir refactor.
@@ -50,6 +62,18 @@ haritalayan bir analiz, sonra küçük adımlarla (her adımdan sonra manuel
 test) bölme.
 
 ## B-56 — i18n birleştirme (`frontend` İngilizce, `desk` Türkçe)
+> ✅ **Bitmiştir (2026-09-27, `f7aa4fc`).** Ölçünce "desk Türkçe" artık doğru
+> değildi — Desk zaten İngilizceye çekilmişti, geriye üç Türkçe kalıntı
+> kalmıştı ("Destek", "Yenile", "Veriye git"). Kütüphane KURULMADI: iki dil ve
+> düz metin, tipli bir sözlük + `useSyncExternalStore` hook'una sığıyor
+> (hydration uyuşmazlığı yok). Desk tam iki dilli; ana uygulamada kabuk
+> (üst şerit, çalışma alanı gezinmesi, ayarlar modalinin iskeleti) çevrildi,
+> Türkçe orada "beta". Ana uygulamanın geri kalanı İngilizce olduğu için
+> `<html lang>` "en" kalıyor, yalnızca çevrilmiş alt ağaçlar `lang="tr"`
+> taşıyor — aksi hâlde CSS büyük harfi İngilizceyi "VİEW BLUEPRİNTS" yapıyordu.
+> Testler: frontend `lib/i18n/i18n.test.ts` (6), Desk `lib/i18n.test.ts` (10 —
+> anahtar, yer tutucu ve işaret eşitliği dahil). Sunucu mesajları İngilizce kalıyor.
+
 **Engel değil, bilinçli erteleme.** Yüzlerce kullanıcıya görünen string var;
 tek oturumda elle taşımak yüksek regresyon riski, test kapsamı yok.
 **Yapılabilir:** önce i18n altyapısını (kütüphane seçimi + dil seçici +

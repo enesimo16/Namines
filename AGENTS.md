@@ -61,10 +61,12 @@ gerçek-Docker testi).
 promptsuz başlangıç, ve G55'te üçüncü faz ürünleri (**Desk, Vault, Ground,
 Launch**), **Namines Flow** otomasyon katmanı, agent hattı, 50-60 tablo parçalı
 üretim, sağlayıcı soyutlaması (Groq/DeepSeek) ve bir güvenlik turu (Gateway
-yetki aşımı, SSRF bypass, Ground çift faturalama). Bugün (2026-09-26, Docker
-ayakta) backend **2082/2082**, `Namines.Tests.RunTests` **19/19**, frontend
-**188**, Desk **101** — hepsi yeşil.
-Ayrıntı: `docs/new-phase/CHECKLIST.md` G55.
+yetki aşımı, SSRF bypass, Ground çift faturalama). G56'da backlog'un son iki
+maddesi kapandı: B-38 (`AIPreferencesModal` bölündü) ve B-56 (EN/TR dil
+altyapısı — Desk tam iki dilli, ana uygulamada kabuk). Bugün (2026-09-27,
+Docker ayakta) backend **2084/2084**, `Namines.Tests.RunTests` **19/19**,
+frontend **199**, Desk **111** — hepsi yeşil.
+Ayrıntı: `docs/new-phase/CHECKLIST.md` G55-G56.
 
 > **Bu oturumlarda öğrenilen en pahalı ders:** "testler geçiyor" hiçbir şey
 > kanıtlamıyor. G39'da 857 test yeşilken **uygulama hiç başlamıyordu**; G44'te
