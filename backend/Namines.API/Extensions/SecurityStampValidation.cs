@@ -48,6 +48,16 @@ public static class SecurityStampValidation
     /// </summary>
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
 
+    private static string CacheKey(string userId) => $"sstamp:{userId}";
+
+    /// <summary>
+    /// Önbellekteki damgayı unutturur. Damgayı yenileyip işlemi yapan oturumu
+    /// yeni damgalı bir jetonla sürdüren bir uç bunu ÇAĞIRMAK ZORUNDA: aksi
+    /// hâlde önbellekte kalan ESKİ damga, <see cref="CacheDuration"/> boyunca
+    /// o yeni jetonu reddeder.
+    /// </summary>
+    public static void ForgetStamp(IMemoryCache cache, string userId) => cache.Remove(CacheKey(userId));
+
     public static JwtBearerEvents AddSecurityStampValidation(this JwtBearerEvents events)
     {
         var existing = events.OnTokenValidated;
@@ -64,7 +74,7 @@ public static class SecurityStampValidation
             if (userId is null || tokenStamp is null) return;
 
             var cache = ctx.HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
-            var cacheKey = $"sstamp:{userId}";
+            var cacheKey = CacheKey(userId);
 
             if (!cache.TryGetValue(cacheKey, out string? currentStamp))
             {

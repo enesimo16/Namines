@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+using Namines.API.Extensions;
 using Namines.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
@@ -769,6 +771,7 @@ namespace Namines.API.Controllers
             if (string.IsNullOrEmpty(key))
                 return StatusCode(500, new { Message = "Could not generate an authenticator key." });
 
+            RenewCurrentSession(user);
             return Ok(new
             {
                 sharedKey = FormatAuthenticatorKey(key),
@@ -804,6 +807,7 @@ namespace Namines.API.Controllers
             // kullaniciyi hesabindan kalici olarak kilitlemek demek.
             var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, RecoveryCodeCount);
 
+            RenewCurrentSession(user);
             return Ok(new
             {
                 Message = "Two-factor authentication is on. Save these recovery codes -- they are shown only once.",
@@ -835,6 +839,7 @@ namespace Namines.API.Controllers
             await _userManager.SetTwoFactorEnabledAsync(user, false);
             await _userManager.ResetAuthenticatorKeyAsync(user);
 
+            RenewCurrentSession(user);
             return Ok(new { Message = "Two-factor authentication is off." });
         }
 
@@ -883,6 +888,23 @@ namespace Namines.API.Controllers
             var recoveryCode = code.Trim();
             var recovery = await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, recoveryCode);
             return recovery.Succeeded;
+        }
+
+        /// <summary>
+        /// Güvenlik damgası yenilendikten sonra İŞLEMİ YAPAN oturumu yeni
+        /// damgalı bir jetonla sürdürür.
+        ///
+        /// Identity, authenticator anahtarını sıfırlarken ve 2FA'yı açıp
+        /// kapatırken damgayı yeniliyor. Bu doğru: o hesaba ait DİĞER oturumlar
+        /// düşmeli. Ama işlemi yapan tarayıcının jetonu da eski damgayı taşıdığı
+        /// için sonraki isteği 401 alıyordu — "Turn on"dan sonra kodu doğrulamak
+        /// oturumu kapatıyor, 2FA fiilen açılamıyordu (bkz. MfaSessionTests).
+        /// </summary>
+        private void RenewCurrentSession(ApplicationUser user)
+        {
+            SetAuthCookie(GenerateJwtToken(user));
+            if (HttpContext?.RequestServices?.GetService(typeof(IMemoryCache)) is IMemoryCache cache)
+                SecurityStampValidation.ForgetStamp(cache, user.Id);
         }
 
         private async Task<ApplicationUser?> GetCurrentUserAsync()
