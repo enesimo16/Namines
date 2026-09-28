@@ -78,7 +78,19 @@ export default function WorkspaceNav() {
     observer.observe(slot);
     // Dil değişince etiket genişlikleri değişiyor — kopyayı da izle.
     observer.observe(measure);
-    return () => observer.disconnect();
+
+    // ResizeObserver YETMİYOR: sayfa görünmezken (arka plan sekmesi, gizli
+    // panel) tarayıcı kare üretmediği için geri çağırma hiç çalışmıyor ve ilk
+    // ölçüm 0 genişlikle donup kalıyor — geniş ekranda bile "yalnızca ikon"
+    // moduna düşüyordu. Sayfa görünür olunca boyut DEĞİŞMEDİĞİ için gözlemci
+    // de uyanmıyor; o yüzden görünürlüğü ayrıca dinliyoruz.
+    window.addEventListener('resize', update);
+    document.addEventListener('visibilitychange', update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+      document.removeEventListener('visibilitychange', update);
+    };
   }, [visible]);
 
   useEffect(() => {
