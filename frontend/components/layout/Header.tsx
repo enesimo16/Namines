@@ -341,9 +341,10 @@ export default function Header() {
 
         {/* Middle — Flow/Ground/Vault/Desk switcher. Yalnızca proje çalışma
             alanı rotalarında görünür (WorkspaceNav kendi içinde karar
-            veriyor); dar ekranda gizli, aşağıdaki sağ taraftaki hesap/ayar
-            grubuyla üst üste binmesin diye. */}
-        <div className="hidden md:flex flex-1 items-center justify-center px-2 min-w-0">
+            veriyor). Artık dar ekranda GİZLENMİYOR: ayrılan alanı kendisi
+            ölçüp şerit → açılır menü → yalnızca ikon olarak daralıyor, yani
+            komşularıyla üst üste binmeden mobilde de erişilebilir. */}
+        <div className="flex flex-1 items-center justify-center px-2 min-w-0">
           <WorkspaceNav />
         </div>
 

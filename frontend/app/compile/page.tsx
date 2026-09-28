@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpenText, FileText, Container, Download, PanelsTopLeft, ExternalLink, ShieldCheck, HardDrive, Rocket } from 'lucide-react';
+import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpenText, FileText, Container, Download, Rocket } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
-import { schemaService, authService } from '../../services/api';
+import { schemaService } from '../../services/api';
 
 import DbTypeSelector from '../../components/compile/DbTypeSelector';
 import SqlPreview from '../../components/compile/SqlPreview';
@@ -20,7 +20,6 @@ import PrismaPreview from '../../components/compile/PrismaPreview';
 import EjectPanel from '../../components/compile/EjectPanel';
 import LaunchPanel from '../../components/compile/LaunchPanel';
 import { IconButton } from '../../components/compile/PanelKit';
-import { openDeskHandoff } from '../../lib/deskHandoff';
 import {
   generateClassDiagram,
   generateFlowchart,
@@ -76,30 +75,6 @@ export default function CompilePage() {
   const [activeTab, setActiveTab] = useState<TabId>('SQL');
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingSvg, setIsExportingSvg] = useState(false);
-  const [openingDesk, setOpeningDesk] = useState(false);
-
-  /**
-   * Namines Desk v2 §E1.2 — SSO devri. EN GÜVENLİ seçenek uygulandı: jeton
-   * bir <a href> ya da window.open URL'inde DEĞİL, gizli bir <form>'un POST
-   * gövdesinde gider. Bu, jetonun tarayıcı geçmişine ve `Referer` başlığına
-   * düşmesini engeller (bir form POST gövdesi bunların hiçbirine yansımaz).
-   *
-   * Akış: 1) çerezle (zaten girişli) tek kullanımlık bir jeton iste,
-   * 2) o jetonu tek bir gizli input'a koyan, Desk'in `/handoff` ucuna hedefli
-   * bir form oluştur, 3) formu yeni sekmede otomatik gönder, 4) formu DOM'dan
-   * kaldır (jeton sayfa kaynağında asılı kalmasın).
-   */
-  async function openNaminesDesk() {
-    setOpeningDesk(true);
-    try {
-      const { token } = await authService.createDeskHandoffToken();
-      openDeskHandoff({ token });
-    } catch {
-      showToast('Could not open Namines Desk. Please try again.', 'error');
-    } finally {
-      setOpeningDesk(false);
-    }
-  }
 
   useEffect(() => {
     if (!schema) {
@@ -284,54 +259,9 @@ export default function CompilePage() {
             );
           })}
 
-          {/* Namines Desk — AYRI mikroservis (services/desk), ayri port.
-              Sekme DEGIL bir BAGLANTI: bu sayfanin icinde render edilemez,
-              kendi uygulamasi. "Developer Package" sekmesi (indirilebilir
-              Streamlit/Next.js paketleri) bunun yerine kaldirildi:
-              indirilen bir panel yerine barindirilan bir panel veriyoruz.
-
-              Namines Desk v2 §E1.2 — SSO devri EN GÜVENLİ şekilde: jeton bir
-              URL'e ASLA yazılmaz (tarayıcı geçmişi + Referer sızıntısı riski),
-              yalnızca gizli bir form'un POST gövdesinde Desk'in /handoff
-              ucuna taşınır. */}
-          <button
-            type="button"
-            onClick={openNaminesDesk}
-            disabled={openingDesk}
-            className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 mt-1 lg:mt-2 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10 disabled:opacity-50"
-            title="Namines Desk — a hosted CRUD interface for your database (separate app)"
-          >
-            <PanelsTopLeft className="w-3.5 h-3.5 shrink-0" />
-            <span className="lg:truncate">{openingDesk ? 'Opening…' : 'Namines Desk'}</span>
-            <span className="text-micro font-bold uppercase tracking-wider text-accent-text bg-accent-subtle px-1.5 py-0.5 rounded-full shrink-0">beta</span>
-            <ExternalLink className="w-3 h-3 shrink-0 ml-auto opacity-60" />
-          </button>
-
-          {/* Namines Ground / Vault — Desk'in ALTINDA değil, ondan bağımsız
-              kendi sayfaları (/ground, /vault) var. Gerekçe: bir kullanıcı
-              yalnızca barındırılan bir veritabanı (Ground) ya da yalnızca
-              düzenli yedek (Vault) isteyebilir — Desk'in CRUD/SQL konsolu
-              akışına hiç girmeden. Aynı origin/oturum olduğu için Desk'in
-              aksine SSO handoff gerekmiyor, düz bir sayfa geçişi yeterli. */}
-          <button
-            type="button"
-            onClick={() => router.push('/ground')}
-            className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 mt-1 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10"
-            title="Namines Ground — a hosted database, independent of Desk"
-          >
-            <HardDrive className="w-3.5 h-3.5 shrink-0" />
-            <span className="lg:truncate">Namines Ground</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.push('/vault')}
-            className="relative shrink-0 lg:shrink lg:w-full flex items-center gap-2 pl-2.5 pr-2.5 lg:pr-2 py-1.5 rounded-[var(--radius-control)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer text-content-muted hover:text-content-secondary hover:bg-white/[0.04] border border-content-primary/10"
-            title="Namines Vault — backups and restore, independent of Desk"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-            <span className="lg:truncate">Namines Vault</span>
-          </button>
+          {/* Namines Desk / Ground / Vault bağlantıları burada DURMUYOR: üst
+              şeritteki çalışma alanı gezinmesi (WorkspaceNav) hepsini zaten
+              her sayfada veriyor; ikinci bir kopya yalnızca paneli uzatıyordu. */}
         </nav>
       </aside>
 

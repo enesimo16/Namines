@@ -66,6 +66,8 @@ const en = {
     desk: 'Desk',
     deskNeedsProject: 'Open or save a project first — Desk needs one to open.',
     deskFailed: 'Could not open Desk. Try again.',
+    opensInNewTab: 'opens in a new tab',
+    menu: 'Switch workspace',
   },
   preferences: {
     hub: 'Namines Hub',

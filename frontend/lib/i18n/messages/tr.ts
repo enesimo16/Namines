@@ -60,6 +60,8 @@ const tr: Messages = {
     desk: 'Desk',
     deskNeedsProject: 'Önce bir proje aç ya da kaydet — Desk açılmak için bir projeye ihtiyaç duyuyor.',
     deskFailed: 'Desk açılamadı. Tekrar dene.',
+    opensInNewTab: 'yeni sekmede açılır',
+    menu: 'Çalışma alanını değiştir',
   },
   preferences: {
     hub: 'Namines Merkezi',
