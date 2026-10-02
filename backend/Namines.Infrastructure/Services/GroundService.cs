@@ -215,18 +215,52 @@ public class GroundService
 
         if (project is null) return new GroundResult(false, "Project not found.");
 
+        // DURUM GEÇİŞİ ATOMİK OLARAK SAHİPLENİLİYOR — ve bu, TÜM ret kapılarından
+        // SONRA yapılıyor.
+        //
+        // <b>Bulunan açık (docs/last-review M-7):</b> iptal ile arka plandaki
+        // <see cref="PurgeExpiredAsync"/> aynı kayıt üzerinde yarışıyordu ve hiçbir
+        // eşzamanlılık kontrolü yoktu. Bekleme penceresinin son saniyesinde iptal
+        // durumu <c>Active</c> yaparken purge zaten <c>DROP DATABASE</c>'i çağırıyor
+        // olabiliyordu: ekranda "Active" görünen, veritabanı ise düşürülmüş bir kayıt.
+        //
+        // <b>SIRA ÖNEMLİ ve bunu bir test yakaladı.</b> Sahiplenme ilk yazdığımda
+        // metodun BAŞINDAYDI, yani yetenek kontrolünden (<c>CreateIsIdempotentByProjectId</c>)
+        // ve proje aramasından ÖNCE. O dallardan biri erken döndüğünde sahiplenme
+        // geri alınmıyor ve kayıt <c>Provisioning</c>'de ASILI kalıyordu — ne purge
+        // ne de ikinci bir iptal onu ele alabilirdi. Yani eşzamanlılık düzeltmesi,
+        // düzeltmeye çalıştığı şeyin daha kötü bir sürümünü üretmişti. Reddedilecek
+        // bir istek artık hiçbir şeye dokunmuyor.
+        var claimed = await _context.GroundDatabases
+            .Where(g => g.Id == record.Id && g.Status == GroundStatus.PendingDelete)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(g => g.Status, GroundStatus.Provisioning)
+                .SetProperty(g => g.DeleteRequestedAt, (DateTime?)null), ct);
+
+        if (claimed == 0)
+            return new GroundResult(false,
+                "This deletion is already being processed and can no longer be canceled.");
+
+        // ExecuteUpdate degisiklik izleyicisini atlar; elimizdeki nesne bayat.
+        await _context.Entry(record).ReloadAsync(ct);
+
         try
         {
             // CreateAsync idempotan: var olan veritabanına dokunmuyor, yalnızca
             // rolün parolasını tazeleyip yeni bağlantıyı döndürüyor. (Yukarıdaki
             // kontrol bunu YALNIZCA bunu garanti eden sağlayıcılar için sağlıyor.)
             var provisioned = await provider.CreateAsync(
-                new ProvisionSpec(project.Id, project.Name), ct);
+                new ProvisionSpec(
+                    project.Id, project.Name, record.Region,
+                    ExistingProviderProjectId: record.ProviderProjectId,
+                    ExistingProviderBranchId: record.ProviderBranchId),
+                ct);
 
             project.EncryptedConnectionString = _protector.Protect(provisioned.ConnectionString);
             project.ConnectionDbType = "PostgreSQL";
             project.UpdatedAt = DateTime.UtcNow;
 
+            // Sahiplenme Provisioning'e cekmisti; is bitti, Active'e geciyor.
             record.Status = GroundStatus.Active;
             record.DeleteRequestedAt = null;
             record.Error = null;
@@ -235,6 +269,11 @@ public class GroundService
         {
             // Ayni sebep: ham istisna metni CancelDelete uc noktasinin
             // BadRequest govdesine ve Describe uzerinden GET ucuna gider.
+            // SAHIPLENME GERI ALINIYOR: kayit Provisioning'de asili kalirsa ne
+            // purge ne de ikinci bir iptal denemesi onu ele alabilir — kullanici
+            // ne verisini geri alabilir ne de silinmesini bekleyebilir.
+            record.Status = GroundStatus.PendingDelete;
+            record.DeleteRequestedAt = DateTime.UtcNow;
             record.Error = "Canceling deletion failed. Contact support if this persists.";
             _logger.LogError(ex, "Ground: {ProjectId} icin silme geri alinamadi.", record.ProjectId);
             await _context.SaveChangesAsync(CancellationToken.None);
@@ -264,11 +303,32 @@ public class GroundService
         var purged = 0;
         foreach (var record in expired)
         {
+            // AYNI KAPI (docs/last-review M-7): kayit yalnizca HALA PendingDelete
+            // ise sahipleniliyor. Kullanici bu arada silmeyi geri aldiysa (durum
+            // Provisioning/Active) burada 0 satir doner ve sağlayıcıda DROP
+            // CAGRILMAZ — yarisin kaybeden tarafi hicbir sey yapmiyor.
+            var claimed = await _context.GroundDatabases
+                .Where(g => g.Id == record.Id && g.Status == GroundStatus.PendingDelete)
+                .ExecuteUpdateAsync(s => s.SetProperty(g => g.Status, GroundStatus.Deleting), ct);
+
+            if (claimed == 0)
+            {
+                _logger.LogInformation(
+                    "Ground: {ProjectId} silinmedi — kayit bu arada baska bir islem tarafindan alindi.",
+                    record.ProjectId);
+                continue;
+            }
+
+            await _context.Entry(record).ReloadAsync(ct);
+
             var provider = FindProvider(record.Provider);
             if (provider is null)
             {
                 // Sağlayıcı artık kayıtlı değil. Kaydı "silindi" işaretlemek,
-                // gerçekte duran bir kaynağı görünmez yapardı.
+                // gerçekte duran bir kaynağı görünmez yapardı. Sahiplenme geri
+                // alınıyor: Deleting'de bırakmak kaydı hiç işlenemez kılardı.
+                record.Status = GroundStatus.PendingDelete;
+                await _context.SaveChangesAsync(CancellationToken.None);
                 _logger.LogError(
                     "Ground: {Provider} saglayicisi kayitli degil, {ProjectId} silinemedi.",
                     record.Provider, record.ProjectId);
@@ -312,6 +372,9 @@ public class GroundService
                 // "Deleted" işaretlemek, duran bir kaynağı kaybetmek olurdu.
                 // Ham istisna metni burada da GET /api/ground/{projectId}
                 // (Describe.error) üzerinden istemciye gidiyordu.
+                // Sahiplenme geri aliniyor ki bir sonraki turda yeniden denenebilsin;
+                // Deleting'de asili kalan kayit hic islenmezdi.
+                record.Status = GroundStatus.PendingDelete;
                 record.Error = "Deletion failed and will be retried automatically.";
                 _logger.LogError(ex, "Ground: {ProjectId} kalici olarak silinemedi.", record.ProjectId);
             }

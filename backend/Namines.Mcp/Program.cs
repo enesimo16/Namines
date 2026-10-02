@@ -40,6 +40,9 @@ builder.Services.AddSingleton<IDbHostAccessPolicy>(sp =>
         sp.GetRequiredService<IConfiguration>(),
         sp.GetRequiredService<ILogger<DbHostAccessPolicy>>()));
 
+// Baglanti dizesi MODELIN ciktisindan geliyor; hedefi gorunur kilan kapi
+// (docs/last-review M-16).
+builder.Services.AddSingleton<Namines.Mcp.McpConnectionGuard>();
 builder.Services.AddSingleton<IDbIntrospectionService, DbIntrospectionService>();
 builder.Services.AddSingleton<IDdlGeneratorFactory, DdlGeneratorFactory>();
 builder.Services.AddSingleton<IBranchTestRunner, BranchTestRunnerService>();

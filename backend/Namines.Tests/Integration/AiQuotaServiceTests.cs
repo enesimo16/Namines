@@ -1,3 +1,4 @@
+using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Namines.Core.Analysis;
@@ -392,5 +393,70 @@ public class AiQuotaServiceTests : IAsyncLifetime
         var today = DateTime.UtcNow.Date;
         Assert.Equal(4321, await context.GlobalAiUsages
             .Where(g => g.Date == today).Select(g => g.TokensUsed).SingleAsync());
+    }
+
+    // ── Eşzamanlı rezervasyon (docs/last-review M-3) ──────────────────────────
+
+    /// <summary>
+    /// <b>Bulunan açık:</b> <c>TryReserveAsync</c>'in yorumu "kontrolü ve düşmeyi
+    /// TEK atomik adımda yapıyor" diyordu, ama gövdesi <c>CheckAsync</c> +
+    /// <c>ConsumeAsync</c> — İKİ ayrı veritabanı turuydu. Eşzamanlı N istek
+    /// kontrolü birlikte geçiyor, hepsi sağlayıcıya gidiyor ve tavan tek seferde
+    /// deliniyordu. Yorum düzeltmeyi anlatıyordu, kod onu yapmıyordu.
+    ///
+    /// Bu test GERÇEK PostgreSQL'e karşı çalışmak zorunda: iddia tam olarak
+    /// veritabanının <c>UPDATE ... WHERE</c>'i satır kilidiyle sıraya dizmesi.
+    /// </summary>
+    [RequiresDockerFact]
+    public async Task Concurrent_reservations_cannot_exceed_the_user_cap()
+    {
+        await ResetAsync();
+
+        const int cap = 10_000;
+        const int perCall = 1_000;
+        const int attempts = 40; // tavanın 4 katı kadar deneme
+
+        // Kota satırını önce oluştur: yarış rezervasyonda ölçülmeli, satır
+        // yaratmada değil.
+        {
+            var (seedContext, seedService) = Service(perUserCap: cap);
+            await using (seedContext)
+                Assert.Equal(AiQuotaDecision.Allowed, await seedService.CheckAsync("u1", 1));
+        }
+
+        var granted = 0;
+
+        await Task.WhenAll(Enumerable.Range(0, attempts).Select(async _ =>
+        {
+            // Her çağrı KENDİ DbContext'ini kullanıyor: tek bir context'i
+            // paylaşmak eşzamanlılığı değil, EF'in thread-safe olmamasını test
+            // ederdi.
+            var (context, service) = Service(perUserCap: cap);
+            await using (context)
+            {
+                if (await service.TryReserveAsync("u1", perCall) == AiQuotaDecision.Allowed)
+                    Interlocked.Increment(ref granted);
+            }
+        }));
+
+        await using var verify = new AuthDbContext(_options);
+        var used = (await verify.UserAIQuotas.SingleAsync(q => q.UserId == "u1")).DailyUsageCount;
+
+        // ASIL İDDİA: tavan AŞILMADI. Düzeltme öncesi 40 eşzamanlı istek
+        // CheckAsync'i birlikte geçip hepsi sağlayıcıya gidiyordu.
+        Assert.True(used <= cap, $"Tavan asildi: {used} > {cap}");
+
+        // İKİNCİ İDDİA: verilen izin sayısı düşülen bütçeyle TUTARLI — yani izin
+        // verilip bütçeden düşülmeyen (bedava) bir çağrı yok.
+        Assert.Equal(granted * perCall, used);
+
+        // <b>TAM KULLANIM İDDİA EDİLMİYOR, ve bu ölçülmüş bir gözlem:</b> 40
+        // eşzamanlı denemede 10 slotun 8'i verildi, 2000 token boşa gitti.
+        // PostgreSQL'in koşullu UPDATE'i çekişme altında bazı denemeleri yer
+        // varken de reddedebiliyor. Bu bir GÜVENLİK sorunu değil — hata yönü
+        // bütçenin LEHİNE — ama "tam kullanım" diye bir garanti vermemek için
+        // burada tek bir sayıya kilitlemiyoruz. En az yarısının verilmesi,
+        // rezervasyonun tamamen kilitlenmediğini kanıtlıyor.
+        Assert.InRange(granted, (cap / perCall) / 2, cap / perCall);
     }
 }

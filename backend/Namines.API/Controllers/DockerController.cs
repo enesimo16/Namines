@@ -140,6 +140,15 @@ public class DockerController : ControllerBase
             return;
         }
 
+        // DownloadBackup ile AYNI sahiplik kontrolü: oturum "kim olduğunu", jobId
+        // "hangi işe baktığını" söylüyor — ikinci katman olmadan sızan bir jobId
+        // (proxy logu, Referer) başka kullanıcının DDL'ini içeren derleme logunu açar.
+        if (job.UserId != null && job.UserId != CurrentUserId)
+        {
+            Response.StatusCode = 403;
+            return;
+        }
+
         Response.Headers.Append("Content-Type", "text/event-stream");
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");

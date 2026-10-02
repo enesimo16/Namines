@@ -16,7 +16,29 @@ namespace Namines.Ground.Abstractions;
 /// varsayılan), ama sözleşmede baştan var: sonradan eklemek her uygulamayı
 /// ve her çağrı yerini değiştirmek demek olurdu.
 /// </param>
-public sealed record ProvisionSpec(string ProjectId, string ProjectName, string? Region = null);
+/// <param name="ExistingProviderProjectId">
+/// KURTARMA yolu icin: saglayicida ZATEN duran kaynagin kimligi.
+///
+/// <b>Neden gerekli:</b> <c>CancelDeleteAsync</c> ayni veritabanini yeniden
+/// bulmak icin <c>CreateAsync</c>'in idempotan olmasina guveniyor, ama yerel
+/// saglayici adi proje kimliginden TURETIYOR. Turetme kurali bir kez degisince
+/// (bkz. <c>BuildIdentifier</c> ozet soneki) ayni proje kimligi FARKLI bir ad
+/// verir: kurtarma ikinci ve BOS bir veritabani acar, kayittaki eski ad ise
+/// veriyi tasiyan veritabanini gosterdigi icin <c>PurgeExpiredAsync</c> onu
+/// sonradan dusurur — yani kullanici silmeyi geri aldigi hâlde verisini kaybeder.
+/// Kurtarma bu yuzden turetmeye degil SAKLANAN ada bakiyor.
+///
+/// Yeni provizyonda <c>null</c>; o zaman ad proje kimliginden turetilir.
+/// </param>
+/// <param name="ExistingProviderBranchId">
+/// Ayni sebeple saklanan alt kaynak kimligi (yerel saglayicida: rol adi).
+/// </param>
+public sealed record ProvisionSpec(
+    string ProjectId,
+    string ProjectName,
+    string? Region = null,
+    string? ExistingProviderProjectId = null,
+    string? ExistingProviderBranchId = null);
 
 /// <summary>
 /// Açılmış bir veritabanı.

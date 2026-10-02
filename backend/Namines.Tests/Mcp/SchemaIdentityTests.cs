@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 using Namines.Core.Analysis;
 using Namines.Core.Enums;
@@ -39,7 +41,10 @@ public class SchemaIdentityTests
     private static NaminesTools Tools() => new(
         new StubIntrospection(), new StubTestRunner(),
         new DdlGeneratorFactory(), new PrismaGeneratorService(),
-        new NaminesCloudClient(new HttpClient()));
+        new NaminesCloudClient(new HttpClient()),
+        // M-16: hedefi kaydeden kapi. Allowlist tanimsiz -> varsayilan davranis.
+        new McpConnectionGuard(new ConfigurationBuilder().Build(),
+            NullLogger<McpConnectionGuard>.Instance));
 
     /// <summary>StableUuid taşımayan şema — bir agent'ın yazacağı tipik JSON.</summary>
     private const string WithoutUuids = """

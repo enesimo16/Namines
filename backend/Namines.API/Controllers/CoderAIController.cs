@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,11 +21,21 @@ namespace Namines.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+// Kimlik doğrulaması artık AIQuotaMiddleware'in YAN ETKİSİNE bırakılmıyor: middleware
+// yol önekine bakıyor, bir yeniden adlandırma bu kapıyı sessizce kaldırırdı.
+[Authorize]
 public class CoderAIController : ControllerBase
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly DockerJobManager _jobManager;
     private readonly ILogger<CoderAIController> _logger;
+
+    private string? CurrentUserId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+    // jobId yalnızca sunucu üretimi bir GUID olabilir (bkz. DockerController.IsValidJobId).
+    // Doğrulanmazsa değer Path.Combine'a ham girer ve `..%5C..%5Cappsettings.json`
+    // Outputs/ klasöründen kaçarak diskteki rastgele dosyaları okutur.
+    private static bool IsValidJobId(string jobId) => Guid.TryParse(jobId, out _);
 
     public CoderAIController(
         IServiceScopeFactory scopeFactory,
@@ -47,12 +58,13 @@ public class CoderAIController : ControllerBase
 
         _logger.LogInformation("CoderAI: Generate request received. Schema: {Name}, DbType: {DbType}", request.Schema.Name, request.DbType);
 
-        var jobId = Guid.NewGuid().ToString();
-        _jobManager.CreateJob(jobId);
-
         // Capture HttpContext items and claims before spawning background thread
         bool fallbackToLocal = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        var jobId = Guid.NewGuid().ToString();
+        // userId ile açılmazsa StreamLogs/DownloadZip sahiplik kontrolü herkes için geçerdi.
+        _jobManager.CreateJob(jobId, userId);
         var claimsPrincipal = HttpContext.User;
 
         // Run background packaging task (no docker container startup)
@@ -103,7 +115,7 @@ public class CoderAIController : ControllerBase
                 {
                     try
                     {
-                        var cached = await cacheService.TryGetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString() });
+                        var cached = await cacheService.TryGetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString(), promptVersion = StreamlitPromptVersion });
                         if (cached != null)
                         {
                             _jobManager.AddLog(jobId, "CoderAI: Cache HIT. Reusing cached Streamlit app code.");
@@ -126,7 +138,7 @@ public class CoderAIController : ControllerBase
                             
                             try
                             {
-                                await cacheService.SetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString() }, appPyContent, TimeSpan.FromHours(2));
+                                await cacheService.SetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString(), promptVersion = StreamlitPromptVersion }, appPyContent, TimeSpan.FromHours(2));
                             }
                             catch (Exception cacheEx)
                             {
@@ -176,6 +188,12 @@ public class CoderAIController : ControllerBase
     [HttpGet("stream/{jobId}")]
     public async Task StreamLogs(string jobId)
     {
+        if (!IsValidJobId(jobId))
+        {
+            Response.StatusCode = 400;
+            return;
+        }
+
         Response.Headers.Append("Content-Type", "text/event-stream");
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");
@@ -185,6 +203,12 @@ public class CoderAIController : ControllerBase
         if (job == null)
         {
             Response.StatusCode = 404;
+            return;
+        }
+
+        if (job.UserId != null && job.UserId != CurrentUserId)
+        {
+            Response.StatusCode = 403;
             return;
         }
 
@@ -250,6 +274,16 @@ public class CoderAIController : ControllerBase
     [HttpGet("download/{jobId}")]
     public IActionResult DownloadZip(string jobId)
     {
+        if (!IsValidJobId(jobId))
+            return BadRequest(new { message = "Invalid job id." });
+
+        var job = _jobManager.GetJob(jobId);
+        if (job == null)
+            return NotFound("Zip file not found.");
+
+        if (job.UserId != null && job.UserId != CurrentUserId)
+            return Forbid();
+
         var filePath = Path.Combine(Directory.GetCurrentDirectory(), "Outputs", $"coderai_{jobId}.zip");
         if (!System.IO.File.Exists(filePath))
             return NotFound("Zip file not found.");
@@ -257,6 +291,21 @@ public class CoderAIController : ControllerBase
         var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
         return File(stream, "application/zip", $"admin_panel_{jobId}.zip");
     }
+
+    /// <summary>
+    /// Streamlit prompt'unun surumu — SEMANTIK ONBELLEK ANAHTARININ parcasi.
+    ///
+    /// <b>Neden gerekli (docs/last-review M-17):</b> onbellek uretilen app.py
+    /// METNINI 2 saat tutuyor. Paketleyici artik paket basina RASTGELE parola
+    /// uretiyor; prompt'tan once onbellege girmis bir app.py ise eski SABIT
+    /// parolayi gomulu tasiyor ve yeni parolayla baglanamaz. Surumu anahtara
+    /// katmak, o girdileri gecersiz kiliyor — onbellegi elle temizlemek gerekmiyor.
+    ///
+    /// <b>Prompt'u her degistirdiginde bunu artir.</b> Aksi halde kullanicilar
+    /// saatlerce eski davranisi gorur ve degisikligin neden ise yaramadigi
+    /// anlasilmaz olur.
+    /// </summary>
+    private const int StreamlitPromptVersion = 2;
 
     private string GenerateStreamlitAppProgrammatically(DatabaseSchema schema, string dbType)
     {

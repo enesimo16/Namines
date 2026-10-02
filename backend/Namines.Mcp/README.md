@@ -119,6 +119,28 @@ Ayrıntı ve elle kurulum: [skills/namines-schema-review/README.md](../../skills
   ayrılmış adreslere bağlanamaz; bu sunucu kullanıcının kendi makinesinde çalıştığı
   için o kısıt burada geçerli değil (33 §2). Kapatmak için
   `Security__AllowPrivateDbHosts=false` ortam değişkeni.
+- **GENEL (internet) veritabanı hostları VARSAYILAN OLARAK KAPALI.** Barındırılan
+  bir Postgres'e (Neon, RDS, Supabase) bağlanmak için:
+
+  ```
+  Security__McpAllowPublicDbHosts=true
+  ```
+
+  **Neden varsayılan kapalı:** bağlantı dizesi MODELİN çıktısından geliyor. Prompt
+  injection'a maruz kalmış bir model, kimlik bilgilerinizi içeren bir dizeye
+  `Host=saldirgan.example.com` yazıp onları makinenizden dışarı taşıyabilir — bir
+  veritabanı sürücüsüyle açılan, kimsenin beklemediği bir sızış kanalı. Yerel bir
+  geliştirme aracının varsayılan olarak internete çıkması için bir sebep yok.
+
+  Daha dar bir kapı isterseniz hedefleri tek tek sayın (bu durumda yukarıdaki
+  bayrağa gerek kalmaz):
+
+  ```
+  Security__McpAllowedDbHosts=db.sirketim.com,10.0.0.5
+  ```
+
+  Her bağlantı hedefi (host + motor, **asla kimlik bilgisi değil**) stderr'a
+  yazılıyor — modelin nereyi aradığını görebilirsiniz.
 - **Kullanıcının veritabanına yazan araç YOK.** `open_change_request` bile sunucuda
   bir inceleme açar, migration uygulamaz. Şema değişikliğini otomatik uygulamak
   yanlış gittiğinde sessizce veri kaybettirir (33 §7).

@@ -85,7 +85,12 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         // Değer artık virgülde DURMUYOR (`[^;]+`, öncekinden farklı olarak) —
         // "host1,host2" gibi çoklu-host listesini BÜTÜN olarak yakalayıp
         // aşağıda kendimiz ayırıyoruz. Yalnızca `;` gerçek alan sınırı.
-        const string pattern = @"(?:^|;)\s*(?:server|host|data\s*source|datasource)\s*=\s*([^;]+)";
+        // `address`/`addr`/`network address`: SqlClient ve MySqlConnector bunları `server`ın
+        // EŞANLAMI sayıyor ve TEKRAR EDEN anahtarda SON değer kazanıyor. Yalnızca dört
+        // anahtarı tanımak, `Server=public;Addr=10.0.0.15` gibi bir dizede guard'ın ilk
+        // (masum) host'u onaylayıp sürücünün ikincisine bağlanmasına izin veriyordu.
+        // Sürücünün kendi çözümlemesi de aşağıda ayrıca aday olarak ekleniyor (BuilderHosts).
+        const string pattern = @"(?:^|;)\s*(?:server|host|data\s*source|datasource|address|addr|network\s*address)\s*=\s*([^;]+)";
 
         // Virgülün anlamı MOTORA GÖRE DEĞİŞİYOR: Npgsql'de host LİSTESİ ayıracı
         // ("Host=a,b" — failover), MSSQL'de ise TEK host'un port'undan ayıracı
@@ -120,7 +125,64 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             }
         }
 
+        // Anahtar ADI tahminine güvenmeden: sürücünün builder'ının BAĞLANACAĞI host'u da
+        // aday olarak ekleniyor. Regex bir eşanlamı kaçırsa bile (yarın eklenen bir takma ad)
+        // bağlanılacak host doğrulanmadan kalmıyor. Birleşim yalnızca daha katı olabilir.
+        foreach (var candidate in BuilderHosts(cs, dbType))
+        {
+            if (!hosts.Contains(candidate, StringComparer.OrdinalIgnoreCase)) hosts.Add(candidate);
+        }
+
         return hosts;
+    }
+
+    /// <summary>
+    /// Sürücünün connection-string builder'ının çözdüğü host(lar). Builder bozuk dizede
+    /// fırlatırsa boş döner: aynı builder <c>UserDbConnection.Create</c>'te de fırlatır ve
+    /// bağlantı hiç kurulmaz; regex adayları yine de doğrulanır.
+    /// </summary>
+    private static IEnumerable<string> BuilderHosts(string cs, string dbType)
+    {
+        string? raw = null;
+        var isPostgres = false;
+        try
+        {
+            switch (dbType.ToUpperInvariant())
+            {
+                case "MSSQL":
+                case "SQLSERVER":
+                    raw = new SqlConnectionStringBuilder(cs).DataSource;
+                    break;
+                case "POSTGRESQL":
+                case "POSTGRES":
+                    raw = new NpgsqlConnectionStringBuilder(cs).Host;
+                    isPostgres = true;
+                    break;
+                case "MYSQL":
+                case "MARIADB":
+                    raw = new MySqlConnectionStringBuilder(cs).Server;
+                    break;
+                case "ORACLE":
+                    raw = new OracleConnectionStringBuilder(cs).DataSource;
+                    break;
+            }
+        }
+        catch (ArgumentException)
+        {
+            yield break;
+        }
+
+        if (string.IsNullOrWhiteSpace(raw)) yield break;
+
+        // "tcp:host,1433" / "np:host" / "lpc:host": SqlClient protokol önekini atıp host'a bağlanıyor.
+        var value = Regex.Replace(raw.Trim(), @"^(?:tcp|np|lpc):", string.Empty, RegexOptions.IgnoreCase);
+
+        var segments = isPostgres ? value.Split(',') : new[] { value };
+        foreach (var segment in segments)
+        {
+            var host = segment.Trim().Split(',', ':', '/', '\\')[0].Trim();
+            if (host.Length > 0) yield return host;
+        }
     }
 
     /// <summary>

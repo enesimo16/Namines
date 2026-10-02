@@ -65,8 +65,12 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
             SupportsBranching: false, SupportsRegionChoice: false, IsLiveVerified: true,
             ResponsibilityNote: "test", CreateIsIdempotentByProjectId: idempotent);
 
+        /// <summary>En son alınan spec — kurtarma yolunun ne gönderdiğini görmek için.</summary>
+        public ProvisionSpec? LastSpec { get; private set; }
+
         public Task<ProvisionedDatabase> CreateAsync(ProvisionSpec spec, CancellationToken ct)
         {
+            LastSpec = spec;
             _created++;
             // Her çağrı FARKLI bir kimlik üretiyor — tam olarak Neon/Supabase'in
             // "koşulsuz yeni proje" davranışı.
@@ -178,5 +182,43 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
         await using var verify = NewContext();
         var reloadedProject = await verify.CloudProjects.SingleAsync(p => p.Id == "proj-1");
         Assert.NotNull(reloadedProject.EncryptedConnectionString);
+    }
+
+    /// <summary>
+    /// Idempotan sağlayıcıda kurtarma, adı YENİDEN TÜRETMEK yerine kayıttaki
+    /// sağlayıcı kimliğini geri veriyor.
+    ///
+    /// <b>Bu turun kendi regresyonu (docs/last-review H-7):</b>
+    /// <c>LocalPostgresProvider.BuildIdentifier</c>'a çakışma önlemek için özet
+    /// soneki eklenmişti. Kurtarma yolu ise <c>CreateIsIdempotentByProjectId</c>
+    /// yeteneğine güvenip <c>CreateAsync</c>'i yalnızca proje kimliğiyle
+    /// çağırıyordu — türetme kuralı değiştiği için aynı kimlik artık FARKLI bir
+    /// ad veriyor. Sonuç: kurtarma ikinci ve BOŞ bir veritabanı açar, kayıttaki
+    /// eski ad veriyi taşıyan veritabanını gösterdiği için <c>PurgeExpiredAsync</c>
+    /// onu bekleme penceresi sonunda düşürür. Kullanıcı silmeyi geri aldığı hâlde
+    /// verisini kaybeder — yani "idempotan" varsayımı türetmeye bağlıydı.
+    /// </summary>
+    [Fact]
+    public async Task Idempotan_saglayicida_kurtarma_SAKLANAN_kimligi_geri_veriyor()
+    {
+        await using var db = NewContext();
+        var (_, record) = await SeedPendingDeleteAsync(db);
+        record.ProviderBranchId = "role-original";
+        record.Region = "eu-central-1";
+        await db.SaveChangesAsync();
+
+        var provider = new FakeRemoteProvider(idempotent: true);
+        var service = new GroundService(db, new PassthroughProtector(),
+            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+
+        var result = await service.CancelDeleteAsync(record, provider, CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.NotNull(provider.LastSpec);
+        Assert.Equal("remote-original", provider.LastSpec!.ExistingProviderProjectId);
+        Assert.Equal("role-original", provider.LastSpec.ExistingProviderBranchId);
+        // Bölge de kayıttan geliyor: sağlayıcı varsayılanına düşmek, kurtarmayı
+        // kaynağın gerçekte açıldığı bölgeden başka bir yere taşıyabilirdi.
+        Assert.Equal("eu-central-1", provider.LastSpec.Region);
     }
 }

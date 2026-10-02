@@ -378,9 +378,9 @@ public class OllamaAIService : IAIService
     {
         return dbType switch
         {
-            Namines.Core.Enums.DatabaseType.PostgreSQL => "Host: db\nPort: 5432\nUsername: postgres\nPassword: Namines_Secure123!\nDatabase: naminesdb",
-            Namines.Core.Enums.DatabaseType.MySQL => "Host: db\nPort: 3306\nUsername: root\nPassword: Namines_Secure123!\nDatabase: naminesdb",
-            Namines.Core.Enums.DatabaseType.MSSQL => "Host: db\nPort: 1433\nUsername: sa\nPassword: Namines_Secure123!\nDatabase: naminesdb",
+            Namines.Core.Enums.DatabaseType.PostgreSQL => "Host: db\nPort: 5432\nUsername: postgres\nPassword: ORTAM DEGISKENINDEN oku - os.environ[\"DATABASE_URL\"] tam baglanti dizesini tasiyor; parolayi KODA GOMME.\nDatabase: naminesdb",
+            Namines.Core.Enums.DatabaseType.MySQL => "Host: db\nPort: 3306\nUsername: root\nPassword: ORTAM DEGISKENINDEN oku - os.environ[\"DATABASE_URL\"] tam baglanti dizesini tasiyor; parolayi KODA GOMME.\nDatabase: naminesdb",
+            Namines.Core.Enums.DatabaseType.MSSQL => "Host: db\nPort: 1433\nUsername: sa\nPassword: ORTAM DEGISKENINDEN oku - os.environ[\"DATABASE_URL\"] tam baglanti dizesini tasiyor; parolayi KODA GOMME.\nDatabase: naminesdb",
             _ => "Host: db\nDatabase: naminesdb"
         };
     }

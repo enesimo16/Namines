@@ -1,3 +1,4 @@
+using Namines.Core.Security;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,7 +32,37 @@ internal sealed record PostgresConnectionParts(
         new(StringComparer.OrdinalIgnoreCase) { "localhost", "127.0.0.1", "::1" };
 
     /// <summary>Konteynerin içinden kullanılacak host adı.</summary>
-    public string ContainerVisibleHost => LoopbackNames.Contains(Host) ? HostGatewayName : Host;
+    /// <summary>
+    /// Konteynerin içinden kullanılacak host.
+    ///
+    /// <b>Bulunan açık (docs/last-review M-12):</b> SSRF guard'ı host adını API
+    /// sürecinin çözücüsüyle doğrularken, bağlantı KONTEYNERIN içinden ve KONTEYNERIN
+    /// çözücüsüyle kuruluyordu. İki farklı çözücü, iki farklı cevap verebilir: guard'ın
+    /// "bu ad genel bir adrese çözülüyor, geçebilir" kararı, konteynerde aynı adın İÇ
+    /// bir adrese çözülmesini engellemiyordu — yani guard'ın kararı gerçek bağlantıyı
+    /// BAĞLAMIYORDU (klasik DNS rebinding / çözücü ayrışması).
+    ///
+    /// <see cref="ResolvedAddress"/> doluysa ad değil <b>doğrulanan IP</b> geçiliyor:
+    /// konteynerde çözümleme HIÇ yapılmıyor, yani guard'ın gördüğü adres ile
+    /// bağlanılan adres AYNI oluyor.
+    ///
+    /// Loopback bunun DIŞINDA ve zorunlu olarak: konteynerin kendi loopback'i host'un
+    /// loopback'i değil, o yüzden oraya IP geçmek işe yaramaz — <c>host-gateway</c>
+    /// tam olarak bu yüzden var. O dal zaten geliştirme çift kapısıyla kapılı.
+    /// </summary>
+    public string ContainerVisibleHost =>
+        LoopbackNames.Contains(Host)
+            ? HostGatewayName
+            : (ResolvedAddress ?? Host);
+
+    /// <summary>
+    /// API tarafında ÇÖZÜLMÜŞ ve SSRF guard'ından GEÇMİŞ IP adresi.
+    ///
+    /// <c>null</c> = çözümleme yapılmadı (guard'ın atlandığı yollar, ya da
+    /// loopback). O durumda eski davranış korunuyor: ad geçiliyor. Uydurma bir
+    /// adres yazmak, doğrulanmamış bir şeyi doğrulanmış gibi göstermek olurdu.
+    /// </summary>
+    public string? ResolvedAddress { get; set; }
 
     public static PostgresConnectionParts Parse(string connectionString)
     {
@@ -62,10 +93,55 @@ internal sealed record PostgresConnectionParts(
         if (First(values, "Port") is { } rawPort && int.TryParse(rawPort, out var parsed))
             port = parsed;
 
-        return new PostgresConnectionParts(host, port, database, username, password);
+        var result = new PostgresConnectionParts(host, port, database, username, password);
+        // Ad yerine DOGRULANAN ADRESI sabitle — bkz. ResolveAndValidate.
+        result.ResolvedAddress = ResolveAndValidate(result.Host);
+        return result;
     }
 
     private static string? First(IReadOnlyDictionary<string, string> values, params string[] keys) =>
         keys.Select(key => values.TryGetValue(key, out var value) ? value : null)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+    /// <summary>
+    /// Host adını API tarafında çözer ve adresi <c>ResolvedAddress</c>'e sabitler —
+    /// ama yalnızca adres GÜVENLİYSE.
+    ///
+    /// <b>Bulunan açık (docs/last-review M-12):</b> SSRF guard'ı adı API sürecinin
+    /// çözücüsüyle doğrularken bağlantı KONTEYNERIN içinden ve KONTEYNERIN çözücüsüyle
+    /// kuruluyordu. İki farklı çözücü iki farklı cevap verebilir, yani guard'ın kararı
+    /// gerçek bağlantıyı bağlamıyordu. Ad yerine ÇÖZÜLMÜŞ ADRESİ geçirmek, konteynerde
+    /// çözümlemeyi tamamen ortadan kaldırıyor: guard'ın gördüğü adres ile bağlanılan
+    /// adres aynı oluyor.
+    ///
+    /// <b>Adresin kendisi ayrıca doğrulanıyor</b> (<see cref="SsrfGuard.IsHostSafe"/>):
+    /// adın bir kez geçmiş olması, ŞU ANDA çözüldüğü adresin güvenli olduğunu
+    /// kanıtlamaz — aradaki DNS değişimi tam olarak rebinding'in tanımı.
+    ///
+    /// Çözülemezse ya da adres güvensizse <c>ResolvedAddress</c> null kalır ve eski
+    /// davranış (adı geçirmek) sürüyor. Uydurma bir adres yazmak, doğrulanmamış bir
+    /// şeyi doğrulanmış gibi göstermek olurdu; bağlantıyı tamamen reddetmek ise
+    /// çözümlemenin geçici olarak başarısız olduğu her durumda yedeği kesecekti.
+    /// </summary>
+    private static string? ResolveAndValidate(string host)
+    {
+        if (LoopbackNames.Contains(host)) return null;
+
+        // Zaten IP ise çözümlemeye gerek yok; yine de doğrulanıyor.
+        if (System.Net.IPAddress.TryParse(host, out var literal))
+            return SsrfGuard.IsHostSafe(host) ? literal.ToString() : null;
+
+        System.Net.IPAddress[] addresses;
+        try { addresses = System.Net.Dns.GetHostAddresses(host); }
+        catch { return null; }
+
+        if (addresses.Length == 0) return null;
+
+        // TEK adres sabitleniyor ama guard TÜM adreslerin güvenli olmasını istiyor
+        // (IsHostSafe'in kendi davranışı): bir adın adreslerinden biri iç ağa
+        // çözülüyorsa o ad hiç kullanılmamalı.
+        if (!SsrfGuard.IsHostSafe(host)) return null;
+
+        return addresses[0].ToString();
+    }
 }

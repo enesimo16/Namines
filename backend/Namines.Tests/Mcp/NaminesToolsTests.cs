@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -36,7 +38,10 @@ public class NaminesToolsTests
         new StubTestRunner(),
         new DdlGeneratorFactory(),
         new PrismaGeneratorService(),
-        new NaminesCloudClient(new HttpClient()));
+        new NaminesCloudClient(new HttpClient()),
+        // M-16: hedefi kaydeden kapi. Allowlist tanimsiz -> varsayilan davranis.
+        new McpConnectionGuard(new ConfigurationBuilder().Build(),
+            NullLogger<McpConnectionGuard>.Instance));
 
     /// <summary>camelCase — pull_schema'nın ürettiği biçim.</summary>
     private const string CamelCaseBase = """
@@ -155,7 +160,11 @@ public class NaminesToolsTests
     [Fact]
     public async Task Pull_schema_returns_camelcase_json()
     {
-        var json = await Tools().PullSchemaAsync("Host=x;Database=y", "PostgreSQL");
+        // Host LOOPBACK: McpConnectionGuard artik yalnizca yerel/ozel ag
+        // hedeflerine izin veriyor (docs/last-review M-16) ve "x" cozulemeyen
+        // bir ad oldugu icin reddediliyor. Bu testin konusu camelCase JSON,
+        // guard degil — o yuzden hedef gercekci yapildi, kapi gevsetilmedi.
+        var json = await Tools().PullSchemaAsync("Host=127.0.0.1;Database=y", "PostgreSQL");
         Assert.Contains("\"name\"", json);
         Assert.DoesNotContain("\"Name\"", json);
     }

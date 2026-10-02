@@ -205,7 +205,12 @@ static NaminesTools BuildTools()
         new BranchTestRunnerService(ddlFactory),
         ddlFactory,
         new PrismaGeneratorService(),
-        new NaminesCloudClient(new HttpClient()));
+        new NaminesCloudClient(new HttpClient()),
+        // Baglanti hedefini kaydeden kapi (docs/last-review M-16). CLI de ayni
+        // yapilandirmayi okuyor: Security:McpAllowedDbHosts tanimliysa burada da
+        // uygulaniyor — iki giris noktasinin farkli davranmasi, kapiyi birinden
+        // atlamak demek olurdu.
+        new Namines.Mcp.McpConnectionGuard(config, NullLogger<Namines.Mcp.McpConnectionGuard>.Instance));
 }
 
 /// <summary>--ad değer çiftleri. Bilinmeyen bayrağı sessizce yutmak, yazım hatasını

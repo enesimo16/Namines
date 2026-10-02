@@ -57,20 +57,37 @@ public class VaultController : ControllerBase
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     /// <summary>
-    /// Vault'un ayakta olduğunu ve yedeklerin NEREDE durduğunu söyler.
+    /// Vault'un ayakta olduğunu ve (kimliği doğrulanmış çağırana) yedeklerin NEREDE
+    /// durduğunu söyler.
     ///
     /// Depo açıklaması bilerek dönülüyor: v1 sunucu diskini kullanıyor ve
     /// kullanıcının bunu ekranda görmeden yedeğe güvenmesi doğru olmaz.
+    ///
+    /// <b>Bulunan açık (docs/last-review M-9):</b> uç <c>[AllowAnonymous]</c> ve
+    /// ayrıntıları HERKESE dönüyordu. <c>store</c> alanı
+    /// <c>FileSystemBackupStore.Description</c>'dan geliyor ve içinde yedeğin
+    /// durduğu <b>mutlak sunucu dosya yolu</b> var; <c>problem</c> ise sağlayıcının
+    /// ham hata metnini taşıyabiliyor (Docker socket yolu, iç host adları). İkisi de
+    /// kimliği doğrulanmamış bir çağıranın işine yaramaz, saldırganın keşif işine yarar.
+    ///
+    /// Uç anonim KALIYOR (bir sağlık kontrolü oturum istememeli) ama anonim cevap
+    /// yalnızca "çalışıyor mu" sorusunu yanıtlıyor. Ayrıntıyı tamamen kaldırmak
+    /// yerine kimliği doğrulanmış çağırana vermek bilinçli: yukarıdaki gerekçe
+    /// (kullanıcı yedeğinin nerede durduğunu bilmeli) hâlâ geçerli.
     /// </summary>
     [HttpGet("health")]
     [AllowAnonymous]
     public async Task<IActionResult> Health(CancellationToken ct)
     {
         var problem = await _vault.ProbeAsync(ct);
+        var authenticated = User?.Identity?.IsAuthenticated == true;
 
         // 200 döndürülüyor, 503 değil: uç ÇALIŞIYOR ve doğru cevabı veriyor —
         // cevap "yedekleme şu an çalışamaz". Bunu bir hata koduna çevirmek,
         // sağlık kontrolünü okunamaz kılardı.
+        if (!authenticated)
+            return Ok(new { ok = problem is null });
+
         return Ok(new
         {
             ok = problem is null,

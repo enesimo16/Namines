@@ -67,8 +67,13 @@ public class DockerJobManager : ISandboxJobRegistry
     public IReadOnlyCollection<string> GetActiveJobIds()
         => _jobs.Values.Where(j => j.IsActive).Select(j => j.JobId).ToArray();
 
-    /// <summary>Retention süresi dolmuş job'ları bellekten düşürür ve kimliklerini döner.</summary>
-    public IReadOnlyCollection<DockerJobResult> EvictExpiredJobs()
+    /// <summary>
+    /// Retention süresi dolmuş job'ları bellekten düşürür ve kimliklerini döner.
+    ///
+    /// Çağıran: <c>SandboxOutputRetentionService</c>. Önceden bu metodun
+    /// <b>hiç çağıranı yoktu</b> (docs/last-review M-6).
+    /// </summary>
+    public IReadOnlyCollection<string> EvictExpiredJobs()
     {
         var cutoff = DateTimeOffset.UtcNow - JobRetention;
         var expired = _jobs.Values.Where(j => !j.IsActive && j.CreatedAt < cutoff).ToArray();
@@ -76,7 +81,7 @@ public class DockerJobManager : ISandboxJobRegistry
         foreach (var job in expired)
             _jobs.TryRemove(job.JobId, out _);
 
-        return expired;
+        return expired.Select(j => j.JobId).ToArray();
     }
 
     // ── Event yayını ────────────────────────────────────────────────────────

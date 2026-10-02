@@ -20,8 +20,10 @@ namespace Namines.Vault.Storage;
 /// yedekler gider. Üretimde S3 uygulaması gelmeden kullanılmamalı — bu yüzden
 /// <see cref="Description"/> kullanıcıya nerede durduğunu AÇIKÇA söylüyor.
 ///
-/// Yol geçişi (<c>../</c>) engelleniyor: anahtar sunucuda üretiliyor ama tek
-/// bir gelecekteki hata, bu sınıfı dosya sistemine keyfi yazma aracına çevirirdi.
+/// Yol geçişi (<c>../</c>) engelleniyor. Anahtar TAMAMEN sunucu üretimi DEĞİL: ilk parçası
+/// proje kimliği ve o kimlik istemciden geliyor (AuthController.SyncProjects, yalnızca
+/// biçim doğrulamasıyla). Bu yüzden burada kök kapsama kontrolü tek başına da doğru
+/// olmak zorunda — bir üst katmandaki doğrulamaya dayanmıyor.
 /// </summary>
 public sealed class FileSystemBackupStore : IBackupStore
 {
@@ -82,7 +84,12 @@ public sealed class FileSystemBackupStore : IBackupStore
         if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Key is required.", nameof(key));
 
         var full = Path.GetFullPath(Path.Combine(_root, key));
-        if (!full.StartsWith(_root, StringComparison.Ordinal))
+
+        // Ayirici SINIRI ile karsilastirilmali: "/app/vault-backups-evil/x" bicim olarak
+        // "/app/vault-backups" ile basliyor ama kokun DISINDA. Ic ice olmayan kardes
+        // dizinler (koksun adiyla baslayan) sessizce gecerdi.
+        var rootWithSeparator = _root.EndsWith(Path.DirectorySeparatorChar) ? _root : _root + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(rootWithSeparator, StringComparison.Ordinal))
             throw new ArgumentException("Key escapes the storage root.", nameof(key));
 
         return full;

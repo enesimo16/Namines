@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Infrastructure.Data;
@@ -202,8 +204,19 @@ public class VaultService
             var spec = new BackupSpec(connectionString!, project.Name);
             record.SizeBytes = await RunPipelineAsync(
                 produce: stream => provider.BackupAsync(spec, stream, ct),
-                transform: (input, output) => _cipher.EncryptAsync(input, output, ct),
-                consume: stream => _store.PutAsync(record.StorageKey, stream, ct));
+                // Kimlik ŞIFRELEMEYE giriyor: dosya artik BİR KAYDA bağlı ve
+                // başka bir kaydın yerine konamaz (NVLT3, docs/last-review M-8).
+                transform: (input, output) => _cipher.EncryptAsync(
+                    input, output, ct, IdentityOf(record)),
+                // Ozet YAZARKEN hesaplaniyor: dosyayi sonradan okuyup ozetlemek
+                // hem ikinci bir tam okuma hem de "yazilan ile ozetlenen ayni
+                // baytlar mi" sorusunu acik birakmak olurdu.
+                consume: async stream =>
+                {
+                    var (written, digest) = await PutWithDigestAsync(record.StorageKey, stream, ct);
+                    record.CipherTextSha256 = digest;
+                    return written;
+                });
 
             record.Status = VaultBackupStatus.Succeeded;
         }
@@ -288,6 +301,8 @@ public class VaultService
 
         try
         {
+            await EnsureCipherTextMatchesRecordAsync(backup, ct);
+
             await using var encrypted = await _store.OpenAsync(backup.StorageKey, ct)
                 ?? throw new InvalidOperationException(
                     "The backup file is missing from storage; it cannot be restored.");
@@ -295,7 +310,8 @@ public class VaultService
             var spec = new RestoreSpec(connectionString!, tables);
             await RunPipelineAsync(
                 produce: stream => encrypted.CopyToAsync(stream, ct),
-                transform: (input, output) => _cipher.DecryptAsync(input, output, ct),
+                transform: (input, output) => _cipher.DecryptAsync(
+                    input, output, ct, IdentityOf(backup)),
                 consume: async stream =>
                 {
                     await provider.RestoreAsync(spec, stream, ct);
@@ -368,7 +384,7 @@ public class VaultService
 
             // Şifre çözme de doğrulamanın parçası: etiketi tutmayan bir dosya
             // buraya kadar bile gelemez ve bu da geçerli bir "bozuk" cevabıdır.
-            var error = await RunVerifyPipelineAsync(provider, encrypted, ct);
+            var error = await RunVerifyPipelineAsync(provider, encrypted, backup, ct);
 
             backup.VerifiedAt = error is null ? DateTime.UtcNow : null;
             backup.VerifyError = error;
@@ -429,15 +445,26 @@ public class VaultService
         return expired.Count;
     }
 
+    /// <summary>
+    /// Kaydın ŞIFRELEME KİMLİĞİ (NVLT3 AAD'si — docs/last-review M-8).
+    ///
+    /// Kaydın kendisinden türetiliyor, dosyadan OKUNMUYOR: dosyaya yazılan bir kimlik,
+    /// dosyayı değiştiren biri tarafından kendi lehine kurulabilirdi ve bağlama
+    /// anlamsız olurdu.
+    /// </summary>
+    private static BackupIdentity IdentityOf(VaultBackup backup) =>
+        new(backup.ProjectId, backup.Id);
+
     /// <summary>Şifreli akışı çözüp sağlayıcının doğrulamasına verir.</summary>
     private async Task<string?> RunVerifyPipelineAsync(
-        IBackupProvider provider, Stream encrypted, CancellationToken ct)
+        IBackupProvider provider, Stream encrypted, VaultBackup backup, CancellationToken ct)
     {
         string? error = null;
 
         await RunPipelineAsync(
             produce: stream => encrypted.CopyToAsync(stream, ct),
-            transform: (input, output) => _cipher.DecryptAsync(input, output, ct),
+            transform: (input, output) => _cipher.DecryptAsync(
+                input, output, ct, IdentityOf(backup)),
             consume: async stream =>
             {
                 error = await provider.VerifyAsync(stream, ct);
@@ -447,9 +474,72 @@ public class VaultService
         return error;
     }
 
-    /// <summary>Şifreli akışı olduğu gibi çağırana verir (indirme).</summary>
-    public Task<Stream?> OpenEncryptedAsync(VaultBackup backup, CancellationToken ct) =>
-        _store.OpenAsync(backup.StorageKey, ct);
+    /// <summary>
+    /// Şifreli akışı olduğu gibi çağırana verir (indirme).
+    ///
+    /// Özet İNDİRMEDE de doğrulanıyor: kullanıcıya kendi kaydına ait OLMAYAN bir
+    /// dosyayı vermek, geri yüklemede vermekten daha az ciddi değil — indirilen
+    /// dosya zaten elle geri yüklenebiliyor (docs/last-review M-8).
+    /// </summary>
+    public async Task<Stream?> OpenEncryptedAsync(VaultBackup backup, CancellationToken ct)
+    {
+        await EnsureCipherTextMatchesRecordAsync(backup, ct);
+        return await _store.OpenAsync(backup.StorageKey, ct);
+    }
+
+    /// <summary>
+    /// Depodaki şifreli dosyanın özetinin KAYITTAKİ özetle eşleştiğini doğrular.
+    ///
+    /// Kayıtta özet yoksa (<c>CipherTextSha256 == null</c>) doğrulama ATLANIYOR:
+    /// o yedek bu alan eklenmeden önce alınmış ve geriye dönük bir özet uydurmak,
+    /// olmayan bir kanıtı varmış gibi göstermek olurdu. Yeni yedeklerin hepsi
+    /// özetli.
+    /// </summary>
+    private async Task EnsureCipherTextMatchesRecordAsync(VaultBackup backup, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(backup.CipherTextSha256)) return;
+
+        await using var stream = await _store.OpenAsync(backup.StorageKey, ct)
+            ?? throw new InvalidOperationException(
+                "The backup file is missing from storage.");
+
+        using var sha = SHA256.Create();
+        var actual = Convert.ToHexString(await sha.ComputeHashAsync(stream, ct));
+
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(actual),
+                Encoding.UTF8.GetBytes(backup.CipherTextSha256)))
+        {
+            _logger.LogError(
+                "Vault: {BackupId} kaydinin ozeti depodaki dosyayla ESLESMIYOR. " +
+                "Beklenen {Expected}, bulunan {Actual}.",
+                backup.Id, backup.CipherTextSha256, actual);
+
+            // Mesaj ayrintili DEGIL: cagirana hangi ozetin beklendigini soylemek,
+            // dosya degistirmeye calisan birine geri bildirim vermek olurdu.
+            throw new InvalidOperationException(
+                "This backup file does not match its record and was refused. Contact support.");
+        }
+    }
+
+    /// <summary>
+    /// Akışı depoya yazarken AYNI baytların SHA-256'sını hesaplar.
+    ///
+    /// Tek geçiş: akışı iki kez okumak (bir yaz, bir özetle) hem maliyetli hem de
+    /// "yazılan ile özetlenen aynı baytlar mı" sorusunu açık bırakırdı.
+    /// </summary>
+    private async Task<(long Written, string Digest)> PutWithDigestAsync(
+        string key, Stream source, CancellationToken ct)
+    {
+        using var sha = SHA256.Create();
+        await using var hashing = new CryptoStream(source, sha, CryptoStreamMode.Read, leaveOpen: true);
+
+        var written = await _store.PutAsync(key, hashing, ct);
+
+        // CryptoStream'in son bloğu ancak akış tükendiğinde işleniyor; PutAsync
+        // sonuna kadar okuduğu için burada hash hazır.
+        return (written, Convert.ToHexString(sha.Hash!));
+    }
 
     /// <summary>
     /// Üç adımı belleğe almadan birbirine bağlar: üretici → dönüştürücü → tüketici.

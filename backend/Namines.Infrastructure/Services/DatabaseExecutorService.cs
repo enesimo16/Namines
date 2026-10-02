@@ -54,11 +54,42 @@ public class DatabaseExecutorService : IDatabaseExecutor
 
     private void ValidateConnectionTarget(string connectionString, DatabaseType dbType)
     {
+        // SQLite bu serviste HİÇ kabul edilmiyor.
+        //
+        // <b>Bulunan açık (docs/last-review H-6):</b> SQLite'ın "bağlantı dizesi"
+        // bir ağ hedefi değil, SUNUCUDAKİ BİR DOSYA YOLU. <c>ExtractHosts</c> SQLite
+        // için boş dönüyordu ve boş liste üzerindeki <c>foreach</c> hiç çalışmadığı
+        // için sonuç <b>fail-open</b>'dı: ham dize doğrudan
+        // <c>new SqliteConnection(...)</c>'a gidiyor ve <c>Mode</c> varsayılanı
+        // <c>ReadWriteCreate</c> olduğu için, kimliği doğrulanmış herhangi bir
+        // kullanıcı sunucuda istediği yolda dosya OLUŞTURABİLİYORDU (ve içine
+        // kendi verdiği betikle içerik yazabiliyordu).
+        //
+        // Yolu allowlist'lemek yerine tamamen reddetmek bilinçli: bu servisin işi
+        // KULLANICININ KENDİ veritabanına bağlanmak, ve Namines'in sunucusunda
+        // kullanıcıya ait bir dosya sistemi yok — yani meşru bir SQLite hedefi
+        // hiç yok. (SQLite bir HEDEF MOTOR olarak duruyor: DDL ÜRETMEK bağlantı
+        // gerektirmiyor, bkz. DdlGeneratorFactory.)
+        if (dbType == DatabaseType.SQLite)
+            throw new InvalidOperationException(
+                "SQLite is not supported here: its connection string names a file on the " +
+                "server, not a database you own. Download the generated script and run it locally.");
+
+        var checkedAny = false;
         foreach (var host in ExtractHosts(connectionString, dbType))
         {
+            checkedAny = true;
             if (!_hostPolicy.IsHostAllowed(host, out var denyReason))
                 throw new InvalidOperationException(denyReason);
         }
+
+        // Tek bir aday bile çıkaramadıysak REDDEDİLİYOR — ortak
+        // <c>DbIntrospectionService.FindDisallowedHost</c> ile aynı karar.
+        // "Ayıklayamadım" ile "güvenli" aynı şey değil: builder'ın ayrıştıramadığı
+        // ya da host alanı boş bırakılmış bir dize, kontrolü atlamanın en kolay yolu olurdu.
+        if (!checkedAny)
+            throw new InvalidOperationException(
+                "The connection string does not name a host that could be checked.");
     }
 
     private static IEnumerable<string> ExtractHosts(string connectionString, DatabaseType dbType)
@@ -82,7 +113,11 @@ public class DatabaseExecutorService : IDatabaseExecutor
                     raw = new OracleConnectionStringBuilder(connectionString).DataSource;
                     break;
                 case DatabaseType.SQLite:
-                    yield break; // yerel dosya — ağ hedefi yok
+                    // Buraya ULAŞILMIYOR: ValidateConnectionTarget SQLite'ı daha önce
+                    // reddediyor (bkz. oradaki not). Dal savunma olarak duruyor —
+                    // silinip ileride yeniden çağrılsa sessizce boş dönmesin.
+                    throw new InvalidOperationException(
+                        "SQLite has no network host to validate.");
             }
         }
         catch { yield break; } // parse edilemiyorsa host çıkarımı yapılamaz

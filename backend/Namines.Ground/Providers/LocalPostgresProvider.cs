@@ -120,8 +120,12 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
             ?? throw new InvalidOperationException(
                 "Ground:LocalPostgres:AdminConnectionString is not configured.");
 
-        var databaseName = BuildIdentifier("namines_db_", spec.ProjectId);
-        var roleName = BuildIdentifier("namines_app_", spec.ProjectId);
+        // Kurtarma yolu saklanan adi geri veriyor (bkz. ProvisionSpec.ExistingProviderProjectId):
+        // turetmeye dusmek, kurali degistiren her yamadan sonra ikinci ve BOS bir
+        // veritabani acardi. Adlar bizim kendi kaydimizdan geliyor ama yine de
+        // dogrulaniyor — kayit bozulsa bile buradan yonetici baglantisina DDL gitmesin.
+        var databaseName = ReuseOrDerive(spec.ExistingProviderProjectId, "namines_db_", spec.ProjectId);
+        var roleName = ReuseOrDerive(spec.ExistingProviderBranchId, "namines_app_", spec.ProjectId);
         var password = GeneratePassword();
 
         await using var connection = new NpgsqlConnection(admin);
@@ -331,13 +335,46 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
         return builder.ConnectionString;
     }
 
+    // İstemcinin ürettiği gerçek proje kimlikleri (crypto.randomUUID) tam olarak bu biçimde.
+    // Bu kümede tire→alt çizgi eşlemesi ENJEKTİF (tireler sabit konumda, harf yok) ve
+    // mevcut provizyonlanmış veritabanlarının adı korunuyor.
+    private static readonly System.Text.RegularExpressions.Regex CanonicalGuid = new(
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     /// <summary>
     /// Proje kimliğinden geçerli ve ÇAKIŞMAYAN bir PostgreSQL tanımlayıcısı üretir.
     ///
     /// Yalnızca kırpmak yetmez: iki proje kimliği aynı önekle başlıyorsa
     /// kırpılmış adlar çakışır ve <b>iki proje aynı veritabanını paylaşırdı</b>.
-    /// Bu yüzden kırpılan ada, tam kimliğin özetinden bir sonek ekleniyor.
+    ///
+    /// <b>Temizleme KAYIPLI:</b> her alfanümerik olmayan karakter `_` oluyor ve harfler
+    /// küçülüyor, yani `A-B`, `a-b` ve `a_b` aynı adı verirdi. `CreateAsync` var olan
+    /// rolün parolasını tazeleyip var olan veritabanını devraldığı için (bkz.
+    /// EnsureRoleAsync/EnsureDatabaseAsync), çakışan ikinci bir proje birincinin
+    /// verisini okuyup silebilirdi. Bu yüzden özet, KANONİK GUID olmayan HER kimliğe
+    /// (kısa olsa bile) tam kimliğin özetinden eklenir; kanonik GUID'lerde ad
+    /// değişmez, çünkü orada eşleme zaten enjektif ve mevcut veritabanları bu adla duruyor.
     /// </summary>
+    /// <summary>
+    /// Saklanan ad varsa ve gecerliyse onu kullanir; yoksa proje kimliginden turetir.
+    ///
+    /// <b>Dogrulama neden burada:</b> ad kendi control DB'mizden geliyor, yani
+    /// normalde guvenli. Ama bu deger yonetici baglantisinda <c>CREATE DATABASE</c>
+    /// /<c>DROP DATABASE</c> icine giriyor; kayit bir yerden bozulursa (elle
+    /// duzeltme, gelecekteki bir gocu, baska bir saglayicinin bicimi) tek savunma
+    /// alintilama kalirdi. Bicim uymuyorsa turetmeye DUSULMUYOR degil — dusuluyor,
+    /// cunku turetilen ad her zaman gecerli ve en kotu durumda eski davranis.
+    /// </summary>
+    internal static string ReuseOrDerive(string? stored, string prefix, string projectId) =>
+        !string.IsNullOrWhiteSpace(stored) && SafeIdentifier.IsMatch(stored)
+            ? stored
+            : BuildIdentifier(prefix, projectId);
+
+    private static readonly System.Text.RegularExpressions.Regex SafeIdentifier = new(
+        "^[a-z][a-z0-9_]{0,62}$",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     internal static string BuildIdentifier(string prefix, string projectId)
     {
         var clean = new StringBuilder(projectId.Length);
@@ -345,14 +382,17 @@ public sealed class LocalPostgresProvider : IDatabaseProvider
             clean.Append(char.IsAsciiLetterOrDigit(c) ? c : '_');
 
         var candidate = prefix + clean;
-        if (candidate.Length <= MaxIdentifierLength) return candidate;
+        if (CanonicalGuid.IsMatch(projectId) && candidate.Length <= MaxIdentifierLength)
+            return candidate;
 
         // 8 karakterlik özet: çakışma olasılığını pratikte ortadan kaldırır ve
         // ada bakan birinin projeyi tanımasını sağlayacak yeri de bırakır.
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(projectId)))[..8]
             .ToLowerInvariant();
 
-        return string.Concat(candidate.AsSpan(0, MaxIdentifierLength - 9), "_", hash);
+        var room = MaxIdentifierLength - 9;
+        var label = candidate.Length > room ? candidate[..room] : candidate;
+        return string.Concat(label, "_", hash);
     }
 
     private static string GeneratePassword() =>

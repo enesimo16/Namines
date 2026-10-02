@@ -122,14 +122,31 @@ Veritabanı Yapısı (JSON):
 Lütfen yukarıdaki şemayı temel alarak, tüm tabloları yönetebilen, ilişkileri destekleyen ve dashboard içeren tam kapsamlı 'app.py' dosyasını üret.";
     }
 
+    /// <summary>
+    /// Modele verilecek baglanti TALIMATI.
+    ///
+    /// <b>Bulunan acik (docs/last-review M-17):</b> burada sabit parolali hazir bir
+    /// URL veriliyordu ve model onu urettigi <c>app.py</c>'ye AYNEN gomuyordu — yani
+    /// parola hem bu depoda hem de uretilen her pakette acik yaziliydi. Paketleyici
+    /// artik paket basina rastgele parola uretiyor ve onu <c>DATABASE_URL</c> ortam
+    /// degiskeninde veriyor; modelin de onu OKUMASI gerekiyor.
+    ///
+    /// Yedek deger bilerek duruyor ama artik bir SIR degil (<c>CHANGE_ME</c>):
+    /// ortam degiskeni verilmemisse uygulama anlasilmaz bir hatayla degil, acik bir
+    /// kimlik dogrulama hatasiyla duser.
+    /// </summary>
     private static string GetConnectionString(DatabaseType dbType)
     {
-        return dbType switch
+        var fallback = dbType switch
         {
-            DatabaseType.PostgreSQL => "postgresql://postgres:Namines_Secure123!@db:5432/naminesdb",
-            DatabaseType.MySQL => "mysql+pymysql://root:Namines_Secure123!@db:3306/naminesdb",
-            DatabaseType.MSSQL => "mssql+pymssql://sa:Namines_Secure123!@db:1433/naminesdb",
-            _ => "sqlite:///naminesdb.db" // Fallback
+            DatabaseType.PostgreSQL => "postgresql://postgres:CHANGE_ME@db:5432/naminesdb",
+            DatabaseType.MySQL => "mysql+pymysql://root:CHANGE_ME@db:3306/naminesdb",
+            DatabaseType.MSSQL => "mssql+pymssql://sa:CHANGE_ME@db:1433/naminesdb",
+            _ => "sqlite:///naminesdb.db"
         };
+
+        return $"os.environ.get(\"DATABASE_URL\", \"{fallback}\")  "
+             + "# ZORUNLU: baglanti dizesini ORTAM DEGISKENINDEN oku, sabit parola GOMME; "
+             + "app.py'nin basina `import os` ekle.";
     }
 }

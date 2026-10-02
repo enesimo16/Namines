@@ -43,14 +43,18 @@ public sealed class NaminesTools
         IBranchTestRunner testRunner,
         IDdlGeneratorFactory ddlFactory,
         IPrismaGenerator prisma,
-        NaminesCloudClient cloud)
+        NaminesCloudClient cloud,
+        McpConnectionGuard connectionGuard)
     {
         _introspection = introspection;
         _testRunner = testRunner;
         _ddlFactory = ddlFactory;
         _prisma = prisma;
         _cloud = cloud;
+        _connectionGuard = connectionGuard;
     }
+
+    private readonly McpConnectionGuard _connectionGuard;
 
     /// <summary>
     /// Araç girdi/çıktı JSON'u.
@@ -248,6 +252,11 @@ public sealed class NaminesTools
         string engine,
         CancellationToken cancellationToken = default)
     {
+        // Hedef kaydediliyor ve (tanimliysa) allowlist uygulaniyor: baglanti
+        // dizesi MODELIN ciktisindan geliyor, bkz. McpConnectionGuard
+        // (docs/last-review M-16).
+        _connectionGuard.EnsureAllowed(connectionString, engine);
+
         var schema = await _introspection.IntrospectAsync(connectionString, engine, cancellationToken);
         return JsonSerializer.Serialize(schema, Json);
     }
