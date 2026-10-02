@@ -49,6 +49,45 @@ namespace Namines.Core.Models.Auth
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? ResolvedAt { get; set; }
 
+        /// <summary>
+        /// CR AÇILDIĞI ANDA oy verebilen üye sayısı (Editor/Admin/Owner).
+        ///
+        /// <b>Bulunan açık (docs/last-review M-1):</b> gereken onay sayısı her oyda
+        /// CANLI ekip büyüklüğünden yeniden hesaplanıyordu
+        /// (<c>CountVotingMembersAsync</c>). Ekip üyesi çıkarma yetkisi olan bir Admin,
+        /// kendi Destructive/Breaking CR'ını açtıktan sonra ekibi 1 kişiye
+        /// küçültüp — <c>EffectiveRequiredApprovals</c> o durumda 1 onaya ve
+        /// <c>RequiresDistinctFromAuthor</c> <c>false</c>'a düştüğü için — kendi
+        /// yıkıcı değişikliğini TEK BAŞINA onaylayabiliyordu. İki kişilik onay kuralı,
+        /// onu uygulayacak kişiler silinerek atlatılabiliyordu.
+        ///
+        /// <b>Değer 0:</b> bu alandan ÖNCE açılmış CR'lar (eski satırlar). O durumda
+        /// canlı sayıya düşülüyor — eski davranış. Geriye dönük bir sayı UYDURMAK,
+        /// olmayan bir bilgiyi varmış gibi göstermek olurdu.
+        /// </summary>
+        public int VotingMembersAtCreation { get; set; }
+
+        /// <summary>
+        /// AI'ın ürettiği etki açıklaması — BİR KEZ hesaplanıp saklanıyor.
+        ///
+        /// <b>Bulunan açık (docs/last-review M-4):</b> <c>GET /api/changerequest/{id}</c>
+        /// her görüntülemede İKİ LLM çağrısı yapıyordu (etki açıklayıcı + migration
+        /// kod üreticisi; ikincisi de Groq'a gidiyor, kod yorumunun "deterministik EF
+        /// Core üreticisi" dediğinin aksine). Uç Viewer'a açık, hız sınırı yok ve
+        /// çağrılar AI kotasına HİÇ yazılmıyordu: bir sekmeyi yenilemeye devam eden
+        /// biri, kimsenin bütçesinden düşmeyen sınırsız model çağrısı üretebiliyordu.
+        ///
+        /// Girdi DEĞİŞMEZ (CR'ın base/head şemaları sabit), yani sonucu yeniden
+        /// hesaplamanın hiçbir faydası yok — saklamak hem maliyeti hem açığı kapatıyor.
+        /// <c>null</c> = henüz hesaplanmadı ya da hesaplanamadı.
+        /// </summary>
+        public string? AiExplanation { get; set; }
+
+        /// <summary>
+        /// Üretilen migration sonucu (JSON). Aynı gerekçe: <see cref="AiExplanation"/>.
+        /// </summary>
+        public string? MigrationResultJson { get; set; }
+
         // ── G12 — "Run Tests" sonucu (new-phase/29 §4) ──────────────────────
         // Impact Analysis bir TAHMİN; bu alanlar üretilen DDL'in gerçek, ephemeral bir
         // motor container'ında ÇALIŞTIRILDIĞININ kanıtıdır. Null = hiç çalıştırılmadı.

@@ -303,6 +303,9 @@ namespace Namines.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
+                    b.Property<string>("AiExplanation")
+                        .HasColumnType("text");
+
                     b.Property<string>("BaseVersionId")
                         .HasColumnType("text");
 
@@ -323,6 +326,9 @@ namespace Namines.Infrastructure.Migrations
 
                     b.Property<string>("ImpactReportJson")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MigrationResultJson")
                         .HasColumnType("text");
 
                     b.Property<string>("ProjectId")
@@ -358,6 +364,9 @@ namespace Namines.Infrastructure.Migrations
 
                     b.Property<string>("Title")
                         .HasColumnType("text");
+
+                    b.Property<int>("VotingMembersAtCreation")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -1061,6 +1070,34 @@ namespace Namines.Infrastructure.Migrations
                     b.ToTable("SqlQueryHistory");
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.StripeWebhookEvent", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("EventCreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("LatestProcessedForCustomer")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StripeCustomerId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StripeCustomerId", "EventCreatedAt");
+
+                    b.ToTable("StripeWebhookEvents");
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
                 {
                     b.Property<string>("Id")
@@ -1223,6 +1260,9 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultBackup", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CipherTextSha256")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("CompletedAt")

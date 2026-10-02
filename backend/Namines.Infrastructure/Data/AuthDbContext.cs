@@ -42,6 +42,9 @@ namespace Namines.Infrastructure.Data
         /// izlenebilirligin tek kaynagi bu tablo.
         /// </summary>
         public DbSet<SqlExecutionAudit> SqlExecutionAudits { get; set; } = null!;
+
+        /// <summary>İşlenmiş Stripe olayları — tekrar iletimi tanımak için (docs/last-review M-2).</summary>
+        public DbSet<StripeWebhookEvent> StripeWebhookEvents { get; set; } = null!;
         /// <summary>
         /// Desk SQL konsolunun sorgu gecmisi (F-01) -- KULLANICIYA OZEL okunur.
         /// Denetim kaydi degil: <see cref="GatewayAuditEntry"/> hesap
@@ -405,6 +408,18 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<SqlExecutionAudit>()
                 .HasIndex(a => a.ProjectId);
+
+            // Stripe olay kimliği BIRINCIL ANAHTAR: ikinci ekleme denemesi
+            // veritabanı seviyesinde çakışır, yani iki webhook isteği aynı anda
+            // gelse bile yalnızca biri işleyebiliyor. Uygulama içi bir "var mı?"
+            // kontrolü bu yarışı çözmezdi (bkz. StripeWebhookEvent.Id notu).
+            builder.Entity<StripeWebhookEvent>()
+                .HasKey(e => e.Id);
+
+            // Sıra kontrolü müşteri başına ve olayın ÜRETİLME zamanına göre
+            // okunuyor: "bu müşteri için gördüğüm en yeni olay hangisi?"
+            builder.Entity<StripeWebhookEvent>()
+                .HasIndex(e => new { e.StripeCustomerId, e.EventCreatedAt });
 
             // Yedek listesi her zaman "bu projenin, en yenisi ustte" seklinde
             // okunuyor; tek kolon indeksi siralamayi kapsamazdi.

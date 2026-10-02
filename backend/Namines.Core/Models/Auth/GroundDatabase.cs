@@ -43,6 +43,21 @@ public enum GroundStatus
     Deleted,
 
     Failed,
+
+    /// <summary>
+    /// Kalıcı silme İŞLENİYOR — arka plan işi kaydı sahiplendi.
+    ///
+    /// <b>Neden ayrı bir durum (docs/last-review M-7):</b> purge ile "silmeyi geri
+    /// al" aynı kayıt üzerinde yarışıyordu ve hiçbir eşzamanlılık kontrolü yoktu.
+    /// Bekleme penceresinin son saniyesinde iptal durumu Active yaparken purge
+    /// zaten DROP DATABASE'i çağırıyor olabiliyordu: ekranda "Active" görünen,
+    /// veritabanı ise düşürülmüş bir kayıt. İki taraf da geçişi koşullu bir
+    /// UPDATE ile sahipleniyor, yani yalnızca biri kazanabiliyor.
+    ///
+    /// <b>Enum'un SONUNA eklendi:</b> değerler veritabanında int olarak duruyor;
+    /// araya eklemek mevcut satırların anlamını kaydırırdı.
+    /// </summary>
+    Deleting,
 }
 
 /// <summary>

@@ -76,6 +76,25 @@ public class VaultBackup
     /// <summary>ŞİFRELENMİŞ boyut. Düz boyut değil: kullanıcının diskte gördüğü sayı bu.</summary>
     public long SizeBytes { get; set; }
 
+    /// <summary>
+    /// Depoya YAZILAN şifreli baytların SHA-256 özeti (hex).
+    ///
+    /// <b>Bulunan açık (docs/last-review M-8):</b> kayıt ile şifreli dosya
+    /// birbirine hiç bağlı değildi. Parola SUNUCU GENELİ olduğu için A projesinin
+    /// yedeği B projesinin kaydındaki anahtarın yerine konsa sorunsuz çözülüyordu:
+    /// bir kiracı, başka bir kiracının yedeğini kendi "geri yükleme"sinde
+    /// kullanabilir ve bu hiçbir yerde fark edilmezdi. Depoya yazma yetkisi olan
+    /// biri (ya da yanlış bir anahtar çakışması) için sessiz bir veri değişimi yolu.
+    ///
+    /// Özet okuma yolunda (restore/verify/download) yeniden hesaplanıp
+    /// karşılaştırılıyor: eşleşmezse dosya bu kayda ait DEĞİL.
+    ///
+    /// <c>null</c> = bu alan eklenmeden önce alınmış yedek. O yedekler
+    /// doğrulanmadan kabul ediliyor (eski davranış); geriye dönük bir özet
+    /// UYDURMAK, olmayan bir kanıtı varmış gibi göstermek olurdu.
+    /// </summary>
+    public string? CipherTextSha256 { get; set; }
+
     public VaultBackupStatus Status { get; set; } = VaultBackupStatus.Running;
 
     public VaultBackupKind Kind { get; set; } = VaultBackupKind.Manual;
