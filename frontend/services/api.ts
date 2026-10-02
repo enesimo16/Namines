@@ -436,8 +436,11 @@ export const gatewayKeyService = {
 
 // G17 — CanvasHub'ın roomId'sini sunucu-otoriteli branch_id'ye bağlamak için.
 export const branchService = {
+  // POST, GET DEGIL: uc varsayilan branch'i yoksa OLUSTURUYOR ve bir GET'in
+  // yazmasi "GET guvenlidir" varsayimini (ve onun uzerine kurulu CSRF muafiyetini)
+  // bozar — bkz. docs/last-review L-1.
   getOrCreateDefault: async (projectId: string): Promise<{ id: string; projectId: string; name: string }> => {
-    const response = await api.get(`/branch/project/${projectId}/default`);
+    const response = await api.post(`/branch/project/${projectId}/default`);
     return response.data;
   }
 };

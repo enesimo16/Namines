@@ -71,6 +71,7 @@ public class ChangeRequestController : ControllerBase
     private readonly IMigrationService _migrationService;
     private readonly IBranchTestRunner _testRunner;
     private readonly IAIService _aiService;
+    private readonly AiQuotaService _quota;
 
     // BranchController'daki aynı gerekçe: frontend enum'ları string yazıyor,
     // dönüştürücü olmadan Deserialize<DatabaseSchema> patlıyor.
@@ -80,13 +81,27 @@ public class ChangeRequestController : ControllerBase
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public ChangeRequestController(AuthDbContext context, IMigrationService migrationService, IBranchTestRunner testRunner, IAIService aiService)
+    public ChangeRequestController(
+        AuthDbContext context,
+        IMigrationService migrationService,
+        IBranchTestRunner testRunner,
+        IAIService aiService,
+        AiQuotaService quota)
     {
         _context = context;
         _migrationService = migrationService;
         _testRunner = testRunner;
         _aiService = aiService;
+        _quota = quota;
     }
+
+    /// <summary>
+    /// Etki açıklaması + migration üretimi için tahmini token. Gerçek kullanım
+    /// sağlayıcıdan okunmuyor (bu iki çağrı token sayısı döndürmüyor), o yüzden
+    /// sabit bir tahminle rezerve ediliyor — ölçemediğimizde bütçenin LEHİNE
+    /// hata yapmak, hiç ölçmemekten iyidir (docs/last-review M-4).
+    /// </summary>
+    private const int ImpactExplanationTokenEstimate = 2_000;
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -200,7 +215,10 @@ public class ChangeRequestController : ControllerBase
             ImpactReportJson = JsonSerializer.Serialize(impact),
             CreatedByUserId = userId,
             CreatedAt = now,
-            ResolvedAt = autoApprove ? now : null
+            ResolvedAt = autoApprove ? now : null,
+            // Onay kuralının dayanağı BURADA sabitleniyor — bkz.
+            // ChangeRequest.VotingMembersAtCreation'ın notu (docs/last-review M-1).
+            VotingMembersAtCreation = await _context.CountVotingMembersAsync(request.ProjectId),
         };
         await _context.ChangeRequests.AddAsync(changeRequest);
 
@@ -342,11 +360,59 @@ public class ChangeRequestController : ControllerBase
             catch { return null; }
         }
 
-        var migrationTask = TryGenerateMigrationAsync();
-        var explanationTask = TryExplainImpactAsync();
-        await Task.WhenAll(migrationTask, explanationTask);
-        var migration = migrationTask.Result;
-        var aiExplanation = explanationTask.Result;
+        // SAKLANMIŞ sonuç varsa MODEL HİÇ ÇAĞRILMIYOR.
+        //
+        // <b>Bulunan açık (docs/last-review M-4):</b> bu uç her görüntülemede İKİ
+        // LLM çağrısı yapıyordu, Viewer'a açıktı, hız sınırı yoktu ve çağrılar AI
+        // kotasına HİÇ yazılmıyordu — bir sekmeyi yenilemeye devam eden biri,
+        // kimsenin bütçesinden düşmeyen sınırsız model çağrısı üretebiliyordu.
+        // (Yukarıdaki eski yorum migration üreticisini "deterministik EF Core"
+        // sanıyordu; gerçekte o da `GroqAIService.GenerateMigrationCodeAsync`'e,
+        // yani modele gidiyor.)
+        //
+        // Girdi DEĞİŞMEZ — CR'ın base/head şemaları sabit — dolayısıyla yeniden
+        // hesaplamanın hiçbir faydası yok. Bir kez hesaplanıp kayda yazılıyor.
+        var migration = cr.MigrationResultJson is not null
+            ? JsonSerializer.Deserialize<MigrationResult>(cr.MigrationResultJson, SchemaJsonOptions)
+            : null;
+        var aiExplanation = cr.AiExplanation;
+
+        if (migration is null || aiExplanation is null)
+        {
+            // Hesaplama AI KOTASINA yazılıyor. Kota dolmuşsa sekmeler boş görünür —
+            // isteğin tamamı reddedilmiyor, çünkü CR'ın kendisi (risk, onaylar,
+            // şema diff'i) AI'dan bağımsız ve kullanıcı onu görebilmeli.
+            var reservation = await _quota.TryReserveAsync(userId, ImpactExplanationTokenEstimate);
+
+            if (reservation == AiQuotaDecision.Allowed)
+            {
+                // İki çağrı bağımsız: art arda await etmek yerine paralel
+                // çalıştırılır, sayfa ikisinin TOPLAMI değil daha YAVAŞ olanı kadar
+                // sürer. Her biri kendi hatasını yutar (AI anahtarı/servis yoksa
+                // ilgili sekme boş görünür, diğerleri etkilenmez).
+                var migrationTask = migration is null ? TryGenerateMigrationAsync() : Task.FromResult(migration);
+                var explanationTask = aiExplanation is null ? TryExplainImpactAsync() : Task.FromResult(aiExplanation);
+                await Task.WhenAll(migrationTask, explanationTask);
+
+                migration = migrationTask.Result;
+                aiExplanation = explanationTask.Result;
+
+                // YALNIZCA başarılı sonuç saklanıyor: null yazmak, geçici bir
+                // servis arızasını kalıcı bir "açıklama yok" hâline çevirirdi.
+                var changed = false;
+                if (migration is not null && cr.MigrationResultJson is null)
+                {
+                    cr.MigrationResultJson = JsonSerializer.Serialize(migration, SchemaJsonOptions);
+                    changed = true;
+                }
+                if (aiExplanation is not null && cr.AiExplanation is null)
+                {
+                    cr.AiExplanation = aiExplanation;
+                    changed = true;
+                }
+                if (changed) await _context.SaveChangesAsync();
+            }
+        }
 
         // UI'ın gösterdiği sayı, Decide'ın uyguladığı sayıyla AYNI olmalı — yoksa
         // "1/2 onay" yazarken CR onaylanmış görünür (kafa karıştırıcı ve güvensiz).
@@ -459,7 +525,24 @@ public class ChangeRequestController : ControllerBase
 
         // Onay kuralı ekip büyüklüğüne uyarlanır: 3+ kişide 2 onay, 2 kişide 1 onay,
         // tek kişide yazarın kendi onayı (aksi hâlde CR sonsuza kadar kilitlenirdi).
-        var teamSize = await _context.CountVotingMembersAsync(cr.ProjectId);
+        //
+        // <b>Dayanak CR AÇILDIĞI ANDA sabitlenen sayı (docs/last-review M-1).</b>
+        // Canlı sayıyla EN BÜYÜKÜ alınıyor, en küçüğü değil:
+        //   • ekip BÜYÜMÜŞSE canlı sayı kazanır — ideal kural uygulanabilir hâle
+        //     gelmiştir ve onu görmezden gelmek kuralı gereksiz yere gevşetirdi.
+        //   • ekip KÜÇÜLMÜŞSE sabitlenen sayı kazanır — saldırı tam olarak budur.
+        //
+        // <b>Kabul edilen bedel, dürüstçe:</b> ekip GERÇEKTEN küçüldüğünde (biri
+        // işten ayrıldı) açık bir Destructive CR kilitlenebilir. Çıkış yolu var
+        // (CR'ı kapatıp yenisini açmak, ki o anın ekip büyüklüğüyle yeniden
+        // sabitlenir) ve bu, tersini seçmenin bedelinden çok daha küçük: tersi,
+        // yıkıcı bir değişikliğin yetkisiz onaylanması olurdu.
+        //
+        // 0 = bu alan eklenmeden ÖNCE açılmış CR → canlı sayıya düş.
+        var liveTeamSize = await _context.CountVotingMembersAsync(cr.ProjectId);
+        var teamSize = cr.VotingMembersAtCreation > 0
+            ? Math.Max(cr.VotingMembersAtCreation, liveTeamSize)
+            : liveTeamSize;
 
         var evaluation = ChangeRequestApprovalPolicy.EvaluateVote(
             cr.RiskLevel, cr.Status, cr.CreatedByUserId, userId, request.Decision,
@@ -508,6 +591,56 @@ public class ChangeRequestController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+
+        // OYLAR SAYILDIKTAN SONRA YENİDEN UZLAŞTIRMA (docs/last-review L-2).
+        //
+        // <b>Bulunan açık:</b> <c>approvedCountBefore</c> yüklenen nesneden okunuyor
+        // ve durum kararı o BAYAT sayıya göre veriliyordu. İki farklı kullanıcı aynı
+        // anda onayladığında ikisi de "0 onay var" görüyor, ikisi de "henüz yetmedi"
+        // diyor ve iki onay yazılıyor — sonuç: quorum DOLU ama CR
+        // <c>PendingReview</c>'da asılı. Onaylayanlar işi bitti sanıyor, CR hiç
+        // ilerlemiyor ve kimse sebebini görmüyor.
+        //
+        // Çözüm kilit değil: oy YAZILDIKTAN sonra veritabanından yeniden saymak ve
+        // gerekirse geçişi KOŞULLU bir <c>UPDATE</c> ile uygulamak. Yarışın her iki
+        // tarafı da bunu yapıyor, yani hangisi son yazarsa doğru sonuca varıyor;
+        // koşullu güncelleme de iki tarafın aynı geçişi iki kez uygulamasını
+        // engelliyor.
+        if (cr.Status == ChangeRequestStatus.PendingReview
+            && request.Decision == ApprovalDecision.Approved)
+        {
+            var approvedNow = await _context.ChangeRequestApprovals
+                .CountAsync(a => a.ChangeRequestId == cr.Id
+                                 && a.Decision == ApprovalDecision.Approved);
+
+            var required = ChangeRequestApprovalPolicy.EffectiveRequiredApprovals(cr.RiskLevel, teamSize);
+
+            if (approvedNow >= required)
+            {
+                var promoted = await _context.ChangeRequests
+                    .Where(c => c.Id == cr.Id && c.Status == ChangeRequestStatus.PendingReview)
+                    .ExecuteUpdateAsync(u => u
+                        .SetProperty(c => c.Status, ChangeRequestStatus.Approved)
+                        .SetProperty(c => c.ResolvedAt, DateTime.UtcNow));
+
+                if (promoted > 0)
+                {
+                    await _context.Entry(cr).ReloadAsync();
+
+                    // Geçiş denetim kaydına da yazılıyor: quorum'un NE ZAMAN dolduğu,
+                    // tek tek oylardan ayrı bir bilgi.
+                    await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
+                    {
+                        ChangeRequestId = cr.Id,
+                        Action = ChangeRequestAuditAction.Approved,
+                        ActorUserId = userId,
+                        Details = $"Quorum reached ({approvedNow}/{required}).",
+                        CreatedAt = DateTime.UtcNow,
+                    });
+                    await _context.SaveChangesAsync();
+                }
+            }
+        }
 
         return Ok(new { cr.Id, cr.Status });
     }

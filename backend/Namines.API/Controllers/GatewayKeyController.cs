@@ -125,6 +125,22 @@ public class GatewayKeyController : ControllerBase
                 error = $"The {tier} plan allows at most {planCeiling} requests per minute per key.",
             });
 
+        // Ham SQL ve toplu dışa aktarım yetkileri ÜRETENİN kendi rolünden daha geniş
+        // OLAMAZ.
+        //
+        // Bulunan açık (docs/last-review H-3): bu uç `CanManageAsync` (Admin|Owner)
+        // ile korunuyordu ve `CanExecuteSql` doğrudan gövdeden geliyordu. Yani bir
+        // Admin kendine ham-SQL kapsamlı bir anahtar basıp projeye SAKLI üretim
+        // bağlantısında keyfi DDL çalıştırabiliyordu — `SetDeskSqlEnabled`'ın
+        // Owner-only eşiği (bkz. IsOwnerAsync'in sınıf yorumu) anahtar yolundan
+        // tamamen aşılıyordu. Yetki yükseltmenin kendisi buydu.
+        if ((request.CanExecuteSql || request.CanExport) && !await IsOwnerAsync(projectId, userId))
+            return StatusCode(403, new
+            {
+                error = "Only the project Owner can grant raw SQL or bulk export to a key. " +
+                        "Raw SQL bypasses table permissions, and export downloads whole tables.",
+            });
+
         var (entity, rawKey) = GatewayAccess.CreateKey(
             projectId, request.Name.Trim(), userId, request.CanWrite, request.ExpiresAt);
 

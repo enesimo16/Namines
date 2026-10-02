@@ -92,6 +92,25 @@ public class DatabaseExecutorController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.Script))
             return BadRequest(new { success = false, message = "The connection string and the script to run cannot be empty." });
 
+        // `ProjectId` DENETİM KAYDINA giriyor ve hiç doğrulanmıyordu.
+        //
+        // <b>Bulunan açık (docs/last-review H-5):</b> bu uç bağlantı dizesini
+        // çağırandan alıyor, yani projeye ait bir şey yaptığını hiç kanıtlaması
+        // gerekmiyordu — ama yazdığı `SqlExecutionAudit` satırı `request.ProjectId`
+        // ile etiketleniyordu. Herhangi bir kullanıcı kendi veritabanına zararsız
+        // bir betik çalıştırıp satırı BAŞKASININ projesine yazdırabiliyordu:
+        // "yıkıcı anahtar kelime içeriyor" işaretli, başkasının adına sahte kayıtlar.
+        //
+        // Kontrol ÇALIŞTIRMADAN ÖNCE: sonradan "kimliği düşürüp yine kaydet"
+        // demek, betik çalıştıktan sonra sessizce izsiz bırakmak olurdu.
+        if (!string.IsNullOrWhiteSpace(request.ProjectId)
+            && !await _context.CanViewAsync(request.ProjectId, userId, ct))
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                success = false,
+                message = "You do not have access to the project this run would be recorded against.",
+            });
+
         var result = await _executor.ExecuteScriptAsync(
             request.ConnectionString, request.Script, request.DbType, ct);
 

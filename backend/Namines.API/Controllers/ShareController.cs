@@ -34,13 +34,31 @@ public class ShareController : ControllerBase
     private string CurrentUserId =>
         User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
 
-    /// <summary>Token üretir (veya mevcut token'ı döndürür). Proje sahibine özel.</summary>
+    /// <summary>
+    /// Token üretir (veya mevcut token'ı döndürür).
+    ///
+    /// <b>Bulunan açık (docs/last-review H-4b):</b> yetki `p.UserId == CurrentUserId`
+    /// eşitliğiyle kuruluyordu — org kapsamlı DEĞİL. İki sonucu vardı: (1) ekipten
+    /// ÇIKARILMIŞ kurucu hâlâ paylasım linki üretebiliyordu (şema ANONİM yayınlanıyor
+    /// ve `sitemap.xml`'de listeleniyor), (2) projenin GERÇEK Owner'ı kurucu değilse
+    /// linki iptal edemiyordu — yani yayınlanmış bir şemayı geri çekme yetkisi
+    /// kimsede yoktu.
+    ///
+    /// Yetki artık <c>OrgAccess</c>'in tek kopyasından: şemayı İNTERNETE açmak bir
+    /// yönetim işi, o yüzden `CanManageMembersAsync` (Admin|Owner) —
+    /// `GatewayKeyController`'ın "bir tabloyu Gateway'e açmak" eşiğiyle aynı mantık.
+    /// Editor şema yazabilir ama onu yayınlamak ayrı bir karar.
+    /// </summary>
     [Authorize]
     [HttpPost("{projectId}")]
     public async Task<IActionResult> CreateShareLink(string projectId)
     {
+        if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
+        if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
+            return NotFound();
+
         var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == CurrentUserId);
+            .FirstOrDefaultAsync(p => p.Id == projectId);
 
         if (project is null) return NotFound();
 
@@ -55,13 +73,21 @@ public class ShareController : ControllerBase
         return Ok(new { token = project.ShareToken });
     }
 
-    /// <summary>Paylaşım token'ını iptal eder. Proje sahibine özel.</summary>
+    /// <summary>
+    /// Paylaşım token'ını iptal eder. <see cref="CreateShareLink"/> ile aynı eşik —
+    /// yayınlanmış bir şemayı geri çekebilmek, onu yayınlayabilmekten daha zor
+    /// OLMAMALI.
+    /// </summary>
     [Authorize]
     [HttpDelete("{projectId}")]
     public async Task<IActionResult> RevokeShareLink(string projectId)
     {
+        if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
+        if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
+            return NotFound();
+
         var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == CurrentUserId);
+            .FirstOrDefaultAsync(p => p.Id == projectId);
 
         if (project is null) return NotFound();
 

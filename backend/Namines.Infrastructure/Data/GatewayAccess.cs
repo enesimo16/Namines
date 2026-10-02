@@ -83,6 +83,24 @@ public static class GatewayAccess
         if (match.RevokedAt is not null) return null;
         if (match.ExpiresAt is not null && match.ExpiresAt <= DateTime.UtcNow) return null;
 
+        // ÜRETENİN projeye ERIŞİMİ HÂLÂ var mı?
+        //
+        // <b>Bulunan açık (docs/last-review H-4a):</b> bu kontrol yoktu ve üyelik
+        // kaldırmak hiçbir anahtarı iptal etmiyordu. Ekipten çıkarılan bir Admin'in
+        // yazma / ham-SQL anahtarı süresiz çalışmaya devam ediyordu — üstelik
+        // istekler hâlâ onun hesabına faturalandırılıyordu (bkz. RecordAsync'in
+        // `key.CreatedByUserId` kullanımı). Yani "üyeyi çıkardım" demek erişimi
+        // kesmiyordu; anahtar arka kapı olarak duruyordu.
+        //
+        // Kontrolün maliyeti kabul edildi: iptal zaten önbelleklenmiyor ve her
+        // istekte DB'ye gidiliyor (bkz. docs/last-review 03), yani bu ek sorgu
+        // yeni bir tur oluşturmuyor.
+        //
+        // <b>En az Viewer yetiyor, Editor değil:</b> anahtarın kendi yetkileri
+        // (CanWrite/CanExecuteSql/CanExport) ayrıca uygulanıyor; burada sorulan tek
+        // şey üretenin projeyle HÂLÂ bir ilişkisi olup olmadığı.
+        if (!await context.CanViewAsync(match.ProjectId, match.CreatedByUserId, ct)) return null;
+
         return match;
     }
 

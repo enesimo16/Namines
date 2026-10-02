@@ -299,9 +299,24 @@ namespace Namines.API.Controllers
             var user = await _userManager.FindByIdAsync(userId);
             if (user is null) return Unauthorized(new { Message = "User not found." });
 
-            var jwt = GenerateJwtToken(user);
-            return Ok(new { token = jwt });
+            // NORMAL oturum jetonu DEĞİL: kısa ömürlü ve amacı işaretli
+            // (bkz. DeskHandoffSessionLifetime'ın notu, docs/last-review M-15).
+            var jwt = GenerateJwtToken(user, DeskHandoffSessionLifetime, purpose: "desk-handoff");
+            return Ok(new
+            {
+                token = jwt,
+                expiresInSeconds = (int)DeskHandoffSessionLifetime.TotalSeconds,
+            });
         }
+
+        /// <summary>
+        /// Yeni bir projenin istemci-secimli kimligi icin izin verilen bicim. Gercek
+        /// istemciler crypto.randomUUID() uretir; yol ayiricilari, nokta ve alt cizgi
+        /// disarida kaliyor, boylece kimlik yola ya da tanimlayiciya guvenle gomulebilir.
+        /// </summary>
+        internal static bool IsSafeNewProjectId(string? id) =>
+            !string.IsNullOrEmpty(id) && System.Text.RegularExpressions.Regex.IsMatch(
+                id, "^[A-Za-z0-9-]{1,64}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
         [Authorize]
         [HttpPost("sync")]
@@ -389,8 +404,14 @@ namespace Namines.API.Controllers
                 else
                 {
                     // Check if this ID is already taken by another user — assign new UUID if so
-                    var idTakenByOther = await _context.CloudProjects
-                        .AnyAsync(p => p.Id == projDto.Id);
+                    // Kimlik ISTEMCIDEN geliyor ve asagi akista dosya sistemi yoluna (Vault
+                    // StorageKey), PostgreSQL veritabani/rol adina (Ground) ve saglayici proje
+                    // adlarina (Neon/Supabase) donusuyor. Bicim dogrulanmazsa yol ayiricili bir
+                    // kimlik kok disina yazmaya, "7f3a_b21c" gibi bir kimlik de baska bir
+                    // projenin veritabanini devralmaya yol acar. Gecersiz bicim, cakisma ile
+                    // AYNI yoldan yeni bir GUID alir.
+                    var idTakenByOther = !IsSafeNewProjectId(projDto.Id) ||
+                        await _context.CloudProjects.AnyAsync(p => p.Id == projDto.Id);
 
                     var newCloudProj = new CloudProject
                     {
@@ -935,7 +956,32 @@ namespace Namines.API.Controllers
             $"otpauth://totp/Namines:{Uri.EscapeDataString(account)}" +
             $"?secret={key}&issuer=Namines&digits=6";
 
-        private string GenerateJwtToken(ApplicationUser user)
+        /// <summary>Desk devir teslimiyle verilen jetonu işaretleyen claim.</summary>
+        public const string TokenPurposeClaimType = "namines:purpose";
+
+        /// <summary>
+        /// Desk devir teslim jetonunun ömrü.
+        ///
+        /// <b>Bulunan açık (docs/last-review M-15):</b> 30 SANİYELİK, tek kullanımlık
+        /// bir devir teslim jetonu, 7 GÜNLÜK ve tam yetkili normal bir oturum
+        /// jetonuna çevriliyordu. Yani el sıkışmanın dar penceresi, elde edilen şeyin
+        /// dar olduğu anlamına gelmiyordu: jeton Desk'e bağlı değil, projeye bağlı
+        /// değil ve `sessionStorage`'da tutuluyor. Ömür 7 günden 12 saate çekildi —
+        /// çalınan bir Desk jetonunun işe yarama süresi 14 kat kısaldı.
+        /// </summary>
+        private static readonly TimeSpan DeskHandoffSessionLifetime = TimeSpan.FromHours(12);
+
+        private string GenerateJwtToken(ApplicationUser user) =>
+            GenerateJwtToken(user, TimeSpan.FromDays(7), purpose: null);
+
+        /// <param name="lifetime">Jetonun ömrü.</param>
+        /// <param name="purpose">
+        /// Doluysa <see cref="TokenPurposeClaimType"/> claim'i olarak ekleniyor.
+        /// Şu an yetki KISITLAMIYOR; jetonun nereden geldiğini denetlenebilir kılıyor
+        /// ve uç-bazlı kapsam kontrolü eklendiğinde dayanağı hazır olsun diye var
+        /// (bkz. docs/last-review M-15'in "kapsam dışı" notu).
+        /// </param>
+        private string GenerateJwtToken(ApplicationUser user, TimeSpan lifetime, string? purpose)
         {
             var claims = new List<Claim>
             {
@@ -959,6 +1005,11 @@ namespace Namines.API.Controllers
                 claims.Add(new Claim("companyName", user.CompanyName));
             }
 
+            if (!string.IsNullOrEmpty(purpose))
+            {
+                claims.Add(new Claim(TokenPurposeClaimType, purpose));
+            }
+
             // Fallback anahtar burada TEKRARLANMIYOR: Program.cs, Development
             // disinda Jwt:Key tanimsizsa uygulamayi hic baslatmiyor. Ikinci bir
             // kopya, o kapinin ilerideki bir degisiklikte sessizce atlanmasini
@@ -966,7 +1017,7 @@ namespace Namines.API.Controllers
             var secretKey = _configuration["Jwt:Key"] ?? DevFallbackJwtKey;
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var expires = DateTime.UtcNow.AddDays(7);
+            var expires = DateTime.UtcNow.Add(lifetime);
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"] ?? "NaminesServer",

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,20 @@ public class ProjectMemberController : ControllerBase
         return org.Id;
     }
 
+    private const string OwnerOnlyError =
+        "Only an owner can grant, change or remove the owner role.";
+
+    /// <summary>
+    /// Owner katmanına dokunan işlemler (Owner atamak, bir Owner'ın rolünü değiştirmek ya da
+    /// onu ekipten çıkarmak) yalnızca Owner'a açık. <c>CanManageMembersAsync</c> Admin'i de
+    /// kabul ediyor; kapı burada daraltılmazsa bir Admin kendi rolünü Owner'a yükseltip
+    /// "Admin bile yetmez" diye Owner'a bağlanmış her şeye (Desk raw SQL, Ground provision/
+    /// delete, Vault restore) ulaşırdı. TeamController de aynı kuralı davet için koyuyor:
+    /// "yükseltme ancak var olan bir Owner tarafından yapılabilir".
+    /// </summary>
+    private async Task<bool> IsCallerOwnerAsync(string projectId, string userId, CancellationToken ct) =>
+        await _context.GetRoleAsync(projectId, userId, ct) == OrgRole.Owner;
+
     [HttpGet]
     public async Task<IActionResult> List(string projectId, CancellationToken ct)
     {
@@ -93,6 +108,12 @@ public class ProjectMemberController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(request.Email))
             return BadRequest(new { error = "An email address is required." });
+
+        if (!Enum.IsDefined(request.Role))
+            return BadRequest(new { error = "Unknown role." });
+
+        if (request.Role == OrgRole.Owner && !await IsCallerOwnerAsync(projectId, userId, ct))
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = OwnerOnlyError });
 
         var invitee = await _userManager.FindByEmailAsync(request.Email.Trim());
         if (invitee is null)
@@ -134,6 +155,14 @@ public class ProjectMemberController : ControllerBase
             .FirstOrDefaultAsync(m => m.OrganizationId == orgId && m.UserId == memberUserId, ct);
         if (member is null) return NotFound(new { error = "Member not found." });
 
+        if (!Enum.IsDefined(request.Role))
+            return BadRequest(new { error = "Unknown role." });
+
+        // Owner'a yükseltme VE bir Owner'ın rolünü düşürme: ikisi de Owner işi.
+        if ((request.Role == OrgRole.Owner || member.Role == OrgRole.Owner)
+            && !await IsCallerOwnerAsync(projectId, userId, ct))
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = OwnerOnlyError });
+
         // Son Owner'ı düşürme — org sahipsiz kalırsa üye yönetimi kilitlenir.
         if (member.Role == OrgRole.Owner && request.Role != OrgRole.Owner)
         {
@@ -166,6 +195,9 @@ public class ProjectMemberController : ControllerBase
 
         if (member.Role == OrgRole.Owner)
         {
+            if (!await IsCallerOwnerAsync(projectId, userId, ct))
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = OwnerOnlyError });
+
             var ownerCount = await _context.OrganizationMembers
                 .CountAsync(m => m.OrganizationId == orgId && m.Role == OrgRole.Owner, ct);
             if (ownerCount <= 1)
@@ -173,7 +205,27 @@ public class ProjectMemberController : ControllerBase
         }
 
         _context.OrganizationMembers.Remove(member);
+
+        // ÇIKARILAN ÜYENİN ANAHTARLARI DA İPTAL EDİLİYOR.
+        //
+        // <b>Bulunan açık (docs/last-review H-4a):</b> üyelik kaldırmak hiçbir
+        // anahtara dokunmuyordu. `GatewayAccess.AuthenticateAsync` artık üretenin
+        // güncel üyeliğini de kontrol ediyor — yani erişim o kontrolle zaten
+        // kesiliyor — ama anahtarı AÇIKÇA iptal etmek ayrı bir şey: aksi hâlde
+        // anahtar listesinde "aktif" görünmeye devam eder ve üye geri eklendiğinde
+        // kimsenin niyet etmediği bir anda yeniden canlanır.
+        //
+        // Yalnızca BU projenin anahtarları: üye başka bir projede kalabilir.
+        var now = DateTime.UtcNow;
+        var orphanedKeys = await _context.GatewayApiKeys
+            .Where(k => k.ProjectId == projectId
+                        && k.CreatedByUserId == memberUserId
+                        && k.RevokedAt == null)
+            .ToListAsync(ct);
+
+        foreach (var key in orphanedKeys) key.RevokedAt = now;
+
         await _context.SaveChangesAsync(ct);
-        return Ok(new { removed = memberUserId });
+        return Ok(new { removed = memberUserId, revokedKeys = orphanedKeys.Count });
     }
 }

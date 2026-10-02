@@ -180,8 +180,20 @@ public class BranchController : ControllerBase
     /// da proje senkronize edildiğinde (POST /api/auth/sync) henüz bir Branch satırı
     /// açılmıyor, ilk gerçek ihtiyaç anında (ilk canlı işbirliği bağlantısı) oluşturuluyor.
     /// </summary>
+    /// <summary>
+    /// Varsayılan branch'i DÖNDÜRÜR — yoksa 404. <b>Hiçbir şey oluşturmaz.</b>
+    ///
+    /// <b>Bulunan açık (docs/last-review L-1):</b> bu uç bir <c>GET</c> olduğu hâlde
+    /// satır OLUŞTURUYORDU, ve <c>GET</c>'ler CSRF korumasından muaf (muaf olmaları
+    /// doğru — güvenli olduğu VARSAYILAN bir fiil). Oluşturma idempotent ve kullanıcının
+    /// zaten sahip olduğu bir kaynak için olduğundan saldırganın kazanacağı bir şey
+    /// yoktu, ama "GET yazmaz" kuralının istisnası olmak, bir sonraki değişikliğin o
+    /// istisnayı büyütmesine zemin hazırlar.
+    ///
+    /// Oluşturma artık <see cref="EnsureDefaultBranch"/>'te (<c>POST</c>).
+    /// </summary>
     [HttpGet("project/{projectId}/default")]
-    public async Task<IActionResult> GetOrCreateDefaultBranch(string projectId)
+    public async Task<IActionResult> GetDefaultBranch(string projectId)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
@@ -189,10 +201,43 @@ public class BranchController : ControllerBase
         if (!await UserOwnsProjectAsync(projectId, userId))
             return NotFound(new { error = "Project not found, or it does not belong to this user." });
 
+        var branch = await _context.Branches
+            .AsNoTracking()
+            .Where(b => b.ProjectId == projectId && b.IsDefault)
+            .Select(b => new { b.Id, b.ProjectId, b.Name })
+            .FirstOrDefaultAsync();
+
+        if (branch is null)
+            return NotFound(new { error = "This project has no default branch yet. POST to create it." });
+
+        return Ok(branch);
+    }
+
+    /// <summary>
+    /// Varsayılan branch'i döndürür, yoksa OLUŞTURUR. <c>POST</c>, çünkü yazabilir
+    /// (docs/last-review L-1).
+    ///
+    /// Yanıt <c>200</c> (vardı) ya da <c>201</c> (oluşturuldu): çağıranın hangisinin
+    /// olduğunu bilmesi, "ilk kez açıldı" durumunu loglamasını/ölçmesini mümkün kılıyor.
+    /// </summary>
+    [HttpPost("project/{projectId}/default")]
+    public async Task<IActionResult> EnsureDefaultBranch(string projectId)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        if (!await UserOwnsProjectAsync(projectId, userId))
+            return NotFound(new { error = "Project not found, or it does not belong to this user." });
+
+        var existed = await _context.Branches
+            .AsNoTracking()
+            .AnyAsync(b => b.ProjectId == projectId && b.IsDefault);
+
         // Yarışa karşı sertleştirilmiş tek kopya — bkz. BranchProvisioning.
         var branch = await _context.GetOrCreateDefaultBranchAsync(projectId, userId);
+        var body = new { branch.Id, branch.ProjectId, branch.Name };
 
-        return Ok(new { branch.Id, branch.ProjectId, branch.Name });
+        return existed ? Ok(body) : StatusCode(StatusCodes.Status201Created, body);
     }
 
     [HttpPost("{branchId}/versions")]
@@ -347,7 +392,12 @@ public class BranchController : ControllerBase
         // maliyetini zaten ödemek demek olurdu. Zaten açık olan bir veritabanını
         // yeniden istemek kotaya sayılmaz — sağlayıcı onu yeni açmıyor, mevcudu
         // döndürüyor.
-        var quotaFailure = await CheckBranchDatabaseQuotaAsync(userId, branchId, cancellationToken);
+        // Veritabanı ZATEN açık mı? Hem kota hem faturalama bu cevaba bağlı ve
+        // ikisi AYNI cevabı kullanmak zorunda.
+        var alreadyExisted = await _databases.GetAsync(branchId, cancellationToken) is not null;
+
+        var quotaFailure = await CheckBranchDatabaseQuotaAsync(
+            userId, branchId, alreadyExisted, cancellationToken);
         if (quotaFailure is not null) return quotaFailure;
 
         DatabaseSchema schema;
@@ -367,7 +417,16 @@ public class BranchController : ControllerBase
 
             // Kayıt, işlem GERÇEKTEN olduktan sonra: başarısız bir sağlamayı
             // faturalandırmak, olmamış bir şey için para almaktır.
-            await _context.RecordAsync(userId, UsageResource.BranchDatabase, 1, branchId, cancellationToken);
+            //
+            // <b>Bulunan açık (docs/last-review M-10):</b> ölçüm KOŞULSUZ
+            // yazılıyordu, oysa kota kapısı "zaten açık olan bir veritabanını
+            // yeniden istemek kotaya sayılmaz" diyerek bilerek atlanıyordu. İki
+            // taraf aynı olayı farklı sayıyordu: aynı sayfayı yenileyen bir
+            // kullanıcı her seferinde YENİ bir branch veritabanı faturalanıyordu,
+            // sağlayıcı hiçbir şey açmadığı hâlde. Kotanın gerekçesi doğruydu,
+            // faturalamanın onu takip etmemesi yanlıştı.
+            if (!alreadyExisted)
+                await _context.RecordAsync(userId, UsageResource.BranchDatabase, 1, branchId, cancellationToken);
 
             return Ok(Describe(database));
         }
@@ -568,11 +627,15 @@ public class BranchController : ControllerBase
     /// Sayım KULLANICININ branch'leriyle sınırlı: host'taki tüm container'ları saymak,
     /// başka bir kullanıcının açtığı veritabanı yüzünden kota dolmuş göstermek olurdu.
     /// </summary>
+    /// <param name="alreadyExisted">
+    /// Veritabanı çağrıdan ÖNCE zaten açık mıydı. Çağıran tarafından veriliyor,
+    /// burada tekrar sorgulanmıyor: aynı soruya iki kez cevap aramak, kota ile
+    /// faturalamanın farklı cevaplar görmesine kapı açardı (docs/last-review M-10).
+    /// </param>
     private async Task<IActionResult?> CheckBranchDatabaseQuotaAsync(
-        string userId, string branchId, CancellationToken ct)
+        string userId, string branchId, bool alreadyExisted, CancellationToken ct)
     {
-        var existing = await _databases.GetAsync(branchId, ct);
-        if (existing is not null) return null;
+        if (alreadyExisted) return null;
 
         // Kotayı ölçüm motoru veriyor (22 §5): dahil miktar içindeyse geç, aşıldıysa
         // yalnızca aşırı kullanım AÇIKSA ve harcama tavanı dolmadıysa geç. Sabit bir

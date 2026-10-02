@@ -40,6 +40,30 @@ public static class SqlStatementKind
         "COPY", "VACUUM", "SET", "COMMIT", "ROLLBACK", "BEGIN",
     };
 
+    /// <summary>
+    /// İfadenin İÇİNDE görülmesi onu yazma yapan anahtar kelimeler — ilk kelime
+    /// <c>SELECT</c> olsa bile.
+    ///
+    /// <b>Bulunan açık (docs/last-review H-1):</b> <c>INTO</c> hiçbir listede yoktu.
+    /// <c>SELECT * INTO yeni_tablo FROM users</c> ilk kelimesi <c>SELECT</c> olduğu
+    /// için <see cref="SqlKind.Read"/> sınıflandırılıyordu, ama MSSQL'de yeni bir tablo
+    /// YARATIR. MSSQL/Oracle/SQLite'ta oturum seviyesi salt-okunur mod olmadığı için
+    /// (<c>UserDbConnection.AppliesReadOnlySession</c>) bu sınıflandırma o motorlarda
+    /// TEK kapıydı.
+    ///
+    /// <c>SET</c>, <c>COMMIT</c>, <c>ROLLBACK</c> ve <c>BEGIN</c> buraya KONMUYOR,
+    /// yalnızca <see cref="WriteVerbs"/>da kalıyor: bunlar ancak İFADENİN BAŞI
+    /// olduklarında bir şey yapıyor. Gövdede geçtiklerinde meşru olabiliyorlar
+    /// (<c>UPDATE ... SET</c> zaten ilk kelimeden yakalanıyor) ve onları gövdede
+    /// yasaklamak, çalışan raporları reddetmek olurdu.
+    /// </summary>
+    private static readonly string[] EmbeddedWriteVerbs =
+    {
+        "INSERT", "UPDATE", "DELETE", "MERGE", "UPSERT", "REPLACE", "TRUNCATE",
+        "DROP", "CREATE", "ALTER", "GRANT", "REVOKE", "CALL", "EXEC", "EXECUTE",
+        "COPY", "VACUUM", "INTO", "ATTACH", "DETACH", "PRAGMA",
+    };
+
     public static SqlKind Classify(string? sql)
     {
         var first = FirstWord(sql);
@@ -47,20 +71,27 @@ public static class SqlStatementKind
 
         if (WriteVerbs.Contains(first, StringComparer.Ordinal)) return SqlKind.Write;
 
-        // "WITH ... INSERT" gerçek bir kalıp: CTE ile başlayan bir ifade pekâlâ
-        // yazabilir. İlk kelimeye bakıp okuma saymak, tam da bu kalıpla
-        // atlatılabilir bir kapı bırakırdı.
-        if (first == "WITH" && ContainsWriteVerb(sql!)) return SqlKind.Write;
+        if (!ReadVerbs.Contains(first, StringComparer.Ordinal)) return SqlKind.Unknown;
 
-        return ReadVerbs.Contains(first, StringComparer.Ordinal) ? SqlKind.Read : SqlKind.Unknown;
+        // Okuma fiiliyle BAŞLAMAK yetmiyor.
+        //
+        // "WITH ... INSERT" gerçek bir kalıp: CTE ile başlayan bir ifade pekâlâ
+        // yazabilir. Ve <c>SELECT ... INTO</c> MSSQL'de tablo yaratır. İlk kelimeye
+        // bakıp okuma saymak, tam da bu iki kalıpla atlatılabilir bir kapı bırakırdı.
+        //
+        // Sonuç <see cref="SqlKind.Write"/>: <c>Unknown</c> değil, çünkü burada
+        // gerçekten bir yazma anahtar kelimesi GÖRÜLDÜ — "ne olduğunu anlamadım"
+        // demek, çağırana yanlış bilgi vermek olurdu. Her iki durumda da
+        // /query/nl çalıştırmayı reddediyor.
+        return ContainsEmbeddedWriteVerb(sql!) ? SqlKind.Write : SqlKind.Read;
     }
 
-    private static bool ContainsWriteVerb(string sql)
+    private static bool ContainsEmbeddedWriteVerb(string sql)
     {
         var words = sql.Split(new[] { ' ', '\t', '\r', '\n', '(', ')', ',', ';' },
             StringSplitOptions.RemoveEmptyEntries);
 
-        return words.Any(w => WriteVerbs.Contains(w.ToUpperInvariant(), StringComparer.Ordinal));
+        return words.Any(w => EmbeddedWriteVerbs.Contains(w.ToUpperInvariant(), StringComparer.Ordinal));
     }
 
     /// <summary>

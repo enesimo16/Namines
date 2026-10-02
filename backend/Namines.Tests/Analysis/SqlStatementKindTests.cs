@@ -128,4 +128,59 @@ public class SqlStatementKindTests
         // motorun sorguyu ilk karakterde reddetmesi demek olurdu.
         Assert.Equal(expected, NlQueryPromptBuilder.StripFences(answer));
     }
+
+    /// <summary>
+    /// <b>Bulunan açık (docs/last-review H-1):</b> <c>INTO</c> ne
+    /// <c>WriteVerbs</c>'te ne de gövde taramasında vardı. <c>SELECT ... INTO</c>
+    /// ilk kelimesi <c>SELECT</c> olduğu için <c>Read</c> sınıflandırılıyordu ve
+    /// <c>/query/nl</c> onu ÇALIŞTIRIYORDU — oysa MSSQL'de yeni bir tablo yaratır.
+    ///
+    /// MSSQL/Oracle/SQLite'ta oturum seviyesi salt-okunur mod olmadığı için
+    /// (<c>UserDbConnection.AppliesReadOnlySession</c>) bu sınıflandırma o
+    /// motorlarda TEK kapıydı.
+    /// </summary>
+    [Theory]
+    [InlineData("SELECT * INTO yeni_tablo FROM users")]
+    [InlineData("select id, email into staging from customers")]
+    [InlineData("SELECT * FROM users INTO OUTFILE '/tmp/x'")]
+    [InlineData("WITH x AS (SELECT 1) SELECT * INTO t FROM x")]
+    public void Select_INTO_bir_YAZMA_okuma_degil(string sql)
+    {
+        Assert.NotEqual(SqlKind.Read, SqlStatementKind.Classify(sql));
+    }
+
+    /// <summary>
+    /// Okuma fiiliyle BAŞLAYIP gövdesinde yazma anahtar kelimesi taşıyan diğer
+    /// kalıplar. İlk kelimeye bakmak bunların hepsini kaçırıyordu.
+    ///
+    /// <b>Kalan risk, dürüstçe:</b> tarama KELİME sinirlariyla çalışıyor, yani
+    /// <c>SELECT do_delete() FROM t</c> gibi ADI yazma fiili IÇEREN bir fonksiyon
+    /// çağrısını görmüyor. Alt-dize aramaya geçmek <c>deleted_at</c> gibi tamamen
+    /// normal kolon adlarını reddetmek olurdu. Bu, <c>EnsureReadOnlySelectStatement</c>'ın
+    /// sınıf yorumunda zaten kabul edilen aynı kalan risk — tam bir SQL ayrıştırıcısı
+    /// olmadan sıfıra indirilemez.
+    /// </summary>
+    [Theory]
+    [InlineData("SELECT 1 FROM t WHERE x = (CALL f())")]
+    [InlineData("SHOW TABLES; PRAGMA writable_schema = 1")]
+    [InlineData("SELECT * FROM x ATTACH DATABASE 'y' AS z")]
+    public void Govdeye_gomulu_yazma_anahtar_kelimesi_okuma_SAYILMIYOR(string sql)
+    {
+        Assert.NotEqual(SqlKind.Read, SqlStatementKind.Classify(sql));
+    }
+
+    /// <summary>
+    /// Kapıyı daraltmak meşru raporları KIRMAMALI — bu testler olmadan gövde
+    /// taraması sessizce çalışan sorguları reddetmeye başlayabilirdi.
+    /// </summary>
+    [Theory]
+    [InlineData("SELECT * FROM orders WHERE id IN (SELECT order_id FROM items)")]
+    [InlineData("SELECT a, b FROM t ORDER BY a LIMIT 10 OFFSET 20")]
+    [InlineData("WITH recent AS (SELECT 1) SELECT * FROM recent")]
+    [InlineData("SELECT COUNT(*) AS total, SUM(amount) FROM invoices GROUP BY customer_id")]
+    [InlineData("SELECT created_at FROM logs WHERE created_at > now() - interval '1 day'")]
+    public void Mesru_okuma_sorgulari_hala_Read(string sql)
+    {
+        Assert.Equal(SqlKind.Read, SqlStatementKind.Classify(sql));
+    }
 }
