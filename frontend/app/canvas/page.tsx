@@ -65,7 +65,6 @@ import ToolbarPanel from '../../components/canvas/panels/ToolbarPanel';
 import CanvasExportToolbar from '../../components/canvas/panels/CanvasExportToolbar';
 import CanvasContextMenu from '../../components/canvas/CanvasContextMenu';
 import NaminesFlowBar from '../../components/canvas/panels/NaminesFlowBar';
-import NaminesFlowPanel from '../../components/canvas/panels/NaminesFlowPanel';
 import TableEditorDrawer from '../../components/canvas/TableEditorDrawer';
 import AutomationRuleDrawer from '../../components/canvas/AutomationRuleDrawer';
 import SqlExplorerPanel from '../../components/canvas/panels/SqlExplorerPanel';
@@ -811,10 +810,9 @@ export default function CanvasPage() {
         <CanvasExportToolbar />
         <ConflictResolverModal />
 
-        {/* Namines Flow çubuğu ve kural listesi — panel `setCenter` kullandığı
-            için ReactFlowProvider'ın İÇİNDE olmak zorunda. */}
+        {/* Namines Flow çubuğu. Kural LİSTESİ artık canvas'ın üstüne binen bir panel değil,
+            kendi sayfası (`/flow`); çubuktaki liste düğmesi oraya gider. */}
         <NaminesFlowBar />
-        <NaminesFlowPanel />
 
         {/* Canvas arama (ReactFlowProvider içinde olmalı — fitBounds kullanır) */}
         <CanvasSearch

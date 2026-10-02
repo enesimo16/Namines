@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Stripe;
@@ -87,6 +88,79 @@ public class StripeWebhookController : ControllerBase
         _logger.LogInformation("[STRIPE WEBHOOK] ✓ Verified event: {Type} | ID: {Id}", stripeEvent.Type, stripeEvent.Id);
 
         // ── EVENT DISPATCH ─────────────────────────────────────────────────────
+        // ── TEKRAR İLETİM (IDEMPOTENCY) ────────────────────────────────────
+        //
+        // <b>Bulunan açık (docs/last-review M-2):</b> Stripe aynı olayı başarılı bir
+        // 200'den sonra bile tekrar gönderebiliyor (ağ zaman aşımı, kendi yeniden
+        // deneme kuyruğu, panelden elle "resend"). Olay kimliğine hiç
+        // bakılmıyordu: tekrar iletilen bir <c>updated / active</c> olayı, arada iptal
+        // edilmiş bir aboneliği sessizce GERİ GETİRİYORDU — kullanıcı ödemediği hâlde
+        // ücretli plana dönüyordu.
+        var customerId = CustomerIdOf(stripeEvent);
+
+        if (await _db.StripeWebhookEvents.AnyAsync(e => e.Id == stripeEvent.Id))
+        {
+            _logger.LogInformation(
+                "[STRIPE WEBHOOK] Olay {Id} ZATEN islenmis, atlaniyor (tekrar iletim).", stripeEvent.Id);
+            return Ok(new { received = true, duplicate = true });
+        }
+
+        // ── SIRA DIŞI TESLİMAT ───────────────────────────────────────
+        //
+        // Idempotency tek başına yetmiyor: Stripe teslimat SIRASINI garanti
+        // etmiyor. <c>deleted</c> işlendikten sonra ondan ESKİ bir <c>active</c>
+        // olayı gelirse kimlik farklı olduğu için idempotency onu durdurmaz ve
+        // iptal geri alınır. Bu yüzden abonelik DURUMUNU değiştiren olaylar,
+        // o müşteri için daha yeni bir olay işlenmişse UYGULANMIYOR.
+        //
+        // Olayın ÜRETİLME zamanı (<c>Event.Created</c>) kullanılıyor, bizim aldığımız
+        // zaman değil — alınma zamanı sıra dışı teslimatta tam olarak yanlış cevabı verir.
+        var isLatest = true;
+        if (!string.IsNullOrEmpty(customerId))
+        {
+            var newestProcessed = await _db.StripeWebhookEvents
+                .Where(e => e.StripeCustomerId == customerId)
+                .MaxAsync(e => (DateTime?)e.EventCreatedAt);
+
+            isLatest = newestProcessed is null || stripeEvent.Created >= newestProcessed;
+        }
+
+        // Kayıt İŞLEMEDEN ÖNCE yazılıyor ve ayıklı bir şekilde kaydediliyor:
+        // birincil anahtar çakışması eşzamanlı ikinci isteği burada durdurur.
+        // İşlemden SONRA yazmak, işleme ile kayıt arasında çöken bir süreçte
+        // olayın ikinci kez uygulanmasına izin verirdi.
+        _db.StripeWebhookEvents.Add(new StripeWebhookEvent
+        {
+            Id = stripeEvent.Id,
+            EventType = stripeEvent.Type,
+            EventCreatedAt = stripeEvent.Created,
+            StripeCustomerId = customerId,
+            LatestProcessedForCustomer = isLatest,
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Yarış: aynı olayı başka bir istek bizden önce yazdı. İşlemeden
+            // 200 dönülüyor — Stripe'ın yeniden denemesine gerek yok.
+            _logger.LogInformation(
+                "[STRIPE WEBHOOK] Olay {Id} esZAMANLI olarak baska bir istek tarafindan alindi.", stripeEvent.Id);
+            return Ok(new { received = true, duplicate = true });
+        }
+
+        if (!isLatest)
+        {
+            _logger.LogWarning(
+                "[STRIPE WEBHOOK] Olay {Id} ({Type}) SIRA DISI geldi: {Customer} icin daha yeni bir olay " +
+                "zaten islenmis. Abonelik durumu DEGISTIRILMIYOR.",
+                stripeEvent.Id, stripeEvent.Type, customerId);
+            return Ok(new { received = true, stale = true });
+        }
+
+        // ── EVENT DISPATCH ─────────────────────────────────────────────────
         switch (stripeEvent.Type)
         {
             case "checkout.session.completed":
@@ -110,6 +184,20 @@ public class StripeWebhookController : ControllerBase
         // Always return 200 to acknowledge receipt to Stripe
         return Ok(new { received = true });
     }
+
+    /// <summary>
+    /// Olayın ilgili olduğu Stripe müşteri kimliği — sıra kontrolü müşteri başına.
+    ///
+    /// Tanınmayan olay türünde <c>null</c>: o olay abonelik durumunu değiştirmiyor,
+    /// dolayısıyla sırası da önemli değil. Uydurma bir kimlik yazmak, ilgisiz
+    /// olayları aynı sıra zincirine sokup meşru olayları "eski" saydırırdı.
+    /// </summary>
+    private static string? CustomerIdOf(Event stripeEvent) => stripeEvent.Data.Object switch
+    {
+        Stripe.Subscription subscription => subscription.CustomerId,
+        Stripe.Checkout.Session session => session.CustomerId,
+        _ => null,
+    };
 
     // ── checkout.session.completed ─────────────────────────────────────────────
     // User completed payment. Activate their subscription and store Stripe IDs.
@@ -245,8 +333,36 @@ public class StripeWebhookController : ControllerBase
 
         var teamPriceIds = PricingCatalog.For(PlanTier.Team)
             .Select(p => _config[p.ConfigKey])
-            .Where(id => !string.IsNullOrWhiteSpace(id));
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToList();
 
-        return teamPriceIds.Any(id => id == priceId) ? "team" : "pro";
+        // YAPILANDIRMA EKSIKLIGI ile "fiyat gercekten Pro" AYRI seylerdir
+        // (docs/last-review L-3).
+        //
+        // Team fiyat kimlikleri hic tanimli degilse esleme MATEMATIKSEL OLARAK
+        // calisamaz: her Team musterisi sessizce "pro" olur, yani EN COK odeyen
+        // musteri EN AZ hakki alir. Bu bir dagitim hatasi ve WARNING olarak
+        // gecmemeli — uyari akisinda kaybolur, fatura farki ise aylar sonra
+        // fark edilir.
+        if (teamPriceIds.Count == 0)
+        {
+            _logger.LogError(
+                "[STRIPE WEBHOOK] Team fiyat kimlikleri yapilandirilmamis (Stripe:*TeamPriceId). " +
+                "Her abonelik 'pro' olarak cozulecek, yani Team musterileri EKSIK hak alir. " +
+                "PricingCatalog'un bekledigi anahtarlari tanimlayin.");
+
+            return "pro";
+        }
+
+        if (teamPriceIds.Any(id => id == priceId)) return "team";
+
+        // Fiyat tanimli listelerden hicbiriyle eslesmiyor: musteri gercekten Pro
+        // aldi ya da katalogda olmayan bir fiyat kullaniliyor. "pro"ya dusmek
+        // bilincli (odeyen birine hizmet vermemektense daha az hak vermek), ama
+        // artik hangi fiyatin taninmadigi da kayda giriyor.
+        _logger.LogWarning(
+            "[STRIPE WEBHOOK] Fiyat {PriceId} katalogda yok; PlanCode 'pro' olarak cozuldu.", priceId);
+
+        return "pro";
     }
 }

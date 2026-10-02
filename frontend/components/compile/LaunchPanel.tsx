@@ -1,18 +1,30 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Rocket, CheckCircle2, XCircle, Loader2, ExternalLink, Download, GitPullRequestArrow } from 'lucide-react';
+import {
+  Rocket, CheckCircle2, XCircle, Loader2, ExternalLink, Download, GitPullRequestArrow,
+  Database, FileCode2, ArchiveRestore, Table2, AlertTriangle, RefreshCw,
+} from 'lucide-react';
 import { launchApi, LaunchError, type LaunchOutcome } from '../../services/launchApi';
 import { groundApi, type GroundProvider } from '../../services/vaultGroundApi';
 import { changeRequestService } from '../../services/api';
 import { useRouter } from 'next/navigation';
-import { Panel, PanelBar, ActionButton, PanelEmpty } from './PanelKit';
+import { Panel } from './PanelKit';
 import { DatabaseSchema } from '../../types/schema';
 import { openDeskHandoff } from '../../lib/deskHandoff';
+import { Button, Callout, Badge, EmptyState } from '../workspace/WorkspaceKit';
 
-type StepState = 'pending' | 'active' | 'done' | 'error';
+type StepState = 'pending' | 'active' | 'done' | 'error' | 'skipped';
 
 interface StepRow { key: string; label: string; state: StepState; detail?: string }
+
+/** Başlamadan önce kullanıcıya gösterilen dört adımın özeti. */
+const PLAN: { icon: typeof Database; title: string; text: string }[] = [
+  { icon: Database, title: 'Open a database', text: 'A real PostgreSQL database is created for this project.' },
+  { icon: FileCode2, title: 'Apply the schema', text: 'Your approved diagram is run against it as DDL.' },
+  { icon: ArchiveRestore, title: 'Take a first backup', text: 'An encrypted Vault backup is stored right away.' },
+  { icon: Table2, title: 'Open Desk', text: 'You land on a working data panel for the new tables.' },
+];
 
 /**
  * "/compile"'daki tek tık akışı: Ground'da veritabanı aç, DDL'i uygula, ilk
@@ -23,20 +35,27 @@ interface StepRow { key: string; label: string; state: StepState; detail?: strin
  * Kod projesi indirme AYRI bir eylem: "Ready" durumundan sonra, ham DB
  * parolası ASLA — bir Gateway API anahtarı gömülü gelir (bkz. backend
  * LaunchController.Download).
+ *
+ * <b>DDL hazır olmadan Launch açılmaz.</b> DDL sayfada asenkron üretiliyor; hazır
+ * olmadan gönderilen boş `ddlScript` sunucuda "projectId, provider and ddlScript are
+ * required" hatasına dönüşüyordu (kullanıcının gördüğü "Launch çalışmıyor").
  */
 export default function LaunchPanel({
-  projectId, projectName, ddlScript, schema,
+  projectId, projectName, ddlScript, schema, ddlStatus = 'ready', onRetryDdl,
 }: {
   projectId: string | null;
   projectName: string;
   ddlScript: string;
   schema: DatabaseSchema;
+  ddlStatus?: 'loading' | 'ready' | 'error';
+  onRetryDdl?: () => void;
 }) {
   const router = useRouter();
   const [providers, setProviders] = useState<GroundProvider[] | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [steps, setSteps] = useState<StepRow[] | null>(null);
   const [outcome, setOutcome] = useState<LaunchOutcome | null>(null);
+  const [launching, setLaunching] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
@@ -46,11 +65,17 @@ export default function LaunchPanel({
   }, []);
 
   const readyProviders = (providers ?? []).filter(p => p.problem === null);
+  // Tek hazır sağlayıcı varsa seçimi kullanıcıya bırakmaya gerek yok. Efekt yerine
+  // TÜRETİLMİŞ değer: seçim state'i yalnızca kullanıcının açık tercihini tutuyor.
+  const chosenProvider = selectedProvider ?? (readyProviders.length === 1 ? readyProviders[0].name : null);
+
+  const canLaunch = !!chosenProvider && ddlStatus === 'ready' && ddlScript.trim().length > 0 && !launching;
 
   async function handleLaunch() {
-    if (!projectId || !selectedProvider) return;
+    if (!projectId || !chosenProvider || !ddlScript.trim()) return;
 
     setOutcome(null);
+    setLaunching(true);
     setSteps([
       { key: 'provision', label: 'Opening database…', state: 'active' },
       { key: 'apply', label: 'Applying schema…', state: 'pending' },
@@ -59,7 +84,7 @@ export default function LaunchPanel({
     ]);
 
     try {
-      const result = await launchApi.launch(projectId, selectedProvider, ddlScript);
+      const result = await launchApi.launch(projectId, chosenProvider, ddlScript);
       setOutcome(result);
 
       if (result.status === 'Ready') {
@@ -75,7 +100,7 @@ export default function LaunchPanel({
       } else if (result.status === 'NeedsReview') {
         setSteps([
           { key: 'provision', label: 'Database already has tables', state: 'done' },
-          { key: 'apply', label: 'Schema NOT applied — sent to review instead', state: 'error' },
+          { key: 'apply', label: 'Schema not applied — sent to review instead', state: 'skipped' },
         ]);
       } else if (result.status === 'DdlFailed') {
         // Provizyon başarılıydı — hata DDL adımında, "Opening database"'de değil.
@@ -95,6 +120,8 @@ export default function LaunchPanel({
       // {status} yok, yalnızca {error}) fırlatır; "Try again" düğmesi outcome.status'a
       // bağlı olduğu için burada da bir outcome set ETMEZSEK kullanıcı kilitli kalır.
       setOutcome({ status: 'ProvisionFailed', error: message });
+    } finally {
+      setLaunching(false);
     }
   }
 
@@ -129,98 +156,186 @@ export default function LaunchPanel({
     }
   }
 
+  function reset() {
+    setSteps(null);
+    setOutcome(null);
+    setReviewError(null);
+    setDownloadError(null);
+  }
+
   if (!projectId) {
     return (
       <Panel>
-        <PanelEmpty icon={Rocket} title="Save your project first"
-          hint="Launch needs a saved project to open a database against. Give it a moment to sync, then try again." />
+        <EmptyState icon={Rocket} title="Save your project first"
+          description="Launch needs a saved project to open a database against. Give it a moment to sync, then try again." />
       </Panel>
     );
   }
 
   return (
     <Panel scroll className="h-full">
-      <PanelBar left={<span className="text-[12px] font-semibold text-content-primary">Launch — {projectName}</span>} />
-      <div className="p-3 space-y-3">
+      <div className="mx-auto w-full max-w-2xl px-5 py-6 space-y-6">
+        <header className="flex items-start gap-3.5">
+          <span className="shrink-0 flex items-center justify-center w-10 h-10 rounded-[var(--radius-card)] bg-accent-subtle text-accent-text">
+            <Rocket className="w-5 h-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-content-primary leading-tight">Launch — {projectName}</h2>
+            <p className="mt-1 text-[13px] leading-relaxed text-content-muted">
+              One step from an approved diagram to a running database with a working data panel.
+              If the target already holds data, Launch never touches it — it sends the change to review instead.
+            </p>
+          </div>
+        </header>
+
         {!steps && (
           <>
-            <p className="text-[11px] text-content-muted leading-relaxed">
-              Opens a real PostgreSQL database, applies this schema to it, takes a first
-              backup, and hands you a working Desk panel — all in one step. If the target
-              already has data, this sends the change to review instead of touching it.
-            </p>
-            {!providers ? (
-              <div className="flex items-center gap-2 text-[11px] text-content-muted">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading providers…
-              </div>
-            ) : readyProviders.length === 0 ? (
-              <PanelEmpty icon={Rocket} title="No provider is ready"
-                hint="An admin needs to configure at least one Ground provider (LocalPostgres, Neon, or Supabase) on the server." />
-            ) : (
-              <div className="space-y-2">
-                {readyProviders.map(p => (
-                  <label key={p.name}
-                    className={`flex items-center gap-2 p-2.5 rounded-[var(--radius-control)] border cursor-pointer text-[11px] ${
-                      selectedProvider === p.name ? 'border-accent-hover bg-accent-subtle' : 'border-surface-500 bg-surface-600'
-                    }`}>
-                    <input type="radio" name="provider" value={p.name}
-                      checked={selectedProvider === p.name}
-                      onChange={() => setSelectedProvider(p.name)} />
-                    <span className="font-semibold text-content-primary">{p.name}</span>
-                  </label>
-                ))}
-                <ActionButton icon={Rocket} tone="primary" full
-                  disabled={!selectedProvider} onClick={handleLaunch}>
-                  Launch
-                </ActionButton>
-              </div>
+            <ol className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="What Launch does">
+              {PLAN.map((item, index) => (
+                <li key={item.title} className="flex items-start gap-3 rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800 p-3.5">
+                  <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-surface-600 text-content-secondary text-[12px] font-semibold font-mono">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-content-primary flex items-center gap-1.5">
+                      <item.icon className="w-3.5 h-3.5 text-content-muted" aria-hidden="true" /> {item.title}
+                    </p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-content-muted">{item.text}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+
+            {ddlStatus === 'error' && (
+              <Callout
+                tone="danger"
+                title="Could not prepare the PostgreSQL script"
+                action={onRetryDdl && <Button size="sm" icon={RefreshCw} onClick={onRetryDdl}>Retry</Button>}
+              >
+                Launch needs the schema compiled to PostgreSQL first. Check that the diagram has at least one
+                table and try again.
+              </Callout>
             )}
+
+            <section aria-labelledby="launch-provider-heading" className="space-y-2.5">
+              <h3 id="launch-provider-heading" className="text-sm font-semibold text-content-primary">Where should the database live?</h3>
+
+              {!providers ? (
+                <div className="flex items-center gap-2 text-[13px] text-content-muted">
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Loading providers…
+                </div>
+              ) : readyProviders.length === 0 ? (
+                <Callout tone="neutral" title="No provider is ready">
+                  An admin needs to configure at least one Ground provider (LocalPostgres, Neon, or Supabase) on the server.
+                </Callout>
+              ) : (
+                <div className="space-y-2">
+                  {readyProviders.map(p => {
+                    const selected = chosenProvider === p.name;
+                    return (
+                      <label key={p.name}
+                        className={`flex items-start gap-3 rounded-[var(--radius-card)] border p-3.5 cursor-pointer transition-colors ${
+                          selected ? 'border-accent-hover bg-accent-subtle' : 'border-content-primary/10 bg-surface-800 hover:border-content-primary/25'
+                        }`}>
+                        <input type="radio" name="provider" value={p.name} className="mt-1 accent-[var(--color-accent-hover)]"
+                          checked={selected} onChange={() => setSelectedProvider(p.name)} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className="text-[13px] font-semibold text-content-primary">{p.name}</span>
+                            {p.liveVerified && <Badge tone="success" icon={CheckCircle2}>Verified</Badge>}
+                          </span>
+                          {p.responsibility && (
+                            <span className="mt-0.5 block text-[12px] leading-relaxed text-content-muted">{p.responsibility}</span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="primary" icon={Rocket} disabled={!canLaunch} busy={launching} onClick={handleLaunch}>
+                Launch
+              </Button>
+              {ddlStatus === 'loading' && (
+                <span className="flex items-center gap-2 text-[12px] text-content-muted">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> Preparing the PostgreSQL script…
+                </span>
+              )}
+              {ddlStatus === 'ready' && !chosenProvider && readyProviders.length > 1 && (
+                <span className="text-[12px] text-content-muted">Choose a provider to continue.</span>
+              )}
+            </div>
           </>
         )}
 
         {steps && (
-          <div className="space-y-1.5">
+          <ol className="rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800 divide-y divide-content-primary/[0.07]" aria-live="polite">
             {steps.map(s => (
-              <div key={s.key} className="flex items-start gap-2 text-[11px]">
-                {s.state === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-accent-text shrink-0 mt-0.5" />}
-                {s.state === 'error' && <XCircle className="w-3.5 h-3.5 text-[var(--color-danger)] shrink-0 mt-0.5" />}
-                {s.state === 'active' && <Loader2 className="w-3.5 h-3.5 animate-spin text-content-muted shrink-0 mt-0.5" />}
-                {s.state === 'pending' && <span className="w-3.5 h-3.5 rounded-full border border-surface-500 shrink-0 mt-0.5" />}
-                <div>
-                  <p className={s.state === 'error' ? 'text-[var(--color-danger)]' : 'text-content-secondary'}>{s.label}</p>
-                  {s.detail && <p className="text-content-muted text-[10.5px] mt-0.5">{s.detail}</p>}
+              <li key={s.key} className="flex items-start gap-3 px-4 py-3">
+                <StepIcon state={s.state} />
+                <div className="min-w-0">
+                  <p className={`text-[13px] ${
+                    s.state === 'error' ? 'text-danger-text font-medium'
+                    : s.state === 'pending' ? 'text-content-muted'
+                    : 'text-content-primary'
+                  }`}>{s.label}</p>
+                  {s.detail && <p className="mt-0.5 text-[12px] text-content-muted break-words">{s.detail}</p>}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         )}
 
         {outcome?.status === 'Ready' && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            <ActionButton icon={ExternalLink} tone="primary"
-              onClick={() => openDeskHandoff({ token: outcome.deskHandoffToken, projectId: outcome.projectId, view: 'data' })}>
-              Open Desk
-            </ActionButton>
-            <ActionButton icon={Download} busy={downloading} onClick={handleDownload}>
-              Download project
-            </ActionButton>
+          <div className="space-y-3">
+            <Callout tone="success" title="Your database is live">
+              The schema is applied and Desk is ready for the new tables.
+            </Callout>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="primary" icon={ExternalLink}
+                onClick={() => openDeskHandoff({ token: outcome.deskHandoffToken, projectId: outcome.projectId, view: 'data' })}>
+                Open Desk
+              </Button>
+              <Button icon={Download} busy={downloading} onClick={handleDownload}>
+                Download project
+              </Button>
+            </div>
           </div>
         )}
-        {downloadError && <p className="text-[11px] text-[var(--color-danger)]">{downloadError}</p>}
+        {downloadError && <Callout tone="danger">{downloadError}</Callout>}
 
         {outcome?.status === 'NeedsReview' && (
-          <ActionButton icon={GitPullRequestArrow} tone="primary" onClick={handleNeedsReview}>
-            Review changes
-          </ActionButton>
+          <div className="space-y-3">
+            <Callout tone="neutral" icon={AlertTriangle} title="Your database already has tables — Launch left it untouched">
+              Applying a schema over existing data is exactly what Change Review is for. Send this diagram
+              to review to see what would change, and apply it from there once it is approved.
+            </Callout>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="primary" icon={GitPullRequestArrow} onClick={handleNeedsReview}>Review changes</Button>
+              <Button variant="ghost" onClick={reset}>Back</Button>
+            </div>
+          </div>
         )}
-        {reviewError && <p className="text-[11px] text-[var(--color-danger)]">{reviewError}</p>}
+        {reviewError && <Callout tone="danger">{reviewError}</Callout>}
 
         {(outcome?.status === 'ProvisionFailed' || outcome?.status === 'DdlFailed') && (
-          <ActionButton tone="primary" onClick={() => { setSteps(null); setOutcome(null); }}>
-            Try again
-          </ActionButton>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" icon={RefreshCw} onClick={reset}>Try again</Button>
+          </div>
         )}
       </div>
     </Panel>
   );
+}
+
+function StepIcon({ state }: { state: StepState }) {
+  const base = 'w-4 h-4 shrink-0 mt-0.5';
+  if (state === 'done') return <CheckCircle2 className={`${base} text-success-text`} aria-label="Done" />;
+  if (state === 'error') return <XCircle className={`${base} text-danger-text`} aria-label="Failed" />;
+  if (state === 'skipped') return <AlertTriangle className={`${base} text-content-secondary`} aria-label="Skipped" />;
+  if (state === 'active') return <Loader2 className={`${base} animate-spin text-content-muted`} aria-label="In progress" />;
+  return <span className={`${base} rounded-full border border-content-primary/20`} aria-label="Waiting" />;
 }

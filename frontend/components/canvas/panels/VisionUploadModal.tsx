@@ -5,6 +5,7 @@ import { reverseEngineerService } from '../../../services/api';
 import { useAIGateway } from '../../../hooks/useAIGateway';
 import { errorMessage } from '../../../lib/errors';
 import type { DatabaseSchema, SchemaRelation, SchemaTable } from '../../../types/schema';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 interface VisionUploadModalProps {
   isOpen: boolean;
@@ -32,6 +33,8 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
   const [selectedRelations, setSelectedRelations] = useState<Record<string, boolean>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

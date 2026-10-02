@@ -7,6 +7,7 @@ import { useToastStore } from '../../../store/useToastStore';
 import { schemaService } from '../../../services/api';
 import { CodeExtractionResponse } from '../../../types/codeSchema';
 import { errorMessage } from '../../../lib/errors';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 interface Props {
   isOpen: boolean;
@@ -80,6 +81,8 @@ export default function CodeImportPanel({ isOpen, onClose, onApplied }: Props) {
     onClose();
     onApplied?.();
   };
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

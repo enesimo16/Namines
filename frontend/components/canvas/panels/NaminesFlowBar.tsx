@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { GripVertical, Pause, Play, Plus, List, X, Zap } from 'lucide-react';
 import { useFlowBarStore } from '../../../store/useFlowBarStore';
 import { useAutomationStore } from '../../../store/useAutomationStore';
@@ -19,15 +20,14 @@ const BAR_HEIGHT = 44;
  * olaylar gelmeye devam ediyor, bırakınca kendiliğinden kopuyor.
  */
 export default function NaminesFlowBar() {
+  const router = useRouter();
   const position = useFlowBarStore(s => s.position);
   const hidden = useFlowBarStore(s => s.hidden);
   const paused = useFlowBarStore(s => s.paused);
-  const panelOpen = useFlowBarStore(s => s.panelOpen);
   const pickingTable = useFlowBarStore(s => s.pickingTable);
   const setPosition = useFlowBarStore(s => s.setPosition);
   const setHidden = useFlowBarStore(s => s.setHidden);
   const togglePaused = useFlowBarStore(s => s.togglePaused);
-  const setPanelOpen = useFlowBarStore(s => s.setPanelOpen);
   const setPickingTable = useFlowBarStore(s => s.setPickingTable);
 
   const ruleCount = useAutomationStore(s => s.rules.length);
@@ -129,10 +129,12 @@ export default function NaminesFlowBar() {
 
         <button
           type="button"
-          onClick={() => setPanelOpen(!panelOpen)}
+          // Liste artık canvas'ın üstüne binen bir yan panel değil, kendi sayfası: eski panel
+          // sağdan tam boy açılıp başlıktaki Share/İnceleme düğmelerinin üstüne biniyordu.
+          onClick={() => router.push('/flow')}
           className={buttonClass}
-          title="Show all flows"
-          aria-pressed={panelOpen}
+          title="Manage all flows"
+          aria-label="Manage all flows"
         >
           <List className="h-3.5 w-3.5" />
         </button>

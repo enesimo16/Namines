@@ -5,6 +5,7 @@ import { X, Search } from 'lucide-react';
 import { TEMPLATES, TEMPLATE_SIZES, type TemplateSize } from '../../lib/templates';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface Props {
   isOpen: boolean;
@@ -19,6 +20,8 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
   const showToast = useToastStore(s => s.showToast);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

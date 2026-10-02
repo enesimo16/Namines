@@ -67,7 +67,19 @@ public sealed class DbHostAccessPolicy : IDbHostAccessPolicy
         {
             // Sessiz kalmiyor: allowlist yoksa DNS rebinding penceresi acik
             // demektir ve bunu bilen biri karar vermeli.
-            logger.LogInformation(
+            //
+            // URETIMDE bu bir UYARI (docs/last-review M-11): bos allowlist bu urun
+            // icin MESRU bir varsayilan — isi zaten musterinin veritabanina
+            // baglanmak, yani hedefleri onceden bilmek mumkun degil. Ama "mesru
+            // varsayilan" ile "bilincli kabul edilmis risk" ayni sey degil; bilgi
+            // seviyesinde kalan bir satir, kimsenin karar VERMEDIGI anlamina gelir.
+            //
+            // Zorunlu kilinmadi: zorunlu bir allowlist her dagitimi kirardi.
+            var level = environment.IsProduction()
+                ? Microsoft.Extensions.Logging.LogLevel.Warning
+                : Microsoft.Extensions.Logging.LogLevel.Information;
+
+            logger.Log(level,
                 "Veritabani egress allowlist TANIMLI DEGIL (Security:DbEgress:AllowedHosts). " +
                 "Ozel/ayrilmis adresler yine reddediliyor, ama herhangi bir PUBLIC hedefe " +
                 "baglanilabilir ve DNS rebinding penceresi kapali degil.");

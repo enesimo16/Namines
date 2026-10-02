@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../../../lib/apiConfig';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { DatabaseSchema } from '../../../types/schema';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 const DB_TYPES = [
   { value: 'MSSQL',      label: 'SQL Server' },
@@ -47,6 +48,8 @@ export default function DbConnectionPanel({ isOpen, onClose, onApplied }: Props)
   const [showCs, setShowCs] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

@@ -1,17 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ShieldCheck, Cable, Loader2, Download, RotateCcw, Trash2, CheckCircle2 } from 'lucide-react';
+import {
+  ShieldCheck, Cable, Loader2, Download, RotateCcw, Trash2, CheckCircle2, XCircle, Clock, DatabaseBackup, HardDrive,
+} from 'lucide-react';
 import { authService } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import type { CloudProjectDto } from '../../types/api';
 import {
   vaultApi, VaultGroundError, formatDuration, formatSize,
   type VaultBackup, type VaultRestore, type VaultSchedule, type VaultHealth,
 } from '../../services/vaultGroundApi';
-import { Panel, PanelBar, ActionButton, IconButton, PanelEmpty } from '../../components/compile/PanelKit';
+import ProjectPicker from '../../components/workspace/ProjectPicker';
+import {
+  PageShell, PageHeader, Card, Callout, Badge, Button, EmptyState, StatTile, Switch, Field, inputClass,
+  DataTable, Td,
+} from '../../components/workspace/WorkspaceKit';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -19,16 +26,20 @@ const KIND_LABELS: Record<VaultBackup['kind'], string> = {
   Manual: 'Manual', Scheduled: 'Scheduled', PreRestore: 'Pre-restore',
 };
 
+const formatWhen = (iso: string) =>
+  new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+
 /**
- * Namines Vault — standalone page.
+ * Namines Vault — bağımsız sayfa.
  *
- * Not tied to Desk: backing up needs a database connection, not Desk's
- * CRUD/SQL console. Talks directly to `/api/vault` and `/api/auth`.
+ * Desk'e bağlı değil: yedeklemek bir veritabanı bağlantısı ister, Desk'in CRUD/SQL
+ * konsolunu değil. Doğrudan `/api/vault` ve `/api/auth` ile konuşur.
  */
 export default function VaultPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const openAuthModal = useAuthModalStore(s => s.open);
+  const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
 
   const [projects, setProjects] = useState<CloudProjectDto[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -37,95 +48,68 @@ export default function VaultPage() {
     if (!isAuthenticated) return;
     const list = await authService.getCloudProjects();
     setProjects(list);
-    setSelectedId(prev => prev ?? list.find(p => p.hasConnection)?.id ?? list[0]?.id ?? null);
-  }, [isAuthenticated]);
+    setSelectedId(prev => prev
+      ?? list.find(p => p.id === activeProjectId && p.hasConnection)?.id
+      ?? list.find(p => p.hasConnection)?.id
+      ?? list[0]?.id
+      ?? null);
+  }, [isAuthenticated, activeProjectId]);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
   if (!isAuthenticated) {
     return (
-      <div className="h-[calc(100vh-56px)] bg-surface-900 flex items-center justify-center">
-        <PanelEmpty icon={ShieldCheck} title="Sign in to use Namines Vault"
-          hint="You need an account to back up and restore your database.">
-          <ActionButton tone="primary" onClick={openAuthModal}>Log in / Sign up</ActionButton>
-        </PanelEmpty>
-      </div>
+      <PageShell width="max-w-3xl">
+        <EmptyState icon={ShieldCheck} title="Sign in to use Namines Vault"
+          description="You need an account to back up and restore your database."
+          action={<Button variant="primary" onClick={openAuthModal}>Log in / Sign up</Button>} />
+      </PageShell>
     );
   }
 
   const selected = projects?.find(p => p.id === selectedId) ?? null;
 
   return (
-    <div className="h-[calc(100vh-56px)] bg-surface-900 text-content-primary flex flex-col lg:flex-row font-sans overflow-hidden">
-      <aside className="shrink-0 bg-surface-800 border-b lg:border-b-0 lg:border-r border-surface-500 flex flex-col lg:w-64">
-        <div className="p-2.5">
-          <button
-            onClick={() => router.push('/')}
-            className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors cursor-pointer text-[11px] font-medium"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            <span>Back</span>
-          </button>
-        </div>
-        <div className="px-3 pb-2.5 border-b border-surface-500">
-          <h1 className="text-[13px] font-bold text-content-primary leading-tight flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-accent-text" /> Namines Vault
-          </h1>
-          <p className="text-[10.5px] text-content-muted mt-1 leading-snug">
-            Backup and restore — no Desk required.
-          </p>
-        </div>
+    <PageShell>
+      <PageHeader
+        icon={ShieldCheck}
+        title="Vault"
+        description="Encrypted backups of your database — take one now, schedule them, verify they really restore, and roll back when you need to."
+      />
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5">
-          {!projects ? (
-            <div className="px-2 py-3 text-[11px] text-content-muted">Loading…</div>
-          ) : projects.length === 0 ? (
-            <div className="px-2 py-3 text-[11px] text-content-muted">
-              No projects yet. Create a database in{' '}
-              <button className="underline hover:text-accent-text" onClick={() => router.push('/ground')}>
-                Namines Ground
-              </button>{' '}
-              first, or add a connection in Desk.
-            </div>
-          ) : (
-            projects.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                className={`w-full text-left px-2.5 py-2 rounded-[var(--radius-control)] text-[11px] transition-colors cursor-pointer ${
-                  p.id === selectedId ? 'bg-accent-subtle text-accent-text' : 'text-content-secondary hover:bg-white/[0.04]'
-                }`}
-              >
-                <div className="font-medium truncate">{p.name}</div>
-                <div className="flex items-center gap-1 text-[10px] text-content-muted mt-0.5">
-                  <Cable className="w-2.5 h-2.5" />
-                  {p.hasConnection ? p.connectionDbType ?? 'Connected' : 'Not connected — cannot back up'}
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      </aside>
+      <ProjectPicker
+        projects={projects}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        describe={p => (p.hasConnection ? p.connectionDbType ?? 'connected' : 'not connected')}
+      />
 
-      <div className="flex-1 min-w-0 min-h-0 p-3">
-        {selected ? (
-          selected.hasConnection ? (
-            <VaultDetail key={selected.id} projectId={selected.id} projectName={selected.name} />
-          ) : (
-            <Panel>
-              <PanelEmpty icon={Cable} title="This project has no live database connection"
-                hint="Vault needs a connection to back up. Create one in Namines Ground, or connect an existing server in Desk.">
-                <ActionButton tone="primary" onClick={() => router.push('/ground')}>Open Namines Ground</ActionButton>
-              </PanelEmpty>
-            </Panel>
-          )
+      {selected ? (
+        selected.hasConnection ? (
+          <VaultDetail key={selected.id} projectId={selected.id} projectName={selected.name} />
         ) : (
-          <Panel>
-            <PanelEmpty icon={ShieldCheck} title="Select a project" hint="Pick which project to back up on the left." />
-          </Panel>
-        )}
-      </div>
-    </div>
+          <Card>
+            <EmptyState icon={Cable} title="This project has no live database connection"
+              description="Vault needs a connection to back up. Create a database in Ground, or connect an existing server in Desk."
+              action={<Button variant="primary" icon={HardDrive} onClick={() => router.push('/ground')}>Open Ground</Button>} />
+          </Card>
+        )
+      ) : !projects ? (
+        <Card>
+          <div className="flex items-center gap-2 px-5 py-8 text-[13px] text-content-muted">
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Loading your projects…
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <EmptyState icon={ShieldCheck}
+            title={projects.length === 0 ? 'No projects yet' : 'Select a project'}
+            description={projects.length === 0
+              ? 'Create a database in Ground first, or add a connection in Desk.'
+              : 'Pick which project to back up above.'} />
+        </Card>
+      )}
+    </PageShell>
   );
 }
 
@@ -141,6 +125,7 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [health, setHealth] = useState<VaultHealth | null>(null);
   const [confirming, setConfirming] = useState<{ backup: VaultBackup; typed: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -230,11 +215,11 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
   }
 
   async function handleDelete(backup: VaultBackup) {
-    if (!confirm(`The backup from ${new Date(backup.createdAt).toLocaleString('en-US')} will be permanently deleted. Continue?`)) return;
     setRowBusyId(backup.id);
     setError(null);
     try {
       await vaultApi.remove(projectId, backup.id);
+      setDeletingId(null);
       await reload();
     } catch (err) {
       setError(err instanceof VaultGroundError ? err.message : 'Delete failed.');
@@ -263,201 +248,182 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
   }
 
   const confirmMatches = confirming?.typed.trim() === confirming?.backup.databaseName;
+  const succeeded = (backups ?? []).filter(b => b.status === 'Succeeded');
+  const latest = succeeded[0];
 
   return (
-    <Panel scroll className="h-full">
-      <PanelBar
-        left={<span className="text-[12px] font-semibold text-content-primary">{projectName}</span>}
-      >
-        <ActionButton tone="primary" busy={busy} disabled={health?.ok === false} onClick={handleCreate}>
-          {busy ? 'Working…' : 'Back up now'}
-        </ActionButton>
-      </PanelBar>
+    <div className="space-y-5">
+      {health && !health.ok && <Callout tone="danger" title="Backups are unavailable">{health.problem}</Callout>}
+      {error && <Callout tone="danger">{error}</Callout>}
+      {notice && <Callout tone="success">{notice}</Callout>}
 
-      <div className="p-3 space-y-3">
-        {health && !health.ok && (
-          <div className="px-3 py-2 rounded-[var(--radius-control)] bg-[var(--color-danger-subtle)] text-[var(--color-danger)] text-[11px]">{health.problem}</div>
-        )}
-        {error && <div className="px-3 py-2 rounded-[var(--radius-control)] bg-[var(--color-danger-subtle)] text-[var(--color-danger)] text-[11px]">{error}</div>}
-        {notice && <div className="px-3 py-2 rounded-[var(--radius-control)] bg-accent-subtle text-accent-text text-[11px]">{notice}</div>}
-        {store && (
-          <div className="px-3 py-2 rounded-[var(--radius-control)] bg-surface-600 text-content-secondary text-[11px]">
-            Backups are stored at: <code>{store}</code>
-          </div>
-        )}
-        {health && health.engines.length > 0 && (
-          <div className="px-3 py-2 rounded-[var(--radius-control)] bg-surface-600 text-content-secondary text-[11px]">
-            Engines that can be backed up: <code>{health.engines.join(', ')}</code>
-          </div>
-        )}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Backups" value={backups ? succeeded.length : '—'} hint={backups ? `${backups.length} total` : undefined} />
+        <StatTile label="Latest backup" value={latest ? formatWhen(latest.createdAt) : 'None yet'} />
+        <StatTile label="Engines" value={health?.engines.length ? health.engines.join(', ') : '—'} />
+        <StatTile label="Stored at" value={store ? (store.startsWith('Local disk') ? 'Local disk' : store) : '—'} />
+      </div>
 
-        {schedule && (
-          <div className="flex flex-wrap items-end gap-3 p-3 rounded-[var(--radius-control)] bg-surface-600 border border-surface-500">
-            <label className="flex items-center gap-1.5 text-[11px] text-content-secondary">
-              <input type="checkbox" checked={schedule.enabled} disabled={savingSchedule}
-                onChange={e => handleSaveSchedule({ ...schedule, enabled: e.target.checked })} />
-              Automatic backups
-            </label>
-            <Field label="Frequency">
-              <select value={schedule.cadence} disabled={savingSchedule}
+      {schedule && (
+        <Card
+          title="Automatic backups"
+          description="Retention only limits automatic backups; manual ones are never touched."
+          actions={
+            <div className="flex items-center gap-2.5 text-[13px] text-content-secondary">
+              <Switch checked={schedule.enabled} disabled={savingSchedule} label="Automatic backups"
+                onChange={enabled => handleSaveSchedule({ ...schedule, enabled })} />
+              {schedule.enabled ? 'On' : 'Off'}
+            </div>
+          }
+        >
+          <div className="flex flex-wrap items-end gap-4">
+            <Field label="Frequency" htmlFor="vault-frequency">
+              <select id="vault-frequency" value={schedule.cadence} disabled={savingSchedule}
                 onChange={e => setSchedule({
                   ...schedule, cadence: e.target.value as typeof schedule.cadence,
                   dayOfWeek: e.target.value === 'Weekly' ? (schedule.dayOfWeek ?? 0) : null,
                 })}
-                className="bg-surface-700 border border-surface-500 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-primary">
+                className={`${inputClass} w-32`}>
                 <option value="Daily">Daily</option>
                 <option value="Weekly">Weekly</option>
               </select>
             </Field>
             {schedule.cadence === 'Weekly' && (
-              <Field label="Day">
-                <select value={schedule.dayOfWeek ?? 0} disabled={savingSchedule}
+              <Field label="Day" htmlFor="vault-day">
+                <select id="vault-day" value={schedule.dayOfWeek ?? 0} disabled={savingSchedule}
                   onChange={e => setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })}
-                  className="bg-surface-700 border border-surface-500 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-primary">
+                  className={`${inputClass} w-36`}>
                   {DAY_NAMES.map((name, index) => <option key={name} value={index}>{name}</option>)}
                 </select>
               </Field>
             )}
-            <Field label="Hour (UTC)">
-              <select value={schedule.hourUtc} disabled={savingSchedule}
+            <Field label="Hour (UTC)" htmlFor="vault-hour">
+              <select id="vault-hour" value={schedule.hourUtc} disabled={savingSchedule}
                 onChange={e => setSchedule({ ...schedule, hourUtc: Number(e.target.value) })}
-                className="bg-surface-700 border border-surface-500 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-primary">
+                className={`${inputClass} w-28`}>
                 {HOURS.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
               </select>
             </Field>
-            <Field label="Backups to keep">
-              <input type="number" min={1} max={60} value={schedule.retainCount} disabled={savingSchedule}
+            <Field label="Backups to keep" htmlFor="vault-retain">
+              <input id="vault-retain" type="number" min={1} max={60} value={schedule.retainCount} disabled={savingSchedule}
                 onChange={e => setSchedule({ ...schedule, retainCount: Number(e.target.value) })}
-                className="w-16 bg-surface-700 border border-surface-500 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-primary" />
+                className={`${inputClass} w-28`} />
             </Field>
-            <ActionButton tone="primary" busy={savingSchedule} onClick={() => handleSaveSchedule(schedule)}>Save schedule</ActionButton>
-            <span className="text-[10.5px] text-content-muted basis-full">
-              Retention only limits automatic backups; manual ones are never touched.
-              {schedule.lastRunAt && ` Last automatic backup: ${new Date(schedule.lastRunAt).toLocaleString('en-US')}.`}
-            </span>
+            <Button variant="primary" busy={savingSchedule} onClick={() => handleSaveSchedule(schedule)}>Save schedule</Button>
           </div>
-        )}
+          {schedule.lastRunAt && (
+            <p className="mt-3 text-[12px] text-content-muted">Last automatic backup: {formatWhen(schedule.lastRunAt)}.</p>
+          )}
+        </Card>
+      )}
 
-        {confirming && (
-          <div className="p-3 rounded-[var(--radius-control)] bg-[var(--color-danger-subtle)] space-y-2">
-            <p className="text-[11px] font-semibold text-[var(--color-danger)]">This cannot be undone.</p>
-            <p className="text-[11px] text-content-secondary">
-              Current data in <code>{confirming.backup.databaseName}</code> will be deleted and replaced with
-              the backup from {new Date(confirming.backup.createdAt).toLocaleString('en-US')}.
-              Type the database name to continue.
-            </p>
-            <input value={confirming.typed} placeholder={confirming.backup.databaseName}
-              onChange={e => setConfirming({ ...confirming, typed: e.target.value })}
-              className="w-full max-w-[280px] bg-surface-700 border border-surface-500 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] text-content-primary" />
+      {confirming && (
+        <Card tone="danger" title="Restore this backup?"
+          description={`Current data in ${confirming.backup.databaseName} will be deleted and replaced with the backup from ${formatWhen(confirming.backup.createdAt)}. This cannot be undone — a safety backup of the current state is taken first.`}>
+          <div className="space-y-3 max-w-md">
+            <Field label={`Type the database name to continue: ${confirming.backup.databaseName}`} htmlFor="vault-confirm-name">
+              <input id="vault-confirm-name" autoFocus value={confirming.typed} placeholder={confirming.backup.databaseName}
+                onChange={e => setConfirming({ ...confirming, typed: e.target.value })} className={inputClass} />
+            </Field>
             <div className="flex gap-2">
-              <ActionButton tone="danger" busy={busy} disabled={!confirmMatches} onClick={handleRestore}>
+              <Button variant="danger" icon={RotateCcw} busy={busy} disabled={!confirmMatches} onClick={handleRestore}>
                 {busy ? 'Restoring…' : 'Restore'}
-              </ActionButton>
-              <ActionButton disabled={busy} onClick={() => setConfirming(null)}>Cancel</ActionButton>
+              </Button>
+              <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>Cancel</Button>
             </div>
           </div>
-        )}
+        </Card>
+      )}
 
+      <Card
+        title="Backups"
+        description={`All backups of ${projectName}, newest first.${store ? ` Stored at ${store.replace(/^Local disk \((.*)\)$/, '$1')}.` : ''}`}
+        actions={<Button variant="primary" icon={DatabaseBackup} busy={busy} disabled={health?.ok === false} onClick={handleCreate}>
+          {busy ? 'Working…' : 'Back up now'}
+        </Button>}
+        flush
+      >
         {!backups ? (
-          <div className="flex items-center gap-2 text-[11px] text-content-muted"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</div>
-        ) : backups.length === 0 ? (
-          <PanelEmpty icon={ShieldCheck} title="No backups yet"
-            hint="Create the first one with “Back up now” above." />
-        ) : (
-          <div className="rounded-[var(--radius-control)] border border-surface-500 overflow-x-auto">
-            <table className="w-full text-[11px] whitespace-nowrap">
-              <thead>
-                <tr className="bg-surface-800 text-content-muted">
-                  <Th>Date</Th><Th>Kind</Th><Th>Engine</Th><Th>Size</Th><Th>Duration</Th><Th>Status</Th><Th>Verified</Th><Th align="right">Action</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {backups.map(b => (
-                  <tr key={b.id} className="border-t border-surface-500">
-                    <Td>{new Date(b.createdAt).toLocaleString('en-US')}</Td>
-                    <Td>{KIND_LABELS[b.kind]}</Td>
-                    <Td>{b.engine}</Td>
-                    <Td>{b.status === 'Succeeded' ? formatSize(b.sizeBytes) : '—'}</Td>
-                    <Td>{formatDuration(b.createdAt, b.completedAt) ?? '—'}</Td>
-                    <Td>
-                      {b.status === 'Succeeded' ? 'Done'
-                        : b.status === 'Running' ? 'Running…'
-                        : <span title={b.error ?? undefined}>Failed</span>}
-                    </Td>
-                    <Td>
-                      {b.verifiedAt ? (
-                        <span className="inline-flex items-center gap-1 text-accent-text" title={`Verified: ${new Date(b.verifiedAt).toLocaleString('en-US')}`}>
-                          <CheckCircle2 className="w-3 h-3" /> Verified
-                        </span>
-                      ) : b.verifyError ? (
-                        <span className="text-[var(--color-danger)]" title={b.verifyError}>✗ Broken</span>
-                      ) : '—'}
-                    </Td>
-                    <Td align="right">
-                      <div className="flex items-center justify-end gap-1">
-                        {b.status === 'Succeeded' && (
-                          <IconButton icon={CheckCircle2} label="Verify" onClick={() => handleVerify(b)} busy={rowBusyId === b.id} disabled={busy} />
-                        )}
-                        {b.status === 'Succeeded' && (
-                          <>
-                            <IconButton icon={Download} label="Download" onClick={() => handleDownload(b)} busy={rowBusyId === b.id} disabled={busy} />
-                            <IconButton icon={RotateCcw} label="Restore" disabled={busy} onClick={() => setConfirming({ backup: b, typed: '' })} />
-                            <IconButton icon={Trash2} label="Delete" onClick={() => handleDelete(b)} busy={rowBusyId === b.id} disabled={busy} />
-                          </>
-                        )}
-                      </div>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-2 px-5 pb-5 text-[13px] text-content-muted">
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Loading…
           </div>
-        )}
-
-        {restores.length > 0 && (
-          <>
-            <p className="text-[11px] font-semibold text-content-muted uppercase tracking-wider mt-4">Restore history</p>
-            <div className="rounded-[var(--radius-control)] border border-surface-500 overflow-x-auto">
-              <table className="w-full text-[11px] whitespace-nowrap">
-                <thead>
-                  <tr className="bg-surface-800 text-content-muted"><Th>Date</Th><Th>Source backup</Th><Th>Duration</Th><Th>Status</Th></tr>
-                </thead>
-                <tbody>
-                  {restores.map(r => (
-                    <tr key={r.id} className="border-t border-surface-500">
-                      <Td>{new Date(r.startedAt).toLocaleString('en-US')}</Td>
-                      <Td><code>{r.backupId.slice(0, 8)}</code></Td>
-                      <Td>{formatDuration(r.startedAt, r.completedAt) ?? '—'}</Td>
-                      <Td>
-                        {r.status === 'Succeeded' ? 'Done'
-                          : r.status === 'Running' ? 'Running…'
-                          : <span title={r.error ?? undefined}>Failed</span>}
-                      </Td>
-                    </tr>
+        ) : backups.length === 0 ? (
+          <EmptyState icon={ShieldCheck} title="No backups yet"
+            description="Create the first one with “Back up now”." />
+        ) : (
+          <DataTable
+            caption={`Backups of ${projectName}`}
+            columns={[
+              { label: 'Date' }, { label: 'Kind' }, { label: 'Engine' }, { label: 'Size' },
+              { label: 'Duration' }, { label: 'Status' }, { label: 'Verified' }, { label: 'Actions', align: 'right' },
+            ]}
+          >
+            {backups.map(b => (
+              <tr key={b.id} className="hover:bg-content-primary/[0.03]">
+                <Td>{formatWhen(b.createdAt)}</Td>
+                <Td>{KIND_LABELS[b.kind]}</Td>
+                <Td>{b.engine}</Td>
+                <Td mono>{b.status === 'Succeeded' ? formatSize(b.sizeBytes) : '—'}</Td>
+                <Td mono>{formatDuration(b.createdAt, b.completedAt) ?? '—'}</Td>
+                <Td>
+                  {b.status === 'Succeeded' ? <Badge tone="success" icon={CheckCircle2}>Done</Badge>
+                    : b.status === 'Running' ? <Badge tone="accent" icon={Clock}>Running…</Badge>
+                    : <Badge tone="danger" icon={XCircle} title={b.error ?? undefined}>Failed</Badge>}
+                </Td>
+                <Td>
+                  {b.verifiedAt ? (
+                    <Badge tone="success" icon={ShieldCheck} title={`Verified ${formatWhen(b.verifiedAt)}`}>Verified</Badge>
+                  ) : b.verifyError ? (
+                    <Badge tone="danger" icon={XCircle} title={b.verifyError}>Broken</Badge>
+                  ) : <span className="text-content-subtle">Not verified</span>}
+                </Td>
+                <Td align="right">
+                  {b.status === 'Succeeded' && (deletingId === b.id ? (
+                    <div className="inline-flex items-center gap-1.5">
+                      <span className="text-[12px] text-content-secondary">Delete permanently?</span>
+                      <Button size="sm" variant="danger" busy={rowBusyId === b.id} onClick={() => handleDelete(b)}>Delete</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeletingId(null)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-1">
+                      <Button size="sm" variant="ghost" icon={ShieldCheck} aria-label={`Verify the backup from ${formatWhen(b.createdAt)}`}
+                        title="Verify: restore into a throwaway server" busy={rowBusyId === b.id} disabled={busy} onClick={() => handleVerify(b)} />
+                      <Button size="sm" variant="ghost" icon={Download} aria-label={`Download the backup from ${formatWhen(b.createdAt)}`}
+                        title="Download (encrypted)" disabled={busy || rowBusyId === b.id} onClick={() => handleDownload(b)} />
+                      <Button size="sm" variant="ghost" icon={RotateCcw} aria-label={`Restore the backup from ${formatWhen(b.createdAt)}`}
+                        title="Restore" disabled={busy} onClick={() => setConfirming({ backup: b, typed: '' })} />
+                      <Button size="sm" variant="ghost" icon={Trash2} aria-label={`Delete the backup from ${formatWhen(b.createdAt)}`}
+                        title="Delete" disabled={busy} onClick={() => setDeletingId(b.id)} />
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+                </Td>
+              </tr>
+            ))}
+          </DataTable>
         )}
-      </div>
-    </Panel>
-  );
-}
+      </Card>
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[10px] text-content-muted uppercase tracking-wide">{label}</span>
-      {children}
+      {restores.length > 0 && (
+        <Card title="Restore history" flush>
+          <DataTable
+            caption="Restore history"
+            columns={[{ label: 'Date' }, { label: 'Source backup' }, { label: 'Duration' }, { label: 'Status' }]}
+          >
+            {restores.map(r => (
+              <tr key={r.id} className="hover:bg-content-primary/[0.03]">
+                <Td>{formatWhen(r.startedAt)}</Td>
+                <Td mono>{r.backupId.slice(0, 8)}</Td>
+                <Td mono>{formatDuration(r.startedAt, r.completedAt) ?? '—'}</Td>
+                <Td>
+                  {r.status === 'Succeeded' ? <Badge tone="success" icon={CheckCircle2}>Done</Badge>
+                    : r.status === 'Running' ? <Badge tone="accent" icon={Clock}>Running…</Badge>
+                    : <Badge tone="danger" icon={XCircle} title={r.error ?? undefined}>Failed</Badge>}
+                </Td>
+              </tr>
+            ))}
+          </DataTable>
+        </Card>
+      )}
     </div>
   );
-}
-
-function Th({ children, align }: { children: ReactNode; align?: 'right' }) {
-  return <th className={`px-3 py-1.5 font-medium ${align === 'right' ? 'text-right' : 'text-left'}`}>{children}</th>;
-}
-
-function Td({ children, align }: { children: ReactNode; align?: 'right' }) {
-  return <td className={`px-3 py-1.5 text-content-secondary ${align === 'right' ? 'text-right' : 'text-left'}`}>{children}</td>;
 }

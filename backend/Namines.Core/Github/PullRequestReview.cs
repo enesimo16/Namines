@@ -72,7 +72,7 @@ public static class PullRequestReviewComposer
             foreach (var risk in report.DataLossRisks)
             {
                 var where = risk.ColumnName is null ? risk.TableName : $"{risk.TableName}.{risk.ColumnName}";
-                sb.AppendLine($"- **{where}** — {risk.Reason}");
+                sb.AppendLine($"- **{Md(where)}** — {Md(risk.Reason)}");
             }
             sb.AppendLine();
         }
@@ -83,9 +83,9 @@ public static class PullRequestReviewComposer
             sb.AppendLine();
             foreach (var change in report.BreakingChanges)
             {
-                sb.AppendLine($"- {change.Description}");
+                sb.AppendLine($"- {Md(change.Description)}");
                 if (!string.IsNullOrWhiteSpace(change.SuggestedMitigation))
-                    sb.AppendLine($"  - _Mitigation:_ {change.SuggestedMitigation}");
+                    sb.AppendLine($"  - _Mitigation:_ {Md(change.SuggestedMitigation)}");
             }
             sb.AppendLine();
         }
@@ -95,7 +95,7 @@ public static class PullRequestReviewComposer
             sb.AppendLine("### Migration locks");
             sb.AppendLine();
             foreach (var risk in report.LockRisks)
-                sb.AppendLine($"- `{risk.Operation}` on **{risk.TableName}** — {risk.Severity} lock");
+                sb.AppendLine($"- `{Md(risk.Operation)}` on **{Md(risk.TableName)}** — {Md(risk.Severity.ToString())} lock");
             sb.AppendLine();
         }
 
@@ -103,7 +103,7 @@ public static class PullRequestReviewComposer
         sb.AppendLine();
         sb.AppendLine(report.Rollback.IsReversible
             ? "This change can be rolled back."
-            : $"**Not reversible.** {report.Rollback.Reason}");
+            : $"**Not reversible.** {Md(report.Rollback.Reason)}");
         sb.AppendLine();
 
         if (report.IndexSuggestions.Count > 0)
@@ -160,4 +160,47 @@ public static class PullRequestReviewComposer
         RiskLevel.Risky => "[RISKY]",
         _ => "[SAFE]",
     };
+
+    /// <summary>
+    /// Markdown denetim karakterlerini etkisizleştirir.
+    ///
+    /// <b>Bulunan açık (docs/last-review L-5):</b> tablo/kolon adları ve gerekçe
+    /// metinleri ham olarak markdown'a gömülüyordu. Bu değerler MÜŞTERİNİN
+    /// şemasından geliyor, yani saldırganın değil ama KULLANICININ kontrolünde —
+    /// ve okuyucu bir insan. <c>evil** — hicbir sorun yok, gec **</c> gibi bir
+    /// tablo adı yorumun yapısını bozup inceleyiciye "risk yok" izlenimi
+    /// verebiliyordu: bot yorumu, yönetişim zincirinin İNSANA bakan yüzü.
+    ///
+    /// Satır sonları da kaçırılıyor: bir tablo hücresinin içindeki satır sonu
+    /// tabloyu tamamen bozar ve geri kalan satırları görünmez kılar.
+    /// </summary>
+    private static string Md(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+
+        var sb = new StringBuilder(value.Length + 8);
+        foreach (var c in value)
+        {
+            switch (c)
+            {
+                // Satır sonu ve tab: tabloyu/liste yapısını bozar.
+                case '\r':
+                    break;
+                case '\n':
+                case '\t':
+                    sb.Append(' ');
+                    break;
+                // Markdown'ın yapı karakterleri.
+                case '\\': case '`': case '*': case '_': case '[': case ']':
+                case '(': case ')': case '#': case '|': case '<': case '>':
+                    sb.Append('\\').Append(c);
+                    break;
+                default:
+                    sb.Append(c);
+                    break;
+            }
+        }
+
+        return sb.ToString();
+    }
 }

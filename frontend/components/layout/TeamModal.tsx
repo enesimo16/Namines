@@ -7,6 +7,7 @@ import { TeamStatus, CreatedInvite, TeamProject } from '../../types/team';
 import { useToastStore } from '../../store/useToastStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { errorMessage } from '../../lib/errors';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface Props {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export default function TeamModal({ isOpen, onClose }: Props) {
   // sifirliyordu; bu, modal her yeniden acildiginda ONCEKI ekibin verisini bir
   // kare boyunca gosteriyordu. Taze montaj sifirlamayi `useState` baslangic
   // degerleriyle, ara kare olmadan yapiyor.
+  useEscapeKey(isOpen, onClose);
   if (!isOpen) return null;
   return <TeamModalPanel onClose={onClose} />;
 }

@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'standalone',
 
+  // Geliştirmede Next'in yuvarlak "N" durum göstergesi sol üstte duruyor ve uygulamanın
+  // kendi logosunun/gezinmesinin üstüne biniyordu (ekran görüntülerinde "iç içe" görünen
+  // ilk şey). Yalnızca `next dev`'de var, üretimi etkilemez. Derleme/çalışma HATA katmanı
+  // devre dışı bırakılmıyor — yalnızca bu rozet.
+  devIndicators: false,
+
   compiler: {
     // Üretim derlemesinde `console.log` çağrıları siliniyor.
     //

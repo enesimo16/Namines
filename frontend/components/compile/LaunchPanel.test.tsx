@@ -17,6 +17,7 @@ describe('LaunchPanel', () => {
   afterEach(() => cleanup());
 
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(groundApi.providers).mockResolvedValue([
       { name: 'LocalPostgres', liveVerified: true, supportsBranching: false, supportsRegionChoice: false, responsibility: '', problem: null },
     ]);
@@ -67,7 +68,8 @@ describe('LaunchPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /launch/i }));
 
     await waitFor(() => expect(screen.getByText('Review changes')).toBeInTheDocument());
-    expect(screen.getByText(/schema NOT applied/i)).toBeInTheDocument();
+    expect(screen.getByText(/left it untouched/i)).toBeInTheDocument();
+    expect(screen.getByText(/schema not applied/i)).toBeInTheDocument();
   });
 
   it('attributes a DDL failure to the apply step, not the provision step', async () => {
@@ -93,6 +95,34 @@ describe('LaunchPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /launch/i }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument());
+  });
+
+  it('keeps Launch disabled until the PostgreSQL script is ready, so an empty ddlScript is never sent', async () => {
+    // Kullanıcının gördüğü hata: DDL asenkron üretilirken düğme aktifti ve sunucuya boş
+    // ddlScript gidiyordu -> "projectId, provider and ddlScript are required".
+    render(<LaunchPanel projectId="p1" projectName="Demo" ddlScript="" ddlStatus="loading" schema={emptySchema} />);
+    await waitFor(() => expect(screen.getByText('LocalPostgres')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('LocalPostgres'));
+
+    expect(screen.getByRole('button', { name: /launch/i })).toBeDisabled();
+    expect(screen.getByText(/preparing the postgresql script/i)).toBeInTheDocument();
+    expect(launchApi.launch).not.toHaveBeenCalled();
+  });
+
+  it('offers a retry when the script could not be prepared, instead of launching with nothing', async () => {
+    const onRetryDdl = vi.fn();
+    render(<LaunchPanel projectId="p1" projectName="Demo" ddlScript="" ddlStatus="error" onRetryDdl={onRetryDdl} schema={emptySchema} />);
+    await waitFor(() => expect(screen.getByText('LocalPostgres')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: /launch/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(onRetryDdl).toHaveBeenCalledTimes(1);
+  });
+
+  it('selects the only ready provider automatically', async () => {
+    vi.mocked(launchApi.launch).mockResolvedValue({ status: 'NeedsReview' });
+    render(<LaunchPanel projectId="p1" projectName="Demo" ddlScript="CREATE TABLE x();" schema={emptySchema} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /launch/i })).toBeEnabled());
   });
 
   it('shows an error when sending a NeedsReview outcome to review fails', async () => {

@@ -66,6 +66,14 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
     if (isOpen && isAuthenticated) fetchQuota();
   }, [isOpen, isAuthenticated, fetchQuota]);
 
+  // Esc kapatır: diyalog `aria-modal` ama klavye çıkışı yoktu (fare dışında kapanmıyordu).
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleLogout = () => {

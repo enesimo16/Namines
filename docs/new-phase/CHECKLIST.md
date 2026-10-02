@@ -2065,6 +2065,143 @@ Sayılar: backend **2084/2084**, frontend **199/199**, Desk **111/111**; `tsc`
 
 ---
 
+## G57 — Güvenlik incelemesi: 11 bulgunun tamamı kapatıldı ✅ TAMAMLANDI
+
+> 2026-09-29. Namines çekirdeği + Desk + Vault + Ground için güvenlik/çok-kiracılı izolasyon
+> incelemesi (4 paralel tarama, her bulgu kod yolu izlenerek bağımsız doğrulandı). Bulgular
+> **kök nedene** göre gruplandı: `#2` tek bir kusurun iki alanda görünen iki semptomuydu.
+
+| # | Şiddet | Bulgu → düzeltme | Kanıt (kod) |
+|---|---|---|---|
+| 1 | **High** | `CoderAI` `download/{jobId}` rastgele dosya okuyordu (`..%5C..%5Cappsettings.json`) + sahiplik yoktu → GUID zorunlu, iş sahibi kontrolü, sınıfa `[Authorize]`, `CreateJob(jobId, userId)` | `CoderAIController.cs` |
+| 2 | **High** | İstemci-seçimli `project.Id` doğrulanmıyordu; Vault yoluna, Postgres db/rol adına, Neon/Supabase adına akıyordu. `BuildIdentifier` kayıplıydı (`a-b`≡`a_b`), `CreateAsync` var olanı **devralıyordu** → çapraz kiracı DB devralma. Yeni kimlik `^[A-Za-z0-9-]{1,64}$` değilse sunucu GUID atar; kanonik GUID dışındaki her kimliğe özet eklenir (**kanonik GUID'lerin adı değişmez** → mevcut DB'ler sahipsiz kalmaz) | `AuthController.IsSafeNewProjectId`, `LocalPostgresProvider.BuildIdentifier` |
+| 3 | **High** | SSRF: `Server=public;Addr=10.0.0.15` — regex `Addr/Address/Network Address` eşanlamlarını tanımıyordu → regex genişletildi **ve** sürücü builder'ının çözdüğü host da aday eklendi | `DbIntrospectionService.ExtractHosts/BuilderHosts` |
+| 4 | Medium | Yedek anahtarı tuzsuz tek tur SHA-256 → PBKDF2-SHA256 600k tur + dosya başına tuz (`NVLT2`) | `BackupCipher.DeriveKey` |
+| 5 | Medium | Bloklar konuma bağlı değildi, EOF başarı sayılıyordu (kesme/yeniden sıralama/yapıştırma) → AAD = `magic\|tuz\|indeks\|final`, final bloksuz EOF = kesik, sonda fazla bayt = hata. **`NVLT1` okunmaya devam eder** | `BackupCipher.EncryptAsync/DecryptV2Async` |
+| 6 | Medium | Admin kendini Owner yapabiliyordu (ayrıca Owner'ı düşürüp silebiliyordu) → Owner katmanına dokunan `Add/ChangeRole/Remove` Owner ister; tanımsız rol reddedilir | `ProjectMemberController` |
+| 7 | Medium | `/schema`, `/tables`, `/openapi.json` anahtarın `AllowedIps/Origins` ve hız sınırını uygulamıyordu → tek `ResolveKeyAsync` | `GatewayController.ResolveKeyAsync` |
+| 8 | Medium | `CanvasHub` oda üyeliğini sormuyordu (kaldırılan üye branch id ile dinlemeye/yazmaya devam ediyordu; katılmadan yayın da mümkündü) → branch odasında `CanView`/`CanEdit`, katılım şartı, 15 sn TTL ile yeniden kontrol; guest odaları değişmedi | `CanvasHub.cs` |
+| 9 | Medium | Kök kapsama `StartsWith(_root)` ayırıcı sınırı olmadan → ayırıcılı kök | `FileSystemBackupStore.Resolve` |
+| 10 | Low | `Docker` log akışında sahiplik kontrolü yoktu | `DockerController.StreamLogs` |
+| 11 | Low | `SsrfGuard`: `::`, `fec0::/10`, NAT64, 6to4 ve IPv4 multicast/rezerve "public" sayılıyordu | `SsrfGuard.IsPublicAddress` |
+| + | Low | Desk handoff: yanıta `Cache-Control: no-store`; `Sec-Fetch-Site: same-site` artık kabul edilmiyor (meşru istek zaten `Origin` eşleşmesiyle geçer) | `services/desk/app/handoff/route.ts` |
+
+**Doğrulama (yalnızca "testler geçiyor" değil):** düzeltmeler geri alındığında yeni testler
+**kırılıyor** (yol kaçışı + `Addr` için 10 test kırıldı, geri yüklenince geçti); uygulama gerçekten
+ayağa kaldırıldı (control DB + `namines-api`): kimliği doğrulanmış kullanıcıyla `download/..%5C..%5Cappsettings.json`
+artık **400** (dosya sızmıyor), kötü niyetli proje kimlikleri kaydedilmiyor, meşru GUID korunuyor,
+gerçek SignalR istemcisiyle guest odası girişsiz çalışıyor ve katılmadan yayın engelleniyor.
+
+Sayılar: backend **2185/2185** (+101), `Namines.Tests.RunTests` **19/19** (gerçek Docker),
+Desk **117/117** (+6), derleme 0 uyarı 0 hata.
+
+**Bilinen sınırlar (bilerek):** eski `NVLT1` yedeklerinde kesme/yeniden sıralama tespit edilemez
+(biçim değişmeden düzeltilemez) — kritik veritabanları için yeniden yedek alınması önerilir.
+Yedek anahtarı için anahtar-kimliği/rotasyon altyapısı henüz yok (`Vault:BackupEncryptionKey`
+değişirse eski yedekler açılamaz). Allowlist tanımsızken DNS rebinding penceresi açık
+(`DbHostAccessPolicy` yorumunda belgeli, bilinçli taviz).
+
+---
+
+## G58 — Çalışma alanı arayüzü: üst gezinme, Flow sayfası, Launch hatası, Ground/Vault/Review ✅ TAMAMLANDI
+
+> 2026-09-29. Kullanıcı geri bildirimi: "üst gezinmede Flow/Desk seçimi çakışıyor", "Flow'a
+> tıklayınca hâlâ diyagramdayım", "Launch çalışmıyor", "Request Review sayfaları iç içe".
+
+| İş | Kök neden → çözüm | Kanıt (kod) |
+|---|---|---|
+| **Üst gezinme çakışması** | Canvas araç çubuğu `fixed top-2.5 right-6` idi ve ortadaki `WorkspaceNav`'ın üstüne biniyordu (Share, "Ground/Vault/Desk"u kapatıyordu). Eylemler artık Header'daki bir yuvaya **portal** ile basılıyor: aynı flex satırı, çakışması mümkün değil; dar ekranda eski kaydırılan şerit | `Header.tsx` (`#canvas-actions-slot`), `ToolbarPanel.tsx` |
+| **Approve → "Build"** | Canvas'taki `Approve` düğmesi kaldırıldı; üst gezinmeye **Build** olarak taşındı (`/compile`'da aktif, tablo yokken sebebiyle devre dışı). Onay mantığı `namines:approve-diagram` olayıyla `ToolbarPanel`'de kaldı (React Flow bağlamı orada) | `WorkspaceNav.tsx`, i18n `workspaceNav.build*` |
+| **Flow kendi sayfası** | Flow yalnızca canvas'ta yüzen küçük bir çubuktu; gezinmede tıklamak kullanıcıyı diyagramda bırakıyordu. `/flow`: kurallar listesi (aç/kapa, test, düzenle, sil, son çalışma), şablonlar. Canvas'taki yan panel (`NaminesFlowPanel`) **silindi** (başlığın Share/Review düğmelerinin üstüne biniyordu); çubuktaki liste düğmesi `/flow`'a gider | `app/flow/page.tsx`, `NaminesFlowBar.tsx` |
+| **Launch: "projectId, provider and ddlScript are required"** | DDL asenkron üretiliyor; hazır olmadan (ya da üretim başarısız olunca) boş `ddlScript` gidiyordu. Postgres'te `catch` ayrıca `'-- Error generating SQL'`i DDL diye yollayabiliyordu. Launch DDL'i artık bağımsız ve durumlu (`loading/ready/error`); düğme hazır olmadan açılmıyor, hata durumunda "Retry" | `app/compile/page.tsx`, `LaunchPanel.tsx` (+3 test) |
+| **`/compile` yenilemede `/new`'e atıyordu** | Şema deposu kalıcı değil; sayfa hidrasyondan önce yönlendiriyordu. Canvas'ın `decideCanvasBoot` mantığıyla aktif projenin kayıtlı şeması geri yükleniyor | `app/compile/page.tsx` |
+| **Ground / Vault / Review / Launch / Sandbox görünümü** | `compile/PanelKit`'in 10-11px "console" ölçeği yönetim ekranlarına uymuyordu. Ortak `components/workspace/WorkspaceKit` (13px gövde, kart/rozet/tablo/sekme/anahtar; renk tek başına anlam taşımıyor). `/review` üç sekmeye bölündü (İstekler · Ekip · API anahtarları) | `WorkspaceKit.tsx`, `ProjectPicker.tsx`, `app/{ground,vault,review}`, `DockerSandboxPanel.tsx` |
+| **SQL konsolu istem çubuğunun üstüne biniyordu** | Gönder düğmesi "Execute Query"nin üzerinde duruyordu → konsol istem çubuğunun ve mini haritanın üstünde/yanında | `SqlExplorerPanel.tsx` |
+| **Esc modalı kapatmıyordu** | AI Settings dahil ~15 elle çizilmiş modal yalnızca fareyle kapanıyordu → ortak `useEscapeKey` (karar isteyen modallar bilerek hariç) | `hooks/useEscapeKey.ts` (+5 test) |
+| **Next.js dev göstergesi logonun üstündeydi** | Sol üstteki yuvarlak "N" rozeti (yalnızca `next dev`) → `devIndicators: false` | `next.config.ts` |
+
+**Doğrulama:** her ekran gerçek tarayıcıda (1440 ve 390px) görüldü; Launch gerçek arka uca karşı uçtan uca
+denendi (boş DDL → 400, gerçek DDL → **Ready**: veritabanı + şema + `NVLT2` yedek). Frontend **207/207**,
+Desk **117/117**, `tsc` temiz, lint **0 hata** (29 uyarı: hepsi kod tabanındaki `set-state-in-effect`
+danışma kuralı).
+
+**Bilinen sınırlar:** `Team`/`Gateway Key` alt panelleri (`components/review/`) yeni kite taşınmadı, kendi
+(11px) ölçeklerinde duruyor; `/review/[id]` (tek istek ayrıntısı) yeniden tasarlanmadı — gösterecek gerçek
+veri olmadığı için görsel doğrulanamadı. Tema geçişi (açık/koyu) canvas'ta tutarlı ama geçiş animasyonu ~1 sn
+sürüyor.
+
+---
+
+## G59 — İkinci güvenlik turu: 1 CRITICAL + 7 HIGH + 17 MEDIUM + 5 LOW ✅ TAMAMLANDI
+
+> 2026-09-30/10-01. Kullanıcı ChatGPT'ye 63 bölümlük bir çekişmeli denetim prompt'u
+> yazdırıp yapıştırdı; bulgular `docs/last-review/` altına kaydedildi ve sırayla kapatıldı.
+> **Tek doğruluk kaynağı: [last-review/02-BULUNAN-HATALAR.md](../last-review/02-BULUNAN-HATALAR.md)**
+> — her bulgunun durumu, ne yapıldığı ve **neyin açık kaldığı** orada.
+
+**Kapanan:** C-1; H-1..H-7; M-1..M-7, M-9..M-17; L-2, L-3, L-5.
+**Kısmen:** M-8 (AAD bağlaması yok — özet kontrolü aynı saldırıyı yakalıyor),
+M-11 (sürücü yollarında rebinding kodda kapatılamıyor), M-15 (jeton hâlâ projeye
+bağlı değil), M-16 (dar kapsam — genişi ürün kararı).
+**İkinci turda bunlar da kapandı** (kullanıcı onayıyla; üçü ürün/altyapı kararı
+bekliyordu): **M-8'in AAD bağlaması** (NVLT3 — kimlik şifrelemenin AAD'sine giriyor),
+**M-11** (M-12 + M-16 ile rebinding'in kodda kapatılabilir tüm yüzeyleri kapandı),
+**M-16'nın geniş hâli** (MCP yalnızca yerel/özel ağa bağlanıyor;
+`Security:McpAllowPublicDbHosts` ile açılıyor), **L-1** (GET okur, POST oluşturur;
+frontend de POST'a geçirildi), **L-4** (Redis varsa dağıtık sayaç — Redis zorunlu
+değil, arızasında istek reddedilmiyor).
+
+Hepsinde **güvenli varsayılan + açık opt-in** şekli seçildi: meşru kullanım tek
+satır yapılandırmayla geri geliyor ve hata mesajları ne yapılacağını söylüyor.
+
+**Tek kısmi kalan M-15:** jeton ömrü 7 günden 12 saate çekildi ve işaretlendi, ama
+hâlâ projeye bağlı değil — gerçek kapsamlama her ucun claim'e göre gözden
+geçirilmesini istiyor.
+
+> **İkinci turun dersi:** M-8'in ilk testleri **yanlış sebepten** geçiyordu. Kimliği
+> AAD'nin İÇERİĞİNDEN çıkardığımda testler hâlâ yeşildi, çünkü AAD dizisinin BOYUTU
+> kimlik uzunluğuna göre hesaplanıyordu — farklı uzunluktaki iki kimlik zaten farklı
+> AAD veriyordu. Bağlama "çalışıyor" görünüyordu ama kanıt uzunluk tesadüfündendi.
+> AYNI uzunlukta, farklı içerikli kimliklerle üç test eklendi. **Bir testin geçmesi,
+> DOĞRU ŞEYDEN geçtiği anlamına gelmiyor** — mutasyon testi olmasa bu fark edilmezdi.
+
+**En önemli üçü:**
+- **C-1:** altı DDL üreticisinin `Quote`'u ayırıcıyı **ikilemiyordu** ve şema
+  doğrudan istemciden geliyordu; üretilen betik sandbox'ta `psql -U postgres` olarak
+  çalışıyor. Yeni `SqlIdentifier` tek alıntılama noktası (43 çağrı yeri), kontrol
+  karakterleri reddediliyor, sandbox'a `NetworkMode="none"` + `PidsLimit` + `CapDrop`.
+- **H-4:** çıkarılan üyenin API anahtarı süresiz çalışıyordu ve istekler onun
+  hesabına faturalanıyordu; `AuthenticateAsync` artık üretenin güncel üyeliğini de
+  soruyor ve üye çıkarma anahtarları açıkça iptal ediyor.
+- **M-17:** CoderAI paketlerine **aynı sabit parola** gömülüyordu (bu depoda açık
+  yazılı) ve DB portu `0.0.0.0`'a açılıyordu — genel IP'li bir makinede veritabanını
+  bilinen bir parolayla internete açmak. Paket başına rastgele parola (`.env`) +
+  `127.0.0.1` bağlama.
+
+**4 EF migration** (hepsi yalnızca ekleme yapıyor, gerçek Postgres'e uygulandı):
+`AddStripeWebhookEventIdempotency`, `PinVotingMembersOnChangeRequest`,
+`CacheChangeRequestAiOutputs`, `BindVaultRecordToCipherText`.
+
+**İKİ DAVRANIŞ DEĞİŞİKLİĞİ — duyurulması gerekiyor:**
+1. Admin'ler artık ham-SQL ya da toplu-dışa-aktarım API anahtarı üretemiyor (Owner işi).
+2. `AllowDeskSql` varsayılan kapalı olduğu için, saklı bağlantıda ham SQL çalıştıran
+   **mevcut** bir API anahtarı artık 403 alır; Owner'ın proje ayarlarından açması gerekir.
+3. Üretimde `ForwardedHeaders:KnownNetworks` tanımsızsa uygulama **BAŞLAMIYOR**
+   (ya CIDR verilecek ya `TrustAllProxies=true` ile risk açıkça kabul edilecek).
+
+**Düzeltmelerin kendi ürettiği 3 regresyon** (`02-BULUNAN-HATALAR.md` §"Bu turun KENDİ
+regresyonları"): M-7'nin sahiplenmesi ret kapılarından önce duruyordu (kaydı
+`Provisioning`'de asılı bırakıyordu), M-8'in V1 kapısı mevcut bir geriye-uyumluluk
+sözleşmesini kırdı, ve C-1'in reddi 400 yerine **500** dönüp iç ayrıntı sızdırıyordu.
+İlk ikisini **mevcut testler** yakaladı; üçüncüsü **localhost doğrulamasında** çıktı.
+
+> **Bu turun dersi**, AGENTS.md'nin yazdığına bir ek: "testler geçiyor" yetmez, ama
+> **hangi testlerin hangi değişikliği kapsadığına bakmadan "yeşil" demek** daha kötü —
+> bir kanıt görüntüsü üretiyor. Bu oturumda tam olarak bu oldu ve iki regresyon
+> "yeşil" raporlandıktan sonra ortaya çıktı.
+
+---
+
 ## G-ekstra — Yol boyunca bulunanlar
 
 - [x] `launchSettings.json` port çelişkisi — **zaten çözülmüştü** (`dfdfc49`, bu G14

@@ -7,6 +7,8 @@
 
 ## Önce oku
 
+0. **[DURUM.md](DURUM.md)** — tek sayfa: ürün bugün ne yapıyor, son turda ne
+   değişti, sırada ne var. **En hızlı giriş noktası burası.**
 1. **[new-phase/BASLA-BURADAN.md](docs/new-phase/BASLA-BURADAN.md)** — projenin hikâyesi,
    ~20 dakika, anlatı formatında. İlk kez buraya bakan biri buradan başlamalı.
 2. **[new-phase/27-LIFECYCLE-PIVOT.md](docs/new-phase/27-LIFECYCLE-PIVOT.md)** — güncel

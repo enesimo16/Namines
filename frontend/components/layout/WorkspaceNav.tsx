@@ -2,8 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Boxes, Zap, HardDrive, ShieldCheck, Table2, Loader2, ChevronDown, ArrowUpRight, LayoutGrid } from 'lucide-react';
-import { useFlowBarStore } from '../../store/useFlowBarStore';
+import { Boxes, Zap, HardDrive, ShieldCheck, Table2, Hammer, Loader2, ChevronDown, ArrowUpRight, LayoutGrid } from 'lucide-react';
+import { useSchemaStore } from '../../store/useSchemaStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { useToastStore } from '../../store/useToastStore';
 import { authService } from '../../services/api';
@@ -12,7 +12,8 @@ import { useT, useLangAttr, type MessageKey } from '../../lib/i18n';
 
 /**
  * Tek ortak gezinme — Flow/Ground/Vault/Desk daha önce dört ayrı, birbirini
- * bilmeyen yerdeydi: Flow yalnızca canvas'ta sağ tık menüsünün ardında, Ground
+ * bilmeyen yerdeydi (Flow artık kendi sayfası: `/flow`; canvas'a gömülü küçük
+ * çubuk "Flow'a tıkladım ama hâlâ diyagramdayım" karışıklığı yaratıyordu): Flow yalnızca canvas'ta sağ tık menüsünün ardında, Ground
  * ve Vault hiçbir menüden bağlı olmayan başıboş sayfalardı (yalnızca URL'i
  * bilenler bulabiliyordu), Desk ise yalnızca Launch'ın tek-tık akışını
  * bitirdikten sonra çıkan bir buton. Bu şerit, proje çalışma alanı
@@ -27,7 +28,7 @@ import { useT, useLangAttr, type MessageKey } from '../../lib/i18n';
  * ölçülüp ayrılan alanla karşılaştırılıyor; sığmıyorsa tek bir menü düğmesi,
  * o da sığmıyorsa yalnızca ikon.
  */
-const WORKSPACE_ROUTES = ['/canvas', '/compile', '/ground', '/vault'];
+const WORKSPACE_ROUTES = ['/canvas', '/flow', '/compile', '/ground', '/vault', '/review'];
 const ICON_ONLY_BELOW = 132;
 
 type Item = {
@@ -36,6 +37,8 @@ type Item = {
   icon: typeof Boxes;
   active: boolean;
   busy?: boolean;
+  /** Etkin değil ama görünür: sebebi `disabledReason` ile söylenir. */
+  disabledReason?: string;
   external?: boolean;
   onClick: () => void;
 };
@@ -47,6 +50,7 @@ export default function WorkspaceNav() {
   const lang = useLangAttr();
   const showToast = useToastStore(s => s.showToast);
   const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
+  const tableCount = useSchemaStore(s => s.schema?.tables.length ?? 0);
   const [openingDesk, setOpeningDesk] = useState(false);
 
   const slotRef = useRef<HTMLDivElement>(null);
@@ -55,7 +59,8 @@ export default function WorkspaceNav() {
   const [mode, setMode] = useState<'bar' | 'menu' | 'icon'>('bar');
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const visible = !!pathname && WORKSPACE_ROUTES.includes(pathname);
+  // `/review/<id>` de çalışma alanının parçası; tam eşleşme yalnızca liste sayfasını kapsıyordu.
+  const visible = !!pathname && WORKSPACE_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`));
 
   // useLayoutEffect: ölçüm boyamadan ÖNCE yapılıyor, yoksa dar ekranda şerit
   // bir kare boyunca taşmış hâliyle görünüp sonra menüye atlıyordu.
@@ -109,13 +114,16 @@ export default function WorkspaceNav() {
 
   if (!visible) return null;
 
-  const goToFlow = () => {
-    // Global (persist edilen) store — canvas zaten NaminesFlowBar/Panel'i
-    // koşulsuz render edip bu durumdan okuyor, o yüzden canvas'a gitmeden
-    // ÖNCE açık işaretlemek yeterli.
-    useFlowBarStore.getState().setHidden(false);
-    useFlowBarStore.getState().setPanelOpen(true);
-    if (pathname !== '/canvas') router.push('/canvas');
+  // "Approve" düğmesi araç çubuğundan buraya taşındı ve "Build" adını aldı: eylem
+  // "diyagramı onayla ve derleme/dışa aktarma ekranına geç". Canvas'ta onay mantığı
+  // (düğüm konumlarını şemaya yazma, diff modunda atlama) ToolbarPanel'de yaşıyor —
+  // React Flow bağlamı orada — o yüzden burada bir olayla tetikleniyor.
+  const goToBuild = () => {
+    if (pathname === '/canvas') {
+      window.dispatchEvent(new CustomEvent('namines:approve-diagram'));
+      return;
+    }
+    router.push('/compile');
   };
 
   const openDesk = async () => {
@@ -136,10 +144,15 @@ export default function WorkspaceNav() {
 
   const items: Item[] = [
     { key: 'diagram', labelKey: 'workspaceNav.diagram', icon: Boxes, active: pathname === '/canvas', onClick: () => router.push('/canvas') },
-    { key: 'flow', labelKey: 'workspaceNav.flow', icon: Zap, active: false, onClick: goToFlow },
+    { key: 'flow', labelKey: 'workspaceNav.flow', icon: Zap, active: pathname === '/flow', onClick: () => router.push('/flow') },
     { key: 'ground', labelKey: 'workspaceNav.ground', icon: HardDrive, active: pathname === '/ground', onClick: () => router.push('/ground') },
     { key: 'vault', labelKey: 'workspaceNav.vault', icon: ShieldCheck, active: pathname === '/vault', onClick: () => router.push('/vault') },
     { key: 'desk', labelKey: 'workspaceNav.desk', icon: Table2, active: false, busy: openingDesk, external: true, onClick: openDesk },
+    {
+      key: 'build', labelKey: 'workspaceNav.build', icon: Hammer, active: pathname === '/compile', onClick: goToBuild,
+      // Tablo yokken derlenecek bir şey yok; gizlemek yerine sebebini söylüyoruz.
+      disabledReason: pathname === '/canvas' && tableCount === 0 ? t('workspaceNav.buildNeedsTables') : undefined,
+    },
   ];
   const current = items.find(item => item.active);
   const CurrentIcon = current?.icon ?? LayoutGrid;
@@ -155,10 +168,10 @@ export default function WorkspaceNav() {
             type="button"
             tabIndex={interactive ? undefined : -1}
             onClick={interactive ? item.onClick : undefined}
-            disabled={item.busy}
-            title={item.external ? `${label} — ${t('workspaceNav.opensInNewTab')}` : label}
+            disabled={item.busy || !!item.disabledReason}
+            title={item.disabledReason ?? (item.external ? `${label} — ${t('workspaceNav.opensInNewTab')}` : label)}
             aria-current={item.active ? 'page' : undefined}
-            className={`relative flex items-center gap-1.5 h-8 px-2.5 rounded-[calc(var(--radius-control)-2px)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait ${
+            className={`relative flex items-center gap-1.5 h-8 px-2.5 rounded-[calc(var(--radius-control)-2px)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
               item.active
                 ? 'bg-accent-subtle text-accent-text'
                 : 'text-content-muted hover:text-content-primary hover:bg-white/[0.05]'
@@ -221,7 +234,8 @@ export default function WorkspaceNav() {
                     key={item.key}
                     type="button"
                     role="menuitem"
-                    disabled={item.busy}
+                    disabled={item.busy || !!item.disabledReason}
+                    title={item.disabledReason}
                     aria-current={item.active ? 'page' : undefined}
                     onClick={() => { setMenuOpen(false); item.onClick(); }}
                     className={`w-full flex items-center gap-2.5 min-h-[40px] px-2.5 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer disabled:opacity-60 ${

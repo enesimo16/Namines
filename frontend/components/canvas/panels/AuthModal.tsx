@@ -10,6 +10,7 @@ import { authService } from '../../../services/api';
 import GuestSchemaMigrationModal from './GuestSchemaMigrationModal';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { errorMessage } from '../../../lib/errors';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -131,6 +132,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setIsLoading(false);
     }
   };
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

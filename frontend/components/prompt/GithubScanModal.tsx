@@ -7,6 +7,7 @@ import { X, FolderGit2, Loader2, AlertTriangle } from 'lucide-react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { errorMessage } from '../../lib/errors';
 import type { RepositoryScanResult } from '../../types/source';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface GithubScanModalProps {
   onScan: (repoUrl: string, branch?: string) => Promise<RepositoryScanResult>;
@@ -22,6 +23,7 @@ interface GithubScanModalProps {
  * ağ olmadan test edilebiliyor — ve testler bunları kilitliyor.
  */
 export function GithubScanModal({ onScan, onImport, onClose }: GithubScanModalProps) {
+  useEscapeKey(true, onClose);
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('');
   const [scanning, setScanning] = useState(false);

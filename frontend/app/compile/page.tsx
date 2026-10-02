@@ -6,6 +6,7 @@ import { ArrowLeft, FileCode2, Boxes, Layers, Blocks, GitFork, Database, BookOpe
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { decideCanvasBoot } from '../../lib/canvasBoot';
 import { schemaService } from '../../services/api';
 
 import DbTypeSelector from '../../components/compile/DbTypeSelector';
@@ -76,11 +77,30 @@ export default function CompilePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingSvg, setIsExportingSvg] = useState(false);
 
+  // Şema deposu kalıcı DEĞİL (yalnızca UI tercihleri; şemanın tek kaynağı proje geçmişi).
+  // Bu yüzden /compile doğrudan açıldığında (yenileme, yer imi, "Build" düğmesine sayfa
+  // yenilendikten sonra basma) `schema` başta null oluyordu ve sayfa kullanıcıyı ANINDA
+  // /new'e atıyordu — çalışması kaybolmuş gibi görünüyordu. Canvas'ın kullandığı
+  // `decideCanvasBoot` ile aktif projenin kayıtlı şeması geri yükleniyor; yalnızca
+  // gerçekten geri yüklenecek bir şey yoksa /new'e gidiliyor.
+  const hasHydrated = useProjectHistoryStore(s => s.hasHydrated);
+  const projects = useProjectHistoryStore(s => s.projects);
+  const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
   useEffect(() => {
-    if (!schema) {
-      router.push('/new');
+    if (schema) return;
+    const decision = decideCanvasBoot({
+      hasSchema: false, joinedSharedRoom: false, hasHydrated, activeProjectId, projects,
+    });
+    if (decision.action === 'wait') return;
+    if (decision.action === 'restore') {
+      loadFromSchema(decision.schema, decision.nodePositions, true);
       return;
     }
+    router.push('/new');
+  }, [schema, hasHydrated, activeProjectId, projects, loadFromSchema, router]);
+
+  useEffect(() => {
+    if (!schema) return;
 
     let ignore = false;
     const fetchSql = async () => {
@@ -106,20 +126,40 @@ export default function CompilePage() {
     return () => { ignore = true; };
   }, [schema, dbType, router]);
 
-  // Ground yalnizca PostgreSQL destekliyor — Launch, DDL Script sekmesinin
-  // kendi motor seciciisinden bagimsiz, her zaman Postgres DDL'i kullanir.
-  // dbType zaten PostgreSQL ise yukaridaki fetchSql'in urettigi `sql` aynen
-  // odur — ikinci bir agi istegi acmaya gerek yok.
-  const [launchDdlOther, setLaunchDdlOther] = useState('');
+  // Ground yalnizca PostgreSQL destekliyor — Launch, DDL Script sekmesinin kendi motor
+  // seciciisinden bagimsiz, her zaman Postgres DDL'i kullanir.
+  //
+  // Eskiden `dbType === 'PostgreSQL' ? sql : launchDdlOther` idi ve iki hata vardi:
+  //  1. Postgres'te `sql`, uretim basarisiz olunca '-- Error generating SQL' oluyordu;
+  //     Launch bu yorum satirini DDL diye sunucuya gonderebilirdi.
+  //  2. Baska motorlarda uretim asenkron bitene kadar (ya da hata alinca) DDL bos ''
+  //     kaliyordu ve Launch dugmesi buna bakmadan aktifti -> sunucu "projectId, provider
+  //     and ddlScript are required" diyordu.
+  // Artik DDL kendi baglantisiyla, acik bir durumla (loading/ready/error) uretiliyor ve
+  // LaunchPanel hazir olmadan dugmeyi acmiyor.
+  const [launchDdl, setLaunchDdl] = useState('');
+  const [launchDdlStatus, setLaunchDdlStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [launchDdlAttempt, setLaunchDdlAttempt] = useState(0);
   useEffect(() => {
-    if (!schema || dbType === 'PostgreSQL') return;
+    if (!schema) return;
     let ignore = false;
+    setLaunchDdlStatus('loading');
     schemaService.compileSql(schema, 'PostgreSQL').then(generated => {
-      if (!ignore) setLaunchDdlOther(generated);
-    }).catch(() => { if (!ignore) setLaunchDdlOther(''); });
+      if (ignore) return;
+      if (!generated.trim()) {
+        setLaunchDdl('');
+        setLaunchDdlStatus('error');
+        return;
+      }
+      setLaunchDdl(generated);
+      setLaunchDdlStatus('ready');
+    }).catch(() => {
+      if (ignore) return;
+      setLaunchDdl('');
+      setLaunchDdlStatus('error');
+    });
     return () => { ignore = true; };
-  }, [schema, dbType]);
-  const launchDdl = dbType === 'PostgreSQL' ? sql : launchDdlOther;
+  }, [schema, launchDdlAttempt]);
 
   const updateDiagram = async (
     type: 'ER' | 'CLASS' | 'FLOW' | 'MINDMAP' | 'STATE' | 'SEQUENCE' | 'GANTT' | 'PIE' | 'GIT' | 'JOURNEY' | 'TIMELINE' | 'QUADRANT' | 'REQUIREMENT'
@@ -320,6 +360,8 @@ export default function CompilePage() {
               projectId={activeProjectId}
               projectName={projectName}
               ddlScript={launchDdl}
+              ddlStatus={launchDdlStatus}
+              onRetryDdl={() => setLaunchDdlAttempt(n => n + 1)}
               schema={schema}
             />
           )}

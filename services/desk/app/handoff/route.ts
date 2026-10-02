@@ -118,14 +118,16 @@ function errorPage(message: string): string {
 /**
  * İstek, güvenilen bir yerden mi geldi?
  *
- * İki kabul yolu var, çünkü Desk ana uygulamayla AYNI site'ta da
- * (`desk.namines.com` ↔ `namines.com`) tamamen ayrı bir domain'de de
- * durabilir:
+ * İki kabul yolu var:
  *
- * 1. `Sec-Fetch-Site` aynı site diyorsa kabul. Bu başlığı tarayıcı koyar,
- *    sayfa JavaScript'i değiştiremez.
- * 2. Aksi hâlde `Origin`, yapılandırılmış ana uygulama adresiyle birebir
- *    eşleşmeli. Ayrı domain'de kurulmuş bir Desk'in tek meşru çağıranı odur.
+ * 1. `Origin`, yapılandırılmış ana uygulama adresiyle (`NAMINES_FRONTEND`) birebir
+ *    eşleşiyorsa kabul. Desk ana uygulamayla aynı site'ta (`desk.namines.com` ↔
+ *    `namines.com`) ya da tamamen ayrı bir domain'de durabilir; her iki durumda tek
+ *    meşru çağıran ana uygulamadır ve tarayıcı çapraz-origin POST'a Origin'i ekler.
+ * 2. Aksi hâlde `Sec-Fetch-Site` YALNIZCA `same-origin` (ya da elle açılan `none`) ise
+ *    kabul. Bu başlığı tarayıcı koyar, sayfa JavaScript'i değiştiremez.
+ *    `same-site` kabul EDİLMİYOR: aynı üst alan adı altındaki başka bir alt alan adı da
+ *    `same-site` görünür ve login-CSRF'i yeniden açardı.
  *
  * İkisi de yoksa reddedilir — belirsizlikte oturum kurmak yanlış yön.
  */
@@ -138,7 +140,11 @@ function isTrustedCaller(req: NextRequest): boolean {
   const fetchSite = req.headers.get('sec-fetch-site');
   // 'none' = adres çubuğuna elle yazılan/yer imi isteği; bir form POST'u
   // olarak gelmesi mümkün değil ama tarayıcı farkları için kabul ediliyor.
-  return fetchSite === 'same-origin' || fetchSite === 'same-site' || fetchSite === 'none';
+  // 'same-site' BİLEREK yok: aynı üst alan adı altındaki başka bir alt alan adı (örn. kullanıcı
+  // içeriği barındıran bir host) 'same-site' görünür ve login-CSRF'i yeniden açardı. Ayrı
+  // alt alan adında kurulmuş meşru bir Desk'in tek çağıranı ana uygulamadır ve o zaten yukarıdaki
+  // Origin eşleşmesiyle geçer (tarayıcı çapraz-origin POST'a Origin'i her zaman ekler).
+  return fetchSite === 'same-origin' || fetchSite === 'none';
 }
 
 /** Şema + host + port karşılaştırması; sondaki eğik çizgi farkı önemsiz. */
@@ -157,5 +163,10 @@ function escapeHtml(s: string): string {
 }
 
 function htmlResponse(html: string, status: number): Response {
-  return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  // no-store: başarılı yanıt bir taşıyıcı JWT içeriyor; POST yanıtı olduğu için pratikte
+  // önbelleğe alınmaz, ama bunu bir ara katmanın varsayılanına bırakmıyoruz.
+  return new Response(html, {
+    status,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  });
 }

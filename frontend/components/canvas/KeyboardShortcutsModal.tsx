@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { X, Keyboard } from 'lucide-react';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface Props {
   isOpen: boolean;
@@ -47,6 +48,7 @@ const SECTIONS = [
 ];
 
 export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
+  useEscapeKey(isOpen, onClose);
   if (!isOpen) return null;
 
   return (

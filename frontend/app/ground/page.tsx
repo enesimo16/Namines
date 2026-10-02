@@ -1,50 +1,60 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Database, Plus, Loader2, HardDrive, Cable } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Database, Plus, HardDrive, Loader2, CheckCircle2, AlertTriangle, Trash2, Undo2, Server, Cable,
+} from 'lucide-react';
 import { authService } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import type { CloudProjectDto } from '../../types/api';
 import {
   groundApi, VaultGroundError, daysUntilPurge, formatSize,
   type GroundDatabase, type GroundProvider, type GroundMetrics,
 } from '../../services/vaultGroundApi';
-import { Panel, PanelBar, ActionButton, PanelEmpty } from '../../components/compile/PanelKit';
+import ProjectPicker from '../../components/workspace/ProjectPicker';
+import {
+  PageShell, PageHeader, Card, Callout, Badge, Button, EmptyState, DefinitionGrid, StatTile, Field, inputClass,
+} from '../../components/workspace/WorkspaceKit';
 
-const STATUS_LABELS: Record<GroundDatabase['status'], string> = {
-  Provisioning: 'Creating…',
-  Active: 'Active',
-  PendingDelete: 'Pending deletion',
-  Deleted: 'Deleted',
-  Failed: 'Failed',
+const STATUS: Record<GroundDatabase['status'], { label: string; tone: 'success' | 'neutral' | 'danger' | 'accent' }> = {
+  Provisioning: { label: 'Creating…', tone: 'accent' },
+  Active: { label: 'Active', tone: 'success' },
+  PendingDelete: { label: 'Pending deletion', tone: 'danger' },
+  Deleted: { label: 'Deleted', tone: 'neutral' },
+  Failed: { label: 'Failed', tone: 'danger' },
 };
 
 /**
- * Namines Ground — standalone page.
+ * Namines Ground — bağımsız sayfa.
  *
- * Not tied to Desk: a user may want a hosted database without ever
- * designing a schema or opening Desk's CRUD/SQL console. Talks directly to
- * `/api/ground` and `/api/auth` — "project" here is just a record Ground
- * needs, not a schema (opened with an empty `schemaJson: "{}"`).
+ * Desk'e bağlı değil: kullanıcı şema tasarlamadan ya da Desk'in CRUD/SQL konsolunu
+ * açmadan barındırılan bir veritabanı isteyebilir. Doğrudan `/api/ground` ve
+ * `/api/auth` ile konuşur — buradaki "proje" Ground'un ihtiyaç duyduğu bir kayıt,
+ * şema değil (boş `schemaJson: "{}"` ile açılır).
  */
 export default function GroundPage() {
-  const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const openAuthModal = useAuthModalStore(s => s.open);
+  const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
 
   const [projects, setProjects] = useState<CloudProjectDto[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
 
   const loadProjects = useCallback(async () => {
     if (!isAuthenticated) return;
     const list = await authService.getCloudProjects();
     setProjects(list);
-    setSelectedId(prev => prev ?? list[0]?.id ?? null);
-  }, [isAuthenticated]);
+    // Üst gezinmedeki aktif proje varsa onu seç: kullanıcı zaten onun içinde çalışıyor.
+    setSelectedId(prev => prev
+      ?? list.find(p => p.id === activeProjectId)?.id
+      ?? list[0]?.id
+      ?? null);
+  }, [isAuthenticated, activeProjectId]);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
@@ -58,6 +68,7 @@ export default function GroundPage() {
         id, name, dbType: 'PostgreSQL', schemaJson: '{}', nodePositionsJson: '{}',
       }]);
       setNewName('');
+      setShowCreate(false);
       await loadProjects();
       setSelectedId(id);
     } finally {
@@ -67,88 +78,73 @@ export default function GroundPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="h-[calc(100vh-56px)] bg-surface-900 flex items-center justify-center">
-        <PanelEmpty icon={Database} title="Sign in to use Namines Ground"
-          hint="You need an account to create and manage a hosted database.">
-          <ActionButton tone="primary" onClick={openAuthModal}>Log in / Sign up</ActionButton>
-        </PanelEmpty>
-      </div>
+      <PageShell width="max-w-3xl">
+        <EmptyState icon={Database} title="Sign in to use Namines Ground"
+          description="You need an account to create and manage a hosted database."
+          action={<Button variant="primary" onClick={openAuthModal}>Log in / Sign up</Button>} />
+      </PageShell>
     );
   }
 
   const selected = projects?.find(p => p.id === selectedId) ?? null;
 
   return (
-    <div className="h-[calc(100vh-56px)] bg-surface-900 text-content-primary flex flex-col lg:flex-row font-sans overflow-hidden">
-      <aside className="shrink-0 bg-surface-800 border-b lg:border-b-0 lg:border-r border-surface-500 flex flex-col lg:w-64">
-        <div className="p-2.5">
-          <button
-            onClick={() => router.push('/')}
-            className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-white/[0.06] transition-colors cursor-pointer text-[11px] font-medium"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            <span>Back</span>
-          </button>
-        </div>
-        <div className="px-3 pb-2.5 border-b border-surface-500">
-          <h1 className="text-[13px] font-bold text-content-primary leading-tight flex items-center gap-1.5">
-            <HardDrive className="w-3.5 h-3.5 text-accent-text" /> Namines Ground
-          </h1>
-          <p className="text-[10.5px] text-content-muted mt-1 leading-snug">
-            Hosted databases — no Desk required.
-          </p>
-        </div>
+    <PageShell>
+      <PageHeader
+        icon={HardDrive}
+        title="Ground"
+        description="Hosted databases for your projects — create one, see how it is doing, and delete it safely. No Desk required."
+      />
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5">
-          {!projects ? (
-            <div className="px-2 py-3 text-[11px] text-content-muted">Loading…</div>
-          ) : projects.length === 0 ? (
-            <div className="px-2 py-3 text-[11px] text-content-muted">No projects yet. Create a database below.</div>
-          ) : (
-            projects.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                className={`w-full text-left px-2.5 py-2 rounded-[var(--radius-control)] text-[11px] transition-colors cursor-pointer ${
-                  p.id === selectedId ? 'bg-accent-subtle text-accent-text' : 'text-content-secondary hover:bg-white/[0.04]'
-                }`}
-              >
-                <div className="font-medium truncate">{p.name}</div>
-                <div className="flex items-center gap-1 text-[10px] text-content-muted mt-0.5">
-                  <Cable className="w-2.5 h-2.5" />
-                  {p.hasConnection ? p.connectionDbType ?? 'Connected' : 'Not connected'}
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-
-        <div className="p-2 border-t border-surface-500 space-y-1.5">
-          <input
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCreate()}
-            placeholder="New database name…"
-            className="w-full bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] text-content-primary placeholder:text-content-muted focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)]"
-          />
-          <ActionButton icon={creating ? undefined : Plus} tone="primary" full busy={creating}
-            disabled={!newName.trim()} onClick={handleCreate}>
-            {creating ? 'Creating…' : 'New database'}
-          </ActionButton>
-        </div>
-      </aside>
-
-      <div className="flex-1 min-w-0 min-h-0 p-3">
-        {selected ? (
-          <GroundDetail key={selected.id} projectId={selected.id} projectName={selected.name} />
+      <ProjectPicker
+        projects={projects}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        describe={p => (p.hasConnection ? p.connectionDbType ?? 'connected' : 'no database yet')}
+      >
+        {showCreate ? (
+          <div className="flex items-end gap-2 flex-1 min-w-[260px]">
+            <div className="flex-1">
+              <Field label="New database name" htmlFor="ground-new-name">
+                <input
+                  id="ground-new-name"
+                  autoFocus
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void handleCreate(); if (e.key === 'Escape') setShowCreate(false); }}
+                  placeholder="e.g. blog_platform"
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+            <Button variant="primary" busy={creating} disabled={!newName.trim()} onClick={handleCreate}>Create</Button>
+            <Button variant="ghost" onClick={() => { setShowCreate(false); setNewName(''); }}>Cancel</Button>
+          </div>
         ) : (
-          <Panel>
-            <PanelEmpty icon={Database} title="Select a project"
-              hint="Pick a project on the left, or create a new database." />
-          </Panel>
+          <Button icon={Plus} onClick={() => setShowCreate(true)}>New database</Button>
         )}
-      </div>
-    </div>
+      </ProjectPicker>
+
+      {selected ? (
+        <GroundDetail key={selected.id} projectId={selected.id} projectName={selected.name} />
+      ) : !projects ? (
+        <Card>
+          <div className="flex items-center gap-2 px-5 py-8 text-[13px] text-content-muted">
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Loading your projects…
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <EmptyState icon={Database} title={projects.length === 0 ? 'No projects yet' : 'Select a project'}
+            description={projects.length === 0
+              ? 'Create your first database to get started.'
+              : 'Pick a project above, or create a new database.'}
+            action={projects.length === 0
+              ? <Button variant="primary" icon={Plus} onClick={() => setShowCreate(true)}>New database</Button>
+              : undefined} />
+        </Card>
+      )}
+    </PageShell>
   );
 }
 
@@ -210,108 +206,108 @@ function GroundDetail({ projectId, projectName }: { projectId: string; projectNa
   const remainingDays = database?.deleteRequestedAt
     ? daysUntilPurge(database.deleteRequestedAt, database.graceDays) : null;
 
+  const hasDatabase = !!database && database.status !== 'Deleted';
+  const status = database ? STATUS[database.status] : null;
+
   return (
-    <Panel scroll className="h-full">
-      <PanelBar left={<span className="text-[12px] font-semibold text-content-primary">{projectName}</span>} />
-      <div className="p-3 space-y-3">
-        {error && <div className="px-3 py-2 rounded-[var(--radius-control)] bg-[var(--color-danger-subtle)] text-[var(--color-danger)] text-[11px]">{error}</div>}
-        {notice && <div className="px-3 py-2 rounded-[var(--radius-control)] bg-accent-subtle text-accent-text text-[11px]">{notice}</div>}
-        {metrics?.storageWarning && (
-          <div className="px-3 py-2 rounded-[var(--radius-control)] bg-surface-600 text-content-secondary text-[11px]">{metrics.storageWarning}</div>
-        )}
+    <div className="space-y-5">
+      {error && <Callout tone="danger">{error}</Callout>}
+      {notice && <Callout tone="success">{notice}</Callout>}
+      {metrics?.storageWarning && <Callout tone="neutral">{metrics.storageWarning}</Callout>}
 
-        {database && database.status !== 'Deleted' && (
-          <div className="rounded-[var(--radius-control)] border border-surface-500 overflow-hidden">
-            <table className="w-full text-[11px]">
-              <tbody>
-                <Row label="Status" value={STATUS_LABELS[database.status]} />
-                <Row label="Provider" value={database.provider} />
-                <Row label="Provider ID" value={<code>{database.providerProjectId ?? '—'}</code>} />
-                <Row label="Region" value={database.region ?? '—'} />
-                <Row label="Created" value={new Date(database.createdAt).toLocaleString('en-US')} />
-                <Row label="Storage used" value={formatSize(metrics?.storageBytes ?? null)} />
-                <Row label="Active connections" value={metrics?.activeConnections ?? '—'} />
-                {database.error && <Row label="Error" value={database.error} />}
-              </tbody>
-            </table>
+      {hasDatabase && database && status && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatTile label="Status" value={<Badge tone={status.tone} icon={database.status === 'Active' ? CheckCircle2 : undefined}>{status.label}</Badge>} />
+            <StatTile label="Storage used" value={formatSize(metrics?.storageBytes ?? null)} />
+            <StatTile label="Active connections" value={metrics?.activeConnections ?? '—'} />
+            <StatTile label="Provider" value={database.provider} />
           </div>
-        )}
 
-        {database?.status === 'PendingDelete' && (
-          <div className="p-3 rounded-[var(--radius-control)] bg-[var(--color-danger-subtle)] space-y-2">
-            <p className="text-[11px] font-semibold text-[var(--color-danger)]">This database is scheduled for deletion.</p>
-            <p className="text-[11px] text-content-secondary">
-              {remainingDays === 0
-                ? 'The grace window has ended; it will be permanently deleted on the next cleanup pass.'
-                : `${remainingDays} day${remainingDays === 1 ? '' : 's'} left before it's permanently deleted. You can still undo it.`}
-            </p>
-            <ActionButton busy={busy} onClick={handleCancelDelete}>Undo deletion</ActionButton>
-          </div>
-        )}
+          <Card title={projectName} description="Where this database lives and when it was created.">
+            <DefinitionGrid
+              items={[
+                { label: 'Database ID', value: database.providerProjectId ?? '—', mono: true },
+                { label: 'Region', value: database.region ?? '—' },
+                { label: 'Created', value: new Date(database.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) },
+                ...(database.error ? [{ label: 'Last error', value: <span className="text-danger-text">{database.error}</span> }] : []),
+              ]}
+            />
+          </Card>
+        </>
+      )}
 
-        {database?.status === 'Active' && (
-          confirming ? (
-            <div className="p-3 rounded-[var(--radius-control)] bg-[var(--color-danger-subtle)] space-y-2">
-              <p className="text-[11px] font-semibold text-[var(--color-danger)]">This database and everything in it will be deleted.</p>
-              <p className="text-[11px] text-content-secondary">Type the project name to continue: <code>{projectName}</code></p>
-              <input value={confirmText} onChange={e => setConfirmText(e.target.value)}
-                className="w-full max-w-[280px] bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] text-content-primary" />
+      {database?.status === 'PendingDelete' && (
+        <Callout
+          tone="danger"
+          title="This database is scheduled for deletion"
+          action={<Button icon={Undo2} busy={busy} onClick={handleCancelDelete}>Undo deletion</Button>}
+        >
+          {remainingDays === 0
+            ? 'The grace window has ended; it will be permanently deleted on the next cleanup pass.'
+            : `${remainingDays} day${remainingDays === 1 ? '' : 's'} left before it is permanently deleted. You can still undo it.`}
+        </Callout>
+      )}
+
+      {database?.status === 'Active' && (
+        <Card
+          tone="danger"
+          title="Delete this database"
+          description="Removes the database and everything in it after a grace period. Take a Vault backup first if you may need the data."
+          actions={!confirming && <Button variant="danger" icon={Trash2} onClick={() => setConfirming(true)}>Delete database</Button>}
+        >
+          {confirming && (
+            <div className="space-y-3 max-w-md">
+              <Field label={`Type the project name to continue: ${projectName}`} htmlFor="ground-confirm-name">
+                <input id="ground-confirm-name" autoFocus value={confirmText} onChange={e => setConfirmText(e.target.value)}
+                  className={inputClass} placeholder={projectName} />
+              </Field>
               <div className="flex gap-2">
-                <ActionButton tone="danger" disabled={!confirmText.trim()} busy={busy} onClick={handleDelete}>Start deletion</ActionButton>
-                <ActionButton onClick={() => { setConfirming(false); setConfirmText(''); }}>Cancel</ActionButton>
+                <Button variant="danger" icon={Trash2} disabled={confirmText.trim() !== projectName} busy={busy} onClick={handleDelete}>
+                  Start deletion
+                </Button>
+                <Button variant="ghost" onClick={() => { setConfirming(false); setConfirmText(''); }}>Cancel</Button>
               </div>
             </div>
+          )}
+        </Card>
+      )}
+
+      {(!database || database.status === 'Deleted') && (
+        <Card title="Choose a provider" description="Pick where this project's database should be created." flush>
+          {!providers ? (
+            <div className="flex items-center gap-2 px-5 pb-5 text-[13px] text-content-muted">
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Loading providers…
+            </div>
+          ) : providers.length === 0 ? (
+            <EmptyState icon={Server} title="No providers registered" description="No provider is configured on the server." />
           ) : (
-            <ActionButton tone="danger" onClick={() => setConfirming(true)}>Delete database</ActionButton>
-          )
-        )}
-
-        {(!database || database.status === 'Deleted') && (
-          <>
-            <p className="text-[11px] font-semibold text-content-muted uppercase tracking-wider">Providers</p>
-            {!providers ? (
-              <div className="flex items-center gap-2 text-[11px] text-content-muted"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</div>
-            ) : providers.length === 0 ? (
-              <PanelEmpty icon={Database} title="No providers registered"
-                hint="No provider is configured on the server." />
-            ) : (
-              <div className="space-y-2">
-                {providers.map(p => (
-                  <div key={p.name} className="flex items-center justify-between gap-3 p-3 rounded-[var(--radius-control)] bg-surface-600 border border-surface-500">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-semibold text-content-primary">{p.name}</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                          style={{
-                            color: p.problem ? 'var(--color-content-muted)' : p.liveVerified ? 'var(--color-accent-text)' : 'var(--color-content-muted)',
-                            background: p.problem ? 'transparent' : p.liveVerified ? 'var(--color-accent-subtle)' : 'transparent',
-                          }}
-                          title={p.problem ?? undefined}>
-                          {p.problem ? 'Not configured' : p.liveVerified ? 'Ready' : 'Unverified'}
-                        </span>
-                      </div>
-                      <p className="text-[10.5px] text-content-muted mt-0.5 leading-snug">{p.responsibility}</p>
+            <ul className="divide-y divide-content-primary/[0.07] border-t border-content-primary/10">
+              {providers.map(p => (
+                <li key={p.name} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-content-primary">{p.name}</span>
+                      {p.problem ? (
+                        <Badge tone="neutral" icon={AlertTriangle} title={p.problem}>Not configured</Badge>
+                      ) : p.liveVerified ? (
+                        <Badge tone="success" icon={CheckCircle2}>Ready</Badge>
+                      ) : (
+                        <Badge tone="neutral">Unverified</Badge>
+                      )}
                     </div>
-                    <ActionButton tone="primary" disabled={busy || p.problem !== null} busy={busy}
-                      onClick={() => handleProvision(p.name)}>
-                      Use this provider
-                    </ActionButton>
+                    <p className="mt-1 text-[12px] leading-relaxed text-content-muted max-w-xl">{p.responsibility}</p>
+                    {p.problem && <p className="mt-1 text-[12px] text-content-secondary flex items-center gap-1.5"><Cable className="w-3 h-3" aria-hidden="true" />{p.problem}</p>}
                   </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-function Row({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <tr className="border-b border-surface-500 last:border-0">
-      <th className="text-left font-medium text-content-muted px-3 py-1.5 w-40 bg-surface-800">{label}</th>
-      <td className="px-3 py-1.5 text-content-secondary">{value}</td>
-    </tr>
+                  <Button variant="primary" disabled={busy || p.problem !== null} busy={busy} onClick={() => handleProvision(p.name)}>
+                    Use this provider
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+    </div>
   );
 }

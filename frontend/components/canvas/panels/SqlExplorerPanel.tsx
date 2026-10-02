@@ -152,10 +152,13 @@ export default function SqlExplorerPanel() {
     }
   };
 
+  // Konum: alttaki AI istem çubuğunun (bottom-5 ≈ 60px + kapsam etiketi) ve sağ alttaki
+  // mini haritanın (≈ 215px) ÜSTÜNE BİNMEZ. Eskiden bottom-6 + left/right-[12%] idi:
+  // istem çubuğunun gönder düğmesi "Execute Query" düğmesinin üzerinde duruyordu.
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-6 left-[12%] right-[12%] z-[49] h-[300px] bg-surface-800 border border-content-primary/12 shadow-[0_10px_50px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-[var(--radius-modal)]"
+      className="fixed bottom-[104px] left-3 right-3 md:left-[88px] md:right-[248px] z-[49] h-[min(300px,calc(100vh-200px))] bg-surface-800 border border-content-primary/12 shadow-[0_10px_50px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 font-sans rounded-[var(--radius-modal)]"
     >
       {/* Panel Header */}
       <div className="flex items-center justify-between px-5 py-2.5 border-b border-content-primary/10 select-none shrink-0">

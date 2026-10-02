@@ -7,6 +7,7 @@ import { useToastStore } from '../../../store/useToastStore';
 import { gatewayService } from '../../../services/api';
 import { GatewayRow } from '../../../types/gateway';
 import { errorMessage } from '../../../lib/errors';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 const DB_TYPES = [
   { value: 'MSSQL',      label: 'SQL Server' },
@@ -55,6 +56,8 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
 
   const [detailRow, setDetailRow] = useState<GatewayRow | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

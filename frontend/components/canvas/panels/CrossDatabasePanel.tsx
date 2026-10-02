@@ -8,6 +8,7 @@ import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { authService } from '../../../services/api';
 import { DatabaseSchema } from '../../../types/schema';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 interface Props {
   isOpen: boolean;
@@ -49,6 +50,7 @@ export default function CrossDatabasePanel({ isOpen, onClose }: Props) {
   // Kapaliyken MONTE EDILMIYOR: onceki hali panel her acilista ONCEKI projenin
   // iliskilerini bir kare gosteriyordu (durum efektle degil, montajla
   // sifirlanmali).
+  useEscapeKey(isOpen, onClose);
   if (!isOpen) return null;
   return <CrossDatabasePanelBody onClose={onClose} />;
 }

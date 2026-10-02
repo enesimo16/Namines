@@ -2,6 +2,7 @@ import React from 'react';
 import { Sparkles, X, Plus, Minus, Pencil, ArrowRightLeft } from 'lucide-react';
 import { DatabaseSchema } from '../../../types/schema';
 import { calculateSchemaDiff } from '../../../utils/schemaDiff';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 interface Props {
   /** Şu an canvas'ta olan şema (A). */
@@ -23,6 +24,7 @@ interface Props {
  * seçilmeyen atılır."
  */
 export default function AlternativeCompareModal({ current, alternative, onKeepCurrent, onKeepAlternative, onClose }: Props) {
+  useEscapeKey(true, onClose);
   // calculateSchemaDiff(active, compare): active=current(A), compare=alternative(B).
   // "added" -> yalnızca A'da var, "deleted" -> yalnızca B'de var. Ad bilgisi
   // eklenen/silinen kayıtlarda TableDiff'te tutulmuyor (yalnızca "modified" ve ad

@@ -6,6 +6,7 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { errorMessage } from '../../lib/errors';
 import type { InferredEntity, ShapeInferenceResult } from '../../types/source';
 import type { DatabaseSchema, SchemaColumn, SchemaRelation, SchemaTable } from '../../types/schema';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface ObservedResponse {
   endpoint: string;
@@ -42,6 +43,7 @@ const id = () =>
  * saklamıyor. Bu yüzden ekran "örnek yanıt" diyor, "verini yükle" demiyor.
  */
 export function JsonShapeModal({ onInfer, onApply, onClose }: JsonShapeModalProps) {
+  useEscapeKey(true, onClose);
   const [endpoint, setEndpoint] = useState('');
   const [body, setBody] = useState('');
   const [responses, setResponses] = useState<ObservedResponse[]>([]);

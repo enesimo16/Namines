@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Wand2, Moon, Sun } from 'lucide-react';
+import { Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Wand2, Moon, Sun } from 'lucide-react';
 import MarkdownLite from '../../common/MarkdownLite';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useHomeThemeStore } from '../../../store/useHomeThemeStore';
@@ -149,6 +150,30 @@ export default function ToolbarPanel() {
     router.push('/compile');
   };
 
+  // "Approve" artık üst gezinmedeki "Build" öğesi (WorkspaceNav) — tıklama bir olayla
+  // buraya geliyor çünkü onay, React Flow düğüm konumlarını okuyor.
+  useEffect(() => {
+    const run = () => handleApprove();
+    window.addEventListener('namines:approve-diagram', run);
+    return () => window.removeEventListener('namines:approve-diagram', run);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema, isDiffMode]);
+
+  // Masaüstünde (lg+) eylemler Header'daki yuvaya portal ile basılır; dar ekranda
+  // başlığın altında kaydırılan şerit olarak kalır (bkz. aşağıdaki not).
+  const [actionSlot, setActionSlot] = useState<HTMLElement | null>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1024px)');
+    const update = () => {
+      setIsDesktop(query.matches);
+      setActionSlot(document.getElementById('canvas-actions-slot'));
+    };
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
   const handleShareReadOnly = async () => {
     if (!isAuthenticated) {
       showToast('Sign in to share your schema.', 'warning');
@@ -262,30 +287,8 @@ export default function ToolbarPanel() {
     setIsShareOpen(false);
   };
 
-  return (
+  const actions = (
     <>
-      {/*
-        Araç çubuğu MOBİLDE VE TABLETTE başlığın ALTINDA, tam genişlikte ve
-        yatay kaydırılan bir şerit; yalnızca `lg:` (1024px+) üstünde eski
-        sabit-konumlu desktop şeridine dönüyor.
-
-        Önceden her boyutta `fixed top-2.5 right-6` idi: 375px'te on düğme
-        başlık şeridinin (56px) üstüne biniyor, logo ve proje adı okunmaz hâle
-        geliyordu. Alta almak da olmuyor — orada AI giriş kutusu var. Başlığın
-        hemen altı, iki çakışmayı da önleyen tek yer.
-
-        Kırılma noktası `md`(768px) DEĞİL `lg`(1024px): tablet dikey modda
-        (768px) ~10 düğme + Approve CTA'sı sabit-konumlu şeritte sığmıyordu —
-        Approve düğmesi ekranın sağından TAMAMEN taşıyordu, birincil eylem
-        tıklanamaz hâldeydi. 1024px altında hâlâ kaydırılan şerit kullanılıyor.
-      */}
-      <div
-        className="fixed z-[60] flex items-center gap-1.5
-          top-[60px] left-2 right-2 overflow-x-auto scrollbar-none
-          rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800/95 backdrop-blur-xl p-1.5
-          lg:top-2.5 lg:left-auto lg:right-6 lg:overflow-visible
-          lg:rounded-none lg:border-0 lg:bg-transparent lg:backdrop-blur-none lg:p-0"
-      >
         {/* Share — tek giriş noktası: salt-okunur link ve Live Share (varsa) burada birleşti */}
         <div className="relative" ref={shareRef}>
           <button
@@ -406,29 +409,46 @@ export default function ToolbarPanel() {
         <button
           onClick={handleRequestReview}
           disabled={isRequestingReview}
-          className={`${iconBtnBase} w-auto px-3 gap-1.5 ${iconBtnIdle}`}
+          className={`${iconBtnBase} xl:w-auto xl:px-3 xl:gap-1.5 ${iconBtnIdle}`}
           title="Request a database change review"
           aria-label="Request a database change review"
         >
           {isRequestingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitPullRequest className="w-4 h-4" />}
-          <span className="text-xs font-semibold">Request Review</span>
+          <span className="hidden xl:inline text-xs font-semibold">Request Review</span>
         </button>
 
-        <div className="h-5 w-px shrink-0 bg-content-primary/10 mx-0.5" />
-
-        {/* Approve Diagram — tek CTA: off-white/off-black, sonraki adıma geçişi
-            ok ile belirtir, dokunsal geri bildirim için active:scale. */}
-        <button
-          id="approve-diagram-btn"
-          onClick={handleApprove}
-          className="group shrink-0 flex items-center justify-center gap-1.5 bg-content-primary hover:bg-content-primary-hover active:scale-[0.97] text-surface-900 pl-4 pr-3 h-9 rounded-[var(--radius-control)] text-xs font-semibold transition-all cursor-pointer"
-        >
-          <span>Approve</span>
-          <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-        </button>
         </>
         )}
-      </div>
+    </>
+  );
+
+  return (
+    <>
+      {/*
+        Araç çubuğu MOBİLDE VE TABLETTE başlığın ALTINDA, tam genişlikte ve
+        yatay kaydırılan bir şerit; yalnızca `lg:` (1024px+) üstünde eski
+        sabit-konumlu desktop şeridine dönüyor.
+
+        Önceden her boyutta `fixed top-2.5 right-6` idi: 375px'te on düğme
+        başlık şeridinin (56px) üstüne biniyor, logo ve proje adı okunmaz hâle
+        geliyordu. Alta almak da olmuyor — orada AI giriş kutusu var. Başlığın
+        hemen altı, iki çakışmayı da önleyen tek yer.
+
+        Kırılma noktası `md`(768px) DEĞİL `lg`(1024px): tablet dikey modda
+        (768px) ~10 düğme + Approve CTA'sı sabit-konumlu şeritte sığmıyordu —
+        Approve düğmesi ekranın sağından TAMAMEN taşıyordu, birincil eylem
+        tıklanamaz hâldeydi. 1024px altında hâlâ kaydırılan şerit kullanılıyor.
+      */}
+      {isDesktop && actionSlot ? (
+        createPortal(actions, actionSlot)
+      ) : (
+        <div
+          className="fixed z-[60] flex items-center gap-1.5 top-[60px] left-2 right-2 overflow-x-auto scrollbar-none
+            rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800/95 backdrop-blur-xl p-1.5"
+        >
+          {actions}
+        </div>
+      )}
 
       {/* Migration Wizard */}
       <MigrationWizard

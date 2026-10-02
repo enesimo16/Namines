@@ -24,6 +24,7 @@ import DiffViewer from './DiffViewer';
 import MigrationCodeView from './MigrationCodeView';
 import { useAIGateway } from '../../hooks/useAIGateway';
 import { errorMessage } from '../../lib/errors';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface MigrationWizardProps {
   isOpen: boolean;
@@ -89,6 +90,8 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
       setError(null);
     }
   }, [isOpen, migrationBaseline]);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) return null;
 

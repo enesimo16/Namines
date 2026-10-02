@@ -6,12 +6,13 @@ import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { csrfHeaders } from '../../lib/csrf';
 import {
-  Download, X, RefreshCw, Database, Rocket, Play,
-  Terminal, XCircle, CheckCircle2, AlertTriangle, Info,
+  Download, Trash2, RefreshCw, Database, Rocket, Play,
+  Terminal, XCircle, CheckCircle2, AlertTriangle, Info, type LucideIcon,
 } from 'lucide-react';
 import DbPushModal from './DbPushModal';
 import { API_BASE_URL, toAbsoluteApiUrl } from '../../lib/apiConfig';
-import { Panel, PanelBar, ActionButton, OptionCard } from './PanelKit';
+import { Panel } from './PanelKit';
+import { Button, Badge, Callout } from '../workspace/WorkspaceKit';
 import { errorMessage } from '../../lib/errors';
 
 interface DockerSandboxPanelProps {
@@ -27,8 +28,8 @@ type PanelStatus = 'idle' | 'generating' | 'running' | 'error';
 function classifySandboxLog(raw: string): { text: string; Icon: typeof Info; tone: string } {
   const text = raw.replace(/^(🚀|📋|✅|❌|⏳|⚠️)\s*/, '');
   if (raw.startsWith('❌') || raw.startsWith('HATA') || raw.startsWith('ERROR'))
-    return { text, Icon: XCircle, tone: 'text-[var(--color-danger)]' };
-  if (raw.startsWith('✅')) return { text, Icon: CheckCircle2, tone: 'text-[var(--color-success)]' };
+    return { text, Icon: XCircle, tone: 'text-danger-text' };
+  if (raw.startsWith('✅')) return { text, Icon: CheckCircle2, tone: 'text-success-text' };
   if (raw.startsWith('⚠️')) return { text, Icon: AlertTriangle, tone: 'text-content-secondary' };
   return { text, Icon: Info, tone: 'text-content-secondary' };
 }
@@ -255,27 +256,27 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
   };
 
   // ─────────────────────────────────────────────
-  // STATE: IDLE — iki seçenek, hero başlık yok (kabuk zaten "Docker Sandbox" diyor)
+  // STATE: IDLE — iki seçenek (kabuk zaten "Docker Sandbox" diyor, hero başlık yok)
   // ─────────────────────────────────────────────
   if (status === 'idle') {
     return (
       <Panel>
-        <div className="p-2.5 grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-          <OptionCard
+        <div className="mx-auto w-full max-w-3xl px-5 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ChoiceCard
             icon={Database}
             title="Docker Database Sandbox"
             badge="Isolated"
-            description="Spins your schema up in a throwaway container and packages a backup."
+            description="Spins your schema up in a throwaway container and packages a backup you can restore anywhere."
             bullets={['MSSQL / PostgreSQL / MySQL', 'Automatic schema setup', '.bak / .sql backup produced']}
-            action={<ActionButton icon={Play} onClick={handleGenerate} tone="primary" full>Start sandbox</ActionButton>}
+            action={<Button variant="primary" icon={Play} full onClick={handleGenerate}>Start sandbox</Button>}
           />
-          <OptionCard
+          <ChoiceCard
             icon={Rocket}
             title="Live Database Sync"
             badge="Your server"
             description="Applies the DDL directly to a database you own over a host/TCP connection."
             bullets={['AWS / Azure / self-hosted', 'Host + TCP connection', 'Creates tables in place']}
-            action={<ActionButton icon={Rocket} onClick={() => setIsPushModalOpen(true)} full>Deploy to live DB</ActionButton>}
+            action={<Button icon={Rocket} full onClick={() => setIsPushModalOpen(true)}>Deploy to live DB</Button>}
           />
         </div>
 
@@ -289,46 +290,41 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
   }
 
   // ─────────────────────────────────────────────
-  // STATE: GENERATING or ERROR — Log terminal
+  // STATE: GENERATING or ERROR — günlük terminali
   // ─────────────────────────────────────────────
   if (status === 'generating' || status === 'error') {
     return (
       <Panel scroll={false}>
         <div className="h-full flex flex-col">
-          <PanelBar
-            left={
-              <>
-                <Terminal className="w-3.5 h-3.5 text-content-muted shrink-0" />
-                <span className="text-[11px] font-mono text-content-secondary">Sandbox log</span>
-                {status === 'error' && (
-                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[var(--color-danger)]">
-                    <XCircle className="w-3 h-3" /> Failed
-                  </span>
-                )}
-              </>
-            }
-          >
+          <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-content-primary/10 bg-surface-800">
+            <div className="flex items-center gap-2.5">
+              <Terminal className="w-4 h-4 text-content-muted" aria-hidden="true" />
+              <span className="text-sm font-semibold text-content-primary">Sandbox log</span>
+              {status === 'error'
+                ? <Badge tone="danger" icon={XCircle}>Failed</Badge>
+                : <Badge tone="accent" icon={RefreshCw}>Running</Badge>}
+            </div>
             {status === 'error' && (
-              <>
-                <ActionButton onClick={handleClose}>Reset</ActionButton>
-                <ActionButton icon={RefreshCw} onClick={handleGenerate} tone="primary">Try again</ActionButton>
-              </>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={handleClose}>Reset</Button>
+                <Button variant="primary" size="sm" icon={RefreshCw} onClick={handleGenerate}>Try again</Button>
+              </div>
             )}
-          </PanelBar>
+          </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-2.5 bg-surface-900 font-mono text-[11px] space-y-1">
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 bg-surface-900 font-mono text-[12px] space-y-1.5" aria-live="polite">
             {logs.map((log, i) => {
               const { text, Icon, tone } = classifySandboxLog(log);
               return (
-                <div key={i} className="flex items-start gap-2 leading-relaxed">
-                  <Icon className={`w-3 h-3 shrink-0 mt-[3px] ${tone}`} />
+                <div key={i} className="flex items-start gap-2.5 leading-relaxed">
+                  <Icon className={`w-3.5 h-3.5 shrink-0 mt-[3px] ${tone}`} aria-hidden="true" />
                   <span className={tone}>{text}</span>
                 </div>
               );
             })}
             {status === 'generating' && (
               <div className="flex items-center gap-2 text-content-muted">
-                <span className="w-1 h-3 bg-content-muted animate-pulse" />
+                <span className="w-1.5 h-3.5 bg-content-muted animate-pulse" />
                 <span>Docker operations in progress…</span>
               </div>
             )}
@@ -340,42 +336,78 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
   }
 
   // ─────────────────────────────────────────────
-  // STATE: RUNNING — Completed snapshot screen
+  // STATE: RUNNING — tamamlanmış anlık görüntü
   // ─────────────────────────────────────────────
   return (
-    <Panel scroll={false}>
-      <div className="h-full flex flex-col">
-        <PanelBar
-          left={
-            <>
-              <span className="inline-flex rounded-full h-1.5 w-1.5 bg-[var(--color-success)]" />
-              <span className="text-[11px] font-semibold text-content-secondary">Sandbox ready</span>
-            </>
-          }
-        >
-          <ActionButton icon={X} onClick={handleClose} tone="danger">Clean up</ActionButton>
-        </PanelBar>
+    <Panel>
+      <div className="mx-auto w-full max-w-xl px-5 py-8 space-y-5">
+        <Callout tone="success" title="Sandbox ready">
+          Your schema was applied inside a throwaway container and exported as a backup.
+        </Callout>
 
-        <div className="flex-1 min-h-0 flex items-center justify-center p-4">
-          <div className="flex items-center gap-3 px-3.5 py-3 rounded-[var(--radius-control)] bg-surface-600 border border-surface-500">
-            <span className="shrink-0 flex items-center justify-center w-8 h-8 rounded-[var(--radius-control)] bg-accent-subtle text-accent-text">
-              <Database className="w-4 h-4" />
+        <div className="rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800 p-5 space-y-4">
+          <div className="flex items-start gap-3.5">
+            <span className="shrink-0 flex items-center justify-center w-10 h-10 rounded-[var(--radius-card)] bg-accent-subtle text-accent-text">
+              <Database className="w-5 h-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="text-[12px] font-semibold text-content-primary">Backup packaged</p>
-              <p className="text-[11px] text-content-muted">Schema applied in the sandbox and exported.</p>
+              <p className="text-sm font-semibold text-content-primary">Backup packaged</p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-content-muted">
+                Restore it into any {dbType} server to get exactly these tables. The sandbox container itself is disposable.
+              </p>
             </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             {downloadUrl && (
               <a
                 href={downloadUrl}
-                className="ml-2 shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-[var(--radius-control)] text-[11px] font-semibold bg-content-primary text-surface-900 hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-2 h-9 px-3.5 rounded-[var(--radius-control)] text-[13px] font-semibold bg-content-primary text-surface-900 hover:bg-content-primary-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
               >
-                <Download className="w-3.5 h-3.5" /> Download .bak
+                <Download className="w-4 h-4" aria-hidden="true" /> Download backup
               </a>
             )}
+            <Button variant="danger" icon={Trash2} onClick={handleClose} title="Remove this sandbox and its log">Clean up</Button>
           </div>
         </div>
       </div>
     </Panel>
+  );
+}
+
+/** Sandbox başlangıç ekranındaki seçenek kartı (geniş, okunur ölçek). */
+function ChoiceCard({
+  icon: Icon, title, badge, description, bullets, action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  badge: string;
+  description: string;
+  bullets: string[];
+  action: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800 p-5">
+      <div className="flex items-start gap-3.5">
+        <span className="shrink-0 flex items-center justify-center w-10 h-10 rounded-[var(--radius-card)] bg-accent-subtle text-accent-text">
+          <Icon className="w-5 h-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-content-primary">{title}</h3>
+            <Badge>{badge}</Badge>
+          </div>
+          <p className="mt-1 text-[13px] leading-relaxed text-content-muted">{description}</p>
+        </div>
+      </div>
+      <ul className="space-y-1.5 text-[12px] text-content-secondary">
+        {bullets.map(b => (
+          <li key={b} className="flex items-start gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-content-subtle" aria-hidden="true" />
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-auto">{action}</div>
+    </div>
   );
 }

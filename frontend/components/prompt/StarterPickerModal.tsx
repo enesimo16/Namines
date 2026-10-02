@@ -4,6 +4,7 @@ import React, { useRef } from 'react';
 import { X, LayoutTemplate } from 'lucide-react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { TEMPLATES, TEMPLATE_SIZES, type SchemaTemplate } from '../../lib/templates';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface StarterPickerModalProps {
   onPick: (template: SchemaTemplate) => void;
@@ -22,6 +23,7 @@ interface StarterPickerModalProps {
  * şablon ürüne girer ama bu ekranda hiç görünmez.
  */
 export function StarterPickerModal({ onPick, onClose }: StarterPickerModalProps) {
+  useEscapeKey(true, onClose);
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(true, modalRef);
 

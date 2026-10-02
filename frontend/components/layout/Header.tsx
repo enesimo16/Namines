@@ -350,6 +350,11 @@ export default function Header() {
 
         {/* Right — Actions depending on path */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Canvas eylemleri (Share, İnceleme, SQL, düzenle...) buraya taşınıyor —
+              ToolbarPanel bu yuvaya portal ile render ediyor (React Flow bağlamı
+              orada). Eskiden `fixed` bir katmandı ve ortadaki WorkspaceNav'ın üstüne
+              biniyordu; artık aynı flex satırında, çakışması mümkün değil. */}
+          {isCanvas && <div id="canvas-actions-slot" className="hidden lg:flex items-center gap-1.5" />}
           <LanguageToggle />
           {!isCanvas && !isCompile && <ThemeToggleButton />}
           {isHome && !isAuthenticated ? (

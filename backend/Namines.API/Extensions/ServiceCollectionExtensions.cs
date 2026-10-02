@@ -229,6 +229,19 @@ public static class ServiceCollectionExtensions
         // Arka Plan Docker Sweeper (Sunucu Kilitlenmesi Önleyici)
         services.AddHostedService<DockerSweeperBackgroundService>();
 
+        // Outputs/ temizligi. Sweeper'dan AYRI ve KOSULSUZ kayitli: sweeper
+        // Sandbox:Enabled ile kapili (host docker socket'i gerekiyor) ama cikti
+        // dosyalari o bayraktan bagimsiz birikiyor. Temizligi ayni kapinin
+        // arkasina koymak, acigi kapatmis gibi gorunup kapatmamak olurdu
+        // (bkz. docs/last-review M-6).
+        services.AddHostedService<SandboxOutputRetentionService>();
+
+        // Canli hub baglantilarinin yetki taramasi (docs/last-review M-13, M-14).
+        // Kayit defteri SINGLETON olmak zorunda: HubCallerContext tutuyor ve
+        // taramanin onu hub cagrilari arasinda gorebilmesi gerekiyor.
+        services.AddSingleton<Namines.API.Hubs.LiveConnectionRegistry>();
+        services.AddHostedService<Namines.API.Hubs.LiveConnectionAuthSweeper>();
+
         // Otonom Full-Stack Scaffolder & SDK Generator registration
         services.AddScoped<IScaffolderService, ScaffolderService>();
 

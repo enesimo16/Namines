@@ -405,8 +405,11 @@ public sealed class AiQuotaService : Namines.Infrastructure.Services.IAiQuotaRes
     /// Üretim ucunda hız sınırı da olmadığı için bu teorik değil, tek satırlık
     /// bir betikle sömürülebilir bir açıktı.
     ///
-    /// Rezervasyon, kontrolü ve düşmeyi TEK atomik adımda yapıyor: ikinci istek
-    /// birincinin düşüşünü görüyor.
+    /// Kullanıcı tavanı için rezervasyon TEK atomik ifadeyle yapılıyor
+    /// (<c>UPDATE ... WHERE yer_var</c>): ikinci istek birincinin düşüşünü GÖRMEK
+    /// zorunda. <b>Paylaşılan havuz ve ekip sayaçları best-effort</b> — gövdedeki
+    /// gerekçeye bakın. Bu ayrım açıkça yazılı, çünkü bu yorum bir kez "tamamen
+    /// atomik" diyerek kodun öyle OLMADIĞINI gizlemişti (docs/last-review M-3).
     ///
     /// <b>Tahmin fazlaysa iş bitince iade ediliyor</b> (bkz.
     /// <see cref="ReconcileAsync"/>) — kullanıcı kullanmadığı bütçeyi
@@ -419,7 +422,48 @@ public sealed class AiQuotaService : Namines.Infrastructure.Services.IAiQuotaRes
 
         // Dev hesabı sayaçlara yazılıyor ama sınıra takılmıyor (CheckAsync'teki
         // gerekçe): sınırsız olmak, maliyetin görünmez olması demek değil.
-        await ConsumeAsync(userId, estimatedTokens, ct);
+        if (await TierAsync(userId, ct) == PlanTier.Dev)
+        {
+            await ConsumeAsync(userId, estimatedTokens, ct);
+            return AiQuotaDecision.Allowed;
+        }
+
+        // KULLANICI TAVANI KOŞULLU olarak düşülüyor.
+        //
+        // <b>Bulunan açık (docs/last-review M-3):</b> bu metodun yorumu "kontrolü
+        // ve düşmeyi TEK atomik adımda yapıyor" diyordu, ama gövdesi
+        // <c>CheckAsync</c> + <c>ConsumeAsync</c> — İKİ ayrı veritabanı turuydu.
+        // Aradaki pencere hiç kapanmamıştı: eşzamanlı N istek <c>CheckAsync</c>'i
+        // birlikte geçiyor, hepsi sağlayıcıya gidiyor ve tavan tek seferde
+        // deliniyordu. Yorum düzeltmeyi anlatıyordu, kod onu yapmıyordu — ve
+        // "atomik" yazan bir yorum, sonradan okuyanı kontrol etmekten alıkoyar.
+        //
+        // Aşağıdaki <c>UPDATE ... WHERE yer_var</c> TEK bir ifade: veritabanı onu
+        // satır kilidiyle sıraya diziyor, yani ikinci istek birincinin düşüşünü
+        // GÖRMEK zorunda. Etkilenen satır 0 ise yer yoktu.
+        var reserved = await _context.UserAIQuotas
+            .Where(q => q.UserId == userId
+                        && q.DailyUsageCount + estimatedTokens <= q.DailyLimit)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(q => q.DailyUsageCount, q => q.DailyUsageCount + estimatedTokens), ct);
+
+        if (reserved == 0) return AiQuotaDecision.UserExhausted;
+
+        // Havuz ve ekip sayaçları BEST-EFFORT artıyor ve bu bilinçli bir taviz:
+        // kullanıcı tavanı atomik düştüğü için TEK bir hesabın havuzu süpürmesi
+        // artık mümkün değil. Havuzda kalan pencere, FARKLI kullanıcıların aynı
+        // anda son dilimi paylaşması — maliyeti birkaç isteğin bedeli kadar.
+        //
+        // Bunu da atomik yapmak, her AI isteğini tek bir global satırın kilidine
+        // bağlamak olurdu: ölçülebilir bir bütçe için ölçeklenemeyen bir sistem.
+        await RecordSharedUsageAsync(userId, estimatedTokens, ct);
+
+        // ExecuteUpdate değişiklik izleyicisini ATLAR: aynı kapsamda daha önce
+        // okunmuş bir kota nesnesi eski sayacı taşımaya devam eder ve aynı istekte
+        // ikinci bir kontrol yapan çağıran bayat bir değere bakar.
+        var tracked = _context.UserAIQuotas.Local.FirstOrDefault(q => q.UserId == userId);
+        if (tracked is not null) await _context.Entry(tracked).ReloadAsync(ct);
+
         return AiQuotaDecision.Allowed;
     }
 
@@ -503,6 +547,30 @@ public sealed class AiQuotaService : Namines.Infrastructure.Services.IAiQuotaRes
                     ? q.DailyLimit
                     : q.DailyUsageCount + estimatedTokens), ct);
 
+        await RecordSharedUsageAsync(userId, estimatedTokens, ct);
+
+        // ExecuteUpdate veritabanını günceller ama DEĞİŞİKLİK İZLEYİCİSİNİ
+        // ATLAR: aynı kapsamda daha önce okunmuş bir kota nesnesi eski sayacı
+        // taşımaya devam eder. Aynı istekte ikinci bir kontrol yapan çağıran
+        // bayat bir değere bakar ve tavanı aşan bir harcamaya izin verebilir.
+        if (trackedQuota is not null)
+            await _context.Entry(trackedQuota).ReloadAsync(ct);
+    }
+
+    /// <summary>
+    /// Paylaşılan sayaçları (günlük havuz + ekip) artırır. Kullanıcının kendi
+    /// tavanına DOKUNMAZ.
+    ///
+    /// <b>Neden ayrı (docs/last-review M-3):</b> <see cref="TryReserveAsync"/>
+    /// kullanıcı tavanını KOŞULLU ve atomik bir <c>UPDATE</c> ile düşüyor; aynı
+    /// artışı <see cref="ConsumeAsync"/> üzerinden ikinci kez yapmak bütçeyi iki
+    /// kez harcamak olurdu. Paylaşılan sayaçlar ise her iki yolda da aynı şekilde
+    /// artmak zorunda, o yüzden tek kopya burada duruyor.
+    /// </summary>
+    private async Task RecordSharedUsageAsync(string userId, int estimatedTokens, CancellationToken ct)
+    {
+        var today = DateTime.UtcNow.Date;
+
         var rows = await _context.GlobalAiUsages
             .Where(g => g.Date == today)
             .ExecuteUpdateAsync(s => s.SetProperty(g => g.TokensUsed, g => g.TokensUsed + estimatedTokens), ct);
@@ -556,11 +624,5 @@ public sealed class AiQuotaService : Namines.Infrastructure.Services.IAiQuotaRes
             }
         }
 
-        // ExecuteUpdate veritabanını günceller ama DEĞİŞİKLİK İZLEYİCİSİNİ
-        // ATLAR: aynı kapsamda daha önce okunmuş bir kota nesnesi eski sayacı
-        // taşımaya devam eder. Aynı istekte ikinci bir kontrol yapan çağıran
-        // bayat bir değere bakar ve tavanı aşan bir harcamaya izin verebilir.
-        if (trackedQuota is not null)
-            await _context.Entry(trackedQuota).ReloadAsync(ct);
     }
 }

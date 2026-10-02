@@ -1,3 +1,4 @@
+using StackExchange.Redis;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
@@ -423,14 +424,39 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
 
         if (parsed == 0)
         {
-            // PaaS'te (Railway/Render/Fly) proxy IP'si dinamiktir ve bilinmeyebilir.
-            // Bu durumda header'a güvenmek zorundayız — ama bunu sessizce yapmıyoruz.
-            if (builder.Environment.IsProduction())
+            // <b>Bulunan açık (docs/last-review M-5):</b> burada yalnızca UYARI
+            // basılıyordu ve header doğrulanmadan kabul ediliyordu — yani
+            // varsayılan bir üretim dağıtımında `X-Forwarded-For`'u döndüren bir
+            // saldırgan, login'in 5 istek/dakika kapısını partition'ı her istekte
+            // değiştirerek tamamen atlatabiliyordu. Brute-force koruması
+            // kâğıt üzerinde vardı, pratikte yoktu.
+            //
+            // Artık SESSİZCE FAIL-OPEN YOK: üretimde ya güvenilen ağlar tanımlı
+            // olacak ya da operatör güvenmeyi AÇIKÇA seçecek. Bu, bu kod
+            // tabanının `Jwt:Key` için zaten uyguladığı desenin aynısı —
+            // eksik güvenlik yapılandırması başlatmayı engelliyor.
+            var trustAllProxies = builder.Configuration
+                .GetValue("ForwardedHeaders:TrustAllProxies", defaultValue: false);
+
+            if (builder.Environment.IsProduction() && !trustAllProxies)
             {
+                throw new InvalidOperationException(
+                    "ForwardedHeaders:KnownNetworks is not configured. X-Forwarded-For would be " +
+                    "accepted from anyone, which lets a caller rotate the header and bypass the " +
+                    "login rate limit. Set the proxy CIDRs, for example " +
+                    "ForwardedHeaders__KnownNetworks__0=10.0.0.0/8 — or, if your platform's proxy " +
+                    "IP is dynamic and you accept the risk, set " +
+                    "ForwardedHeaders__TrustAllProxies=true explicitly.");
+            }
+
+            if (trustAllProxies && builder.Environment.IsProduction())
+            {
+                // Açık tercih de kaydediliyor: bilinçli bir taviz, iz bırakmadan
+                // geçmemeli.
                 Log.Warning(
-                    "ForwardedHeaders:KnownNetworks tanımlı değil — X-Forwarded-For header'ı doğrulanmadan " +
-                    "kabul edilecek. Uygulama yalnızca güvenilen bir proxy arkasında yayınlanmalıdır, " +
-                    "aksi halde rate limit atlatılabilir. Proxy CIDR'larını tanımlayın.");
+                    "ForwardedHeaders:TrustAllProxies=true — X-Forwarded-For dogrulanmadan kabul " +
+                    "ediliyor. Uygulama YALNIZCA guvenilen bir proxy arkasinda yayinlanmalidir; " +
+                    "aksi halde login hiz siniri atlatilabilir.");
             }
         }
         else
@@ -551,6 +577,31 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
     // ─────────────────────────────────────────────────────────────────────────
 
     var app = builder.Build();
+
+    // ── Gateway hiz limiti: Redis varsa DAGITIK sayac ─────────────────────────
+    //
+    // Bulunan acik (docs/last-review L-4): sayac yalnizca bellek iciydi, yani
+    // INSTANCE BASINA. Iki instance calisiyorsa "dakikada 600 istek" satilan bir
+    // anahtar 1.200 istek yapabiliyordu — sinir olceklendikce sessizce gevsiyordu.
+    //
+    // Redis ZORUNLU DEGIL: tanimli degilse bellek ici sayac (tek instance
+    // dagitimda zaten dogru sonuc) suruyor. Zorunlu kilmak, tek sunucuda calisan
+    // herkese Redis kurdurmak olurdu.
+    var redisForRateLimit = app.Services.GetService<IConnectionMultiplexer>();
+    if (redisForRateLimit is not null)
+    {
+        GatewayRateLimiter.UseDistributedCounter(
+            redisForRateLimit,
+            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("GatewayRateLimiter"));
+
+        Log.Information("Gateway hiz limiti DAGITIK sayac kullaniyor (Redis).");
+    }
+    else
+    {
+        Log.Information(
+            "Gateway hiz limiti bellek ici sayac kullaniyor (Redis:ConnectionString tanimli degil). " +
+            "Birden fazla API instance'i calistiriyorsaniz gercek sinir instance sayisiyla carpilir.");
+    }
 
     // ── Veritabanı migration ──────────────────────────────────────────────────
     // İki çalışma biçimi:
