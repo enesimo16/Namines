@@ -44,7 +44,7 @@ internal static class EnumSql
         foreach (var e in schema.Enums)
         {
             var values = string.Join(", ", e.Values.Select(Literal));
-            sb.AppendLine($"CREATE TYPE \"{e.Name}\" AS ENUM ({values});");
+            sb.AppendLine($"CREATE TYPE {Quote(engine, e.Name)} AS ENUM ({values});");
         }
         sb.AppendLine();
         return sb.ToString();
@@ -128,10 +128,5 @@ internal static class EnumSql
     /// </summary>
     private static string Literal(string value) => "'" + (value ?? string.Empty).Replace("'", "''") + "'";
 
-    private static string Quote(DatabaseType engine, string identifier) => engine switch
-    {
-        DatabaseType.MSSQL => $"[{identifier}]",
-        DatabaseType.MySQL or DatabaseType.MariaDB => $"`{identifier}`",
-        _ => $"\"{identifier}\"",
-    };
+    private static string Quote(DatabaseType engine, string identifier) => SqlIdentifier.For(engine, identifier);
 }

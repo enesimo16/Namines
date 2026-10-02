@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -62,7 +63,32 @@ public class CompileController : ControllerBase
         if (request.Schema == null) return BadRequest("Schema is required.");
 
         var generator = _ddlFactory.GetGenerator(request.DbType);
-        var sql = generator.Generate(request.Schema);
+
+        string sql;
+        try
+        {
+            sql = generator.Generate(request.Schema);
+        }
+        catch (ArgumentException ex)
+        {
+            // Geçersiz TANIMLAYICI bir İSTEMCİ hatası, sunucu arızası değil.
+            //
+            // C-1 düzeltmesiyle SqlIdentifier boş ve kontrol karakterli adları
+            // reddediyor (haklı olarak), ama burada yakalanmadığı için istek 500
+            // dönüyordu: yanlış durum kodu ve üstüne, hata gövdesi iç ayrıntıyı
+            // (parametre adı) sızdırıyordu. Yerel doğrulamada fark edildi —
+            // "testler yeşil" bunu göstermiyordu, çünkü hiçbir test HTTP
+            // katmanından geçmiyordu.
+            // ArgumentException mesajina ".NET" tarafindan eklenen
+            // "(Parameter 'identifier')" eki kullaniciya hicbir sey anlatmiyor.
+            return BadRequest(new { message = CleanMessage(ex.Message) });
+        }
+        catch (NotSupportedException ex)
+        {
+            // Motorun desteklemediği bir şema özelliği (dizi, enum...) — aynı
+            // gerekçe: kullanıcının düzeltebileceği bir girdi sorunu.
+            return BadRequest(new { message = ex.Message });
+        }
 
         // Yabancı anahtar davranışlarını denetle. Amaç, çalıştırılamayan veya veri
         // kaybettiren DDL'in kullanıcıya sessizce ulaşmasını engellemek.
@@ -371,5 +397,15 @@ public class CompileController : ControllerBase
             warnings = findings.Count(f => f.Severity == "warning"),
             infos = findings.Count(f => f.Severity == "info"),
         });
+    }
+
+    /// <summary>
+    /// <c>ArgumentException</c>'in mesaj sonuna eklediği <c>(Parameter '...')</c>
+    /// ekini atar — çağıran için anlamsız bir iç ayrıntı.
+    /// </summary>
+    private static string CleanMessage(string message)
+    {
+        var marker = message.IndexOf(" (Parameter ", StringComparison.Ordinal);
+        return marker < 0 ? message : message[..marker];
     }
 }

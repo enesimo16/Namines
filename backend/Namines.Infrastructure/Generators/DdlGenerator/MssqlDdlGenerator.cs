@@ -15,7 +15,7 @@ public class MssqlDdlGenerator : IDdlGenerator
 
         foreach (var table in schema.Tables)
         {
-            sb.AppendLine($"CREATE TABLE [{table.Name}] (");
+            sb.AppendLine($"CREATE TABLE {Quote(table.Name)} (");
 
             var pkColumns = table.Columns.Where(c => c.IsPK).ToList();
             
@@ -46,8 +46,8 @@ public class MssqlDdlGenerator : IDdlGenerator
                 sqlType = ColumnFeatureSql.ApplyArray(sqlType, col, DatabaseType.MSSQL);
 
                 sb.Append(generatedDef is not null
-                    ? $"    [{col.Name}] {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.MSSQL) ? sqlType + " " : string.Empty)}{generatedDef}"
-                    : $"    [{col.Name}] {sqlType}{identityStr}{collate} {nullStr}{defaultStr}");
+                    ? $"    {Quote(col.Name)} {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.MSSQL) ? sqlType + " " : string.Empty)}{generatedDef}"
+                    : $"    {Quote(col.Name)} {sqlType}{identityStr}{collate} {nullStr}{defaultStr}");
                 
                 if (i < table.Columns.Count - 1)
                     sb.AppendLine(",");
@@ -57,7 +57,7 @@ public class MssqlDdlGenerator : IDdlGenerator
 
             if (pkColumns.Any())
             {
-                sb.AppendLine($"    , CONSTRAINT [PK_{table.Name}] PRIMARY KEY CLUSTERED ({string.Join(", ", pkColumns.Select(c => $"[{c.Name}]"))})");
+                sb.AppendLine($"    , CONSTRAINT {Quote($"PK_{table.Name}")} PRIMARY KEY CLUSTERED ({string.Join(", ", pkColumns.Select(c => Quote(c.Name)))})");
             }
 
             foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MSSQL, Quote, schema))
@@ -90,8 +90,8 @@ public class MssqlDdlGenerator : IDdlGenerator
 
                 var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.MSSQL);
 
-                sb.AppendLine($"ALTER TABLE [{sourceTable.Name}] WITH CHECK ADD CONSTRAINT [FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}] FOREIGN KEY([{sourceCol.Name}])");
-                sb.AppendLine($"REFERENCES [{targetTable.Name}] ([{targetCol.Name}]){actions};");
+                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} WITH CHECK ADD CONSTRAINT {Quote($"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}")} FOREIGN KEY({Quote(sourceCol.Name)})");
+                sb.AppendLine($"REFERENCES {Quote(targetTable.Name)} ({Quote(targetCol.Name)}){actions};");
                 sb.AppendLine();
             }
         }
@@ -100,5 +100,5 @@ public class MssqlDdlGenerator : IDdlGenerator
         return sb.ToString();
     }
 
-    private static string Quote(string identifier) => $"[{identifier}]";
+    private static string Quote(string identifier) => SqlIdentifier.Bracketed(identifier);
 }

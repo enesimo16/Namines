@@ -25,7 +25,7 @@ public class SqliteDdlGenerator : IDdlGenerator
 
         foreach (var table in schema.Tables)
         {
-            sb.AppendLine($"CREATE TABLE IF NOT EXISTS \"{table.Name}\" (");
+            sb.AppendLine($"CREATE TABLE IF NOT EXISTS {Quote(table.Name)} (");
 
             var pkColumns = table.Columns.Where(c => c.IsPK).ToList();
             bool singleIntPk = pkColumns.Count == 1 &&
@@ -49,7 +49,7 @@ public class SqliteDdlGenerator : IDdlGenerator
                 // SQLite'ta tek INT PK → AUTOINCREMENT için özel syntax
                 if (col.IsPK && singleIntPk)
                 {
-                    lines.Add($"    \"{col.Name}\" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT");
+                    lines.Add($"    {Quote(col.Name)} INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT");
                 }
                 else
                 {
@@ -60,15 +60,15 @@ public class SqliteDdlGenerator : IDdlGenerator
                 sqliteType = ColumnFeatureSql.ApplyArray(sqliteType, col, DatabaseType.SQLite);
 
                     lines.Add(generatedDef is not null
-                        ? $"    \"{col.Name}\" {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.SQLite) ? sqliteType + " " : string.Empty)}{generatedDef}"
-                        : $"    \"{col.Name}\" {sqliteType}{collate} {nullStr}{defaultStr}");
+                        ? $"    {Quote(col.Name)} {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.SQLite) ? sqliteType + " " : string.Empty)}{generatedDef}"
+                        : $"    {Quote(col.Name)} {sqliteType}{collate} {nullStr}{defaultStr}");
                 }
             }
 
             // Bileşik PK (tek INT PK değilse)
             if (pkColumns.Count > 1 || (pkColumns.Count == 1 && !singleIntPk))
             {
-                var pkCols = string.Join(", ", pkColumns.Select(c => $"\"{c.Name}\""));
+                var pkCols = string.Join(", ", pkColumns.Select(c => Quote(c.Name)));
                 lines.Add($"    PRIMARY KEY ({pkCols})");
             }
 
@@ -90,7 +90,7 @@ public class SqliteDdlGenerator : IDdlGenerator
 
                     var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.SQLite);
 
-                    lines.Add($"    FOREIGN KEY (\"{sourceCol.Name}\") REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\"){actions}");
+                    lines.Add($"    FOREIGN KEY ({Quote(sourceCol.Name)}) REFERENCES {Quote(targetTable.Name)} ({Quote(targetCol.Name)}){actions}");
                 }
             }
 
@@ -129,5 +129,5 @@ public class SqliteDdlGenerator : IDdlGenerator
         };
     }
 
-    private static string Quote(string identifier) => $"\"{identifier}\"";
+    private static string Quote(string identifier) => SqlIdentifier.DoubleQuoted(identifier);
 }

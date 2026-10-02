@@ -98,7 +98,37 @@ public class DockerBackupService : IDockerService, IDisposable
                 HostConfig = new HostConfig
                 {
                     Memory = dbType == DatabaseType.MSSQL ? 2500L * 1024 * 1024 : 2048L * 1024 * 1024,
-                    NanoCPUs = 1000000000 // 1 CPU limit
+                    NanoCPUs = 1000000000, // 1 CPU limit
+
+                    // AG YOK. Sandbox'a giren DDL kullanicinin semasindan uretiliyor ve
+                    // container icinde superuser (psql -U postgres / mysql -u root) olarak
+                    // calisiyor. Varsayilan bridge agiyla, o superuser'in komut calistirma
+                    // yetenegi host gateway'e, diger container'lara ve bulut metadata ucuna
+                    // erisime donusuyordu (bkz. docs/last-review C-1).
+                    //
+                    // Kaybedilen bir sey YOK: betik ve yedek Docker arsiv API'siyle
+                    // tasiniyor, saglik kontrolu ve dump container ICINDE calisiyor.
+                    // Imaj cekme host'un isi, container ag kipinden etkilenmiyor.
+                    NetworkMode = "none",
+
+                    // Fork bombasi ve kacak surec zinciri: bellek/CPU limiti bunlari
+                    // durdurmuyor.
+                    PidsLimit = 512,
+
+                    // Docker'in VARSAYILAN kume icinde olup bu is icin GEREKSIZ olanlar.
+                    //
+                    // Liste bilerek kisa: veritabani imajlari ilk acilista dosya
+                    // sahipligi degistirip kullanici dusuruyor (CHOWN, SETUID, SETGID,
+                    // FOWNER, DAC_OVERRIDE), onlari dusurmek container'i hic
+                    // baslatmazdi. Buradakiler ise init'te kullanilmayan yetkiler.
+                    //
+                    // DOGRULAMA DURUMU: postgres:15-alpine ve mysql:8.0 bu kume
+                    // dusurulmus halde gercek container olarak acildi ve saglik
+                    // kontrolunden gecti. MSSQL 2022 bu makinede (cap-drop OLMADAN da)
+                    // 4 dakikada hazir olmadigi icin ucdan uca dogrulanamadi; log'unda
+                    // yetki hatasi yok. MSSQL yedegi/geri yuklemesi degisirse bu satir
+                    // gercek bir MSSQL container'iyla yeniden sinanmali.
+                    CapDrop = new List<string> { "NET_RAW", "MKNOD", "AUDIT_WRITE", "SETFCAP" },
                 }
             };
 

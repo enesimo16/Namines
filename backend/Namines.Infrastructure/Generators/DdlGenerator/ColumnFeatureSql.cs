@@ -62,7 +62,7 @@ internal static class ColumnFeatureSql
                 $"Column '{column.Name}' sets a collation, which this generator does not emit for Oracle.");
 
         if (engine is DatabaseType.PostgreSQL or DatabaseType.SQLite)
-            return $" COLLATE \"{name}\"";
+            return $" COLLATE {SqlIdentifier.DoubleQuoted(name)}";
 
         foreach (var c in name)
         {

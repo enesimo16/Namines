@@ -19,7 +19,7 @@ public class PostgresDdlGenerator : IDdlGenerator
 
         foreach (var table in schema.Tables)
         {
-            sb.AppendLine($"CREATE TABLE \"{table.Name}\" (");
+            sb.AppendLine($"CREATE TABLE {Quote(table.Name)} (");
 
             var pkColumns = table.Columns.Where(c => c.IsPK).ToList();
             
@@ -52,8 +52,8 @@ public class PostgresDdlGenerator : IDdlGenerator
                 type = ColumnFeatureSql.ApplyArray(type, col, DatabaseType.PostgreSQL);
 
                 sb.Append(generatedDef is not null
-                    ? $"    \"{col.Name}\" {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.PostgreSQL) ? type + " " : string.Empty)}{generatedDef}"
-                    : $"    \"{col.Name}\" {type}{collate} {nullStr}{defaultStr}");
+                    ? $"    {Quote(col.Name)} {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.PostgreSQL) ? type + " " : string.Empty)}{generatedDef}"
+                    : $"    {Quote(col.Name)} {type}{collate} {nullStr}{defaultStr}");
                 
                 if (i < table.Columns.Count - 1)
                     sb.AppendLine(",");
@@ -63,7 +63,7 @@ public class PostgresDdlGenerator : IDdlGenerator
 
             if (pkColumns.Any())
             {
-                sb.AppendLine($"    , CONSTRAINT \"PK_{table.Name}\" PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => $"\"{c.Name}\""))})");
+                sb.AppendLine($"    , CONSTRAINT {Quote($"PK_{table.Name}")} PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => Quote(c.Name)))})");
             }
 
             foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.PostgreSQL, Quote, schema))
@@ -98,8 +98,8 @@ public class PostgresDdlGenerator : IDdlGenerator
 
                 var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.PostgreSQL);
 
-                sb.AppendLine($"ALTER TABLE \"{sourceTable.Name}\" ADD CONSTRAINT \"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}\" FOREIGN KEY(\"{sourceCol.Name}\")");
-                sb.AppendLine($"REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\"){actions};");
+                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} ADD CONSTRAINT {Quote($"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}")} FOREIGN KEY({Quote(sourceCol.Name)})");
+                sb.AppendLine($"REFERENCES {Quote(targetTable.Name)} ({Quote(targetCol.Name)}){actions};");
                 sb.AppendLine();
             }
         }
@@ -108,5 +108,5 @@ public class PostgresDdlGenerator : IDdlGenerator
         return sb.ToString();
     }
 
-    private static string Quote(string identifier) => $"\"{identifier}\"";
+    private static string Quote(string identifier) => SqlIdentifier.DoubleQuoted(identifier);
 }

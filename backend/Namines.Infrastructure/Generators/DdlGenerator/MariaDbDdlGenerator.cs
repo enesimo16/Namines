@@ -20,7 +20,7 @@ public class MariaDbDdlGenerator : IDdlGenerator
 
         foreach (var table in schema.Tables)
         {
-            sb.AppendLine($"CREATE TABLE IF NOT EXISTS `{table.Name}` (");
+            sb.AppendLine($"CREATE TABLE IF NOT EXISTS {Quote(table.Name)} (");
 
             var pkColumns = table.Columns.Where(c => c.IsPK).ToList();
             var lines = new List<string>();
@@ -52,14 +52,14 @@ public class MariaDbDdlGenerator : IDdlGenerator
                 sqlType = ColumnFeatureSql.ApplyArray(sqlType, col, DatabaseType.MariaDB);
 
                 lines.Add(generatedDef is not null
-                    ? $"    `{col.Name}` {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.MariaDB) ? sqlType + " " : string.Empty)}{generatedDef}"
-                    : $"    `{col.Name}` {sqlType}{collate} {nullStr}{defaultStr}{autoIncStr}");
+                    ? $"    {Quote(col.Name)} {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.MariaDB) ? sqlType + " " : string.Empty)}{generatedDef}"
+                    : $"    {Quote(col.Name)} {sqlType}{collate} {nullStr}{defaultStr}{autoIncStr}");
             }
 
             // Primary Key
             if (pkColumns.Any())
             {
-                var pkCols = string.Join(", ", pkColumns.Select(c => $"`{c.Name}`"));
+                var pkCols = string.Join(", ", pkColumns.Select(c => Quote(c.Name)));
                 lines.Add($"    PRIMARY KEY ({pkCols})");
             }
 
@@ -92,8 +92,8 @@ public class MariaDbDdlGenerator : IDdlGenerator
 
                 var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.MariaDB);
 
-                sb.AppendLine($"ALTER TABLE `{sourceTable.Name}` ADD CONSTRAINT `FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}`");
-                sb.AppendLine($"    FOREIGN KEY (`{sourceCol.Name}`) REFERENCES `{targetTable.Name}` (`{targetCol.Name}`){actions};");
+                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} ADD CONSTRAINT {Quote($"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}")}");
+                sb.AppendLine($"    FOREIGN KEY ({Quote(sourceCol.Name)}) REFERENCES {Quote(targetTable.Name)} ({Quote(targetCol.Name)}){actions};");
                 sb.AppendLine();
             }
         }
@@ -105,5 +105,5 @@ public class MariaDbDdlGenerator : IDdlGenerator
     private static bool IsIntegerType(string type) =>
         type.ToUpperInvariant() is "INT" or "INTEGER" or "BIGINT" or "SMALLINT" or "TINYINT";
 
-    private static string Quote(string identifier) => $"`{identifier}`";
+    private static string Quote(string identifier) => SqlIdentifier.Backticked(identifier);
 }

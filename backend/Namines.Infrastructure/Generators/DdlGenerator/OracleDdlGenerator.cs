@@ -22,7 +22,7 @@ public class OracleDdlGenerator : IDdlGenerator
 
         foreach (var table in schema.Tables)
         {
-            sb.AppendLine($"CREATE TABLE \"{table.Name}\" (");
+            sb.AppendLine($"CREATE TABLE {Quote(table.Name)} (");
 
             var pkColumns = table.Columns.Where(c => c.IsPK).ToList();
             var lines = new List<string>();
@@ -54,19 +54,19 @@ public class OracleDdlGenerator : IDdlGenerator
                 oracleType = ColumnFeatureSql.ApplyArray(oracleType, col, DatabaseType.Oracle);
 
                 lines.Add(generatedDef is not null
-                    ? $"    \"{col.Name}\" {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.Oracle) ? oracleType + " " : string.Empty)}{generatedDef}"
+                    ? $"    {Quote(col.Name)} {(ColumnFeatureSql.TypePrecedesGenerated(DatabaseType.Oracle) ? oracleType + " " : string.Empty)}{generatedDef}"
                     // Oracle'da sıra bağlayıcı: tip DEFAULT ifade NOT NULL.
                     // Ters sıra ORA-00907 ile reddedilir; diğer beş motorda ise
                     // "NOT NULL DEFAULT" geçerli, o yüzden yalnızca burası farklı.
                     // Bkz. TypeMappingTests.Oracle_puts_default_before_not_null.
-                    : $"    \"{col.Name}\" {oracleType}{identityStr}{collate}{defaultStr} {nullStr}");
+                    : $"    {Quote(col.Name)} {oracleType}{identityStr}{collate}{defaultStr} {nullStr}");
             }
 
             // Inline PK constraint
             if (pkColumns.Any())
             {
-                var pkCols = string.Join(", ", pkColumns.Select(c => $"\"{c.Name}\""));
-                lines.Add($"    CONSTRAINT \"PK_{table.Name}\" PRIMARY KEY ({pkCols})");
+                var pkCols = string.Join(", ", pkColumns.Select(c => Quote(c.Name)));
+                lines.Add($"    CONSTRAINT {Quote($"PK_{table.Name}")} PRIMARY KEY ({pkCols})");
             }
 
             lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.Oracle, Quote, schema));
@@ -102,10 +102,10 @@ public class OracleDdlGenerator : IDdlGenerator
 
                 var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.Oracle);
 
-                sb.AppendLine($"ALTER TABLE \"{sourceTable.Name}\"");
-                sb.AppendLine($"    ADD CONSTRAINT \"{fkName}\"");
-                sb.AppendLine($"    FOREIGN KEY (\"{sourceCol.Name}\")");
-                sb.AppendLine($"    REFERENCES \"{targetTable.Name}\" (\"{targetCol.Name}\"){actions};");
+                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)}");
+                sb.AppendLine($"    ADD CONSTRAINT {Quote(fkName)}");
+                sb.AppendLine($"    FOREIGN KEY ({Quote(sourceCol.Name)})");
+                sb.AppendLine($"    REFERENCES {Quote(targetTable.Name)} ({Quote(targetCol.Name)}){actions};");
                 sb.AppendLine();
             }
         }
@@ -148,5 +148,5 @@ public class OracleDdlGenerator : IDdlGenerator
         };
     }
 
-    private static string Quote(string identifier) => $"\"{identifier}\"";
+    private static string Quote(string identifier) => SqlIdentifier.DoubleQuoted(identifier);
 }
