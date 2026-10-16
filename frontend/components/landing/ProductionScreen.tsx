@@ -75,7 +75,7 @@ export default function ProductionScreen({ steps, isRunning, summary, onClose }:
   }, [steps.length, reduceMotion]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/85 backdrop-blur-sm">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-surface-900/85 backdrop-blur-sm">
       <div className="w-full max-w-md glass-panel rounded-[var(--radius-modal)] p-5 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-content-primary">

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 320" fill="none">
+  <defs>
+    <!-- Ribbon Surface Gradient -->
+    <linearGradient id="namines-ribbon-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="35%" stop-color="#F4F5F7" />
+      <stop offset="70%" stop-color="#E2E5EB" />
+      <stop offset="100%" stop-color="#D5D9E2" />
+    </linearGradient>
+
+    <!-- Right Pillar Gradient -->
+    <linearGradient id="namines-pillar-grad" x1="0%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#D8DCE5" />
+    </linearGradient>
+
+    <!-- Ribbon Fold Shadow -->
+    <linearGradient id="namines-fold-shadow" x1="0%" y1="0%" x2="100%" y2="80%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.45" />
+      <stop offset="60%" stop-color="#000000" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Dot Subtle Glow -->
+    <filter id="namines-dot-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Accent Teal Dot -->
+  <circle cx="56" cy="264" r="38" fill="#5EE6C4" />
+
+  <!-- Main Ribbon 'N' Group -->
+  <g id="namines-symbol-body">
+    <!-- Diagonal Ribbon + Bottom Right Round Cap -->
+    <path
+      d="M 126 120
+         L 282 276
+         A 44 44 0 0 0 356 244
+         L 198 88
+         A 44 44 0 0 0 126 120 Z"
+      fill="url(#namines-ribbon-grad)"
+    />
+
+    <!-- Left Vertical Stem + Top Curve -->
+    <path
+      d="M 116 112
+         C 116 52, 168 12, 228 12
+         C 264 12, 296 30, 314 60
+         L 262 112
+         C 252 96, 236 86, 218 86
+         C 188 86, 172 104, 172 136
+         L 172 260
+         A 28 28 0 0 1 116 260
+         Z"
+      fill="url(#namines-ribbon-grad)"
+    />
+
+    <!-- Inner Fold Shadow overlay under the top-left bend -->
+    <path
+      d="M 172 120
+         C 172 100, 186 86, 212 86
+         L 262 112
+         L 182 192
+         C 174 174, 172 150, 172 120 Z"
+      fill="url(#namines-fold-shadow)"
+    />
+
+    <!-- Right Vertical Pillar -->
+    <path
+      d="M 334 16
+         A 38 38 0 0 1 410 16
+         L 410 188
+         A 38 38 0 0 1 334 188
+         Z"
+      fill="url(#namines-pillar-grad)"
+      transform="rotate(-5 372 102)"
+    />
+  </g>
+</svg>

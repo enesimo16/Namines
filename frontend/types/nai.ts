@@ -59,7 +59,6 @@ export interface SchemaPlan {
   /** Onaylandığında üretim prompt'una eklenecek hazır metin. */
 }
 
-/** Plana göre kullanılabilirliğiyle birlikte bir NAI modeli. */
 export interface NaiModelOption {
   id: string;
   displayName: string;
@@ -70,3 +69,30 @@ export interface NaiModelOption {
   available: boolean;
   isDefault: boolean;
 }
+
+export const DEFAULT_NAI_MODELS: NaiModelOption[] = [
+  {
+    id: 'nai-v1-standard',
+    displayName: 'NAI v1 Standard',
+    description: 'Balanced default. Strong architecture reasoning, daily workflow.',
+    costMultiplier: 2,
+    available: true,
+    isDefault: true,
+  },
+  {
+    id: 'nai-v1-flash',
+    displayName: 'NAI v1 Flash',
+    description: 'Fastest. Best for short edits, suggestions and quick answers.',
+    costMultiplier: 1,
+    available: true,
+    isDefault: false,
+  },
+  {
+    id: 'nai-v1-pro',
+    displayName: 'NAI v1 Pro',
+    description: 'Most capable. Complex schemas, multi-table enterprise systems.',
+    costMultiplier: 5,
+    available: true,
+    isDefault: false,
+  },
+];

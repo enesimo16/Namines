@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { DatabaseSchema } from '../../types/schema';
 import { useRouter } from 'next/navigation';
-import { Loader2, X, Link as LinkIcon, ChevronDown, Check, Wand2 } from 'lucide-react';
+import { Loader2, X, Link as LinkIcon, ChevronDown, Check, Wand2, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { schemaService, sourceService } from '../../services/api';
 import { useSchemaStore, type DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
@@ -13,16 +13,19 @@ import ClarifyDialog from '../../components/landing/ClarifyDialog';
 import ProductionScreen from '../../components/landing/ProductionScreen';
 import PlanScreen from '../../components/landing/PlanScreen';
 import { streamSchemaGeneration, AgentStepEvent, AgentResultEvent } from '../../lib/sseSchemaStream';
-import { ClarifyResponse, NaiModelOption } from '../../types/nai';
-import { SourceStrip } from '../../components/prompt/SourceStrip';
+import { ClarifyResponse, NaiModelOption, DEFAULT_NAI_MODELS } from '../../types/nai';
+import { SourceDropdown } from '../../components/prompt/SourceDropdown';
 import { GithubScanModal } from '../../components/prompt/GithubScanModal';
 import { StarterPickerModal } from '../../components/prompt/StarterPickerModal';
 import { JsonShapeModal } from '../../components/prompt/JsonShapeModal';
 import CodeImportPanel from '../../components/canvas/panels/CodeImportPanel';
 import DbConnectionPanel from '../../components/canvas/panels/DbConnectionPanel';
-import type { RepositoryScanResult, SchemaSourceDescriptor } from '../../types/source';
+import { type RepositoryScanResult, type SchemaSourceDescriptor, DEFAULT_SCHEMA_SOURCES } from '../../types/source';
+import { useT, useLangAttr } from '../../lib/i18n';
 
 export default function NewProjectPage() {
+  const t = useT();
+  const lang = useLangAttr();
   const [prompt, setPrompt] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [apiSpecUrl, setApiSpecUrl] = useState('');
@@ -53,8 +56,8 @@ export default function NewProjectPage() {
 
   /** Hat bittiğinde dönen özet — kalan bulgular kullanıcıya gösterilecek. */
   const [agentSummary, setAgentSummary] = useState<AgentResultEvent['agent'] | null>(null);
-  const [models, setModels] = useState<NaiModelOption[]>([]);
-  const [sources, setSources] = useState<SchemaSourceDescriptor[]>([]);
+  const [models, setModels] = useState<NaiModelOption[]>(DEFAULT_NAI_MODELS);
+  const [sources, setSources] = useState<SchemaSourceDescriptor[]>(DEFAULT_SCHEMA_SOURCES);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
   // "+ Add source" menüsündeki her kaynağın kendi ekranı. Hepsi prompt
   // YAZMADAN şema üretebiliyor — ürünün tek girişi bir cümle yazmak olmamalı.
@@ -108,31 +111,27 @@ export default function NewProjectPage() {
     };
   }, []);
 
-  // Model listesi SUNUCUDAN geliyor: hangi modelin hangi plana açık olduğunu
-  // istemcide tekrar yazmak, iki kaynağın ayrışması demekti. Liste alınamazsa
-  // seçici gizleniyor ve varsayılan model kullanılıyor — model seçememek şema
-  // üretimini engellememeli.
+  // Model listesi SUNUCUDAN güncellenir: sunucudan gelirse dinamik kota/plan
+  // kısıtları uygulanır; sunucuya ulaşılamazsa DEFAULT_NAI_MODELS korunur.
   useEffect(() => {
     let cancelled = false;
     schemaService.naiModels()
-      .then(list => { if (!cancelled) setModels(list); })
-      .catch(() => { /* sessiz: seçici olmadan da üretim çalışıyor */ });
+      .then(list => { if (!cancelled && list?.length > 0) setModels(list); })
+      .catch(() => { /* varsayılan katalog korunur */ });
     return () => { cancelled = true; };
   }, []);
 
-  // Kaynak listesi de SUNUCUDAN geliyor (model listesiyle aynı gerekçe):
-  // hangi kaynağın hangi grupta olduğunu ve ne yapabildiğini istemcide tekrar
-  // yazmak, iki kopyanın ayrışması demekti. Liste alınamazsa menü gizleniyor —
-  // menüyü kaybetmek şema üretimini engellememeli.
+  // Kaynak listesi de SUNUCUDAN güncellenir: sunucuya ulaşılamazsa
+  // DEFAULT_SCHEMA_SOURCES korunur, menü ve şerit asla kaybolmaz.
   useEffect(() => {
     let cancelled = false;
     sourceService.catalog()
-      .then(list => { if (!cancelled) setSources(list); })
-      .catch(() => { /* sessiz: menü olmadan da üretim çalışıyor */ });
+      .then(list => { if (!cancelled && list?.length > 0) setSources(list); })
+      .catch(() => { /* varsayılan katalog korunur */ });
     return () => { cancelled = true; };
   }, []);
 
-  const selectedModel = models.find(m => m.id === naiModel);
+  const selectedModel = models.find(m => m.id === naiModel) ?? models.find(m => m.isDefault) ?? models[0];
 
   /**
    * Menüden seçilen kaynağı ekranına yönlendirir.
@@ -329,7 +328,7 @@ export default function NewProjectPage() {
   // sonra hero başlığı tam olarak böyle kırpıldı. Otomatik kenar boşluğu yer
   // varken ortalıyor, yer yokken kırpmadan akıtıyor.
   return (
-    <div className="relative font-sans text-content-primary flex-1 flex flex-col items-center overflow-x-hidden min-h-[calc(100vh-56px)] py-8 pb-20">
+    <div lang={lang} className="relative font-sans text-content-primary flex-1 flex flex-col items-center overflow-x-hidden min-h-[calc(100vh-56px)] py-8 pb-20">
       {/* Background Effects */}
       <div aria-hidden="true" className="ocean-wave pointer-events-none z-0">
         <div className="wave wave1"></div>
@@ -340,61 +339,33 @@ export default function NewProjectPage() {
 
       {/* Main Content Container */}
       <main className="relative z-10 my-auto w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 flex flex-col items-center">
-        {/* Hero Section — minimalist, ikon kutusu kaldırıldı (bkz. FRONTEND.md)
-
-            Tipografi ölçeğe taşındı: `text-3xl sm:text-4xl font-bold` yerine
-            `text-h1 sm:text-display`. Vercel'de ölçülen ilke (§3.2): boyut
-            büyüdükçe AĞIRLIK DÜŞÜYOR (48px→400, 32px→450) ve negatif harf
-            aralığı boyutla ölçekleniyor. `font-bold` bir hero başlıkta
-            hiyerarşi kurmuyor, gürültü yapıyor — boyut zaten kuruyor.
-            Ağırlık ve tracking artık token'ın içinde. */}
+        {/* Hero Section — minimalist, ikon kutusu kaldırıldı (bkz. FRONTEND.md) */}
         <div className="text-center mb-8 sm:mb-10">
-          <h1 className="font-mono text-h1 sm:text-display mb-3 text-content-primary">
-            Namines
+          <h1 className="font-mono text-4xl sm:text-6xl font-semibold tracking-tight mb-3 text-content-primary">
+            {t('newProjectPage.heroTitle')}
           </h1>
-          <p className="text-content-secondary text-body sm:text-body-lg max-w-[46ch] mx-auto">
-            Design interactive database architectures in seconds with artificial intelligence.
+          <p className="text-content-secondary text-sm sm:text-base max-w-[48ch] mx-auto leading-relaxed">
+            {t('newProjectPage.heroSubtitle')}
           </p>
         </div>
 
-        {/* Kaynak şeridi PANELİN DIŞINDA ve ÜSTÜNDE.
-            Menü prompt kutusunun içinde küçük bir düğmeyken kimse aramıyordu;
-            ürünün tek girişi bir cümle yazmak sanılıyordu. Şerit, yazı
-            yazmadan başlamanın mümkün olduğunu hiçbir tıklama olmadan
-            gösteriyor. */}
-        <SourceStrip sources={sources} onSelect={handleSourceSelect} disabled={isGenerating} />
-
-        {/* Form Card — "Advanced" açıkken parlıyor (bkz. globals.css
-            .prompt-panel-advanced): kullanıcı hangi modda olduğunu metne
-            bakmadan, panelin kendisinden görüyor. */}
+        {/* Form Card — Shopify stili yuvarlağımsı ve genişletilmiş prompt alanı */}
         <div
-          className={`w-full max-w-2xl glass-panel rounded-[var(--radius-modal)] p-4 sm:p-6 relative overflow-visible group ${advanced ? 'prompt-panel-advanced' : ''}`}
+          className={`w-full max-w-4xl bg-surface-900/95 border border-line-strong rounded-[var(--radius-modal)] p-6 sm:p-8 relative overflow-visible shadow-2xl backdrop-blur-xl group transition-all duration-200 ${advanced ? 'prompt-panel-advanced' : ''}`}
         >
           <form onSubmit={handleGenerate} className="relative">
-            {/* Textarea Section */}
+            {/* Textarea Section — daha geniş ve ferah Shopify tasarım */}
             <div className="mb-4 relative">
               <textarea
                 aria-label="Describe the database schema you want to generate"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="e.g. Design an e-commerce database similar to Amazon, where users can add products to carts and place orders..."
-                /* pb-10: sağ alt köşedeki mikrofon düğmesi için yer. Kaynak
-                   menüsü artık kutunun içinde değil (şeride taşındı), o yüzden
-                   boydan boya dolgu gerekmiyor. */
-                className="w-full h-24 sm:h-28 p-3 pb-10 rounded-[var(--radius-card)] glass-input resize-none text-content-primary placeholder:text-content-muted text-sm leading-relaxed focus:outline-none"
+                placeholder={t('newProjectPage.placeholder')}
+                className="w-full h-40 sm:h-52 p-5 sm:p-6 pb-16 rounded-[var(--radius-card)] bg-surface-800/90 border border-line-strong resize-none text-content-primary placeholder:text-content-muted text-sm sm:text-base leading-relaxed focus:outline-none focus:border-content-primary/30 focus:ring-1 focus:ring-content-primary/20 transition-all"
                 disabled={isGenerating}
               ></textarea>
 
-              {/* Kaynak düğmeleri tek bir menüde toplandı (github/06-EKLENTI-MIMARISI.md):
-                  her yeni kaynak için textarea'nın köşesine bir ikon daha
-                  eklemek ölçeklenmiyordu ve kullanıcı "şemamı nereden
-                  getirebilirim" sorusunun cevabını tek bir yerde göremiyordu.
-                  Mikrofon MENÜYE GİRMİYOR: ses bir kaynak değil, prompt
-                  metnine giriş yöntemi — şema değil cümle üretiyor. */}
-              {/* Kaynak menüsü buradan ŞERİDE taşındı; kutunun içinde kalan
-                  tek şey sesle yazdırma — o bir kaynak değil, prompt'a giriş
-                  yöntemi. */}
-              <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
+              <div className="absolute bottom-3.5 right-3.5 flex items-center gap-1.5">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -402,6 +373,16 @@ export default function NewProjectPage() {
                   accept=".png,.jpg,.jpeg"
                   className="hidden"
                 />
+                <button
+                  type="button"
+                  disabled={isGenerating}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 rounded-full text-content-muted hover:text-content-primary hover:bg-surface-700/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Upload diagram image"
+                  aria-label="Upload diagram image"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                </button>
                 <VoiceRecorder
                   disabled={isGenerating}
                   onTranscription={(text) => setPrompt(prev => prev ? `${prev} ${text}` : text)}
@@ -411,13 +392,13 @@ export default function NewProjectPage() {
 
             {/* Extended Inputs Area */}
             {(showUrlInput || image) && (
-              <div className="flex flex-col gap-3 p-3 bg-surface-800/80 rounded-[var(--radius-card)] border border-line-strong mb-6">
+              <div className="flex flex-col gap-3 p-3.5 bg-surface-800/60 rounded-[var(--radius-card)] border border-line-strong mb-4">
                 {showUrlInput && (
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
-                      <LinkIcon className="w-3.5 h-3.5 text-content-muted shrink-0" />
+                      <LinkIcon className="w-3.5 h-3.5 text-content-secondary shrink-0" />
                       <input
-                        aria-label="API specification URL"
+                        aria-label={t('newProjectPage.apiSpecUrl')}
                         type="url"
                         value={apiSpecUrl}
                         onChange={(e) => setApiSpecUrl(e.target.value)}
@@ -431,18 +412,15 @@ export default function NewProjectPage() {
                         </button>
                       )}
                     </div>
-                    {/* Bir sitenin GERÇEK veritabanını dışarıdan okumak mümkün
-                        değil — çıkarılan şey API'nin dışa açtığı bir tahmin.
-                        second-phase/06-VERI-KAYNAKLARI.md */}
                     <p className="text-[10px] text-content-muted pl-5">
-                      We read the API&apos;s schema (GraphQL or OpenAPI), not the actual database — it&apos;s a guess to start from.
+                      {t('newProjectPage.apiSpecHint')}
                     </p>
                   </div>
                 )}
 
                 {image && (
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-[var(--radius-control)] overflow-hidden border border-white/10 shrink-0">
+                    <div className="w-10 h-10 rounded-[var(--radius-control)] overflow-hidden border border-line-strong shrink-0">
                       <img src={URL.createObjectURL(image)} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -457,65 +435,134 @@ export default function NewProjectPage() {
               </div>
             )}
 
-            {/* Options & Submit Section — single row from `sm` up; wraps on phones.
-                `flex-wrap` OLMADAN: iki seçici (min 120px + 130px) ve `shrink-0`
-                olan Generate düğmesi 375px'de satırı taşırıyor ve ana eylem
-                ekranın dışında kalıyordu — mobilde ürünün TEK giriş düğmesi
-                tıklanamaz oluyordu. */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mt-4 w-full">
-              {/* Namines AI model seçici (new-phase/36 §3).
-                  Sağlayıcı adları (Groq/Gemini/Ollama) ve model kimlikleri
-                  ARTIK GÖSTERİLMİYOR: kullanıcının "llama-3.3-70b" ile
-                  "mixtral" arasında seçim yapması gereken bir karar değildi,
-                  ve sağlayıcı o modeli kaldırdığında ürün bozulmuş
-                  görünüyordu. */}
-              {models.length > 0 && (
-                <div className="relative flex-1 min-w-[120px]" ref={modelDropdownRef}>
+            {/* Options & Submit Section — Shopify Toolset stili dengeli alt bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 mt-3 w-full">
+              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
+                {/* Şablon & Kaynak seçici (Start without writing) */}
+                <SourceDropdown
+                  sources={sources}
+                  onSelect={handleSourceSelect}
+                  disabled={isGenerating}
+                />
+
+                {/* Namines AI model seçici */}
+                {models.length > 0 && (
+                  <div className="relative flex-1 min-w-[130px]" ref={modelDropdownRef}>
+                    <button
+                      type="button"
+                      disabled={isGenerating}
+                      onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                      className="flex items-center justify-between rounded-full border border-line-strong bg-surface-800/80 hover:border-line-subtle hover:bg-surface-700/80 px-4 py-2 text-xs font-mono font-medium text-content-primary cursor-pointer w-full text-left select-none disabled:opacity-50 disabled:cursor-not-allowed h-[42px] transition-colors shadow-sm"
+                    >
+                      <span className="truncate">
+                        {selectedModel?.displayName || 'Namines AI'}
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 text-content-muted transition-transform duration-200 shrink-0 ml-1.5 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {modelDropdownOpen && (
+                      <div className="absolute left-0 bottom-full mb-2 w-[280px] rounded-[var(--radius-card)] border border-line-strong bg-surface-900/98 backdrop-blur-2xl p-1.5 shadow-2xl z-50 flex flex-col gap-1 select-none animate-dropdown-in">
+                        {models.map(m => {
+                          const isSelected = m.id === naiModel;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              disabled={!m.available}
+                              onClick={() => {
+                                setNaiModel(m.id);
+                                setModelDropdownOpen(false);
+                              }}
+                              className={`flex items-start justify-between gap-2 px-3 py-2 rounded-[var(--radius-control)] cursor-pointer transition-colors text-left ${
+                                !m.available
+                                  ? 'opacity-40 cursor-not-allowed text-content-muted'
+                                  : isSelected
+                                  ? 'bg-surface-700/90 text-content-primary font-semibold'
+                                  : 'text-content-secondary hover:bg-surface-800 hover:text-content-primary'
+                              }`}
+                            >
+                              <span className="min-w-0">
+                                <span className="block text-xs font-medium">{m.displayName}</span>
+                                <span className="block text-[10px] text-content-muted leading-snug">{m.description}</span>
+                                <span className="block text-[10px] text-content-muted mt-0.5">
+                                  {m.available ? t('newProjectPage.budgetMultiplier', { count: m.costMultiplier }) : t('newProjectPage.paidPlansOnly')}
+                                </span>
+                              </span>
+                              {isSelected && m.available && (
+                                <Check className="w-3.5 h-3.5 text-content-primary shrink-0 mt-0.5" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Gelişmiş mod — Luminous Shopify Buton */}
+                <button
+                  type="button"
+                  disabled={isGenerating}
+                  onClick={() => setAdvanced(!advanced)}
+                  aria-pressed={advanced}
+                  title={advanced ? t('newProjectPage.advancedActiveHint') : t('newProjectPage.advancedPassiveHint')}
+                  className={`flex items-center gap-1.5 rounded-full px-4 h-[42px] text-xs font-mono font-medium transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                    advanced
+                      ? 'advanced-toggle-active'
+                      : 'border border-line-strong bg-surface-800/90 text-content-primary hover:border-line-subtle hover:bg-surface-700/90 shadow-sm'
+                  }`}
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${advanced ? 'text-accent-on' : 'text-content-secondary'}`} />
+                  <span>{t('newProjectPage.advanced')}</span>
+                </button>
+
+                {/* Database Select */}
+                <div className="relative flex-1 min-w-[130px]" ref={dbDropdownRef}>
                   <button
                     type="button"
                     disabled={isGenerating}
-                    onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                    className="flex items-center justify-between glass-input rounded-[var(--radius-control)] px-3 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/30 h-[38px]"
+                    onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
+                    className="flex items-center justify-between rounded-full border border-line-strong bg-surface-800/80 hover:border-line-subtle hover:bg-surface-700/80 px-4 py-2 text-xs font-mono font-medium text-content-primary cursor-pointer w-full text-left select-none disabled:opacity-50 disabled:cursor-not-allowed h-[42px] transition-colors shadow-sm"
                   >
                     <span className="truncate">
-                      {selectedModel?.displayName || 'Namines AI'}
+                      {dbType === 'MSSQL' ? 'SQL Server' :
+                       dbType === 'PostgreSQL' ? 'PostgreSQL' :
+                       dbType === 'MySQL' ? 'MySQL' :
+                       dbType === 'SQLite' ? 'SQLite' :
+                       dbType === 'Oracle' ? 'Oracle' :
+                       dbType === 'MariaDB' ? 'MariaDB' : dbType}
                     </span>
-                    <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 shrink-0 ml-1.5 ${modelDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3.5 h-3.5 text-content-muted transition-transform duration-200 shrink-0 ml-1.5 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {modelDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-[260px] rounded-[var(--radius-card)] border border-line-strong bg-surface-800/98 backdrop-blur-xl p-2 shadow-2xl z-50 flex flex-col gap-1 select-none animate-dropdown-in">
-                      {models.map(m => {
-                        const isSelected = m.id === naiModel;
+                  {dbDropdownOpen && (
+                    <div className="absolute left-0 bottom-full mb-2 w-full min-w-[190px] max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-line-strong bg-surface-900/98 backdrop-blur-2xl p-1.5 shadow-2xl z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
+                      {[
+                        { value: 'MSSQL', label: 'SQL Server' },
+                        { value: 'PostgreSQL', label: 'PostgreSQL' },
+                        { value: 'MySQL', label: 'MySQL' },
+                        { value: 'SQLite', label: 'SQLite' },
+                        { value: 'Oracle', label: 'Oracle' },
+                        { value: 'MariaDB', label: 'MariaDB' }
+                      ].map(db => {
+                        const isSelected = dbType === db.value;
                         return (
                           <button
-                            key={m.id}
+                            key={db.value}
                             type="button"
-                            disabled={!m.available}
                             onClick={() => {
-                              setNaiModel(m.id);
-                              setModelDropdownOpen(false);
+                              setDbType(db.value as DbType);
+                              setDbDropdownOpen(false);
                             }}
-                            className={`flex items-start justify-between gap-2 px-3 py-2 rounded-[var(--radius-control)] cursor-pointer transition-all text-left ${
-                              !m.available
-                                ? 'opacity-40 cursor-not-allowed text-content-muted'
-                                : isSelected
-                                ? 'bg-accent/20 text-accent-text border-l-2 border-accent pl-2'
-                                : 'text-content-secondary hover:bg-surface-700/60 hover:text-content-primary'
+                            className={`flex items-center justify-between px-3 py-2 rounded-[var(--radius-control)] text-xs font-mono cursor-pointer transition-colors text-left ${
+                              isSelected
+                                ? 'bg-surface-700/90 text-content-primary font-semibold'
+                                : 'text-content-secondary hover:bg-surface-800 hover:text-content-primary'
                             }`}
                           >
-                            <span className="min-w-0">
-                              <span className="block text-xs font-medium">{m.displayName}</span>
-                              <span className="block text-[10px] opacity-70 leading-snug">{m.description}</span>
-                              {/* Maliyet çarpanı gösteriliyor: kullanıcı bütçesini
-                                  daha hızlı tükettiğini faturayı görünce değil,
-                                  seçerken bilmeli. */}
-                              <span className="block text-[10px] opacity-50 mt-0.5">
-                                {m.available ? `Uses ${m.costMultiplier}× budget` : 'Available on paid plans'}
-                              </span>
-                            </span>
-                            {isSelected && m.available && (
-                              <Check className="w-3 h-3 text-accent shrink-0 mt-0.5" />
+                            <span>{db.label}</span>
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-content-primary shrink-0" />
                             )}
                           </button>
                         );
@@ -523,113 +570,23 @@ export default function NewProjectPage() {
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* Gelişmiş mod — modelin YANINDA, çünkü ikisi de aynı soruyu
-                  cevaplıyor: bu üretim ne kadar bütçe harcasın.
-
-                  Kapalıyken şema YİNE denetimden geçiyor; kapalı olan tek şey
-                  modelin bulguları düzeltmek için ek tur harcaması. Etiketin
-                  "denetimi kapat" gibi okunmaması bu yüzden önemli — ipucu
-                  metni farkı açıkça söylüyor. */}
-              <button
-                type="button"
-                disabled={isGenerating}
-                onClick={() => setAdvanced(!advanced)}
-                aria-pressed={advanced}
-                title={
-                  advanced
-                    ? 'The agent plans, then fixes what the rule engine and the real DDL compiler report. Uses more of your budget.'
-                    : 'One pass. The schema is still checked, but problems are reported instead of fixed automatically.'
-                }
-                className={`flex items-center rounded-[var(--radius-control)] px-3 h-[38px] text-sm font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  advanced
-                    ? 'bg-accent/20 text-accent-text border border-accent/40 advanced-toggle-glow'
-                    : 'glass-input text-content-muted hover:text-content-primary'
-                }`}
-              >
-                {/*
-                  Etiketten "· On/Off" KALDIRILDI. Bu metin bir kez eklenmişti:
-                  fark yalnızca renkteyken bir kullanıcı düğmeyi hiç açmadan
-                  "advanced moddayım" sanmıştı. O günden beri AÇIKKEN PANELİN
-                  TAMAMI parlıyor (globals.css .prompt-panel-advanced) — durum
-                  artık düğmenin rengiyle değil, ekranın yarısıyla anlatılıyor
-                  ve metne gerek kalmadı. Panelin parlaması kaldırılırsa bu
-                  etiket geri gelmeli.
-                */}
-                <span>Advanced</span>
-              </button>
-
-              {/* Database Select */}
-              <div className="relative flex-1 min-w-[130px]" ref={dbDropdownRef}>
-                <button
-                  type="button"
-                  disabled={isGenerating}
-                  onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
-                  className="flex items-center justify-between glass-input rounded-[var(--radius-control)] px-3 py-2 text-sm text-content-primary focus:ring-0 cursor-pointer w-full font-medium text-left select-none disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-700/30 h-[38px]"
-                >
-                  <span className="truncate">
-                    {dbType === 'MSSQL' ? 'SQL Server' :
-                     dbType === 'PostgreSQL' ? 'PostgreSQL' :
-                     dbType === 'MySQL' ? 'MySQL' :
-                     dbType === 'SQLite' ? 'SQLite' :
-                     dbType === 'Oracle' ? 'Oracle' :
-                     dbType === 'MariaDB' ? 'MariaDB' : dbType}
-                  </span>
-                  <ChevronDown className={`w-3 h-3 text-content-muted transition-transform duration-200 shrink-0 ml-1.5 ${dbDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {dbDropdownOpen && (
-                  <div className="absolute left-0 bottom-full mb-2 w-full min-w-[180px] max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-line-strong bg-surface-800/98 backdrop-blur-xl p-2 shadow-2xl z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
-                    {[
-                      { value: 'MSSQL', label: 'SQL Server' },
-                      { value: 'PostgreSQL', label: 'PostgreSQL' },
-                      { value: 'MySQL', label: 'MySQL' },
-                      { value: 'SQLite', label: 'SQLite' },
-                      { value: 'Oracle', label: 'Oracle' },
-                      { value: 'MariaDB', label: 'MariaDB' }
-                    ].map(db => {
-                      const isSelected = dbType === db.value;
-                      return (
-                        <button
-                          key={db.value}
-                          type="button"
-                          onClick={() => {
-                            setDbType(db.value as DbType);
-                            setDbDropdownOpen(false);
-                          }}
-                          className={`flex items-center justify-between px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-medium cursor-pointer transition-all text-left ${
-                            isSelected
-                              ? 'bg-accent/20 text-accent-text border-l-2 border-accent pl-2'
-                              : 'text-content-secondary hover:bg-surface-700/60 hover:text-content-primary'
-                          }`}
-                        >
-                          <span>{db.label}</span>
-                          {isSelected && (
-                              <Check className="w-3 h-3 text-accent" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
 
-              {/* Generate Button */}
+              {/* Generate Button — Shopify White CTA */}
               <button
                 type="submit"
                 disabled={isGenerating || isClarifying || !prompt.trim()}
-                className="h-[38px] w-full sm:w-auto px-4 sm:px-5 bg-accent hover:bg-accent-hover text-accent-on/95 font-bold rounded-[var(--radius-control)] transition-all duration-200 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider cursor-pointer shadow-sm shadow-accent/20"
+                className="h-[42px] w-full sm:w-auto px-7 bg-accent hover:bg-accent-hover text-accent-on font-mono font-bold rounded-full transition-all duration-150 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider cursor-pointer shadow-md active:scale-[0.98]"
               >
                 {isGenerating || isClarifying ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{isClarifying ? 'Thinking...' : 'Generating...'}</span>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-accent-on" />
+                    <span>{isClarifying ? t('newProjectPage.thinking') : t('newProjectPage.generating')}</span>
                   </>
                 ) : (
                   <>
-                    <Wand2 className="w-4 h-4" />
-                    <span>Generate Schema</span>
+                    <Wand2 className="w-3.5 h-3.5 text-accent-on" />
+                    <span>{t('newProjectPage.generate')}</span>
                   </>
                 )}
               </button>

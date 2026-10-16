@@ -87,19 +87,19 @@ export default function CodeImportPanel({ isOpen, onClose, onApplied }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-[90vw] max-w-xl max-h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
-        <div className="border-b border-content-primary/10 px-5 py-3.5 flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200 select-none">
+      <div className="bg-surface-900 border border-line-strong rounded-[var(--radius-modal)] w-[90vw] max-w-xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="border-b border-line bg-surface-800/40 px-5 py-3.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-[var(--radius-control)] flex items-center justify-center">
-              <FileCode2 className="w-4 h-4 text-content-primary" />
+            <div className="h-7 w-7 bg-surface-700 border border-line-strong rounded-[var(--radius-control)] flex items-center justify-center text-content-primary">
+              <FileCode2 className="w-3.5 h-3.5" />
             </div>
             <div>
               <h2 className="text-sm font-bold text-content-primary">Schema from Code</h2>
-              <p className="text-[11px] text-content-muted">Prisma, EF Core or SQL migrations — read only, never executed.</p>
+              <p className="text-micro text-content-muted">Extract tables from Prisma, EF Core or SQL migrations (read-only)</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary transition-colors" aria-label="Close">
+          <button onClick={onClose} className="p-1 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors cursor-pointer" aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -109,10 +109,6 @@ export default function CodeImportPanel({ isOpen, onClose, onApplied }: Props) {
             ref={fileInputRef}
             type="file"
             multiple
-            // .sql da kabul ediliyor: ham CREATE TABLE ayrıştırıcısı var
-            // (second-phase/11) ve Supabase migration akışı (12) buna dayanıyor.
-            // Filtre eksik kaldığında ayrıştırıcı çalışıyordu ama kullanıcı
-            // dosyayı seçicide GÖREMİYORDU — yani o yol arayüzden erişilemezdi.
             accept=".prisma,.cs,.sql"
             className="hidden"
             onChange={e => handleFiles(e.target.files)}
@@ -122,46 +118,53 @@ export default function CodeImportPanel({ isOpen, onClose, onApplied }: Props) {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="flex flex-col items-center justify-center gap-2 w-full py-10 rounded-[var(--radius-card)] border border-dashed border-content-primary/20 text-content-muted hover:text-content-primary hover:border-content-primary/40 transition-colors disabled:opacity-50"
+              className="flex flex-col items-center justify-center gap-3 w-full py-12 px-6 rounded-[var(--radius-card)] border-2 border-dashed border-line-strong hover:border-content-primary bg-surface-800/40 hover:bg-surface-800/70 transition-all cursor-pointer disabled:opacity-50 group"
             >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-              <span className="text-xs font-semibold">
-                {isLoading ? 'Reading…' : 'Select schema.prisma, .cs entity files, or .sql migrations'}
-              </span>
-              <span className="text-[10px]">Nothing is executed — the files are only read as text.</span>
+              <div className="w-10 h-10 rounded-full bg-surface-700 border border-line flex items-center justify-center text-content-muted group-hover:text-content-primary group-hover:scale-105 transition-all">
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin text-content-primary" /> : <Upload className="w-5 h-5" />}
+              </div>
+              <div className="text-center">
+                <span className="text-xs font-bold text-content-primary block">
+                  {isLoading ? 'Extracting schema models…' : 'Select schema.prisma, C# .cs entity files, or .sql scripts'}
+                </span>
+                <span className="text-micro text-content-muted mt-1 block">
+                  Files are analyzed purely in-memory — code is never compiled or executed.
+                </span>
+              </div>
             </button>
           )}
 
           {result && (
             <div className="flex flex-col gap-4">
-              {/* Dürüst kısmi rapor — okunan VE okunamayan birlikte. */}
               <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1.5 text-success-text">
+                <span className="flex items-center gap-1.5 text-success-text font-bold">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  {result.parsedCount} model read
+                  {result.parsedCount} model(s) extracted
                 </span>
                 {result.skippedCount > 0 && (
-                  <span className="flex items-center gap-1.5 text-warning">
+                  <span className="flex items-center gap-1.5 text-warning font-bold">
                     <AlertTriangle className="w-3.5 h-3.5" />
-                    {result.skippedCount} not understood
+                    {result.skippedCount} skipped
                   </span>
                 )}
-                <span className="text-content-subtle ml-auto font-mono text-[10px] uppercase">{result.format}</span>
+                <span className="text-micro text-content-muted ml-auto font-mono uppercase bg-surface-700 border border-line px-2 py-0.5 rounded-full font-bold">
+                  {result.format}
+                </span>
               </div>
 
               <div className="flex flex-wrap gap-1.5">
                 {result.parsedModels.map(m => (
-                  <span key={m} className="font-mono text-[11px] text-content-primary bg-surface-700 border border-content-primary/10 px-2 py-1 rounded-[var(--radius-control)]">{m}</span>
+                  <span key={m} className="font-mono text-micro text-content-primary bg-surface-800 border border-line px-2.5 py-1 rounded-full font-bold">{m}</span>
                 ))}
               </div>
 
               {result.skipped.length > 0 && (
-                <div className="border border-warning/25 bg-warning/[0.06] rounded-[var(--radius-card)] p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-warning font-bold mb-1.5">Could not be read</p>
+                <div className="border border-line bg-surface-800/60 rounded-[var(--radius-card)] p-3.5">
+                  <p className="text-micro uppercase tracking-wider text-warning font-bold mb-1.5">Could not be read</p>
                   <ul className="flex flex-col gap-1">
                     {result.skipped.map((s, i) => (
-                      <li key={i} className="text-[11px] text-content-muted">
-                        <span className="font-mono text-content-secondary">{s.name}</span> — {s.reason}
+                      <li key={i} className="text-micro text-content-muted">
+                        <span className="font-mono text-content-primary font-bold">{s.name}</span> — {s.reason}
                       </li>
                     ))}
                   </ul>
@@ -169,44 +172,44 @@ export default function CodeImportPanel({ isOpen, onClose, onApplied }: Props) {
               )}
 
               {result.drift && (
-                <div className="border border-content-primary/12 rounded-[var(--radius-card)] p-3">
-                  <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-content-subtle font-bold mb-2">
-                    <GitCompare className="w-3 h-3" />
-                    Code vs. this canvas
+                <div className="border border-line bg-surface-800/60 rounded-[var(--radius-card)] p-3.5">
+                  <p className="flex items-center gap-1.5 text-micro uppercase tracking-wider text-content-muted font-bold mb-2">
+                    <GitCompare className="w-3.5 h-3.5" />
+                    Code vs. Current Canvas
                   </p>
                   {!result.drift.hasDrift ? (
-                    <p className="text-xs text-success-text">No drift — the code matches what is on the canvas.</p>
+                    <p className="text-xs text-success-text font-medium">No drift — the code models match the current canvas schema perfectly.</p>
                   ) : (
                     <div className="flex flex-col gap-1.5">
                       {result.drift.affectedTables.map((t, i) => (
-                        <div key={i} className="text-[11px] text-content-muted">
-                          <span className="font-mono text-content-primary">{t.tableName}</span>
-                          <span className="text-content-subtle"> — {t.kind.toLowerCase()}</span>
+                        <div key={i} className="text-micro text-content-muted">
+                          <span className="font-mono text-content-primary font-bold">{t.tableName}</span>
+                          <span className="text-content-muted"> — {t.kind.toLowerCase()}</span>
                           {t.changedColumns.length > 0 && (
                             <span className="text-content-subtle"> ({t.changedColumns.join(', ')})</span>
                           )}
                         </div>
                       ))}
                       {result.drift.breakingChanges.map((b, i) => (
-                        <div key={`b${i}`} className="text-[11px] text-danger-text">{b.description}</div>
+                        <div key={`b${i}`} className="text-micro text-danger-text font-mono font-semibold">{b.description}</div>
                       ))}
                     </div>
                   )}
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center justify-between pt-2 border-t border-line">
                 <button
                   onClick={() => { setResult(null); fileInputRef.current?.click(); }}
-                  className="text-xs text-content-muted hover:text-content-primary transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-xs font-semibold text-content-secondary hover:text-content-primary transition-colors cursor-pointer"
                 >
-                  Choose different files
+                  Choose Different Files
                 </button>
                 <button
                   onClick={applyToCanvas}
-                  className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-2 rounded-[var(--radius-control)] text-xs font-semibold transition-all"
+                  className="bg-content-primary hover:bg-content-secondary text-surface-900 px-4 py-1.5 rounded-[var(--radius-control)] text-xs font-bold transition-all shadow-sm cursor-pointer"
                 >
-                  Load onto canvas
+                  Load onto Canvas
                 </button>
               </div>
             </div>

@@ -118,40 +118,56 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
   const columns = rows.length > 0 ? Object.keys(rows[0].values) : (table?.columns.map(c => c.name) ?? []);
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-4">
-      <div className="bg-surface-700 border border-surface-500 rounded-[var(--radius-card)] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/70 backdrop-blur-sm p-4 animate-in fade-in duration-200 select-none">
+      <div className="bg-surface-900 border border-line-strong rounded-[var(--radius-modal)] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-surface-500">
-          <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-accent-text" />
-            <span className="text-[13px] font-semibold text-content-primary">Data Explorer</span>
-            {connected && <span className="text-[10px] text-content-subtle font-mono">— {selectedTable}</span>}
+        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-line bg-surface-800/40">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 border border-line-strong flex items-center justify-center text-content-primary">
+              <Database className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-content-primary">Data Explorer</span>
+                {connected && (
+                  <span className="text-micro px-2 py-0.5 rounded-full bg-surface-700 border border-line text-content-primary font-mono font-bold">
+                    {selectedTable}
+                  </span>
+                )}
+              </div>
+              <p className="text-micro text-content-muted">Read-only live database record gateway</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-content-subtle hover:text-content-primary transition-colors cursor-pointer" aria-label="Close">
+          <button
+            onClick={onClose}
+            className="p-1 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors cursor-pointer"
+            aria-label="Close"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5">
           {!connected ? (
             <div className="flex flex-col gap-4">
-              <div className="flex gap-2 bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] p-3 text-content-secondary text-[11px]">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <span>Read-only. Only SELECT queries run — your connection string is sent to the API and never stored. Use a read-only DB user when possible.</span>
+              <div className="flex gap-2.5 bg-surface-800/80 border border-line rounded-[var(--radius-card)] p-3 text-content-muted text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-content-muted mt-0.5" />
+                <span className="leading-relaxed">Read-only live inspection. Only parameterized SELECT queries run — your connection string is never stored.</span>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-semibold text-content-subtle">Database engine</label>
+                <label className="text-micro font-bold uppercase tracking-wider text-content-muted">Database Engine</label>
                 <div className="flex gap-1.5 flex-wrap">
                   {DB_TYPES.map(t => (
                     <button
                       key={t.value}
+                      type="button"
                       onClick={() => { setDbType(t.value); setConnectionString(''); setError(null); }}
-                      className={`px-2.5 py-1 rounded-[var(--radius-control)] text-[11px] font-medium border transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-semibold border transition-all cursor-pointer ${
                         dbType === t.value
-                          ? 'bg-accent-subtle border-accent-hover/60 text-accent-text'
-                          : 'bg-surface-600 border-surface-500 text-content-subtle hover:text-content-secondary'
+                          ? 'bg-surface-700 border-line-strong text-content-primary shadow-xs'
+                          : 'bg-surface-800/60 border-line text-content-muted hover:text-content-primary hover:bg-surface-700/50'
                       }`}
                     >
                       {t.label}
@@ -161,7 +177,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-semibold text-content-subtle">Connection string</label>
+                <label className="text-micro font-bold uppercase tracking-wider text-content-muted">Connection String</label>
                 <div className="relative">
                   <textarea
                     aria-label="Connection string"
@@ -169,13 +185,13 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                     onChange={e => { setConnectionString(e.target.value); setError(null); }}
                     placeholder={PLACEHOLDERS[dbType] ?? ''}
                     rows={2}
-                    className="w-full bg-surface-800 border border-surface-500 focus:border-accent-hover rounded-[var(--radius-control)] px-3 py-2 text-[12px] text-content-primary placeholder-content-subtle outline-none resize-none font-mono"
+                    className="w-full bg-surface-800/90 border border-line focus:border-line-strong rounded-[var(--radius-control)] px-3 py-2 text-xs text-content-primary placeholder-content-subtle outline-none resize-none font-mono leading-relaxed"
                     style={{ WebkitTextSecurity: showCs ? 'none' : 'disc' } as React.CSSProperties}
                   />
                   <button
                     type="button"
                     onClick={() => setShowCs(v => !v)}
-                    className="absolute right-2.5 top-2 text-content-subtle hover:text-content-primary transition-colors cursor-pointer"
+                    className="absolute right-2.5 top-2 p-1 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-surface-700/60 transition-colors cursor-pointer"
                     aria-label={showCs ? 'Hide connection string' : 'Show connection string'}
                   >
                     {showCs ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -184,12 +200,12 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-semibold text-content-subtle">Table</label>
+                <label className="text-micro font-bold uppercase tracking-wider text-content-muted">Table to Inspect</label>
                 <select
                   aria-label="Table"
                   value={selectedTable}
                   onChange={e => setSelectedTable(e.target.value)}
-                  className="bg-surface-800 border border-surface-500 focus:border-accent-hover rounded-[var(--radius-control)] px-3 py-2 text-[12px] text-content-secondary outline-none cursor-pointer"
+                  className="bg-surface-800/90 border border-line focus:border-line-strong rounded-[var(--radius-control)] px-3 py-2 text-xs text-content-primary outline-none cursor-pointer"
                 >
                   <option value="">Select a table from the schema…</option>
                   {schema?.tables.map(t => (
@@ -197,32 +213,32 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                   ))}
                 </select>
                 {selectedTable && !pkColumn && (
-                  <span className="text-[10px] text-content-secondary flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 shrink-0" /> No primary key — row detail is unavailable and page order isn&apos;t guaranteed stable.
+                  <span className="text-micro text-content-muted flex items-center gap-1.5 mt-0.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-content-muted" /> No primary key — row detail is unavailable and order is not guaranteed.
                   </span>
                 )}
               </div>
 
               {error && (
-                <div className="bg-danger-subtle border border-danger/30 rounded-[var(--radius-control)] p-2.5 text-danger-text text-[11px]">
+                <div className="bg-danger-subtle border border-danger/30 rounded-[var(--radius-control)] p-2.5 text-danger-text text-xs leading-relaxed">
                   {error}
                 </div>
               )}
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-2 border-t border-line">
                 <button
                   onClick={onClose}
-                  className="px-3.5 py-2 rounded-[var(--radius-control)] bg-white/[0.06] hover:bg-white/[0.1] text-content-secondary text-[12px] font-medium transition-all cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary text-xs font-semibold border border-line transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => loadPage(1)}
                   disabled={isLoading || !connectionString.trim() || !selectedTable}
-                  className="flex items-center gap-2 px-4 py-2 rounded-[var(--radius-control)] bg-content-primary hover:bg-content-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-surface-900 text-[12px] font-semibold transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-control)] bg-content-primary hover:bg-content-secondary disabled:opacity-50 disabled:cursor-not-allowed text-surface-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
                 >
                   {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {isLoading ? 'Connecting…' : 'Browse Data'}
+                  <span>{isLoading ? 'Connecting…' : 'Browse Data'}</span>
                 </button>
               </div>
             </div>
@@ -230,55 +246,61 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => setDetailRow(null)}
-                className="flex items-center gap-1.5 text-[11px] font-semibold text-content-subtle hover:text-content-primary transition-colors cursor-pointer w-fit"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-xs font-semibold text-content-primary transition-colors cursor-pointer w-fit"
               >
-                <ArrowLeft className="w-3.5 h-3.5" /> Back to list
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Table Records
               </button>
-              <div className="bg-surface-600 border border-surface-500 rounded-[var(--radius-control)] divide-y divide-surface-500">
+              <div className="bg-surface-800/80 border border-line rounded-[var(--radius-card)] divide-y divide-line overflow-hidden">
                 {Object.entries(detailRow.values).map(([key, value]) => (
-                  <div key={key} className="flex items-start gap-4 px-3.5 py-2">
-                    <span className="w-40 shrink-0 text-[11px] font-mono font-semibold text-accent-text">{key}</span>
-                    <span className="text-[12px] text-content-secondary font-mono break-all">{value === null ? <em className="text-content-subtle">NULL</em> : String(value)}</span>
+                  <div key={key} className="flex items-start gap-4 px-4 py-2.5">
+                    <span className="w-44 shrink-0 text-xs font-mono font-bold text-content-primary">{key}</span>
+                    <span className="text-xs text-content-secondary font-mono break-all leading-relaxed">
+                      {value === null ? <span className="text-content-subtle italic text-[10px] px-1 py-0.5 rounded-[var(--radius-control)] bg-surface-700/60">NULL</span> : String(value)}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pb-1 border-b border-line">
                 <button
                   onClick={reset}
-                  className="flex items-center gap-1.5 text-[11px] font-semibold text-content-subtle hover:text-content-primary transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-xs font-semibold text-content-primary transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" /> Change connection
                 </button>
-                <span className="text-[10px] text-content-subtle font-mono">{totalCount} rows</span>
+                <span className="text-micro text-content-muted font-mono font-semibold">{totalCount} records</span>
               </div>
 
-              <div className="overflow-x-auto border border-surface-500 rounded-[var(--radius-control)] relative">
+              <div className="overflow-x-auto border border-line rounded-[var(--radius-card)] relative bg-surface-800/60">
                 {isLoading && (
-                  <div className="absolute inset-0 bg-surface-800/70 backdrop-blur-sm flex items-center justify-center z-10">
-                    <Loader2 className="w-5 h-5 text-content-muted animate-spin" />
+                  <div className="absolute inset-0 bg-surface-900/70 backdrop-blur-sm flex items-center justify-center z-10">
+                    <Loader2 className="w-5 h-5 text-content-primary animate-spin" />
                   </div>
                 )}
-                <table className="w-full text-left border-collapse text-[11px]">
+                <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-surface-600 border-b border-surface-500 text-content-subtle uppercase tracking-wide font-bold">
-                      {columns.map(c => <th key={c} className="py-2 px-3 font-mono">{c}</th>)}
+                    <tr className="bg-surface-700/80 border-b border-line text-content-muted uppercase tracking-wide font-bold text-[10px]">
+                      {columns.map(c => <th key={c} className="py-2.5 px-3 font-mono">{c}</th>)}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-line font-mono text-micro text-content-secondary">
                     {rows.length === 0 ? (
-                      <tr><td colSpan={columns.length || 1} className="py-6 text-center text-content-subtle">No rows.</td></tr>
+                      <tr><td colSpan={columns.length || 1} className="py-8 text-center text-content-muted">No rows found in this table.</td></tr>
                     ) : rows.map((row, i) => (
                       <tr
                         key={i}
                         onClick={() => pkColumn && openDetail(row)}
-                        className={`border-b border-surface-500 text-content-secondary font-mono ${pkColumn ? 'hover:bg-white/[0.04] cursor-pointer' : ''}`}
+                        className={`hover:bg-surface-700/40 transition-colors ${pkColumn ? 'cursor-pointer' : ''}`}
                       >
                         {columns.map(c => (
-                          <td key={c} className="py-1.5 px-3 max-w-[180px] truncate">
-                            {row.values[c] === null ? <em className="text-content-subtle">NULL</em> : String(row.values[c])}
+                          <td key={c} className="py-2 px-3 max-w-[200px] truncate">
+                            {row.values[c] === null ? (
+                              <span className="text-content-subtle italic text-[10px] px-1 py-0.5 rounded-[var(--radius-control)] bg-surface-700/60">NULL</span>
+                            ) : (
+                              String(row.values[c])
+                            )}
                           </td>
                         ))}
                       </tr>
@@ -288,18 +310,18 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
               </div>
 
               {isDetailLoading && (
-                <div className="flex items-center gap-2 text-[11px] text-content-subtle">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Loading row…
+                <div className="flex items-center gap-2 text-micro text-content-muted">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-content-primary" /> Loading row detail…
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-content-subtle">Page {page} of {totalPages}</span>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-micro text-content-muted font-medium">Page {page} of {totalPages}</span>
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => loadPage(page - 1)}
                     disabled={page <= 1 || isLoading}
-                    className="p-1.5 rounded-[var(--radius-control)] bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 disabled:cursor-not-allowed text-content-secondary transition-all cursor-pointer"
+                    className="p-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line disabled:opacity-40 disabled:cursor-not-allowed text-content-secondary hover:text-content-primary transition-all cursor-pointer"
                     aria-label="Previous page"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
@@ -307,7 +329,7 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
                   <button
                     onClick={() => loadPage(page + 1)}
                     disabled={page >= totalPages || isLoading}
-                    className="p-1.5 rounded-[var(--radius-control)] bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 disabled:cursor-not-allowed text-content-secondary transition-all cursor-pointer"
+                    className="p-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line disabled:opacity-40 disabled:cursor-not-allowed text-content-secondary hover:text-content-primary transition-all cursor-pointer"
                     aria-label="Next page"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />

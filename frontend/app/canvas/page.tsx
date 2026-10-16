@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import type { TableNodeData } from '../../types/flow';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ReactFlow,
   Background,
@@ -22,6 +22,7 @@ import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAutomationStore } from '../../store/useAutomationStore';
 import { useFlowNodePositionStore } from '../../store/useFlowNodePositionStore';
 import { useFlowBarStore } from '../../store/useFlowBarStore';
+import { useCommandPaletteStore, type CommandPaletteAction } from '../../store/useCommandPaletteStore';
 import { useAIDba } from '../../hooks/useAIDba';
 import { useNaminesFlowRuntime } from '../../hooks/useNaminesFlowRuntime';
 import { useDbaStore } from '../../store/useDbaStore';
@@ -38,7 +39,7 @@ import {
   Pencil, Plus, Redo2, Search, Sparkles, Undo2, Upload,
 } from 'lucide-react';
 
-import CommandPalette, { PaletteAction } from '../../components/canvas/CommandPalette';
+import type { PaletteAction } from '../../components/canvas/CommandPalette';
 /**
  * Sablon galerisi DINAMIK yukleniyor (B-51 / PERF-005).
  *
@@ -55,7 +56,6 @@ const SchemaTemplateGallery = dynamic(
   { ssr: false },
 );
 import CanvasSearch from '../../components/canvas/CanvasSearch';
-import KeyboardShortcutsModal from '../../components/canvas/KeyboardShortcutsModal';
 import TableNode, { FLOW_HANDLE_ID } from '../../components/canvas/nodes/TableNode';
 import AutomationNode from '../../components/canvas/nodes/AutomationNode';
 import RelationEdge from '../../components/canvas/edges/RelationEdge';
@@ -199,22 +199,8 @@ export default function CanvasPage() {
   const activeProject = projects.find(p => p.id === activeProjectId);
   const branches = activeProject?.branches || [];
 
-  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
-
-  // ⌘K / Ctrl+K — toggle command palette
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsPaletteOpen(v => !v);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
 
   // Ctrl+F — canvas search
   useEffect(() => {
@@ -238,17 +224,6 @@ export default function CanvasPage() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [undo, redo]);
-
-  // ? — keyboard shortcuts modal
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
-      if (e.key === '?') setIsShortcutsOpen(v => !v);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
 
   // Custom event from EmptyCanvasState "Browse Templates" button
   useEffect(() => {
@@ -347,6 +322,20 @@ export default function CanvasPage() {
       onSelect: () => setIsPanelOpen(!isPanelOpen),
     },
   ], [addTable, isEditMode, toggleEditMode, isPanelOpen, setIsPanelOpen, undo, redo]);
+
+  // Register Canvas actions into Global Command Palette
+  useEffect(() => {
+    const actions: CommandPaletteAction[] = paletteActions.map(a => ({
+      id: a.id,
+      label: a.label,
+      description: a.description,
+      category: 'canvas',
+      keywords: a.keywords,
+      icon: a.icon,
+      onSelect: a.onSelect,
+    }));
+    return useCommandPaletteStore.getState().registerContextualActions(actions);
+  }, [paletteActions]);
 
   useAIDba();
   useProjectAutoSave();
@@ -686,7 +675,7 @@ export default function CanvasPage() {
 
       {/* Connection Lost Overlay for Read-Only Mode */}
       {isOffline && (
-        <div className="absolute inset-0 z-[8000] bg-scrim/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-auto">
+        <div className="absolute inset-0 z-modal bg-scrim/40 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-auto">
           <div className="bg-surface-800 border border-danger/25 px-6 py-5 rounded-[var(--radius-modal)] flex flex-col items-center text-center gap-3">
             <span className="flex items-center gap-1.5 bg-danger-subtle text-danger-text border border-danger/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
               <AlertTriangle className="w-3 h-3" />
@@ -758,44 +747,26 @@ export default function CanvasPage() {
               nodeColor={(node) => {
                 const tableColor = (node.data as TableNodeData | undefined)?.table?.color;
                 if (tableColor) return tableColor;
-                // `--color-line-solid` (ızgara noktası deltası) minimap'in kendi
-                // zemininden (surface-700) daha KOYU kalıyordu — renksiz tablolar
-                // haritada görünmüyordu. `-strong` varyantı zeminden belirgin
-                // şekilde açık, tıpkı paylaşım sayfasının minimap'inde olduğu gibi.
                 return isEditMode ? token('--color-accent-hover') : token('--color-line-solid-strong');
               }}
               maskColor="color-mix(in srgb, var(--color-scrim) 70%, transparent)"
-              className="!hidden md:!block bg-surface-700 border border-content-primary/12 rounded-[var(--radius-modal)] overflow-hidden shadow-lg"
+              className="!hidden md:!block bg-surface-800 border border-line-strong rounded-[var(--radius-modal)] overflow-hidden shadow-2xl"
             />
 
             {/* Odadaki diğer kullanıcıların imleçleri (ReactFlow içinde: viewport'a erişir) */}
             <MultiplayerCursors />
 
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
-            {/* Şema bilgi paneli araç çubuğu kaydırılan şerit hâlindeyken (< lg,
-                yani mobil VE tablet) ALTINA iniyor ve daralıyor — araç çubuğuyla
-                AYNI kırılma noktasını (`lg`) kullanmak zorunda: ikisi farklı
-                noktada geçiş yapsaydı, 768-1023px aralığında biri diğerinin
-                üstüne binerdi (tam da bu ölçüde, tablet dikey modda, yaşanan buydu). */}
-            <Panel id="schema-info-panel" position="top-left" className="bg-surface-700/85 backdrop-blur-md border border-content-primary/12 px-3 py-2 lg:p-4 rounded-[var(--radius-card)] lg:rounded-[var(--radius-modal)] !mt-[120px] lg:!mt-4 !ml-2 lg:!ml-4 w-auto max-w-[calc(100vw-1rem)] lg:w-64 select-none pointer-events-auto">
-              {/* `!mt-`: React Flow'un `.react-flow__panel { margin: 15px }`
-                  kuralı Tailwind sınıfıyla aynı özgüllükte ve stylesheet'i
-                  sonra yüklendiği için kazanıyordu — panel araç çubuğunun
-                  ALTINDA kalıyordu (ölçüldü: top 71px, araç çubuğu 60-112px).
-
-                  Dar ekranlarda tek satır: ad ve sayılar yan yana. Dikey
-                  yerleşim 375px'te tuvalin üçte birini kaplıyordu ve kullanıcı
-                  asıl bakmak istediği şemayı göremiyordu. */}
+            <Panel id="schema-info-panel" position="top-left" className="!z-sticky bg-surface-800/95 backdrop-blur-md border border-line-strong px-3 py-2.5 lg:p-4 rounded-[var(--radius-card)] !mt-[120px] lg:!mt-4 !ml-2 lg:!ml-4 w-auto max-w-[calc(100vw-1rem)] lg:w-64 select-none pointer-events-auto shadow-2xl">
               <div className="flex items-baseline gap-3 lg:block">
-                <h2 className="text-sm lg:text-xl font-bold text-content-primary lg:mb-1 truncate" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
-                <div className="text-[11px] lg:text-xs text-content-secondary/80 flex gap-2 lg:gap-4 font-medium shrink-0">
+                <h2 className="text-sm lg:text-base font-bold text-content-primary lg:mb-1 truncate tracking-tight" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
+                <div className="text-[11px] lg:text-xs text-content-muted flex items-center gap-2 lg:gap-3 font-medium shrink-0">
                   <span>{schema.tables.length} Tables</span>
+                  <span className="text-surface-500">·</span>
                   <span>{schema.relations.length} Relations</span>
                 </div>
               </div>
-              {/* Branch denetimi ve tablo listesi masaüstü araçları: birincisi
-                  bir açılır menü, ikincisi uzun bir liste — ikisi de dar
-                  ekranlarda tuvali tamamen örtüyordu. */}
+              {/* Branch denetimi ve tablo listesi masaüstü araçları */}
               <div className="hidden lg:block">
                 <BranchControlPanel />
                 <TableZoomList tables={schema.tables} />
@@ -810,8 +781,7 @@ export default function CanvasPage() {
         <CanvasExportToolbar />
         <ConflictResolverModal />
 
-        {/* Namines Flow çubuğu. Kural LİSTESİ artık canvas'ın üstüne binen bir panel değil,
-            kendi sayfası (`/flow`); çubuktaki liste düğmesi oraya gider. */}
+        {/* Namines Flow çubuğu */}
         <NaminesFlowBar />
 
         {/* Canvas arama (ReactFlowProvider içinde olmalı — fitBounds kullanır) */}
@@ -819,6 +789,7 @@ export default function CanvasPage() {
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
         />
+        <TableFocusListener />
       </ReactFlowProvider>
 
       <TableEditorDrawer />
@@ -826,21 +797,54 @@ export default function CanvasPage() {
       <SqlExplorerPanel />
       <AIGatewayModal />
 
-      <CommandPalette
-        isOpen={isPaletteOpen}
-        onClose={() => setIsPaletteOpen(false)}
-        actions={paletteActions}
-      />
       <SchemaTemplateGallery
         isOpen={isTemplateGalleryOpen}
         onClose={() => setIsTemplateGalleryOpen(false)}
       />
-      <KeyboardShortcutsModal
-        isOpen={isShortcutsOpen}
-        onClose={() => setIsShortcutsOpen(false)}
-      />
     </div>
   );
+}
+
+function TableFocusListener() {
+  const { fitBounds, getNode } = useReactFlow();
+  const tables = useSchemaStore(s => s.schema?.tables || []);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tableName?: string; tableId?: string }>;
+      const { tableName, tableId } = customEvent.detail || {};
+      const target = tables.find(t => t.id === tableId || t.name === tableName);
+      if (!target) return;
+      const node = getNode(target.id);
+      if (!node) return;
+      const { x, y } = node.position;
+      const w = (node.measured?.width ?? node.width ?? 320) as number;
+      const h = (node.measured?.height ?? node.height ?? 200) as number;
+      fitBounds({ x, y, width: w, height: h }, { padding: 0.3, duration: 400 });
+    };
+
+    window.addEventListener('namines:focus-table', handler);
+    return () => window.removeEventListener('namines:focus-table', handler);
+  }, [tables, getNode, fitBounds]);
+
+  useEffect(() => {
+    const tableName = searchParams.get('table');
+    if (!tableName) return;
+    const target = tables.find(t => t.name.toLowerCase() === tableName.toLowerCase());
+    if (!target) return;
+    const timer = setTimeout(() => {
+      const node = getNode(target.id);
+      if (!node) return;
+      const { x, y } = node.position;
+      const w = (node.measured?.width ?? node.width ?? 320) as number;
+      const h = (node.measured?.height ?? node.height ?? 200) as number;
+      fitBounds({ x, y, width: w, height: h }, { padding: 0.3, duration: 400 });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchParams, tables, getNode, fitBounds]);
+
+  return null;
 }
 
 function TableZoomList({ tables }: { tables: { id: string; name: string; color?: string }[] }) {
@@ -859,24 +863,29 @@ function TableZoomList({ tables }: { tables: { id: string; name: string; color?:
   };
 
   return (
-    <div className="mt-3 border-t border-content-primary/[0.06] pt-3">
+    <div className="mt-3 border-t border-line pt-3 relative z-10">
       <button
+        type="button"
         onClick={() => setOpen(v => !v)}
-        className="flex items-center justify-between w-full text-xs font-semibold text-content-secondary/70 hover:text-content-primary transition-colors cursor-pointer"
+        className="flex items-center justify-between w-full text-xs font-semibold text-content-secondary hover:text-content-primary transition-colors cursor-pointer"
       >
-        <span>Tables</span>
-        <span className="text-[10px] opacity-60">{open ? '▲' : '▼'}</span>
+        <span>Tables ({tables.length})</span>
+        <span className="text-[10px] text-content-muted">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
-        <div className="mt-2 flex flex-col gap-0.5 max-h-40 overflow-y-auto pr-1">
+        <div className="mt-2 flex flex-col gap-1 max-h-52 overflow-y-auto pr-1">
           {tables.map(t => (
             <button
               key={t.id}
+              type="button"
               onClick={() => zoomTo(t.id)}
-              className="flex items-center gap-2 px-2 py-1 rounded-[var(--radius-control)] text-xs text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] transition-colors text-left cursor-pointer w-full truncate"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--radius-control)] text-xs text-content-secondary hover:text-content-primary hover:bg-surface-700/80 transition-colors text-left cursor-pointer w-full truncate border border-transparent hover:border-line"
             >
-              {t.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color }} />}
-              <span className="truncate">{t.name}</span>
+              <span
+                className="w-2 h-2 rounded-full shrink-0 border border-line"
+                style={{ backgroundColor: t.color || 'var(--color-surface-500)' }}
+              />
+              <span className="truncate font-mono font-medium text-[11px]">{t.name}</span>
             </button>
           ))}
         </div>
@@ -908,10 +917,10 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-surface-900 flex flex-col items-center justify-center font-sans">
-      <div className="relative bg-surface-800 border border-content-primary/10 p-6 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col items-center text-center max-w-sm w-full mx-4 gap-5">
+    <div className="fixed inset-0 z-max bg-surface-900 flex flex-col items-center justify-center font-sans">
+      <div className="relative bg-surface-800 border border-line-strong p-6 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] flex flex-col items-center text-center max-w-sm w-full mx-4 gap-5">
 
-        <div className="flex items-center justify-center w-12 h-12 rounded-[var(--radius-card)] bg-surface-600 border border-content-primary/10">
+        <div className="flex items-center justify-center w-12 h-12 rounded-[var(--radius-card)] bg-surface-600 border border-line">
           <Loader2 className="w-5 h-5 text-accent-text animate-spin" />
         </div>
 
@@ -919,7 +928,7 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
           <h3 className="text-sm font-bold text-content-primary">
             {status === 'connecting' ? 'Connecting to Room' : 'Room is Empty'}
           </h3>
-          <p className="text-content-muted font-mono text-[11px] bg-surface-700 border border-content-primary/8 px-2.5 py-1 rounded-[var(--radius-control)]">
+          <p className="text-content-muted font-mono text-[11px] bg-surface-700 border border-line px-2.5 py-1 rounded-[var(--radius-control)]">
             Room ID: {roomId}
           </p>
           <p className="text-content-muted text-xs leading-relaxed max-w-sm mt-1">
@@ -932,7 +941,7 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
         {status === 'connecting' ? (
           <button
             onClick={onCancel}
-            className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-primary font-semibold text-xs rounded-[var(--radius-control)] border border-content-primary/10 transition-all cursor-pointer"
+            className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-primary font-semibold text-xs rounded-[var(--radius-control)] border border-line-strong transition-all cursor-pointer"
           >
             Cancel and Return
           </button>
@@ -946,7 +955,7 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
             </button>
             <button
               onClick={onCancel}
-              className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-secondary font-semibold text-xs rounded-[var(--radius-control)] border border-content-primary/10 transition-all cursor-pointer"
+              className="w-full py-2.5 bg-surface-700 hover:bg-surface-600 text-content-muted hover:text-content-secondary font-semibold text-xs rounded-[var(--radius-control)] border border-line-strong transition-all cursor-pointer"
             >
               Return to Main Menu
             </button>

@@ -2,14 +2,11 @@
 
 import React from 'react';
 import {
-  ImageDown,
   FileImage,
-  Loader2,
   Pencil,
   Eye,
   Camera,
   FileCode,
-  Braces,
   Database,
   FileText,
   Archive,
@@ -44,7 +41,7 @@ import { token } from '../../../lib/designTokens';
  *  Browse Data/Migration/Cross-DB/Code Import) burada, tek dikey speed-dial'da. */
 export default function CanvasExportToolbar() {
   const { projectName, schema, dbType, isEditMode, toggleEditMode, loadFromSchema } = useSchemaStore();
-  const { isExporting, exportAsPng, exportAsJpeg } = useCanvasExport();
+  const { isExporting, exportAsPng } = useCanvasExport();
 
   // DBA store hooks
   const isPanelOpen = useDbaStore(state => state.isPanelOpen);
@@ -54,7 +51,6 @@ export default function CanvasExportToolbar() {
   const showToast = useToastStore(s => s.showToast);
 
   const [isVisionOpen, setIsVisionOpen] = useState(false);
-  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
   const [isLocalExporting, setIsLocalExporting] = useState(false);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isSharedHostingModalOpen, setIsSharedHostingModalOpen] = useState(false);
@@ -82,7 +78,6 @@ export default function CanvasExportToolbar() {
     function handleClickOutside(e: MouseEvent) {
       if (dialRef.current && !dialRef.current.contains(e.target as Node)) {
         setIsDialOpen(false);
-        setIsExportDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -138,29 +133,6 @@ export default function CanvasExportToolbar() {
       link.click();
     } catch (err) {
       console.error('SVG export hatası:', err);
-    } finally {
-      setIsLocalExporting(false);
-    }
-  };
-
-  const exportAsJson = () => {
-    setIsLocalExporting(true);
-    try {
-      const currentSchema: DatabaseSchema = schema || {
-        schemaId: '',
-        name: projectName,
-        tables: [],
-        relations: []
-      };
-      const blob = new Blob([JSON.stringify(currentSchema, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${slug}-schema.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('JSON export hatası:', err);
     } finally {
       setIsLocalExporting(false);
     }
@@ -351,311 +323,432 @@ export default function CanvasExportToolbar() {
           Edit/Export). `id="canvas-toolbar"` sabit kaldı — TourOverlay.tsx bu
           ID'yi hedefliyor. */}
       <div id="canvas-toolbar" ref={dialRef} className="fixed bottom-6 left-6 z-50 select-none">
-        {/* `w-[184px]` ZORUNLU: bu kapsayıcı absolute-içinde-absolute (shrink-
-            to-fit) olduğu için, pod'ların `grid-cols-4` / `1fr` sütunları
-            belirsiz bir genişliğe bölüşmeye çalışıyor ve tarayıcı sütunları
-            neredeyse sıfıra küçültüp daireleri üst üste bindiriyordu (ölçüldü:
-            36px'lik daireler yalnızca ~10px arayla diziliyordu). Sabit
-            genişlik, 1fr'lere bölüşecek somut bir taban veriyor: 4×36 + 3×8
-            (gap) + 2×6 (pod padding) = 180px, +4px pay.
-
-            <b>REGRESYON.</b> Önceki turda buraya "kısa viewport'larda üst
-            araç çubuğuna değebiliyor" diye bir `max-h` + `overflow-y-auto` +
-            `overflow-x-visible` güvenlik payı eklenmişti. CSS'in kendi kuralı
-            gereği overflow-x/y çifti "biri auto biri visible" olamaz — visible
-            olan sessizce auto'ya döner (spec: computed overflow-x, visible
-            paired with non-visible overflow-y). Sonuç: istenmeyen bir YATAY
-            kaydırma çubuğu (görünür, teal renkli — `--color-accent-hover`
-            global scrollbar-color'dan) pod'ların altında belirdi.
-
-            İki pod'un gerçek yüksekliği ~160px — 620px'lik güvenlik payı
-            zaten hiçbir gerçek ekranda gerekmiyordu. Kaldırıldı, sabit
-            yükseklik kaldı. */}
-        <div className="absolute bottom-[52px] left-0 w-[184px] flex flex-col gap-2">
-
-          {/* ── Pod 1 — üst navbardan taşınan 7 araç (kullanıcı talebi: "az
-              kullanılanları sol alt toolbara al"). 4 sütun × 2 satır.
-
-              <b>REGRESYON.</b> Pod'un kendi arka plan/kenarlığı `isDialOpen`e
-              hiç bağlı değildi — yalnızca İÇİNDEKİ 11 daire ayrı ayrı
-              soluyordu. Dial kapanınca daireler görünmez oluyordu ama boş
-              yuvarlatılmış dikdörtgen ARKA PLANI tuvalde asılı kalıyordu
-              ("toolbarı kapatınca divler kalıyor" geri bildirimi). Pod'un
-              kendisi de aynı opacity geçişini almalı. */}
-          <div
-            className="grid grid-cols-4 gap-2 p-1.5 rounded-[var(--radius-card)] bg-surface-800/70 border border-content-primary/8"
-            style={{
-              opacity: isDialOpen ? 1 : 0,
-              pointerEvents: isDialOpen ? 'auto' : 'none',
-              transition: 'opacity 150ms var(--ease-out)',
-            }}
-          >
-            <DialMini
-              open={isDialOpen}
-              delayIndex={0}
-              label="Explain schema with AI"
-              onClick={() => { window.dispatchEvent(new CustomEvent('namines:explain-schema')); setIsDialOpen(false); }}
-              icon={<BookOpen className="w-4 h-4" />}
-            />
-            <DialMini
-              open={isDialOpen}
-              delayIndex={1}
-              label="AI Settings"
-              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-ai-settings')); setIsDialOpen(false); }}
-              icon={<Settings className="w-4 h-4" />}
-            />
-            <DialMini
-              open={isDialOpen}
-              delayIndex={2}
-              label="Import from a live database"
-              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-db-connect')); setIsDialOpen(false); }}
-              icon={<Database className="w-4 h-4" />}
-            />
-            <DialMini
-              open={isDialOpen}
-              delayIndex={3}
-              label="Browse live data (read-only)"
-              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-gateway')); setIsDialOpen(false); }}
-              icon={<Table className="w-4 h-4" />}
-            />
-            <DialMini
-              open={isDialOpen}
-              delayIndex={4}
-              label="Migration Engine"
-              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-migration')); setIsDialOpen(false); }}
-              icon={<History className="w-4 h-4" />}
-            />
-            <DialMini
-              open={isDialOpen}
-              delayIndex={5}
-              label="Cross-database relations"
-              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-cross-db')); setIsDialOpen(false); }}
-              icon={<Network className="w-4 h-4" />}
-            />
-            <DialMini
-              open={isDialOpen}
-              delayIndex={6}
-              label="Extract schema from code"
-              onClick={() => { window.dispatchEvent(new CustomEvent('namines:open-code-import')); setIsDialOpen(false); }}
-              icon={<FileCode2 className="w-4 h-4" />}
-            />
-          </div>
-
-          {/* ── Pod 2 — tuval-yerel 4 araç. FAB'a en yakın, en sık kullanılan
-              küme. Export son sütunda: yandaki dropdown'ı sağa taşırken pod
-              içindeki komşu daireye binmiyor. ── */}
-          <div
-            className="grid grid-cols-4 gap-2 p-1.5 rounded-[var(--radius-card)] bg-surface-800/70 border border-content-primary/8"
-            style={{
-              opacity: isDialOpen ? 1 : 0,
-              pointerEvents: isDialOpen ? 'auto' : 'none',
-              transition: 'opacity 150ms var(--ease-out)',
-            }}
-          >
-            <DialMini
-              open={isDialOpen}
-              delayIndex={7}
-              label="Import from Image"
-              onClick={() => { setIsVisionOpen(true); setIsDialOpen(false); }}
-              icon={<Camera className="w-4 h-4" />}
-              btnId="canvas-vision-import-btn"
-            />
-            <DialMini
-              open={isDialOpen}
-              delayIndex={8}
-              label="DBA Analysis"
-              onClick={() => setIsPanelOpen(!isPanelOpen)}
-              active={isPanelOpen}
-              dot={issues.length > 0 ? 'alert' : undefined}
-              btnId="canvas-dba-inspect-btn"
-              icon={<ShieldCheck className="w-4 h-4" />}
-            />
-            <DialMini
-              open={isDialOpen}
-              delayIndex={9}
-              label={isEditMode ? 'Switch to view mode' : 'Switch to edit mode'}
-              onClick={toggleEditMode}
-              active={isEditMode}
-              btnId="canvas-edit-mode-btn"
-              icon={isEditMode ? <Eye className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
-            />
-            <div className="relative">
-              <DialMini
-                open={isDialOpen}
-                delayIndex={10}
-                label="Export diagram…"
-                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-                active={isExportDropdownOpen}
-                btnId="canvas-export-dropdown-btn"
-                disabled={isCurrentlyExporting}
-                icon={isCurrentlyExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageDown className="w-4 h-4" />}
-              />
-
-              {/* Dropdown Menu — dial'ın sağına açılıyor */}
-              {isExportDropdownOpen && (
-              <div
-                className="absolute bottom-0 left-full ml-2 w-52 max-h-[min(480px,calc(100vh-32px))] overflow-y-auto rounded-[var(--radius-card)] bg-surface-900/95 border border-content-primary/12 flex flex-col p-1.5 backdrop-blur-xl z-[100] animate-in fade-in duration-200"
-              >
-                    <div className="px-2.5 py-1.5 text-micro font-extrabold text-content-subtle uppercase tracking-wider select-none">
-                      Image Export
-                    </div>
-                    
-                    <button
-                      onClick={() => {
-                        exportAsPng({ fileName: slug });
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-white/[0.06] rounded-[var(--radius-control)] transition-colors text-left"
-                    >
-                      <FileImage className="w-3.5 h-3.5 text-content-primary" />
-                      <span>PNG Image (.png)</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        exportAsJpeg({ fileName: slug });
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-[var(--radius-control)] transition-colors text-left"
-                    >
-                      <FileImage className="w-3.5 h-3.5 text-content-primary" />
-                      <span>JPEG Image (.jpg)</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        exportAsSvg();
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
-                    >
-                      <FileCode className="w-3.5 h-3.5 text-content-muted" />
-                      <span>Vector Graphic (.svg)</span>
-                    </button>
-
-                    <div className="h-px bg-content-primary/[0.06] my-1" />
-
-                    <div className="px-2.5 py-1.5 text-micro font-extrabold text-content-subtle uppercase tracking-wider select-none">
-                      Data & Document
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        exportAsSql();
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-success-text hover:bg-success-subtle rounded-[var(--radius-control)] transition-colors text-left"
-                    >
-                      <Database className="w-3.5 h-3.5 text-success-text" />
-                      <span>SQL Schema Code (.sql)</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        exportAsJson();
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-danger-text hover:bg-danger-subtle rounded-[var(--radius-control)] transition-colors text-left"
-                    >
-                      <Braces className="w-3.5 h-3.5 text-danger-text" />
-                      <span>Namines Meta Schema (.json)</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        exportAsPrisma();
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
-                      title="Export as Prisma ORM schema file"
-                    >
-                      <Database className="w-3.5 h-3.5 text-content-muted" />
-                      <span>Prisma Schema (.prisma)</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        exportAsPdf();
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-content-muted" />
-                      <span>PDF Technical Report (.pdf)</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        exportForCi();
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
-                      title="Save as namines-schema.json for GitHub Actions CI diff"
-                    >
-                      <GitBranch className="w-3.5 h-3.5 text-content-muted" />
-                      <span>CI Schema Snapshot (.json)</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setIsCloudModalOpen(true);
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-[var(--radius-control)] transition-colors text-left border border-transparent hover:border-content-primary/12"
-                    >
-                      <Archive className="w-3.5 h-3.5 text-content-primary" />
-                      <span>Full-Stack Project (.zip)</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setIsSharedHostingModalOpen(true);
-                        setIsExportDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-content-primary/[0.06] rounded-[var(--radius-control)] transition-colors text-left border border-transparent hover:border-content-primary/12"
-                      title="Plesk/cPanel (phpMyAdmin) or mobile (SQLite) — no CLI, no Docker"
-                    >
-                      <Server className="w-3.5 h-3.5 text-content-primary" />
-                      <span>Shared Hosting / Mobile (.zip)</span>
-                    </button>
-
-                    <div className="h-px bg-content-primary/[0.06] my-1" />
-
-                    <div className="px-2.5 py-1.5 text-micro font-extrabold text-content-subtle uppercase tracking-wider select-none">
-                      Import
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setIsExportDropdownOpen(false);
-                        sqlFileInputRef.current?.click();
-                      }}
-                      className="flex items-center gap-2 w-full px-2.5 py-2 text-xs font-semibold text-content-secondary hover:text-content-muted hover:bg-white/[0.04] rounded-[var(--radius-control)] transition-colors text-left"
-                      title="Parse a .sql DDL file and load tables onto the canvas"
-                    >
-                      <FileCode className="w-3.5 h-3.5 text-content-muted" />
-                      <span>Import SQL DDL (.sql)</span>
-                    </button>
-                  </div>
+        {/* ── Zengin Shopify Polaris Toolkit Menü Çekmecesi (Düz, yalın ve uzatılmış liste) ── */}
+        <div
+          className={`absolute bottom-[52px] left-0 w-[360px] max-w-[calc(100vw-24px)] h-[640px] max-h-[calc(100vh-100px)] flex flex-col rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong backdrop-blur-2xl shadow-2xl overflow-hidden z-[100] transition-all duration-200 ${
+            isDialOpen
+              ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
+              : 'opacity-0 scale-95 translate-y-2 pointer-events-none'
+          }`}
+        >
+          {/* Araç Listesi — Dümdüz ve kesintisiz */}
+          <div className="overflow-y-auto flex-1 min-h-0 p-2 space-y-1.5">
+            {/* DBA Sorun Analizi */}
+            <button
+              id="canvas-dba-inspect-btn"
+              onClick={() => {
+                setIsPanelOpen(!isPanelOpen);
+                setIsDialOpen(false);
+              }}
+              className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
+                isPanelOpen
+                  ? 'bg-surface-700 border-line-strong'
+                  : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">DBA Health & Optimization</div>
+                  <div className="text-micro text-content-muted truncate">Index audit, keys, security & AI fixes</div>
+                </div>
+              </div>
+              {issues.length > 0 ? (
+                <span className="shrink-0 px-1.5 py-0.5 rounded-full text-micro font-bold bg-danger-subtle text-danger-text border border-danger/30">
+                  {issues.length}
+                </span>
+              ) : (
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Open ➔
+                </span>
               )}
+            </button>
+
+            {/* AI ile Şemayı Açıkla */}
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('namines:explain-schema'));
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">Explain Schema with AI</div>
+                  <div className="text-micro text-content-muted truncate">Natural language summary of tables</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                Run ➔
+              </span>
+            </button>
+
+            {/* Koddan Şema Çıkar */}
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('namines:open-code-import'));
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <FileCode2 className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">Reverse Engineer from Code</div>
+                  <div className="text-micro text-content-muted truncate">Import from C# EF, TS, Python</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                Import ➔
+              </span>
+            </button>
+
+            {/* AI Ayarları */}
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('namines:open-ai-settings'));
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <Settings className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">AI Model Preferences</div>
+                  <div className="text-micro text-content-muted truncate">Groq, DeepSeek, Claude settings</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                Configure ➔
+              </span>
+            </button>
+
+              {/* Canlı DB Bağlantısı */}
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-db-connect'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Database className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Connect Live Database</div>
+                    <div className="text-micro text-content-muted truncate">Postgres, MySQL, SQLite introspection</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Connect ➔
+                </span>
+              </button>
+
+              {/* Canlı Verileri İncele (Gateway) */}
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-gateway'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Table className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Browse Table Records</div>
+                    <div className="text-micro text-content-muted truncate">Read-only live data gateway viewer</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  View ➔
+                </span>
+              </button>
+
+              {/* Migrasyon Motoru */}
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-migration'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <History className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">DDL Migration Engine</div>
+                    <div className="text-micro text-content-muted truncate">Generate versions & migration diffs</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Manage ➔
+                </span>
+              </button>
+
+              {/* Çapraz DB İlişkileri */}
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-cross-db'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Network className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Cross-Database Virtual Relations</div>
+                    <div className="text-micro text-content-muted truncate">Connect tables across disparate engines</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Link ➔
+                </span>
+              </button>
+
+
+              {/* Vision / Görselden Şema */}
+              <button
+                id="canvas-vision-import-btn"
+                onClick={() => {
+                  setIsVisionOpen(true);
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Import from Diagram Image</div>
+                    <div className="text-micro text-content-muted truncate">OCR & Vision from whiteboard or ERD</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Upload ➔
+                </span>
+              </button>
+
+              {/* SQL DDL Dosyası Yükle */}
+              <button
+                onClick={() => {
+                  sqlFileInputRef.current?.click();
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <FileCode className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Import SQL DDL (.sql)</div>
+                    <div className="text-micro text-content-muted truncate">Load CREATE TABLE script to canvas</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  File ➔
+                </span>
+              </button>
+
+              {/* Düzenleme Modu */}
+              <button
+                id="canvas-edit-mode-btn"
+                onClick={toggleEditMode}
+                className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
+                  isEditMode
+                    ? 'bg-surface-700 border-line-strong'
+                    : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    {isEditMode ? <Eye className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">
+                      {isEditMode ? 'Visual Edit Mode (Active)' : 'Protected View Mode'}
+                    </div>
+                    <div className="text-micro text-content-muted truncate">
+                      {isEditMode ? 'Click columns to modify types' : 'Click to enable editing'}
+                    </div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-700 text-content-primary border border-line">
+                  {isEditMode ? 'Active' : 'Toggle'}
+                </span>
+              </button>
+
+            {/* 4. Dışa Aktarım & Dağıtım */}
+            <div className="space-y-1.5 pt-1 border-t border-line" id="canvas-export-dropdown-btn">
+                {/* Görsel Çıktılar Grid */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => {
+                      exportAsPng({ fileName: slug });
+                      setIsDialOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
+                  >
+                    <FileImage className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                    <span>PNG Image</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      exportAsSvg();
+                      setIsDialOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
+                  >
+                    <FileCode className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                    <span>Vector (SVG)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      exportAsSql();
+                      setIsDialOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
+                  >
+                    <Database className="w-3.5 h-3.5 text-success-text shrink-0" />
+                    <span>SQL Code (.sql)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      exportAsPrisma();
+                      setIsDialOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
+                  >
+                    <Database className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                    <span>Prisma Schema</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      exportAsPdf();
+                      setIsDialOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                    <span>PDF Report</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      exportForCi();
+                      setIsDialOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
+                  >
+                    <GitBranch className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                    <span>CI Snapshot</span>
+                  </button>
+                </div>
+
+                {/* Bulut & Full Stack Proje */}
+                <div className="space-y-1 pt-1">
+                  <button
+                    onClick={() => {
+                      setIsCloudModalOpen(true);
+                      setIsDialOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/80 hover:bg-surface-700 border border-line-strong hover:border-accent transition-all text-left cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                        <Archive className="w-4 h-4 text-content-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-content-primary truncate">Full-Stack Project (.zip)</div>
+                        <div className="text-micro text-content-muted truncate">C# Web API + Next.js SDK + Cloud IaC</div>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-micro font-bold text-content-primary">
+                      Deploy ➔
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsSharedHostingModalOpen(true);
+                      setIsDialOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                        <Server className="w-4 h-4 text-content-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-content-primary truncate">Shared Hosting / Mobile</div>
+                        <div className="text-micro text-content-muted truncate">phpMyAdmin SQL or mobile SQLite .db</div>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                      Build ➔
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Ana FAB — daireye basınca dial açılır/kapanır; ikon + (plus) 45°
-            dönüp X'e dönüşür, ayrı bir "kapat" ikonu taşımaya gerek kalmadan. */}
+        {/* ── Ana FAB — Shopify Polaris Action Pill & Animated Toolkit Trigger ── */}
         <button
           onClick={() => setIsDialOpen(v => !v)}
-          className={`relative z-10 w-11 h-11 rounded-full flex items-center justify-center border shadow-[0_6px_20px_color-mix(in srgb,var(--color-scrim)_55%,transparent)] transition-all duration-200 cursor-pointer ${
+          className={`relative z-10 h-11 px-3.5 rounded-full flex items-center gap-2.5 border transition-all duration-200 cursor-pointer group shadow-xl ${
             isDialOpen
-              ? 'bg-content-primary border-content-primary text-surface-900'
-              : 'bg-surface-700 border-content-primary/14 text-content-primary hover:border-accent-hover/50 hover:bg-surface-600'
+              ? 'bg-content-primary border-content-primary text-surface-900 shadow-2xl'
+              : 'bg-surface-800/95 border-line-strong text-content-primary hover:border-line-strong hover:bg-surface-700 shadow-lg'
           }`}
-          title={isDialOpen ? 'Close toolkit' : 'Open toolkit: import, DBA, edit mode, export'}
+          title={isDialOpen ? 'Close toolkit' : 'Open toolkit: 11 database tools, AI analysis, export'}
           aria-label={isDialOpen ? 'Close toolkit' : 'Open toolkit'}
           aria-expanded={isDialOpen}
         >
-          <Wrench className={`w-[18px] h-[18px] transition-transform duration-200 ${isDialOpen ? 'rotate-45' : ''}`} />
+          <div className="relative flex items-center justify-center">
+            <Wrench className={`w-4 h-4 transition-transform duration-300 ${isDialOpen ? 'rotate-90' : 'group-hover:rotate-12'}`} />
+            {issues.length > 0 && !isDialOpen && (
+              <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-danger" />
+              </span>
+            )}
+          </div>
+
+          <span className="text-xs font-bold tracking-tight">Toolkit</span>
+
+          {/* Dikkat çeken dinamik rozet: "11 tools" veya "X alerts" */}
+          <span
+            className={`text-micro font-bold px-2 py-0.5 rounded-full transition-colors ${
+              isDialOpen
+                ? 'bg-surface-900/15 text-surface-900'
+                : issues.length > 0
+                ? 'bg-danger-subtle text-danger-text border border-danger/30'
+                : 'bg-surface-700 text-content-secondary border border-line group-hover:text-content-primary group-hover:border-line-strong'
+            }`}
+          >
+            {issues.length > 0 ? `${issues.length} alerts` : '11 tools'}
+          </span>
         </button>
       </div>
 
@@ -668,7 +761,7 @@ export default function CanvasExportToolbar() {
       {/* Zero-to-Cloud Infrastructure Selector Modal */}
       {isCloudModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-[450px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-[var(--radius-modal)] bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
+          <div className="w-[450px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-[var(--radius-modal)] bg-surface-900 border border-line-strong shadow-2xl flex flex-col gap-5 text-sans select-none">
             {/* Title */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -693,8 +786,8 @@ export default function CanvasExportToolbar() {
               onClick={() => setIncludeBiModule(!includeBiModule)}
               className={`p-3 rounded-[var(--radius-card)] border transition-all cursor-pointer flex items-center justify-between ${
                 includeBiModule 
-                  ? 'bg-content-primary/[0.06] border-white/25 text-content-primary' 
-                  : 'bg-surface-800/20 border-surface-600 text-content-muted hover:border-surface-500'
+                  ? 'bg-surface-800 border-line-strong text-content-primary' 
+                  : 'bg-surface-800/40 border-line text-content-muted hover:border-line-strong'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -703,7 +796,7 @@ export default function CanvasExportToolbar() {
                   aria-label="Premium: AI Data Analytics (BI) Assistant"
                   checked={includeBiModule}
                   onChange={() => {}} 
-                  className="rounded-[var(--radius-control)] border-surface-500 bg-surface-800 text-accent focus:ring-accent-hover/30 h-4 w-4"
+                  className="rounded-[var(--radius-control)] border-line bg-surface-800 text-accent focus:ring-accent-hover/30 h-4 w-4"
                 />
                 <div>
                   <h4 className="text-xs font-bold text-content-primary">Premium: AI Data Analytics (BI) Assistant</h4>
@@ -717,7 +810,7 @@ export default function CanvasExportToolbar() {
               {/* Option 1: None */}
               <button
                 onClick={() => exportAsFullStackProject('None')}
-                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-line hover:border-line-strong transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-muted group-hover:text-content-primary transition-colors font-bold text-xs">
@@ -734,35 +827,35 @@ export default function CanvasExportToolbar() {
               {/* Option 2: AWS */}
               <button
                 onClick={() => exportAsFullStackProject('AWS')}
-                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-accent-subtle/10 hover:bg-accent-subtle/20 border border-accent-subtle/20 hover:border-accent/40 transition-all text-left group cursor-pointer"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-line hover:border-line-strong transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-accent/10 flex items-center justify-center text-accent-text font-extrabold text-xs">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary font-extrabold text-xs">
                     AWS
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-accent-text">AWS Cloud Infrastructure</h4>
+                    <h4 className="text-xs font-bold text-content-primary">AWS Cloud Infrastructure</h4>
                     <p className="text-[10px] text-content-subtle font-semibold">Terraform (VPC, ECS Cluster, RDS PostgreSQL) + Actions CI/CD</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-accent-text group-hover:text-content-primary">Generate ➔</span>
+                <span className="text-[10px] font-bold text-content-subtle group-hover:text-content-primary">Generate ➔</span>
               </button>
 
               {/* Option 3: Azure */}
               <button
                 onClick={() => exportAsFullStackProject('Azure')}
-                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-accent-subtle/10 hover:bg-accent-subtle/20 border border-accent-subtle/20 hover:border-accent/40 transition-all text-left group cursor-pointer"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-line hover:border-line-strong transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-white/[0.04] flex items-center justify-center text-content-muted font-extrabold text-xs">
+                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary font-extrabold text-xs">
                     AZ
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-content-muted">Azure Cloud Infrastructure</h4>
+                    <h4 className="text-xs font-bold text-content-primary">Azure Cloud Infrastructure</h4>
                     <p className="text-[10px] text-content-subtle font-semibold">Terraform (RG, App Service Plan, Web App Container, SQL Server) + CI/CD</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-content-muted group-hover:text-content-muted">Generate ➔</span>
+                <span className="text-[10px] font-bold text-content-subtle group-hover:text-content-primary">Generate ➔</span>
               </button>
             </div>
 
@@ -777,7 +870,7 @@ export default function CanvasExportToolbar() {
       {/* Shared Hosting / Mobile Selector Modal — second-phase/13-DAGITIM-HEDEFLERI.md */}
       {isSharedHostingModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-[420px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-[var(--radius-modal)] bg-gradient-to-b from-surface-800/95 to-surface-900/98 border border-white/15 flex flex-col gap-5 text-sans select-none">
+          <div className="w-[420px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-[var(--radius-modal)] bg-surface-900 border border-line-strong shadow-2xl flex flex-col gap-5 text-sans select-none">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Server className="w-5 h-5 text-content-primary" />
@@ -801,7 +894,7 @@ export default function CanvasExportToolbar() {
               <button
                 onClick={() => exportSharedHosting('MySQL')}
                 disabled={isCurrentlyExporting}
-                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-line hover:border-line-strong transition-all text-left group cursor-pointer disabled:opacity-50"
               >
                 <div>
                   <h4 className="text-xs font-bold text-content-primary">MySQL (Plesk / cPanel / DirectAdmin)</h4>
@@ -813,7 +906,7 @@ export default function CanvasExportToolbar() {
               <button
                 onClick={() => exportSharedHosting('MariaDB')}
                 disabled={isCurrentlyExporting}
-                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-line hover:border-line-strong transition-all text-left group cursor-pointer disabled:opacity-50"
               >
                 <div>
                   <h4 className="text-xs font-bold text-content-primary">MariaDB</h4>
@@ -825,7 +918,7 @@ export default function CanvasExportToolbar() {
               <button
                 onClick={() => exportSharedHosting('SQLite')}
                 disabled={isCurrentlyExporting}
-                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-surface-600 hover:border-surface-500 transition-all text-left group cursor-pointer disabled:opacity-50"
+                className="flex items-center justify-between p-3.5 rounded-[var(--radius-card)] bg-surface-800/40 hover:bg-surface-700/40 border border-line hover:border-line-strong transition-all text-left group cursor-pointer disabled:opacity-50"
               >
                 <div>
                   <h4 className="text-xs font-bold text-content-primary">Mobile (SQLite)</h4>
@@ -838,83 +931,5 @@ export default function CanvasExportToolbar() {
         </div>
       )}
     </>
-  );
-}
-
-// ── Speed-dial mini daire ────────────────────────────────────────────────
-// `#canvas-toolbar`'daki 11 araç ortak bir görünüm paylaşıyor: 36px GÖRSEL
-// daire (`tap-44` ile 44px dokunma hedefi — FRONTEND.md §6), hover'da
-// ÜSTTE açılan etiket, dial kapalıyken görünmez+küçük, açılınca kademeli
-// (staggered) beliriyor. Etiket sağda değil ÜSTTE: iki pod artık 4 sütunlu
-// bir grid, sağdaki komşu daireye binmemesi için (bkz. Toolbar Redesign
-// Options artifact'te Option 2'nin canlı testinde bulunan hata: paylaşılmayan
-// taban stil, bir varyantın ikonlarını arka plansız bıraktı — aynı riski
-// tekrarlamamak için taban stil hâlâ tek yerden).
-function DialMini({
-  open,
-  delayIndex,
-  label,
-  onClick,
-  icon,
-  active,
-  dot,
-  disabled,
-  btnId,
-}: {
-  open: boolean;
-  delayIndex: number;
-  label: string;
-  onClick: () => void;
-  icon: React.ReactNode;
-  active?: boolean;
-  /** 'alert': kırmızı, nabız atan (DBA sorunları gibi dikkat gerektiren durumlar).
-   *  'success': sabit yeşil nokta (bir şeyin "ayarlı/aktif" olduğunu gösterir,
-   *  alarm değildir). */
-  dot?: 'alert' | 'success';
-  disabled?: boolean;
-  btnId?: string;
-}) {
-  return (
-    <div
-      className="group/mini relative"
-      style={{
-        opacity: open ? 1 : 0,
-        transform: open ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.7)',
-        pointerEvents: open ? 'auto' : 'none',
-        transition: `opacity 200ms var(--ease-out), transform 200ms var(--ease-out)`,
-        transitionDelay: open ? `${delayIndex * 35}ms` : '0ms',
-      }}
-    >
-      <button
-        id={btnId}
-        onClick={onClick}
-        disabled={disabled}
-        className={`tap-44 relative w-9 h-9 rounded-full flex items-center justify-center border shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-          active
-            ? 'bg-content-primary/12 border-white/25 text-content-primary'
-            : 'bg-surface-700 border-content-primary/12 text-content-muted hover:text-content-primary hover:border-accent-hover/50 hover:bg-surface-600'
-        }`}
-        aria-label={label}
-      >
-        {icon}
-        {dot === 'alert' && (
-          <span className="absolute top-0 right-0 flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-danger" />
-          </span>
-        )}
-        {dot === 'success' && (
-          <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-success" />
-        )}
-      </button>
-
-      {/* Hover etiketi — ÜSTTE açılır (4 sütunlu grid'de sağa açsaydı komşu
-          sütundaki daireye binerdi). z-20: pod arka planının üstünde kalsın. */}
-      <span
-        className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap px-2.5 py-1.5 rounded-[var(--radius-control)] bg-surface-800 border border-content-primary/12 text-xs font-semibold text-content-secondary opacity-0 group-hover/mini:opacity-100 transition-opacity duration-150 pointer-events-none shadow-md"
-      >
-        {label}
-      </span>
-    </div>
   );
 }

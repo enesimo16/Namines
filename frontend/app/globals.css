@@ -48,6 +48,21 @@
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Semantic Z-Index Utilities
+   ───────────────────────────────────────────────────────────────────────── */
+@utility z-base { z-index: var(--z-base); }
+@utility z-surface { z-index: var(--z-surface); }
+@utility z-sticky { z-index: var(--z-sticky); }
+@utility z-dropdown { z-index: var(--z-dropdown); }
+@utility z-drawer-backdrop { z-index: var(--z-drawer-backdrop); }
+@utility z-drawer { z-index: var(--z-drawer); }
+@utility z-modal-backdrop { z-index: var(--z-modal-backdrop); }
+@utility z-modal { z-index: var(--z-modal); }
+@utility z-popover { z-index: var(--z-popover); }
+@utility z-toast { z-index: var(--z-toast); }
+@utility z-max { z-index: var(--z-max); }
+
 :root {
   /* ══════════════════════════════════════════════════════════════════════
      TEK RENK MERKEZİ
@@ -124,9 +139,9 @@
      Şimdi 55° uzakta ve camgöbeği/turkuaz ailesinde — "minimal lacivert"
      kimliğini korurken (hâlâ desatüre, hâlâ parlak değil) veri/terminal
      aracı hissini güçlendiriyor, jenerik "mor SaaS" paletinden ayrışıyor. */
-  --brand-hue: 195;
-  --brand-chroma: 0.09;
-  --brand-l: 48%;       /* aksan ZEMİN olarak kullanılıyor, üstüne açık metin geliyor */
+  --brand-hue: 0;       /* Siyah-beyaz monokrom */
+  --brand-chroma: 0;    /* 0 = saf nötr / siyah-beyaz */
+  --brand-l: 96%;       /* Beyaz aksan (Shopify stili) */
 
   /* Semantik durumlar — yalnızca TON. Açıklık, nötrlerle aynı formülden
      geliyor ki zemin değişince onlar da birlikte kaysın. FRONTEND.md §2:
@@ -168,26 +183,13 @@
   --content-subtle: oklch(calc(var(--ui-bg-l) + 55%) 0.012 var(--ui-hue));
 
   --accent: oklch(var(--brand-l) var(--brand-chroma) var(--brand-hue));
-  --accent-hover: oklch(calc(var(--brand-l) + 8%) var(--brand-chroma) var(--brand-hue));
-  --accent-text: oklch(calc(var(--ui-bg-l) + 55%) calc(var(--brand-chroma) * 0.6) var(--brand-hue));
-  --accent-subtle: oklch(calc(var(--ui-bg-l) + 4%) calc(var(--brand-chroma) * 0.45) var(--brand-hue));
+  --accent-hover: oklch(88% 0 0);
+  --accent-text: oklch(96% 0 0);
+  --accent-subtle: oklch(calc(var(--ui-bg-l) + 6%) 0 0);
 
-  /* Aksan ZEMIN olarak kullanildiginda ustune gelecek METIN rengi (B-42).
-
-     Neden ayri bir token: cagri noktalari `bg-accent text-surface-900`
-     yaziyordu ve `--surface-900` TEMAYLA BIRLIKTE DONUYOR -- koyu temada
-     neredeyse siyah, acik temada neredeyse beyaz. Sonuc, koyu temada aksan
-     zemin uzerinde koyu metin: OLCULEN 3.15:1 (WCAG AA 4.5 istiyor).
-     Acik temada ayni sinif 6.40:1 veriyordu, yani hata yalnizca bir temada
-     gorunuyordu ve bu yuzden kolayca gozden kaciyordu.
-
-     Beyaza yakin bir ton IKI temada da geciyor (aksan her iki temada da
-     orta-koyu: L=%48 / %46):
-         koyu tema  -> 6.25:1
-         acik tema  -> 6.40:1
-     O yuzden token temayla DONMUYOR; bilincli olarak sabit. */
-  --accent-on: oklch(98.5% 0.002 var(--ui-hue));
-  --focus-ring: oklch(calc(var(--brand-l) + 14%) var(--brand-chroma) var(--brand-hue));
+  /* Aksan (beyaz) ZEMIN olarak kullanildiginda ustune gelecek KOYU METIN rengi */
+  --accent-on: oklch(12% 0 0);
+  --focus-ring: oklch(85% 0 0);
 
   --danger: oklch(52% 0.15 var(--danger-hue));
   --danger-text: oklch(calc(var(--ui-bg-l) + 55%) 0.10 var(--danger-hue));
@@ -245,6 +247,95 @@
      değişkene bağlamak 10 satır içi rengi iki temada da doğru kılıyor. */
   --phrase-l: 80%;
   --namines-gradient-headline: linear-gradient(90deg, oklch(78% 0.14 var(--brand-hue)) 0%, oklch(80% 0.15 170) 50%, oklch(84% 0.14 155) 100%);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SaaS Typography System — Assistant (Section 8)
+     ══════════════════════════════════════════════════════════════════════ */
+  --font-sans: var(--font-app-sans), "Assistant", sans-serif;
+
+  /* Font Boyutu Tokenları */
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+  --text-6xl: 3.5rem;
+
+  /* Font Ağırlığı Tokenları */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Satır Yüksekliği Tokenları */
+  --leading-tight: 1.15;
+  --leading-heading: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SaaS Design System — Shopify Polaris Design Tokens (Section 28)
+     ══════════════════════════════════════════════════════════════════════ */
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Borders */
+  --border-width: 1px;
+
+  /* Layout */
+  --header-height: 60px;
+  --sidebar-width: 250px;
+  --sidebar-collapsed-width: 72px;
+  --page-padding: 24px;
+  --card-padding: 24px;
+  --content-gap: 24px;
+
+  /* Shadows */
+  --shadow-none: none;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-popover: 0 10px 30px rgba(0, 0, 0, 0.16);
+
+  /* Control Heights */
+  --control-h-sm: 32px;
+  --control-h-md: 36px;
+  --control-h-lg: 44px;
+
+  /* Semantic Z-Index Scale */
+  --z-base: 0;
+  --z-surface: 10;
+  --z-sticky: 20;
+  --z-dropdown: 30;
+  --z-drawer-backdrop: 40;
+  --z-drawer: 50;
+  --z-modal-backdrop: 60;
+  --z-modal: 70;
+  --z-popover: 80;
+  --z-toast: 90;
+  --z-max: 100;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -285,11 +376,12 @@ body.light {
      yüzeylere karşı ölçülmeli. */
   --content-subtle: oklch(44% 0.010 var(--ui-hue));
 
-  --accent: oklch(46% 0.13 var(--brand-hue));
-  --accent-hover: oklch(40% 0.14 var(--brand-hue));
-  --accent-text: oklch(34% 0.13 var(--brand-hue));
-  --accent-subtle: oklch(92% 0.04 var(--brand-hue));
-  --focus-ring: oklch(50% 0.14 var(--brand-hue));
+  --accent: oklch(14% 0 0);
+  --accent-hover: oklch(24% 0 0);
+  --accent-text: oklch(14% 0 0);
+  --accent-subtle: oklch(93% 0 0);
+  --accent-on: oklch(98% 0 0);
+  --focus-ring: oklch(25% 0 0);
 
   /* ── Semantik durumlar — AÇIK TEMA (WCAG denetimi, 10.09.2026 / B-42) ──
 
@@ -341,6 +433,7 @@ body.light {
 
   --color-line: color-mix(in srgb, var(--content-primary) 8%, transparent);
   --color-line-strong: color-mix(in srgb, var(--content-primary) 16%, transparent);
+  --color-line-subtle: color-mix(in srgb, var(--content-primary) 24%, transparent);
 
   --scrim: oklch(10% 0 var(--ui-hue) / 0.5);
 
@@ -372,6 +465,8 @@ body.light {
   --color-accent: var(--accent);
   --color-accent-text: var(--accent-text);
   --color-banner-ink: var(--banner-ink);
+  --color-namines-vibrant: var(--namines-teal-vibrant);
+  --color-namines-teal-vibrant: var(--namines-teal-vibrant);
 
   --color-line-solid: oklch(72% 0.008 var(--ui-hue));
   --color-line-solid-strong: oklch(58% 0.012 var(--ui-hue));
@@ -388,8 +483,50 @@ html.light body {
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), 'IBM Plex Sans', sans-serif;
-  --font-mono: var(--font-geist-mono), 'JetBrains Mono', monospace;
+  --font-sans: var(--font-app-sans), "Assistant", sans-serif;
+  --font-mono: var(--font-app-mono), 'Geist Mono', monospace;
+
+  /* SaaS Typography System — Assistant Tokens */
+  --text-xs: var(--text-xs);
+  --text-sm: var(--text-sm);
+  --text-base-sm: var(--text-base-sm);
+  --text-base: var(--text-base);
+  --text-md: var(--text-md);
+  --text-lg: var(--text-lg);
+  --text-xl: var(--text-xl);
+  --text-2xl: var(--text-2xl);
+  --text-3xl: var(--text-3xl);
+  --text-4xl: var(--text-4xl);
+  --text-5xl: var(--text-5xl);
+  --text-6xl: var(--text-6xl);
+
+  --font-weight-regular: var(--weight-regular);
+  --font-weight-medium: var(--weight-medium);
+  --font-weight-semibold: var(--weight-semibold);
+  --font-weight-bold: var(--weight-bold);
+
+  --leading-tight: var(--leading-tight);
+  --leading-heading: var(--leading-heading);
+  --leading-normal: var(--leading-normal);
+  --leading-relaxed: var(--leading-relaxed);
+
+  /* SaaS Design System — Spacing, Radius, Layout */
+  --spacing-space-1: var(--space-1);
+  --spacing-space-2: var(--space-2);
+  --spacing-space-3: var(--space-3);
+  --spacing-space-4: var(--space-4);
+  --spacing-space-5: var(--space-5);
+  --spacing-space-6: var(--space-6);
+  --spacing-space-8: var(--space-8);
+  --spacing-space-10: var(--space-10);
+  --spacing-space-12: var(--space-12);
+  --spacing-space-16: var(--space-16);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-full: var(--radius-full);
 
   /* Yüzey ölçeği */
   --color-surface-900: var(--surface-900);
@@ -422,6 +559,7 @@ html.light body {
 
   --color-line: color-mix(in srgb, var(--content-primary) 8%, transparent);
   --color-line-strong: color-mix(in srgb, var(--content-primary) 16%, transparent);
+  --color-line-subtle: color-mix(in srgb, var(--content-primary) 24%, transparent);
   /* Opak karşılıkları: canvas ızgarası, minimap ve PNG/SVG dışa aktarımı
      alfayı saydam zemin üstünde hesapladığı için orada görünmez oluyorlardı.
 
@@ -462,6 +600,7 @@ html.light body {
   --color-qr-light: var(--qr-light);
   --color-namines-badge: var(--namines-teal-badge);
   --color-namines-vibrant: var(--namines-teal-vibrant);
+  --color-namines-teal-vibrant: var(--namines-teal-vibrant);
   --color-namines-tile: var(--namines-teal-tile);
   --color-namines-tile-border: var(--namines-teal-tile-border);
 
@@ -479,9 +618,9 @@ html.light body {
      (rounded, -sm, -md, -lg, -xl, -2xl, -3xl, -full) ve aralarında hiçbir
      ilişki yoktu. Görev dokümanının yasak listesinde birebir madde:
      "multiple unrelated border-radius values". */
-  --radius-control: 6px;   /* buton, input, select, rozet */
-  --radius-card: 10px;     /* kart, panel, tablo düğümü */
-  --radius-modal: 14px;    /* modal, drawer, açılır menü */
+  --radius-control: 12px;   /* buton, input, select, rozet — yuvarlağımsı Shopify */
+  --radius-card: 20px;      /* kart, panel, divler — yuvarlağımsı Shopify */
+  --radius-modal: 24px;     /* modal, drawer, açılır menü */
 
   /* ── Kenarlık: tek değer ───────────────────────────────────────────────
      Vercel'de ölçülen kenarlık sayısı: 1 (`1px rgba(0,0,0,0.08)`). */
@@ -528,54 +667,69 @@ html.light body {
    ve okunabilirlik alt sınırının altındaydı.
    ───────────────────────────────────────────────────────────────────────── */
 @utility text-display {
-  font-size: 2.5rem;
-  font-weight: 400;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
+  font-size: var(--text-6xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
 }
 @utility text-h1 {
-  font-size: 1.875rem;
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: -0.025em;
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-heading);
 }
 @utility text-h2 {
-  font-size: 1.5rem;
-  font-weight: 450;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-heading);
 }
 @utility text-h3 {
-  font-size: 1.125rem;
-  font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-heading);
+}
+@utility text-h4 {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: 1.4;
+}
+@utility text-h5 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: 1.45;
+}
+@utility text-h6 {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-normal);
 }
 @utility text-body-lg {
-  font-size: 1rem;
-  font-weight: 400;
-  line-height: 1.6;
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  line-height: 1.5;
 }
 @utility text-body {
-  font-size: 0.875rem;
-  font-weight: 400;
-  line-height: 1.55;
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-normal);
+}
+@utility text-body-sm {
+  font-size: var(--text-base-sm);
+  font-weight: var(--weight-regular);
+  line-height: 1.38;
 }
 @utility text-label {
-  font-size: 0.8125rem;
-  font-weight: 500;
+  font-size: var(--text-base-sm);
+  font-weight: var(--weight-medium);
   line-height: 1.4;
 }
 @utility text-caption {
-  font-size: 0.75rem;
-  font-weight: 400;
-  line-height: 1.4;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  line-height: 1.33;
 }
 @utility text-micro {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  line-height: 1.3;
-  letter-spacing: 0.02em;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.27;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -662,6 +816,10 @@ html.light body {
 }
 
 body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-normal);
   background: radial-gradient(circle at top right, var(--color-surface-700) 0%, var(--color-surface-900) 70%);
   min-height: 100vh;
   color: var(--color-ink);
@@ -773,7 +931,7 @@ select option {
   overflow: hidden;
   z-index: 0;
   pointer-events: none;
-  background: linear-gradient(to top, var(--color-scrim) 0%, transparent 100%);
+  background: linear-gradient(to top, color-mix(in srgb, oklch(65% 0.20 168) 22%, transparent) 0%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 35%, black 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, black 35%, black 100%);
 }
@@ -790,44 +948,44 @@ select option {
 
 .wave1 {
   bottom: -3820px;
-  background: color-mix(in srgb, var(--color-accent-hover) 22%, transparent); /* accent-hover */
+  background: color-mix(in srgb, oklch(74% 0.20 168) 55%, transparent); /* Canlı su yeşili */
   animation: fluid-wave 20s infinite linear;
 }
 
 .wave2 {
   bottom: -3840px;
-  background: color-mix(in srgb, var(--color-focus-ring) 16%, transparent); /* focus-ring */
+  background: color-mix(in srgb, oklch(68% 0.18 165) 42%, transparent); /* Zengin su yeşili */
   animation: fluid-wave 30s infinite linear reverse;
 }
 
 .wave3 {
   bottom: -3860px;
-  background: color-mix(in srgb, var(--color-line-solid-strong) 40%, transparent); /* line-strong */
+  background: color-mix(in srgb, oklch(62% 0.17 162) 32%, transparent); /* Derin zümrüt su yeşili */
   animation: fluid-wave 40s infinite linear;
 }
 
 :root[data-theme="light"] .ocean-wave,
 html[data-theme="light"] .ocean-wave,
 html.light .ocean-wave {
-  background: linear-gradient(to top, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 100%);
+  background: linear-gradient(to top, color-mix(in srgb, oklch(60% 0.20 168) 25%, transparent) 0%, transparent 100%);
 }
 
 :root[data-theme="light"] .wave1,
 html[data-theme="light"] .wave1,
 html.light .wave1 {
-  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  background: color-mix(in srgb, oklch(58% 0.20 168) 60%, transparent); /* Açık temada net su yeşili */
 }
 
 :root[data-theme="light"] .wave2,
 html[data-theme="light"] .wave2,
 html.light .wave2 {
-  background: color-mix(in srgb, var(--focus-ring) 20%, transparent);
+  background: color-mix(in srgb, oklch(52% 0.18 165) 48%, transparent);
 }
 
 :root[data-theme="light"] .wave3,
 html[data-theme="light"] .wave3,
 html.light .wave3 {
-  background: color-mix(in srgb, var(--accent-hover) 15%, transparent);
+  background: color-mix(in srgb, oklch(46% 0.17 162) 38%, transparent);
 }
 
 @keyframes fluid-wave {
@@ -1890,7 +2048,7 @@ html.light .glass-button:hover {
   padding: 0.5rem 0.7rem;
   font-size: 0.85rem;
   color: var(--color-content-primary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   transition: all 0.2s ease;
   outline: none;
 }
@@ -1957,7 +2115,7 @@ html.light .glass-button:hover {
   padding: 0.3rem 0.45rem;
   font-size: 0.76rem;
   color: var(--color-content-primary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   outline: none;
   transition: border-color 0.2s ease;
   min-width: 0;
@@ -2183,3 +2341,17 @@ pre[class*="language-"] .token.attr-name,
 pre[class*="language-"] .token.variable {
   color: var(--color-content-secondary);
 }
+
+/* Shopify Editions — Advanced modu parlaklık stilleri */
+.prompt-panel-advanced {
+  border-color: var(--color-line-strong) !important;
+  box-shadow: 0 0 0 1px var(--color-line-strong), 0 0 45px oklch(100% 0 0 / 0.14), 0 25px 50px -12px oklch(0% 0 0 / 0.8) !important;
+}
+
+.advanced-toggle-active {
+  background: var(--accent) !important;
+  color: var(--accent-on) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 22px oklch(100% 0 0 / 0.35), 0 0 0 1px oklch(100% 0 0 / 0.6) !important;
+}
+

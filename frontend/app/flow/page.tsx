@@ -160,7 +160,7 @@ export default function FlowPage() {
         meta={<Badge tone="neutral" icon={Workflow}>{projectName}</Badge>}
         actions={
           <>
-            <label className="flex items-center gap-2.5 h-9 px-3 rounded-[var(--radius-control)] border border-content-primary/10 bg-surface-800 text-[13px] text-content-secondary">
+            <label className="flex items-center gap-2.5 h-9 px-3 rounded-[var(--radius-control)] border border-line-strong bg-surface-800 text-xs font-semibold text-content-secondary shadow-xs">
               <Switch checked={paused} onChange={togglePaused} label="Pause flow reactions in this browser" />
               {paused ? 'Paused' : 'Running'}
             </label>
@@ -196,7 +196,7 @@ export default function FlowPage() {
           <EmptyState icon={Zap} title="No flows yet"
             description="Start from a template below, or create a blank flow and choose the trigger and steps yourself." />
         ) : (
-          <ul className="divide-y divide-content-primary/[0.07]">
+          <ul className="divide-y divide-line">
             {rules.map(rule => (
               <RuleRow
                 key={rule.id}
@@ -244,13 +244,13 @@ export default function FlowPage() {
                   type="button"
                   disabled={blocked}
                   onClick={() => applyTemplate(template)}
-                  className="group w-full h-full text-left rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-700 p-4 transition-colors hover:border-content-primary/25 hover:bg-surface-600 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+                  className="group w-full h-full text-left rounded-[var(--radius-card)] border border-line-strong bg-surface-800 hover:bg-surface-700/80 p-4 transition-all hover:border-line-strong cursor-pointer shadow-xs disabled:opacity-45 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
                 >
                   <span className="flex items-start justify-between gap-3">
-                    <span className="text-[13px] font-semibold text-content-primary">{template.label}</span>
-                    <Plus className="w-4 h-4 shrink-0 text-content-muted group-hover:text-content-primary" aria-hidden="true" />
+                    <span className="text-xs font-bold text-content-primary">{template.label}</span>
+                    <Plus className="w-4 h-4 shrink-0 text-content-muted group-hover:text-content-primary transition-colors" aria-hidden="true" />
                   </span>
-                  <span className="mt-1 block text-[12px] leading-relaxed text-content-muted">
+                  <span className="mt-1 block text-micro leading-relaxed text-content-muted">
                     {blocked ? 'Add a table to the diagram to use this template.' : template.description}
                   </span>
                 </button>

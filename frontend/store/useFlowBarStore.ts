@@ -31,10 +31,10 @@ interface FlowBarState {
 }
 
 /**
- * Sol kenarda, proje kartının ALTINDA kalan ilk boş şerit. Kart yaklaşık
- * 290px'e kadar iniyor; daha yukarısı ilk açılışta onun üstüne biniyordu.
+ * Proje kartının (#schema-info-panel, w: 256px + ml: 16px) SAĞINDA ve üst hizada
+ * duran konum. Kartın hemen yan-üst hizasına yerleşir.
  */
-const DEFAULT_POSITION = { x: 24, y: 320 };
+const DEFAULT_POSITION = { x: 288, y: 16 };
 
 export const useFlowBarStore = create<FlowBarState>()(
   persist(
@@ -53,6 +53,14 @@ export const useFlowBarStore = create<FlowBarState>()(
     }),
     {
       name: 'namines-flow-bar',
+      version: 3,
+      migrate: (persistedState: unknown) => {
+        const s = persistedState as { position?: { x: number; y: number } };
+        if (!s?.position || s.position.y > 60 || (s.position.x === 24 && s.position.y === 320)) {
+          if (s) s.position = DEFAULT_POSITION;
+        }
+        return s as FlowBarState;
+      },
       // `panelOpen`/`pickingTable` oturumluk: yarım kalmış bir "tablo seç"
       // modunun sayfa yenilendiğinde geri gelmesi kullanıcıyı şaşırtırdı.
       partialize: (state) => ({

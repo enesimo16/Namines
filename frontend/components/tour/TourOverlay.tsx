@@ -113,7 +113,7 @@ export default function TourOverlay() {
   // Calculate dynamic card positioning
   let cardStyle: React.CSSProperties = {
     position: 'fixed',
-    zIndex: 9999
+    zIndex: 'var(--z-popover)',
   };
 
   if (coords) {
@@ -173,7 +173,7 @@ export default function TourOverlay() {
   return (
     <>
       {/* Spotlight Backdrop Mask */}
-      <svg className="fixed inset-0 w-full h-full pointer-events-none z-[9997]">
+      <svg className="fixed inset-0 w-full h-full pointer-events-none z-modal-backdrop">
         <defs>
           <mask id="tour-spotlight-mask">
             <rect width="100%" height="100%" fill="white" />

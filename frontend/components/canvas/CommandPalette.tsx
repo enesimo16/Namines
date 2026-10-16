@@ -105,7 +105,7 @@ function CommandPalettePanel({ onClose, actions }: { onClose: () => void; action
 
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-start justify-center pt-[15vh] bg-scrim/60 backdrop-blur-sm"
+      className="fixed inset-0 z-modal flex items-start justify-center pt-[15vh] bg-scrim/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div

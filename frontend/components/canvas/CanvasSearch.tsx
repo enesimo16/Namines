@@ -96,8 +96,8 @@ function CanvasSearchPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[200] pointer-events-auto">
-      <div className="flex items-center gap-2 bg-surface-800/95 backdrop-blur-md border border-accent-hover/40 rounded-[var(--radius-card)] px-3 py-2 shadow-[0_8px_30px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] w-80">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-popover pointer-events-auto">
+      <div className="flex items-center gap-2 bg-surface-800/95 backdrop-blur-md border border-accent-hover/40 rounded-[var(--radius-card)] px-3 py-2 shadow-2xl w-80">
         <Search className="w-4 h-4 text-content-muted shrink-0" />
         <input
           aria-label="Search tables or columns"

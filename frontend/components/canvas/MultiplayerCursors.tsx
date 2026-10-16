@@ -19,7 +19,7 @@ export default function MultiplayerCursors() {
   const { x: panX, y: panY, zoom } = useViewport();
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[40] overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 z-surface overflow-hidden">
       {Object.entries(cursors).map(([connectionId, cursor]) => {
         // flow → ekran dönüşümü (React Flow'un uyguladığı transform ile aynı)
         const screenX = cursor.x * zoom + panX;

@@ -1,27 +1,65 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
+import { Assistant, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "../components/layout/Header";
 import ToastContainer from "../components/toast/ToastContainer";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import FeedbackWidget from "../components/feedback/FeedbackWidget";
 
-// Arayüz fontu: IBM Plex Sans — bkz. FRONTEND.md §3 ("Developer Mono" eşleşmesi).
-const ibmPlexSans = IBM_Plex_Sans({
-  variable: "--font-inter",
+/* ─────────────────────────────────────────────────────────────────────────
+   FONT YÖNETİM MERKEZİ (Single Source of Truth for Typography)
+   Uygulamanın tüm fontları buradan yönetilir:
+   - primarySans: Assistant (font-sans)
+   - primaryMono: Geist Mono (font-mono)
+   ───────────────────────────────────────────────────────────────────────── */
+const primarySans = Assistant({
+  variable: "--font-app-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  fallback: ["sans-serif"],
 });
 
-// Başlık/kod/tablo-kolon/rakam bloklarında kullanılır (--font-mono).
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-geist-mono",
+const primaryMono = Geist_Mono({
+  variable: "--font-app-mono",
   subsets: ["latin"],
 });
+
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://namines.app';
 
 export const metadata: Metadata = {
-  title: "Namines — AI Database Architecture Builder",
-  description: "Design interactive database architectures in seconds with artificial intelligence.",
+  metadataBase: new URL(appUrl),
+  title: {
+    default: "Namines — AI Database Architecture & Lifecycle Management",
+    template: "%s | Namines",
+  },
+  description: "AI-native database architecture design, change review governance, migration risk analysis, and full-stack code generation.",
+  keywords: ["database", "schema", "AI", "architecture", "migration", "PostgreSQL", "MySQL", "SQL Server", "change review"],
+  authors: [{ name: "Namines Team" }],
+  creator: "Namines",
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    apple: [
+      { url: '/brand/namines-app-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: appUrl,
+    title: "Namines — AI Database Architecture & Lifecycle Management",
+    description: "Design interactive database architectures and safely govern database changes with AI.",
+    siteName: "Namines",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Namines — AI Database Architecture & Lifecycle Management",
+    description: "Design interactive database architectures and safely govern database changes with AI.",
+  },
 };
 
 export default function RootLayout({
@@ -32,7 +70,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${jetbrainsMono.variable} ${ibmPlexSans.variable} h-full antialiased`}
+      className={`${primaryMono.variable} ${primarySans.variable} font-sans h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

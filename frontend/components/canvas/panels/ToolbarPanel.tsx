@@ -28,11 +28,11 @@ import { DatabaseSchema } from '../../../types/schema';
 // `shrink-0`: mobilde araç çubuğu yatay kaydırılan bir şerit; onsuz butonlar
 // sıkışıp okunmaz hâle geliyordu.
 const iconBtnBase =
-  'relative shrink-0 flex items-center justify-center w-9 h-9 rounded-[var(--radius-control)] border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+  'relative shrink-0 flex items-center justify-center w-8 h-8 rounded-[var(--radius-control)] border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
 const iconBtnIdle =
-  'bg-surface-700 border-content-primary/10 text-content-muted hover:text-content-primary hover:border-content-primary/20 hover:bg-surface-600';
+  'bg-surface-800/90 border-line text-content-secondary hover:text-content-primary hover:border-line-strong hover:bg-surface-700/60 shadow-xs';
 const iconBtnActive =
-  'bg-white/[0.08] border-white/25 text-content-primary';
+  'bg-surface-700 border-line-strong text-content-primary shadow-xs font-semibold';
 
 export default function ToolbarPanel() {
   const router = useRouter();
@@ -94,6 +94,7 @@ export default function ToolbarPanel() {
       return;
     }
     setIsExplaining(true);
+    showToast('Generating AI schema explanation...', 'info');
     try {
       const readme = await schemaService.generateReadme(schema, 'en');
       setExplanation(readme);
@@ -211,22 +212,21 @@ export default function ToolbarPanel() {
   };
 
   const handleRequestReview = async () => {
-    if (!isAuthenticated) {
-      showToast('Sign in to request a database change review.', 'warning');
-      return;
-    }
-    if (!activeProjectId) {
-      showToast('Save your project first (generate a schema and it will auto-save).', 'warning');
-      return;
-    }
     if (!schema || schema.tables.length === 0) {
       showToast('Add some tables first before requesting a review.', 'warning');
       return;
     }
     setIsRequestingReview(true);
     try {
+      let projId = activeProjectId;
       const currentSchema = flowToSchema(schema, getNodes(), getEdges()) || schema;
-      const { id } = await changeRequestService.createQuick(activeProjectId, currentSchema);
+      if (!projId) {
+        useProjectHistoryStore.getState().saveCurrentProject(currentSchema, getNodes(), schema?.name || 'Untitled Project', dbType);
+        projId = useProjectHistoryStore.getState().activeProjectId;
+      }
+
+      const { id } = await changeRequestService.createQuick(projId || 'local-project', currentSchema);
+      showToast('Change request created! Opening review…', 'success');
       router.push(`/review/${id}`);
     } catch {
       showToast('Failed to create change request. Please try again.', 'error');
@@ -304,26 +304,26 @@ export default function ToolbarPanel() {
           </button>
 
           {isShareOpen && (
-            <div className="absolute right-0 top-full mt-2 w-56 rounded-[var(--radius-card)] border border-content-primary/15 bg-surface-800/95 backdrop-blur-xl p-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 40%, transparent)] z-50 flex flex-col gap-0.5 animate-dropdown-in">
+            <div className="absolute right-0 top-full mt-1.5 w-60 rounded-[var(--radius-card)] border border-line-strong bg-surface-800/95 backdrop-blur-xl p-1 shadow-2xl z-50 flex flex-col gap-0.5 animate-dropdown-in">
               <button
                 onClick={handleShareReadOnly}
                 disabled={isSharing}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-control)] text-left text-xs font-medium text-content-primary hover:bg-white/[0.04] hover:text-content-primary transition-all disabled:opacity-50"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-[var(--radius-control)] text-left text-xs font-medium text-content-primary hover:bg-surface-700/60 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {isSharing ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
                 <span>
-                  <span className="block">Copy read-only link</span>
+                  <span className="block font-medium">Copy read-only link</span>
                   <span className="block text-[10px] text-content-muted">Anyone with the link can view</span>
                 </span>
               </button>
               <button
                 onClick={shareRoomLink}
                 disabled={!isConnected}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-control)] text-left text-xs font-medium text-content-primary hover:bg-white/[0.04] hover:text-content-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-[var(--radius-control)] text-left text-xs font-medium text-content-primary hover:bg-surface-700/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Users className="w-3.5 h-3.5 shrink-0" />
                 <span>
-                  <span className="block">Copy live session link</span>
+                  <span className="block font-medium">Copy live session link</span>
                   <span className="block text-[10px] text-content-muted">
                     {isConnected ? 'Real-time co-editing room' : 'Connect to a room first'}
                   </span>
@@ -444,7 +444,7 @@ export default function ToolbarPanel() {
       ) : (
         <div
           className="fixed z-[60] flex items-center gap-1.5 top-[60px] left-2 right-2 overflow-x-auto scrollbar-none
-            rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800/95 backdrop-blur-xl p-1.5"
+            rounded-[var(--radius-card)] border border-line bg-surface-800/95 backdrop-blur-xl p-1.5 shadow-lg"
         >
           {actions}
         </div>
@@ -493,11 +493,11 @@ export default function ToolbarPanel() {
       {explanation !== null && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-scrim/70 backdrop-blur-sm" onClick={() => setExplanation(null)}>
           <div
-            className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
+            className="bg-surface-800 border border-line-strong rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
             style={{ maxHeight: '80vh' }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-content-primary/10">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-line">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-content-muted" />
                 <span className="text-content-primary font-semibold text-sm">Schema Explanation</span>
@@ -509,13 +509,13 @@ export default function ToolbarPanel() {
                     setExplanationCopied(true);
                     setTimeout(() => setExplanationCopied(false), 1500);
                   }}
-                  className="p-1.5 text-content-subtle hover:text-content-primary rounded-[var(--radius-control)] hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  className="p-1.5 text-content-subtle hover:text-content-primary rounded-[var(--radius-control)] hover:bg-surface-700/60 transition-colors cursor-pointer"
                   aria-label="Copy explanation"
                   title="Copy as Markdown"
                 >
                   {explanationCopied ? <Check className="w-3.5 h-3.5 text-success-text" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
-                <button onClick={() => setExplanation(null)} className="p-1.5 text-content-subtle hover:text-content-primary rounded-[var(--radius-control)] hover:bg-white/[0.06] transition-colors cursor-pointer" aria-label="Close">
+                <button onClick={() => setExplanation(null)} className="p-1.5 text-content-subtle hover:text-content-primary rounded-[var(--radius-control)] hover:bg-surface-700/60 transition-colors cursor-pointer" aria-label="Close">
                   <X className="w-4 h-4" />
                 </button>
               </div>

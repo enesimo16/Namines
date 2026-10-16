@@ -22,26 +22,26 @@ export default function ProfileTab({ isAuthenticated, form }: { isAuthenticated:
         <NotLoggedIn icon={User} message="Please log in to manage your developer profile information." />
       ) : (
         <form onSubmit={save} className={`${cardClass} p-5 space-y-5`}>
-          <div className="flex items-center gap-2 border-b border-content-primary/10 pb-3">
+          <div className="flex items-center gap-2 border-b border-line pb-3">
             <User className="w-4 h-4 text-content-muted" />
-            <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">Developer Profile Information</h4>
+            <h4 className="text-xs font-semibold text-content-primary uppercase tracking-wider">Developer Profile Information</h4>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {FIELDS.map(({ field, label, placeholder, wide }) => (
               <div key={field} className={`space-y-1.5${wide ? ' md:col-span-2' : ''}`}>
-                <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">{label}</label>
+                <label className="text-[11px] font-medium text-content-muted uppercase tracking-wider">{label}</label>
                 <input aria-label={label} type="text" value={profile[field]} onChange={(e) => setField(field, e.target.value)} placeholder={placeholder} className={inputClass} />
               </div>
             ))}
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">Short Bio</label>
+              <label className="text-[11px] font-medium text-content-muted uppercase tracking-wider">Short Bio</label>
               <textarea aria-label="Short Bio" value={profile.bio} onChange={(e) => setField('bio', e.target.value)} placeholder="Full-stack developer passionate about databases and scalable architecture..." rows={3} className={`${inputClass} resize-none`} />
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-2">
-            <p className="text-[10px] text-content-subtle font-medium">
+            <p className="text-[11px] text-content-muted font-medium">
               {isAuthenticated ? 'Saved to cloud + local cache.' : 'Log in to enable cloud sync.'}
             </p>
             <button

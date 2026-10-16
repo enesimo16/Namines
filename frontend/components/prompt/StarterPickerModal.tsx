@@ -28,7 +28,7 @@ export function StarterPickerModal({ onPick, onClose }: StarterPickerModalProps)
   useFocusTrap(true, modalRef);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
       <div
         ref={modalRef}
         role="dialog"

@@ -192,8 +192,8 @@ export default function LaunchPanel({
           <>
             <ol className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="What Launch does">
               {PLAN.map((item, index) => (
-                <li key={item.title} className="flex items-start gap-3 rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800 p-3.5">
-                  <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-surface-600 text-content-secondary text-[12px] font-semibold font-mono">
+                <li key={item.title} className="flex items-start gap-3 rounded-[var(--radius-card)] border border-line bg-surface-800/80 p-3.5 shadow-xs">
+                  <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-surface-700 border border-line text-content-primary text-[11px] font-semibold font-mono">
                     {index + 1}
                   </span>
                   <div className="min-w-0">
@@ -234,10 +234,12 @@ export default function LaunchPanel({
                     const selected = chosenProvider === p.name;
                     return (
                       <label key={p.name}
-                        className={`flex items-start gap-3 rounded-[var(--radius-card)] border p-3.5 cursor-pointer transition-colors ${
-                          selected ? 'border-accent-hover bg-accent-subtle' : 'border-content-primary/10 bg-surface-800 hover:border-content-primary/25'
+                        className={`flex items-start gap-3 rounded-[var(--radius-card)] border p-3.5 cursor-pointer transition-all ${
+                          selected
+                            ? 'border-line-strong bg-surface-700/90 shadow-xs ring-1 ring-line-strong'
+                            : 'border-line bg-surface-800/60 hover:bg-surface-800 hover:border-line-strong'
                         }`}>
-                        <input type="radio" name="provider" value={p.name} className="mt-1 accent-[var(--color-accent-hover)]"
+                        <input type="radio" name="provider" value={p.name} className="mt-1"
                           checked={selected} onChange={() => setSelectedProvider(p.name)} />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center gap-2">
@@ -272,7 +274,7 @@ export default function LaunchPanel({
         )}
 
         {steps && (
-          <ol className="rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800 divide-y divide-content-primary/[0.07]" aria-live="polite">
+          <ol className="rounded-[var(--radius-card)] border border-line-strong bg-surface-800/90 divide-y divide-line shadow-xs" aria-live="polite">
             {steps.map(s => (
               <li key={s.key} className="flex items-start gap-3 px-4 py-3">
                 <StepIcon state={s.state} />

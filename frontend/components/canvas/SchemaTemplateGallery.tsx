@@ -57,7 +57,7 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
     // Mobil: kenarlardan taşmasın diye p-3, ve yükseklik dvh ile — mobil
     // tarayıcılarda vh, adres çubuğu gizlenene kadar gerçek yüksekliği vermiyor
     // ve modalın altı ekranın dışında kalıyordu.
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-3 sm:p-4">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-3 sm:p-4">
       <div className="bg-surface-800 border border-surface-500 rounded-[var(--radius-modal)] shadow-2xl w-full max-w-2xl flex flex-col max-h-[90dvh]">
 
         {/* Header */}

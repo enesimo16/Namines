@@ -206,7 +206,7 @@ export const useSchemaStore = create<SchemaState>()(
 
       // Hafif state — persist edilir
       isGenerating: false,
-      naiModel: 'nai',
+      naiModel: 'nai-v1-standard',
       projectName: DEFAULT_PROJECT_NAME,
       dbType: 'MSSQL',
       promptHistory: [],

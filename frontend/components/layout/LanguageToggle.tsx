@@ -18,8 +18,16 @@ export default function LanguageToggle() {
       role="group"
       aria-label={t('language.label')}
       title={locale === 'tr' ? t('language.betaNote') : undefined}
-      className="inline-flex items-center rounded-full border border-content-primary/10 bg-white/[0.04] p-0.5 shrink-0"
+      className="relative inline-flex items-center h-8 w-[72px] p-0.5 rounded-full border border-line-strong bg-surface-800/80 shrink-0 select-none shadow-sm overflow-hidden"
     >
+      {/* Sliding Active Indicator */}
+      <span
+        aria-hidden="true"
+        className={`absolute top-0.5 bottom-0.5 left-0.5 w-[33px] rounded-full bg-accent shadow-sm transition-transform duration-200 ease-out pointer-events-none ${
+          locale === 'tr' ? 'translate-x-[33px]' : 'translate-x-0'
+        }`}
+      />
+
       {LOCALES.map(option => {
         const active = option === locale;
         return (
@@ -29,8 +37,8 @@ export default function LanguageToggle() {
             onClick={() => setLocale(option)}
             aria-pressed={active}
             aria-label={t(`language.${option}`)}
-            className={`tap-44 px-2 py-1 rounded-full text-[10px] font-bold tracking-wider transition-colors cursor-pointer ${
-              active ? 'bg-accent text-accent-on' : 'text-content-muted hover:text-content-primary'
+            className={`tap-44 relative z-10 flex-1 h-7 rounded-full text-[10px] font-mono font-bold tracking-wider flex items-center justify-center transition-colors duration-200 cursor-pointer ${
+              active ? 'text-accent-on' : 'text-content-muted hover:text-content-primary'
             }`}
           >
             {SHORT[option]}

@@ -5,7 +5,7 @@ import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { useAIGateway } from '../../../hooks/useAIGateway';
 import { schemaService } from '../../../services/api';
-import { Loader2, ArrowUp, History, Sparkles } from 'lucide-react';
+import { Loader2, ArrowUp, History, Sparkles, Table } from 'lucide-react';
 import { flowToSchema } from '../../../lib/flowToSchema';
 import { apiErrorStatus, errorMessage } from '../../../lib/errors';
 
@@ -142,36 +142,49 @@ export default function RegionalPromptPanel() {
       ? 'Ask AI to modify the selected tables…'
       : 'Select a table, or click here to ask AI…';
 
-  // Kapsam görünür olmalı — bkz. second-phase/08-PROMPT-DENEYIMI.md §8.4.
-  // Seçili tablo çipleri zaten vardı ama neyin DEĞİŞECEĞİNİ açıkça söylemiyordu;
-  // kullanıcı göndermeden önce bunu bilmeli, "beklenmedik değişiklik" güveni kırar.
-  const scopeLabel = isInitialGeneration
-    ? null
-    : selectedNodes.length > 0
-      ? `${selectedNodes.length} table${selectedNodes.length > 1 ? 's' : ''} selected — only ${selectedNodes.length > 1 ? 'these' : 'this one'} will change`
-      : 'No table selected — the whole schema may change';
 
   return (
     <div
-      className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] transition-opacity duration-300 ${
-        isActive ? 'opacity-100' : 'opacity-35 hover:opacity-100'
+      className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ${
+        isActive ? 'opacity-100 scale-100' : 'opacity-40 hover:opacity-100 scale-[0.98]'
       }`}
       onMouseEnter={() => setIsFocused(true)}
       onMouseLeave={() => { if (document.activeElement !== inputRef.current) setIsFocused(false); }}
     >
-      {scopeLabel && isActive && (
-        <p className="text-center text-[10px] text-content-muted mb-1.5 select-none">
-          {scopeLabel}
-        </p>
+      {/* Yalnızca seçili tablo varsa üstte zarif bir rozet olarak görünür */}
+      {selectedNodes.length > 0 && (
+        <div className="flex items-center justify-center mb-2 animate-in fade-in duration-200">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-900/95 border border-line-strong backdrop-blur-xl shadow-lg text-micro font-medium text-content-secondary select-none">
+            <Table className="w-3.5 h-3.5 text-content-primary shrink-0" />
+            <span className="font-bold text-content-primary">
+              {selectedNodes.length} table{selectedNodes.length > 1 ? 's' : ''}:
+            </span>
+            <div className="flex items-center gap-1 overflow-x-auto max-w-[280px]">
+              {selectedNodes.slice(0, 3).map(n => (
+                <span
+                  key={n.id}
+                  className="font-mono text-micro font-bold text-content-primary bg-surface-800 border border-line px-1.5 py-0.5 rounded-full shrink-0"
+                >
+                  /{((n.data as TableNodeData | undefined)?.table?.name || '').toLowerCase()}
+                </span>
+              ))}
+              {selectedNodes.length > 3 && (
+                <span className="text-micro text-content-muted shrink-0">+{selectedNodes.length - 3}</span>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Prompt geçmişi — daha önce ne istendiğini gösterir, tekrar çalıştırılabilir.
-          second-phase/08-PROMPT-DENEYIMI.md §8.3. */}
+      {/* Prompt geçmişi popover */}
       {promptHistory.length > 0 && isHistoryOpen && (
         <div
           ref={historyRef}
-          className="mb-2 w-[560px] max-w-[88vw] max-h-56 overflow-y-auto bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-[var(--radius-modal)] p-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 50%, transparent)] flex flex-col gap-0.5"
+          className="mb-2 w-[540px] max-w-[90vw] max-h-52 overflow-y-auto bg-surface-900/98 backdrop-blur-2xl border border-line-strong rounded-[var(--radius-card)] p-1.5 shadow-2xl flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150"
         >
+          <div className="px-2.5 py-1 text-micro font-bold uppercase tracking-wider text-content-muted">
+            Recent Prompts
+          </div>
           {promptHistory.map((p, i) => (
             <button
               key={i}
@@ -181,7 +194,7 @@ export default function RegionalPromptPanel() {
                 setIsHistoryOpen(false);
                 inputRef.current?.focus();
               }}
-              className="text-left text-xs text-content-muted hover:text-content-primary hover:bg-white/[0.05] rounded-[var(--radius-control)] px-2.5 py-1.5 truncate transition-colors"
+              className="text-left text-xs text-content-secondary hover:text-content-primary hover:bg-surface-800 rounded-[var(--radius-control)] px-2.5 py-2 truncate transition-colors cursor-pointer"
               title={p}
             >
               {p}
@@ -190,43 +203,15 @@ export default function RegionalPromptPanel() {
         </div>
       )}
 
+      {/* Ana Estetik Kapsül (Floating Command Pill) */}
       <form
         onSubmit={handleAction}
-        className="flex items-center gap-2 w-[560px] max-w-[88vw] bg-surface-800/95 backdrop-blur-xl border border-content-primary/12 rounded-full pl-3 pr-1.5 py-1.5 shadow-[0_8px_32px_color-mix(in srgb, var(--color-scrim) 50%, transparent)]"
+        className="flex items-center gap-2 w-[540px] max-w-[90vw] bg-surface-900/95 backdrop-blur-2xl border border-line-strong hover:border-line-solid-strong focus-within:border-line-solid-strong rounded-full pl-3.5 pr-1.5 py-1.5 shadow-2xl transition-all duration-200"
       >
-        {promptHistory.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setIsHistoryOpen(v => !v)}
-            aria-label="Prompt history"
-            title="Prompt history"
-            className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
-              isHistoryOpen ? 'text-content-primary bg-white/[0.08]' : 'text-content-muted hover:text-content-primary hover:bg-white/[0.05]'
-            }`}
-          >
-            <History className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* Seçili tablo referans çipleri */}
-        {selectedNodes.length > 0 && (
-          <div className="flex items-center gap-1 shrink-0 max-w-[40%] overflow-x-auto">
-            {selectedNodes.slice(0, 3).map(n => (
-              <span
-                key={n.id}
-                className="flex items-center gap-1 text-[11px] font-mono text-content-primary bg-white/[0.08] border border-white/15 px-2 py-1 rounded-full whitespace-nowrap shrink-0"
-              >
-                /{((n.data as TableNodeData | undefined)?.table?.name || '').toLowerCase()}
-              </span>
-            ))}
-            {selectedNodes.length > 3 && (
-              <span className="text-[11px] text-content-muted shrink-0">+{selectedNodes.length - 3}</span>
-            )}
-          </div>
-        )}
+        <Sparkles className="w-4 h-4 text-content-muted shrink-0 transition-colors" />
 
         <input
-          aria-label="Prompt for the selected tables"
+          aria-label="Prompt for the database schema"
           ref={inputRef}
           id="regional-prompt-input"
           type="text"
@@ -236,15 +221,27 @@ export default function RegionalPromptPanel() {
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
           disabled={isRevising}
-          className="flex-1 min-w-0 bg-transparent text-sm text-content-primary placeholder:text-content-subtle focus:outline-none"
+          className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-content-primary placeholder:text-content-muted focus:outline-none py-1"
         />
 
-        {/* Alternative — YALNIZCA son üretim prompt'u varken render edilir.
-            Devre dışı gri bir düğme göstermek yerine gizleniyor: eski hâlinde
-            kullanıcı basmayı deniyor, hiçbir şey olmuyor ve nedenini yalnızca
-            tooltip söylüyordu ("alternative kısmı çalışmıyor yani basılmıyor").
-            Şablonla/import'la gelen şemalarda yeniden çalıştırılacak bir prompt
-            yoktur — o yüzden düğme de yoktur. */}
+        {/* Prompt geçmişi butonu */}
+        {promptHistory.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(v => !v)}
+            aria-label="Prompt history"
+            title="Prompt history"
+            className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              isHistoryOpen
+                ? 'text-content-primary bg-surface-700'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-800'
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {/* Alternative butonu */}
         {lastGenerationPrompt && (
           <button
             type="button"
@@ -253,20 +250,21 @@ export default function RegionalPromptPanel() {
               window.dispatchEvent(new CustomEvent('namines:generate-alternative'));
             }}
             disabled={isGeneratingAlt || isRevising}
-            aria-label="Generate an alternative schema from the same prompt"
-            title="Alternative — replay the last prompt for a second design (~1 AI round)"
-            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-content-muted hover:text-content-primary hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            aria-label="Generate alternative"
+            title="Alternative — replay last prompt for another variation"
+            className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-content-muted hover:text-content-primary hover:bg-surface-800 disabled:opacity-40 transition-colors cursor-pointer"
           >
             {isGeneratingAlt ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
           </button>
         )}
 
+        {/* Gönder butonu */}
         <button
           type="submit"
           disabled={isRevising || !prompt.trim()}
           aria-label={isInitialGeneration ? 'Generate schema' : 'Revise with AI'}
           title={isInitialGeneration ? 'Generate schema' : 'Revise with AI'}
-          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-content-primary hover:bg-content-secondary disabled:opacity-40 disabled:cursor-not-allowed text-surface-900 transition-all cursor-pointer"
+          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-content-primary hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed text-surface-900 font-bold transition-all cursor-pointer shadow-xs"
         >
           {isRevising ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUp className="w-3.5 h-3.5" />}
         </button>

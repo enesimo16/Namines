@@ -53,7 +53,7 @@ export default function FeedbackWidget() {
   return (
     <>
       {/* Floating bottom-left dock: Feedback on left, Theme Toggle on right */}
-      <div className="fixed bottom-4 left-4 z-[9990] flex items-center gap-2">
+      <div className="fixed bottom-4 left-4 z-toast flex items-center gap-2">
         {!open && (
           <button
             onClick={() => setOpen(true)}
@@ -68,7 +68,7 @@ export default function FeedbackWidget() {
       </div>
 
       {open && (
-        <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-[9991] sm:w-[320px] max-w-full rounded-[var(--radius-card)] bg-surface-800 border border-content-primary/10 shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] p-4 animate-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-toast sm:w-[320px] max-w-full rounded-[var(--radius-card)] bg-surface-800 border border-content-primary/10 shadow-2xl p-4 animate-in slide-in-from-bottom-3 duration-200">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">Feedback</h3>
             <button onClick={() => setOpen(false)} className="p-1 text-content-muted hover:text-content-primary rounded-[var(--radius-control)] hover:bg-white/[0.06] cursor-pointer" aria-label="Close">

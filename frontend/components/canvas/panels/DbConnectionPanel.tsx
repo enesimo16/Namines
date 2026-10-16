@@ -87,94 +87,106 @@ export default function DbConnectionPanel({ isOpen, onClose, onApplied }: Props)
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/60 backdrop-blur-sm">
-      <div className="bg-surface-800 border border-surface-500 rounded-[var(--radius-modal)] shadow-2xl w-full max-w-lg mx-4 p-6 flex flex-col gap-5">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200 select-none">
+      <div className="bg-surface-900 border border-line-strong rounded-[var(--radius-modal)] shadow-2xl w-full max-w-lg mx-4 flex flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Database className="w-5 h-5 text-accent-text" />
-            <span className="text-content-primary font-semibold text-base">Connect to Live Database</span>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line bg-surface-800/40">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 border border-line-strong flex items-center justify-center text-content-primary">
+              <Database className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-content-primary">Connect Live Database</span>
+              <p className="text-micro text-content-muted">Introspect tables directly into canvas</p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-content-muted hover:text-content-primary transition-colors">
-            <X className="w-5 h-5" />
+          <button
+            onClick={onClose}
+            className="p-1 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors cursor-pointer"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Warning */}
-        <div className="flex gap-2 bg-surface-600 border border-content-primary/12 rounded-[var(--radius-card)] p-3 text-content-secondary text-xs">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>
-            Your connection string is sent to the Namines API and never stored. Use a read-only DB user when possible.
-          </span>
-        </div>
+        <div className="p-5 flex flex-col gap-4 overflow-y-auto">
+          {/* Security Note Callout */}
+          <div className="flex gap-2.5 bg-surface-800/80 border border-line rounded-[var(--radius-card)] p-3 text-content-muted text-xs">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-content-muted mt-0.5" />
+            <span className="leading-relaxed">
+              Your connection string is processed in-memory and never stored. We recommend using a read-only database user.
+            </span>
+          </div>
 
-        {/* DB Type */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-content-secondary text-sm font-medium">Database engine</label>
-          <div className="flex gap-2 flex-wrap">
-            {DB_TYPES.map(t => (
+          {/* DB Type Selector */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-micro font-bold uppercase tracking-wider text-content-muted">Database Engine</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {DB_TYPES.map(t => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => { setDbType(t.value); setConnectionString(''); setError(null); }}
+                  className={`px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-semibold border transition-all cursor-pointer ${
+                    dbType === t.value
+                      ? 'bg-surface-700 border-line-strong text-content-primary shadow-xs'
+                      : 'bg-surface-800/60 border-line text-content-muted hover:text-content-primary hover:bg-surface-700/50'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Connection String Input */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-micro font-bold uppercase tracking-wider text-content-muted">Connection String</label>
+            <div className="relative">
+              <textarea
+                aria-label="Connection string"
+                value={connectionString}
+                onChange={e => { setConnectionString(e.target.value); setError(null); }}
+                placeholder={PLACEHOLDERS[dbType] ?? ''}
+                rows={3}
+                className="w-full bg-surface-800/90 border border-line focus:border-line-strong rounded-[var(--radius-control)] px-3 py-2.5 text-xs text-content-primary placeholder-content-subtle outline-none resize-none font-mono leading-relaxed"
+                style={{ WebkitTextSecurity: showCs ? 'none' : 'disc' } as React.CSSProperties}
+              />
               <button
-                key={t.value}
-                onClick={() => { setDbType(t.value); setConnectionString(''); setError(null); }}
-                className={`px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-medium border transition-all ${
-                  dbType === t.value
-                    ? 'bg-content-primary/30 border-accent-hover/60 text-surface-900'
-                    : 'bg-surface-700 border-surface-500 text-content-muted hover:border-accent-hover/50 hover:text-content-secondary'
-                }`}
+                type="button"
+                onClick={() => setShowCs(v => !v)}
+                className="absolute right-2.5 top-2.5 p-1 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-surface-700/60 transition-colors cursor-pointer"
+                title={showCs ? 'Hide' : 'Show'}
               >
-                {t.label}
+                {showCs ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               </button>
-            ))}
+            </div>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-danger-subtle border border-danger/30 rounded-[var(--radius-control)] p-2.5 text-danger-text text-xs leading-relaxed">
+              {error}
+            </div>
+          )}
         </div>
 
-        {/* Connection String */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-content-secondary text-sm font-medium">Connection string</label>
-          <div className="relative">
-            <textarea
-              aria-label="Connection string"
-              value={connectionString}
-              onChange={e => { setConnectionString(e.target.value); setError(null); }}
-              placeholder={PLACEHOLDERS[dbType] ?? ''}
-              rows={3}
-              className="w-full bg-surface-900 border border-surface-500 focus:border-accent-hover rounded-[var(--radius-card)] px-3 py-2.5 text-sm text-content-primary placeholder-content-muted outline-none resize-none font-mono"
-              style={{ WebkitTextSecurity: showCs ? 'none' : 'disc' } as React.CSSProperties}
-            />
-            <button
-              type="button"
-              onClick={() => setShowCs(v => !v)}
-              className="absolute right-2.5 top-2.5 text-content-muted hover:text-content-primary transition-colors"
-              title={showCs ? 'Hide' : 'Show'}
-            >
-              {showCs ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="bg-danger-subtle/20 border border-danger/30 rounded-[var(--radius-card)] p-3 text-danger-text text-xs">
-            {error}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex justify-end gap-2">
+        {/* Action Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-line bg-surface-800/40 shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-[var(--radius-card)] bg-surface-700 hover:bg-surface-600 text-content-secondary text-sm font-medium border border-surface-500 transition-all"
+            className="px-3.5 py-1.5 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary text-xs font-semibold border border-line transition-all cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={handleIntrospect}
             disabled={loading || !connectionString.trim()}
-            className="flex items-center gap-2 px-5 py-2 rounded-[var(--radius-card)] bg-content-primary hover:bg-content-secondary disabled:opacity-50 disabled:cursor-not-allowed text-surface-900 text-sm font-semibold border border-content-primary/[0.04]0 transition-all"
+            className="flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-control)] bg-content-primary hover:bg-content-secondary disabled:opacity-50 disabled:cursor-not-allowed text-surface-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
           >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {loading ? 'Connecting…' : 'Import Schema'}
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            <span>{loading ? 'Connecting…' : 'Import Schema'}</span>
           </button>
         </div>
       </div>

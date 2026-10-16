@@ -27,6 +27,65 @@ export interface SchemaSourceDescriptor {
   producesGuess: boolean;
 }
 
+export const DEFAULT_SCHEMA_SOURCES: SchemaSourceDescriptor[] = [
+  {
+    id: 'starter',
+    displayName: 'Starter Templates',
+    description: 'SaaS, E-commerce, CRM, Multi-tenant architectures',
+    kind: 'starter',
+    capabilities: ['import'],
+    producesGuess: false,
+  },
+  {
+    id: 'github',
+    displayName: 'GitHub Repository',
+    description: 'Scan code for models, entities, and queries',
+    kind: 'connect',
+    capabilities: ['import', 'compare', 'watch', 'writeback'],
+    producesGuess: true,
+  },
+  {
+    id: 'dbconnect',
+    displayName: 'Live Database',
+    description: 'Introspect live schema via read-only connection',
+    kind: 'connect',
+    capabilities: ['import', 'compare'],
+    producesGuess: false,
+  },
+  {
+    id: 'code',
+    displayName: 'Code Files',
+    description: 'Paste or upload C# EF, TypeScript, Prisma, Python models',
+    kind: 'import',
+    capabilities: ['import'],
+    producesGuess: true,
+  },
+  {
+    id: 'openapi',
+    displayName: 'OpenAPI / GraphQL',
+    description: 'Import schemas from an API endpoint URL',
+    kind: 'import',
+    capabilities: ['import'],
+    producesGuess: false,
+  },
+  {
+    id: 'jsonshape',
+    displayName: 'Sample JSON Data',
+    description: 'Infer database tables from API JSON response',
+    kind: 'import',
+    capabilities: ['import'],
+    producesGuess: true,
+  },
+  {
+    id: 'image',
+    displayName: 'Diagram Image',
+    description: 'Extract tables and ERD from whiteboard screenshot',
+    kind: 'import',
+    capabilities: ['import'],
+    producesGuess: true,
+  },
+];
+
 /** Sunucunun ürettiği birleştirme çakışması (github/F4). */
 export interface ServerMergeConflict {
   id: string;

@@ -148,7 +148,7 @@ export function JsonShapeModal({ onInfer, onApply, onClose }: JsonShapeModalProp
   const acceptedCount = result ? result.entities.filter(e => accepted[e.name]).length : 0;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
       <div
         ref={modalRef}
         role="dialog"

@@ -26,9 +26,6 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
   }
 
   const remainingPercent = Math.round((remaining / dailyLimit) * 100);
-  // Gerçek plan quota/status'ten geliyor (Free/Pro/Team/Dev). user.type
-  // yalnızca "corporate mi bireysel mi" diyen eski ikili alan — Dev hesabı hep
-  // "individual" kalıyor, o yüzden rozet her zaman "Free" gösteriyordu.
   const isFreeUser = planTier !== 'Pro' && planTier !== 'Team' && planTier !== 'Dev';
   const planLabel = planTier === 'Dev' ? 'Dev — Unlimited'
     : planTier === 'Team' ? 'Team Member'
@@ -42,11 +39,11 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className={`${isFreeUser ? 'md:col-span-1' : 'md:col-span-3'} ${cardClass} p-4 flex flex-col justify-between`}>
             <div className="space-y-1">
-              <span className="text-[10px] font-semibold text-content-subtle uppercase tracking-wider">Account Level</span>
-              <p className="text-sm font-bold text-content-primary truncate">{username}</p>
+              <span className="text-[11px] font-medium text-content-muted uppercase tracking-wider">Account Level</span>
+              <p className="text-sm font-semibold text-content-primary truncate">{username}</p>
             </div>
             <div className="mt-4">
-              <span className="inline-block px-2.5 py-1 rounded-full text-micro font-bold uppercase tracking-wider bg-white/[0.08] text-content-secondary">
+              <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-mono font-medium uppercase tracking-wider bg-surface-700 border border-line text-content-secondary">
                 {planLabel}
               </span>
             </div>
@@ -54,21 +51,21 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
 
           {isFreeUser && (
             <div className={`md:col-span-2 ${cardClass} p-4 space-y-3`}>
-              <div className="flex justify-between items-center text-[10px] font-semibold text-content-muted uppercase tracking-wider">
+              <div className="flex justify-between items-center text-[11px] font-medium text-content-muted uppercase tracking-wider">
                 <span>Daily Cloud Credits</span>
                 <div className="flex items-center gap-2">
                   {resetAt && (
-                    <span className="text-micro text-content-subtle font-medium normal-case tracking-normal">
+                    <span className="text-[10px] text-content-muted font-normal normal-case">
                       (resets at {new Date(resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(resetAt).toLocaleDateString([], { month: 'short', day: 'numeric' })})
                     </span>
                   )}
-                  <span className="text-content-primary font-bold">{remainingPercent}% left</span>
+                  <span className="text-content-primary font-semibold">{remainingPercent}% left</span>
                 </div>
               </div>
-              <div className="w-full h-2 bg-surface-600 rounded-full overflow-hidden">
-                <div className="h-full bg-content-secondary transition-all duration-500" style={{ width: `${remainingPercent}%` }} />
+              <div className="w-full h-2 bg-surface-900 rounded-full overflow-hidden border border-line">
+                <div className="h-full bg-accent-text transition-all duration-500 rounded-full" style={{ width: `${remainingPercent}%` }} />
               </div>
-              <p className="text-[10px] text-content-subtle leading-normal">
+              <p className="text-[11px] text-content-muted leading-normal">
                 {remainingPercent <= 20
                   ? `Warning: Your daily cloud credits are running low (${remainingPercent}% remaining). Default local engine compiles code when exhausted.`
                   : `Your daily cloud credits quota is active (${remainingPercent}% remaining). Choose higher tier models in AI Configurations tab.`
@@ -80,58 +77,55 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
 
         {/* License Authorization Levels */}
         <div className={`${cardClass} p-5 space-y-3`}>
-          <div className="flex items-center gap-2 border-b border-content-primary/10 pb-3">
+          <div className="flex items-center gap-2 border-b border-line pb-3">
             <Lock className="w-4 h-4 text-content-muted" />
-            <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">License Authorization Levels</h4>
+            <h4 className="text-xs font-semibold text-content-primary uppercase tracking-wider">License Authorization Levels</h4>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
-              <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">SignalR Realtime Multiplayer</span>
-              <span className={`text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] ${isCorporate ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.04] text-content-subtle'}`}>
+            <div className="flex items-center justify-between p-3 bg-surface-900/60 border border-line-strong rounded-[var(--radius-control)]">
+              <span className="text-[11px] font-medium text-content-secondary">SignalR Realtime Multiplayer</span>
+              <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border ${isCorporate ? 'border-success/30 bg-success-subtle text-success' : 'border-line bg-surface-700 text-content-muted'}`}>
                 {isCorporate ? 'ENABLED' : 'DISABLED'}
               </span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
-              <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Automated DBA Linter</span>
-              <span className={`text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] ${isCorporate ? 'bg-success-text/10 text-success-text' : 'bg-white/[0.08] text-content-secondary'}`}>
+            <div className="flex items-center justify-between p-3 bg-surface-900/60 border border-line-strong rounded-[var(--radius-control)]">
+              <span className="text-[11px] font-medium text-content-secondary">Automated DBA Linter</span>
+              <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border ${isCorporate ? 'border-success/30 bg-success-subtle text-success' : 'border-line bg-surface-700 text-content-secondary'}`}>
                 {isCorporate ? 'UNLIMITED' : '100% DAILY'}
               </span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-surface-600 rounded-[var(--radius-control)]">
-              <span className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">Cloud Workspace Sync</span>
-              <span className="text-micro font-bold px-2 py-0.5 rounded-[var(--radius-control)] bg-success-text/10 text-success-text">ACTIVE</span>
+            <div className="flex items-center justify-between p-3 bg-surface-900/60 border border-line-strong rounded-[var(--radius-control)]">
+              <span className="text-[11px] font-medium text-content-secondary">Cloud Workspace Sync</span>
+              <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border border-success/30 bg-success-subtle text-success">ACTIVE</span>
             </div>
           </div>
         </div>
 
-        {/* QR kodu TAMAMEN TARAYICIDA üretiliyor (MfaQrCode) — sır hiçbir üçüncü
-            tarafa gitmiyor. Hazır chart API'leri otpauth bağlantısını URL'de
-            dışarıya gönderdiği için kullanılamaz. Elle girilebilir anahtar
-            KALDIRILMADI: QR üretimi başarısız olursa ya da kamera yoksa tek yol o. */}
+        {/* 2FA Section */}
         <div className={`${cardClass} p-5 space-y-4`}>
-          <div className="flex items-center gap-2 border-b border-content-primary/10 pb-3">
+          <div className="flex items-center gap-2 border-b border-line pb-3">
             <Shield className="w-4 h-4 text-content-muted" />
-            <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+            <h4 className="text-xs font-semibold text-content-primary uppercase tracking-wider">
               Two-Factor Authentication
             </h4>
             {mfa.enabled === true && (
-              <span className="ml-auto text-[10px] font-semibold text-accent-text">ON</span>
+              <span className="ml-auto text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border border-accent/40 bg-accent-subtle text-accent-text">ACTIVE</span>
             )}
           </div>
 
           {mfa.enabled === null ? (
-            <p className="text-xs text-content-subtle italic">Checking status…</p>
+            <p className="text-xs text-content-muted italic">Checking status…</p>
           ) : mfa.recoveryCodes ? (
             <div className="space-y-3">
               <p className="text-xs text-content-primary font-semibold">
                 Save these recovery codes now — they are shown only once.
               </p>
-              <p className="text-[10px] text-content-subtle leading-normal">
+              <p className="text-[11px] text-content-muted leading-normal">
                 Each code works once. They are the only way back into your account if you lose
                 your authenticator device.
               </p>
-              <div className="grid grid-cols-2 gap-1.5 bg-surface-800 p-3 rounded-[var(--radius-control)] font-mono text-xs text-content-secondary select-all">
+              <div className="grid grid-cols-2 gap-1.5 bg-surface-900 p-3 rounded-[var(--radius-control)] border border-line font-mono text-xs text-content-secondary select-all">
                 {mfa.recoveryCodes.map(code => <span key={code}>{code}</span>)}
               </div>
               <button
@@ -148,7 +142,7 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
                 Two-factor authentication is protecting this account.
                 {mfa.recoveryLeft > 0 && ` ${mfa.recoveryLeft} recovery code${mfa.recoveryLeft === 1 ? '' : 's'} left.`}
               </p>
-              <p className="text-[10px] text-content-subtle leading-normal">
+              <p className="text-[11px] text-content-muted leading-normal">
                 Turning it off requires a current code — so a stolen session cannot remove your
                 protection.
               </p>
@@ -166,7 +160,7 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
                 <button
                   type="submit"
                   disabled={mfa.busy || !mfa.code.trim()}
-                  className="px-4 py-2 text-xs rounded-[var(--radius-control)] bg-danger-text/10 text-danger-text hover:bg-danger-text/20 transition-colors cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 text-xs rounded-[var(--radius-control)] bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {mfa.busy ? 'Working…' : 'Turn off'}
                 </button>
@@ -174,23 +168,23 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
             </form>
           ) : mfa.setup ? (
             <form onSubmit={mfa.enable} className="space-y-3">
-              <p className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider">
+              <p className="text-[11px] font-medium text-content-secondary uppercase tracking-wider">
                 Step 1 — add this key to your authenticator app
               </p>
               <MfaQrCode otpauthUri={mfa.setup.otpauthUri} />
-              <p className="text-[10px] text-content-subtle leading-normal">
+              <p className="text-[11px] text-content-muted leading-normal">
                 Scan the code, or type the key below by hand.
               </p>
-              <div className="font-mono text-xs bg-surface-800 p-2.5 rounded-[var(--radius-control)] select-all text-content-secondary break-all">
+              <div className="font-mono text-xs bg-surface-900 border border-line p-2.5 rounded-[var(--radius-control)] select-all text-content-secondary break-all">
                 {mfa.setup.sharedKey}
               </div>
               <a
                 href={mfa.setup.otpauthUri}
-                className="inline-block text-[10px] text-accent-text hover:underline"
+                className="inline-block text-[11px] text-accent-text hover:underline"
               >
                 Or open it in your authenticator app
               </a>
-              <p className="text-[10px] font-semibold text-content-secondary uppercase tracking-wider pt-1">
+              <p className="text-[11px] font-medium text-content-secondary uppercase tracking-wider pt-1">
                 Step 2 — enter the code it shows
               </p>
               <div className="flex gap-2">
@@ -215,7 +209,7 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
               <button
                 type="button"
                 onClick={mfa.cancelSetup}
-                className="text-[10px] text-content-subtle hover:text-content-secondary cursor-pointer"
+                className="text-[11px] text-content-muted hover:text-content-secondary cursor-pointer"
               >
                 Cancel
               </button>
@@ -238,21 +232,17 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
           )}
         </div>
 
-        {/* API anahtarları BİLEREK burada YÖNETİLMİYOR. Eski ekran jetonu
-            tarayıcıda Math.random() ile üretip yalnızca localStorage'a
-            yazıyordu: sunucuya hiç gitmiyor, "revoke" hiçbir şeyi iptal
-            etmiyordu. Gerçek anahtar sistemi Gateway'de; kullanıcı oraya
-            yönlendiriliyor. */}
+        {/* API Keys */}
         <div className={`${cardClass} p-5 space-y-3`}>
-          <div className="flex items-center gap-2 border-b border-content-primary/10 pb-3">
+          <div className="flex items-center gap-2 border-b border-line pb-3">
             <Key className="w-4 h-4 text-content-muted" />
-            <h4 className="text-xs font-bold text-content-primary uppercase tracking-wider">API Keys</h4>
+            <h4 className="text-xs font-semibold text-content-primary uppercase tracking-wider">API Keys</h4>
           </div>
           <p className="text-xs text-content-secondary leading-relaxed">
             API keys are managed per project, not per account &mdash; each key carries its own
             table-level read/write permissions and its own audit trail.
           </p>
-          <p className="text-[10px] text-content-subtle leading-normal">
+          <p className="text-[11px] text-content-muted leading-normal">
             Open your project in Namines Desk and go to <span className="font-semibold text-content-secondary">API Keys</span> to
             create, scope, or revoke a key.
           </p>
@@ -260,7 +250,7 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
 
         <button
           onClick={onLogout}
-          className="flex md:hidden items-center justify-center gap-2 w-full py-2.5 bg-white/[0.06] hover:bg-danger-text/10 text-content-muted hover:text-danger-text text-xs font-semibold rounded-[var(--radius-control)] transition-all cursor-pointer"
+          className="flex md:hidden items-center justify-center gap-2 w-full py-2.5 bg-surface-800 hover:bg-danger-subtle text-content-muted hover:text-danger border border-line hover:border-danger/20 text-xs font-medium rounded-[var(--radius-control)] transition-all cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           <span>Log Out</span>

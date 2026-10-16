@@ -143,7 +143,7 @@ export default function CanvasContextMenu({ children }: CanvasContextMenuProps) 
 
       <ContextMenu.Portal>
           <ContextMenu.Content
-            className="min-w-[180px] bg-gradient-to-b from-surface-700/95 to-surface-600/95 backdrop-blur-md rounded-[var(--radius-card)] border border-content-primary/12 p-1.5 shadow-[0_8px_30px_color-mix(in srgb, var(--color-scrim) 40%, transparent),0_0_15px_color-mix(in srgb, var(--color-accent-hover) 15%, transparent)] z-[100] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+            className="min-w-[180px] bg-gradient-to-b from-surface-700/95 to-surface-600/95 backdrop-blur-md rounded-[var(--radius-card)] border border-content-primary/12 p-1.5 shadow-2xl z-dropdown animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
             onCloseAutoFocus={e => e.preventDefault()}
           >
             {menuState?.type === 'canvas' && (

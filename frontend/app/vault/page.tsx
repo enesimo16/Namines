@@ -359,7 +359,7 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
             ]}
           >
             {backups.map(b => (
-              <tr key={b.id} className="hover:bg-content-primary/[0.03]">
+              <tr key={b.id} className="hover:bg-surface-700/30 transition-colors">
                 <Td>{formatWhen(b.createdAt)}</Td>
                 <Td>{KIND_LABELS[b.kind]}</Td>
                 <Td>{b.engine}</Td>
@@ -410,7 +410,7 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
             columns={[{ label: 'Date' }, { label: 'Source backup' }, { label: 'Duration' }, { label: 'Status' }]}
           >
             {restores.map(r => (
-              <tr key={r.id} className="hover:bg-content-primary/[0.03]">
+              <tr key={r.id} className="hover:bg-surface-700/30 transition-colors">
                 <Td>{formatWhen(r.startedAt)}</Td>
                 <Td mono>{r.backupId.slice(0, 8)}</Td>
                 <Td mono>{formatDuration(r.startedAt, r.completedAt) ?? '—'}</Td>

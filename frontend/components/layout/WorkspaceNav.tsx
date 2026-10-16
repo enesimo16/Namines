@@ -5,9 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Boxes, Zap, HardDrive, ShieldCheck, Table2, Hammer, Loader2, ChevronDown, ArrowUpRight, LayoutGrid } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
-import { useToastStore } from '../../store/useToastStore';
 import { authService } from '../../services/api';
-import { openDeskHandoff } from '../../lib/deskHandoff';
+import { openDeskHandoff, DESK_URL } from '../../lib/deskHandoff';
 import { useT, useLangAttr, type MessageKey } from '../../lib/i18n';
 
 /**
@@ -48,7 +47,6 @@ export default function WorkspaceNav() {
   const pathname = usePathname();
   const t = useT();
   const lang = useLangAttr();
-  const showToast = useToastStore(s => s.showToast);
   const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
   const tableCount = useSchemaStore(s => s.schema?.tables.length ?? 0);
   const [openingDesk, setOpeningDesk] = useState(false);
@@ -127,16 +125,21 @@ export default function WorkspaceNav() {
   };
 
   const openDesk = async () => {
-    if (!activeProjectId) {
-      showToast(t('workspaceNav.deskNeedsProject'), 'info');
-      return;
-    }
     setOpeningDesk(true);
     try {
-      const { token } = await authService.createDeskHandoffToken();
-      openDeskHandoff({ token, projectId: activeProjectId, view: 'data' });
+      if (activeProjectId) {
+        try {
+          const { token } = await authService.createDeskHandoffToken();
+          openDeskHandoff({ token, projectId: activeProjectId, view: 'data' });
+          return;
+        } catch {
+          window.open(DESK_URL, '_blank');
+          return;
+        }
+      }
+      window.open(DESK_URL, '_blank');
     } catch {
-      showToast(t('workspaceNav.deskFailed'), 'error');
+      window.open(DESK_URL, '_blank');
     } finally {
       setOpeningDesk(false);
     }
@@ -159,7 +162,7 @@ export default function WorkspaceNav() {
   const currentLabel = current ? t(current.labelKey) : t('workspaceNav.label');
 
   const renderBar = (interactive: boolean) => (
-    <div className="flex items-center gap-0.5 rounded-[var(--radius-control)] border border-content-primary/10 bg-surface-700/60 p-0.5 w-max">
+    <div className="flex items-center gap-1 rounded-full border border-line-strong bg-surface-800/95 p-1 w-max shadow-sm backdrop-blur-md select-none">
       {items.map(item => {
         const label = t(item.labelKey);
         return (
@@ -171,16 +174,15 @@ export default function WorkspaceNav() {
             disabled={item.busy || !!item.disabledReason}
             title={item.disabledReason ?? (item.external ? `${label} — ${t('workspaceNav.opensInNewTab')}` : label)}
             aria-current={item.active ? 'page' : undefined}
-            className={`relative flex items-center gap-1.5 h-8 px-2.5 rounded-[calc(var(--radius-control)-2px)] text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+            className={`relative flex items-center gap-1.5 h-7.5 px-3.5 rounded-full text-micro whitespace-nowrap transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               item.active
-                ? 'bg-accent-subtle text-accent-text'
-                : 'text-content-muted hover:text-content-primary hover:bg-white/[0.05]'
+                ? 'bg-surface-700 text-content-primary font-bold border border-line-strong shadow-xs'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60 font-semibold'
             }`}
           >
-            {item.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <item.icon className="w-3.5 h-3.5 shrink-0" />}
+            {item.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <item.icon className={`w-3.5 h-3.5 shrink-0 ${item.active ? 'text-namines-teal-vibrant' : 'text-content-muted'}`} />}
             <span>{label}</span>
             {item.external && <ArrowUpRight className="w-3 h-3 opacity-60" aria-hidden="true" />}
-            {item.active && <span className="absolute left-2 right-2 -bottom-0.5 h-0.5 rounded-full bg-accent-hover" />}
           </button>
         );
       })}
@@ -197,7 +199,7 @@ export default function WorkspaceNav() {
       {mode === 'bar' ? (
         <nav aria-label={t('workspaceNav.label')}>{renderBar(true)}</nav>
       ) : (
-        <div ref={menuRef} className="relative">
+        <div ref={menuRef} className="relative select-none">
           <button
             type="button"
             onClick={() => setMenuOpen(open => !open)}
@@ -205,15 +207,15 @@ export default function WorkspaceNav() {
             aria-expanded={menuOpen}
             aria-label={t('workspaceNav.menu')}
             title={currentLabel}
-            className={`tap-44 flex items-center gap-1.5 h-9 rounded-[var(--radius-control)] border text-[11px] font-medium transition-colors cursor-pointer ${
-              mode === 'icon' ? 'px-2' : 'px-2.5'
+            className={`tap-44 flex items-center gap-1.5 h-7.5 rounded-full border text-micro font-bold transition-all cursor-pointer ${
+              mode === 'icon' ? 'px-2.5' : 'px-3.5'
             } ${
               menuOpen
-                ? 'border-content-primary/20 bg-surface-600 text-content-primary'
-                : 'border-content-primary/10 bg-surface-700/60 text-content-secondary hover:text-content-primary hover:border-content-primary/20'
+                ? 'border-line-strong bg-surface-700 text-content-primary shadow-xs'
+                : 'border-line-strong bg-surface-800/95 text-content-secondary hover:text-content-primary hover:border-line-strong hover:bg-surface-700/60 shadow-sm'
             }`}
           >
-            <CurrentIcon className={`w-3.5 h-3.5 shrink-0 ${current ? 'text-accent-text' : ''}`} />
+            <CurrentIcon className="w-3.5 h-3.5 shrink-0 text-namines-teal-vibrant" />
             {mode === 'menu' && <span className="whitespace-nowrap">{currentLabel}</span>}
             <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -222,9 +224,9 @@ export default function WorkspaceNav() {
             <div
               role="menu"
               aria-label={t('workspaceNav.label')}
-              className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 min-w-[190px] rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-800 p-1 shadow-lg shadow-surface-900/60 z-50"
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 min-w-[210px] rounded-[var(--radius-modal)] border border-line-strong bg-surface-800 p-1.5 shadow-2xl z-50 backdrop-blur-2xl animate-dropdown-in"
             >
-              <div className="px-2.5 pt-1.5 pb-1 text-micro font-bold uppercase tracking-wider text-content-subtle">
+              <div className="px-2.5 pt-1.5 pb-1 text-micro font-bold uppercase tracking-wider text-content-muted">
                 {t('workspaceNav.label')}
               </div>
               {items.map(item => {
@@ -238,13 +240,13 @@ export default function WorkspaceNav() {
                     title={item.disabledReason}
                     aria-current={item.active ? 'page' : undefined}
                     onClick={() => { setMenuOpen(false); item.onClick(); }}
-                    className={`w-full flex items-center gap-2.5 min-h-[40px] px-2.5 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer disabled:opacity-60 ${
+                    className={`w-full flex items-center gap-2.5 min-h-[36px] px-2.5 rounded-[var(--radius-control)] text-xs transition-colors cursor-pointer disabled:opacity-50 ${
                       item.active
-                        ? 'bg-accent-subtle text-accent-text'
-                        : 'text-content-secondary hover:text-content-primary hover:bg-white/[0.05]'
+                        ? 'bg-surface-700 text-content-primary font-bold border border-line-strong shadow-xs'
+                        : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/60 font-medium'
                     }`}
                   >
-                    {item.busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <item.icon className="w-4 h-4 shrink-0" />}
+                    {item.busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <item.icon className={`w-4 h-4 shrink-0 ${item.active ? 'text-namines-teal-vibrant' : 'text-content-muted'}`} />}
                     <span className="flex-1 text-left">{label}</span>
                     {item.external && (
                       <ArrowUpRight className="w-3.5 h-3.5 opacity-60" aria-label={t('workspaceNav.opensInNewTab')} />

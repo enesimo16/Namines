@@ -1,22 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Prism from 'prismjs';
-import 'prismjs/components/prism-clike';
-import 'prismjs/components/prism-csharp';
-import 'prismjs/themes/prism-tomorrow.css';
+'use client';
+
+import React, { useState } from 'react';
 import { DatabaseSchema } from '../../types/schema';
-import { Package } from 'lucide-react';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
-import { Panel, PanelBar, ActionButton } from './PanelKit';
-
+import CodeStudioViewer from './CodeStudioViewer';
 
 interface EfCorePreviewProps {
   schema: DatabaseSchema;
 }
 
 export default function EfCorePreview({ schema }: EfCorePreviewProps) {
-  const codeRef = useRef<HTMLElement>(null);
+  const { dbType } = useSchemaStore();
+  const showToast = useToastStore(state => state.showToast);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const mapToCsharpType = (sqlType: string): string => {
     const type = (sqlType || '').toUpperCase();
@@ -101,15 +99,6 @@ namespace Namines.Generated
   };
 
   const codeString = generateEfCoreCode();
-  const { dbType } = useSchemaStore();
-  const showToast = useToastStore(state => state.showToast);
-  const [isDownloading, setIsDownloading] = useState(false);
-
-  useEffect(() => {
-    if (codeRef.current) {
-      Prism.highlightElement(codeRef.current);
-    }
-  }, [codeString]);
 
   const handleDownloadEfCore = async () => {
     if (!schema) return;
@@ -134,30 +123,15 @@ namespace Namines.Generated
   };
 
   return (
-    <Panel scroll={false}>
-      <div className="h-full flex flex-col">
-        <PanelBar
-          left={
-            <>
-              <span className="text-[11px] font-mono text-content-secondary truncate">AppDbContext.cs</span>
-              <span className="text-[10px] font-mono text-content-muted shrink-0">EF Core 8.0</span>
-            </>
-          }
-        >
-          <ActionButton icon={Package} onClick={handleDownloadEfCore} busy={isDownloading} tone="primary">
-            Download .zip
-          </ActionButton>
-        </PanelBar>
-
-        <div className="flex-1 min-h-0 overflow-auto bg-surface-900">
-          <pre className="!bg-transparent !m-0 !p-3 !text-[11px] !leading-relaxed">
-            <code ref={codeRef} className="language-csharp">
-              {codeString}
-            </code>
-          </pre>
-        </div>
-      </div>
-    </Panel>
+    <CodeStudioViewer
+      code={codeString}
+      language="csharp"
+      filename="AppDbContext.cs"
+      dialectBadge="EF Core 8.0"
+      onDownload={handleDownloadEfCore}
+      downloadLabel="Download .zip"
+      isDownloading={isDownloading}
+      statusText="Entity Framework Core 8.0 · Scaffolding Ready"
+    />
   );
 }
-

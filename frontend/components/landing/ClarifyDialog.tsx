@@ -41,7 +41,7 @@ export default function ClarifyDialog({ data, isGenerating, onCancel, onSubmit }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-surface-900/80 backdrop-blur-sm">
       <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto glass-panel rounded-[var(--radius-modal)] p-5 sm:p-6">
         <div className="mb-5">
           <h2 className="text-lg font-semibold text-content-primary mb-1">

@@ -28,7 +28,7 @@ export default function ThemeToggleButton() {
   if (!mounted) {
     return (
       <div
-        className="w-8 h-8 rounded-full border border-surface-500/80 bg-surface-800/90 opacity-0"
+        className="w-[72px] h-8 rounded-full border border-line-strong bg-surface-800/90 opacity-0 shrink-0"
         aria-hidden="true"
       />
     );
@@ -42,17 +42,17 @@ export default function ThemeToggleButton() {
       type="button"
       title={isDark ? 'Switch to light theme (Beyaz mod)' : 'Switch to dark theme (Siyah mod)'}
       aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-      className="tap-44 h-8 px-2.5 flex items-center gap-1.5 rounded-full border border-surface-500/80 bg-surface-800/95 hover:bg-surface-700/90 text-content-primary shadow-lg backdrop-blur-md transition-all hover:scale-105 active:scale-95 cursor-pointer select-none text-xs font-mono font-medium"
+      className="tap-44 h-8 w-[72px] inline-flex items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface-800/80 hover:bg-surface-700/80 text-content-primary shadow-sm transition-colors cursor-pointer select-none text-[10px] font-mono font-bold tracking-wider shrink-0"
     >
       {isDark ? (
         <>
-          <Moon className="w-3.5 h-3.5 text-accent-text shrink-0" />
-          <span className="text-content-secondary hidden sm:inline">Dark</span>
+          <Moon className="w-3.5 h-3.5 text-content-secondary shrink-0" />
+          <span className="text-content-secondary uppercase">Dark</span>
         </>
       ) : (
         <>
-          <Sun className="w-3.5 h-3.5 text-accent-text shrink-0" />
-          <span className="text-content-secondary hidden sm:inline">Light</span>
+          <Sun className="w-3.5 h-3.5 text-content-secondary shrink-0" />
+          <span className="text-content-secondary uppercase">Light</span>
         </>
       )}
     </button>

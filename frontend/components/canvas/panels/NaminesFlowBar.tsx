@@ -6,7 +6,7 @@ import { GripVertical, Pause, Play, Plus, List, X, Zap } from 'lucide-react';
 import { useFlowBarStore } from '../../../store/useFlowBarStore';
 import { useAutomationStore } from '../../../store/useAutomationStore';
 
-const BAR_WIDTH = 260;
+const BAR_WIDTH = 340;
 const BAR_HEIGHT = 44;
 
 /**
@@ -77,23 +77,23 @@ export default function NaminesFlowBar() {
         onClick={() => setHidden(false)}
         aria-label="Show the Namines Flow bar"
         title="Namines Flow"
-        className="nodrag nopan fixed z-[80] flex items-center gap-1 rounded-full border border-warning/40 bg-surface-800/95 px-2 py-1 shadow-lg backdrop-blur-md transition-colors hover:border-warning cursor-pointer"
+        className="nodrag nopan fixed z-20 flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-800/95 px-2.5 py-1 shadow-2xl backdrop-blur-md transition-colors hover:border-content-primary cursor-pointer"
       >
-        <Zap className="h-3.5 w-3.5 text-warning-text" />
-        <span className="text-micro font-semibold text-warning-text">Flow</span>
+        <Zap className="h-3.5 w-3.5 text-content-primary" />
+        <span className="text-micro font-semibold text-content-primary">Flow</span>
       </button>
     );
   }
 
   const buttonClass =
-    'flex items-center gap-1 rounded-[var(--radius-control)] px-2 py-1 text-xs font-medium text-content-secondary transition-colors hover:bg-content-primary/12 hover:text-content-primary cursor-pointer';
+    'shrink-0 flex items-center gap-1 rounded-[var(--radius-control)] px-1.5 py-1 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-700 hover:text-content-primary cursor-pointer';
 
   return (
     <div
-      style={{ left: position.x, top: position.y, width: BAR_WIDTH }}
-      className={`nodrag nopan fixed z-[80] flex items-center gap-1 rounded-[var(--radius-card)] border bg-surface-800/95 px-1.5 py-1.5 backdrop-blur-md transition-shadow ${
-        pickingTable ? 'border-warning' : 'border-content-primary/12'
-      } ${dragging ? 'shadow-2xl' : 'shadow-lg'}`}
+      style={{ left: position.x, top: position.y }}
+      className={`nodrag nopan fixed z-20 flex items-center gap-2 rounded-full border bg-surface-800/95 px-3.5 py-1.5 backdrop-blur-md transition-all select-none shadow-xl min-w-[340px] max-w-[calc(100vw-24px)] ${
+        pickingTable ? 'border-accent-text ring-1 ring-accent-text/30' : 'border-line-strong'
+      } ${dragging ? 'shadow-2xl scale-[1.02]' : 'shadow-xl'}`}
     >
       <button
         type="button"
@@ -102,20 +102,20 @@ export default function NaminesFlowBar() {
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        className={`shrink-0 rounded-[var(--radius-control)] p-1 text-content-muted hover:text-content-primary ${
+        className={`shrink-0 rounded-full p-1 text-content-muted hover:text-content-primary ${
           dragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
       >
         <GripVertical className="h-4 w-4" />
       </button>
 
-      <Zap className="h-3.5 w-3.5 shrink-0 text-warning-text" />
+      <Zap className="h-3.5 w-3.5 shrink-0 text-accent-text" />
       <span className="shrink-0 text-xs font-semibold text-content-primary">Flow</span>
-      <span className="shrink-0 rounded-full bg-surface-600 px-1.5 text-micro text-content-secondary">
+      <span className="shrink-0 rounded-full bg-surface-700 border border-line px-1.5 text-micro text-content-muted font-mono">
         {ruleCount}
       </span>
 
-      <div className="ml-auto flex items-center gap-0.5">
+      <div className="ml-auto flex items-center gap-1 shrink-0">
         <button
           type="button"
           onClick={() => setPickingTable(!pickingTable)}
@@ -129,8 +129,6 @@ export default function NaminesFlowBar() {
 
         <button
           type="button"
-          // Liste artık canvas'ın üstüne binen bir yan panel değil, kendi sayfası: eski panel
-          // sağdan tam boy açılıp başlıktaki Share/İnceleme düğmelerinin üstüne biniyordu.
           onClick={() => router.push('/flow')}
           className={buttonClass}
           title="Manage all flows"
@@ -146,13 +144,13 @@ export default function NaminesFlowBar() {
           title={paused ? 'Resume flows' : 'Pause all flows'}
           aria-pressed={paused}
         >
-          {paused ? <Play className="h-3.5 w-3.5 text-warning-text" /> : <Pause className="h-3.5 w-3.5" />}
+          {paused ? <Play className="h-3.5 w-3.5 text-content-primary" /> : <Pause className="h-3.5 w-3.5" />}
         </button>
 
         <button
           type="button"
           onClick={() => setHidden(true)}
-          className={buttonClass}
+          className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-content-muted hover:text-content-primary hover:bg-surface-700/80 transition-colors cursor-pointer ml-1"
           title="Hide the bar"
           aria-label="Hide the Namines Flow bar"
         >

@@ -69,3 +69,5 @@ export const TABLE_SWATCHES: readonly (string | undefined)[] = [
   '#4a7f96',   // camgöbeği
   '#7a8194',   // gri
 ] as const;
+
+export { designSystem, typography, spacing, radii, shadows, zIndex, layout, transitions, breakpoints } from '../config/design-system';

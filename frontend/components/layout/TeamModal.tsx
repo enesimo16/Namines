@@ -119,7 +119,7 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-surface-900/80 backdrop-blur-sm" onClick={onClose} />
 
       <div
@@ -127,39 +127,44 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="team-title"
-        className="relative w-full max-w-3xl max-h-[88vh] overflow-y-auto bg-surface-800 border border-content-primary/15 rounded-[var(--radius-modal)] p-6 text-content-primary animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-2xl max-h-[88vh] overflow-y-auto bg-surface-900/98 border border-line-strong rounded-[var(--radius-modal)] p-6 sm:p-7 text-content-primary shadow-2xl backdrop-blur-2xl animate-in zoom-in-95 duration-200"
       >
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <h2 id="team-title" className="text-base font-bold flex items-center gap-2">
-              <Users className="w-4 h-4" /> Team
-            </h2>
-            <p className="text-[11px] text-content-muted mt-1">
-              {team?.teamEnabled
-                ? 'Everyone here shares the same workspace and projects.'
-                : 'Working together is part of the Team plan.'}
-            </p>
+        <div className="flex items-start justify-between mb-6 pb-4 border-b border-line">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-surface-800 border border-line-strong flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 text-content-primary" />
+            </div>
+            <div>
+              <h2 id="team-title" className="text-base font-bold text-content-primary">
+                Team Workspace
+              </h2>
+              <p className="text-xs text-content-secondary mt-0.5">
+                {team?.teamEnabled
+                  ? 'Everyone here shares the same workspace and projects.'
+                  : 'Working together is part of the Team plan.'}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="tap-44 p-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-white/[0.06]"
+            className="tap-44 w-8 h-8 rounded-full border border-line bg-surface-800/80 hover:bg-surface-700/80 flex items-center justify-center text-content-muted hover:text-content-primary transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {isLoading && !team ? (
-          <div className="flex items-center gap-2 text-xs text-content-muted py-10 justify-center">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading team…
+          <div className="flex items-center gap-2 text-xs text-content-muted py-12 justify-center">
+            <Loader2 className="w-4 h-4 animate-spin text-content-primary" /> Loading team…
           </div>
         ) : !team?.teamEnabled ? (
           <div className="space-y-4">
-            <div className="border border-content-primary/15 rounded-[var(--radius-card)] p-5 bg-surface-700">
-              <p className="text-sm font-semibold mb-2">Your plan is single-seat</p>
-              <p className="text-[11px] text-content-secondary leading-relaxed">
-                The Team plan gives you <strong className="text-content-primary">3 seats</strong> — you plus two
+            <div className="border border-line-strong rounded-[var(--radius-card)] p-5 bg-surface-800/60 shadow-sm">
+              <p className="text-sm font-semibold mb-2 text-content-primary">Your plan is single-seat</p>
+              <p className="text-xs text-content-secondary leading-relaxed">
+                The Team plan gives you <strong className="text-content-primary font-semibold">3 seats</strong> — you plus two
                 people you invite. Everyone sees the same projects, and the activity list shows who changed what.
                 Invites are private, single-use links: once someone joins, that link stops working.
               </p>
@@ -170,7 +175,7 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
                 onClose();
                 window.dispatchEvent(new Event('namines:open-ai-settings'));
               }}
-              className="w-full bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold py-2.5 rounded-[var(--radius-card)] text-sm transition-colors"
+              className="w-full bg-accent hover:bg-accent-hover text-accent-on font-mono font-bold py-2.5 rounded-full text-xs uppercase tracking-wider transition-all shadow-sm cursor-pointer"
             >
               See plans
             </button>
@@ -178,10 +183,10 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="space-y-6">
             {/* Koltuklar */}
-            <div className="flex items-center justify-between border border-content-primary/15 rounded-[var(--radius-card)] px-4 py-3 bg-surface-700">
+            <div className="flex items-center justify-between border border-line-strong rounded-[var(--radius-card)] px-4 py-3 bg-surface-800/60 shadow-sm">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-content-subtle font-semibold">Seats</p>
-                <p className="text-sm font-bold mt-0.5">
+                <p className="text-[10px] uppercase tracking-wider text-content-muted font-mono font-semibold">Seats</p>
+                <p className="text-sm font-bold mt-0.5 text-content-primary">
                   {team.seats.total < 0
                     ? `${team.seats.used} used · unlimited`
                     : `${team.seats.used} of ${team.seats.total} used`}
@@ -191,31 +196,31 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
                 type="button"
                 onClick={handleCreate}
                 disabled={isCreating || team.seats.available === 0}
-                className="flex items-center gap-2 bg-content-primary hover:bg-content-secondary text-surface-900 font-semibold px-4 py-2 rounded-[var(--radius-control)] text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-accent hover:bg-accent-hover text-accent-on font-mono font-bold px-4 py-2 rounded-full text-xs uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm cursor-pointer"
               >
-                {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin text-accent-on" /> : <Link2 className="w-3.5 h-3.5" />}
                 {team.seats.available === 0 ? 'No seats left' : 'Create invite link'}
               </button>
             </div>
 
             {/* Yeni bağlantı — yalnızca bir kez gösterilir */}
             {fresh && (
-              <div className="border border-content-primary/25 rounded-[var(--radius-card)] p-4 bg-white/[0.04] space-y-2">
-                <p className="text-[11px] font-semibold">Copy this link now — it is shown only once.</p>
+              <div className="border border-line-subtle rounded-[var(--radius-card)] p-4 bg-surface-800/80 space-y-2 shadow-sm">
+                <p className="text-xs font-semibold text-content-primary">Copy this link now — it is shown only once.</p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-[10px] bg-surface-900 rounded-[var(--radius-control)] px-3 py-2 overflow-x-auto whitespace-nowrap">
+                  <code className="flex-1 text-xs font-mono bg-surface-900 border border-line rounded-[var(--radius-control)] px-3 py-2 overflow-x-auto whitespace-nowrap text-content-primary">
                     {inviteUrl}
                   </code>
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="tap-44 p-2 rounded-[var(--radius-control)] bg-white/[0.08] hover:bg-white/[0.14] transition-colors"
+                    className="tap-44 p-2 rounded-full border border-line bg-surface-700 hover:bg-surface-600 transition-colors text-content-primary cursor-pointer"
                     aria-label="Copy invite link"
                   >
-                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? <Check className="w-3.5 h-3.5 text-content-primary" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
-                <p className="text-[10px] text-content-muted">
+                <p className="text-[10px] text-content-muted font-mono">
                   Single use — it stops working the moment someone joins with it.
                 </p>
               </div>
@@ -223,24 +228,24 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
 
             {/* Üyeler */}
             <div>
-              <h3 className="text-[10px] uppercase tracking-wider text-content-subtle font-semibold mb-2">Members</h3>
-              <div className="border border-content-primary/15 rounded-[var(--radius-card)] divide-y divide-content-primary/10 overflow-hidden">
+              <h3 className="text-[10px] uppercase tracking-wider text-content-muted font-mono font-semibold mb-2">Members</h3>
+              <div className="border border-line-strong rounded-[var(--radius-card)] divide-y divide-line overflow-hidden bg-surface-800/40 shadow-sm">
                 {team.members.map(m => {
                   const Icon = roleIcon[m.role] ?? Eye;
                   return (
-                    <div key={m.userId} className="flex items-center gap-3 px-4 py-2.5">
-                      <div className="w-7 h-7 rounded-full bg-white/[0.08] flex items-center justify-center text-[10px] font-bold shrink-0">
+                    <div key={m.userId} className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-8 h-8 rounded-full bg-surface-700 border border-line flex items-center justify-center text-xs font-mono font-bold text-content-primary shrink-0">
                         {m.username.substring(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold truncate">
+                        <p className="text-xs font-semibold text-content-primary truncate">
                           {m.username}
                           {m.isYou && <span className="text-content-muted font-normal"> · you</span>}
                         </p>
-                        <p className="text-[10px] text-content-muted truncate">{m.email}</p>
+                        <p className="text-[11px] text-content-muted truncate">{m.email}</p>
                       </div>
-                      <span className="flex items-center gap-1.5 text-[10px] font-semibold text-content-secondary shrink-0">
-                        <Icon className="w-3 h-3" /> {m.role}
+                      <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-line bg-surface-800 text-[10px] font-mono text-content-secondary shrink-0">
+                        <Icon className="w-3 h-3 text-content-primary" /> {m.role}
                       </span>
                     </div>
                   );
@@ -251,26 +256,26 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
             {/* Bekleyen davetler */}
             {team.pendingInvites.length > 0 && (
               <div>
-                <h3 className="text-[10px] uppercase tracking-wider text-content-subtle font-semibold mb-2">
+                <h3 className="text-[10px] uppercase tracking-wider text-content-muted font-mono font-semibold mb-2">
                   Pending invites
                 </h3>
-                <p className="text-[10px] text-content-muted mb-2">
+                <p className="text-[11px] text-content-muted mb-2">
                   A pending invite holds a seat until it is used or revoked.
                 </p>
-                <div className="border border-content-primary/15 rounded-[var(--radius-card)] divide-y divide-content-primary/10 overflow-hidden">
+                <div className="border border-line-strong rounded-[var(--radius-card)] divide-y divide-line overflow-hidden bg-surface-800/40 shadow-sm">
                   {team.pendingInvites.map(i => (
-                    <div key={i.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div key={i.id} className="flex items-center gap-3 px-4 py-3">
                       <Clock className="w-3.5 h-3.5 text-content-muted shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium">{i.role} invite</p>
-                        <p className="text-[10px] text-content-muted">
+                        <p className="text-xs font-medium text-content-primary">{i.role} invite</p>
+                        <p className="text-[10px] text-content-muted font-mono">
                           expires {new Date(i.expiresAt).toLocaleDateString('en-US')}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleRevoke(i.id)}
-                        className="tap-44 p-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-danger-text hover:bg-white/[0.06] transition-colors"
+                        className="tap-44 p-1.5 rounded-full text-content-muted hover:text-danger-text hover:bg-surface-700 transition-colors cursor-pointer"
                         aria-label="Revoke invite"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -283,20 +288,20 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
 
             {/* Ortak projeler / kim ne yaptı */}
             <div>
-              <h3 className="text-[10px] uppercase tracking-wider text-content-subtle font-semibold mb-2">
+              <h3 className="text-[10px] uppercase tracking-wider text-content-muted font-mono font-semibold mb-2">
                 Shared projects
               </h3>
               {projects.length === 0 ? (
-                <p className="text-[11px] text-content-muted border border-content-primary/15 rounded-[var(--radius-card)] px-4 py-5 text-center">
+                <p className="text-xs text-content-muted border border-line-strong rounded-[var(--radius-card)] px-4 py-6 text-center bg-surface-800/30">
                   No shared projects yet. Anything anyone saves shows up here for the whole team.
                 </p>
               ) : (
-                <div className="border border-content-primary/15 rounded-[var(--radius-card)] divide-y divide-content-primary/10 overflow-hidden">
+                <div className="border border-line-strong rounded-[var(--radius-card)] divide-y divide-line overflow-hidden bg-surface-800/40 shadow-sm">
                   {projects.map(p => (
-                    <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div key={p.id} className="flex items-center gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold truncate">{p.name}</p>
-                        <p className="text-[10px] text-content-muted truncate">
+                        <p className="text-xs font-semibold text-content-primary truncate">{p.name}</p>
+                        <p className="text-[10px] text-content-muted font-mono truncate">
                           {p.dbType} · {p.ownerName} · {new Date(p.updatedAt).toLocaleString('en-US')}
                         </p>
                       </div>

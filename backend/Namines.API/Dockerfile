@@ -5,6 +5,8 @@ WORKDIR /src
 COPY ["Namines.API/Namines.API.csproj", "Namines.API/"]
 COPY ["Namines.Core/Namines.Core.csproj", "Namines.Core/"]
 COPY ["Namines.Infrastructure/Namines.Infrastructure.csproj", "Namines.Infrastructure/"]
+COPY ["Namines.Vault/Namines.Vault.csproj", "Namines.Vault/"]
+COPY ["Namines.Ground/Namines.Ground.csproj", "Namines.Ground/"]
 
 # Bağımlılıkları restore et
 RUN dotnet restore "Namines.API/Namines.API.csproj"

@@ -322,9 +322,9 @@ export default function BranchControlPanel() {
   };
 
   return (
-    <div className="mt-2.5 border-t border-content-primary/8 pt-2.5 flex flex-col gap-1.5 w-full relative">
+    <div className="mt-2.5 border-t border-line pt-2.5 flex flex-col gap-1.5 w-full relative">
       <div className="flex items-center justify-between px-0.5">
-        <span className="text-[10px] font-bold text-content-subtle tracking-widest uppercase">Version Control</span>
+        <span className="text-[10px] font-bold text-content-muted tracking-wider uppercase">Version Control</span>
         <ContextualHelpTooltip content={helpContent.branching} />
       </div>
 
@@ -332,7 +332,7 @@ export default function BranchControlPanel() {
       <div className="flex gap-1.5 w-full">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex-1 flex items-center justify-between gap-2 text-content-secondary hover:text-content-primary transition-colors font-semibold text-xs bg-surface-700 hover:bg-surface-600 px-2.5 py-1.5 rounded-[var(--radius-control)] min-w-0"
+          className="flex-1 flex items-center justify-between gap-2 text-content-secondary hover:text-content-primary transition-colors font-medium text-xs bg-surface-700/60 hover:bg-surface-700 border border-line px-2.5 py-1.5 rounded-[var(--radius-control)] min-w-0 cursor-pointer shadow-xs"
         >
           <div className="flex items-center gap-1.5 truncate">
             <GitBranch className="w-3.5 h-3.5 text-content-muted shrink-0" />
@@ -344,10 +344,10 @@ export default function BranchControlPanel() {
         {/* Diff Mode Toggle Button */}
         <button
           onClick={handleToggleDiffMode}
-          className={`p-1.5 rounded-[var(--radius-control)] transition-all flex items-center justify-center shrink-0 ${
+          className={`p-1.5 rounded-[var(--radius-control)] border transition-all flex items-center justify-center shrink-0 cursor-pointer ${
             isDiffMode
-              ? 'bg-success-subtle text-success-text'
-              : 'bg-surface-700 text-content-subtle hover:text-content-secondary hover:bg-surface-600'
+              ? 'bg-success-subtle text-success-text border-success/30'
+              : 'bg-surface-700/60 border-line text-content-muted hover:text-content-primary hover:bg-surface-700'
           }`}
           title={isDiffMode ? "Close Diff View" : "Compare Differences"}
         >
@@ -358,7 +358,7 @@ export default function BranchControlPanel() {
         {isDiffMode && (
           <button
             onClick={handleStartMerge}
-            className="bg-content-primary hover:bg-content-primary-hover text-surface-900 p-1.5 rounded-[var(--radius-control)] flex items-center justify-center transition-all shrink-0"
+            className="bg-content-primary hover:bg-content-primary-hover text-surface-900 p-1.5 rounded-[var(--radius-control)] flex items-center justify-center transition-all shrink-0 cursor-pointer"
             title="Merge branch into current branch"
           >
             <GitMerge className="w-3.5 h-3.5" />
@@ -368,29 +368,29 @@ export default function BranchControlPanel() {
 
       {/* Expandable Dropdown Menu */}
       {isOpen && (
-        <div className="absolute top-full left-0 w-full mt-1.5 bg-surface-800 border border-content-primary/12 rounded-[var(--radius-card)] shadow-xl p-2.5 animate-in fade-in duration-200 z-50">
-          <div className="text-[10px] font-bold text-content-subtle tracking-widest uppercase mb-2 px-1">Branches</div>
+        <div className="absolute top-full left-0 w-full mt-1.5 bg-surface-800 border border-line-strong rounded-[var(--radius-card)] shadow-2xl p-2 animate-dropdown-in z-50">
+          <div className="text-[10px] font-bold text-content-muted tracking-wider uppercase mb-1.5 px-1">Branches</div>
 
-          <div className="flex flex-col gap-1 max-h-36 overflow-y-auto mb-2 pr-1">
+          <div className="flex flex-col gap-0.5 max-h-36 overflow-y-auto mb-1.5 pr-1">
             {branches.map(b => (
               <div
                 key={b.name}
                 onClick={() => handleSwitchBranch(b.name)}
-                className={`group flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-control)] cursor-pointer border text-[11px] font-medium transition-all ${
+                className={`group flex items-center justify-between px-2 py-1.5 rounded-[var(--radius-control)] cursor-pointer border text-xs font-medium transition-all ${
                   b.name === currentBranchName
-                    ? 'bg-white/[0.08] border-white/25 text-content-primary'
-                    : 'bg-surface-800/45 border-transparent text-content-muted hover:text-content-primary hover:bg-surface-700/40'
+                    ? 'bg-surface-700 border-line-strong text-content-primary shadow-xs'
+                    : 'bg-transparent border-transparent text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
                 }`}
               >
                 <div className="flex items-center gap-1.5 truncate">
-                  <GitBranch className={`w-3 h-3 ${b.name === currentBranchName ? 'text-content-primary' : 'text-content-subtle'}`} />
+                  <GitBranch className={`w-3 h-3 ${b.name === currentBranchName ? 'text-content-primary' : 'text-content-muted'}`} />
                   <span className="truncate">{b.name}</span>
                 </div>
                 
                 {b.name !== 'main' && (
                   <button
                     onClick={(e) => handleDeleteBranch(e, b.name)}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-danger/20 rounded-[var(--radius-control)] text-content-subtle hover:text-danger-text transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-danger-subtle rounded-[var(--radius-control)] text-content-muted hover:text-danger-text transition-all"
                     title="Delete Branch"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -400,7 +400,7 @@ export default function BranchControlPanel() {
             ))}
           </div>
 
-          <div className="h-[1px] bg-surface-700/80 my-2" />
+          <div className="h-[1px] bg-line my-1.5" />
 
           {/* New Branch Creation Form */}
           {showCreateInput ? (
@@ -412,11 +412,11 @@ export default function BranchControlPanel() {
                 value={newBranchName}
                 onChange={(e) => setNewBranchName(e.target.value)}
                 autoFocus
-                className="bg-surface-800 border border-surface-500 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-primary focus:outline-none focus:border-white/25 flex-1 min-w-0"
+                className="bg-surface-800 border border-line-strong rounded-[var(--radius-control)] px-2 py-1 text-xs text-content-primary focus:outline-none focus:ring-1 focus:ring-line-strong flex-1 min-w-0"
               />
               <button
                 type="submit"
-                className="bg-content-primary hover:bg-content-secondary text-surface-900 px-2 py-1 rounded-[var(--radius-control)] text-[11px] font-bold"
+                className="bg-content-primary hover:bg-content-primary-hover text-surface-900 px-2.5 py-1 rounded-[var(--radius-control)] text-xs font-semibold cursor-pointer"
               >
                 Add
               </button>
@@ -424,7 +424,7 @@ export default function BranchControlPanel() {
           ) : (
             <button
               onClick={() => setShowCreateInput(true)}
-              className="w-full flex items-center justify-center gap-1 py-1.5 rounded-[var(--radius-control)] border border-dashed border-surface-500 hover:border-white/25 text-content-muted hover:text-content-primary text-[11px] font-semibold transition-all bg-surface-800/25"
+              className="w-full flex items-center justify-center gap-1 py-1.5 rounded-[var(--radius-control)] border border-dashed border-line hover:border-line-strong text-content-muted hover:text-content-primary text-xs font-medium transition-all bg-surface-700/30 cursor-pointer"
             >
               <Plus className="w-3 h-3" />
               <span>Create Branch</span>
@@ -433,13 +433,13 @@ export default function BranchControlPanel() {
 
           {/* Diff comparison selector when diffing */}
           {isDiffMode && (
-            <div className="mt-2 pt-2 border-t border-surface-600/80">
-              <label className="text-micro font-extrabold text-content-subtle block mb-1 uppercase tracking-wide">Compare Branch</label>
+            <div className="mt-2 pt-2 border-t border-line">
+              <label className="text-micro font-bold text-content-muted block mb-1 uppercase tracking-wide">Compare Branch</label>
               <select
                 aria-label="Compare Branch"
                 value={compareBranchName || ''}
                 onChange={(e) => setCompareBranchName(e.target.value || null)}
-                className="w-full bg-surface-800 border border-surface-500 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-secondary focus:outline-none focus:border-white/25"
+                className="w-full bg-surface-800 border border-line-strong rounded-[var(--radius-control)] px-2 py-1 text-xs text-content-primary focus:outline-none focus:ring-1 focus:ring-line-strong cursor-pointer"
               >
                 {branches
                   .filter(b => b.name !== currentBranchName)

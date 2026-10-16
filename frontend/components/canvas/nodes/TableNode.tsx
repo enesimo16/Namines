@@ -153,9 +153,9 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
       );
     } else if (diff.status === 'modified') {
       // animate-pulse kaldırıldı: 20 değişmiş tabloda 20 sonsuz animasyon aynı anda dönüyordu.
-      borderColorClass = 'border-content-primary/25';
+      borderColorClass = 'border-line-strong';
       diffBadge = (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/[0.08] text-content-secondary border border-white/20 flex items-center gap-0.5">
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-700 text-content-secondary border border-line-strong flex items-center gap-0.5">
           <RefreshCw className="w-2.5 h-2.5" /> Modified
         </span>
       );
@@ -207,10 +207,10 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
       {/* Option B: Double Click Popover Overlay (No Emojis) */}
       {showPopover && (
         <div
-          className="absolute inset-0 z-[45] bg-surface-900/95 backdrop-blur-md flex flex-col items-center justify-center p-5 gap-3 text-center animate-in fade-in zoom-in-95 duration-200"
+          className="absolute inset-0 z-[45] bg-surface-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4 gap-2 text-center animate-in fade-in duration-150"
           onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setShowPopover(false); } }}
         >
-          <div className="text-xs font-semibold text-content-muted uppercase tracking-wider mb-1">
+          <div className="text-[10px] font-bold text-content-muted uppercase tracking-wider mb-0.5">
             Table Operations
           </div>
 
@@ -221,7 +221,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               setSelectedTableForEdit(table.id);
               setShowPopover(false);
             }}
-            className="w-full py-2.5 px-4 bg-content-primary hover:bg-content-secondary text-surface-900 rounded-[var(--radius-card)] text-xs font-bold transition-all border border-accent-hover/40 cursor-pointer"
+            className="w-full py-2 px-3 bg-content-primary hover:bg-content-primary-hover text-surface-900 rounded-[var(--radius-control)] text-xs font-semibold transition-all cursor-pointer"
           >
             Edit Manual Structure
           </button>
@@ -233,7 +233,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               setIsPanelOpen(true);
               setShowPopover(false);
             }}
-            className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary rounded-[var(--radius-card)] text-xs font-bold transition-all border border-surface-500 cursor-pointer"
+            className="w-full py-2 px-3 bg-surface-700 hover:bg-surface-600 text-content-primary rounded-[var(--radius-control)] text-xs font-semibold transition-all border border-line cursor-pointer"
           >
             Go to AI DBA Suggestions
           </button>
@@ -245,7 +245,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 duplicateTable(table.id);
                 setShowPopover(false);
               }}
-              className="w-full py-2.5 px-4 bg-surface-700 hover:bg-surface-600 text-content-secondary hover:text-content-primary rounded-[var(--radius-card)] text-xs font-bold transition-all border border-surface-500 cursor-pointer"
+              className="w-full py-2 px-3 bg-surface-700 hover:bg-surface-600 text-content-primary rounded-[var(--radius-control)] text-xs font-semibold transition-all border border-line cursor-pointer"
             >
               Duplicate Table
             </button>
@@ -256,32 +256,22 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
               e.stopPropagation();
               setShowPopover(false);
             }}
-            className="text-[11px] font-semibold text-content-muted hover:text-content-secondary transition-colors mt-1 underline underline-offset-4 cursor-pointer"
+            className="text-xs font-medium text-content-muted hover:text-content-primary transition-colors mt-1 cursor-pointer"
           >
             Close
           </button>
         </div>
       )}
 
-      {/* Header — py-3.5(56px etkisi) -> py-2.5, text-base(miras) -> text-sm.
-          Genişlikle birlikte yükseklik de küçüldü: schemaToFlow'daki
-          NODE_HEADER/ROW_HEIGHT sabitleri de bu ölçüye güncellendi. */}
+      {/* Header */}
       <div
-        className={`${table.color ? '' : 'bg-surface-700'} text-content-primary font-bold text-sm px-3.5 py-2.5 border-b border-surface-500 flex justify-between items-center relative`}
-        style={table.color ? { backgroundColor: table.color + '33', borderBottomColor: table.color + '66' } : {}}
+        className={`${table.color ? '' : 'bg-surface-700/80'} text-content-primary font-bold text-sm px-3 py-2 border-b border-line flex justify-between items-center relative`}
+        style={table.color ? { backgroundColor: table.color + '26', borderBottomColor: table.color + '4D' } : {}}
       >
         {table.color && (
-          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: table.color }} />
+          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-[var(--radius-card)]" style={{ backgroundColor: table.color }} />
         )}
 
-        {/* Namines Flow kenarının bağlanma noktası.
-            Diğer handle'ların HEPSİ bir kolona ait ve `id={col.id}` taşıyor;
-            id'siz (varsayılan) bir handle yoktu. Flow kenarı da sourceHandle
-            belirtmediği için React Flow bağlanacak nokta bulamıyor ve çizgiyi
-            HİÇ ÇİZMİYORDU — otomasyon düğümü tabloya bağlıymış gibi durup
-            aslında görünür hiçbir bağı olmuyordu.
-            `isConnectable={false}`: bu yalnızca bir çapa; kullanıcı buradan
-            elle bir ilişki çekemesin, yoksa kolonsuz bir FK denemesi olurdu. */}
         <Handle
           type="source"
           position={Position.Right}
@@ -289,20 +279,18 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
           className="!w-2 !h-2 !bg-warning !border-0 !opacity-0"
         />
 
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="truncate">{table.name}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="truncate tracking-tight">{table.name}</span>
           {diffBadge}
           {dbaIssues.length > 0 && !diff && (
-            // <span onClick> yerine gerçek buton: odaklanabilir, klavyeyle
-            // tetiklenebilir ve erişilebilir bir adı var.
             <button
               type="button"
               onClick={handleDbaBadgeClick}
               className={`
-                flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold select-none cursor-pointer
-                ${hasDbaError ? 'bg-danger text-content-primary shadow-[0_0_12px_color-mix(in srgb, var(--color-danger) 65%, transparent)]' :
-                  hasDbaWarning ? 'bg-content-primary text-surface-900 shadow-none' :
-                  'bg-surface-600 text-content-secondary shadow-none'}
+                flex h-4.5 w-4.5 items-center justify-center rounded-full text-[10px] font-bold select-none cursor-pointer
+                ${hasDbaError ? 'bg-danger-subtle text-danger-text border border-danger/30 shadow-xs' :
+                  hasDbaWarning ? 'bg-surface-600 border border-line-strong text-content-primary' :
+                  'bg-surface-700 text-content-secondary'}
               `}
               title={`${dbaIssues.length} DBA warnings present`}
               aria-label={`${table.name}: ${dbaIssues.length} DBA warnings. Open the DBA panel.`}
@@ -311,28 +299,27 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-content-secondary bg-surface-600 px-2 py-1 rounded-[var(--radius-control)]">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-medium text-content-muted bg-surface-700 border border-line px-1.5 py-0.5 rounded-full">
             {table.columns.length} cols
           </span>
           {isEditMode && !diff && (
             <button
               onClick={handleEditClick}
-              className="p-1 hover:bg-surface-600 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary transition-colors"
+              className="p-1 hover:bg-surface-600 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary transition-colors cursor-pointer"
               title="Edit table"
               aria-label={`Edit table ${table.name}`}
             >
-              <Pencil className="w-3.5 h-3.5" />
+              <Pencil className="w-3 h-3" />
             </button>
           )}
         </div>
       </div>
 
       {/* Columns */}
-      <div className="flex flex-col py-1.5 divide-y divide-surface-500/20">
+      <div className="flex flex-col py-1 divide-y divide-line/40">
         {columnsToRender.map(({ column: col, diffStatus, details }) => {
-          // Setup custom styling based on column level diff
-          let rowClass = "relative flex items-center justify-between gap-2 px-3 py-2 hover:bg-white/[0.03] group transition-all";
+          let rowClass = "relative flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-surface-700/40 group transition-colors";
           let textStyle = col.isPK ? 'font-semibold text-content-primary' : 'text-content-secondary';
           let statusIndicator = null;
           let typeLabel = `${col.type}${col.length ? `(${col.length})` : ''}`;
@@ -346,7 +333,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
             textStyle = 'text-danger-text line-through';
             statusIndicator = <Minus className="w-3 h-3 text-danger-text" />;
           } else if (diffStatus === 'modified') {
-            rowClass += ' bg-white/[0.04] border-l-2 border-white/30';
+            rowClass += ' bg-surface-700/30 border-l-2 border-line-strong';
             textStyle = 'font-semibold text-content-primary';
             statusIndicator = <RefreshCw className="w-3 h-3 text-content-secondary" />;
 
@@ -363,30 +350,28 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 type="target"
                 position={Position.Left}
                 id={col.id}
-                className="!w-3 !h-3 !bg-accent-hover !border-2 !border-surface-800 -ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="!w-2.5 !h-2.5 !bg-content-primary !border-2 !border-surface-800 -ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
               />
 
               <div className="flex items-center gap-1.5 min-w-0">
                 {statusIndicator}
-                {col.isPK && <Key className="w-3.5 h-3.5 text-accent-text shrink-0" />}
+                {col.isPK && <Key className="w-3.5 h-3.5 text-content-primary shrink-0" />}
                 {col.isFK && !col.isPK && <Link className="w-3.5 h-3.5 text-content-muted shrink-0" />}
                 {!col.isPK && !col.isFK && !statusIndicator && <div className="w-3.5 h-3.5 shrink-0" />}
 
-                <span className={`text-[13px] truncate ${textStyle}`}>
+                <span className={`text-xs truncate ${textStyle}`}>
                   {col.name}
                 </span>
               </div>
 
-              <div className="text-xs flex gap-1.5 items-center shrink-0">
-                {/* Kolon tipi her satırdaki birincil bilgi — eski text-content-subtle
-                    koyu zeminde ~4.0:1 ile AA'nın altındaydı. */}
+              <div className="text-[11px] flex gap-1.5 items-center shrink-0">
                 <span className={diffStatus === 'modified' && details?.typeChanged
-                  ? 'text-content-primary font-bold bg-white/[0.06] px-1 py-0.5 rounded-[var(--radius-control)]'
-                  : 'text-content-muted'}>
+                  ? 'text-content-primary font-bold bg-surface-700 px-1 py-0.5 rounded-[var(--radius-control)]'
+                  : 'text-content-muted font-mono'}>
                   {typeLabel}
                 </span>
                 {col.isNullable && (
-                  <span className="text-content-muted text-[10px] font-bold bg-surface-600 border border-surface-500 px-1.5 py-0.5 rounded-[var(--radius-control)] uppercase select-none">
+                  <span className="text-content-muted text-[10px] font-bold bg-surface-700 border border-line px-1.5 py-0.5 rounded-[var(--radius-control)] uppercase select-none">
                     NULL
                   </span>
                 )}
@@ -397,7 +382,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
                 type="source"
                 position={Position.Right}
                 id={col.id}
-                className="!w-3 !h-3 !bg-accent-hover !border-2 !border-surface-800 -mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="!w-2.5 !h-2.5 !bg-content-primary !border-2 !border-surface-800 -mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
               />
             </div>
           );

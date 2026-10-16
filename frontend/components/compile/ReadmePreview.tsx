@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Download, FileText, Loader2, RefreshCw, Copy, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, FileText, Loader2, RefreshCw, Copy, Check, Eye, Code2 } from 'lucide-react';
 import { DatabaseSchema } from '../../types/schema';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
-import Prism from 'prismjs';
-import 'prismjs/components/prism-markdown';
-import 'prismjs/themes/prism-tomorrow.css';
-import { Panel, PanelBar, ActionButton, IconButton, PanelEmpty, Segmented } from './PanelKit';
+import { PanelEmpty } from './PanelKit';
+import CodeStudioViewer from './CodeStudioViewer';
 
 interface ReadmePreviewProps {
   schema: DatabaseSchema;
@@ -23,13 +21,8 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
-  // The rest of the UI is English; defaulting to 'tr' handed a Turkish README
-  // to everyone who never noticed the language switch. The switch stays — only
-  // the default changes (same fix already applied in DataDictionaryPreview).
   const [lang, setLang] = useState<Lang>('en');
   const [copied, setCopied] = useState<boolean>(false);
-
-  const rawCodeRef = useRef<HTMLElement>(null);
 
   const fetchReadme = async () => {
     if (!schema) return;
@@ -50,12 +43,6 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
     fetchReadme();
   }, [schema, lang]);
 
-  useEffect(() => {
-    if (viewMode === 'raw' && rawCodeRef.current && readmeText) {
-      Prism.highlightElement(rawCodeRef.current);
-    }
-  }, [viewMode, readmeText]);
-
   const handleDownloadReadme = async () => {
     if (!schema) return;
     setIsDownloading(true);
@@ -70,10 +57,9 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
       showToast("README.md successfully downloaded!", "success");
     } catch (error) {
-      console.error("Failed to download Readme", error);
+      console.error("Failed to download README", error);
       showToast("An error occurred while downloading README.", "error");
     } finally {
       setIsDownloading(false);
@@ -103,7 +89,6 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
     
     const renderedElements: React.ReactNode[] = [];
 
-    // Parse simple Markdown tables
     let inTable = false;
     let tableHeaders: string[] = [];
     let tableRows: string[][] = [];
@@ -111,10 +96,10 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
     const flushTable = (keyIndex: number) => {
       if (tableRows.length > 0) {
         renderedElements.push(
-          <div key={`table-wrapper-${keyIndex}`} className="overflow-x-auto my-4 border border-content-primary/10 rounded-[var(--radius-card)] bg-surface-800">
+          <div key={`table-wrapper-${keyIndex}`} className="overflow-x-auto my-4 border border-line-strong rounded-[var(--radius-control)] bg-surface-800">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-content-primary/8 text-content-subtle font-bold uppercase tracking-wider">
+                <tr className="border-b border-line text-content-muted font-bold uppercase tracking-wider bg-surface-700/50">
                   {tableHeaders.map((h, i) => (
                     <th key={`th-${keyIndex}-${i}`} className="py-2.5 px-4 font-mono">{h.replace(/\*\*/g, '').trim()}</th>
                   ))}
@@ -122,15 +107,15 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
               </thead>
               <tbody>
                 {tableRows.map((row, rowIndex) => (
-                  <tr key={`tr-${keyIndex}-${rowIndex}`} className="border-b border-content-primary/6 hover:bg-white/[0.02] transition-colors">
+                  <tr key={`tr-${keyIndex}-${rowIndex}`} className="border-b border-line/60 hover:bg-surface-700/30 transition-colors">
                     {row.map((cell, colIndex) => (
                       <td key={`td-${keyIndex}-${rowIndex}-${colIndex}`} className="py-2.5 px-4 text-content-secondary leading-normal">
                         {cell.trim().startsWith('`') && cell.trim().endsWith('`') ? (
-                          <code className="text-accent-text bg-white/[0.05] px-1 py-0.5 rounded-[var(--radius-control)] font-mono text-[10px]">
+                          <code className="text-namines-teal-vibrant bg-surface-700 px-1 py-0.5 rounded-[var(--radius-control)] font-mono text-[10px] border border-line">
                             {cell.replace(/`/g, '')}
                           </code>
                         ) : cell.includes('🔑') || cell.includes('🔗') || cell.includes('✅') || cell.includes('❌') ? (
-                          <span className="font-semibold">{cell.trim()}</span>
+                          <span className="font-semibold text-content-primary">{cell.trim()}</span>
                         ) : (
                           cell.trim()
                         )}
@@ -149,12 +134,10 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
     };
 
     lines.forEach((line, idx) => {
-      // Check if it's a table row
       if (line.trim().startsWith('|')) {
         inTable = true;
         const cells = line.split('|').map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1);
         
-        // Skip separator line | :--- | :--- |
         if (cells.every(c => c.startsWith(':') || c.startsWith('-') || c.endsWith(':'))) {
           return;
         }
@@ -171,14 +154,13 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
         }
       }
 
-      // Code block detection
       if (line.trim().startsWith('```')) {
         if (inCodeBlock) {
           inCodeBlock = false;
           renderedElements.push(
             <pre
               key={`code-${idx}`}
-              className="bg-surface-800 p-4 rounded-[var(--radius-card)] border border-content-primary/10 my-4 text-xs font-mono text-accent-text overflow-x-auto"
+              className="bg-surface-800 border border-line rounded-[var(--radius-control)] p-3 my-3 overflow-x-auto text-[11px] font-mono text-content-secondary leading-relaxed"
             >
               <code>{codeBlockLines.join('\n')}</code>
             </pre>
@@ -186,6 +168,7 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
           codeBlockLines = [];
         } else {
           inCodeBlock = true;
+          codeBlockLines = [];
         }
         return;
       }
@@ -201,14 +184,13 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
         return;
       }
 
-      // Title/Headers
       if (trimmed.startsWith('# ')) {
         renderedElements.push(
           <h1
             key={`h1-${idx}`}
-            className="text-xl font-extrabold text-content-primary mt-6 mb-3 tracking-tight border-b border-content-primary/10 pb-2 flex items-center gap-2"
+            className="text-lg font-bold text-content-primary mt-6 mb-3 tracking-tight border-b border-line pb-2 flex items-center gap-2"
           >
-            <span className="w-1.5 h-6 bg-content-muted rounded-full inline-block shrink-0" />
+            <span className="w-1.5 h-5 bg-namines-teal-vibrant rounded-full inline-block shrink-0" />
             {trimmed.slice(2)}
           </h1>
         );
@@ -216,9 +198,9 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
         renderedElements.push(
           <h2
             key={`h2-${idx}`}
-            className="text-lg font-bold text-content-primary mt-5 mb-2.5 tracking-tight flex items-center gap-2"
+            className="text-base font-bold text-content-primary mt-5 mb-2.5 tracking-tight flex items-center gap-2"
           >
-            <span className="w-1.5 h-4.5 bg-content-muted/50 rounded-full inline-block shrink-0" />
+            <span className="w-1.5 h-4 bg-content-muted rounded-full inline-block shrink-0" />
             {trimmed.slice(3)}
           </h2>
         );
@@ -226,15 +208,13 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
         renderedElements.push(
           <h3
             key={`h3-${idx}`}
-            className="text-sm font-bold text-content-secondary mt-4 mb-2 flex items-center gap-1.5"
+            className="text-xs font-bold text-content-secondary mt-4 mb-2 flex items-center gap-1.5"
           >
-            <span className="w-1 h-3 bg-content-muted/30 rounded-full inline-block shrink-0" />
+            <span className="w-1 h-3 bg-content-muted/60 rounded-full inline-block shrink-0" />
             {trimmed.slice(4)}
           </h3>
         );
-      }
-      // Lists
-      else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
         renderedElements.push(
           <ul
             key={`ul-${idx}`}
@@ -245,24 +225,18 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
             </li>
           </ul>
         );
-      }
-      // Blockquotes
-      else if (trimmed.startsWith('> ')) {
+      } else if (trimmed.startsWith('> ')) {
         renderedElements.push(
           <blockquote
             key={`bq-${idx}`}
-            className="border-l-4 border-surface-500 bg-white/[0.03] px-4 py-2.5 rounded-r-lg my-3 text-xs text-content-muted font-medium italic leading-relaxed"
+            className="border-l-2 border-line-strong bg-surface-800/60 px-4 py-2.5 rounded-r-[var(--radius-control)] my-3 text-xs text-content-muted font-medium italic leading-relaxed"
           >
             {trimmed.slice(2)}
           </blockquote>
         );
-      }
-      // Horizontal rules
-      else if (trimmed === '---') {
-        renderedElements.push(<hr key={`hr-${idx}`} className="border-content-primary/10 my-6" />);
-      }
-      // Standard Paragraph
-      else {
+      } else if (trimmed === '---') {
+        renderedElements.push(<hr key={`hr-${idx}`} className="border-line my-5" />);
+      } else {
         renderedElements.push(
           <p
             key={`p-${idx}`}
@@ -281,54 +255,151 @@ export default function ReadmePreview({ schema }: ReadmePreviewProps) {
     return <div className="space-y-1">{renderedElements}</div>;
   };
 
-  return (
-    <Panel scroll={false}>
-      <div className="h-full flex flex-col">
-        <PanelBar left={<span className="text-[11px] font-mono text-content-secondary">README.md</span>}>
-          <Segmented
-            ariaLabel="View mode"
-            value={viewMode}
-            onChange={setViewMode}
-            options={[{ value: 'preview' as ViewMode, label: 'Preview' }, { value: 'raw' as ViewMode, label: 'MD' }]}
-          />
-          <Segmented
-            ariaLabel="Document language"
-            value={lang}
-            onChange={setLang}
-            options={[{ value: 'tr' as Lang, label: 'TR' }, { value: 'en' as Lang, label: 'EN' }]}
-          />
-          {viewMode === 'raw' && (
-            <IconButton icon={copied ? Check : Copy} label={copied ? 'Copied' : 'Copy markdown'} onClick={handleCopyRaw} />
-          )}
-          <IconButton icon={RefreshCw} label="Regenerate README" onClick={fetchReadme} busy={isLoading} />
-          <ActionButton icon={Download} onClick={handleDownloadReadme} busy={isDownloading} disabled={isLoading} tone="primary">
-            Download
-          </ActionButton>
-        </PanelBar>
+  if (viewMode === 'raw') {
+    return (
+      <CodeStudioViewer
+        code={readmeText}
+        language="markdown"
+        filename="README.md"
+        dialectBadge="Markdown"
+        headerControls={
+          <div className="flex items-center gap-1 bg-surface-700/80 p-0.5 rounded-[var(--radius-control)] border border-line">
+            <button
+              onClick={() => setViewMode('preview')}
+              className="tap-44 flex items-center gap-1 px-2 py-0.5 rounded-[var(--radius-control)] text-xs text-content-muted hover:text-content-primary"
+            >
+              <Eye className="w-3 h-3" />
+              <span>Preview</span>
+            </button>
+            <button
+              onClick={() => setViewMode('raw')}
+              className="tap-44 flex items-center gap-1 px-2 py-0.5 rounded-[var(--radius-control)] text-xs bg-surface-800 text-content-primary font-bold shadow-xs"
+            >
+              <Code2 className="w-3 h-3" />
+              <span>Raw</span>
+            </button>
+          </div>
+        }
+        onDownload={handleDownloadReadme}
+        downloadLabel="Download .md"
+        isDownloading={isDownloading}
+        statusText="AI Generated Documentation · Markdown Format"
+      />
+    );
+  }
 
-        <div className="flex-1 min-h-0 overflow-auto relative">
-          {isLoading ? (
-            <div className="absolute inset-0 z-20 bg-surface-900/70 backdrop-blur-sm flex items-center justify-center gap-2">
-              <Loader2 className="w-4 h-4 text-content-muted animate-spin" />
-              <span className="text-[11px] text-content-muted">Generating documentation…</span>
-            </div>
-          ) : viewMode === 'preview' ? (
-            readmeText ? (
-              <div className="prose prose-invert max-w-none text-content-secondary select-text p-3 text-[12px]">
-                {renderMarkdown(readmeText)}
-              </div>
-            ) : (
-              <PanelEmpty icon={FileText} title="No README yet" hint="Generate documentation from your schema with the refresh action." />
-            )
-          ) : (
-            <pre className="!bg-transparent !m-0 !p-3 !text-[11px] !leading-relaxed select-text">
-              <code ref={rawCodeRef} className="language-markdown">
-                {readmeText || '# README content will appear here...'}
-              </code>
-            </pre>
-          )}
+  return (
+    <div className="w-full h-full bg-surface-900 rounded-[var(--radius-card)] border border-line-strong flex flex-col overflow-hidden select-none">
+      
+      {/* ── Top Header Bar ──────────────────────────────────────────────────── */}
+      <div className="shrink-0 min-h-11 px-3.5 py-1.5 bg-surface-800 border-b border-line-strong flex flex-wrap items-center justify-between gap-2.5">
+        
+        {/* Left: Title & Mode Toggle */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-surface-700/80 border border-line shadow-xs">
+            <FileText className="w-3.5 h-3.5 text-namines-teal-vibrant shrink-0" />
+            <span className="text-xs font-mono font-semibold text-content-primary">
+              README.md
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 bg-surface-700/80 p-0.5 rounded-[var(--radius-control)] border border-line">
+            <button
+              onClick={() => setViewMode('preview')}
+              className={`tap-44 flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-control)] text-xs font-medium cursor-pointer ${
+                viewMode === 'preview' ? 'bg-surface-800 text-content-primary shadow-xs' : 'text-content-muted hover:text-content-primary'
+              }`}
+            >
+              <Eye className="w-3 h-3" />
+              <span>Preview</span>
+            </button>
+            <button
+              onClick={() => setViewMode('raw')}
+              className="tap-44 flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-control)] text-xs font-medium cursor-pointer text-content-muted hover:text-content-primary"
+            >
+              <Code2 className="w-3 h-3" />
+              <span>Raw</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-0.5 bg-surface-700/80 p-0.5 rounded-[var(--radius-control)] border border-line">
+            <button
+              onClick={() => setLang('en')}
+              className={`tap-44 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px] font-bold cursor-pointer ${
+                lang === 'en' ? 'bg-surface-800 text-content-primary shadow-xs' : 'text-content-muted hover:text-content-secondary'
+              }`}
+            >
+              EN
+            </button>
+            <button
+              onClick={() => setLang('tr')}
+              className={`tap-44 px-2 py-0.5 rounded-[var(--radius-control)] text-[10px] font-bold cursor-pointer ${
+                lang === 'tr' ? 'bg-surface-800 text-content-primary shadow-xs' : 'text-content-muted hover:text-content-secondary'
+              }`}
+            >
+              TR
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={fetchReadme}
+            disabled={isLoading}
+            className="tap-44 flex items-center gap-1.5 h-8 px-2.5 rounded-[var(--radius-control)] bg-surface-700/80 hover:bg-surface-700 border border-line text-xs font-medium text-content-secondary hover:text-content-primary transition-colors cursor-pointer"
+            title="Regenerate README"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="text-[11px]">Regenerate</span>
+          </button>
+
+          <button
+            onClick={handleCopyRaw}
+            className="tap-44 flex items-center gap-1.5 h-8 px-2.5 rounded-[var(--radius-control)] bg-surface-700/80 hover:bg-surface-700 border border-line text-xs font-medium text-content-primary transition-colors cursor-pointer"
+            title="Copy markdown text"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-namines-teal-vibrant" /> : <Copy className="w-3.5 h-3.5 text-content-muted" />}
+            <span className="text-[11px]">{copied ? 'Copied' : 'Copy'}</span>
+          </button>
+
+          <button
+            onClick={handleDownloadReadme}
+            disabled={isDownloading || isLoading}
+            className="tap-44 flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-control)] bg-content-primary hover:opacity-90 text-surface-900 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+            title="Download README.md"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="text-[11px]">Download .md</span>
+          </button>
         </div>
       </div>
-    </Panel>
+
+      {/* ── Rendered Preview Surface ────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-auto p-4 lg:p-6 bg-surface-900 select-text relative">
+        {isLoading ? (
+          <div className="absolute inset-0 z-20 bg-surface-900/80 backdrop-blur-sm flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 text-namines-teal-vibrant animate-spin" />
+            <span className="text-xs text-content-muted">Generating AI Documentation…</span>
+          </div>
+        ) : readmeText ? (
+          <div className="max-w-3xl mx-auto space-y-4">
+            {renderMarkdown(readmeText)}
+          </div>
+        ) : (
+          <PanelEmpty
+            icon={FileText}
+            title="No README yet"
+            hint="Generate documentation from your schema with the refresh action."
+          />
+        )}
+      </div>
+
+      {/* ── Bottom Status Strip ─────────────────────────────────────────────── */}
+      <div className="shrink-0 h-7 px-3 bg-surface-800/90 border-t border-line-strong flex items-center justify-between text-[10px] font-mono text-content-muted">
+        <span>Rich Markdown View</span>
+        <span>AI Generated Documentation</span>
+      </div>
+    </div>
   );
 }

@@ -282,9 +282,9 @@ function GroundDetail({ projectId, projectName }: { projectId: string; projectNa
           ) : providers.length === 0 ? (
             <EmptyState icon={Server} title="No providers registered" description="No provider is configured on the server." />
           ) : (
-            <ul className="divide-y divide-content-primary/[0.07] border-t border-content-primary/10">
+            <ul className="divide-y divide-line border-t border-line">
               {providers.map(p => (
-                <li key={p.name} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+                <li key={p.name} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 hover:bg-surface-700/30 transition-colors">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold text-content-primary">{p.name}</span>

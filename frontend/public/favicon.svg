@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="fav-ribbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#D0D5E0" />
+    </linearGradient>
+    <linearGradient id="fav-pillar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#CCD2DE" />
+    </linearGradient>
+    <linearGradient id="fav-shadow" x1="0%" y1="0%" x2="100%" y2="80%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Turkuaz İkonik Nokta -->
+  <circle cx="8" cy="38" r="5.5" fill="#5EE6C4" />
+
+  <!-- Katlanmış N -->
+  <g>
+    <!-- Çapraz Şerit -->
+    <path
+      d="M 17 18
+         L 39 40
+         A 5.5 5.5 0 0 0 48 35
+         L 26 13
+         A 5.5 5.5 0 0 0 17 18 Z"
+      fill="url(#fav-ribbon)"
+    />
+
+    <!-- Sol Sütun + Üst Kıvrım -->
+    <path
+      d="M 14 17
+         C 14 8, 21 2, 30 2
+         C 35 2, 39 4, 42 8
+         L 35 15
+         C 33 13, 31 11, 28 11
+         C 24 11, 22 14, 22 18
+         L 22 37
+         A 4 4 0 0 1 14 37
+         Z"
+      fill="url(#fav-ribbon)"
+    />
+
+    <!-- Gölge -->
+    <path
+      d="M 22 18
+         C 22 14, 24 11, 28 11
+         L 35 15
+         L 24 26
+         C 23 23, 22 20, 22 18 Z"
+      fill="url(#fav-shadow)"
+    />
+
+    <!-- Sağ Sütun -->
+    <path
+      d="M 41 2
+         A 4.5 4.5 0 0 1 50 2
+         L 50 24
+         A 4.5 4.5 0 0 1 41 24
+         Z"
+      fill="url(#fav-pillar)"
+    />
+  </g>
+</svg>

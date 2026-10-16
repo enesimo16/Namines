@@ -67,10 +67,10 @@ const CONDITION_OPS: { value: AutomationConditionOp; label: string }[] = [
   { value: 'endsWith', label: 'ends with' },
 ];
 
-const inputClass = 'w-full bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-3 py-2 text-sm text-content-primary placeholder:text-content-subtle focus:outline-none focus:border-focus-ring transition-colors';
-const smallInputClass = 'bg-surface-700 border border-content-primary/10 rounded-[var(--radius-control)] px-2 py-1 text-xs text-content-primary focus:outline-none focus:border-focus-ring transition-colors';
-const labelClass = 'flex flex-col gap-1.5 text-xs font-medium text-content-secondary';
-const iconButtonClass = 'rounded-[var(--radius-control)] p-1 text-content-muted transition-colors hover:bg-content-primary/12 hover:text-content-primary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed';
+const inputClass = 'w-full bg-surface-700/80 border border-line-strong rounded-[var(--radius-control)] px-3 py-2 text-xs text-content-primary placeholder:text-content-muted focus:outline-none focus:border-focus-ring transition-colors shadow-xs';
+const smallInputClass = 'bg-surface-700/80 border border-line-strong rounded-[var(--radius-control)] px-2.5 py-1.5 text-xs text-content-primary focus:outline-none focus:border-focus-ring transition-colors shadow-xs';
+const labelClass = 'flex flex-col gap-1.5 text-micro font-bold uppercase tracking-wider text-content-muted';
+const iconButtonClass = 'rounded-[var(--radius-control)] p-1 text-content-muted transition-colors hover:bg-surface-700 hover:text-content-primary cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed';
 
 const PROJECT_SCOPE = '__project__';
 
@@ -180,21 +180,22 @@ export default function AutomationRuleDrawer() {
   return (
     <Dialog.Root open onOpenChange={(open) => { if (!open) setSelectedRuleId(null); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-scrim/60 z-[90]" />
+        <Dialog.Overlay className="fixed inset-0 bg-scrim/60 z-drawer-backdrop" />
         {/* `key`: alanlar kontrolsüz (defaultValue). Çekmeceyi kapatmadan
             başka bir kurala geçildiğinde bu olmadan önceki kuralın metni
             kutularda kalırdı — React alt ağacı yeniden kurmadığı için. */}
         <Dialog.Content
           key={rule.id}
-          className="fixed right-0 top-0 h-full w-full max-w-sm bg-surface-800 border-l border-content-primary/10 z-[91] p-5 flex flex-col gap-4 overflow-y-auto"
+          aria-describedby={undefined}
+          className="fixed right-0 top-0 h-full w-full max-w-sm bg-surface-800 border-l border-line-strong z-drawer p-5 flex flex-col gap-4 overflow-y-auto shadow-2xl"
         >
-          <div className="flex items-center justify-between">
-            <Dialog.Title className="flex items-center gap-2 text-sm font-semibold text-content-primary">
-              <Zap className="w-4 h-4 text-warning-text" />
+          <div className="flex items-center justify-between pb-2 border-b border-line">
+            <Dialog.Title className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-content-primary">
+              <Zap className="w-4 h-4 text-namines-teal-vibrant" />
               Namines Flow
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button type="button" aria-label="Close" className="p-1 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary cursor-pointer">
+              <button type="button" aria-label="Close" className="p-1.5 rounded-[var(--radius-control)] text-content-muted hover:text-content-primary hover:bg-surface-700 transition-colors cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </Dialog.Close>
@@ -376,7 +377,7 @@ export default function AutomationRuleDrawer() {
                 {rule.actions.map((action, index) => (
                   <li
                     key={action.uid}
-                    className="rounded-[var(--radius-card)] border border-content-primary/10 bg-surface-700 p-2.5"
+                    className="rounded-[var(--radius-card)] border border-line-strong bg-surface-700/80 p-2.5 shadow-xs"
                   >
                     <div className="flex items-center gap-1">
                       <span className="text-micro font-semibold text-content-muted">{index + 1}</span>
