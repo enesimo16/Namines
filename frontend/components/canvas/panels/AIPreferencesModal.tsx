@@ -194,15 +194,6 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
               <HelpTab openFaq={openFaq} onToggle={(idx) => setOpenFaq(openFaq === idx ? null : idx)} />
             )}
           </div>
-
-          {/* Clean Shopify Footer */}
-          <div className="px-6 py-2.5 bg-surface-850/60 border-t border-line flex justify-between items-center text-[10px] text-content-muted font-mono shrink-0">
-            <span>Namines Studio</span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-success" />
-              <span>System Active</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

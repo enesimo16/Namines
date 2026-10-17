@@ -154,7 +154,12 @@ export default function PricingTab({ plans }: { plans: Plans }) {
             />
           </div>
           <div className="mt-5 flex flex-col gap-2">
-            {subscriptionStatus === 'active' && planTier !== 'Team' ? (
+            {planTier === 'Dev' ? (
+              <div className="flex items-center gap-2 text-xs text-success font-semibold border border-success/30 bg-success-subtle rounded-[var(--radius-control)] px-4 py-2.5">
+                <Check className="w-4 h-4" />
+                Included in Dev — Unlimited
+              </div>
+            ) : subscriptionStatus === 'active' && planTier !== 'Team' ? (
               <CurrentPlanActions label="You are on the Pro plan" isUpgrading={isUpgrading} onManage={manageSubscription} />
             ) : (
               <button
@@ -186,7 +191,12 @@ export default function PricingTab({ plans }: { plans: Plans }) {
             />
           </div>
           <div className="mt-5 flex flex-col gap-2">
-            {planTier === 'Team' ? (
+            {planTier === 'Dev' ? (
+              <div className="flex items-center gap-2 text-xs text-success font-semibold border border-success/30 bg-success-subtle rounded-[var(--radius-control)] px-4 py-2.5">
+                <Check className="w-4 h-4" />
+                Included in Dev — Unlimited
+              </div>
+            ) : planTier === 'Team' ? (
               <CurrentPlanActions label="You are on the Team plan" isUpgrading={isUpgrading} onManage={manageSubscription} />
             ) : (
               <button

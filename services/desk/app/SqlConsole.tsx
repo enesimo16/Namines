@@ -132,61 +132,145 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
   const columns = result && result.rows.length > 0 ? Object.keys(result.rows[0].values) : [];
 
   return (
-    <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
       <PageHead
         title={t('nav.views.sql')}
         desc={rich(t('sql.desc'))}
       />
-      <textarea
-        aria-label={t('sql.queryLabel')}
-        value={sql}
-        onChange={e => setSql(e.target.value)}
-        rows={5}
+
+      {/* Shopify Polaris Framed Query Editor Card */}
+      <div
         style={{
-          width: '100%', fontFamily: 'ui-monospace, monospace', fontSize: 12.5,
-          background: 'var(--surface-900)', color: 'var(--content-primary)',
-          border: '1px solid var(--line-strong)', borderRadius: 'var(--radius-control)', padding: 10,
+          border: '1px solid var(--line-strong)',
+          borderRadius: 'var(--radius-card)',
+          background: 'var(--surface-800)',
+          overflow: 'hidden',
+          boxShadow: 'var(--shadow-sm)',
         }}
-      />
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button className="btn btn-primary" disabled={running || !sql.trim()} onClick={run}>
-          {running ? t('common.running') : t('sql.run')}
-        </button>
-        <button className="btn btn-sm" disabled={sideBusy || !sql.trim()} onClick={handleSave}>
-          {t('sql.saveQuery')}
-        </button>
-        <button
-          className="btn btn-sm"
-          disabled={toggling}
-          onClick={async () => {
-            if (!confirm(t('sql.confirmDisable'))) return;
-            setToggling(true);
-            setError(null);
-            try {
-              await setDeskSqlEnabled(session, false);
-              onToggled();
-            } catch (err) {
-              // Without this catch, disabling would silently fail: the user
-              // would think the console is off while the server keeps it ON.
-              // Misreporting a sensitive surface's state is worse than not
-              // showing an error at all.
-              setError(err instanceof Error ? err.message : t('sql.disableFailed'));
-            } finally {
-              setToggling(false);
-            }
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            background: 'var(--surface-700)',
+            borderBottom: '1px solid var(--line)',
+            fontSize: 11,
+            fontWeight: 650,
+            color: 'var(--content-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
           }}
         >
-          {t('sql.disable')}
-        </button>
+          <span>{t('sql.queryLabel')}</span>
+          <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 10.5, color: 'var(--content-subtle)' }}>
+            Ctrl + ↵
+          </span>
+        </div>
+
+        <textarea
+          aria-label={t('sql.queryLabel')}
+          value={sql}
+          onChange={e => setSql(e.target.value)}
+          onKeyDown={e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault();
+              if (!running && sql.trim()) void run();
+            }
+          }}
+          rows={5}
+          style={{
+            width: '100%',
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: 12.5,
+            lineHeight: 1.55,
+            background: 'var(--surface-900)',
+            color: 'var(--content-primary)',
+            border: 'none',
+            outline: 'none',
+            padding: '12px 14px',
+            resize: 'vertical',
+            display: 'block',
+          }}
+        />
+
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '9px 12px',
+            background: 'var(--surface-800)',
+            borderTop: '1px solid var(--line)',
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            <button className="btn btn-sm" disabled={sideBusy || !sql.trim()} onClick={handleSave}>
+              {t('sql.saveQuery')}
+            </button>
+            <button
+              className="btn btn-sm"
+              disabled={toggling}
+              onClick={async () => {
+                if (!confirm(t('sql.confirmDisable'))) return;
+                setToggling(true);
+                setError(null);
+                try {
+                  await setDeskSqlEnabled(session, false);
+                  onToggled();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : t('sql.disableFailed'));
+                } finally {
+                  setToggling(false);
+                }
+              }}
+            >
+              {t('sql.disable')}
+            </button>
+          </div>
+
+          <button className="btn btn-primary" disabled={running || !sql.trim()} onClick={run}>
+            {running ? t('common.running') : t('sql.run')}
+          </button>
+        </div>
       </div>
 
       {error && <div className="notice notice-error">{error}</div>}
 
-      {/* Gecmis / kaydedilmis sorgular. Bir kayda tiklamak metni editore
-          YAZAR ama CALISTIRMAZ: gecmisten gelen bir sorgunun kullanicinin
-          bakmadan calistirmasini istemedigi bir sey olma ihtimali var. */}
-      <div style={{ borderTop: '1px solid var(--line-strong)', paddingTop: 10 }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+      {result && (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          {result.truncated && (
+            <div className="notice" style={{ marginBottom: 8 }}>
+              {t('sql.truncated')}
+            </div>
+          )}
+          {result.rows.length === 0 ? (
+            <div className="empty">{t('sql.noResults')}</div>
+          ) : (
+            <div className="grid-wrap">
+              <table>
+                <thead>
+                  <tr>{columns.map(c => <th key={c} lang="en">{c}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {result.rows.map((r, i) => (
+                    <tr key={i}>
+                      {columns.map(c => <td key={c}>{formatSqlCell(r.values[c])}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Gecmis / kaydedilmis sorgular karti */}
+      <div className="card" style={{ padding: 14 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 10 }}>
           <button
             className={`btn btn-sm${sideTab === 'history' ? ' btn-primary' : ''}`}
             onClick={() => setSideTab('history')}
@@ -222,7 +306,7 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
           : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 200, overflow: 'auto' }}>
               {history.map(h => (
-                <li key={h.id} style={{ borderBottom: '1px solid var(--line)', padding: '6px 0' }}>
+                <li key={h.id} style={{ borderBottom: '1px solid var(--line)', padding: '7px 0' }}>
                   <button
                     onClick={() => setSql(h.sql)}
                     title={t('sql.writeToEditor')}
@@ -251,7 +335,7 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: 200, overflow: 'auto' }}>
               {saved.map(q => (
                 <li key={q.id} style={{
-                  borderBottom: '1px solid var(--line)', padding: '6px 0',
+                  borderBottom: '1px solid var(--line)', padding: '7px 0',
                   display: 'flex', gap: 8, alignItems: 'flex-start',
                 }}>
                   <button
@@ -289,34 +373,6 @@ export default function SqlConsole({ session, isOwner, allowDeskSql, onToggled }
           )
         )}
       </div>
-
-      {result && (
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-          {result.truncated && (
-            <div className="notice" style={{ marginBottom: 8 }}>
-              {t('sql.truncated')}
-            </div>
-          )}
-          {result.rows.length === 0 ? (
-            <div className="empty">{t('sql.noResults')}</div>
-          ) : (
-            <div className="grid-wrap">
-              <table>
-                <thead>
-                  <tr>{columns.map(c => <th key={c} lang="en">{c}</th>)}</tr>
-                </thead>
-                <tbody>
-                  {result.rows.map((r, i) => (
-                    <tr key={i}>
-                      {columns.map(c => <td key={c}>{formatSqlCell(r.values[c])}</td>)}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

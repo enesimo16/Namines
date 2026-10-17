@@ -123,6 +123,8 @@ public class CanvasHub : Hub
     private static readonly Regex RoomIdPattern = new(@"^[A-Za-z0-9_\-]{1,100}$", RegexOptions.Compiled);
     private static bool IsValidRoomId(string? roomId) => !string.IsNullOrEmpty(roomId) && RoomIdPattern.IsMatch(roomId);
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DatabaseSchema> RoomSchemas = new();
+
     private string ResolveDisplayName(string clientSuppliedName) =>
         PresenceIdentity.ResolveDisplayName(Context.User, clientSuppliedName);
 
@@ -154,6 +156,11 @@ public class CanvasHub : Hub
         await _presence.SetRoomAsync(Context.ConnectionId, roomId);
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
         await Clients.OthersInGroup(roomId).SendAsync("ReceiveUserJoined", Context.ConnectionId, ResolveDisplayName(userName));
+
+        if (RoomSchemas.TryGetValue(roomId, out var cachedSchema) && cachedSchema.Tables is { Count: > 0 })
+        {
+            await Clients.Caller.SendAsync("ReceiveSchema", cachedSchema);
+        }
     }
 
     public async Task MoveCursor(string roomId, string userName, double x, double y)
@@ -167,6 +174,11 @@ public class CanvasHub : Hub
     {
         if (!IsValidRoomId(roomId)) return;
         if (!await IsCallerInRoomAsync(roomId) || !await StillAuthorizedAsync(roomId, requireEdit: true)) return;
+        if (schema?.Tables is { Count: > 0 })
+        {
+            if (RoomSchemas.Count > 500) RoomSchemas.Clear();
+            RoomSchemas[roomId] = schema;
+        }
         await Clients.OthersInGroup(roomId).SendAsync("ReceiveSchema", schema);
     }
 
@@ -187,6 +199,10 @@ public class CanvasHub : Hub
 
         if (callerRoom != targetRoom) return;
         if (!await StillAuthorizedAsync(callerRoom, requireEdit: true)) return;
+        if (schema?.Tables is { Count: > 0 })
+        {
+            RoomSchemas[callerRoom] = schema;
+        }
         await Clients.Client(peerConnectionId).SendAsync("ReceiveSchema", schema);
     }
 

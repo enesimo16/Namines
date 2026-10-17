@@ -69,6 +69,34 @@ export function getLayoutedNodes(
 ): Node[] {
   if (nodes.length === 0) return nodes;
 
+  const validEdges = edges.filter(e => e.source !== e.target);
+  if (validEdges.length === 0 && nodes.length > 1) {
+    const cols = direction === 'LR'
+      ? Math.max(1, Math.ceil(Math.sqrt(nodes.length)))
+      : Math.max(1, Math.floor(Math.sqrt(nodes.length)));
+    const colGap = NODE_WIDTH + 96;
+    const rowGap = 72;
+    const result: Node[] = [];
+    let currentY = 40;
+    for (let rowStart = 0; rowStart < nodes.length; rowStart += cols) {
+      const rowNodes = nodes.slice(rowStart, rowStart + cols);
+      let maxRowHeight = 0;
+      rowNodes.forEach((node, colIdx) => {
+        const h = estimateNodeHeight(node);
+        if (h > maxRowHeight) maxRowHeight = h;
+        result.push({
+          ...node,
+          position: {
+            x: 40 + colIdx * colGap,
+            y: currentY,
+          },
+        });
+      });
+      currentY += maxRowHeight + rowGap;
+    }
+    return result;
+  }
+
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
@@ -96,9 +124,7 @@ export function getLayoutedNodes(
     g.setNode(node.id, { width: NODE_WIDTH, height: estimateNodeHeight(node) });
   });
 
-  edges.forEach(edge => {
-    // Kendine referans (self-relation) dagre'de döngü hatası üretir — atla.
-    if (edge.source === edge.target) return;
+  validEdges.forEach(edge => {
     // <b>YÖN TERS ÇEVRİLİYOR — kasıtlı.</b> Şemadaki kenar ÇOCUK→EBEVEYN akar
     // (`tasks.project_id` → `projects.id`). Dagre kaynakları ilk katmana koyar;
     // ham yönle beslenince `users`/`projects` gibi HERKESİN referans verdiği

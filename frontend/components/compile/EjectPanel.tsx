@@ -3,11 +3,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
+import 'prismjs/components/prism-clike';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-csharp';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-markdown';
 import { AlertTriangle, Package, Boxes } from 'lucide-react';
 import { DatabaseSchema } from '../../types/schema';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { Panel, PanelBar, ActionButton, PanelEmpty } from './PanelKit';
+
+function resolvePrismLang(fileName: string | null, selectedTarget: string): string {
+  const lower = (fileName || '').toLowerCase();
+  if (lower.endsWith('.ts') || lower.endsWith('.tsx')) return 'typescript';
+  if (lower.endsWith('.js') || lower.endsWith('.jsx') || lower.endsWith('.mjs')) return 'javascript';
+  if (lower.endsWith('.cs')) return 'csharp';
+  if (lower.endsWith('.py')) return 'python';
+  if (lower.endsWith('.sql')) return 'sql';
+  if (lower.endsWith('.json')) return 'json';
+  if (lower.endsWith('.md')) return 'markdown';
+  if (selectedTarget.includes('typescript') || selectedTarget.includes('drizzle') || selectedTarget.includes('zod') || selectedTarget.includes('kysely') || selectedTarget.includes('typeorm')) return 'typescript';
+  if (selectedTarget.includes('python') || selectedTarget.includes('sqlalchemy') || selectedTarget.includes('django') || selectedTarget.includes('pydantic')) return 'python';
+  if (selectedTarget.includes('csharp') || selectedTarget.includes('efcore') || selectedTarget.includes('dapper')) return 'csharp';
+  if (selectedTarget.includes('sql')) return 'sql';
+  return 'clike';
+}
 
 interface Props {
   schema: DatabaseSchema;
@@ -114,7 +138,7 @@ export default function EjectPanel({ schema, dbType }: Props) {
               aria-label="Export target"
               value={selected}
               onChange={e => setSelected(e.target.value)}
-              className="bg-surface-800 border border-content-primary/15 rounded-[var(--radius-control)] px-2 py-1 text-[11px] text-content-primary outline-none focus:border-accent/50"
+              className="min-w-[200px] h-8 bg-surface-800 border border-line-strong rounded-[var(--radius-control)] pl-3 pr-8 text-xs font-medium text-content-primary outline-none focus:border-focus-ring"
             >
               {targets.map(t => (
                 <option key={t.target} value={t.target}>{t.name}</option>
@@ -155,10 +179,10 @@ export default function EjectPanel({ schema, dbType }: Props) {
               <button
                 key={name}
                 onClick={() => setActiveFile(name)}
-                className={`shrink-0 px-2 py-1 rounded-[var(--radius-control)] text-[10px] font-mono transition-colors ${
+                className={`shrink-0 px-2.5 py-1 rounded-[var(--radius-control)] text-[11px] font-mono transition-colors cursor-pointer whitespace-nowrap ${
                   activeFile === name
-                    ? 'bg-surface-600 text-content-primary'
-                    : 'text-content-muted hover:text-content-secondary'
+                    ? 'bg-surface-600 text-content-primary font-semibold'
+                    : 'text-content-muted hover:text-content-primary'
                 }`}
               >
                 {name}
@@ -173,8 +197,8 @@ export default function EjectPanel({ schema, dbType }: Props) {
               <p className="text-[11px] text-content-muted text-center max-w-md leading-relaxed">{error}</p>
             </div>
           ) : (
-            <pre className="!bg-transparent !m-0 !p-3 !text-[11px] !leading-relaxed">
-              <code ref={codeRef} className="language-none">
+            <pre className="!bg-transparent !m-0 !p-4 !text-xs !leading-relaxed text-content-primary font-mono">
+              <code ref={codeRef} className={`language-${resolvePrismLang(activeFile, selected)} text-content-primary`}>
                 {isLoading && !activeFile ? '// generating…' : (activeFile ? files[activeFile] : '')}
               </code>
             </pre>

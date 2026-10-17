@@ -6,6 +6,7 @@ import { Users, Loader2, Check, AlertTriangle } from 'lucide-react';
 import { teamService } from '../../../services/api';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useAuthModalStore } from '../../../store/useAuthModalStore';
+import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useToastStore } from '../../../store/useToastStore';
 import { errorMessage } from '../../../lib/errors';
 
@@ -66,6 +67,7 @@ export default function JoinTeamPage() {
     setIsJoining(true);
     try {
       await teamService.acceptInvite(token);
+      await useProjectHistoryStore.getState().syncWithCloud();
       setJoined(true);
       showToast('You joined the team.', 'success');
       setTimeout(() => router.push('/new'), 1200);

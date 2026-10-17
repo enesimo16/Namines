@@ -22,7 +22,7 @@ import {
 } from '../../types/changeRequest';
 import TeamPanel from './TeamPanel';
 import GatewayKeyPanel from './GatewayKeyPanel';
-import { Switch } from '../workspace/WorkspaceKit';
+import { Switch, Select } from '../workspace/WorkspaceKit';
 import Skeleton from '../ui/Skeleton';
 
 const RISK_CONFIG: Record<RiskLevel, { label: string; badgeColor: string; barColor: string; fill: number; tone: 'success' | 'neutral' | 'danger'; icon: typeof ShieldCheck }> = {
@@ -437,17 +437,17 @@ export default function UnifiedReviewConsole({ initialCrId }: UnifiedReviewConso
             {mainTab === 'review' && requestsList && requestsList.length > 1 && (
               <div className="flex items-center gap-2 shrink-0 py-2">
                 <span className="text-micro font-bold uppercase tracking-wider text-content-muted hidden md:inline">Change Request:</span>
-                <select
+                <Select
                   value={currentCrId || ''}
                   onChange={e => handleSelectCr(e.target.value)}
-                  className="bg-surface-700/80 border border-line text-content-primary text-xs rounded-[var(--radius-control)] px-2.5 py-1 focus:outline-none focus:border-namines-teal-vibrant cursor-pointer"
+                  aria-label="Change Request"
                 >
                   {requestsList.map(r => (
                     <option key={r.id} value={r.id}>
                       {r.title || 'Review'} ({r.status})
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             )}
           </div>

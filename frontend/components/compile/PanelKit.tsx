@@ -58,7 +58,7 @@ export function PanelBar({
   return (
     <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 min-h-9 px-2.5 py-1.5 border-b border-surface-500 bg-surface-800">
       <div className="flex flex-wrap items-center gap-2 min-w-0">{left}</div>
-      <div className="flex items-center gap-1.5 shrink-0">{children}</div>
+      <div className="flex flex-wrap items-center gap-1.5 shrink-0">{children}</div>
     </div>
   );
 }
@@ -80,7 +80,7 @@ export function Segmented<T extends string>({
   ariaLabel: string;
 }) {
   return (
-    <div role="group" aria-label={ariaLabel} className="flex items-center gap-0.5 h-9 bg-surface-600 rounded-[var(--radius-control)] p-0.5">
+    <div role="group" aria-label={ariaLabel} className="flex items-center gap-0.5 h-9 bg-surface-600 rounded-[var(--radius-control)] p-0.5 overflow-x-auto scrollbar-none max-w-full">
       {options.map(opt => {
         const active = opt.value === value;
         return (
@@ -88,7 +88,7 @@ export function Segmented<T extends string>({
             key={opt.value}
             onClick={() => onChange(opt.value)}
             aria-pressed={active}
-            className={`px-2.5 h-full rounded-[var(--radius-control)] text-[10px] font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
+            className={`px-2.5 h-full rounded-[var(--radius-control)] text-[10px] font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus-ring)] ${
               active
                 ? 'bg-accent-subtle text-accent-text'
                 : 'text-content-muted hover:text-content-secondary'

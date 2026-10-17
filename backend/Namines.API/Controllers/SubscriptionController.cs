@@ -171,10 +171,15 @@ public class SubscriptionController : ControllerBase
         var user = await _userManager.FindByIdAsync(userId!);
         if (user == null) return Unauthorized();
 
+        var tier = Namines.Core.Analysis.PlanQuotas.Resolve(user.SubscriptionStatus, user.PlanCode, user.IsDev);
+        var isUnlimited = user.IsDev || tier == Namines.Core.Analysis.PlanTier.Dev;
+
         return Ok(new
         {
-            status = user.SubscriptionStatus ?? "none",
-            isPro = user.Type == UserType.Corporate,
+            status = isUnlimited ? "active" : (user.SubscriptionStatus ?? "none"),
+            plan = tier.ToString(),
+            isPro = isUnlimited || user.Type == UserType.Corporate || tier != Namines.Core.Analysis.PlanTier.Free,
+            isDev = isUnlimited,
             currentPeriodEnd = user.CurrentPeriodEnd,
             hasStripeCustomer = !string.IsNullOrEmpty(user.StripeCustomerId)
         });

@@ -4,10 +4,10 @@ import { useAIPolicyStore } from '../store/useAIPolicyStore';
 import { useQuotaStore } from '../store/useQuotaStore';
 
 export function useAIGateway() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const { openGateway } = useAIGatewayStore();
   const { policy } = useAIPolicyStore();
-  const { remaining, setExhaustedModalOpen } = useQuotaStore();
+  const { remaining, plan, setExhaustedModalOpen } = useQuotaStore();
 
   const checkAccess = (featureName: string): boolean => {
     // Map featureName to policy key
@@ -41,6 +41,10 @@ export function useAIGateway() {
     if (!isAuthenticated) {
       openGateway(featureName);
       return false;
+    }
+
+    if (user?.isDev || plan === 'Dev') {
+      return true;
     }
 
     // Giriş yapmış kullanıcı, kota bittiyse durdur.

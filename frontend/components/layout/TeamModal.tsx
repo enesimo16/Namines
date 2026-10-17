@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Users, Link2, Copy, Check, Trash2, Loader2, X, Clock, Crown, ShieldCheck, Eye, Pencil } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Users, Link2, Copy, Check, Trash2, Loader2, X, Clock, Crown, ShieldCheck, Eye, Pencil, Share2, ExternalLink } from 'lucide-react';
 import { teamService } from '../../services/api';
 import { TeamStatus, CreatedInvite, TeamProject } from '../../types/team';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { errorMessage } from '../../lib/errors';
@@ -29,26 +32,22 @@ const roleIcon: Record<string, typeof Eye> = {
  * olurdu — bunun yerine ne olduğunu anlatan bir ekran gösteriliyor.
  */
 export default function TeamModal({ isOpen, onClose }: Props) {
-  // Kapaliyken MONTE EDILMIYOR. Onceki hali acilista durumu efektle
-  // sifirliyordu; bu, modal her yeniden acildiginda ONCEKI ekibin verisini bir
-  // kare boyunca gosteriyordu. Taze montaj sifirlamayi `useState` baslangic
-  // degerleriyle, ara kare olmadan yapiyor.
   useEscapeKey(isOpen, onClose);
   if (!isOpen) return null;
   return <TeamModalPanel onClose={onClose} />;
 }
 
 function TeamModalPanel({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   const [team, setTeam] = useState<TeamStatus | null>(null);
   const [projects, setProjects] = useState<TeamProject[]>([]);
-  // Panel her zaman veri cekerek aciliyor: baslangic degeri `true`, yoksa ilk
-  // karede "ekip yok" gorunur.
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  // Yeni üretilen bağlantı yalnızca bu state'te yaşıyor: sunucuda özeti
-  // saklandığı için modal kapanınca bir daha gösterilemez.
+  const [isSharing, setIsSharing] = useState(false);
   const [fresh, setFresh] = useState<CreatedInvite | null>(null);
   const [copied, setCopied] = useState(false);
+  const localProjects = useProjectHistoryStore(s => s.projects);
+  const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
   const showToast = useToastStore(s => s.showToast);
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(true, modalRef);
@@ -56,6 +55,8 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
   /** Veriyi ceker; yukleme bayragini cagirana birakir. */
   const fetchTeam = async () => {
     try {
+      await useProjectHistoryStore.getState().syncAllToCloud();
+      await useProjectHistoryStore.getState().syncWithCloud();
       const [status, act] = await Promise.all([teamService.status(), teamService.activity()]);
       setTeam(status);
       setProjects(act.projects);
@@ -74,9 +75,6 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
     }
   };
 
-  // Montajda tek atislik yukleme. `setIsLoading(true)` BURADA cagrilmiyor:
-  // baslangic degeri zaten `true` ve efekt icinde senkron `setState` zincir
-  // render tetikliyor.
   useEffect(() => {
     let cancelled = false;
     fetchTeam().finally(() => {
@@ -115,6 +113,39 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
       await load();
     } catch {
       showToast('Invite could not be revoked.', 'error');
+    }
+  };
+
+  const handleOpenSharedProject = async (projectId: string) => {
+    let snap = useProjectHistoryStore.getState().loadProject(projectId);
+    if (!snap) {
+      await useProjectHistoryStore.getState().syncWithCloud();
+      snap = useProjectHistoryStore.getState().loadProject(projectId);
+    }
+    if (!snap) {
+      showToast('Could not load project schema.', 'error');
+      return;
+    }
+    useProjectHistoryStore.getState().setActiveProjectId(snap.id);
+    useSchemaStore.getState().setDbType(snap.dbType);
+    useSchemaStore.getState().setProjectName(snap.name);
+    useSchemaStore.getState().loadFromSchema(snap.schema, snap.nodePositions, true);
+    onClose();
+    router.push('/canvas');
+  };
+
+  const handleShareProject = async (projectId: string) => {
+    setIsSharing(true);
+    try {
+      await useProjectHistoryStore.getState().syncAllToCloud();
+      await teamService.shareProject(projectId);
+      await useProjectHistoryStore.getState().syncWithCloud();
+      await fetchTeam();
+      showToast('Project shared with team workspace.', 'success');
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not share project with team.'), 'error');
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -288,9 +319,22 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
 
             {/* Ortak projeler / kim ne yaptı */}
             <div>
-              <h3 className="text-[10px] uppercase tracking-wider text-content-muted font-mono font-semibold mb-2">
-                Shared projects
-              </h3>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h3 className="text-[10px] uppercase tracking-wider text-content-muted font-mono font-semibold">
+                  Shared projects ({projects.length})
+                </h3>
+                {activeProjectId && !projects.some(p => p.id === activeProjectId) && (
+                  <button
+                    type="button"
+                    disabled={isSharing}
+                    onClick={() => handleShareProject(activeProjectId)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-line-strong bg-surface-800 hover:bg-surface-700 text-content-primary text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isSharing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />}
+                    <span>Share active project</span>
+                  </button>
+                )}
+              </div>
               {projects.length === 0 ? (
                 <p className="text-xs text-content-muted border border-line-strong rounded-[var(--radius-card)] px-4 py-6 text-center bg-surface-800/30">
                   No shared projects yet. Anything anyone saves shows up here for the whole team.
@@ -298,15 +342,56 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
               ) : (
                 <div className="border border-line-strong rounded-[var(--radius-card)] divide-y divide-line overflow-hidden bg-surface-800/40 shadow-sm">
                   {projects.map(p => (
-                    <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                    <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-surface-800/80 transition-colors">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-content-primary truncate">{p.name}</p>
                         <p className="text-[10px] text-content-muted font-mono truncate">
                           {p.dbType} · {p.ownerName} · {new Date(p.updatedAt).toLocaleString('en-US')}
                         </p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSharedProject(p.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control)] border border-line-strong bg-surface-700/80 hover:bg-surface-700 text-content-primary text-xs font-medium transition-colors cursor-pointer shrink-0"
+                      >
+                        <span>Open</span>
+                        <ExternalLink className="w-3 h-3 text-content-secondary" />
+                      </button>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Henüz ekiple paylaşılmamış yerel projeler */}
+              {localProjects.filter(lp => !projects.some(sp => sp.id === lp.id)).length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-[10px] uppercase tracking-wider text-content-muted font-mono font-semibold mb-2">
+                    Your other projects (click to share with team)
+                  </h4>
+                  <div className="border border-line rounded-[var(--radius-card)] divide-y divide-line overflow-hidden bg-surface-850/40">
+                    {localProjects
+                      .filter(lp => !projects.some(sp => sp.id === lp.id))
+                      .slice(0, 10)
+                      .map(lp => (
+                        <div key={lp.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-content-primary truncate">{lp.name}</p>
+                            <p className="text-[10px] text-content-muted font-mono truncate">
+                              {lp.dbType} · {lp.schema?.tables?.length ?? 0} tables
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isSharing}
+                            onClick={() => handleShareProject(lp.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[var(--radius-control)] border border-line-strong bg-surface-800 hover:bg-surface-700 text-content-primary text-xs font-medium transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                          >
+                            <Share2 className="w-3 h-3" />
+                            <span>Share</span>
+                          </button>
+                        </div>
+                      ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -20,7 +20,9 @@ import {
   Table,
   History,
   Network,
-  FileCode2
+  FileCode2,
+  Download,
+  ChevronRight
 } from 'lucide-react';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useCanvasExport } from '../../../hooks/useCanvasExport';
@@ -55,6 +57,7 @@ export default function CanvasExportToolbar() {
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isSharedHostingModalOpen, setIsSharedHostingModalOpen] = useState(false);
   const [includeBiModule, setIncludeBiModule] = useState(false);
+  const [isExportFlyoutOpen, setIsExportFlyoutOpen] = useState(false);
   // Dikey speed-dial: kapalıyken tek yuvarlak, açılınca küçük yuvarlaklar
   // YUKARI doğru açılıyor (bkz. Toolbar Redesign Options artifact, seçenek 1 —
   // kullanıcı onayı). Eskiden yatayda genişleyen bir div + onun altında ayrı
@@ -322,17 +325,17 @@ export default function CanvasExportToolbar() {
           araç. Pod 2 (altta, FAB'a yakın) = tuval-yerel 4 araç (Import/DBA/
           Edit/Export). `id="canvas-toolbar"` sabit kaldı — TourOverlay.tsx bu
           ID'yi hedefliyor. */}
-      <div id="canvas-toolbar" ref={dialRef} className="fixed bottom-6 left-6 z-50 select-none">
-        {/* ── Zengin Shopify Polaris Toolkit Menü Çekmecesi (Düz, yalın ve uzatılmış liste) ── */}
+      <div id="canvas-toolbar" ref={dialRef} className="fixed bottom-[72px] left-3 lg:bottom-6 lg:left-6 z-50 select-none">
+        {/* ── Zengin Shopify Polaris Toolkit Menü Çekmecesi (Scrollsuz, hizalı, yan flyout destekli) ── */}
         <div
-          className={`absolute bottom-[52px] left-0 w-[360px] max-w-[calc(100vw-24px)] h-[640px] max-h-[calc(100vh-100px)] flex flex-col rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong backdrop-blur-2xl shadow-2xl overflow-hidden z-[100] transition-all duration-200 ${
+          className={`absolute bottom-[50px] left-0 w-[calc(100vw-24px)] sm:w-[340px] flex flex-col rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong backdrop-blur-2xl shadow-2xl overflow-visible z-[100] transition-all duration-200 ${
             isDialOpen
               ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
               : 'opacity-0 scale-95 translate-y-2 pointer-events-none'
           }`}
         >
-          {/* Araç Listesi — Dümdüz ve kesintisiz */}
-          <div className="overflow-y-auto flex-1 min-h-0 p-2 space-y-1.5">
+          {/* Araç Listesi — Kompakt, tek hizada, dikey scroll gerektirmeyen yapı */}
+          <div className="p-1.5 space-y-1 max-h-[calc(100dvh-150px)] sm:max-h-none overflow-y-auto sm:overflow-visible">
             {/* DBA Sorun Analizi */}
             <button
               id="canvas-dba-inspect-btn"
@@ -340,15 +343,15 @@ export default function CanvasExportToolbar() {
                 setIsPanelOpen(!isPanelOpen);
                 setIsDialOpen(false);
               }}
-              className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
                 isPanelOpen
                   ? 'bg-surface-700 border-line-strong'
                   : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-content-primary truncate">DBA Health & Optimization</div>
@@ -372,11 +375,11 @@ export default function CanvasExportToolbar() {
                 window.dispatchEvent(new CustomEvent('namines:explain-schema'));
                 setIsDialOpen(false);
               }}
-              className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <BookOpen className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <BookOpen className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-content-primary truncate">Explain Schema with AI</div>
@@ -394,11 +397,11 @@ export default function CanvasExportToolbar() {
                 window.dispatchEvent(new CustomEvent('namines:open-code-import'));
                 setIsDialOpen(false);
               }}
-              className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <FileCode2 className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <FileCode2 className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-content-primary truncate">Reverse Engineer from Code</div>
@@ -416,11 +419,11 @@ export default function CanvasExportToolbar() {
                 window.dispatchEvent(new CustomEvent('namines:open-ai-settings'));
                 setIsDialOpen(false);
               }}
-              className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <Settings className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <Settings className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-content-primary truncate">AI Model Preferences</div>
@@ -432,286 +435,319 @@ export default function CanvasExportToolbar() {
               </span>
             </button>
 
-              {/* Canlı DB Bağlantısı */}
+            {/* Canlı DB Bağlantısı */}
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('namines:open-db-connect'));
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <Database className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">Connect Live Database</div>
+                  <div className="text-micro text-content-muted truncate">Postgres, MySQL, SQLite introspection</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                Connect ➔
+              </span>
+            </button>
+
+            {/* Canlı Verileri İncele (Gateway) */}
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('namines:open-gateway'));
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <Table className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">Browse Table Records</div>
+                  <div className="text-micro text-content-muted truncate">Read-only live data gateway viewer</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                View ➔
+              </span>
+            </button>
+
+            {/* Migrasyon Motoru */}
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('namines:open-migration'));
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <History className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">DDL Migration Engine</div>
+                  <div className="text-micro text-content-muted truncate">Generate versions & migration diffs</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                Manage ➔
+              </span>
+            </button>
+
+            {/* Çapraz DB İlişkileri */}
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('namines:open-cross-db'));
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <Network className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">Cross-Database Virtual Relations</div>
+                  <div className="text-micro text-content-muted truncate">Connect tables across disparate engines</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                Link ➔
+              </span>
+            </button>
+
+            {/* Vision / Görselden Şema */}
+            <button
+              id="canvas-vision-import-btn"
+              onClick={() => {
+                setIsVisionOpen(true);
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <Camera className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">Import from Diagram Image</div>
+                  <div className="text-micro text-content-muted truncate">OCR & Vision from whiteboard or ERD</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                Upload ➔
+              </span>
+            </button>
+
+            {/* SQL DDL Dosyası Yükle */}
+            <button
+              onClick={() => {
+                sqlFileInputRef.current?.click();
+                setIsDialOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  <FileCode className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">Import SQL DDL (.sql)</div>
+                  <div className="text-micro text-content-muted truncate">Load CREATE TABLE script to canvas</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                File ➔
+              </span>
+            </button>
+
+            {/* Düzenleme Modu */}
+            <button
+              id="canvas-edit-mode-btn"
+              onClick={toggleEditMode}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
+                isEditMode
+                  ? 'bg-surface-700 border-line-strong'
+                  : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                  {isEditMode ? <Eye className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-content-primary truncate">
+                    {isEditMode ? 'Visual Edit Mode (Active)' : 'Protected View Mode'}
+                  </div>
+                  <div className="text-micro text-content-muted truncate">
+                    {isEditMode ? 'Click columns to modify types' : 'Click to enable editing'}
+                  </div>
+                </div>
+              </div>
+              <span className="shrink-0 text-micro font-semibold px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-700 text-content-primary border border-line">
+                {isEditMode ? 'Active' : 'Toggle'}
+              </span>
+            </button>
+
+            {/* ── Tek Satır Dışa Aktarım & Dağıtım (Üzerine Gelince / Tıklayınca Yanda Açılan Flyout) ── */}
+            <div
+              id="canvas-export-dropdown-btn"
+              className="relative group/export pt-1 border-t border-line"
+              onMouseEnter={() => setIsExportFlyoutOpen(true)}
+              onMouseLeave={() => setIsExportFlyoutOpen(false)}
+            >
               <button
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('namines:open-db-connect'));
-                  setIsDialOpen(false);
-                }}
-                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+                type="button"
+                onClick={() => setIsExportFlyoutOpen(v => !v)}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/70 hover:bg-surface-700 border border-line-strong transition-all text-left cursor-pointer"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                    <Database className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Download className="w-3.5 h-3.5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-bold text-content-primary truncate">Connect Live Database</div>
-                    <div className="text-micro text-content-muted truncate">Postgres, MySQL, SQLite introspection</div>
+                    <div className="text-xs font-bold text-content-primary truncate">Export & Package Schema</div>
+                    <div className="text-micro text-content-muted truncate">PNG, SVG, SQL, Prisma, PDF, Full-Stack .zip</div>
                   </div>
                 </div>
-                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                  Connect ➔
-                </span>
+                <ChevronRight className={`w-4 h-4 text-content-muted transition-transform shrink-0 ${isExportFlyoutOpen ? 'rotate-90 sm:rotate-0 sm:translate-x-0.5 text-content-primary' : ''}`} />
               </button>
 
-              {/* Canlı Verileri İncele (Gateway) */}
-              <button
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('namines:open-gateway'));
-                  setIsDialOpen(false);
-                }}
-                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              {/* Yanda Açılan (Side Flyout) Alt Menü */}
+              <div
+                className={`${
+                  isExportFlyoutOpen
+                    ? 'block sm:opacity-100 sm:scale-100 sm:pointer-events-auto'
+                    : 'hidden sm:block sm:opacity-0 sm:scale-95 sm:pointer-events-none'
+                } mt-1.5 sm:mt-0 sm:absolute sm:left-full sm:bottom-0 sm:pl-2 z-[110] transition-all duration-150`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                    <Table className="w-4 h-4" />
+                <div className="w-full sm:w-[300px] p-2 rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong shadow-2xl backdrop-blur-2xl space-y-1.5">
+                  <div className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-content-muted">
+                    Quick Exports
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-content-primary truncate">Browse Table Records</div>
-                    <div className="text-micro text-content-muted truncate">Read-only live data gateway viewer</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      onClick={() => {
+                        exportAsPng({ fileName: slug });
+                        setIsDialOpen(false);
+                      }}
+                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                    >
+                      <FileImage className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                      <span className="truncate">PNG Image</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        exportAsSvg();
+                        setIsDialOpen(false);
+                      }}
+                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                    >
+                      <FileCode className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                      <span className="truncate">Vector (SVG)</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        exportAsSql();
+                        setIsDialOpen(false);
+                      }}
+                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                    >
+                      <Database className="w-3.5 h-3.5 text-success-text shrink-0" />
+                      <span className="truncate">SQL Code (.sql)</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        exportAsPrisma();
+                        setIsDialOpen(false);
+                      }}
+                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                    >
+                      <Database className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                      <span className="truncate">Prisma Schema</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        exportAsPdf();
+                        setIsDialOpen(false);
+                      }}
+                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                      <span className="truncate">PDF Report</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        exportForCi();
+                        setIsDialOpen(false);
+                      }}
+                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                    >
+                      <GitBranch className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                      <span className="truncate">CI Snapshot</span>
+                    </button>
                   </div>
-                </div>
-                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                  View ➔
-                </span>
-              </button>
 
-              {/* Migrasyon Motoru */}
-              <button
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('namines:open-migration'));
-                  setIsDialOpen(false);
-                }}
-                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                    <History className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-content-primary truncate">DDL Migration Engine</div>
-                    <div className="text-micro text-content-muted truncate">Generate versions & migration diffs</div>
-                  </div>
-                </div>
-                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                  Manage ➔
-                </span>
-              </button>
-
-              {/* Çapraz DB İlişkileri */}
-              <button
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('namines:open-cross-db'));
-                  setIsDialOpen(false);
-                }}
-                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                    <Network className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-content-primary truncate">Cross-Database Virtual Relations</div>
-                    <div className="text-micro text-content-muted truncate">Connect tables across disparate engines</div>
-                  </div>
-                </div>
-                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                  Link ➔
-                </span>
-              </button>
-
-
-              {/* Vision / Görselden Şema */}
-              <button
-                id="canvas-vision-import-btn"
-                onClick={() => {
-                  setIsVisionOpen(true);
-                  setIsDialOpen(false);
-                }}
-                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                    <Camera className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-content-primary truncate">Import from Diagram Image</div>
-                    <div className="text-micro text-content-muted truncate">OCR & Vision from whiteboard or ERD</div>
-                  </div>
-                </div>
-                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                  Upload ➔
-                </span>
-              </button>
-
-              {/* SQL DDL Dosyası Yükle */}
-              <button
-                onClick={() => {
-                  sqlFileInputRef.current?.click();
-                  setIsDialOpen(false);
-                }}
-                className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                    <FileCode className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-content-primary truncate">Import SQL DDL (.sql)</div>
-                    <div className="text-micro text-content-muted truncate">Load CREATE TABLE script to canvas</div>
-                  </div>
-                </div>
-                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                  File ➔
-                </span>
-              </button>
-
-              {/* Düzenleme Modu */}
-              <button
-                id="canvas-edit-mode-btn"
-                onClick={toggleEditMode}
-                className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
-                  isEditMode
-                    ? 'bg-surface-700 border-line-strong'
-                    : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                    {isEditMode ? <Eye className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-content-primary truncate">
-                      {isEditMode ? 'Visual Edit Mode (Active)' : 'Protected View Mode'}
-                    </div>
-                    <div className="text-micro text-content-muted truncate">
-                      {isEditMode ? 'Click columns to modify types' : 'Click to enable editing'}
-                    </div>
-                  </div>
-                </div>
-                <span className="shrink-0 text-micro font-semibold px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-700 text-content-primary border border-line">
-                  {isEditMode ? 'Active' : 'Toggle'}
-                </span>
-              </button>
-
-            {/* 4. Dışa Aktarım & Dağıtım */}
-            <div className="space-y-1.5 pt-1 border-t border-line" id="canvas-export-dropdown-btn">
-                {/* Görsel Çıktılar Grid */}
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={() => {
-                      exportAsPng({ fileName: slug });
-                      setIsDialOpen(false);
-                    }}
-                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
-                  >
-                    <FileImage className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                    <span>PNG Image</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportAsSvg();
-                      setIsDialOpen(false);
-                    }}
-                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
-                  >
-                    <FileCode className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                    <span>Vector (SVG)</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportAsSql();
-                      setIsDialOpen(false);
-                    }}
-                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
-                  >
-                    <Database className="w-3.5 h-3.5 text-success-text shrink-0" />
-                    <span>SQL Code (.sql)</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportAsPrisma();
-                      setIsDialOpen(false);
-                    }}
-                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
-                  >
-                    <Database className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                    <span>Prisma Schema</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportAsPdf();
-                      setIsDialOpen(false);
-                    }}
-                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                    <span>PDF Report</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportForCi();
-                      setIsDialOpen(false);
-                    }}
-                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-800 border border-line hover:border-line-strong text-xs font-bold text-content-primary transition-all text-left cursor-pointer"
-                  >
-                    <GitBranch className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                    <span>CI Snapshot</span>
-                  </button>
-                </div>
-
-                {/* Bulut & Full Stack Proje */}
-                <div className="space-y-1 pt-1">
-                  <button
-                    onClick={() => {
-                      setIsCloudModalOpen(true);
-                      setIsDialOpen(false);
-                    }}
-                    className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/80 hover:bg-surface-700 border border-line-strong hover:border-accent transition-all text-left cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                        <Archive className="w-4 h-4 text-content-primary" />
+                  <div className="pt-1 border-t border-line space-y-1">
+                    <button
+                      onClick={() => {
+                        setIsCloudModalOpen(true);
+                        setIsDialOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/80 hover:bg-surface-700 border border-line-strong transition-all text-left cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                          <Archive className="w-3.5 h-3.5 text-content-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-content-primary truncate">Full-Stack Project (.zip)</div>
+                          <div className="text-micro text-content-muted truncate">C# Web API + Next.js SDK + Cloud IaC</div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-content-primary truncate">Full-Stack Project (.zip)</div>
-                        <div className="text-micro text-content-muted truncate">C# Web API + Next.js SDK + Cloud IaC</div>
-                      </div>
-                    </div>
-                    <span className="shrink-0 text-micro font-bold text-content-primary">
-                      Deploy ➔
-                    </span>
-                  </button>
+                      <span className="shrink-0 text-micro font-bold text-content-primary">
+                        Deploy ➔
+                      </span>
+                    </button>
 
-                  <button
-                    onClick={() => {
-                      setIsSharedHostingModalOpen(true);
-                      setIsDialOpen(false);
-                    }}
-                    className="w-full flex items-center justify-between p-2 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                        <Server className="w-4 h-4 text-content-primary" />
+                    <button
+                      onClick={() => {
+                        setIsSharedHostingModalOpen(true);
+                        setIsDialOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-700 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                          <Server className="w-3.5 h-3.5 text-content-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-content-primary truncate">Shared Hosting / Mobile</div>
+                          <div className="text-micro text-content-muted truncate">phpMyAdmin SQL or mobile SQLite .db</div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-content-primary truncate">Shared Hosting / Mobile</div>
-                        <div className="text-micro text-content-muted truncate">phpMyAdmin SQL or mobile SQLite .db</div>
-                      </div>
-                    </div>
-                    <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                      Build ➔
-                    </span>
-                  </button>
+                      <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                        Build ➔
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
         {/* ── Ana FAB — Shopify Polaris Action Pill & Animated Toolkit Trigger ── */}
         <button

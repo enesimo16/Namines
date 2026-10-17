@@ -256,7 +256,7 @@ export default function Footer() {
           </div>
 
           {/* Right: Copyright */}
-          <span>&copy; {new Date().getFullYear()} Namines, Inc. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} Namines</span>
         </div>
       </div>
     </footer>

@@ -274,16 +274,35 @@ export default function ToolbarPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastGenerationPrompt, lastGenerationAnswers, dbType, naiModel]);
 
-  const shareRoomLink = () => {
-    if (!roomId) return;
-    const shareUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + '?roomId=' + roomId;
-    navigator.clipboard.writeText(shareUrl)
-      .then(() => {
-        showToast('Live Share link copied to clipboard! You can invite other designers to this room.', 'success');
-      })
-      .catch(() => {
-        showToast('Share link: ' + shareUrl, 'info');
-      });
+  const handleTidyUp = () => {
+    autoLayout();
+    window.dispatchEvent(new CustomEvent('namines:fit-view'));
+    showToast('Diagram layout tidied', 'success');
+  };
+
+  const shareRoomLink = async () => {
+    let activeRoomId = roomId || new URLSearchParams(window.location.search).get('roomId');
+    if (!activeRoomId) {
+      const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 11);
+      activeRoomId = `room-${rand}`;
+    } else if (!activeRoomId.startsWith('room-')) {
+      activeRoomId = `room-${activeRoomId}`;
+    }
+
+    const shareUrl = `${window.location.protocol}//${window.location.host}/canvas?roomId=${activeRoomId}`;
+    if (new URLSearchParams(window.location.search).get('roomId') !== activeRoomId) {
+      window.history.pushState({ path: shareUrl }, '', shareUrl);
+      try { sessionStorage.setItem('namines_own_room', activeRoomId); } catch { /* ignore */ }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      showToast('Live session link copied to clipboard! Invite anyone to co-edit in real time.', 'success');
+    } catch {
+      showToast('Live session link: ' + shareUrl, 'info');
+    }
     setIsShareOpen(false);
   };
 
@@ -318,14 +337,13 @@ export default function ToolbarPanel() {
               </button>
               <button
                 onClick={shareRoomLink}
-                disabled={!isConnected}
-                className="flex items-center gap-2.5 px-2.5 py-2 rounded-[var(--radius-control)] text-left text-xs font-medium text-content-primary hover:bg-surface-700/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-[var(--radius-control)] text-left text-xs font-medium text-content-primary hover:bg-surface-700/60 transition-colors cursor-pointer"
               >
                 <Users className="w-3.5 h-3.5 shrink-0" />
                 <span>
                   <span className="block font-medium">Copy live session link</span>
                   <span className="block text-[10px] text-content-muted">
-                    {isConnected ? 'Real-time co-editing room' : 'Connect to a room first'}
+                    Real-time co-editing room
                   </span>
                 </span>
               </button>
@@ -380,7 +398,7 @@ export default function ToolbarPanel() {
             (ya da beğenmediğinde) İSTEDİĞİ AN yeniden tetikleyebilmesi için —
             geri alınabilir (Ctrl+Z). */}
         <button
-          onClick={autoLayout}
+          onClick={handleTidyUp}
           className={`${iconBtnBase} ${iconBtnIdle}`}
           title="Tidy up: re-arrange tables to minimize crossing connections"
           aria-label="Tidy up table layout"

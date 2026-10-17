@@ -14,11 +14,12 @@ import type { SchemaColumn, SchemaRelation, SchemaTable } from './schema';
  * garantiyi varmış gibi göstermek olurdu.
  */
 
-export interface AuthUser {
-  username: string;
-  email: string;
-  type: 'individual' | 'corporate';
-  companyName?: string | null;
+export interface AuthUser {
+  username: string;
+  email: string;
+  type: 'individual' | 'corporate' | 'admin' | 'Admin';
+  isDev?: boolean;
+  companyName?: string | null;
 }
 
 export interface QuotaInfo {

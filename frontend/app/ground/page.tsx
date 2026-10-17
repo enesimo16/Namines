@@ -103,8 +103,8 @@ export default function GroundPage() {
         describe={p => (p.hasConnection ? p.connectionDbType ?? 'connected' : 'no database yet')}
       >
         {showCreate ? (
-          <div className="flex items-end gap-2 flex-1 min-w-[260px]">
-            <div className="flex-1">
+          <div className="flex flex-wrap items-end gap-2 flex-1 w-full sm:w-auto sm:min-w-[260px]">
+            <div className="flex-1 min-w-[180px]">
               <Field label="New database name" htmlFor="ground-new-name">
                 <input
                   id="ground-new-name"
@@ -250,27 +250,77 @@ function GroundDetail({ projectId, projectName }: { projectId: string; projectNa
       )}
 
       {database?.status === 'Active' && (
-        <Card
-          tone="danger"
-          title="Delete this database"
-          description="Removes the database and everything in it after a grace period. Take a Vault backup first if you may need the data."
-          actions={!confirming && <Button variant="danger" icon={Trash2} onClick={() => setConfirming(true)}>Delete database</Button>}
-        >
-          {confirming && (
-            <div className="space-y-3 max-w-md">
-              <Field label={`Type the project name to continue: ${projectName}`} htmlFor="ground-confirm-name">
-                <input id="ground-confirm-name" autoFocus value={confirmText} onChange={e => setConfirmText(e.target.value)}
-                  className={inputClass} placeholder={projectName} />
-              </Field>
-              <div className="flex gap-2">
-                <Button variant="danger" icon={Trash2} disabled={confirmText.trim() !== projectName} busy={busy} onClick={handleDelete}>
-                  Start deletion
+        <section className="rounded-[var(--radius-card)] border border-danger/35 bg-surface-800 overflow-hidden shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-4 bg-danger-subtle/15">
+            <div className="flex items-start gap-3.5 min-w-0">
+              <div className="w-9 h-9 rounded-[var(--radius-control)] bg-danger-subtle border border-danger/30 flex items-center justify-center text-danger-text shrink-0 mt-0.5">
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-content-primary">
+                    Delete this database
+                  </h2>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-danger-subtle text-danger-text border border-danger/30">
+                    {database.graceDays || 7}-day grace window
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-content-secondary max-w-xl">
+                  Removes the database and everything in it after a grace period. Take a Vault backup first if you may need the data.
+                </p>
+              </div>
+            </div>
+            {!confirming && (
+              <div className="shrink-0 self-start sm:self-center">
+                <Button variant="danger" icon={Trash2} onClick={() => setConfirming(true)}>
+                  Delete database
                 </Button>
-                <Button variant="ghost" onClick={() => { setConfirming(false); setConfirmText(''); }}>Cancel</Button>
+              </div>
+            )}
+          </div>
+
+          {confirming && (
+            <div className="border-t border-danger/25 bg-surface-900/70 px-5 py-4">
+              <div className="max-w-lg space-y-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label htmlFor="ground-confirm-name" className="text-xs font-semibold text-content-primary">
+                    Type the project name to confirm deletion:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmText(projectName)}
+                    title="Click to fill project name"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line-strong text-[11px] font-mono text-content-primary cursor-pointer transition-colors"
+                  >
+                    <span>{projectName}</span>
+                  </button>
+                </div>
+                <input
+                  id="ground-confirm-name"
+                  autoFocus
+                  value={confirmText}
+                  onChange={e => setConfirmText(e.target.value)}
+                  className={inputClass}
+                  placeholder={projectName}
+                />
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <Button
+                    variant="danger"
+                    icon={Trash2}
+                    disabled={confirmText.trim() !== projectName}
+                    busy={busy}
+                    onClick={handleDelete}
+                  >
+                    Start deletion
+                  </Button>
+                  <Button variant="ghost" onClick={() => { setConfirming(false); setConfirmText(''); }}>
+                    Cancel
+                  </Button>
+                </div>
               </div>
             </div>
           )}
-        </Card>
+        </section>
       )}
 
       {(!database || database.status === 'Deleted') && (

@@ -160,30 +160,60 @@ export default function Ground({ session, isOwner }: { session: DeskSession; isO
       )}
 
       {database?.status === 'Active' && isOwner && (
-        confirming ? (
-          <div className="notice notice-error" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <b>{t('ground.willDelete')}</b>
-            <span>{t('ground.deleteNote')}</span>
-            <input type="text" aria-label={t('ground.confirmLabel')} value={confirmText} style={{ maxWidth: 280 }}
-                   onChange={e => setConfirmText(e.target.value)} />
-            <div className="row-actions">
-              <button className="btn btn-danger" disabled={busy || !confirmText.trim()}
-                      onClick={handleDelete}>
-                {busy ? t('ground.requesting') : t('ground.startDeletion')}
-              </button>
-              <button className="btn btn-sm" disabled={busy}
-                      onClick={() => { setConfirming(false); setConfirmText(''); }}>
-                {t('common.cancel')}
-              </button>
+        <div
+          style={{
+            border: '1px solid color-mix(in srgb, var(--danger) 40%, var(--line))',
+            borderRadius: 'var(--r)',
+            background: 'var(--bg-elevated)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '14px 16px',
+              background: 'color-mix(in srgb, var(--danger-bg) 55%, var(--bg-elevated))',
+            }}
+          >
+            <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--ink)' }}>
+                {t('ground.deleteDatabase')}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--ink-2)', marginTop: 4 }}>
+                {t('ground.deleteNote')}
+              </div>
             </div>
+            {!confirming && (
+              <button className="btn btn-danger btn-sm" onClick={() => setConfirming(true)}>
+                {t('ground.deleteDatabase')}
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="row-actions">
-            <button className="btn btn-danger btn-sm" onClick={() => setConfirming(true)}>
-              {t('ground.deleteDatabase')}
-            </button>
-          </div>
-        )
+          {confirming && (
+            <div style={{ borderTop: '1px solid color-mix(in srgb, var(--danger) 25%, var(--line))', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <b style={{ fontSize: 12 }}>{t('ground.willDelete')}</b>
+              <input
+                type="text"
+                aria-label={t('ground.confirmLabel')}
+                value={confirmText}
+                style={{ maxWidth: 320 }}
+                onChange={e => setConfirmText(e.target.value)}
+              />
+              <div className="row-actions">
+                <button className="btn btn-danger" disabled={busy || !confirmText.trim()} onClick={handleDelete}>
+                  {busy ? t('ground.requesting') : t('ground.startDeletion')}
+                </button>
+                <button className="btn btn-sm" disabled={busy} onClick={() => { setConfirming(false); setConfirmText(''); }}>
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {!database || database.status === 'Deleted' ? (

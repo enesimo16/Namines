@@ -1082,6 +1082,11 @@ export const teamService = {
     const response = await api.get<{ projects: TeamProject[] }>('/team/activity');
     return response.data;
   },
+
+  shareProject: async (projectId: string): Promise<{ projectId: string; organizationId: string }> => {
+    const response = await api.post<{ projectId: string; organizationId: string }>(`/team/projects/${encodeURIComponent(projectId)}/share`);
+    return response.data;
+  },
 };
 
 export default api;

@@ -348,7 +348,7 @@ export default function TableEditorDrawer() {
                         aria-label={`${col.name || 'Column'} data type`}
                         value={col.type}
                         onChange={e => handleColumnChange(col.id, 'type', e.target.value)}
-                        className={`w-24 flex-shrink-0 px-1.5 py-1.5 text-[11px] appearance-none cursor-pointer ${inputClass}`}
+                        className={`w-20 sm:w-28 flex-shrink-0 pl-2 pr-6 py-1 text-[11px] appearance-none cursor-pointer ${inputClass}`}
                       >
                         {COLUMN_TYPES.map(t => (
                           <option key={t} value={t}>{t}</option>
@@ -391,7 +391,7 @@ export default function TableEditorDrawer() {
                       <button
                         onClick={() => handleDeleteColumn(col.id)}
                         disabled={col.isPK && draft.columns.filter((c: SchemaColumn) => c.isPK).length <= 1}
-                        className="p-1 text-content-subtle hover:text-danger-text hover:bg-danger-subtle rounded-[var(--radius-control)] opacity-0 group-hover:opacity-100 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-content-subtle shrink-0"
+                        className="p-1 text-content-subtle hover:text-danger-text hover:bg-danger-subtle rounded-[var(--radius-control)] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-content-subtle shrink-0"
                         title="Delete column"
                         aria-label="Delete column"
                       >
@@ -400,8 +400,8 @@ export default function TableEditorDrawer() {
                     </div>
 
                     {expandedColumnId === col.id && (
-                      <div className="mt-1 ml-6 p-2.5 bg-surface-800 border border-line rounded-[var(--radius-control)] flex flex-col gap-2.5">
-                        <div className="grid grid-cols-2 gap-2.5">
+                      <div className="mt-1 ml-4 sm:ml-6 p-2.5 bg-surface-800 border border-line rounded-[var(--radius-control)] flex flex-col gap-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div className="flex flex-col gap-1">
                             <label htmlFor={`identity-${col.id}`} className="text-micro font-bold tracking-wider text-content-subtle uppercase">
                               Value assigned by
@@ -461,7 +461,7 @@ export default function TableEditorDrawer() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2.5 items-end">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
                           <div className="flex flex-col gap-1">
                             <label htmlFor={`collation-${col.id}`} className="text-micro font-bold tracking-wider text-content-subtle uppercase">
                               Collation

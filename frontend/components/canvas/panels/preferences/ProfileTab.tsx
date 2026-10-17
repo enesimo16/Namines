@@ -4,13 +4,13 @@ import { NotLoggedIn, cardClass, inputClass, primaryBtnClass } from './ui';
 import type { ProfileFields, ProfileForm } from './useProfileForm';
 
 const FIELDS: { field: keyof ProfileFields; label: string; placeholder: string; wide?: boolean }[] = [
-  { field: 'fullName', label: 'Full Name', placeholder: 'John Doe' },
-  { field: 'companyName', label: 'Company / Organization', placeholder: 'Acme Corp' },
-  { field: 'location', label: 'Location', placeholder: 'Istanbul, Turkey' },
-  { field: 'githubUrl', label: 'GitHub Profile URL', placeholder: 'https://github.com/username' },
-  { field: 'linkedinUrl', label: 'LinkedIn Profile URL', placeholder: 'https://linkedin.com/in/username' },
-  { field: 'twitterUrl', label: 'Twitter / X Profile URL', placeholder: 'https://x.com/username' },
-  { field: 'websiteUrl', label: 'Portfolio Website', placeholder: 'https://myportfolio.com', wide: true },
+  { field: 'fullName', label: 'Full Name', placeholder: 'Name' },
+  { field: 'companyName', label: 'Company / Organization', placeholder: 'Company' },
+  { field: 'location', label: 'Location', placeholder: 'Location' },
+  { field: 'githubUrl', label: 'GitHub Profile URL', placeholder: 'GitHub URL' },
+  { field: 'linkedinUrl', label: 'LinkedIn Profile URL', placeholder: 'LinkedIn URL' },
+  { field: 'twitterUrl', label: 'Twitter / X Profile URL', placeholder: 'X / Twitter URL' },
+  { field: 'websiteUrl', label: 'Portfolio Website', placeholder: 'Website URL', wide: true },
 ];
 
 export default function ProfileTab({ isAuthenticated, form }: { isAuthenticated: boolean; form: ProfileForm }) {
@@ -36,7 +36,7 @@ export default function ProfileTab({ isAuthenticated, form }: { isAuthenticated:
             ))}
             <div className="space-y-1.5 md:col-span-2">
               <label className="text-[11px] font-medium text-content-muted uppercase tracking-wider">Short Bio</label>
-              <textarea aria-label="Short Bio" value={profile.bio} onChange={(e) => setField('bio', e.target.value)} placeholder="Full-stack developer passionate about databases and scalable architecture..." rows={3} className={`${inputClass} resize-none`} />
+              <textarea aria-label="Short Bio" value={profile.bio} onChange={(e) => setField('bio', e.target.value)} placeholder="Bio" rows={3} className={`${inputClass} resize-none`} />
             </div>
           </div>
 

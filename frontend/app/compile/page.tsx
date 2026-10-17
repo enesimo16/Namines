@@ -273,27 +273,36 @@ export default function CompilePage() {
             <h1 className="text-xs font-bold uppercase tracking-wider text-content-primary truncate leading-tight" title={schema.name}>
               {schema.name || 'Untitled Schema'}
             </h1>
-            <span className="flex items-center gap-1 text-[10px] font-mono text-namines-teal-vibrant bg-surface-700/80 px-1.5 py-0.5 rounded-full border border-line">
-              <span className="w-1.5 h-1.5 rounded-full bg-namines-teal-vibrant animate-pulse" />
-              Ready
-            </span>
           </div>
         </div>
 
         {/* Mobile Header Bar */}
-        <div className="flex lg:hidden items-center justify-between h-10 px-3 border-b border-line shrink-0">
+        <div className="flex lg:hidden items-center justify-between gap-2 h-11 px-3 border-b border-line shrink-0">
           <button
             onClick={() => router.push('/canvas')}
             aria-label="Back to Canvas"
-            className="tap-44 flex items-center gap-1 text-content-muted hover:text-content-primary text-xs"
+            className="tap-44 flex items-center gap-1 text-content-muted hover:text-content-primary text-xs shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Canvas</span>
           </button>
-          <span className="text-xs font-bold text-content-primary truncate max-w-[160px]">
+          <span className="text-xs font-bold text-content-primary truncate min-w-0">
             {schema.name || 'Untitled Schema'}
           </span>
-          <span className="text-[10px] font-mono text-content-muted">{dbType}</span>
+          <select
+            value={dbType}
+            onChange={(e) => setDbType(e.target.value as DbType)}
+            disabled={isLoading}
+            aria-label="Target database engine"
+            className="h-7 pl-2 pr-6 text-[11px] font-mono bg-surface-800 border border-line-strong rounded-[var(--radius-control)] text-content-primary shrink-0"
+          >
+            <option value="MSSQL">SQL Server</option>
+            <option value="PostgreSQL">PostgreSQL</option>
+            <option value="MySQL">MySQL</option>
+            <option value="SQLite">SQLite</option>
+            <option value="Oracle">Oracle</option>
+            <option value="MariaDB">MariaDB</option>
+          </select>
         </div>
 
         {/* Navigation Tabs List */}
@@ -349,11 +358,11 @@ export default function CompilePage() {
                               <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-namines-teal-vibrant" />
                             )}
                             <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-namines-teal-vibrant' : 'text-content-muted'}`} />
-                            <span className="truncate">{tab.label}</span>
+                            <span className="truncate whitespace-nowrap">{tab.label}</span>
                           </div>
 
                           {tab.badge && (
-                            <span className="text-[10px] font-mono text-content-muted/70 bg-surface-800/80 px-1.5 py-0.5 rounded-[var(--radius-control)] border border-line/60 shrink-0">
+                            <span className="text-[10px] font-mono text-content-muted/70 bg-surface-800/80 px-1.5 py-0.5 rounded-[var(--radius-control)] border border-line/60 shrink-0 whitespace-nowrap ml-1.5">
                               {tab.badge}
                             </span>
                           )}
@@ -388,7 +397,7 @@ export default function CompilePage() {
               <activeMeta.icon className="w-3.5 h-3.5 text-namines-teal-vibrant" />
             </div>
             <div className="min-w-0 flex items-center gap-2">
-              <span className="text-xs font-bold text-content-primary">{activeMeta.label}</span>
+              <span className="text-xs font-bold text-content-primary whitespace-nowrap">{activeMeta.label}</span>
               <span className="text-[10px] font-mono text-content-muted bg-surface-700/80 px-2 py-0.5 rounded-full border border-line truncate max-w-[140px]">
                 {schema.name || 'Untitled Schema'}
               </span>
@@ -396,14 +405,14 @@ export default function CompilePage() {
           </div>
 
           {/* Right Header Controls (Diagram switcher, etc.) */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {activeTab === 'ER' && (
               <>
                 <select
                   value={diagramType}
                   onChange={(e) => updateDiagram(e.target.value as typeof diagramType)}
                   aria-label="Diagram type"
-                  className="bg-surface-700/80 border border-line-strong rounded-[var(--radius-control)] h-8 pl-2.5 pr-6 text-xs text-content-primary focus:outline-none focus:border-focus-ring cursor-pointer shadow-xs"
+                  className="min-w-[168px] h-8 pl-3 pr-8 text-xs font-medium text-content-primary bg-surface-800 border border-line-strong rounded-[var(--radius-control)] focus:outline-none focus:border-focus-ring cursor-pointer shadow-xs whitespace-nowrap"
                 >
                   <option value="ER">ER Diagram</option>
                   <option value="CLASS">Class Diagram</option>

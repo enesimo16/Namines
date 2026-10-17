@@ -101,7 +101,19 @@ public class TeamController : ControllerBase
     /// Free kullanıcı ekip ekranını "planınız tek kişilik" diye görürdü.
     /// </summary>
     private async Task<PlanTier> OrgTierAsync(Organization org, CancellationToken ct)
-        => await TierAsync(org.CreatedByUserId, ct);
+    {
+        var ownerTier = await TierAsync(org.CreatedByUserId, ct);
+        if (ownerTier == PlanTier.Dev) return PlanTier.Dev;
+
+        var callerId = CurrentUserId;
+        if (!string.IsNullOrEmpty(callerId) && callerId != org.CreatedByUserId)
+        {
+            var callerTier = await TierAsync(callerId, ct);
+            if (callerTier == PlanTier.Dev) return PlanTier.Dev;
+        }
+
+        return ownerTier;
+    }
 
     // ── Ekip görünümü ────────────────────────────────────────────────────────
 
@@ -368,6 +380,18 @@ public class TeamController : ControllerBase
 
         var org = await ActiveOrgAsync(userId, ct);
 
+        // Ekip kurucusunun OrganizationId alanı henüz boş kalmış eski projeleri
+        // varsa tembel olarak bu organizasyona bağla ki ekip arkadaşları görebilsin.
+        var unlinkedOwnerProjects = await _context.CloudProjects
+            .Where(p => p.UserId == org.CreatedByUserId && p.OrganizationId == null)
+            .ToListAsync(ct);
+        if (unlinkedOwnerProjects.Count > 0)
+        {
+            foreach (var p in unlinkedOwnerProjects)
+                p.OrganizationId = org.Id;
+            await _context.SaveChangesAsync(ct);
+        }
+
         var projects = await _context.CloudProjects.AsNoTracking()
             .Where(p => p.OrganizationId == org.Id)
             .OrderByDescending(p => p.UpdatedAt)
@@ -384,5 +408,28 @@ public class TeamController : ControllerBase
             .ToListAsync(ct);
 
         return Ok(new { projects });
+    }
+
+    /// <summary>
+    /// Kullanıcının sahip olduğu bir projeyi aktif ekip organizasyonuyla paylaşır.
+    /// </summary>
+    [HttpPost("projects/{projectId}/share")]
+    public async Task<IActionResult> ShareProject(string projectId, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var org = await ActiveOrgAsync(userId, ct);
+        var project = await _context.CloudProjects
+            .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId, ct);
+
+        if (project is null)
+            return NotFound(new { error = "Project not found or you are not its owner." });
+
+        project.OrganizationId = org.Id;
+        project.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { projectId = project.Id, organizationId = org.Id });
     }
 }

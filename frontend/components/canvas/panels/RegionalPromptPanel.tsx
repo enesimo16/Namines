@@ -145,7 +145,7 @@ export default function RegionalPromptPanel() {
 
   return (
     <div
-      className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ${
+      className={`fixed bottom-3 left-3 right-3 sm:bottom-5 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-[60] transition-all duration-300 ${
         isActive ? 'opacity-100 scale-100' : 'opacity-40 hover:opacity-100 scale-[0.98]'
       }`}
       onMouseEnter={() => setIsFocused(true)}
@@ -180,7 +180,7 @@ export default function RegionalPromptPanel() {
       {promptHistory.length > 0 && isHistoryOpen && (
         <div
           ref={historyRef}
-          className="mb-2 w-[540px] max-w-[90vw] max-h-52 overflow-y-auto bg-surface-900/98 backdrop-blur-2xl border border-line-strong rounded-[var(--radius-card)] p-1.5 shadow-2xl flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150"
+          className="mb-2 w-full sm:w-[540px] sm:max-w-[90vw] max-h-52 overflow-y-auto bg-surface-900/98 backdrop-blur-2xl border border-line-strong rounded-[var(--radius-card)] p-1.5 shadow-2xl flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150"
         >
           <div className="px-2.5 py-1 text-micro font-bold uppercase tracking-wider text-content-muted">
             Recent Prompts
@@ -206,7 +206,7 @@ export default function RegionalPromptPanel() {
       {/* Ana Estetik Kapsül (Floating Command Pill) */}
       <form
         onSubmit={handleAction}
-        className="flex items-center gap-2 w-[540px] max-w-[90vw] bg-surface-900/95 backdrop-blur-2xl border border-line-strong hover:border-line-solid-strong focus-within:border-line-solid-strong rounded-full pl-3.5 pr-1.5 py-1.5 shadow-2xl transition-all duration-200"
+        className="flex items-center gap-2 w-full sm:w-[540px] sm:max-w-[90vw] bg-surface-900/95 backdrop-blur-2xl border border-line-strong hover:border-line-solid-strong focus-within:border-line-solid-strong rounded-full pl-3.5 pr-1.5 py-1.5 shadow-2xl transition-all duration-200"
       >
         <Sparkles className="w-4 h-4 text-content-muted shrink-0 transition-colors" />
 

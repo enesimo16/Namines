@@ -185,6 +185,12 @@ export default function CanvasPage() {
     }
   });
 
+  useEffect(() => {
+    if (joinedSharedRoom) {
+      useProjectHistoryStore.getState().setActiveProjectId(null);
+    }
+  }, [joinedSharedRoom]);
+
   const { schema, nodes, edges, onNodesChange, onEdgesChange, setIsGenerating, isEditMode, toggleEditMode, addTable, connectColumns, deleteTable, deleteRelation, undo, redo } = useSchemaStore();
   // Boş şema kurulumu için (bkz. aşağıdaki karşılama efekti).
   const loadEmptySchema = useSchemaStore(s => s.loadFromSchema);
@@ -806,9 +812,19 @@ export default function CanvasPage() {
 }
 
 function TableFocusListener() {
-  const { fitBounds, getNode } = useReactFlow();
+  const { fitBounds, fitView, getNode } = useReactFlow();
   const tables = useSchemaStore(s => s.schema?.tables || []);
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const handleFitView = () => {
+      setTimeout(() => {
+        fitView({ padding: 0.15, duration: 350 });
+      }, 50);
+    };
+    window.addEventListener('namines:fit-view', handleFitView);
+    return () => window.removeEventListener('namines:fit-view', handleFitView);
+  }, [fitView]);
 
   useEffect(() => {
     const handler = (e: Event) => {

@@ -400,10 +400,9 @@ export default function CodeStudioViewer({
           <span>{kbSize} KB</span>
         </div>
 
-        {/* Right: Encoding & Engine */}
+        {/* Right: Encoding */}
         <div className="flex items-center gap-2.5">
           <span className="bg-surface-700/60 px-1.5 py-0.5 rounded-[var(--radius-control)] text-[10px]">UTF-8</span>
-          <span className="hidden md:inline text-content-muted/70">Namines AI Engine</span>
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { gatewayService } from '../../../services/api';
 import { GatewayRow } from '../../../types/gateway';
 import { errorMessage } from '../../../lib/errors';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
+import { Select } from '../../workspace/WorkspaceKit';
 
 const DB_TYPES = [
   { value: 'MSSQL',      label: 'SQL Server' },
@@ -201,17 +202,16 @@ export default function GatewayExplorerPanel({ isOpen, onClose }: Props) {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-micro font-bold uppercase tracking-wider text-content-muted">Table to Inspect</label>
-                <select
+                <Select
                   aria-label="Table"
                   value={selectedTable}
                   onChange={e => setSelectedTable(e.target.value)}
-                  className="bg-surface-800/90 border border-line focus:border-line-strong rounded-[var(--radius-control)] px-3 py-2 text-xs text-content-primary outline-none cursor-pointer"
                 >
                   <option value="">Select a table from the schema…</option>
                   {schema?.tables.map(t => (
                     <option key={t.id} value={t.name}>{t.name}</option>
                   ))}
-                </select>
+                </Select>
                 {selectedTable && !pkColumn && (
                   <span className="text-micro text-content-muted flex items-center gap-1.5 mt-0.5">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-content-muted" /> No primary key — row detail is unavailable and order is not guaranteed.

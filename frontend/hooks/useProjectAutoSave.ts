@@ -51,6 +51,7 @@ export function useProjectAutoSave() {
     timerRef.current = setTimeout(() => {
       lastHashRef.current = currentHash; // Hash'i güncelle — bir sonraki çağrıda döngü kırılır
       saveCurrentProject(schema, nodes, projectName, dbType);
+      useProjectHistoryStore.getState().triggerCloudSyncIfDue();
     }, 3000);
 
     return () => {

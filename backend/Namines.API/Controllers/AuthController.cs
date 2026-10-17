@@ -204,13 +204,16 @@ namespace Namines.API.Controllers
             // yanlış denemeler doğru parolayla giren kullanıcıyı kilitlerdi.
             await _userManager.ResetAccessFailedCountAsync(user);
 
+            var tier = Namines.Core.Analysis.PlanQuotas.Resolve(user.SubscriptionStatus, user.PlanCode, user.IsDev);
+            var defaultLimit = user.IsDev ? int.MaxValue : 100;
+
             var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == user.Id);
             if (quota == null)
             {
                 quota = new UserAIQuota
                 {
                     UserId = user.Id,
-                    DailyLimit = 100,
+                    DailyLimit = defaultLimit,
                     DailyUsageCount = 0,
                     LastResetDate = DateTime.UtcNow
                 };
@@ -219,7 +222,11 @@ namespace Namines.API.Controllers
             }
             else
             {
-                if (quota.DailyLimit < 100)
+                if (user.IsDev)
+                {
+                    quota.DailyLimit = int.MaxValue;
+                }
+                else if (quota.DailyLimit < 100)
                 {
                     quota.DailyLimit = 100;
                 }
@@ -235,9 +242,10 @@ namespace Namines.API.Controllers
 
             var quotaInfo = new
             {
+                plan = tier.ToString(),
                 dailyLimit = quota.DailyLimit,
                 used = quota.DailyUsageCount,
-                remaining = Math.Max(0, quota.DailyLimit - quota.DailyUsageCount),
+                remaining = user.IsDev ? int.MaxValue : Math.Max(0, quota.DailyLimit - quota.DailyUsageCount),
                 resetAt = quota.LastResetDate.Date.AddDays(1).ToString("o")
             };
 
@@ -251,6 +259,7 @@ namespace Namines.API.Controllers
                     Username = user.UserName,
                     Email = user.Email,
                     Type = user.Type.ToString().ToLowerInvariant(),
+                    IsDev = user.IsDev,
                     CompanyName = user.CompanyName
                 },
                 Quota = quotaInfo
@@ -330,38 +339,30 @@ namespace Namines.API.Controllers
             if (user == null)
                 return Unauthorized();
 
-            // Yeni projeler kullanıcının kişisel organizasyonuna bağlanıyor.
-            //
-            // <b>Bu satır olmadan ortak workspace çalışmıyor:</b> OrganizationId boş
-            // kalan bir proje hiçbir ekibe ait olmuyor, dolayısıyla ekip arkadaşının
-            // listesinde hiç görünmüyordu. Canlı denemede tam olarak bu yaşandı —
-            // proje kaydediliyor, "başarılı" dönüyor ama diğer üye sıfır proje
-            // görüyordu.
+            // Yeni projeler kullanıcının aktif ekip organizasyonuna (yoksa kişisel
+            // organizasyonuna) bağlanıyor.
             var personalOrg = await _context.GetOrCreatePersonalOrgAsync(
                 userId, user.UserName ?? "Personal");
+            var activeOrgId = await _context.OrganizationMembers.AsNoTracking()
+                .Where(m => m.UserId == userId && m.OrganizationId != personalOrg.Id)
+                .OrderBy(m => m.JoinedAt)
+                .Select(m => m.OrganizationId)
+                .FirstOrDefaultAsync() ?? personalOrg.Id;
 
             int savedCount = 0;
             var pendingDiffs = new List<(string ProjectId, string DbType, string? OldJson, string NewJson)>();
             foreach (var projDto in projects)
             {
-                // Check if this project ID belongs to the current user
                 var existing = await _context.CloudProjects
-                    .FirstOrDefaultAsync(p => p.Id == projDto.Id && p.UserId == userId);
+                    .FirstOrDefaultAsync(p => p.Id == projDto.Id);
+                var canEditExisting = existing != null &&
+                    (existing.UserId == userId || await _context.CanEditAsync(existing.Id, userId));
+                var canViewExisting = existing != null &&
+                    (existing.UserId == userId || canEditExisting || await _context.CanViewAsync(existing.Id, userId));
 
-                if (existing != null)
+                if (existing != null && canEditExisting)
                 {
                     // ÇAKIŞMA KONTROLÜ (REL-003a / B-32).
-                    //
-                    // İstemci en son gördüğü sürümü gönderdiyse ve o sürüm artık
-                    // güncel değilse, aradaki değişikliği ÜZERİNE YAZMIYORUZ.
-                    // Sessizce kaybolan bir şemanın maliyeti, bir hata mesajının
-                    // maliyetinden çok yüksek: kullanıcı çalışmasının gittiğini
-                    // çoğu zaman fark etmiyor bile.
-                    //
-                    // Karşılaştırma BURADA yapılıyor, EF'in kendi `[Timestamp]`
-                    // kontrolüne bırakılmıyor: EF, satırı okuduğumuz andaki
-                    // değeri kullanır ve o her zaman güncel olduğu için hiçbir
-                    // çakışma yakalanmaz. Bkz. CloudProject.RowVersion notu.
                     if (projDto.RowVersion is { } clientVersion &&
                         clientVersion != existing.RowVersion)
                     {
@@ -373,45 +374,33 @@ namespace Namines.API.Controllers
                             projectName = existing.Name,
                             yourVersion = clientVersion,
                             currentVersion = existing.RowVersion,
-                            // Kim değiştirdi sorusunun cevabı, "yeniden yükle"
-                            // demekten çok daha kullanışlı: kullanıcı o kişiyle
-                            // konuşabilir.
                             changedAt = existing.UpdatedAt,
                         });
                     }
 
-                    // Diff, kayıt GÜNCELLENMEDEN ÖNCEKİ haliyle hesaplanmalı — bu yüzden eski
-                    // JSON, üzerine yazılmadan burada yakalanıyor.
                     string? oldSchemaJsonForDiff = existing.SchemaJson;
                     string newSchemaJsonForDiff = projDto.SchemaJson;
                     string dbTypeForDiff = existing.DbType;
                     string projectIdForDiff = existing.Id;
 
-                    // Update existing record owned by this user
                     existing.Name = projDto.Name;
                     existing.DbType = projDto.DbType;
                     existing.SchemaJson = projDto.SchemaJson;
                     existing.NodePositionsJson = projDto.NodePositionsJson;
                     existing.UpdatedAt = DateTime.UtcNow;
-                    // Org'a hiç bağlanmamış eski satırlar burada tembel olarak
-                    // bağlanıyor; aksi hâlde kullanıcının Team'e geçmeden önce
-                    // oluşturduğu projeler ekibe hiç görünmezdi.
-                    existing.OrganizationId ??= personalOrg.Id;
+                    existing.OrganizationId ??= activeOrgId;
                     _context.CloudProjects.Update(existing);
 
                     pendingDiffs.Add((projectIdForDiff, dbTypeForDiff, oldSchemaJsonForDiff, newSchemaJsonForDiff));
                 }
+                else if (existing != null && canViewExisting)
+                {
+                    // Ortak projede salt-okunur (Viewer) üye: üzerine yazma veya kopya oluşturma.
+                    continue;
+                }
                 else
                 {
-                    // Check if this ID is already taken by another user — assign new UUID if so
-                    // Kimlik ISTEMCIDEN geliyor ve asagi akista dosya sistemi yoluna (Vault
-                    // StorageKey), PostgreSQL veritabani/rol adina (Ground) ve saglayici proje
-                    // adlarina (Neon/Supabase) donusuyor. Bicim dogrulanmazsa yol ayiricili bir
-                    // kimlik kok disina yazmaya, "7f3a_b21c" gibi bir kimlik de baska bir
-                    // projenin veritabanini devralmaya yol acar. Gecersiz bicim, cakisma ile
-                    // AYNI yoldan yeni bir GUID alir.
-                    var idTakenByOther = !IsSafeNewProjectId(projDto.Id) ||
-                        await _context.CloudProjects.AnyAsync(p => p.Id == projDto.Id);
+                    var idTakenByOther = !IsSafeNewProjectId(projDto.Id) || existing != null;
 
                     var newCloudProj = new CloudProject
                     {
@@ -421,7 +410,7 @@ namespace Namines.API.Controllers
                         SchemaJson = projDto.SchemaJson,
                         NodePositionsJson = projDto.NodePositionsJson,
                         UserId = userId,
-                        OrganizationId = personalOrg.Id,
+                        OrganizationId = activeOrgId,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };

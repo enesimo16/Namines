@@ -156,13 +156,16 @@ export default function Header() {
   const hasHydrated = useProjectHistoryStore(s => s.hasHydrated);
   const fetchPolicy = useAIPolicyStore(s => s.fetchPolicy);
   const { dailyLimit, remaining, plan } = useQuotaStore();
+  const isDevAccount = Boolean(user?.isDev) || plan === 'Dev';
   // Dev hesabi digerlerine gorunmuyor: rozet DEV yaziyor ama bu yalnizca o
   // hesabin kendi ekraninda goruluyor, baska kullaniciya asla gitmiyor.
-  const planLabel = plan === 'Dev' ? t('header.plan.dev')
+  const planLabel = isDevAccount ? t('header.plan.dev')
     : plan === 'Team' ? t('header.plan.team')
     : plan === 'Pro' ? t('header.plan.pro')
     : t('header.plan.free');
-  const remainingPercent = dailyLimit > 0 ? Math.min(100, Math.max(0, Math.round((remaining / dailyLimit) * 100))) : 100;
+  const remainingPercent = isDevAccount
+    ? 100
+    : dailyLimit > 0 ? Math.min(100, Math.max(0, Math.round((remaining / dailyLimit) * 100))) : 100;
 
   // Sync projects, fetch AI Policy, and fetch quota when authenticated
   useEffect(() => {
@@ -262,14 +265,14 @@ export default function Header() {
 
       <header
         lang={lang}
-        className={`flex items-center justify-between h-14 px-4 sm:px-6 backdrop-blur-md sticky top-0 z-50 w-full transition-colors border-b ${
+        className={`flex items-center justify-between h-14 px-2.5 sm:px-6 backdrop-blur-md sticky top-0 z-50 w-full transition-colors border-b ${
           isHome
             ? 'bg-surface-900/90 border-surface-500'
             : 'bg-surface-800/85 border-line'
         }`}
       >
         {/* Left — Logo + Project Info (balanced flex-1) */}
-        <div className="flex items-center gap-2.5 sm:gap-3 flex-1 justify-start min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-1 justify-start min-w-0">
           <button
             onClick={handleLogoClick}
             className="shrink-0 flex items-center"
@@ -407,7 +410,7 @@ export default function Header() {
         </div>
 
         {/* Middle — Flow/Ground/Vault/Desk switcher or centered Project Title */}
-        <div className="flex items-center justify-center shrink-0 min-w-0 px-2 z-10 relative">
+        <div className="flex items-center justify-center shrink-0 min-w-0 px-1 sm:px-2 z-10 relative">
           {pathname === '/new' ? (
             <input
               type="text"
@@ -424,7 +427,7 @@ export default function Header() {
               placeholder={t('header.newProject')}
               aria-label={t('header.projectName')}
               maxLength={60}
-              className="bg-transparent text-xs sm:text-sm font-medium text-content-primary placeholder:text-content-muted text-center px-3 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/40 focus:bg-surface-800 focus:outline-none focus:ring-1 focus:ring-line-strong transition-colors cursor-pointer focus:cursor-text w-32 sm:w-52 truncate"
+              className="bg-transparent text-xs sm:text-sm font-medium text-content-primary placeholder:text-content-muted text-center px-2 sm:px-3 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/40 focus:bg-surface-800 focus:outline-none focus:ring-1 focus:ring-line-strong transition-colors cursor-pointer focus:cursor-text w-24 sm:w-52 truncate"
             />
           ) : (
             <WorkspaceNav />
@@ -432,7 +435,7 @@ export default function Header() {
         </div>
 
         {/* Right — Actions (balanced flex-1 end) */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 justify-end min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 flex-1 justify-end min-w-0">
           {/* Mobile search trigger */}
           <button
             type="button"

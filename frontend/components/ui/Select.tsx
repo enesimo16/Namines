@@ -28,8 +28,8 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             aria-invalid={Boolean(error)}
             aria-describedby={[errorId, helperId].filter(Boolean).join(' ') || undefined}
             className={[
-              'w-full h-9 pl-3 pr-8 rounded-[var(--radius-control)] appearance-none',
-              'bg-surface-700/80 border text-xs text-content-primary',
+              'w-full h-9 pl-3 pr-8 rounded-[var(--radius-control)] appearance-none !bg-none',
+              'bg-surface-800 border text-xs font-medium text-content-primary whitespace-nowrap',
               'transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)] cursor-pointer',
               'focus:outline-none focus:ring-1',
               disabled ? 'opacity-50 cursor-not-allowed' : '',

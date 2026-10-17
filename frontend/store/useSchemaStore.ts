@@ -351,8 +351,19 @@ export const useSchemaStore = create<SchemaState>()(
         if (!state.schema || state.nodes.length === 0) return;
         // Geri alınabilir olsun — beğenmezse Ctrl+Z ile eski elle-dizilmiş
         // konumlara dönebilsin.
-        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
-        set({ nodes: getLayoutedNodes(state.nodes, state.edges) });
+        const lrNodes = getLayoutedNodes(state.nodes, state.edges, 'LR');
+        const isAlreadyLr = state.nodes.length > 1 && state.nodes.every((n, idx) => {
+          const target = lrNodes[idx];
+          return target && Math.abs(n.position.x - target.position.x) < 2 && Math.abs(n.position.y - target.position.y) < 2;
+        });
+        const nextNodes = isAlreadyLr
+          ? getLayoutedNodes(state.nodes, state.edges, 'TB')
+          : lrNodes;
+        set({
+          _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT),
+          _future: [],
+          nodes: nextNodes,
+        });
       },
 
       // ── Faz 3: Düzenleme modu actions ─────────────────────────────────────

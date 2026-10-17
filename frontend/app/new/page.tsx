@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { Loader2, X, Link as LinkIcon, ChevronDown, Check, Wand2, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { schemaService, sourceService } from '../../services/api';
 import { useSchemaStore, type DbType } from '../../store/useSchemaStore';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useQuotaStore } from '../../store/useQuotaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import VoiceRecorder from '../../components/landing/VoiceRecorder';
@@ -72,13 +75,25 @@ export default function NewProjectPage() {
     setIsGenerating, 
     loadFromSchema, 
     setProjectName,
+    resetProject,
     isGenerating, 
     naiModel,
     dbType, 
     setDbType,
     setNaiModel 
   } = useSchemaStore();
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const authUser = useAuthStore(state => state.user);
+  const quotaPlan = useQuotaStore(state => state.plan);
+  const isUnlimitedAccount = Boolean(authUser?.isDev) || authUser?.type === 'Admin' || quotaPlan === 'Dev';
   const showToast = useToastStore(state => state.showToast);
+
+  // Yeni proje ekranına (/new) girildiğinde önceki açık proje oturumunu (örn. ADANA)
+  // sıfırla ki yeni üretilen şema önceki projenin üstüne yazılmasın.
+  useEffect(() => {
+    useProjectHistoryStore.getState().setActiveProjectId(null);
+    resetProject();
+  }, [resetProject]);
 
   // Handle Stripe redirect callbacks (?upgrade=success / ?upgrade=canceled)
   useEffect(() => {
@@ -113,13 +128,27 @@ export default function NewProjectPage() {
 
   // Model listesi SUNUCUDAN güncellenir: sunucudan gelirse dinamik kota/plan
   // kısıtları uygulanır; sunucuya ulaşılamazsa DEFAULT_NAI_MODELS korunur.
+  // Dev / Admin hesaplarında tüm modeller sınırsız olarak açık tutulur.
   useEffect(() => {
     let cancelled = false;
+    const normalizeModels = (list: NaiModelOption[]) =>
+      isUnlimitedAccount
+        ? list.map(m => ({ ...m, available: true, unavailableReason: null }))
+        : list;
+
+    if (isUnlimitedAccount) {
+      setModels(prev => normalizeModels(prev));
+    }
+
     schemaService.naiModels()
-      .then(list => { if (!cancelled && list?.length > 0) setModels(list); })
+      .then(list => {
+        if (!cancelled && list?.length > 0) {
+          setModels(normalizeModels(list));
+        }
+      })
       .catch(() => { /* varsayılan katalog korunur */ });
     return () => { cancelled = true; };
-  }, []);
+  }, [isAuthenticated, authUser?.id, isUnlimitedAccount]);
 
   // Kaynak listesi de SUNUCUDAN güncellenir: sunucuya ulaşılamazsa
   // DEFAULT_SCHEMA_SOURCES korunur, menü ve şerit asla kaybolmaz.
@@ -154,8 +183,9 @@ export default function NewProjectPage() {
     showToast('That source has no screen yet.', 'info');
   };
 
-  /** Şema geldi: canvas'a geç. Üretim akışının bitişiyle aynı yol. */
+  /** Şema geldi: yeni proje olarak işaretleyip canvas'a geç. */
   const goToCanvasWithCurrentSchema = () => {
+    useProjectHistoryStore.getState().setActiveProjectId(null);
     setGithubModalOpen(false);
     setStarterModalOpen(false);
     setCodeModalOpen(false);
@@ -272,6 +302,7 @@ export default function NewProjectPage() {
       onStep: (step) => setProductionSteps(prev => [...prev, step]),
 
       onResult: (result) => {
+        useProjectHistoryStore.getState().setActiveProjectId(null);
         loadFromSchema(result.schema as DatabaseSchema);
         // second-phase/09-SEMA-ALTERNATIFLERI.md — canvas'taki "Alternatif üret"
         // bu prompt+cevapları tekrar kullanacak, o yüzden burada saklanıyor.
@@ -340,18 +371,18 @@ export default function NewProjectPage() {
       {/* Main Content Container */}
       <main className="relative z-10 my-auto w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 flex flex-col items-center">
         {/* Hero Section — minimalist, ikon kutusu kaldırıldı (bkz. FRONTEND.md) */}
-        <div className="text-center mb-8 sm:mb-10">
-          <h1 className="font-mono text-4xl sm:text-6xl font-semibold tracking-tight mb-3 text-content-primary">
+        <div className="text-center mb-6 sm:mb-10">
+          <h1 className="font-mono text-2xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-2.5 sm:mb-3 text-content-primary">
             {t('newProjectPage.heroTitle')}
           </h1>
-          <p className="text-content-secondary text-sm sm:text-base max-w-[48ch] mx-auto leading-relaxed">
+          <p className="text-content-secondary text-xs sm:text-base max-w-[48ch] mx-auto leading-relaxed">
             {t('newProjectPage.heroSubtitle')}
           </p>
         </div>
 
         {/* Form Card — Shopify stili yuvarlağımsı ve genişletilmiş prompt alanı */}
         <div
-          className={`w-full max-w-4xl bg-surface-900/95 border border-line-strong rounded-[var(--radius-modal)] p-6 sm:p-8 relative overflow-visible shadow-2xl backdrop-blur-xl group transition-all duration-200 ${advanced ? 'prompt-panel-advanced' : ''}`}
+          className={`w-full max-w-4xl bg-surface-900/95 border border-line-strong rounded-[var(--radius-modal)] p-4 sm:p-8 relative overflow-visible shadow-2xl backdrop-blur-xl group transition-all duration-200 ${advanced ? 'prompt-panel-advanced' : ''}`}
         >
           <form onSubmit={handleGenerate} className="relative">
             {/* Textarea Section — daha geniş ve ferah Shopify tasarım */}
@@ -361,7 +392,7 @@ export default function NewProjectPage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={t('newProjectPage.placeholder')}
-                className="w-full h-40 sm:h-52 p-5 sm:p-6 pb-16 rounded-[var(--radius-card)] bg-surface-800/90 border border-line-strong resize-none text-content-primary placeholder:text-content-muted text-sm sm:text-base leading-relaxed focus:outline-none focus:border-content-primary/30 focus:ring-1 focus:ring-content-primary/20 transition-all"
+                className="w-full h-36 sm:h-52 p-3.5 sm:p-6 pb-14 sm:pb-16 rounded-[var(--radius-card)] bg-surface-800/90 border border-line-strong resize-none text-content-primary placeholder:text-content-muted text-sm sm:text-base leading-relaxed focus:outline-none focus:border-content-primary/30 focus:ring-1 focus:ring-content-primary/20 transition-all"
                 disabled={isGenerating}
               ></textarea>
 
@@ -437,7 +468,7 @@ export default function NewProjectPage() {
 
             {/* Options & Submit Section — Shopify Toolset stili dengeli alt bar */}
             <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 mt-3 w-full">
-              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto sm:flex-1 min-w-0">
                 {/* Şablon & Kaynak seçici (Start without writing) */}
                 <SourceDropdown
                   sources={sources}
@@ -447,12 +478,12 @@ export default function NewProjectPage() {
 
                 {/* Namines AI model seçici */}
                 {models.length > 0 && (
-                  <div className="relative flex-1 min-w-[130px]" ref={modelDropdownRef}>
+                  <div className="relative min-w-0 sm:flex-1 sm:min-w-[130px]" ref={modelDropdownRef}>
                     <button
                       type="button"
                       disabled={isGenerating}
                       onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                      className="flex items-center justify-between rounded-full border border-line-strong bg-surface-800/80 hover:border-line-subtle hover:bg-surface-700/80 px-4 py-2 text-xs font-mono font-medium text-content-primary cursor-pointer w-full text-left select-none disabled:opacity-50 disabled:cursor-not-allowed h-[42px] transition-colors shadow-sm"
+                      className="flex items-center justify-between rounded-full border border-line-strong bg-surface-800/80 hover:border-line-subtle hover:bg-surface-700/80 px-3.5 sm:px-4 py-2 text-xs font-mono font-medium text-content-primary cursor-pointer w-full text-left select-none disabled:opacity-50 disabled:cursor-not-allowed h-[42px] transition-colors shadow-sm"
                     >
                       <span className="truncate">
                         {selectedModel?.displayName || 'Namines AI'}
@@ -461,7 +492,7 @@ export default function NewProjectPage() {
                     </button>
 
                     {modelDropdownOpen && (
-                      <div className="absolute left-0 bottom-full mb-2 w-[280px] rounded-[var(--radius-card)] border border-line-strong bg-surface-900/98 backdrop-blur-2xl p-1.5 shadow-2xl z-50 flex flex-col gap-1 select-none animate-dropdown-in">
+                      <div className="absolute right-0 sm:left-0 sm:right-auto bottom-full mb-2 w-[260px] sm:w-[280px] max-w-[calc(100vw-2rem)] rounded-[var(--radius-card)] border border-line-strong bg-surface-900/98 backdrop-blur-2xl p-1.5 shadow-2xl z-50 flex flex-col gap-1 select-none animate-dropdown-in">
                         {models.map(m => {
                           const isSelected = m.id === naiModel;
                           return (
@@ -506,23 +537,23 @@ export default function NewProjectPage() {
                   onClick={() => setAdvanced(!advanced)}
                   aria-pressed={advanced}
                   title={advanced ? t('newProjectPage.advancedActiveHint') : t('newProjectPage.advancedPassiveHint')}
-                  className={`flex items-center gap-1.5 rounded-full px-4 h-[42px] text-xs font-mono font-medium transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+                  className={`flex items-center justify-center sm:justify-start gap-1.5 rounded-full px-3.5 sm:px-4 h-[42px] text-xs font-mono font-medium transition-all shrink-0 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
                     advanced
                       ? 'advanced-toggle-active'
                       : 'border border-line-strong bg-surface-800/90 text-content-primary hover:border-line-subtle hover:bg-surface-700/90 shadow-sm'
                   }`}
                 >
-                  <Sparkles className={`w-3.5 h-3.5 ${advanced ? 'text-accent-on' : 'text-content-secondary'}`} />
-                  <span>{t('newProjectPage.advanced')}</span>
+                  <Sparkles className={`w-3.5 h-3.5 shrink-0 ${advanced ? 'text-accent-on' : 'text-content-secondary'}`} />
+                  <span className="truncate">{t('newProjectPage.advanced')}</span>
                 </button>
 
                 {/* Database Select */}
-                <div className="relative flex-1 min-w-[130px]" ref={dbDropdownRef}>
+                <div className="relative min-w-0 sm:flex-1 sm:min-w-[130px]" ref={dbDropdownRef}>
                   <button
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setDbDropdownOpen(!dbDropdownOpen)}
-                    className="flex items-center justify-between rounded-full border border-line-strong bg-surface-800/80 hover:border-line-subtle hover:bg-surface-700/80 px-4 py-2 text-xs font-mono font-medium text-content-primary cursor-pointer w-full text-left select-none disabled:opacity-50 disabled:cursor-not-allowed h-[42px] transition-colors shadow-sm"
+                    className="flex items-center justify-between rounded-full border border-line-strong bg-surface-800/80 hover:border-line-subtle hover:bg-surface-700/80 px-3.5 sm:px-4 py-2 text-xs font-mono font-medium text-content-primary cursor-pointer w-full text-left select-none disabled:opacity-50 disabled:cursor-not-allowed h-[42px] transition-colors shadow-sm"
                   >
                     <span className="truncate">
                       {dbType === 'MSSQL' ? 'SQL Server' :
@@ -536,7 +567,7 @@ export default function NewProjectPage() {
                   </button>
 
                   {dbDropdownOpen && (
-                    <div className="absolute left-0 bottom-full mb-2 w-full min-w-[190px] max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-line-strong bg-surface-900/98 backdrop-blur-2xl p-1.5 shadow-2xl z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
+                    <div className="absolute right-0 sm:left-0 sm:right-auto bottom-full mb-2 w-full min-w-[175px] max-w-[calc(100vw-2rem)] max-h-none h-auto overflow-visible rounded-[var(--radius-card)] border border-line-strong bg-surface-900/98 backdrop-blur-2xl p-1.5 shadow-2xl z-50 flex flex-col gap-0.5 select-none animate-dropdown-in">
                       {[
                         { value: 'MSSQL', label: 'SQL Server' },
                         { value: 'PostgreSQL', label: 'PostgreSQL' },
@@ -670,9 +701,9 @@ export default function NewProjectPage() {
             // Üretim akışının bitişiyle aynı: şema store'a yüklenip canvas'a
             // gidiliyor. Ayrı bir yol açmak, iki farklı "şema hazır" davranışı
             // demek olurdu.
-            loadFromSchema(result.schema as DatabaseSchema);
-            setGithubModalOpen(false);
-            router.push('/canvas');
+            useProjectHistoryStore.getState().setActiveProjectId(null);
+            loadFromSchema(result.schema as DatabaseSchema, undefined, false);
+            goToCanvasWithCurrentSchema();
           }}
           onClose={() => setGithubModalOpen(false)}
         />

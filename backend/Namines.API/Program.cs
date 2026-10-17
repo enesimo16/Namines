@@ -474,6 +474,10 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
     var signalRBuilder = builder.Services.AddSignalR(options =>
     {
         options.MaximumReceiveMessageSize = 512 * 1024;
+    }).AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.PayloadSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
     // Redis backplane: yapılandırılmışsa çok instance'lı dağıtımda grup yayınları

@@ -265,20 +265,20 @@ export default function ConflictResolverModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-300">
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-[90vw] max-w-4xl h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-300">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-full sm:w-[90vw] max-w-4xl h-[90vh] sm:h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
 
         {/* Header */}
-        <div className="bg-surface-800 border-b border-content-primary/10 px-5 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 bg-surface-600 border border-content-primary/10 rounded-[var(--radius-control)] flex items-center justify-center">
+        <div className="bg-surface-800 border-b border-content-primary/10 px-4 sm:px-5 py-3.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 shrink-0 bg-surface-600 border border-content-primary/10 rounded-[var(--radius-control)] flex items-center justify-center">
               <GitMerge className="w-4 h-4 text-content-primary" />
             </div>
-            <div>
-              <h2 id="merge-modal-title" className="text-sm font-bold text-content-primary">
+            <div className="min-w-0">
+              <h2 id="merge-modal-title" className="text-sm font-bold text-content-primary truncate">
                 Merge Branches
               </h2>
-              <p className="text-[11px] text-content-muted">
+              <p className="text-[11px] text-content-muted truncate">
                 Merging <span className="font-semibold text-content-primary">{mergeSourceBranch}</span> into <span className="font-semibold text-content-primary">{mergeTargetBranch}</span>
               </p>
             </div>
@@ -286,7 +286,7 @@ export default function ConflictResolverModal() {
 
           <button
             onClick={resetMergeSession}
-            className="p-1.5 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary transition-colors"
+            className="p-1.5 hover:bg-white/[0.06] rounded-[var(--radius-control)] text-content-subtle hover:text-content-primary transition-colors shrink-0"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -294,9 +294,9 @@ export default function ConflictResolverModal() {
         </div>
 
         {/* Info banner */}
-        <div className="bg-surface-700 border-b border-content-primary/10 px-5 py-2.5 flex items-center justify-between text-xs text-content-primary">
+        <div className="bg-surface-700 border-b border-content-primary/10 px-4 sm:px-5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-content-primary">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-content-muted" />
+            <AlertTriangle className="w-3.5 h-3.5 text-content-muted shrink-0" />
             <span>
               <strong>{conflicts.length}</strong> structural changes detected. Choose a version for each row.
               {/* Ortak ata sayesinde sorulmayanlar da SAYILIYOR: kullanıcının
@@ -306,7 +306,7 @@ export default function ConflictResolverModal() {
               )}
             </span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
             <button
               onClick={() => handleAutoResolve('source')}
               className="bg-surface-600 hover:bg-white/[0.08] text-content-primary px-2.5 py-1.5 rounded-[var(--radius-control)] border border-content-primary/10 font-semibold transition-all text-[11px]"
@@ -323,7 +323,7 @@ export default function ConflictResolverModal() {
         </div>
 
         {/* Conflict list container */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-3">
           {conflicts.map((item) => {
             const isSourceSelected = item.selectedChoice === 'source';
             const isTargetSelected = item.selectedChoice === 'target';
@@ -334,10 +334,10 @@ export default function ConflictResolverModal() {
                 className="bg-surface-700 border border-content-primary/8 rounded-[var(--radius-card)] p-3.5"
               >
                 {/* Meta details */}
-                <div className="flex items-center gap-2 mb-2.5">
+                <div className="flex items-center gap-2 mb-2.5 flex-wrap">
                   {getConflictBadge(item.type)}
-                  <ChevronRight className="w-3 h-3 text-content-subtle" />
-                  <span className="text-xs font-bold text-content-primary tracking-wide">
+                  <ChevronRight className="w-3 h-3 text-content-subtle shrink-0" />
+                  <span className="text-xs font-bold text-content-primary tracking-wide break-all">
                     {item.tableName}
                     {item.columnName && <span className="text-content-subtle font-normal"> → {item.columnName}</span>}
                   </span>
@@ -352,7 +352,7 @@ export default function ConflictResolverModal() {
                 )}
 
                 {/* Side-by-Side comparison cards */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                   {/* Left Choice: Keep Source (Active Branch) */}
                   <div
                     onClick={() => updateConflictChoice(item.id, 'source')}

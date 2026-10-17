@@ -86,26 +86,35 @@ export function Card({
   /** İçerik kenardan kenara (tablo gibi) — iç dolgu verilmez. */
   flush?: boolean;
 }) {
+  const hasChildren = Boolean(children);
   return (
     <section
       className={`rounded-[var(--radius-card)] border overflow-hidden shadow-xs ${
         tone === 'danger'
-          ? 'border-danger/30 bg-danger-subtle/20'
+          ? 'border-danger/35 bg-surface-800'
           : 'border-line-strong bg-surface-800'
       }`}
     >
       {(title || actions) && (
-        <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-3.5 border-b border-line bg-surface-800/60">
-          <div className="min-w-0">
-            {title && <h2 className="text-xs font-bold uppercase tracking-wider text-content-primary">{title}</h2>}
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 px-5 py-4 ${
+            hasChildren ? 'border-b border-line' : ''
+          } ${tone === 'danger' ? 'bg-danger-subtle/15' : 'bg-surface-800/60'}`}
+        >
+          <div className="min-w-0 flex-1">
+            {title && (
+              <h2 className={`text-xs font-bold uppercase tracking-wider ${tone === 'danger' ? 'text-danger-text' : 'text-content-primary'}`}>
+                {title}
+              </h2>
+            )}
             {description && (
-              <p className="mt-0.5 text-micro leading-relaxed text-content-muted max-w-xl">{description}</p>
+              <p className="mt-1 text-xs leading-relaxed text-content-secondary max-w-xl">{description}</p>
             )}
           </div>
           {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
       )}
-      {children != null && <div className={flush ? '' : 'px-5 py-4'}>{children}</div>}
+      {hasChildren && <div className={flush ? '' : 'px-5 py-4'}>{children}</div>}
     </section>
   );
 }
@@ -136,7 +145,7 @@ export function Callout({
   const c = CALLOUT[tone];
   const Icon = icon ?? c.Icon;
   return (
-    <div role={c.role} className={`flex items-start gap-3 rounded-[var(--radius-card)] border px-4 py-3 shadow-xs ${c.box}`}>
+    <div role={c.role} className={`flex flex-wrap sm:flex-nowrap items-start gap-3 rounded-[var(--radius-card)] border px-4 py-3 shadow-xs ${c.box}`}>
       <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${c.icon}`} aria-hidden="true" />
       <div className="min-w-0 flex-1 text-xs leading-relaxed">
         {title && <p className="font-bold text-content-primary">{title}</p>}
@@ -203,9 +212,9 @@ export function DefinitionGrid({
 
 export function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-line-strong bg-surface-800 p-4 shadow-xs">
-      <p className="text-micro font-bold uppercase tracking-wider text-content-muted">{label}</p>
-      <div className="mt-1 text-xl font-bold font-mono text-content-primary leading-tight">{value}</div>
+    <div className="rounded-[var(--radius-card)] border border-line-strong bg-surface-800 p-3.5 sm:p-4 shadow-xs min-w-0">
+      <p className="text-micro font-bold uppercase tracking-wider text-content-muted truncate">{label}</p>
+      <div className="mt-1 text-base sm:text-xl font-bold font-mono text-content-primary leading-tight break-words">{value}</div>
       {hint && <p className="mt-1 text-micro text-content-muted">{hint}</p>}
     </div>
   );

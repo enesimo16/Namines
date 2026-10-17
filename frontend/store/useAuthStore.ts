@@ -12,7 +12,8 @@ import { API_BASE_URL } from '../lib/apiConfig';
 export interface UserProfile {
   username: string;
   email: string;
-  type: 'individual' | 'corporate';
+  type: 'individual' | 'corporate' | 'admin' | 'Admin';
+  isDev?: boolean;
   companyName?: string;
 }
 
@@ -38,11 +39,11 @@ export const useAuthStore = create<AuthState>()(
             used: quota.used,
             remaining: quota.remaining,
             resetAt: quota.resetAt,
+            plan: quota.plan ?? (user.isDev ? 'Dev' : null),
             isLoaded: true
           });
-        } else {
-          useQuotaStore.getState().fetchQuota().catch(() => {});
         }
+        useQuotaStore.getState().fetchQuota().catch(() => {});
       },
       logout: () => {
         // Sunucudaki httpOnly cookie'yi de temizle.

@@ -129,7 +129,7 @@ export function useMultiplayer() {
 
         if (isAuthenticated && activeProjectId) {
           branchService.getOrCreateDefault(activeProjectId)
-            .then(branch => pushRoomUrl(branch.id))
+            .then(branch => pushRoomUrl(branch.id.startsWith('room-') ? branch.id : `room-${branch.id}`))
             .catch(() => pushRoomUrl(randomRoomId()));
         } else {
           pushRoomUrl(randomRoomId());
@@ -151,6 +151,7 @@ export function useMultiplayer() {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(CANVAS_HUB_URL, {
         withCredentials: true,
+        headers: { 'X-Namines-Request': '1' },
       })
       .withAutomaticReconnect()
       .configureLogging(signalR.LogLevel.Warning)
@@ -169,8 +170,9 @@ export function useMultiplayer() {
 
     connection.on('ReceiveUserJoined', (connectionId: string, peerName: string) => {
       showToast(`${peerName} joined the room!`, 'success');
-      if (schemaRef.current) {
-        connection.invoke('SendSchemaToPeer', connectionId, schemaRef.current)
+      const latestSchema = useSchemaStore.getState().schema || schemaRef.current;
+      if (latestSchema) {
+        connection.invoke('SendSchemaToPeer', connectionId, latestSchema)
           .catch(() => {});
       }
     });
@@ -186,11 +188,11 @@ export function useMultiplayer() {
 
       // Üç yönlü birleştir: yereli körce ezme. Ortak ata (base) yoksa (odaya yeni
       // katıldık) gelen şemayı olduğu gibi al — birleştirilecek bir yerel geçmiş yok.
-      const nextSchema = (base && localSchema)
+      const nextSchema = (base && localSchema && localSchema.tables.length > 0)
         ? mergeSchemas(base, localSchema, remoteSchema)
         : remoteSchema;
 
-      loadFromSchema(nextSchema);
+      loadFromSchema(nextSchema, undefined, false);
 
       // Birleştirilmiş sonuç artık iki tarafın da yeni ortak atası. Store normalize
       // ettiği için ham nesneyi değil, gerçekten yazılan hâli referans al.
@@ -243,8 +245,12 @@ export function useMultiplayer() {
           showToast('Real-time Collaborative Room Connection Established!', 'success');
           // Odaya katılırken mevcut yerel şema ilk ortak atadır: ilk ReceiveSchema
           // gelene kadar yaptığımız yerel değişiklikler bu base'e göre korunur.
-          lastAgreedSchemaRef.current = useSchemaStore.getState().schema;
+          const initialSchema = useSchemaStore.getState().schema;
+          lastAgreedSchemaRef.current = initialSchema;
           await connection.invoke('JoinRoom', currentRoomId, currentUserName);
+          if (initialSchema && initialSchema.tables.length > 0) {
+            connection.invoke('UpdateSchema', currentRoomId, initialSchema).catch(() => {});
+          }
         }
       } catch {
         // Errors silenced to avoid noise during fast mount/unmount
