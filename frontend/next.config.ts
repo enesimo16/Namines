@@ -23,6 +23,20 @@ const nextConfig: NextConfig = {
       ? { exclude: ['error', 'warn'] }
       : false,
   },
+
+  async rewrites() {
+    const backendUrl = process.env.BACKEND_API_URL || 'https://130-162-254-97.sslip.io';
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${backendUrl}/api/:path*`,
+      },
+      {
+        source: '/hubs/:path*',
+        destination: `${backendUrl}/hubs/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

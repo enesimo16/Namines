@@ -8,16 +8,21 @@
  * kullanıcının tarayıcısından kendi makinesine istek atmaya çalışır ve özellik bozulur.
  */
 
-/** API kök adresi — '/api' EKLENMEZ. Örn: https://api.namines.app */
-export const API_ORIGIN: string = (
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) || 'http://localhost:5000'
+const rawOrigin = (
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) || ''
 ).replace(/\/+$/, '');
 
-/** REST uçlarının kökü. Örn: https://api.namines.app/api */
-export const API_BASE_URL = `${API_ORIGIN}/api`;
+const isLocalDev = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(rawOrigin);
 
-/** SignalR canvas hub adresi. */
-export const CANVAS_HUB_URL = `${API_ORIGIN}/hubs/canvas`;
+export const API_ORIGIN: string = isLocalDev ? rawOrigin : '';
+
+/** REST uçlarının kökü. Üretimde '/api' (same-origin proxy), yerelde 'http://localhost:5000/api' */
+export const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : '/api';
+
+/** SignalR canvas hub adresi (HTTPS/WSS). */
+export const CANVAS_HUB_URL = isLocalDev
+  ? `${rawOrigin}/hubs/canvas`
+  : 'https://130-162-254-97.sslip.io/hubs/canvas';
 
 /**
  * Sunucunun döndürdüğü göreli yolu (ör. '/api/docker/download/{id}') tam URL'e çevirir.
