@@ -136,15 +136,33 @@ else
 fi
 
 if [ "$ANY_REBUILT" = true ]; then
-  log_info "Konteynerler guncelleniyor..."
+  log_info "Degisen konteynerler guncelleniyor..."
   cd "$REPO_DIR"
-  sudo docker compose -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans
-else
-  # Konteynerlerden biri ayakta degilse kaldir
-  if ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-backend$' || ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-desk$'; then
-    log_warn "Eksik konteyner algilandi, baslatiliyor..."
-    cd "$REPO_DIR"
-    sudo docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+  SERVICES_TO_UP=""
+  [ "$BACKEND_CHANGED" = true ] && SERVICES_TO_UP="$SERVICES_TO_UP backend"
+  [ "$DESK_CHANGED" = true ] && SERVICES_TO_UP="$SERVICES_TO_UP desk"
+  sudo docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate $SERVICES_TO_UP
+fi
+
+# Eksik konteyner varsa ayaga kaldir
+if ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-backend$' || \
+   ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-desk$'; then
+  log_warn "Eksik konteyner algilandi, baslatiliyor..."
+  cd "$REPO_DIR"
+  sudo docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+fi
+
+# Ground PostgreSQL hairpin NAT kuralini guncel tut
+if sudo docker ps --format '{{.Names}}' | grep -q '^namines-ground-pg$'; then
+  PG_IP=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' namines-ground-pg 2>/dev/null || true)
+  PUBLIC_IP=$(grep -E '^Ground__LocalPostgres__PublicHost=' "$REPO_DIR/.env" 2>/dev/null | cut -d= -f2 || echo "130.162.254.97")
+  if [ -n "$PG_IP" ] && [ -n "$PUBLIC_IP" ]; then
+    sudo iptables -t nat -C PREROUTING -d "$PUBLIC_IP" -p tcp --dport 5432 -j DNAT --to-destination "${PG_IP}:5432" 2>/dev/null || \
+      sudo iptables -t nat -I PREROUTING 1 -d "$PUBLIC_IP" -p tcp --dport 5432 -j DNAT --to-destination "${PG_IP}:5432" 2>/dev/null || true
+    sudo iptables -t nat -C POSTROUTING -d "$PG_IP" -p tcp --dport 5432 -j MASQUERADE 2>/dev/null || \
+      sudo iptables -t nat -A POSTROUTING -d "$PG_IP" -p tcp --dport 5432 -j MASQUERADE 2>/dev/null || true
+    sudo iptables -C FORWARD -d "$PG_IP" -p tcp --dport 5432 -j ACCEPT 2>/dev/null || \
+      sudo iptables -I FORWARD 1 -d "$PG_IP" -p tcp --dport 5432 -j ACCEPT 2>/dev/null || true
   fi
 fi
 

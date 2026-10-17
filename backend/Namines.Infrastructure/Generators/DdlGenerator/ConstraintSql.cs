@@ -73,7 +73,14 @@ internal static class ConstraintSql
             var cols = ResolveColumns(table, unique.ColumnIds);
             if (cols.Count == 0) continue; // geçersiz referans → sessizce atla, bozuk SQL üretme
 
-            var name = Fit(unique.Name ?? $"UQ_{table.Name}_{string.Join("_", cols.Select(c => c.Name))}", engine);
+            var rawUniqueName = unique.Name;
+            if (!string.IsNullOrWhiteSpace(rawUniqueName) &&
+                schema.Tables.Count(t => t.Uniques.Any(u => string.Equals(u.Name, rawUniqueName, StringComparison.OrdinalIgnoreCase))) > 1)
+            {
+                rawUniqueName = $"UQ_{table.Name}_{rawUniqueName}";
+            }
+
+            var name = Fit(rawUniqueName ?? $"UQ_{table.Name}_{string.Join("_", cols.Select(c => c.Name))}", engine);
             lines.Add($"    CONSTRAINT {quote(name)} UNIQUE ({string.Join(", ", cols.Select(c => quote(c.Name)))})");
         }
 
@@ -81,7 +88,14 @@ internal static class ConstraintSql
         {
             if (string.IsNullOrWhiteSpace(check.Expression)) continue;
 
-            var name = Fit(check.Name ?? $"CK_{table.Name}_{check.Id}", engine);
+            var rawCheckName = check.Name;
+            if (!string.IsNullOrWhiteSpace(rawCheckName) &&
+                schema.Tables.Count(t => t.Checks.Any(c => string.Equals(c.Name, rawCheckName, StringComparison.OrdinalIgnoreCase))) > 1)
+            {
+                rawCheckName = $"CK_{table.Name}_{rawCheckName}";
+            }
+
+            var name = Fit(rawCheckName ?? $"CK_{table.Name}_{check.Id}", engine);
             lines.Add($"    CONSTRAINT {quote(name)} CHECK ({check.Expression.Trim()})");
         }
 

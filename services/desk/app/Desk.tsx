@@ -391,6 +391,14 @@ export default function Desk({
   // açılabilmeli. Aşağıdaki hata kapısına takılsaydı, kullanıcı "bağlantı yok"
   // ekranıyla "bağlantı açan ekran" arasında kilitlenirdi.
   if (view === 'ground') return <Ground session={session} isOwner={isOwner} />;
+  if (!tables) {
+    if (view === 'deployments') return <div className="desk-content"><Deployments session={session} /></div>;
+    if (view === 'logs') return <div className="desk-content"><Logs session={session} /></div>;
+    if (view === 'apikeys') return <div className="desk-content"><ApiKeys session={session} isOwner={isOwner} /></div>;
+    if (view === 'vault') return <div className="desk-content"><Vault session={session} isOwner={isOwner} /></div>;
+    if (view === 'members') return <div className="desk-content"><Members session={session} /></div>;
+    if (view === 'sql') return <div className="desk-content"><SqlConsole session={session} isOwner={isOwner} allowDeskSql={allowDeskSql} onToggled={onDeskSqlToggled} /></div>;
+  }
 
   if (error && !tables) {
     return (
