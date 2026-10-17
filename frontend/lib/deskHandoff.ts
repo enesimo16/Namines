@@ -1,4 +1,8 @@
-export const DESK_URL = process.env.NEXT_PUBLIC_DESK_URL ?? 'http://localhost:3200';
+export const DESK_URL = process.env.NEXT_PUBLIC_DESK_URL ?? (
+  process.env.NODE_ENV === 'production'
+    ? 'https://desk.130-162-254-97.sslip.io'
+    : 'http://localhost:3200'
+);
 
 /**
  * Desk'in `/handoff` ucuna gizli bir form POST'u ile gider — jeton bir

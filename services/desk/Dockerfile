@@ -1,12 +1,11 @@
 # Namines Desk — AYRI mikroservis imaji.
 # Ana backend'in Dockerfile'i ile hicbir katmani paylasmaz; tek basina build alir.
-FROM node:22-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev || npm install --omit=dev
-
 FROM node:22-alpine AS builder
 WORKDIR /app
+ARG NAMINES_API=https://130-162-254-97.sslip.io
+ARG NAMINES_FRONTEND=https://namines-sigma.vercel.app
+ENV NAMINES_API=$NAMINES_API
+ENV NAMINES_FRONTEND=$NAMINES_FRONTEND
 COPY package.json package-lock.json* ./
 RUN npm ci || npm install
 COPY . .
@@ -15,6 +14,10 @@ RUN npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ARG NAMINES_API=https://130-162-254-97.sslip.io
+ARG NAMINES_FRONTEND=https://namines-sigma.vercel.app
+ENV NAMINES_API=$NAMINES_API
+ENV NAMINES_FRONTEND=$NAMINES_FRONTEND
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json

@@ -2,8 +2,8 @@
 # =============================================================================
 # namines-update — Akilli, Degisiklik-Duyarli Deploy & Temizlik Araci
 # Kullanim:
-#   namines-update           -> Sadece degisen servisleri derler ve yayinlar
-#   namines-update --force   -> Degisiklik olmasa bile backend'i bastan derler
+#   namines-update           -> Sadece degisen servisleri (backend / desk) derler ve yayinlar
+#   namines-update --force   -> Degisiklik olmasa bile tum servisleri bastan derler
 #   namines-update --clean   -> Sadece eski imajlari ve gereksiz onbellegi temizler
 # =============================================================================
 set -euo pipefail
@@ -32,8 +32,8 @@ for arg in "$@"; do
     --clean|-c) CLEAN_ONLY=true ;;
     --help|-h)
       echo "Kullanim: namines-update [--force] [--clean]"
-      echo "  (parametresiz) : GitHub'dan ceker, sadece backend degistiyse derler ve temizlik yapar."
-      echo "  --force, -f    : Degisiklik olmasa bile backend imajini yeniden derler."
+      echo "  (parametresiz) : GitHub'dan ceker, sadece degisen servisleri (backend/desk) derler ve temizlik yapar."
+      echo "  --force, -f    : Degisiklik olmasa bile tum imajlari yeniden derler."
       echo "  --clean, -c    : Sadece eski Docker imajlarini, cache'i ve loglari temizler."
       exit 0
       ;;
@@ -94,53 +94,83 @@ else
 fi
 
 BACKEND_CHANGED=false
+DESK_CHANGED=false
+
 if echo "$CHANGED_FILES" | grep -qE '^(backend/|docker-compose)'; then
   BACKEND_CHANGED=true
 fi
 
-if [ "$FORCE_BUILD" = true ]; then
-  log_warn "--force verildi: Backend degismemis olsa bile yeniden derlenecek."
-  BACKEND_CHANGED=true
+if echo "$CHANGED_FILES" | grep -qE '^services/desk/'; then
+  DESK_CHANGED=true
 fi
 
+# Eger namines-desk imaji henuz yoksa derle
+if ! sudo docker image inspect namines-desk:latest >/dev/null 2>&1; then
+  DESK_CHANGED=true
+fi
+
+if [ "$FORCE_BUILD" = true ]; then
+  log_warn "--force verildi: Backend ve Desk degismemis olsa bile yeniden derlenecek."
+  BACKEND_CHANGED=true
+  DESK_CHANGED=true
+fi
+
+ANY_REBUILT=false
+
 if [ "$BACKEND_CHANGED" = true ]; then
-  log_info "Backend degisikligi algilandi! Docker imaji derleniyor..."
+  log_info "Backend degisikligi algilandi! namines-api:latest derleniyor..."
   cd "$REPO_DIR/backend"
   sudo docker build -t namines-api:latest -f Namines.API/Dockerfile .
+  ANY_REBUILT=true
+else
+  log_ok "Backend kodlarinda degisiklik yok. Gereksiz Backend derlemesi atlandi!"
+fi
 
-  log_info "namines-backend konteyneri yeniden baslatiliyor..."
+if [ "$DESK_CHANGED" = true ]; then
+  log_info "Namines Desk degisikligi algilandi! namines-desk:latest derleniyor..."
+  cd "$REPO_DIR/services/desk"
+  sudo docker build -t namines-desk:latest .
+  ANY_REBUILT=true
+else
+  log_ok "Namines Desk kodlarinda degisiklik yok. Gereksiz Desk derlemesi atlandi!"
+fi
+
+if [ "$ANY_REBUILT" = true ]; then
+  log_info "Konteynerler guncelleniyor..."
   cd "$REPO_DIR"
   sudo docker compose -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans
-
-  log_info "Saglik kontrolu (/health) bekleniyor..."
-  HEALTH_OK=false
-  for i in {1..15}; do
-    if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
-      HEALTH_OK=true
-      break
-    fi
-    sleep 2
-  done
-
-  if [ "$HEALTH_OK" = true ]; then
-    HEALTH_JSON=$(curl -fsS http://localhost:8080/health)
-    log_ok "Backend canli ve saglikli: $HEALTH_JSON"
-  else
-    log_err "Backend saglik kontrolunden gecemedi! Son loglar:"
-    sudo docker logs --tail 30 namines-backend
-    exit 1
-  fi
 else
-  log_ok "Backend kodlarinda degisiklik yok (yalnizca frontend/dokuman degisti veya guncel). Gereksiz Docker derlemesi atlandi!"
-  # Konteyner ayakta degilse yine de kaldir
-  if ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-backend$'; then
-    log_warn "namines-backend calismiyor gorundu, baslatiliyor..."
+  # Konteynerlerden biri ayakta degilse kaldir
+  if ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-backend$' || ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-desk$'; then
+    log_warn "Eksik konteyner algilandi, baslatiliyor..."
     cd "$REPO_DIR"
     sudo docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
   fi
 fi
 
-# Eski deploy.sh artik gereksizse kaldir
+log_info "Saglik kontrolu (/health & Desk :3200) bekleniyor..."
+HEALTH_OK=false
+for i in {1..15}; do
+  if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
+    HEALTH_OK=true
+    break
+  fi
+  sleep 2
+done
+
+if [ "$HEALTH_OK" = true ]; then
+  HEALTH_JSON=$(curl -fsS http://localhost:8080/health)
+  log_ok "Backend canli ve saglikli: $HEALTH_JSON"
+else
+  log_err "Backend saglik kontrolunden gecemedi! Son loglar:"
+  sudo docker logs --tail 30 namines-backend
+  exit 1
+fi
+
+if curl -fsS -o /dev/null http://localhost:3200 2>/dev/null; then
+  log_ok "Namines Desk canli ve saglikli (port 3200 -> https://desk.130-162-254-97.sslip.io)"
+fi
+
 rm -f "$REPO_DIR/deploy.sh"
 
 cleanup_system
