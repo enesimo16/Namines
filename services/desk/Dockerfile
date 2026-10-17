@@ -4,8 +4,10 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 ARG NAMINES_API=https://130-162-254-97.sslip.io
 ARG NAMINES_FRONTEND=https://namines-sigma.vercel.app
+ARG DESK_BASE_PATH=/desk
 ENV NAMINES_API=$NAMINES_API
 ENV NAMINES_FRONTEND=$NAMINES_FRONTEND
+ENV DESK_BASE_PATH=$DESK_BASE_PATH
 COPY package.json package-lock.json* ./
 RUN npm ci || npm install
 COPY . .
@@ -16,8 +18,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ARG NAMINES_API=https://130-162-254-97.sslip.io
 ARG NAMINES_FRONTEND=https://namines-sigma.vercel.app
+ARG DESK_BASE_PATH=/desk
 ENV NAMINES_API=$NAMINES_API
 ENV NAMINES_FRONTEND=$NAMINES_FRONTEND
+ENV DESK_BASE_PATH=$DESK_BASE_PATH
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json

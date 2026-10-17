@@ -47,8 +47,8 @@ cleanup_system() {
   sudo docker container prune -f >/dev/null 2>&1 || true
   sudo docker image prune -f >/dev/null 2>&1 || true
 
-  log_info "${IMAGE_RETENTION_HOURS} saatten eski kullanilmayan Docker imajlari ve build cache temizleniyor..."
-  sudo docker image prune -a --filter "until=${IMAGE_RETENTION_HOURS}h" -f >/dev/null 2>&1 || true
+  log_info "${IMAGE_RETENTION_HOURS} saatten eski kullanilmayan Docker build cache ve askida imajlar temizleniyor..."
+  sudo docker image prune --filter "until=${IMAGE_RETENTION_HOURS}h" -f >/dev/null 2>&1 || true
   sudo docker builder prune --filter "until=${IMAGE_RETENTION_HOURS}h" -f >/dev/null 2>&1 || true
 
   log_info "Eski APT paket onbellekleri ve 7 gunden eski sistem gunlukleri temizleniyor..."
@@ -167,8 +167,8 @@ else
   exit 1
 fi
 
-if curl -fsS -o /dev/null http://localhost:3200 2>/dev/null; then
-  log_ok "Namines Desk canli ve saglikli (port 3200 -> https://desk.130-162-254-97.sslip.io)"
+if curl -fsS -o /dev/null http://localhost:3200/desk 2>/dev/null; then
+  log_ok "Namines Desk canli ve saglikli (port 3200 -> https://namines-sigma.vercel.app/desk)"
 fi
 
 rm -f "$REPO_DIR/deploy.sh"

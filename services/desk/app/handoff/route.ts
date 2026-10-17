@@ -82,6 +82,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   // JWT yalnızca BURADA, sunucudan istemciye giden bu tek yanıtın gövdesinde
   // görünür — bir SPA'nın token'ı istemciye teslim etmesinin standart yolu
   // budur (bir URL değil, bir yanıt gövdesi).
+  const redirectTarget = process.env.DESK_BASE_PATH || '/';
   return htmlResponse(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Namines Desk</title></head>
 <body style="background:#0b0b0b;color:#eceff1;font-family:ui-sans-serif,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 <script>
   try { sessionStorage.setItem('namines-desk-token', ${jsonForScript(jwt)}); } catch (e) {}
   ${deepLinkScript}
-  location.replace('/');
+  location.replace(${jsonForScript(redirectTarget)});
 </script>
 </body></html>`, 200);
 }

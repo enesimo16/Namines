@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   // Kök ACIKCA belirtiliyor: Next aksi halde yukari dogru package-lock.json
   // ariyor ve ev dizinindeki alakasiz bir dosyayi kok saniyordu.
   turbopack: { root: __dirname },
+  ...(process.env.DESK_BASE_PATH ? { basePath: process.env.DESK_BASE_PATH } : {}),
   env: {
     // Tek yapilandirma noktasi. Uretimde gercek API adresi verilir.
     NAMINES_API: process.env.NAMINES_API ?? 'http://localhost:5000',
@@ -19,6 +20,7 @@ const nextConfig: NextConfig = {
     // olusturun" gibi baglantilar buraya gider. NAMINES_API'yle KARISTIRILMASIN:
     // biri API sunucusu (JSON doner), diger tarayicida acilan uygulama.
     NAMINES_FRONTEND: process.env.NAMINES_FRONTEND ?? 'http://localhost:3000',
+    DESK_BASE_PATH: process.env.DESK_BASE_PATH ?? '',
   },
 };
 

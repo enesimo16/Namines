@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     const backendUrl = process.env.BACKEND_API_URL || 'https://130-162-254-97.sslip.io';
+    const deskUrl = process.env.DESK_ORIGIN_URL || 'https://desk.130-162-254-97.sslip.io';
     return [
       {
         source: '/api/:path*',
@@ -34,6 +35,14 @@ const nextConfig: NextConfig = {
       {
         source: '/hubs/:path*',
         destination: `${backendUrl}/hubs/:path*`,
+      },
+      {
+        source: '/desk',
+        destination: `${deskUrl}/desk`,
+      },
+      {
+        source: '/desk/:path*',
+        destination: `${deskUrl}/desk/:path*`,
       },
     ];
   },

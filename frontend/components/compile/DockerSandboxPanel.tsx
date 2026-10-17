@@ -70,8 +70,8 @@ export default function DockerSandboxPanel({ schema, dbType, sql = '' }: DockerS
   // Docker daemon'a bağlanılamadığında (Docker Desktop kapalı) net, açıklayıcı mesaj.
   const dockerHint = (raw: string): string => {
     const t = (raw || '').toLowerCase();
-    if (t.includes('pipe') || t.includes('docker_engine') || t.includes('timed out') ||
-        t.includes('timeout') || t.includes('actively refused') || t.includes('cannot find the file')) {
+    if (t.includes('pipe') || t.includes('docker_engine') || t.includes('docker.sock') ||
+        t.includes('actively refused') || t.includes('cannot find the file')) {
       return '❌ Docker Desktop does not seem to be running. Please start Docker Desktop and try again.';
     }
     return `❌ ${raw}`;

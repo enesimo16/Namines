@@ -102,27 +102,31 @@ export default function PrismaPreview({ schema, dbType }: PrismaPreviewProps) {
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
       {warnings.length > 0 && (
-        <div className="shrink-0 border-b border-line-strong bg-surface-800/90 px-3.5 py-2.5">
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-content-primary" />
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-content-primary">
-                Not everything could be expressed in Prisma
+        <details className="shrink-0 border-b border-line-strong bg-surface-800/90 px-3.5 py-2 group">
+          <summary className="flex items-center justify-between gap-2.5 cursor-pointer list-none select-none">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-content-secondary" />
+              <p className="text-xs font-semibold text-content-primary truncate">
+                Not everything could be expressed in Prisma ({warnings.length} item{warnings.length === 1 ? '' : 's'})
               </p>
-              <p className="text-[10px] text-content-muted leading-relaxed mb-1">
-                These are absent from the schema below. Running <code className="font-mono text-content-secondary">prisma db push</code>{' '}
-                from this file would drop them from the database.
-              </p>
-              <ul className="space-y-0.5">
-                {warnings.map((warning, i) => (
-                  <li key={i} className="text-[10px] font-mono text-content-secondary leading-relaxed">
-                    • {warning}
-                  </li>
-                ))}
-              </ul>
             </div>
+            <span className="text-[10px] font-mono text-content-muted shrink-0 group-open:hidden">Show details</span>
+            <span className="text-[10px] font-mono text-content-muted shrink-0 hidden group-open:inline">Hide details</span>
+          </summary>
+          <div className="mt-1.5 pl-6">
+            <p className="text-[10px] text-content-muted leading-relaxed mb-1">
+              These are absent from the schema below. Running <code className="font-mono text-content-secondary">prisma db push</code>{' '}
+              from this file would drop them from the database.
+            </p>
+            <ul className="max-h-28 overflow-y-auto space-y-0.5">
+              {warnings.map((warning, i) => (
+                <li key={i} className="text-[10px] font-mono text-content-secondary leading-relaxed">
+                  • {warning}
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
+        </details>
       )}
 
       <div className="flex-1 min-h-0">

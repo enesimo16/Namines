@@ -150,8 +150,7 @@ export function useMultiplayer() {
     // 3. Connect to SignalR Hub
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(CANVAS_HUB_URL, {
-        skipNegotiation: true,
-        transport: signalR.HttpTransportType.WebSockets
+        withCredentials: true,
       })
       .withAutomaticReconnect()
       .configureLogging(signalR.LogLevel.Warning)

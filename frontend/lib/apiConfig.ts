@@ -22,7 +22,7 @@ export const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : '/api';
 /** SignalR canvas hub adresi (HTTPS/WSS). */
 export const CANVAS_HUB_URL = isLocalDev
   ? `${rawOrigin}/hubs/canvas`
-  : 'https://130-162-254-97.sslip.io/hubs/canvas';
+  : '/hubs/canvas';
 
 /**
  * Sunucunun döndürdüğü göreli yolu (ör. '/api/docker/download/{id}') tam URL'e çevirir.

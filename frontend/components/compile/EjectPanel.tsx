@@ -128,23 +128,25 @@ export default function EjectPanel({ schema, dbType }: Props) {
         </PanelBar>
 
         {warnings.length > 0 && (
-          <div className="shrink-0 border-b border-content-primary/10 bg-surface-800 px-3 py-2">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-content-primary" />
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-content-primary">
-                  Not everything could be expressed in this target
+          <details className="shrink-0 border-b border-content-primary/10 bg-surface-800 px-3 py-2 group">
+            <summary className="flex items-center justify-between gap-2 cursor-pointer list-none select-none">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-content-secondary" />
+                <p className="text-[11px] font-semibold text-content-primary truncate">
+                  Not everything could be expressed in this target ({warnings.length} DB-level constraint{warnings.length === 1 ? '' : 's'} omitted)
                 </p>
-                <ul className="mt-1 space-y-0.5">
-                  {warnings.map((warning, i) => (
-                    <li key={i} className="text-[10px] font-mono text-content-secondary leading-relaxed">
-                      • {warning}
-                    </li>
-                  ))}
-                </ul>
               </div>
-            </div>
-          </div>
+              <span className="text-[10px] font-mono text-content-muted shrink-0 group-open:hidden">Show details</span>
+              <span className="text-[10px] font-mono text-content-muted shrink-0 hidden group-open:inline">Hide details</span>
+            </summary>
+            <ul className="mt-1.5 max-h-28 overflow-y-auto space-y-0.5 pl-5">
+              {warnings.map((warning, i) => (
+                <li key={i} className="text-[10px] font-mono text-content-secondary leading-relaxed">
+                  • {warning}
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
 
         {fileNames.length > 1 && (

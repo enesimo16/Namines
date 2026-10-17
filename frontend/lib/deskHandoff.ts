@@ -1,6 +1,6 @@
 export const DESK_URL = process.env.NEXT_PUBLIC_DESK_URL ?? (
   process.env.NODE_ENV === 'production'
-    ? 'https://desk.130-162-254-97.sslip.io'
+    ? '/desk'
     : 'http://localhost:3200'
 );
 
