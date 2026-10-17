@@ -138,10 +138,7 @@ fi
 if [ "$ANY_REBUILT" = true ]; then
   log_info "Degisen konteynerler guncelleniyor..."
   cd "$REPO_DIR"
-  SERVICES_TO_UP=""
-  [ "$BACKEND_CHANGED" = true ] && SERVICES_TO_UP="$SERVICES_TO_UP backend"
-  [ "$DESK_CHANGED" = true ] && SERVICES_TO_UP="$SERVICES_TO_UP desk"
-  sudo docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate $SERVICES_TO_UP
+  sudo docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
 fi
 
 # Eksik konteyner varsa ayaga kaldir
