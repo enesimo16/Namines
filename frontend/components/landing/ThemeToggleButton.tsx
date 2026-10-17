@@ -42,17 +42,17 @@ export default function ThemeToggleButton() {
       type="button"
       title={isDark ? 'Switch to light theme (Beyaz mod)' : 'Switch to dark theme (Siyah mod)'}
       aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-      className="tap-44 h-8 w-[72px] inline-flex items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface-800/80 hover:bg-surface-700/80 text-content-primary shadow-sm transition-colors cursor-pointer select-none text-[10px] font-mono font-bold tracking-wider shrink-0"
+      className="tap-44 h-8 w-[72px] inline-flex items-center justify-center gap-1.5 rounded-full border border-line-strong bg-surface-800/80 hover:bg-surface-700/80 text-content-primary shadow-sm transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] active:scale-95 cursor-pointer select-none text-[10px] font-mono font-bold tracking-wider shrink-0 group"
     >
       {isDark ? (
         <>
-          <Moon className="w-3.5 h-3.5 text-content-secondary shrink-0" />
-          <span className="text-content-secondary uppercase">Dark</span>
+          <Moon className="w-3.5 h-3.5 text-content-secondary shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:rotate-12" />
+          <span className="text-content-secondary uppercase transition-colors">Dark</span>
         </>
       ) : (
         <>
-          <Sun className="w-3.5 h-3.5 text-content-secondary shrink-0" />
-          <span className="text-content-secondary uppercase">Light</span>
+          <Sun className="w-3.5 h-3.5 text-content-secondary shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:rotate-45" />
+          <span className="text-content-secondary uppercase transition-colors">Light</span>
         </>
       )}
     </button>

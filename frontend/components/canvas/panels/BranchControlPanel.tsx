@@ -13,6 +13,7 @@ import type { DatabaseSchema, SchemaColumn, SchemaTable } from '../../../types/s
 
 import ContextualHelpTooltip from '../../help/ContextualHelpTooltip';
 import { helpContent } from '../../../lib/helpContent';
+import { useTourStore } from '../../../store/useTourStore';
 
 /**
  * Sunucunun çakışma kategorilerini arayüzün zengin gösterimine eşler.
@@ -322,15 +323,25 @@ export default function BranchControlPanel() {
   };
 
   return (
-    <div className="mt-2.5 border-t border-line pt-2.5 flex flex-col gap-1.5 w-full relative">
+    <div id="branch-control-container" className="mt-2.5 border-t border-line pt-2.5 flex flex-col gap-1.5 w-full relative">
       <div className="flex items-center justify-between px-0.5">
-        <span className="text-[10px] font-bold text-content-muted tracking-wider uppercase">Version Control</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-content-muted tracking-wider uppercase">Version Control</span>
+          <button
+            type="button"
+            onClick={() => useTourStore.getState().startGuide('branch', 0)}
+            className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full border border-line bg-surface-700/60 hover:bg-surface-700 text-content-secondary hover:text-content-primary transition-colors cursor-pointer"
+          >
+            Rehber
+          </button>
+        </div>
         <ContextualHelpTooltip content={helpContent.branching} />
       </div>
 
       {/* Main Branch Selector Button */}
       <div className="flex gap-1.5 w-full">
         <button
+          id="branch-selector-btn"
           onClick={() => setIsOpen(!isOpen)}
           className="flex-1 flex items-center justify-between gap-2 text-content-secondary hover:text-content-primary transition-colors font-medium text-xs bg-surface-700/60 hover:bg-surface-700 border border-line px-2.5 py-1.5 rounded-[var(--radius-control)] min-w-0 cursor-pointer shadow-xs"
         >
@@ -343,6 +354,7 @@ export default function BranchControlPanel() {
 
         {/* Diff Mode Toggle Button */}
         <button
+          id="branch-diff-btn"
           onClick={handleToggleDiffMode}
           className={`p-1.5 rounded-[var(--radius-control)] border transition-all flex items-center justify-center shrink-0 cursor-pointer ${
             isDiffMode
@@ -357,6 +369,7 @@ export default function BranchControlPanel() {
         {/* Merge Button */}
         {isDiffMode && (
           <button
+            id="branch-merge-btn"
             onClick={handleStartMerge}
             className="bg-content-primary hover:bg-content-primary-hover text-surface-900 p-1.5 rounded-[var(--radius-control)] flex items-center justify-center transition-all shrink-0 cursor-pointer"
             title="Merge branch into current branch"

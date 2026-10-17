@@ -75,7 +75,6 @@ import AIGatewayModal from '../../components/canvas/panels/AIGatewayModal';
 import SchemaTextualSummary from '../../components/canvas/SchemaTextualSummary';
 import MultiplayerCursors from '../../components/canvas/MultiplayerCursors';
 import EmptyCanvasState from '../../components/canvas/EmptyCanvasState';
-import TourOverlay from '../../components/tour/TourOverlay';
 import { token } from '../../lib/designTokens';
 import { useHomeThemeStore } from '../../store/useHomeThemeStore';
 import { useActiveEdgeMenuStore } from '../../store/useActiveEdgeMenuStore';
@@ -713,7 +712,6 @@ export default function CanvasPage() {
       />
 
       <EmptyCanvasState />
-      <TourOverlay />
 
       <ReactFlowProvider>
         <CanvasContextMenu>

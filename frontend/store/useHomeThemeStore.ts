@@ -33,7 +33,7 @@ const applyThemeToDom = (t: AppTheme) => {
 export const useHomeThemeStore = create<HomeThemeState>()(
   persist(
     (set, get) => ({
-      theme: 'dark',
+      theme: 'light',
       setTheme: (theme: AppTheme) => {
         applyThemeToDom(theme);
         set({ theme });

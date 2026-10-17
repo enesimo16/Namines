@@ -42,7 +42,7 @@ export function Switch({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={[
-          'relative shrink-0 w-10 h-6 rounded-full border transition-colors cursor-pointer focus-ring',
+          'relative shrink-0 w-10 h-6 rounded-full border transition-colors duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer focus-ring',
           'disabled:cursor-not-allowed',
           checked
             ? 'bg-content-primary border-transparent'
@@ -51,7 +51,7 @@ export function Switch({
       >
         <span
           className={[
-            'absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full shadow-xs transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)]',
+            'absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full shadow-xs transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
             checked ? 'translate-x-4 bg-surface-900' : 'bg-content-primary',
           ].join(' ')}
         />

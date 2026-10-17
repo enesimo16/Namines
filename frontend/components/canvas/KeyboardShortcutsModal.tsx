@@ -168,9 +168,9 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }: Props) {
                     >
                       <span className="text-xs sm:text-sm text-content-secondary">{s.label}</span>
                       <div className="flex items-center gap-1 shrink-0">
-                        {s.keys.map(k => (
+                        {s.keys.map((k, i) => (
                           <kbd
-                            key={k}
+                            key={`${s.label}-${k}-${i}`}
                             className="px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-700 border border-line-strong text-content-primary text-xs font-mono font-semibold shadow-sm"
                           >
                             {formatShortcutKey(k, isApple)}

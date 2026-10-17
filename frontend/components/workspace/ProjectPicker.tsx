@@ -1,7 +1,8 @@
 'use client';
 
 import type { CloudProjectDto } from '../../types/api';
-import { Field, inputClass } from './WorkspaceKit';
+import { Field } from './WorkspaceKit';
+import Select from '../ui/Select';
 
 /**
  * Ground ve Vault'un ortak proje seçicisi.
@@ -30,12 +31,11 @@ export default function ProjectPicker({
     <div className="flex flex-wrap items-end gap-3">
       <div className="w-full sm:w-80">
         <Field label={label} htmlFor="workspace-project-picker">
-          <select
+          <Select
             id="workspace-project-picker"
             value={selectedId ?? ''}
             onChange={e => onSelect(e.target.value)}
             disabled={!projects || projects.length === 0}
-            className={inputClass}
           >
             {!projects && <option value="">Loading…</option>}
             {projects && projects.length === 0 && <option value="">No projects yet</option>}
@@ -44,7 +44,7 @@ export default function ProjectPicker({
                 {p.name}{describe ? ` — ${describe(p)}` : ''}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
       </div>
       {children}

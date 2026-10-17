@@ -204,6 +204,12 @@ namespace Namines.API.Controllers
             // yanlış denemeler doğru parolayla giren kullanıcıyı kilitlerdi.
             await _userManager.ResetAccessFailedCountAsync(user);
 
+            if (!user.IsDev && string.Equals(user.Email, "namines@namines.com", StringComparison.OrdinalIgnoreCase))
+            {
+                user.IsDev = true;
+                await _userManager.UpdateAsync(user);
+            }
+
             var tier = Namines.Core.Analysis.PlanQuotas.Resolve(user.SubscriptionStatus, user.PlanCode, user.IsDev);
             var defaultLimit = user.IsDev ? int.MaxValue : 100;
 

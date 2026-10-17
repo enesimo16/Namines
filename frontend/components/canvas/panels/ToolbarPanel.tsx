@@ -368,6 +368,7 @@ export default function ToolbarPanel() {
 
         {/* SQL Console */}
         <button
+          id="sql-explorer-btn"
           onClick={toggleSqlExplorer}
           className={`${iconBtnBase} ${isSqlExplorerOpen ? iconBtnActive : iconBtnIdle}`}
           title="Open Live SQL Console"
@@ -378,26 +379,12 @@ export default function ToolbarPanel() {
 
         {/*
           ŞEMAYA BAĞLI EYLEMLER — yalnızca tuvalde tablo varken.
-
-          <b>Düzeltilen sorun:</b> boş bir tuvalde 28 görünür buton ölçüldü ve
-          bunların arasında "Alternative", "Request Review", "Approve" gibi
-          sıfır tabloyla hiçbir anlamı olmayan eylemler vardı. Yeni kullanıcı
-          hangi eylemin şu an mümkün olduğunu ayırt edemiyordu — Phase 2'nin
-          sorduğu "şimdi ne yapmam gerekiyor?" sorusu birebir doğuyordu.
-
-          Gizlemek, devre dışı bırakmaya tercih edildi: devre dışı bir düğme
-          hâlâ görsel gürültü üretiyor ve sebebini yalnızca üzerine gelince
-          söylüyor. Boş tuvalde doğru yönlendirme zaten ekranın ortasında
-          (`EmptyCanvasState`).
         */}
         {hasTables && (
         <>
-        {/* Tidy Up — dagre ile otomatik yerleşim (bkz. lib/autoLayout.ts).
-            Taze şemalar (AI üretimi, şablon yükleme) zaten otomatik bu düzene
-            giriyor; bu düğme, kullanıcı elle sürükleyip düzeni bozduktan sonra
-            (ya da beğenmediğinde) İSTEDİĞİ AN yeniden tetikleyebilmesi için —
-            geri alınabilir (Ctrl+Z). */}
+        {/* Tidy Up — dagre ile otomatik yerleşim */}
         <button
+          id="tidy-up-btn"
           onClick={handleTidyUp}
           className={`${iconBtnBase} ${iconBtnIdle}`}
           title="Tidy up: re-arrange tables to minimize crossing connections"
@@ -406,25 +393,9 @@ export default function ToolbarPanel() {
           <Wand2 className="w-4 h-4" />
         </button>
 
-        {/* "Alternative" DÜĞMESİ BURADAN TAŞINDI → prompt çubuğuna
-            (RegionalPromptPanel.tsx). İki gerçek sorun vardı:
-
-            1. <b>Basılamıyordu.</b> `disabled` koşulu `!lastGenerationPrompt`
-               içeriyordu — bu alan yalnızca şema BİR PROMPT'TAN üretildiğinde
-               dolar. Şablonla/import'la gelen şemalarda `null` olduğu için
-               düğme kalıcı olarak devre dışıydı, ama devre dışı olduğu yalnızca
-               tooltip'ten anlaşılıyordu ("basılmıyor" geri bildirimi).
-            2. <b>Ağırlığı yanlıştı.</b> "Alternative (~1 round)" metniyle
-               araç çubuğundaki en geniş öğeydi; oysa bu, prompt'a bağlı ve
-               nadir kullanılan bir eylem.
-
-            Yeni yeri kavramsal olarak da doğru: eylem "son prompt'u yeniden
-            çalıştır" demek, dolayısıyla prompt kutusunun yanına ait. Orada
-            prompt YOKSA hiç render edilmiyor (gizlemek > devre dışı bırakmak —
-            aşağıdaki `hasTables` bloğuyla aynı gerekçe). */}
-
         {/* Request Review — "Database PR" akışını başlatır (bkz. new-phase/29) */}
         <button
+          id="request-review-btn"
           onClick={handleRequestReview}
           disabled={isRequestingReview}
           className={`${iconBtnBase} xl:w-auto xl:px-3 xl:gap-1.5 ${iconBtnIdle}`}

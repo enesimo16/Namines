@@ -14,6 +14,7 @@ import {
 import { useSchemaStore } from '../../store/useSchemaStore';
 import AutomationRunHistory from './AutomationRunHistory';
 import type { NaminesFlowEvent } from '../../lib/naminesFlowEventBus';
+import Select from '../ui/Select';
 
 type TriggerType = NaminesFlowEvent['type'];
 
@@ -228,28 +229,26 @@ export default function AutomationRuleDrawer() {
               "Relation triggers" yüzünden "Trigger" araması iki alanı birden
               bulur) ve ekran okuyucu her odaklanmada tüm paragrafı okurdu. */}
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>
-              Scope
-              <select
-                className={inputClass}
-                value={isProjectScope ? PROJECT_SCOPE : rule.scopeTableId}
-                onChange={(e) => changeScope(e.target.value)}
-              >
-                <option value={PROJECT_SCOPE}>Whole project</option>
-                {tables?.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-                {/* Kuralın bağlı olduğu tablo listede yoksa (şema henüz
-                    yüklenmediyse ya da tablo silindiyse) seçicinin değeri
-                    hiçbir seçenekle eşleşmez ve tarayıcı ilk seçeneği —
-                    "Whole project"i — gösterir. Kural tabloya bağlıyken
-                    proje geneliymiş gibi görünürdü; üstelik sonraki her
-                    düzenleme bu yanlış kapsamı gerçekten kaydederdi. */}
-                {!isProjectScope && !tables?.some(t => t.id === rule.scopeTableId) && (
-                  <option value={rule.scopeTableId}>Table not in this schema</option>
-                )}
-              </select>
-            </label>
+            <span className={labelClass}>Scope</span>
+            <Select
+              value={isProjectScope ? PROJECT_SCOPE : rule.scopeTableId}
+              onChange={(e) => changeScope(e.target.value)}
+              aria-label="Scope"
+            >
+              <option value={PROJECT_SCOPE}>Whole project</option>
+              {tables?.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+              {/* Kuralın bağlı olduğu tablo listede yoksa (şema henüz
+                  yüklenmediyse ya da tablo silindiyse) seçicinin değeri
+                  hiçbir seçenekle eşleşmez ve tarayıcı ilk seçeneği —
+                  "Whole project"i — gösterir. Kural tabloya bağlıyken
+                  proje geneliymiş gibi görünürdü; üstelik sonraki her
+                  düzenleme bu yanlış kapsamı gerçekten kaydederdi. */}
+              {!isProjectScope && !tables?.some(t => t.id === rule.scopeTableId) && (
+                <option value={rule.scopeTableId}>Table not in this schema</option>
+              )}
+            </Select>
             <p className="text-micro text-content-muted">
               {isProjectScope
                 ? 'Fires for any table. Relation triggers are only available here.'
@@ -258,21 +257,19 @@ export default function AutomationRuleDrawer() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>
-              Trigger
-              <select
-                className={inputClass}
-                value={rule.triggerType}
-                onChange={(e) => {
-                  const triggerType = e.target.value as TriggerType;
-                  updateRule(rule.id, { triggerType, ...conditionsPatchFor(triggerType) });
-                }}
-              >
-                {triggerOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
+            <span className={labelClass}>Trigger</span>
+            <Select
+              value={rule.triggerType}
+              onChange={(e) => {
+                const triggerType = e.target.value as TriggerType;
+                updateRule(rule.id, { triggerType, ...conditionsPatchFor(triggerType) });
+              }}
+              aria-label="Trigger"
+            >
+              {triggerOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </Select>
             <p className="text-micro text-content-muted">{triggerHint}</p>
           </div>
 
@@ -308,29 +305,31 @@ export default function AutomationRuleDrawer() {
                   // `key` DİZİN DEĞİL: kutular kontrolsüz (defaultValue), dizinle
                   // anahtarlanınca bir satır silindiğinde React DOM'u taşımıyor ve
                   // kutuda önceki komşunun metni kalıyordu.
-                  <li key={condition.uid} className="flex items-center gap-1">
-                    <select
-                      aria-label={`Condition ${index + 1} field`}
-                      className={smallInputClass}
-                      value={condition.field}
-                      onChange={(e) => setConditions(rule.conditions.map((c, i) =>
-                        i === index ? { ...c, field: e.target.value as AutomationConditionField } : c))}
-                    >
-                      {conditionFields.map(f => (
-                        <option key={f.value} value={f.value}>{f.label}</option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label={`Condition ${index + 1} operator`}
-                      className={smallInputClass}
-                      value={condition.op}
-                      onChange={(e) => setConditions(rule.conditions.map((c, i) =>
-                        i === index ? { ...c, op: e.target.value as AutomationConditionOp } : c))}
-                    >
-                      {CONDITION_OPS.map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
+                  <li key={condition.uid} className="flex items-center gap-1.5">
+                    <div className="w-36 shrink-0">
+                      <Select
+                        aria-label={`Condition ${index + 1} field`}
+                        value={condition.field}
+                        onChange={(e) => setConditions(rule.conditions.map((c, i) =>
+                          i === index ? { ...c, field: e.target.value as AutomationConditionField } : c))}
+                      >
+                        {conditionFields.map(f => (
+                          <option key={f.value} value={f.value}>{f.label}</option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="w-32 shrink-0">
+                      <Select
+                        aria-label={`Condition ${index + 1} operator`}
+                        value={condition.op}
+                        onChange={(e) => setConditions(rule.conditions.map((c, i) =>
+                          i === index ? { ...c, op: e.target.value as AutomationConditionOp } : c))}
+                      >
+                        {CONDITION_OPS.map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </Select>
+                    </div>
                     <input
                       type="text"
                       aria-label={`Condition ${index + 1} value`}
@@ -379,18 +378,19 @@ export default function AutomationRuleDrawer() {
                     key={action.uid}
                     className="rounded-[var(--radius-card)] border border-line-strong bg-surface-700/80 p-2.5 shadow-xs"
                   >
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <span className="text-micro font-semibold text-content-muted">{index + 1}</span>
-                      <select
-                        aria-label={`Action ${index + 1}`}
-                        className={`${smallInputClass} min-w-0 flex-1`}
-                        value={action.actionType}
-                        onChange={(e) => patchAction(index, { actionType: e.target.value as AutomationActionType })}
-                      >
-                        {ACTION_OPTIONS.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
+                      <div className="flex-1 min-w-0">
+                        <Select
+                          aria-label={`Action ${index + 1}`}
+                          value={action.actionType}
+                          onChange={(e) => patchAction(index, { actionType: e.target.value as AutomationActionType })}
+                        >
+                          {ACTION_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </Select>
+                      </div>
                       <button
                         type="button"
                         aria-label={`Move action ${index + 1} up`}
@@ -451,18 +451,19 @@ export default function AutomationRuleDrawer() {
 
                     {action.actionType === 'Webhook' && (
                       <>
-                        <select
-                          aria-label={`Method ${index + 1}`}
-                          className={`${smallInputClass} mt-1.5 w-full`}
-                          value={action.actionConfig.method ?? 'POST'}
-                          onChange={(e) => patchAction(index, {
-                            actionConfig: { ...action.actionConfig, method: e.target.value as 'POST' | 'PUT' | 'PATCH' },
-                          })}
-                        >
-                          <option value="POST">POST</option>
-                          <option value="PUT">PUT</option>
-                          <option value="PATCH">PATCH</option>
-                        </select>
+                        <div className="mt-1.5 w-full">
+                          <Select
+                            aria-label={`Method ${index + 1}`}
+                            value={action.actionConfig.method ?? 'POST'}
+                            onChange={(e) => patchAction(index, {
+                              actionConfig: { ...action.actionConfig, method: e.target.value as 'POST' | 'PUT' | 'PATCH' },
+                            })}
+                          >
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                          </Select>
+                        </div>
                         <textarea
                           aria-label={`Body ${index + 1}`}
                           rows={2}

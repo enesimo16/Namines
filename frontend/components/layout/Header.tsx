@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical } from 'lucide-react';
+import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical, Compass, ChevronDown, ShieldCheck } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useTourStore } from '../../store/useTourStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useAIPolicyStore } from '../../store/useAIPolicyStore';
@@ -21,7 +22,7 @@ import HomeBanner from '../landing/HomeBanner';
 import ThemeToggleButton from '../landing/ThemeToggleButton';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { activateOnKey } from '../../lib/a11y';
-import { useT, useLangAttr, type MessageKey } from '../../lib/i18n';
+import { useT, useLangAttr, useLocale, type MessageKey } from '../../lib/i18n';
 import LanguageToggle from './LanguageToggle';
 import GlobalCommandPalette from '../common/GlobalCommandPalette';
 import KeyboardShortcutsModal from '../canvas/KeyboardShortcutsModal';
@@ -45,6 +46,8 @@ export default function Header() {
   const pathname = usePathname();
   const t = useT();
   const lang = useLangAttr();
+  const locale = useLocale();
+  const startGuide = useTourStore(s => s.startGuide);
   const { projectName, setProjectName } = useSchemaStore();
   
   const isCanvas = pathname === '/canvas';
@@ -150,6 +153,21 @@ export default function Header() {
       setActiveSection(id);
       window.history.pushState(null, '', `#${id}`);
     }
+  };
+
+  const handleStartGuide = (guideId?: string) => {
+    if (guideId) {
+      startGuide(guideId, 0);
+      return;
+    }
+    if (pathname === '/canvas') startGuide('canvas', 0);
+    else if (pathname === '/compile') startGuide('compile', 0);
+    else if (pathname === '/flow') startGuide('flow', 0);
+    else if (pathname === '/ground') startGuide('ground', 0);
+    else if (pathname === '/vault') startGuide('vault', 0);
+    else if (pathname === '/review') startGuide('review', 0);
+    else if (pathname === '/new' || pathname === '/') startGuide('new', 0);
+    else startGuide('new', 0);
   };
 
   const { isAuthenticated, user, logout } = useAuthStore();
@@ -259,6 +277,10 @@ export default function Header() {
     router.push('/');
   };
 
+  if (pathname?.startsWith('/admin')) {
+    return null;
+  }
+
   return (
     <>
       {/* Sticky DEĞİL, normal akışta — bu yüzden aşağı kaydırınca kendiliğinden
@@ -341,21 +363,23 @@ export default function Header() {
                 <FolderOpen className="w-3.5 h-3.5" />
               </button>
 
-              {/* Ekip — yalnızca giriş yapmış kullanıcıda */}
-              {isAuthenticated && (
-                <button
-                  onClick={() => setIsTeamOpen(true)}
-                  className={`tap-44 hidden md:flex items-center justify-center w-8 h-8 rounded-full border transition-colors shrink-0 ${
-                    isTeamOpen
-                      ? 'border-content-primary/40 bg-surface-700 text-content-primary'
-                      : 'border-line-strong bg-surface-800/80 text-content-muted hover:text-content-primary hover:border-content-primary/30 hover:bg-surface-700/60'
-                  }`}
-                  title={t('header.teamTitle')}
-                  aria-label={t('header.team')}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                </button>
-              )}
+              {/* Ekip Butonu */}
+              <button
+                id="header-team-btn"
+                onClick={() => {
+                  if (isAuthenticated) setIsTeamOpen(true);
+                  else openAuthModal();
+                }}
+                className={`tap-44 hidden md:flex items-center justify-center w-8 h-8 rounded-full border transition-colors shrink-0 ${
+                  isTeamOpen
+                    ? 'border-content-primary/40 bg-surface-700 text-content-primary'
+                    : 'border-line-strong bg-surface-800/80 text-content-muted hover:text-content-primary hover:border-content-primary/30 hover:bg-surface-700/60'
+                }`}
+                title={t('header.teamTitle')}
+                aria-label={t('header.team')}
+              >
+                <Users className="w-3.5 h-3.5" />
+              </button>
 
               {/* Project Name Editor — only on canvas / compile / review */}
               {pathname !== '/new' && (
@@ -418,6 +442,7 @@ export default function Header() {
         <div className="flex items-center justify-center shrink-0 min-w-0 px-1 sm:px-2 z-10 relative">
           {pathname === '/new' ? (
             <input
+              id="header-new-project-input"
               type="text"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -457,87 +482,129 @@ export default function Header() {
           {/* Desktop Right Actions Strip */}
           <div className="hidden md:flex items-center gap-1.5 sm:gap-2 min-w-0">
             {isCanvas && <div id="canvas-actions-slot" className="hidden lg:flex items-center gap-1.5" />}
-            <LanguageToggle />
-            {!isCanvas && !isCompile && <ThemeToggleButton />}
-            {isHome && !isAuthenticated ? (
-              <>
-                <Link
-                  href="/demo"
-                  className="hidden lg:inline text-xs font-medium text-content-muted hover:text-content-primary transition-colors px-2"
-                >
-                  {t('header.exploreDemo')}
-                </Link>
-                <button
-                  onClick={openAuthModal}
-                  className="hidden sm:inline text-xs font-medium text-content-muted hover:text-content-primary transition-colors px-2"
-                >
-                  {t('header.signIn')}
-                </button>
-                <Link
-                  href="/new"
-                  className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm"
-                >
-                  {t('header.getStarted')}
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </>
-            ) : isCanvas || isCompile ? (
-              <button
-                onClick={() => setIsAIPreferencesOpen(true)}
-                title={t('header.settings')}
-                aria-label={t('header.openSettings')}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-800 hover:bg-surface-700 border border-line-strong text-content-primary transition-all cursor-pointer active:scale-95"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            ) : isAuthenticated ? (
-              <div
-                onClick={() => setIsAIPreferencesOpen(true)}
-                onKeyDown={activateOnKey(() => setIsAIPreferencesOpen(true))}
-                role="button"
-                tabIndex={0}
-                aria-haspopup="dialog"
-                aria-label={t('header.openAccountSettings')}
-                className="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2.5 py-1 bg-surface-800/80 border border-line-strong hover:border-content-primary/30 rounded-full select-none hover:bg-surface-700/80 transition-colors cursor-pointer shadow-sm"
-              >
-                {/* Clean Avatar Badge */}
-                <div
-                  className="relative w-6 h-6 rounded-full bg-accent text-accent-on flex items-center justify-center text-[10px] font-mono font-bold uppercase tracking-wider select-none shrink-0"
-                  title={user?.username}
-                >
-                  {user?.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
-                </div>
-                <div className="hidden sm:flex flex-col gap-0.5 justify-center">
-                  <span className="text-xs font-semibold text-content-primary leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
-                    {user?.username}
-                  </span>
-                  <span className="text-[10px] font-mono text-content-muted font-bold leading-none uppercase tracking-widest mt-0.5">
-                    {planLabel}
-                  </span>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    logout();
-                    showToast(t('header.loggedOut'), 'info');
-                  }}
-                  className="tap-44 p-1 text-content-muted hover:text-content-primary hover:bg-surface-700 rounded-full transition-colors cursor-pointer ml-0.5 shrink-0"
-                  title={t('header.logOut')}
-                  aria-label={t('header.logOut')}
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
+            {/* Unified Rehber / Guide Trigger (Directly starts current page guide) */}
+            <button
+              type="button"
+              onClick={() => handleStartGuide()}
+              title={locale === 'tr' ? 'İnteraktif Sayfa Rehberini Başlat' : 'Start Interactive Page Guide'}
+              aria-label={locale === 'tr' ? 'İnteraktif Sayfa Rehberi' : 'Interactive Page Guide'}
+              className="tap-44 inline-flex items-center gap-1.5 h-7.5 px-3 rounded-full border border-line-strong bg-surface-800/95 hover:bg-surface-700 text-content-secondary hover:text-content-primary text-micro font-semibold transition-all cursor-pointer shadow-xs select-none"
+            >
+              <Compass className="w-3.5 h-3.5 text-accent shrink-0" />
+              <span className="hidden lg:inline">{locale === 'tr' ? 'Rehber' : 'Guide'}</span>
+            </button>
+            <div id="header-language-toggle">
+              <LanguageToggle />
+            </div>
+            {!isCanvas && (
+              <div id="header-theme-toggle">
+                <ThemeToggleButton />
               </div>
-            ) : (
-              <button
-                id="auth-modal-trigger"
-                onClick={openAuthModal}
-                className="flex items-center justify-center py-1.5 px-4 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm"
-              >
-                <span className="hidden sm:inline">{t('header.loginSignUp')}</span>
-                <span className="inline sm:hidden">{t('header.login')}</span>
-              </button>
             )}
+            <div id="header-user-account-btn" className="flex items-center">
+              {isHome && !isAuthenticated ? (
+                <>
+                  <Link
+                    href="/demo"
+                    className="hidden lg:inline text-xs font-medium text-content-muted hover:text-content-primary transition-colors px-2"
+                  >
+                    {t('header.exploreDemo')}
+                  </Link>
+                  <button
+                    onClick={openAuthModal}
+                    className="hidden sm:inline text-xs font-medium text-content-muted hover:text-content-primary transition-colors px-2"
+                  >
+                    {t('header.signIn')}
+                  </button>
+                  <Link
+                    href="/new"
+                    className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm"
+                  >
+                    {t('header.getStarted')}
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </>
+              ) : isCanvas || isCompile ? (
+                <div className="flex items-center gap-1.5">
+                  {(user?.isDev || user?.type?.toLowerCase() === 'admin' || user?.email?.toLowerCase() === 'namines@namines.com') && (
+                    <Link
+                      href="/admin"
+                      title="Admin Console"
+                      aria-label="Admin Console"
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-800 hover:bg-surface-700 border border-line-strong text-accent-text transition-all cursor-pointer active:scale-95"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => setIsAIPreferencesOpen(true)}
+                    title={t('header.settings')}
+                    aria-label={t('header.openSettings')}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-800 hover:bg-surface-700 border border-line-strong text-content-primary transition-all cursor-pointer active:scale-95"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : isAuthenticated ? (
+                <div
+                  onClick={() => setIsAIPreferencesOpen(true)}
+                  onKeyDown={activateOnKey(() => setIsAIPreferencesOpen(true))}
+                  role="button"
+                  tabIndex={0}
+                  aria-haspopup="dialog"
+                  aria-label={t('header.openAccountSettings')}
+                  className="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2.5 py-1 bg-surface-800/80 border border-line-strong hover:border-content-primary/30 rounded-full select-none hover:bg-surface-700/80 transition-colors cursor-pointer shadow-sm"
+                >
+                  {/* Clean Avatar Badge */}
+                  <div
+                    className="relative w-6 h-6 rounded-full bg-accent text-accent-on flex items-center justify-center text-[10px] font-mono font-bold uppercase tracking-wider select-none shrink-0"
+                    title={user?.username}
+                  >
+                    {user?.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
+                  </div>
+                  <div className="hidden sm:flex flex-col gap-0.5 justify-center">
+                    <span className="text-xs font-semibold text-content-primary leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
+                      {user?.username}
+                    </span>
+                    <span className="text-[10px] font-mono text-content-muted font-bold leading-none uppercase tracking-widest mt-0.5">
+                      {planLabel}
+                    </span>
+                  </div>
+                  {(user?.isDev || user?.type?.toLowerCase() === 'admin' || user?.email?.toLowerCase() === 'namines@namines.com') && (
+                    <Link
+                      href="/admin"
+                      onClick={(e) => e.stopPropagation()}
+                      className="tap-44 p-1 text-accent-text hover:text-content-primary hover:bg-surface-700 rounded-full transition-colors cursor-pointer shrink-0"
+                      title="Admin Console"
+                      aria-label="Admin Console"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      logout();
+                      showToast(t('header.loggedOut'), 'info');
+                    }}
+                    className="tap-44 p-1 text-content-muted hover:text-content-primary hover:bg-surface-700 rounded-full transition-colors cursor-pointer ml-0.5 shrink-0"
+                    title={t('header.logOut')}
+                    aria-label={t('header.logOut')}
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  id="auth-modal-trigger"
+                  onClick={openAuthModal}
+                  className="flex items-center justify-center py-1.5 px-4 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm"
+                >
+                  <span className="hidden sm:inline">{t('header.loginSignUp')}</span>
+                  <span className="inline sm:hidden">{t('header.login')}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -648,6 +715,22 @@ export default function Header() {
                 </button>
               </div>
             )}
+
+            {/* Interactive Guide Trigger (Directly starts current page guide) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                handleStartGuide();
+              }}
+              className="w-full flex items-center justify-between p-2.5 rounded-[var(--radius-control)] bg-surface-800/90 hover:bg-surface-700/80 border border-line-strong text-xs font-semibold text-content-primary transition-colors cursor-pointer shadow-xs"
+            >
+              <div className="flex items-center gap-2">
+                <Compass className="w-4 h-4 text-accent shrink-0" />
+                <span>{locale === 'tr' ? 'İnteraktif Sayfa Rehberi' : 'Interactive Page Guide'}</span>
+              </div>
+              <span className="text-[10px] font-mono text-content-muted uppercase">Tour</span>
+            </button>
 
             {/* Quick Preferences: Theme & Lang */}
             <div className="bg-surface-800/90 border border-line-strong rounded-[var(--radius-card)] p-3 flex items-center justify-between gap-3">

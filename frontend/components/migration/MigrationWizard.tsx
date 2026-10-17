@@ -25,6 +25,7 @@ import MigrationCodeView from './MigrationCodeView';
 import { useAIGateway } from '../../hooks/useAIGateway';
 import { errorMessage } from '../../lib/errors';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { useTourStore } from '../../store/useTourStore';
 
 interface MigrationWizardProps {
   isOpen: boolean;
@@ -242,12 +243,21 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
   return (
     <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="relative w-full max-w-2xl rounded-[var(--radius-modal)] bg-surface-800 border border-line-strong shadow-2xl p-5 md:p-6 flex flex-col max-h-[85vh] overflow-hidden">
+      <div id="migration-wizard-modal" className="relative w-full max-w-2xl rounded-[var(--radius-modal)] bg-surface-800 border border-line-strong shadow-2xl p-5 md:p-6 flex flex-col max-h-[85vh] overflow-hidden">
 
         {/* Header */}
         <div className="flex justify-between items-start mb-5 pb-3 border-b border-line select-none">
           <div>
-            <h2 className="text-sm font-bold text-content-primary">Migration Engine</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-content-primary">Migration Engine</h2>
+              <button
+                type="button"
+                onClick={() => useTourStore.getState().startGuide('migration', 0)}
+                className="text-micro font-semibold px-2 py-0.5 rounded-full border border-line bg-surface-700/60 hover:bg-surface-700 text-content-secondary hover:text-content-primary transition-colors cursor-pointer"
+              >
+                Rehber
+              </button>
+            </div>
             <p className="text-content-muted text-xs mt-1">
               Upload your DbContext, edit the schema on the canvas, and generate EF Core migration code.
             </p>
@@ -262,7 +272,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center gap-3 mb-5 bg-surface-700/80 border border-line-strong p-2.5 rounded-[var(--radius-card)] select-none shadow-xs">
+        <div id="migration-stepper" className="flex items-center gap-3 mb-5 bg-surface-700/80 border border-line-strong p-2.5 rounded-[var(--radius-card)] select-none shadow-xs">
           <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 shadow-xs ${step >= 1 ? 'bg-namines-teal-vibrant text-surface-900 font-bold' : 'bg-surface-600 text-content-muted'}`}>
               {step > 1 ? <Check className="w-3.5 h-3.5" /> : '1'}
@@ -297,14 +307,14 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
         )}
 
         {/* Dynamic Step Content */}
-        <div className="flex-1 overflow-y-auto pr-1 min-h-[300px]">
+        <div id="migration-step-content" className="flex-1 overflow-y-auto pr-1 min-h-[300px]">
 
           {/* STEP 1: UPLOAD/PASTE */}
           {step === 1 && (
             <div className="space-y-4">
 
               {/* Controls: DB Type */}
-              <div className="flex items-center justify-between bg-surface-700/80 border border-line-strong p-3.5 rounded-[var(--radius-card)] shadow-xs">
+              <div id="migration-provider-select" className="flex items-center justify-between bg-surface-700/80 border border-line-strong p-3.5 rounded-[var(--radius-card)] shadow-xs">
                 <div className="flex items-center gap-2.5">
                   <Database className="w-4 h-4 text-namines-teal-vibrant" />
                   <div>
@@ -350,6 +360,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
 
               {/* Drag n Drop Zone */}
               <div
+                id="migration-upload-dropzone"
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -471,7 +482,7 @@ export default function MigrationWizard({ isOpen, onClose }: MigrationWizardProp
             )}
           </div>
 
-          <div className="flex gap-2">
+          <div id="migration-action-btn" className="flex gap-2">
             {step === 1 && (
               <button
                 onClick={handleParse}

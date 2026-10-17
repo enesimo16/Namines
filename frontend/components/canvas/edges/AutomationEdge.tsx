@@ -45,13 +45,13 @@ export default function AutomationEdge({
       <BaseEdge
         path={edgePath}
         style={{
-          stroke: 'var(--color-warning-text)',
+          stroke: 'var(--color-warning-text, var(--content-primary))',
           // `0 6` + yuvarlak uç = nokta dizisi. Kesik ÇİZGİ değil, bu yüzden
           // ilişki kenarlarıyla aynı desene düşmüyor.
           strokeDasharray: '0 7',
           strokeLinecap: 'round',
           strokeWidth: isFiring ? 4 : 2.5,
-          opacity: isFiring ? 1 : 0.75,
+          opacity: isFiring ? 1 : 0.85,
           transition: 'stroke-width 150ms, opacity 150ms',
         }}
       />
@@ -62,8 +62,8 @@ export default function AutomationEdge({
         cx={sourceX}
         cy={sourceY}
         r={isFiring ? 5 : 3.5}
-        fill="var(--color-surface-700)"
-        stroke="var(--color-warning-text)"
+        fill="var(--surface-800)"
+        stroke="var(--color-warning-text, var(--content-primary))"
         strokeWidth={2}
         style={{ transition: 'r 150ms' }}
       />
@@ -74,7 +74,7 @@ export default function AutomationEdge({
             position: 'absolute',
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
           }}
-          className={`nodrag nopan pointer-events-none flex items-center gap-1 rounded-full border border-warning/50 bg-surface-700 px-1.5 py-0.5 text-micro font-semibold uppercase tracking-wide text-warning-text transition-transform duration-150 ${
+          className={`nodrag nopan pointer-events-none flex items-center gap-1 rounded-full border border-line-strong bg-surface-800 px-1.5 py-0.5 text-micro font-semibold uppercase tracking-wide text-content-primary shadow-xs transition-transform duration-150 ${
             isFiring ? 'scale-125 border-warning' : ''
           }`}
         >

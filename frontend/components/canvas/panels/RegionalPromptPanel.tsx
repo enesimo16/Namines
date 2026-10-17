@@ -205,6 +205,7 @@ export default function RegionalPromptPanel() {
 
       {/* Ana Estetik Kapsül (Floating Command Pill) */}
       <form
+        id="regional-prompt-panel"
         onSubmit={handleAction}
         className="flex items-center gap-2 w-full sm:w-[540px] sm:max-w-[90vw] bg-surface-900/95 backdrop-blur-2xl border border-line-strong hover:border-line-solid-strong focus-within:border-line-solid-strong rounded-full pl-3.5 pr-1.5 py-1.5 shadow-2xl transition-all duration-200"
       >

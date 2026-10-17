@@ -26,6 +26,7 @@ export default function DbTypeSelector({ selectedDb, onSelect, disabled }: DbTyp
         value={selectedDb}
         onChange={(e) => onSelect(e.target.value)}
         disabled={disabled}
+        placement="top"
         className="flex-1 min-w-0"
         aria-label="Select database type"
       >

@@ -14,6 +14,7 @@ import { API_ORIGIN } from '../../lib/apiConfig';
 import ContextualHelpTooltip from '../help/ContextualHelpTooltip';
 import { helpContent } from '../../lib/helpContent';
 import { apiErrorStatus, errorMessage } from '../../lib/errors';
+import { useTourStore } from '../../store/useTourStore';
 
 interface DbaIssuePanelProps {
   isOpen: boolean;
@@ -180,7 +181,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
   });
 
   return (
-    <div className="fixed top-14 right-0 bottom-0 z-drawer w-[400px] max-w-[92vw] bg-surface-800 border-l border-line shadow-2xl flex flex-col font-sans animate-in slide-in-from-right duration-250">
+    <div id="db-advisor-drawer" className="fixed top-14 right-0 bottom-0 z-drawer w-[400px] max-w-[92vw] bg-surface-800 border-l border-line shadow-2xl flex flex-col font-sans animate-in slide-in-from-right duration-250">
 
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-line">
@@ -190,6 +191,13 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
             Database Advisor
             <ContextualHelpTooltip content={helpContent.dbaAnalysis} />
           </h3>
+          <button
+            type="button"
+            onClick={() => useTourStore.getState().startGuide('dba', 0)}
+            className="text-micro font-semibold px-2 py-0.5 rounded-full border border-line bg-surface-700/60 hover:bg-surface-700 text-content-secondary hover:text-content-primary transition-colors cursor-pointer"
+          >
+            Rehber
+          </button>
         </div>
         <button
           onClick={onClose}
@@ -201,10 +209,10 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
       </div>
 
       {/* Body Scroll area */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+      <div id="db-advisor-drawer-body" className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
 
         {/* Polaris Metric Card: Database Health & Score */}
-        <div className="bg-surface-700/40 border border-line rounded-[var(--radius-card)] p-4 flex items-center justify-between shadow-xs">
+        <div id="db-advisor-score-card" className="bg-surface-700/40 border border-line rounded-[var(--radius-card)] p-4 flex items-center justify-between shadow-xs">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="text-micro text-content-muted font-mono font-bold uppercase tracking-wider">
@@ -267,6 +275,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
 
         {/* Run AI DBA Analysis Button */}
         <button
+          id="db-advisor-run-analysis-btn"
           onClick={handleManualAnalyze}
           disabled={isAnalyzing || isAnalyzingLocal}
           className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-700 hover:bg-surface-600 disabled:opacity-50 text-content-primary font-semibold text-xs rounded-[var(--radius-control)] border border-line-strong transition-all cursor-pointer shadow-xs"
@@ -282,25 +291,24 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         </button>
 
         {/* AI Auto-Fix Button — tek vurgu rengi, ana CTA */}
-        {issues.length > 0 && (
-          <button
-            onClick={handleAutoFix}
-            disabled={isFixing}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-primary-hover disabled:opacity-50 text-surface-900 font-semibold text-xs rounded-[var(--radius-control)] shadow-sm transition-all cursor-pointer"
-          >
-            {isFixing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Fixing Issues with AI...</span>
-              </>
-            ) : (
-              <span>Fix All Issues with AI</span>
-            )}
-          </button>
-        )}
+        <button
+          id="db-advisor-auto-fix-btn"
+          onClick={handleAutoFix}
+          disabled={isFixing || issues.length === 0}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-content-primary hover:bg-content-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-surface-900 font-semibold text-xs rounded-[var(--radius-control)] shadow-sm transition-all cursor-pointer"
+        >
+          {isFixing ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Fixing Issues with AI...</span>
+            </>
+          ) : (
+            <span>Fix All Issues with AI</span>
+          )}
+        </button>
 
         {/* Category Tabs */}
-        <div className="space-y-1.5">
+        <div id="db-advisor-categories-tabs" className="space-y-1.5">
           <h4 className="text-[10px] font-bold text-content-muted uppercase tracking-wider">Enterprise Advisory</h4>
 
           <div className="grid grid-cols-4 gap-1 p-0.5 bg-surface-700/60 border border-line rounded-[var(--radius-control)]">
@@ -371,7 +379,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
         </div>
 
         {/* Issues List */}
-        <div className="space-y-3">
+        <div id="db-advisor-issues-list" className="space-y-3">
           {selectedTableFilter && (
             <div className="flex items-center justify-between bg-surface-700/50 border border-line px-3 py-2 rounded-[var(--radius-control)] animate-in fade-in duration-200">
               <div className="flex items-center gap-2">

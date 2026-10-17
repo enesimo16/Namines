@@ -76,9 +76,33 @@ export default function CanvasExportToolbar() {
     return () => window.removeEventListener('namines:open-vision-modal', handleOpenVision);
   }, []);
 
-  // Dial dışına tıklayınca kapan — Share/More dropdown'larıyla aynı desen.
+  // Event listener for automated interactive tour
+  useEffect(() => {
+    const handleOpenToolkit = () => setIsDialOpen(true);
+    const handleCloseToolkit = () => {
+      setIsDialOpen(false);
+      setIsExportFlyoutOpen(false);
+    };
+    const handleOpenExportFlyout = () => {
+      setIsDialOpen(true);
+      setIsExportFlyoutOpen(true);
+    };
+
+    window.addEventListener('namines:open-toolkit', handleOpenToolkit);
+    window.addEventListener('namines:close-toolkit', handleCloseToolkit);
+    window.addEventListener('namines:open-export-flyout', handleOpenExportFlyout);
+
+    return () => {
+      window.removeEventListener('namines:open-toolkit', handleOpenToolkit);
+      window.removeEventListener('namines:close-toolkit', handleCloseToolkit);
+      window.removeEventListener('namines:open-export-flyout', handleOpenExportFlyout);
+    };
+  }, []);
+
+  // Dial dışına tıklayınca kapan — Tour aktifken kapanmasın
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
+      if (document.body.getAttribute('data-tour-active') === 'true') return;
       if (dialRef.current && !dialRef.current.contains(e.target as Node)) {
         setIsDialOpen(false);
       }
@@ -334,6 +358,21 @@ export default function CanvasExportToolbar() {
               : 'opacity-0 scale-95 translate-y-2 pointer-events-none'
           }`}
         >
+          {/* Header with Title */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-line bg-surface-800/80 rounded-t-[var(--radius-modal)]">
+            <span className="text-[11px] font-bold text-content-primary uppercase tracking-wider font-mono">
+              Toolkit
+            </span>
+            <button
+              onClick={() => setIsDialOpen(false)}
+              className="tap-44 text-content-muted hover:text-content-primary transition-colors p-1 rounded-full hover:bg-surface-700 cursor-pointer"
+              title="Close toolkit"
+              aria-label="Close toolkit"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* Araç Listesi — Kompakt, tek hizada, dikey scroll gerektirmeyen yapı */}
           <div className="p-1.5 space-y-1 max-h-[calc(100dvh-150px)] sm:max-h-none overflow-y-auto sm:overflow-visible">
             {/* DBA Sorun Analizi */}
@@ -371,6 +410,7 @@ export default function CanvasExportToolbar() {
 
             {/* AI ile Şemayı Açıkla */}
             <button
+              id="canvas-explain-schema-btn"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('namines:explain-schema'));
                 setIsDialOpen(false);
@@ -393,6 +433,7 @@ export default function CanvasExportToolbar() {
 
             {/* Koddan Şema Çıkar */}
             <button
+              id="canvas-code-import-btn"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('namines:open-code-import'));
                 setIsDialOpen(false);
@@ -413,30 +454,10 @@ export default function CanvasExportToolbar() {
               </span>
             </button>
 
-            {/* AI Ayarları */}
-            <button
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('namines:open-ai-settings'));
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <Settings className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">AI Model Preferences</div>
-                  <div className="text-micro text-content-muted truncate">Groq, DeepSeek, Claude settings</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                Configure ➔
-              </span>
-            </button>
 
             {/* Canlı DB Bağlantısı */}
             <button
+              id="canvas-db-connect-btn"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('namines:open-db-connect'));
                 setIsDialOpen(false);
@@ -459,6 +480,7 @@ export default function CanvasExportToolbar() {
 
             {/* Canlı Verileri İncele (Gateway) */}
             <button
+              id="canvas-gateway-btn"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('namines:open-gateway'));
                 setIsDialOpen(false);
@@ -481,6 +503,7 @@ export default function CanvasExportToolbar() {
 
             {/* Migrasyon Motoru */}
             <button
+              id="canvas-migration-btn"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('namines:open-migration'));
                 setIsDialOpen(false);
@@ -503,6 +526,7 @@ export default function CanvasExportToolbar() {
 
             {/* Çapraz DB İlişkileri */}
             <button
+              id="canvas-cross-db-btn"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('namines:open-cross-db'));
                 setIsDialOpen(false);
@@ -548,6 +572,7 @@ export default function CanvasExportToolbar() {
 
             {/* SQL DDL Dosyası Yükle */}
             <button
+              id="canvas-sql-import-btn"
               onClick={() => {
                 sqlFileInputRef.current?.click();
                 setIsDialOpen(false);
@@ -634,6 +659,7 @@ export default function CanvasExportToolbar() {
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
+                      id="export-png-btn"
                       onClick={() => {
                         exportAsPng({ fileName: slug });
                         setIsDialOpen(false);
@@ -645,6 +671,7 @@ export default function CanvasExportToolbar() {
                     </button>
 
                     <button
+                      id="export-svg-btn"
                       onClick={() => {
                         exportAsSvg();
                         setIsDialOpen(false);
@@ -656,6 +683,7 @@ export default function CanvasExportToolbar() {
                     </button>
 
                     <button
+                      id="export-sql-btn"
                       onClick={() => {
                         exportAsSql();
                         setIsDialOpen(false);
@@ -667,6 +695,7 @@ export default function CanvasExportToolbar() {
                     </button>
 
                     <button
+                      id="export-prisma-btn"
                       onClick={() => {
                         exportAsPrisma();
                         setIsDialOpen(false);
@@ -702,6 +731,7 @@ export default function CanvasExportToolbar() {
 
                   <div className="pt-1 border-t border-line space-y-1">
                     <button
+                      id="export-zip-btn"
                       onClick={() => {
                         setIsCloudModalOpen(true);
                         setIsDialOpen(false);
@@ -750,42 +780,45 @@ export default function CanvasExportToolbar() {
         </div>
 
         {/* ── Ana FAB — Shopify Polaris Action Pill & Animated Toolkit Trigger ── */}
-        <button
-          onClick={() => setIsDialOpen(v => !v)}
-          className={`relative z-10 h-11 px-3.5 rounded-full flex items-center gap-2.5 border transition-all duration-200 cursor-pointer group shadow-xl ${
-            isDialOpen
-              ? 'bg-content-primary border-content-primary text-surface-900 shadow-2xl'
-              : 'bg-surface-800/95 border-line-strong text-content-primary hover:border-line-strong hover:bg-surface-700 shadow-lg'
-          }`}
-          title={isDialOpen ? 'Close toolkit' : 'Open toolkit: 11 database tools, AI analysis, export'}
-          aria-label={isDialOpen ? 'Close toolkit' : 'Open toolkit'}
-          aria-expanded={isDialOpen}
-        >
-          <div className="relative flex items-center justify-center">
-            <Wrench className={`w-4 h-4 transition-transform duration-300 ${isDialOpen ? 'rotate-90' : 'group-hover:rotate-12'}`} />
-            {issues.length > 0 && !isDialOpen && (
-              <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-danger" />
-              </span>
-            )}
-          </div>
-
-          <span className="text-xs font-bold tracking-tight">Toolkit</span>
-
-          {/* Dikkat çeken dinamik rozet: "11 tools" veya "X alerts" */}
-          <span
-            className={`text-micro font-bold px-2 py-0.5 rounded-full transition-colors ${
+        <div className="flex items-center gap-2">
+          <button
+            id="canvas-toolkit-fab"
+            onClick={() => setIsDialOpen(v => !v)}
+            className={`relative z-10 h-11 px-3.5 rounded-full flex items-center gap-2.5 border transition-all duration-200 cursor-pointer group shadow-xl ${
               isDialOpen
-                ? 'bg-surface-900/15 text-surface-900'
-                : issues.length > 0
-                ? 'bg-danger-subtle text-danger-text border border-danger/30'
-                : 'bg-surface-700 text-content-secondary border border-line group-hover:text-content-primary group-hover:border-line-strong'
+                ? 'bg-content-primary border-content-primary text-surface-900 shadow-2xl'
+                : 'bg-surface-800/95 border-line-strong text-content-primary hover:border-line-strong hover:bg-surface-700 shadow-lg'
             }`}
+            title={isDialOpen ? 'Close toolkit' : 'Open toolkit: 11 database tools, AI analysis, export'}
+            aria-label={isDialOpen ? 'Close toolkit' : 'Open toolkit'}
+            aria-expanded={isDialOpen}
           >
-            {issues.length > 0 ? `${issues.length} alerts` : '11 tools'}
-          </span>
-        </button>
+            <div className="relative flex items-center justify-center">
+              <Wrench className={`w-4 h-4 transition-transform duration-300 ${isDialOpen ? 'rotate-90' : 'group-hover:rotate-12'}`} />
+              {issues.length > 0 && !isDialOpen && (
+                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-danger" />
+                </span>
+              )}
+            </div>
+
+            <span className="text-xs font-bold tracking-tight">Toolkit</span>
+
+            {/* Dikkat çeken dinamik rozet: "11 tools" veya "X alerts" */}
+            <span
+              className={`text-micro font-bold px-2 py-0.5 rounded-full transition-colors ${
+                isDialOpen
+                  ? 'bg-surface-900/15 text-surface-900'
+                  : issues.length > 0
+                  ? 'bg-danger-subtle text-danger-text border border-danger/30'
+                  : 'bg-surface-700 text-content-secondary border border-line group-hover:text-content-primary group-hover:border-line-strong'
+              }`}
+            >
+              {issues.length > 0 ? `${issues.length} alerts` : '11 tools'}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Vision Import Modal */}

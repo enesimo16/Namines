@@ -71,18 +71,22 @@ export default function VaultPage() {
 
   return (
     <PageShell>
-      <PageHeader
-        icon={ShieldCheck}
-        title="Vault"
-        description="Encrypted backups of your database — take one now, schedule them, verify they really restore, and roll back when you need to."
-      />
+      <div id="vault-header">
+        <PageHeader
+          icon={ShieldCheck}
+          title="Vault"
+          description="Encrypted backups of your database — take one now, schedule them, verify they really restore, and roll back when you need to."
+        />
+      </div>
 
-      <ProjectPicker
-        projects={projects}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        describe={p => (p.hasConnection ? p.connectionDbType ?? 'connected' : 'not connected')}
-      />
+      <div id="vault-project-picker">
+        <ProjectPicker
+          projects={projects}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          describe={p => (p.hasConnection ? p.connectionDbType ?? 'connected' : 'not connected')}
+        />
+      </div>
 
       {selected ? (
         selected.hasConnection ? (
@@ -266,6 +270,7 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
 
       {schedule && (
         <Card
+          id="vault-schedule-card"
           title="Automatic backups"
           description="Retention only limits automatic backups; manual ones are never touched."
           actions={
@@ -278,31 +283,34 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
         >
           <div className="flex flex-wrap items-end gap-4">
             <Field label="Frequency" htmlFor="vault-frequency">
-              <Select id="vault-frequency" value={schedule.cadence} disabled={savingSchedule}
-                onChange={e => setSchedule({
-                  ...schedule, cadence: e.target.value as typeof schedule.cadence,
-                  dayOfWeek: e.target.value === 'Weekly' ? (schedule.dayOfWeek ?? 0) : null,
-                })}
-                className="w-32">
-                <option value="Daily">Daily</option>
-                <option value="Weekly">Weekly</option>
-              </Select>
+              <div className="w-36">
+                <Select id="vault-frequency" value={schedule.cadence} disabled={savingSchedule}
+                  onChange={e => setSchedule({
+                    ...schedule, cadence: e.target.value as typeof schedule.cadence,
+                    dayOfWeek: e.target.value === 'Weekly' ? (schedule.dayOfWeek ?? 0) : null,
+                  })}>
+                  <option value="Daily">Daily</option>
+                  <option value="Weekly">Weekly</option>
+                </Select>
+              </div>
             </Field>
             {schedule.cadence === 'Weekly' && (
               <Field label="Day" htmlFor="vault-day">
-                <Select id="vault-day" value={schedule.dayOfWeek ?? 0} disabled={savingSchedule}
-                  onChange={e => setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })}
-                  className="w-36">
-                  {DAY_NAMES.map((name, index) => <option key={name} value={index}>{name}</option>)}
-                </Select>
+                <div className="w-40">
+                  <Select id="vault-day" value={schedule.dayOfWeek ?? 0} disabled={savingSchedule}
+                    onChange={e => setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })}>
+                    {DAY_NAMES.map((name, index) => <option key={name} value={index}>{name}</option>)}
+                  </Select>
+                </div>
               </Field>
             )}
             <Field label="Hour (UTC)" htmlFor="vault-hour">
-              <Select id="vault-hour" value={schedule.hourUtc} disabled={savingSchedule}
-                onChange={e => setSchedule({ ...schedule, hourUtc: Number(e.target.value) })}
-                className="w-28">
-                {HOURS.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
-              </Select>
+              <div className="w-32">
+                <Select id="vault-hour" value={schedule.hourUtc} disabled={savingSchedule}
+                  onChange={e => setSchedule({ ...schedule, hourUtc: Number(e.target.value) })}>
+                  {HOURS.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+                </Select>
+              </div>
             </Field>
             <Field label="Backups to keep" htmlFor="vault-retain">
               <input id="vault-retain" type="number" min={1} max={60} value={schedule.retainCount} disabled={savingSchedule}
@@ -336,9 +344,10 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
       )}
 
       <Card
+        id="vault-backups-table"
         title="Backups"
         description={`All backups of ${projectName}, newest first.${store ? ` Stored at ${store.replace(/^Local disk \((.*)\)$/, '$1')}.` : ''}`}
-        actions={<Button variant="primary" icon={DatabaseBackup} busy={busy} disabled={health?.ok === false} onClick={handleCreate}>
+        actions={<Button id="vault-backup-now-btn" variant="primary" icon={DatabaseBackup} busy={busy} disabled={health?.ok === false} onClick={handleCreate}>
           {busy ? 'Working…' : 'Back up now'}
         </Button>}
         flush

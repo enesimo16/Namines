@@ -270,7 +270,7 @@ export default function CompilePage() {
             <span>Back to Canvas</span>
           </button>
           
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-1.5">
             <h1 className="text-xs font-bold uppercase tracking-wider text-content-primary truncate leading-tight" title={schema.name}>
               {schema.name || 'Untitled Schema'}
             </h1>
@@ -349,6 +349,7 @@ export default function CompilePage() {
                       return (
                         <button
                           key={tab.id}
+                          id={`compile-tab-${tab.id}`}
                           onClick={() => setActiveTab(tab.id)}
                           className={`tap-44 relative w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-control)] text-xs transition-all cursor-pointer ${
                             isActive
@@ -380,7 +381,7 @@ export default function CompilePage() {
         </nav>
 
         {/* Sidebar Footer: Engine Switcher */}
-        <div className="hidden lg:block p-2.5 border-t border-line bg-surface-800/60">
+        <div id="compile-engine-selector" className="hidden lg:block p-2.5 border-t border-line bg-surface-800/60">
           <div className="text-micro font-bold text-content-muted uppercase tracking-wider mb-1 px-1">
             Target Engine
           </div>
@@ -410,7 +411,7 @@ export default function CompilePage() {
           {/* Right Header Controls (Diagram switcher, etc.) */}
           <div className="flex items-center gap-2 shrink-0">
             {activeTab === 'ER' && (
-              <>
+              <div id="compile-diagram-controls" className="flex items-center gap-2">
                 <div className="w-48 shrink-0">
                   <Select
                     value={diagramType}
@@ -440,13 +441,13 @@ export default function CompilePage() {
                   busy={isExportingSvg}
                   disabled={!mermaidCode}
                 />
-              </>
+              </div>
             )}
           </div>
         </div>
 
         {/* ── Main Content Area (Wrapped in Spacious Viewport) ───────────────── */}
-        <div className="flex-1 min-h-0 p-3 lg:p-4 bg-surface-900 flex flex-col overflow-hidden relative">
+        <div id="compile-main-viewport" className="flex-1 min-h-0 p-3 lg:p-4 bg-surface-900 flex flex-col overflow-hidden relative">
           
           {isLoading && (
             <div className="absolute inset-0 z-30 bg-surface-900/60 backdrop-blur-sm flex items-center justify-center">
@@ -484,7 +485,7 @@ export default function CompilePage() {
       </div>
 
       {/* ── Right Schema Inspector Rail (Shopify Polaris Metric & Inventory) ─── */}
-      <aside className="w-60 shrink-0 bg-surface-800/95 border-l border-line-strong hidden xl:flex flex-col overflow-hidden shadow-xs select-none">
+      <aside id="compile-schema-inspector" className="w-60 shrink-0 bg-surface-800/95 border-l border-line-strong hidden xl:flex flex-col overflow-hidden shadow-xs select-none">
         
         {/* Rail Header */}
         <div className="px-3.5 py-3 border-b border-line flex items-center justify-between">

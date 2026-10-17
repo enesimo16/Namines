@@ -153,21 +153,23 @@ export default function FlowPage() {
 
   return (
     <PageShell>
-      <PageHeader
-        icon={Zap}
-        title="Flow"
-        description="Automations that react when your schema changes — notify a channel, call a webhook, lint the change, or seed sample data."
-        meta={<Badge tone="neutral" icon={Workflow}>{projectName}</Badge>}
-        actions={
-          <>
-            <label className="flex items-center gap-2.5 h-9 px-3 rounded-[var(--radius-control)] border border-line-strong bg-surface-800 text-xs font-semibold text-content-secondary shadow-xs">
-              <Switch checked={paused} onChange={togglePaused} label="Pause flow reactions in this browser" />
-              {paused ? 'Paused' : 'Running'}
-            </label>
-            <Button variant="primary" icon={Plus} onClick={newBlankFlow}>New flow</Button>
-          </>
-        }
-      />
+      <div id="flow-header">
+        <PageHeader
+          icon={Zap}
+          title="Flow"
+          description="Automations that react when your schema changes — notify a channel, call a webhook, lint the change, or seed sample data."
+          meta={<Badge tone="neutral" icon={Workflow}>{projectName}</Badge>}
+          actions={
+            <div className="flex items-center gap-2">
+              <label id="flow-pause-switch" className="flex items-center gap-2.5 h-9 px-3 rounded-[var(--radius-control)] border border-line-strong bg-surface-800 text-xs font-semibold text-content-secondary shadow-xs cursor-pointer">
+                <Switch checked={paused} onChange={togglePaused} label="Pause flow reactions in this browser" />
+                {paused ? 'Paused' : 'Running'}
+              </label>
+              <Button id="flow-new-btn" variant="primary" icon={Plus} onClick={newBlankFlow}>New flow</Button>
+            </div>
+          }
+        />
+      </div>
 
       {paused && (
         <Callout tone="neutral" title="Flows are paused in this browser">
@@ -188,6 +190,7 @@ export default function FlowPage() {
       )}
 
       <Card
+        id="flow-rules-list"
         title="Your flows"
         description={rules.length === 0 ? undefined : `${rules.length} flow${rules.length === 1 ? '' : 's'} in this project`}
         flush
@@ -218,6 +221,7 @@ export default function FlowPage() {
       </Card>
 
       <Card
+        id="flow-templates"
         title="Start from a template"
         description="Each template creates a real flow and opens it so you can fill in what is missing (a webhook URL, for example)."
         actions={

@@ -423,6 +423,11 @@ body.light {
   --danger-text: oklch(46% 0.15 var(--danger-hue));
   --danger-subtle: oklch(95% 0.04 var(--danger-hue));
 
+  --warning: oklch(35% 0.006 var(--ui-hue));
+  --warning-text: oklch(15% 0.004 var(--ui-hue));
+  --warning-subtle: oklch(92% 0.005 var(--ui-hue));
+  --color-warning-text: oklch(15% 0.004 var(--ui-hue));
+
   --color-surface-500: color-mix(in srgb, var(--content-primary) 12%, transparent);
   --color-surface-400: color-mix(in srgb, var(--content-primary) 20%, transparent);
 
@@ -933,6 +938,27 @@ select option {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* Fluid Popover & Modal Animation */
+.animate-popover-in {
+  animation: popover-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Fluid Zoom transition utility */
+.zoom-fluid {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease-out;
 }
 
 /* Ocean Wave Animation - Fluid & Smooth */

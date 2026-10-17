@@ -42,6 +42,36 @@ export default function SqlExplorerPanel() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('namines:sql-panel-width');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 380 && parsed <= 1400) return parsed;
+      }
+    }
+    return 540;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const onMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.max(380, Math.min(window.innerWidth - 60, window.innerWidth - e.clientX));
+      setPanelWidth(newWidth);
+    };
+    const onMouseUp = () => {
+      setIsResizing(false);
+      localStorage.setItem('namines:sql-panel-width', String(panelWidth));
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isResizing, panelWidth]);
+
   const executeSqlString = async (queryText: string) => {
     if (!queryText.trim()) return;
     setExecuting(true);
@@ -215,8 +245,21 @@ export default function SqlExplorerPanel() {
       <aside
         ref={containerRef}
         aria-label="SQL Console"
-        className="fixed top-14 right-0 bottom-0 z-[65] w-full sm:w-[480px] lg:w-[540px] max-w-[100vw] bg-surface-900 border-l border-line-strong shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200 font-sans"
+        style={{ width: `${panelWidth}px` }}
+        className="fixed top-14 right-0 bottom-0 z-[65] max-w-[100vw] bg-surface-900 border-l border-line-strong shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200 font-sans"
       >
+        {/* Resize Handle on left border */}
+        <div
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+          className="absolute left-0 top-0 bottom-0 w-2.5 -translate-x-1/2 cursor-ew-resize group z-50 hover:bg-surface-600/40 transition-colors"
+          title="Drag left/right to resize panel width"
+        >
+          <div className="w-0.5 h-full mx-auto group-hover:bg-content-secondary transition-colors" />
+        </div>
+
         {/* 1. Polaris Drawer Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-surface-800/90 select-none shrink-0 gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -228,16 +271,9 @@ export default function SqlExplorerPanel() {
                 <h2 className="text-xs font-bold uppercase tracking-wider text-content-primary truncate">
                   SQL Console
                 </h2>
-                {sqliteService.isActive() && !isSyncing ? (
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-success-subtle border border-success/30 text-[10px] font-mono font-bold text-success-text shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0 animate-pulse" />
-                    <span>Live · {schema?.tables.length ?? 0} tables</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-700 border border-line text-[10px] font-mono font-medium text-content-muted shrink-0">
-                    <span>{isSyncing ? 'Seeding…' : 'Standby'}</span>
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-700/60 border border-line text-[10px] font-mono font-medium text-content-muted shrink-0">
+                  <span>{isSyncing ? 'Seeding…' : `${schema?.tables.length ?? 0} tables`}</span>
+                </span>
               </div>
               <p className="text-[11px] text-content-muted truncate">
                 In-memory SQLite WASM sandbox with AI mock data

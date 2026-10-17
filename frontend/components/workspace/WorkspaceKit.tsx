@@ -72,6 +72,7 @@ export function PageHeader({
 
 /* ── Bölüm kartı ────────────────────────────────────────────────────────── */
 export function Card({
+  id,
   title,
   description,
   actions,
@@ -79,6 +80,7 @@ export function Card({
   tone = 'default',
   flush,
 }: {
+  id?: string;
   title?: string;
   description?: string;
   actions?: React.ReactNode;
@@ -90,7 +92,10 @@ export function Card({
   const hasChildren = Boolean(children);
   return (
     <section
-      className={`rounded-[var(--radius-card)] border overflow-hidden shadow-xs ${
+      id={id}
+      className={`rounded-[var(--radius-card)] border ${
+        flush ? 'overflow-hidden' : 'overflow-visible'
+      } shadow-xs ${
         tone === 'danger'
           ? 'border-danger/35 bg-surface-800'
           : 'border-line-strong bg-surface-800'
@@ -232,6 +237,7 @@ const BUTTON: Record<ButtonVariant, string> = {
 };
 
 export function Button({
+  id,
   variant = 'secondary',
   icon: Icon,
   busy,
@@ -244,6 +250,7 @@ export function Button({
   full,
   ...aria
 }: {
+  id?: string;
   variant?: ButtonVariant;
   icon?: LucideIcon;
   busy?: boolean;
@@ -257,6 +264,7 @@ export function Button({
 } & Pick<React.AriaAttributes, 'aria-label' | 'aria-expanded' | 'aria-pressed'>) {
   return (
     <button
+      id={id}
       type={type}
       onClick={onClick}
       disabled={disabled || busy}
@@ -318,12 +326,12 @@ export function Switch({
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative shrink-0 w-10 h-6 rounded-full border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${focusRing} ${
+      className={`relative shrink-0 w-10 h-6 rounded-full border transition-colors duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${focusRing} ${
         checked ? 'bg-namines-teal-vibrant border-transparent' : 'bg-surface-600 border-line-strong'
       }`}
     >
       <span
-        className={`absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full shadow-xs transition-transform ${
+        className={`absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full shadow-xs transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
           checked ? 'translate-x-4 bg-surface-900' : 'bg-content-primary'
         }`}
       />

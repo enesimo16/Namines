@@ -388,6 +388,7 @@ export default function NewProjectPage() {
             {/* Textarea Section — daha geniş ve ferah Shopify tasarım */}
             <div className="mb-4 relative">
               <textarea
+                id="prompt-input"
                 aria-label="Describe the database schema you want to generate"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -480,6 +481,7 @@ export default function NewProjectPage() {
                 {models.length > 0 && (
                   <div className="relative min-w-0 sm:flex-1 sm:min-w-[130px]" ref={modelDropdownRef}>
                     <button
+                      id="new-model-dropdown-btn"
                       type="button"
                       disabled={isGenerating}
                       onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
@@ -532,6 +534,7 @@ export default function NewProjectPage() {
 
                 {/* Gelişmiş mod — Luminous Shopify Buton */}
                 <button
+                  id="new-advanced-toggle-btn"
                   type="button"
                   disabled={isGenerating}
                   onClick={() => setAdvanced(!advanced)}
@@ -550,6 +553,7 @@ export default function NewProjectPage() {
                 {/* Database Select */}
                 <div className="relative min-w-0 sm:flex-1 sm:min-w-[130px]" ref={dbDropdownRef}>
                   <button
+                    id="new-db-dropdown-btn"
                     type="button"
                     disabled={isGenerating}
                     onClick={() => setDbDropdownOpen(!dbDropdownOpen)}

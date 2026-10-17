@@ -54,6 +54,12 @@ export default function WorkspaceNav() {
   const slotRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navBarRef = useRef<HTMLDivElement>(null);
+  const [activePillRect, setActivePillRect] = useState<{ left: number; width: number; ready: boolean }>({
+    left: 0,
+    width: 0,
+    ready: false,
+  });
   const [mode, setMode] = useState<'bar' | 'menu' | 'icon'>('bar');
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -110,6 +116,22 @@ export default function WorkspaceNav() {
     };
   }, [menuOpen]);
 
+  useLayoutEffect(() => {
+    if (!visible || mode !== 'bar') return;
+    const nav = navBarRef.current;
+    if (!nav) return;
+    const activeEl = nav.querySelector<HTMLElement>('[aria-current="page"]');
+    if (activeEl) {
+      setActivePillRect({
+        left: activeEl.offsetLeft,
+        width: activeEl.offsetWidth,
+        ready: true,
+      });
+    } else {
+      setActivePillRect(prev => ({ ...prev, ready: false }));
+    }
+  }, [pathname, visible, mode]);
+
   if (!visible) return null;
 
   // "Approve" düğmesi araç çubuğundan buraya taşındı ve "Build" adını aldı: eylem
@@ -162,25 +184,42 @@ export default function WorkspaceNav() {
   const currentLabel = current ? t(current.labelKey) : t('workspaceNav.label');
 
   const renderBar = (interactive: boolean) => (
-    <div className="flex items-center gap-1 rounded-full border border-line-strong bg-surface-800/95 p-1 w-max shadow-sm backdrop-blur-md select-none">
+    <div
+      ref={interactive ? navBarRef : undefined}
+      id={interactive ? 'workspace-nav-bar' : undefined}
+      className="relative flex items-center gap-1 rounded-full border border-line-strong bg-surface-800/95 p-1 w-max shadow-sm backdrop-blur-md select-none"
+    >
+      {/* Liquid sliding pill indicator */}
+      {interactive && activePillRect.ready && (
+        <span
+          className="absolute top-1 bottom-1 rounded-full bg-surface-700 border border-line-strong shadow-xs pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+          style={{
+            left: 0,
+            transform: `translateX(${activePillRect.left}px)`,
+            width: `${activePillRect.width}px`,
+          }}
+          aria-hidden="true"
+        />
+      )}
       {items.map(item => {
         const label = t(item.labelKey);
         return (
           <button
             key={item.key}
+            id={`workspace-nav-${item.key}`}
             type="button"
             tabIndex={interactive ? undefined : -1}
             onClick={interactive ? item.onClick : undefined}
             disabled={item.busy || !!item.disabledReason}
             title={item.disabledReason ?? (item.external ? `${label} — ${t('workspaceNav.opensInNewTab')}` : label)}
             aria-current={item.active ? 'page' : undefined}
-            className={`relative flex items-center gap-1.5 h-7.5 px-3.5 rounded-full text-micro whitespace-nowrap transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`relative z-10 flex items-center gap-1.5 h-7.5 px-3.5 rounded-full text-micro whitespace-nowrap transition-colors duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               item.active
-                ? 'bg-surface-700 text-content-primary font-bold border border-line-strong shadow-xs'
-                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/60 font-semibold'
+                ? 'text-content-primary font-bold'
+                : 'text-content-muted hover:text-content-primary hover:bg-surface-700/40 font-semibold'
             }`}
           >
-            {item.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <item.icon className={`w-3.5 h-3.5 shrink-0 ${item.active ? 'text-namines-teal-vibrant' : 'text-content-muted'}`} />}
+            {item.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <item.icon className={`w-3.5 h-3.5 shrink-0 transition-colors duration-200 ${item.active ? 'text-namines-teal-vibrant' : 'text-content-muted'}`} />}
             <span>{label}</span>
             {item.external && <ArrowUpRight className="w-3 h-3 opacity-60" aria-hidden="true" />}
           </button>
@@ -190,7 +229,7 @@ export default function WorkspaceNav() {
   );
 
   return (
-    <div ref={slotRef} lang={lang} className="relative flex items-center justify-center w-full min-w-0">
+    <div id="workspace-nav" ref={slotRef} lang={lang} className="relative flex items-center justify-center w-full min-w-0">
       {/* Ölçüm kopyası: görünmez, tıklanmaz, erişilebilirlik ağacında yok. */}
       <div ref={measureRef} aria-hidden="true" className="absolute left-0 top-0 invisible pointer-events-none w-max">
         {renderBar(false)}
@@ -199,7 +238,7 @@ export default function WorkspaceNav() {
       {mode === 'bar' ? (
         <nav aria-label={t('workspaceNav.label')}>{renderBar(true)}</nav>
       ) : (
-        <div ref={menuRef} className="relative select-none">
+        <div ref={menuRef} className="relative select-none flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setMenuOpen(open => !open)}

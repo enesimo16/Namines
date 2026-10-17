@@ -5,6 +5,7 @@ import Header from "../components/layout/Header";
 import ToastContainer from "../components/toast/ToastContainer";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import FeedbackWidget from "../components/feedback/FeedbackWidget";
+import TourOverlay from "../components/tour/TourOverlay";
 
 /* ─────────────────────────────────────────────────────────────────────────
    FONT YÖNETİM MERKEZİ (Single Source of Truth for Typography)
@@ -80,15 +81,18 @@ export default function RootLayout({
               (function() {
                 try {
                   var stored = localStorage.getItem('namines-home-theme-preview');
+                  var theme = 'light';
                   if (stored) {
                     var parsed = JSON.parse(stored);
-                    var theme = parsed.state && parsed.state.theme ? parsed.state.theme : 'dark';
-                    document.documentElement.setAttribute('data-theme', theme);
-                    if (theme === 'light') {
-                      document.documentElement.classList.add('light');
-                    } else {
-                      document.documentElement.classList.add('dark');
+                    if (parsed && parsed.state && parsed.state.theme) {
+                      theme = parsed.state.theme;
                     }
+                  }
+                  document.documentElement.setAttribute('data-theme', theme);
+                  if (theme === 'light') {
+                    document.documentElement.classList.add('light');
+                  } else {
+                    document.documentElement.classList.add('dark');
                   }
                 } catch (e) {}
               })();
@@ -135,6 +139,9 @@ export default function RootLayout({
 
         {/* Global onay dialogu — native confirm() yerine estetik modal */}
         <ConfirmDialog />
+
+        {/* Global kılavuz ve rehber turu (Spotlight Tour) */}
+        <TourOverlay />
 
         {/* Geri bildirim widget'ı (sol altta yüzen buton) */}
         <FeedbackWidget />

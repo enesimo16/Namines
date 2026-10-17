@@ -109,6 +109,7 @@ export function SourceDropdown({ sources, onSelect, disabled }: SourceDropdownPr
   return (
     <div className="relative flex-1 min-w-[150px]" ref={containerRef}>
       <button
+        id="new-source-dropdown-btn"
         type="button"
         disabled={disabled}
         onClick={() => setOpen(!open)}

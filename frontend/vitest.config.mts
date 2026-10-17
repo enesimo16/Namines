@@ -28,6 +28,7 @@ export default defineConfig({
       'utils/**/*.test.ts',
       'hooks/**/*.test.tsx',
       'components/**/*.test.tsx',
+      'app/**/*.test.tsx',
     ],
     setupFiles: ['./test/setup.ts', './test/setup-dom.ts'],
     // Next.js derlemesi ve `.next` çıktısı testlerin ilgi alanı değil.

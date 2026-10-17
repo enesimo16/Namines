@@ -90,40 +90,44 @@ export default function GroundPage() {
 
   return (
     <PageShell>
-      <PageHeader
-        icon={HardDrive}
-        title="Ground"
-        description="Hosted databases for your projects — create one, see how it is doing, and delete it safely. No Desk required."
-      />
+      <div id="ground-header">
+        <PageHeader
+          icon={HardDrive}
+          title="Ground"
+          description="Hosted databases for your projects — create one, see how it is doing, and delete it safely. No Desk required."
+        />
+      </div>
 
-      <ProjectPicker
-        projects={projects}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        describe={p => (p.hasConnection ? p.connectionDbType ?? 'connected' : 'no database yet')}
-      >
-        {showCreate ? (
-          <div className="flex flex-wrap items-end gap-2 flex-1 w-full sm:w-auto sm:min-w-[260px]">
-            <div className="flex-1 min-w-[180px]">
-              <Field label="New database name" htmlFor="ground-new-name">
-                <input
-                  id="ground-new-name"
-                  autoFocus
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') void handleCreate(); if (e.key === 'Escape') setShowCreate(false); }}
-                  placeholder="e.g. blog_platform"
-                  className={inputClass}
-                />
-              </Field>
+      <div id="ground-project-picker">
+        <ProjectPicker
+          projects={projects}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          describe={p => (p.hasConnection ? p.connectionDbType ?? 'connected' : 'no database yet')}
+        >
+          {showCreate ? (
+            <div className="flex flex-wrap items-end gap-2 flex-1 w-full sm:w-auto sm:min-w-[260px]">
+              <div className="flex-1 min-w-[180px]">
+                <Field label="New database name" htmlFor="ground-new-name">
+                  <input
+                    id="ground-new-name"
+                    autoFocus
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') void handleCreate(); if (e.key === 'Escape') setShowCreate(false); }}
+                    placeholder="e.g. blog_platform"
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+              <Button variant="primary" busy={creating} disabled={!newName.trim()} onClick={handleCreate}>Create</Button>
+              <Button variant="ghost" onClick={() => { setShowCreate(false); setNewName(''); }}>Cancel</Button>
             </div>
-            <Button variant="primary" busy={creating} disabled={!newName.trim()} onClick={handleCreate}>Create</Button>
-            <Button variant="ghost" onClick={() => { setShowCreate(false); setNewName(''); }}>Cancel</Button>
-          </div>
-        ) : (
-          <Button icon={Plus} onClick={() => setShowCreate(true)}>New database</Button>
-        )}
-      </ProjectPicker>
+          ) : (
+            <Button id="ground-new-db-btn" icon={Plus} onClick={() => setShowCreate(true)}>New database</Button>
+          )}
+        </ProjectPicker>
+      </div>
 
       {selected ? (
         <GroundDetail key={selected.id} projectId={selected.id} projectName={selected.name} />
@@ -224,7 +228,7 @@ function GroundDetail({ projectId, projectName }: { projectId: string; projectNa
             <StatTile label="Provider" value={database.provider} />
           </div>
 
-          <Card title={projectName} description="Where this database lives and when it was created.">
+          <Card id="ground-database-card" title={projectName} description="Where this database lives and when it was created.">
             <DefinitionGrid
               items={[
                 { label: 'Database ID', value: database.providerProjectId ?? '—', mono: true },
@@ -250,7 +254,7 @@ function GroundDetail({ projectId, projectName }: { projectId: string; projectNa
       )}
 
       {database?.status === 'Active' && (
-        <section className="rounded-[var(--radius-card)] border border-danger/35 bg-surface-800 overflow-hidden shadow-xs">
+        <section id="ground-danger-zone" className="rounded-[var(--radius-card)] border border-danger/35 bg-surface-800 overflow-hidden shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-4 bg-danger-subtle/15">
             <div className="flex items-start gap-3.5 min-w-0">
               <div className="w-9 h-9 rounded-[var(--radius-control)] bg-danger-subtle border border-danger/30 flex items-center justify-center text-danger-text shrink-0 mt-0.5">
@@ -324,7 +328,7 @@ function GroundDetail({ projectId, projectName }: { projectId: string; projectNa
       )}
 
       {(!database || database.status === 'Deleted') && (
-        <Card title="Choose a provider" description="Pick where this project's database should be created." flush>
+        <Card id="ground-providers-card" title="Choose a provider" description="Pick where this project's database should be created." flush>
           {!providers ? (
             <div className="flex items-center gap-2 px-5 pb-5 text-[13px] text-content-muted">
               <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Loading providers…

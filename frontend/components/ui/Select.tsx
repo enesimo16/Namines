@@ -14,6 +14,7 @@ export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectE
   error?: string;
   helperText?: string;
   placeholder?: string;
+  placement?: 'bottom' | 'top' | 'auto';
 }
 
 /**
@@ -33,6 +34,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       error,
       helperText,
       placeholder = 'Select an option',
+      placement = 'auto',
       className = '',
       disabled,
       id,
@@ -51,8 +53,30 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     const helperId = helperText ? `${selectId}-helper` : undefined;
 
     const [isOpen, setIsOpen] = useState(false);
+    const [actualPlacement, setActualPlacement] = useState<'top' | 'bottom'>('bottom');
     const containerRef = useRef<HTMLDivElement>(null);
     const hiddenSelectRef = useRef<HTMLSelectElement | null>(null);
+
+    useEffect(() => {
+      if (!isOpen) return;
+      if (placement === 'top') {
+        setActualPlacement('top');
+        return;
+      }
+      if (placement === 'bottom') {
+        setActualPlacement('bottom');
+        return;
+      }
+      if (containerRef.current && typeof window !== 'undefined') {
+        const rect = containerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < 220 && rect.top > 220) {
+          setActualPlacement('top');
+        } else {
+          setActualPlacement('bottom');
+        }
+      }
+    }, [isOpen, placement]);
 
     // Parse options from props or children
     const parsedOptions: SelectOption[] = React.useMemo(() => {
@@ -217,7 +241,9 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             <div
               role="listbox"
               aria-labelledby={`${selectId}-button`}
-              className="absolute left-0 right-0 top-full mt-1.5 z-[100] max-h-60 overflow-y-auto rounded-[var(--radius-card)] border border-line-strong bg-surface-800/98 backdrop-blur-xl shadow-2xl p-1 animate-in fade-in zoom-in-95 duration-100"
+              className={`absolute left-0 min-w-full w-max max-w-[min(100vw-2rem,360px)] ${
+                actualPlacement === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+              } z-[250] max-h-60 overflow-y-auto rounded-[var(--radius-card)] border border-line-strong bg-surface-800/98 backdrop-blur-xl shadow-2xl p-1 animate-in fade-in zoom-in-95 duration-100`}
             >
               {parsedOptions.length === 0 ? (
                 <div className="py-2.5 px-3 text-center text-xs text-content-muted">No options available</div>
