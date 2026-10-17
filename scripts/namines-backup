@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# =============================================================================
+# namines-backup — Kapsamli Veritabani (Supabase) + Yapilandirma Yedekleme Araci
+# Kullanim:
+#   namines-backup                    -> Tam yedek alir (Supabase DB + .env + Caddy + app_data)
+#   namines-backup list               -> Mevcut yedekleri ve boyutlarini listeler
+#   namines-backup restore <dosya>    -> Belirtilen yedek arsivini acar / geri yukler
+#   namines-backup clean              -> 14 gunden eski yedekleri temizler
+# =============================================================================
+set -euo pipefail
+
+REPO_DIR="/home/ubuntu/namines"
+BACKUP_ROOT="/home/ubuntu/backups"
+COMPOSE_FILE="$REPO_DIR/docker-compose.oracle.yml"
+RETENTION_DAYS=14
+
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+log_info()  { echo -e "${CYAN}[namines-backup]${NC} $1"; }
+log_ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn()  { echo -e "${YELLOW}[UYARI]${NC} $1"; }
+log_err()   { echo -e "${RED}[HATA]${NC} $1"; }
+
+mkdir -p "$BACKUP_ROOT"
+chmod 700 "$BACKUP_ROOT"
+
+extract_db_param() {
+  local key="$1"
+  local conn_line
+  conn_line=$(grep -E 'ConnectionStrings__DefaultConnection=' "$COMPOSE_FILE" "$REPO_DIR/.env" 2>/dev/null | head -n 1 || true)
+  echo "$conn_line" | sed -n "s/.*${key}=\([^;\"]*\).*/\1/p"
+}
+
+cmd="${1:-run}"
+
+case "$cmd" in
+  list|ls)
+    log_info "Mevcut yedekler ($BACKUP_ROOT):"
+    if ls -1 "$BACKUP_ROOT"/namines-backup-*.tar.gz >/dev/null 2>&1; then
+      ls -lh "$BACKUP_ROOT"/namines-backup-*.tar.gz | awk '{print "  " $9 "  (" $5 ")  - " $6 " " $7 " " $8}'
+      echo ""
+      log_ok "Toplam yedek klasoru boyutu: $(du -sh "$BACKUP_ROOT" | awk '{print $1}')"
+    else
+      log_warn "Henuz alinmis bir yedek bulunmuyor."
+    fi
+    exit 0
+    ;;
+
+  clean)
+    log_info "${RETENTION_DAYS} gunden eski yedekler siliniyor..."
+    find "$BACKUP_ROOT" -name "namines-backup-*.tar.gz*" -mtime +"$RETENTION_DAYS" -delete
+    log_ok "Eski yedek temizligi tamamlandi."
+    exit 0
+    ;;
+
+  restore)
+    ARCHIVE="${2:-}"
+    if [ -z "$ARCHIVE" ]; then
+      log_err "Lutfen geri yuklenecek yedek dosyasini belirtin."
+      echo "Ornek: namines-backup restore $BACKUP_ROOT/namines-backup-XXXX.tar.gz"
+      exit 1
+    fi
+    if [ ! -f "$ARCHIVE" ] && [ -f "$BACKUP_ROOT/$ARCHIVE" ]; then
+      ARCHIVE="$BACKUP_ROOT/$ARCHIVE"
+    fi
+    if [ ! -f "$ARCHIVE" ]; then
+      log_err "Dosya bulunamadi: $ARCHIVE"
+      exit 1
+    fi
+
+    RESTORE_DIR="/tmp/namines-restore-$(date +%s)"
+    mkdir -p "$RESTORE_DIR"
+    log_info "Arsiv aciliyor: $ARCHIVE -> $RESTORE_DIR"
+    tar -xzf "$ARCHIVE" -C "$RESTORE_DIR"
+
+    log_ok "Yedek icerigi basariyla acildi: $RESTORE_DIR"
+    ls -la "$RESTORE_DIR"
+    echo ""
+    log_info "Veritabanini Supabase'e geri yuklemek icin:"
+    echo "  gunzip -c $RESTORE_DIR/supabase-db.sql.gz | sudo docker run --rm -i -e PGPASSWORD=\"\$DB_PASS\" postgres:17-alpine psql -h \"\$DB_HOST\" -p \"\$DB_PORT\" -U \"\$DB_USER\" -d \"\$DB_NAME\""
+    exit 0
+    ;;
+
+  run|backup|"")
+    TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+    WORK_DIR=$(mktemp -d "/tmp/namines-bkp-${TIMESTAMP}-XXXXXX")
+    ARCHIVE_NAME="namines-backup-${TIMESTAMP}.tar.gz"
+    ARCHIVE_PATH="${BACKUP_ROOT}/${ARCHIVE_NAME}"
+
+    trap 'rm -rf "$WORK_DIR"' EXIT
+
+    log_info "Kapsamli yedekleme baslatiliyor ($TIMESTAMP)..."
+    mkdir -p "$WORK_DIR/config" "$WORK_DIR/app_data"
+
+    # 1. Supabase PostgreSQL Veritabani Yedegi (pg_dump)
+    DB_HOST=$(extract_db_param "Host")
+    DB_PORT=$(extract_db_param "Port")
+    DB_NAME=$(extract_db_param "Database")
+    DB_USER=$(extract_db_param "Username")
+    DB_PASS=$(extract_db_param "Password")
+
+    if [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASS" ]; then
+      log_info "[1/4] Supabase PostgreSQL veritabani tam yedegi aliniyor ($DB_HOST)..."
+      sudo docker run --rm \
+        -e PGPASSWORD="$DB_PASS" \
+        postgres:17-alpine \
+        pg_dump -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER" -d "${DB_NAME:-postgres}" \
+        --no-owner --no-acl --clean --if-exists \
+        | gzip -9 > "$WORK_DIR/supabase-db.sql.gz"
+      DB_SIZE=$(du -h "$WORK_DIR/supabase-db.sql.gz" | awk '{print $1}')
+      log_ok "Veritabani yedegi tamamlandi ($DB_SIZE)."
+    else
+      log_warn "[1/4] Veritabani baglanti bilgisi okunamadi, DB dump atlandi."
+    fi
+
+    # 2. Konfigurasyon ve Sirlar (.env, docker-compose, Caddyfile)
+    log_info "[2/4] Konfigurasyon dosyalari (.env, compose, Caddyfile) yedekleniyor..."
+    [ -f "$REPO_DIR/.env" ] && cp "$REPO_DIR/.env" "$WORK_DIR/config/.env"
+    [ -f "$COMPOSE_FILE" ] && cp "$COMPOSE_FILE" "$WORK_DIR/config/docker-compose.oracle.yml"
+    [ -f "/etc/caddy/Caddyfile" ] && sudo cp "/etc/caddy/Caddyfile" "$WORK_DIR/config/Caddyfile" && sudo chown ubuntu:ubuntu "$WORK_DIR/config/Caddyfile"
+
+    # 3. Uygulama Kalici Verileri (/home/ubuntu/app_data)
+    log_info "[3/4] Uygulama verileri (/home/ubuntu/app_data) yedekleniyor..."
+    if [ -d "/home/ubuntu/app_data" ]; then
+      sudo cp -r /home/ubuntu/app_data/. "$WORK_DIR/app_data/" 2>/dev/null || true
+      sudo chown -R ubuntu:ubuntu "$WORK_DIR/app_data"
+    fi
+
+    # 4. Sistem & Git Metadata
+    GIT_COMMIT=$(cd "$REPO_DIR" && git rev-parse HEAD 2>/dev/null || echo "unknown")
+    cat > "$WORK_DIR/metadata.txt" <<EOF
+Backup Timestamp : $TIMESTAMP
+Server Hostname  : $(hostname)
+Git Commit       : $GIT_COMMIT
+Database Host    : ${DB_HOST:-none}
+Docker Status    : $(sudo docker ps --format '{{.Names}}: {{.Status}}' | tr '\n' ' ')
+EOF
+
+    # Arsivle ve SHA256 olustur
+    log_info "[4/4] Sikistirilmis arsiv ve SHA-256 dogrulama imzasi olusturuluyor..."
+    tar -czf "$ARCHIVE_PATH" -C "$WORK_DIR" .
+    chmod 600 "$ARCHIVE_PATH"
+    sha256sum "$ARCHIVE_PATH" > "${ARCHIVE_PATH}.sha256"
+
+    # Eski yedekleri otomatik temizle
+    find "$BACKUP_ROOT" -name "namines-backup-*.tar.gz*" -mtime +"$RETENTION_DAYS" -delete 2>/dev/null || true
+
+    FINAL_SIZE=$(du -h "$ARCHIVE_PATH" | awk '{print $1}')
+    log_ok "Yedekleme basariyla tamamlandi!"
+    echo -e "  📦 Dosya : ${GREEN}${ARCHIVE_PATH}${NC} (${FINAL_SIZE})"
+    echo -e "  🔒 Imza  : ${ARCHIVE_PATH}.sha256"
+    ;;
+
+  *)
+    echo "Kullanim: namines-backup [run|list|restore <dosya>|clean]"
+    exit 1
+    ;;
+esac

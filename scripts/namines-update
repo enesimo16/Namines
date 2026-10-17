@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# =============================================================================
+# namines-update — Akilli, Degisiklik-Duyarli Deploy & Temizlik Araci
+# Kullanim:
+#   namines-update           -> Sadece degisen servisleri derler ve yayinlar
+#   namines-update --force   -> Degisiklik olmasa bile backend'i bastan derler
+#   namines-update --clean   -> Sadece eski imajlari ve gereksiz onbellegi temizler
+# =============================================================================
+set -euo pipefail
+
+REPO_DIR="/home/ubuntu/namines"
+COMPOSE_FILE="docker-compose.oracle.yml"
+IMAGE_RETENTION_HOURS=72
+
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+log_info()  { echo -e "${CYAN}[namines-update]${NC} $1"; }
+log_ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn()  { echo -e "${YELLOW}[UYARI]${NC} $1"; }
+log_err()   { echo -e "${RED}[HATA]${NC} $1"; }
+
+FORCE_BUILD=false
+CLEAN_ONLY=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --force|-f) FORCE_BUILD=true ;;
+    --clean|-c) CLEAN_ONLY=true ;;
+    --help|-h)
+      echo "Kullanim: namines-update [--force] [--clean]"
+      echo "  (parametresiz) : GitHub'dan ceker, sadece backend degistiyse derler ve temizlik yapar."
+      echo "  --force, -f    : Degisiklik olmasa bile backend imajini yeniden derler."
+      echo "  --clean, -c    : Sadece eski Docker imajlarini, cache'i ve loglari temizler."
+      exit 0
+      ;;
+  esac
+done
+
+cleanup_system() {
+  log_info "Disk alani (temizlik oncesi): $(df -h / | awk 'NR==2 {print $3 " kullaniliyor / " $4 " bos (" $5 ")"}')"
+
+  log_info "Askida (dangling) Docker imajlari ve durmus konteynerler siliniyor..."
+  sudo docker container prune -f >/dev/null 2>&1 || true
+  sudo docker image prune -f >/dev/null 2>&1 || true
+
+  log_info "${IMAGE_RETENTION_HOURS} saatten eski kullanilmayan Docker imajlari ve build cache temizleniyor..."
+  sudo docker image prune -a --filter "until=${IMAGE_RETENTION_HOURS}h" -f >/dev/null 2>&1 || true
+  sudo docker builder prune --filter "until=${IMAGE_RETENTION_HOURS}h" -f >/dev/null 2>&1 || true
+
+  log_info "Eski APT paket onbellekleri ve 7 gunden eski sistem gunlukleri temizleniyor..."
+  sudo apt-get clean >/dev/null 2>&1 || true
+  sudo journalctl --vacuum-time=7d >/dev/null 2>&1 || true
+
+  log_ok "Disk alani (temizlik sonrasi): $(df -h / | awk 'NR==2 {print $3 " kullaniliyor / " $4 " bos (" $5 ")"}')"
+}
+
+if [ "$CLEAN_ONLY" = true ]; then
+  cleanup_system
+  exit 0
+fi
+
+cd "$REPO_DIR"
+
+OLD_HEAD=$(git rev-parse HEAD)
+log_info "Mevcut commit: ${OLD_HEAD:0:7}"
+
+log_info "GitHub'dan (origin/main) guncellemeler kontrol ediliyor..."
+git fetch origin main --quiet
+NEW_HEAD=$(git rev-parse origin/main)
+
+if [ "$OLD_HEAD" != "$NEW_HEAD" ]; then
+  log_info "Yeni surum bulundu (${OLD_HEAD:0:7} -> ${NEW_HEAD:0:7}), cekiliyor..."
+  git pull --ff-only origin main
+
+  # Komut betiklerinin kendisi guncellendiyse /usr/local/bin altina kopyala
+  if [ -f "$REPO_DIR/scripts/namines-update" ]; then
+    sudo cp "$REPO_DIR/scripts/namines-update" /usr/local/bin/namines-update
+    sudo chmod +x /usr/local/bin/namines-update
+  fi
+  if [ -f "$REPO_DIR/scripts/namines-backup" ]; then
+    sudo cp "$REPO_DIR/scripts/namines-backup" /usr/local/bin/namines-backup
+    sudo chmod +x /usr/local/bin/namines-backup
+  fi
+
+  CHANGED_FILES=$(git diff --name-only "$OLD_HEAD" "$NEW_HEAD")
+  echo -e "${CYAN}Degisen dosyalar:${NC}\n$CHANGED_FILES"
+else
+  log_ok "Git deposu zaten en guncel surumde (${NEW_HEAD:0:7})."
+  CHANGED_FILES=""
+fi
+
+BACKEND_CHANGED=false
+if echo "$CHANGED_FILES" | grep -qE '^(backend/|docker-compose)'; then
+  BACKEND_CHANGED=true
+fi
+
+if [ "$FORCE_BUILD" = true ]; then
+  log_warn "--force verildi: Backend degismemis olsa bile yeniden derlenecek."
+  BACKEND_CHANGED=true
+fi
+
+if [ "$BACKEND_CHANGED" = true ]; then
+  log_info "Backend degisikligi algilandi! Docker imaji derleniyor..."
+  cd "$REPO_DIR/backend"
+  sudo docker build -t namines-api:latest -f Namines.API/Dockerfile .
+
+  log_info "namines-backend konteyneri yeniden baslatiliyor..."
+  cd "$REPO_DIR"
+  sudo docker compose -f "$COMPOSE_FILE" up -d --force-recreate --remove-orphans
+
+  log_info "Saglik kontrolu (/health) bekleniyor..."
+  HEALTH_OK=false
+  for i in {1..15}; do
+    if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
+      HEALTH_OK=true
+      break
+    fi
+    sleep 2
+  done
+
+  if [ "$HEALTH_OK" = true ]; then
+    HEALTH_JSON=$(curl -fsS http://localhost:8080/health)
+    log_ok "Backend canli ve saglikli: $HEALTH_JSON"
+  else
+    log_err "Backend saglik kontrolunden gecemedi! Son loglar:"
+    sudo docker logs --tail 30 namines-backend
+    exit 1
+  fi
+else
+  log_ok "Backend kodlarinda degisiklik yok (yalnizca frontend/dokuman degisti veya guncel). Gereksiz Docker derlemesi atlandi!"
+  # Konteyner ayakta degilse yine de kaldir
+  if ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-backend$'; then
+    log_warn "namines-backend calismiyor gorundu, baslatiliyor..."
+    cd "$REPO_DIR"
+    sudo docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+  fi
+fi
+
+# Eski deploy.sh artik gereksizse kaldir
+rm -f "$REPO_DIR/deploy.sh"
+
+cleanup_system
+log_ok "namines-update basariyla tamamlandi!"
