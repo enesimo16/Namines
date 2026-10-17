@@ -148,7 +148,7 @@ export default function NewProjectPage() {
       })
       .catch(() => { /* varsayılan katalog korunur */ });
     return () => { cancelled = true; };
-  }, [isAuthenticated, authUser?.id, isUnlimitedAccount]);
+  }, [isAuthenticated, authUser?.email, isUnlimitedAccount]);
 
   // Kaynak listesi de SUNUCUDAN güncellenir: sunucuya ulaşılamazsa
   // DEFAULT_SCHEMA_SOURCES korunur, menü ve şerit asla kaybolmaz.
