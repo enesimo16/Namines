@@ -16,6 +16,7 @@ import { DatabaseSchema } from '../../types/schema';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { Panel, PanelBar, ActionButton, PanelEmpty } from './PanelKit';
+import Select from '../ui/Select';
 
 function resolvePrismLang(fileName: string | null, selectedTarget: string): string {
   const lower = (fileName || '').toLowerCase();
@@ -79,8 +80,20 @@ export default function EjectPanel({ schema, dbType }: Props) {
     } catch (err: unknown) {
       // Hedefin bu motoru desteklememesi (ör. Drizzle + Oracle) buraya düşer;
       // sunucunun mesajı nedeni tam olarak söylüyor, genel bir hata söylemezdi.
-      const response = (err as { response?: { data?: { error?: string } } }).response;
-      setError(response?.data?.error ?? 'This target could not be generated.');
+      const response = (err as { response?: { data?: { error?: string; message?: string; detail?: string } | string } })?.response;
+      let errorMsg = 'This target could not be generated.';
+      if (typeof response?.data === 'string') {
+        errorMsg = response.data;
+      } else if (response?.data?.error) {
+        errorMsg = response.data.error;
+      } else if (response?.data?.detail) {
+        errorMsg = response.data.detail;
+      } else if (response?.data?.message) {
+        errorMsg = response.data.message;
+      } else if ((err as Error)?.message) {
+        errorMsg = (err as Error).message;
+      }
+      setError(errorMsg);
       setFiles({});
       setWarnings([]);
       setActiveFile(null);
@@ -134,16 +147,16 @@ export default function EjectPanel({ schema, dbType }: Props) {
       <div className="h-full flex flex-col">
         <PanelBar
           left={
-            <select
+            <Select
               aria-label="Export target"
               value={selected}
               onChange={e => setSelected(e.target.value)}
-              className="min-w-[200px] h-8 bg-surface-800 border border-line-strong rounded-[var(--radius-control)] pl-3 pr-8 text-xs font-medium text-content-primary outline-none focus:border-focus-ring"
+              className="min-w-[220px]"
             >
               {targets.map(t => (
                 <option key={t.target} value={t.target}>{t.name}</option>
               ))}
-            </select>
+            </Select>
           }
         >
           <ActionButton icon={Package} onClick={handleDownload} busy={isDownloading} tone="primary">
@@ -152,10 +165,10 @@ export default function EjectPanel({ schema, dbType }: Props) {
         </PanelBar>
 
         {warnings.length > 0 && (
-          <details className="shrink-0 border-b border-content-primary/10 bg-surface-800 px-3 py-2 group">
+          <details className="shrink-0 border-b border-line bg-surface-800/90 px-3.5 py-2.5 group">
             <summary className="flex items-center justify-between gap-2 cursor-pointer list-none select-none">
               <div className="flex items-center gap-2 min-w-0">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-content-secondary" />
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-warning-text" />
                 <p className="text-[11px] font-semibold text-content-primary truncate">
                   Not everything could be expressed in this target ({warnings.length} DB-level constraint{warnings.length === 1 ? '' : 's'} omitted)
                 </p>
@@ -163,7 +176,7 @@ export default function EjectPanel({ schema, dbType }: Props) {
               <span className="text-[10px] font-mono text-content-muted shrink-0 group-open:hidden">Show details</span>
               <span className="text-[10px] font-mono text-content-muted shrink-0 hidden group-open:inline">Hide details</span>
             </summary>
-            <ul className="mt-1.5 max-h-28 overflow-y-auto space-y-0.5 pl-5">
+            <ul className="mt-2 max-h-28 overflow-y-auto space-y-1 pl-5">
               {warnings.map((warning, i) => (
                 <li key={i} className="text-[10px] font-mono text-content-secondary leading-relaxed">
                   • {warning}
@@ -174,15 +187,15 @@ export default function EjectPanel({ schema, dbType }: Props) {
         )}
 
         {fileNames.length > 1 && (
-          <div className="shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-content-primary/10 overflow-x-auto">
+          <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-line bg-surface-800/60 backdrop-blur-sm overflow-x-auto">
             {fileNames.map(name => (
               <button
                 key={name}
                 onClick={() => setActiveFile(name)}
-                className={`shrink-0 px-2.5 py-1 rounded-[var(--radius-control)] text-[11px] font-mono transition-colors cursor-pointer whitespace-nowrap ${
+                className={`shrink-0 px-3 py-1 rounded-[var(--radius-control)] text-xs font-mono transition-all cursor-pointer whitespace-nowrap border ${
                   activeFile === name
-                    ? 'bg-surface-600 text-content-primary font-semibold'
-                    : 'text-content-muted hover:text-content-primary'
+                    ? 'bg-surface-700 text-content-primary font-semibold border-line-strong shadow-xs'
+                    : 'text-content-muted hover:text-content-primary hover:bg-surface-700/50 border-transparent'
                 }`}
               >
                 {name}
@@ -193,8 +206,28 @@ export default function EjectPanel({ schema, dbType }: Props) {
 
         <div className="flex-1 min-h-0 overflow-auto bg-surface-900">
           {error ? (
-            <div className="h-full flex items-center justify-center px-6">
-              <p className="text-[11px] text-content-muted text-center max-w-md leading-relaxed">{error}</p>
+            <div className="h-full flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-150">
+              <div className="w-12 h-12 rounded-full bg-surface-800 border border-line-strong flex items-center justify-center mb-3 shadow-md">
+                <AlertTriangle className="w-5 h-5 text-warning-text" />
+              </div>
+              <h3 className="text-sm font-bold text-content-primary mb-1">Target Incompatible</h3>
+              <p className="text-xs text-content-secondary max-w-md leading-relaxed mb-4">{error}</p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelected('types.typescript')}
+                  className="px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line-strong text-xs font-medium text-content-primary transition-colors cursor-pointer shadow-xs"
+                >
+                  Switch to TypeScript Types
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelected('contract.prisma')}
+                  className="px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line-strong text-xs font-medium text-content-primary transition-colors cursor-pointer shadow-xs"
+                >
+                  Switch to Prisma
+                </button>
+              </div>
             </div>
           ) : (
             <pre className="!bg-transparent !m-0 !p-4 !text-xs !leading-relaxed text-content-primary font-mono">

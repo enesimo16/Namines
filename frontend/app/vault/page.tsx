@@ -16,7 +16,7 @@ import {
 } from '../../services/vaultGroundApi';
 import ProjectPicker from '../../components/workspace/ProjectPicker';
 import {
-  PageShell, PageHeader, Card, Callout, Badge, Button, EmptyState, StatTile, Switch, Field, inputClass,
+  PageShell, PageHeader, Card, Callout, Badge, Button, EmptyState, StatTile, Switch, Field, inputClass, Select,
   DataTable, Td,
 } from '../../components/workspace/WorkspaceKit';
 
@@ -278,31 +278,31 @@ function VaultDetail({ projectId, projectName }: { projectId: string; projectNam
         >
           <div className="flex flex-wrap items-end gap-4">
             <Field label="Frequency" htmlFor="vault-frequency">
-              <select id="vault-frequency" value={schedule.cadence} disabled={savingSchedule}
+              <Select id="vault-frequency" value={schedule.cadence} disabled={savingSchedule}
                 onChange={e => setSchedule({
                   ...schedule, cadence: e.target.value as typeof schedule.cadence,
                   dayOfWeek: e.target.value === 'Weekly' ? (schedule.dayOfWeek ?? 0) : null,
                 })}
-                className={`${inputClass} w-32`}>
+                className="w-32">
                 <option value="Daily">Daily</option>
                 <option value="Weekly">Weekly</option>
-              </select>
+              </Select>
             </Field>
             {schedule.cadence === 'Weekly' && (
               <Field label="Day" htmlFor="vault-day">
-                <select id="vault-day" value={schedule.dayOfWeek ?? 0} disabled={savingSchedule}
+                <Select id="vault-day" value={schedule.dayOfWeek ?? 0} disabled={savingSchedule}
                   onChange={e => setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })}
-                  className={`${inputClass} w-36`}>
+                  className="w-36">
                   {DAY_NAMES.map((name, index) => <option key={name} value={index}>{name}</option>)}
-                </select>
+                </Select>
               </Field>
             )}
             <Field label="Hour (UTC)" htmlFor="vault-hour">
-              <select id="vault-hour" value={schedule.hourUtc} disabled={savingSchedule}
+              <Select id="vault-hour" value={schedule.hourUtc} disabled={savingSchedule}
                 onChange={e => setSchedule({ ...schedule, hourUtc: Number(e.target.value) })}
-                className={`${inputClass} w-28`}>
+                className="w-28">
                 {HOURS.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
-              </select>
+              </Select>
             </Field>
             <Field label="Backups to keep" htmlFor="vault-retain">
               <input id="vault-retain" type="number" min={1} max={60} value={schedule.retainCount} disabled={savingSchedule}

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useToastStore } from '../../store/useToastStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import Select from '../ui/Select';
 
 export interface CodeStudioViewerProps {
   code: string;
@@ -262,19 +263,22 @@ export default function CodeStudioViewer({
         {/* Right Actions: Jump to Table, Wrap, Copy, Download, Maximize */}
         <div className="flex items-center gap-1.5 shrink-0">
           {schema?.tables && schema.tables.length > 0 && (
-            <select
-              value={selectedTableJump}
-              onChange={e => handleJumpToTable(e.target.value)}
-              className="hidden md:inline-flex bg-surface-700/70 border border-line rounded-[var(--radius-control)] h-8 px-2 text-[11px] font-mono text-content-secondary focus:outline-none focus:border-focus-ring cursor-pointer"
-              aria-label="Jump to table definition"
-            >
-              <option value="">Jump to table...</option>
-              {schema.tables.map(t => (
-                <option key={t.id} value={t.name}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            <div className="hidden md:block w-36">
+              <Select
+                value={selectedTableJump}
+                onChange={e => handleJumpToTable(e.target.value)}
+                aria-label="Jump to table definition"
+                placeholder="Jump to table..."
+                className="text-[11px] font-mono"
+              >
+                <option value="">Jump to table...</option>
+                {schema.tables.map(t => (
+                  <option key={t.id} value={t.name}>
+                    {t.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
           )}
 
           {/* Line Wrap Toggle */}

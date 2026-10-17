@@ -283,6 +283,11 @@ public class CompileController : ControllerBase
             // uydurma bir çıktı üretmektense reddetmek doğru.
             return BadRequest(new { error = ex.Message });
         }
+        catch (Exception ex)
+        {
+            NaminesMetrics.SchemaCompiled(request.DbType.ToString(), target, success: false, stopwatch.Elapsed);
+            return BadRequest(new { error = $"Could not generate {target}: {ex.Message}" });
+        }
     }
 
 
@@ -320,6 +325,10 @@ public class CompileController : ControllerBase
         catch (NotSupportedException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = $"Could not download {target}: {ex.Message}" });
         }
 
         using var memoryStream = new MemoryStream();

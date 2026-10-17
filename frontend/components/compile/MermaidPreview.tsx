@@ -16,6 +16,17 @@ function loadMermaid(): Promise<MermaidApi> {
       theme: 'dark',
       securityLevel: 'strict',
       fontFamily: 'var(--font-sans), sans-serif',
+      er: {
+        useMaxWidth: false,
+        fontSize: 16,
+      },
+      flowchart: {
+        useMaxWidth: false,
+      },
+      themeVariables: {
+        fontSize: '16px',
+        fontFamily: 'var(--font-sans), sans-serif',
+      },
     });
     return mermaid;
   });
@@ -48,7 +59,7 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
         const { svg } = await mermaid.render(id, mermaidCode);
         if (!cancelled) setSvgContent(svg);
       } catch (error) {
-        console.error("Mermaid rendering failed", error);
+        console.error('Mermaid rendering failed', error);
         if (!cancelled) {
           setSvgContent(
             '<div class="p-6 text-center"><p class="text-xs font-semibold" style="color:var(--color-danger-text)">An error occurred while generating the Mermaid diagram.</p><p class="text-[11px] text-content-muted mt-1">Try switching diagram types in the toolbar.</p></div>'
@@ -60,11 +71,13 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
     };
 
     renderMermaid();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [mermaidCode]);
 
-  const handleZoomIn = () => setZoom(prev => Math.min(2.5, prev + 0.15));
-  const handleZoomOut = () => setZoom(prev => Math.max(0.4, prev - 0.15));
+  const handleZoomIn = () => setZoom(prev => Math.min(6.0, prev + 0.25));
+  const handleZoomOut = () => setZoom(prev => Math.max(0.3, prev - 0.25));
   const handleResetZoom = () => setZoom(1);
 
   const handleCopyCode = async () => {
@@ -80,10 +93,8 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
 
   return (
     <div className="w-full h-full bg-surface-900 rounded-[var(--radius-card)] overflow-hidden border border-line-strong flex flex-col relative select-none">
-      
       {/* ── Diagram Floating Toolbar ────────────────────────────────────────── */}
       <div className="shrink-0 h-10 px-3 bg-surface-800/90 border-b border-line-strong flex items-center justify-between gap-2 z-10">
-        
         {/* Left: View Mode Toggle (Visual vs Code) */}
         <div className="flex items-center gap-1 bg-surface-700/80 p-0.5 rounded-[var(--radius-control)] border border-line">
           <button
@@ -113,7 +124,7 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
               onClick={handleCopyCode}
               className="tap-44 flex items-center gap-1.5 h-7 px-2.5 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-xs text-content-primary border border-line cursor-pointer"
             >
-              {copiedCode ? <Check className="w-3 h-3 text-namines-teal-vibrant" /> : <Copy className="w-3 h-3 text-content-muted" />}
+              {copiedCode ? <Check className="w-3 h-3 text-accent-text" /> : <Copy className="w-3 h-3 text-content-muted" />}
               <span className="text-[11px]">{copiedCode ? 'Copied' : 'Copy Markup'}</span>
             </button>
           ) : (
@@ -126,7 +137,7 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
               >
                 <ZoomOut className="w-3.5 h-3.5" />
               </button>
-              <span className="text-[10px] font-mono text-content-secondary px-1.5 min-w-[42px] text-center">
+              <span className="text-[10px] font-mono text-content-secondary px-1.5 min-w-[44px] text-center">
                 {Math.round(zoom * 100)}%
               </span>
               <button
@@ -158,25 +169,39 @@ export default function MermaidPreview({ mermaidCode }: MermaidPreviewProps) {
           </pre>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto bg-surface-900 flex items-center justify-center p-4 relative">
+        <div className="flex-1 min-h-0 overflow-auto bg-surface-900 p-6 relative">
           {isRendering && (
             <div className="absolute inset-0 z-20 bg-surface-900/80 backdrop-blur-sm flex items-center justify-center">
-              <Loader2 className="w-5 h-5 animate-spin text-namines-teal-vibrant" />
+              <Loader2 className="w-5 h-5 animate-spin text-accent-text" />
             </div>
           )}
-          <div
-            ref={containerRef}
-            className="mermaid-preview-container transition-transform duration-100 flex items-center justify-center [&>svg]:max-w-none"
-            style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
-            dangerouslySetInnerHTML={{ __html: svgContent }}
-          />
+          <style>{`
+            .mermaid-preview-container svg {
+              min-width: 900px !important;
+              width: auto !important;
+              height: auto !important;
+              max-width: none !important;
+            }
+            .mermaid-preview-container svg text {
+              font-size: 15px !important;
+              font-weight: 500 !important;
+            }
+          `}</style>
+          <div className="min-w-fit min-h-fit inline-block">
+            <div
+              ref={containerRef}
+              className="mermaid-preview-container transition-transform duration-100 origin-top-left [&>svg]:max-w-none"
+              style={{ transform: `scale(${zoom})` }}
+              dangerouslySetInnerHTML={{ __html: svgContent }}
+            />
+          </div>
         </div>
       )}
 
       {/* ── Diagram Bottom Status Strip ─────────────────────────────────────── */}
       <div className="shrink-0 h-6 px-3 bg-surface-800/80 border-t border-line flex items-center justify-between text-[10px] font-mono text-content-muted">
         <span>Vector SVG Diagram Renderer</span>
-        <span>Interactive Zoom Active</span>
+        <span>Interactive Zoom (up to 600%)</span>
       </div>
     </div>
   );

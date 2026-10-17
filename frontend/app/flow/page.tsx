@@ -17,7 +17,7 @@ import { isDetachedRule } from '../../lib/naminesFlowRuntime';
 import { NAMINES_FLOW_TEMPLATES, instantiateTemplate, type NaminesFlowTemplate } from '../../lib/naminesFlowTemplates';
 import AutomationRuleDrawer from '../../components/canvas/AutomationRuleDrawer';
 import {
-  PageShell, PageHeader, Card, Callout, Badge, Button, EmptyState, Switch, Field, inputClass,
+  PageShell, PageHeader, Card, Callout, Badge, Button, EmptyState, Switch, Field, inputClass, Select,
 } from '../../components/workspace/WorkspaceKit';
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -223,14 +223,14 @@ export default function FlowPage() {
         actions={
           tables && tables.length > 0 ? (
             <Field label="Attach table-based templates to">
-              <select
+              <Select
                 value={anchorTableId}
                 onChange={e => setTemplateTableId(e.target.value)}
-                className={`${inputClass} w-52`}
+                className="w-52"
                 aria-label="Table that table-based templates attach to"
               >
                 {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+              </Select>
             </Field>
           ) : undefined
         }

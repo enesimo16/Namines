@@ -38,6 +38,7 @@ import PrismaPreview from '../../components/compile/PrismaPreview';
 import EjectPanel from '../../components/compile/EjectPanel';
 import LaunchPanel from '../../components/compile/LaunchPanel';
 import { IconButton } from '../../components/compile/PanelKit';
+import Select from '../../components/ui/Select';
 import {
   generateClassDiagram,
   generateFlowchart,
@@ -289,20 +290,22 @@ export default function CompilePage() {
           <span className="text-xs font-bold text-content-primary truncate min-w-0">
             {schema.name || 'Untitled Schema'}
           </span>
-          <select
-            value={dbType}
-            onChange={(e) => setDbType(e.target.value as DbType)}
-            disabled={isLoading}
-            aria-label="Target database engine"
-            className="h-7 pl-2 pr-6 text-[11px] font-mono bg-surface-800 border border-line-strong rounded-[var(--radius-control)] text-content-primary shrink-0"
-          >
-            <option value="MSSQL">SQL Server</option>
-            <option value="PostgreSQL">PostgreSQL</option>
-            <option value="MySQL">MySQL</option>
-            <option value="SQLite">SQLite</option>
-            <option value="Oracle">Oracle</option>
-            <option value="MariaDB">MariaDB</option>
-          </select>
+          <div className="w-32 shrink-0">
+            <Select
+              value={dbType}
+              onChange={(e) => setDbType(e.target.value as DbType)}
+              disabled={isLoading}
+              aria-label="Target database engine"
+              className="text-[11px] font-mono"
+            >
+              <option value="MSSQL">SQL Server</option>
+              <option value="PostgreSQL">PostgreSQL</option>
+              <option value="MySQL">MySQL</option>
+              <option value="SQLite">SQLite</option>
+              <option value="Oracle">Oracle</option>
+              <option value="MariaDB">MariaDB</option>
+            </Select>
+          </div>
         </div>
 
         {/* Navigation Tabs List */}
@@ -408,26 +411,28 @@ export default function CompilePage() {
           <div className="flex items-center gap-2 shrink-0">
             {activeTab === 'ER' && (
               <>
-                <select
-                  value={diagramType}
-                  onChange={(e) => updateDiagram(e.target.value as typeof diagramType)}
-                  aria-label="Diagram type"
-                  className="min-w-[168px] h-8 pl-3 pr-8 text-xs font-medium text-content-primary bg-surface-800 border border-line-strong rounded-[var(--radius-control)] focus:outline-none focus:border-focus-ring cursor-pointer shadow-xs whitespace-nowrap"
-                >
-                  <option value="ER">ER Diagram</option>
-                  <option value="CLASS">Class Diagram</option>
-                  <option value="FLOW">Flowchart</option>
-                  <option value="MINDMAP">Mind Map</option>
-                  <option value="STATE">State Diagram</option>
-                  <option value="SEQUENCE">Sequence Diagram</option>
-                  <option value="GANTT">Gantt Chart</option>
-                  <option value="PIE">Pie Chart</option>
-                  <option value="GIT">Git Branch Diagram</option>
-                  <option value="JOURNEY">User Journey</option>
-                  <option value="TIMELINE">Timeline</option>
-                  <option value="QUADRANT">Quadrant Chart</option>
-                  <option value="REQUIREMENT">Requirement Diagram</option>
-                </select>
+                <div className="w-48 shrink-0">
+                  <Select
+                    value={diagramType}
+                    onChange={(e) => updateDiagram(e.target.value as typeof diagramType)}
+                    aria-label="Diagram type"
+                    className="text-xs font-medium"
+                  >
+                    <option value="ER">ER Diagram</option>
+                    <option value="CLASS">Class Diagram</option>
+                    <option value="FLOW">Flowchart</option>
+                    <option value="MINDMAP">Mind Map</option>
+                    <option value="STATE">State Diagram</option>
+                    <option value="SEQUENCE">Sequence Diagram</option>
+                    <option value="GANTT">Gantt Chart</option>
+                    <option value="PIE">Pie Chart</option>
+                    <option value="GIT">Git Branch Diagram</option>
+                    <option value="JOURNEY">User Journey</option>
+                    <option value="TIMELINE">Timeline</option>
+                    <option value="QUADRANT">Quadrant Chart</option>
+                    <option value="REQUIREMENT">Requirement Diagram</option>
+                  </Select>
+                </div>
                 <IconButton
                   icon={Download}
                   label="Download diagram as SVG"

@@ -31,10 +31,10 @@ interface FlowBarState {
 }
 
 /**
- * Proje kartının (#schema-info-panel, w: 256px + ml: 16px) SAĞINDA ve üst hizada
- * duran konum. Kartın hemen yan-üst hizasına yerleşir.
+ * Header (h: 56px) altında, proje kartının yanında duran varsayılan konum.
+ * y: 72px başlığın altındadır ve başlıkla çakışmaz.
  */
-const DEFAULT_POSITION = { x: 288, y: 16 };
+const DEFAULT_POSITION = { x: 288, y: 72 };
 
 export const useFlowBarStore = create<FlowBarState>()(
   persist(
@@ -53,16 +53,17 @@ export const useFlowBarStore = create<FlowBarState>()(
     }),
     {
       name: 'namines-flow-bar',
-      version: 3,
+      version: 4,
       migrate: (persistedState: unknown) => {
-        const s = persistedState as { position?: { x: number; y: number } };
-        if (!s?.position || s.position.y > 60 || (s.position.x === 24 && s.position.y === 320)) {
-          if (s) s.position = DEFAULT_POSITION;
+        const s = persistedState as { position?: { x: number; y: number }; hidden?: boolean };
+        if (!s?.position || s.position.y < 68 || s.position.y > 600 || s.position.x < 10) {
+          if (s) {
+            s.position = DEFAULT_POSITION;
+            s.hidden = false;
+          }
         }
         return s as FlowBarState;
       },
-      // `panelOpen`/`pickingTable` oturumluk: yarım kalmış bir "tablo seç"
-      // modunun sayfa yenilendiğinde geri gelmesi kullanıcıyı şaşırtırdı.
       partialize: (state) => ({
         position: state.position,
         hidden: state.hidden,

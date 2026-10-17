@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search } from 'lucide-react';
+import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
@@ -63,7 +63,12 @@ export default function Header() {
   const [isTeamOpen, setIsTeamOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isApple, setIsApple] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     setIsApple(isMac());
@@ -325,7 +330,7 @@ export default function Header() {
               <button
                 id="header-workspace-btn"
                 onClick={() => setIsSidebarOpen(true)}
-                className={`tap-44 flex items-center justify-center w-8 h-8 rounded-full border transition-colors shrink-0 ${
+                className={`tap-44 hidden md:flex items-center justify-center w-8 h-8 rounded-full border transition-colors shrink-0 ${
                   isSidebarOpen
                     ? 'border-content-primary/40 bg-surface-700 text-content-primary'
                     : 'border-line-strong bg-surface-800/80 text-content-muted hover:text-content-primary hover:border-content-primary/30 hover:bg-surface-700/60'
@@ -340,7 +345,7 @@ export default function Header() {
               {isAuthenticated && (
                 <button
                   onClick={() => setIsTeamOpen(true)}
-                  className={`tap-44 flex items-center justify-center w-8 h-8 rounded-full border transition-colors shrink-0 ${
+                  className={`tap-44 hidden md:flex items-center justify-center w-8 h-8 rounded-full border transition-colors shrink-0 ${
                     isTeamOpen
                       ? 'border-content-primary/40 bg-surface-700 text-content-primary'
                       : 'border-line-strong bg-surface-800/80 text-content-muted hover:text-content-primary hover:border-content-primary/30 hover:bg-surface-700/60'
@@ -427,53 +432,57 @@ export default function Header() {
               placeholder={t('header.newProject')}
               aria-label={t('header.projectName')}
               maxLength={60}
-              className="bg-transparent text-xs sm:text-sm font-medium text-content-primary placeholder:text-content-muted text-center px-2 sm:px-3 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/40 focus:bg-surface-800 focus:outline-none focus:ring-1 focus:ring-line-strong transition-colors cursor-pointer focus:cursor-text w-24 sm:w-52 truncate"
+              className="bg-transparent text-xs sm:text-sm font-medium text-content-primary placeholder:text-content-muted text-center px-2 sm:px-3 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/40 focus:bg-surface-800 focus:outline-none focus:ring-1 focus:ring-line-strong transition-colors cursor-pointer focus:cursor-text w-28 sm:w-52 truncate"
             />
           ) : (
-            <WorkspaceNav />
+            <div className="hidden md:flex items-center">
+              <WorkspaceNav />
+            </div>
           )}
         </div>
 
-        {/* Right — Actions (balanced flex-1 end) */}
+        {/* Right — Actions */}
         <div className="flex items-center gap-1 sm:gap-2 flex-1 justify-end min-w-0">
-          {/* Mobile search trigger */}
+          {/* Mobile 3-Dots / Hamburger Menu Trigger */}
           <button
             type="button"
-            onClick={() => useCommandPaletteStore.getState().open()}
-            className="tap-44 flex md:hidden items-center justify-center w-8 h-8 rounded-full border border-line-strong bg-surface-800/80 text-content-muted hover:text-content-primary hover:bg-surface-700/60 transition-colors shrink-0"
-            title="Search commands (⌘K / Ctrl+K)"
-            aria-label="Open command palette"
+            onClick={() => setIsMobileMenuOpen(prev => !prev)}
+            className="md:hidden tap-44 flex items-center justify-center w-8 h-8 rounded-full border border-line-strong bg-surface-800/80 text-content-primary hover:bg-surface-700 transition-colors shrink-0 cursor-pointer shadow-xs"
+            aria-label="Open mobile navigation menu"
+            aria-expanded={isMobileMenuOpen}
           >
-            <Search className="w-3.5 h-3.5" />
+            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <MoreVertical className="w-4 h-4" />}
           </button>
 
-          {isCanvas && <div id="canvas-actions-slot" className="hidden lg:flex items-center gap-1.5" />}
-          <LanguageToggle />
-          {!isCanvas && !isCompile && <ThemeToggleButton />}
-          {isHome && !isAuthenticated ? (
-            <>
-              <Link
-                href="/demo"
-                className="hidden lg:inline text-xs font-medium text-content-muted hover:text-content-primary transition-colors px-2"
-              >
-                {t('header.exploreDemo')}
-              </Link>
+          {/* Desktop Right Actions Strip */}
+          <div className="hidden md:flex items-center gap-1.5 sm:gap-2 min-w-0">
+            {isCanvas && <div id="canvas-actions-slot" className="hidden lg:flex items-center gap-1.5" />}
+            <LanguageToggle />
+            {!isCanvas && !isCompile && <ThemeToggleButton />}
+            {isHome && !isAuthenticated ? (
+              <>
+                <Link
+                  href="/demo"
+                  className="hidden lg:inline text-xs font-medium text-content-muted hover:text-content-primary transition-colors px-2"
+                >
+                  {t('header.exploreDemo')}
+                </Link>
+                <button
+                  onClick={openAuthModal}
+                  className="hidden sm:inline text-xs font-medium text-content-muted hover:text-content-primary transition-colors px-2"
+                >
+                  {t('header.signIn')}
+                </button>
+                <Link
+                  href="/new"
+                  className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm"
+                >
+                  {t('header.getStarted')}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </>
+            ) : isCanvas || isCompile ? (
               <button
-                onClick={openAuthModal}
-                className="hidden sm:inline text-xs font-medium text-content-muted hover:text-content-primary transition-colors px-2"
-              >
-                {t('header.signIn')}
-              </button>
-              <Link
-                href="/new"
-                className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm"
-              >
-                {t('header.getStarted')}
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </>
-          ) : isCanvas || isCompile ? (
-            <button
                 onClick={() => setIsAIPreferencesOpen(true)}
                 title={t('header.settings')}
                 aria-label={t('header.openSettings')}
@@ -481,56 +490,207 @@ export default function Header() {
               >
                 <Settings className="w-4 h-4" />
               </button>
-          ) : isAuthenticated ? (
-            <div
-              onClick={() => setIsAIPreferencesOpen(true)}
-              onKeyDown={activateOnKey(() => setIsAIPreferencesOpen(true))}
-              role="button"
-              tabIndex={0}
-              aria-haspopup="dialog"
-              aria-label={t('header.openAccountSettings')}
-              className="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2.5 py-1 bg-surface-800/80 border border-line-strong hover:border-content-primary/30 rounded-full select-none hover:bg-surface-700/80 transition-colors cursor-pointer shadow-sm"
-            >
-              {/* Clean Avatar Badge */}
+            ) : isAuthenticated ? (
               <div
-                className="relative w-6 h-6 rounded-full bg-accent text-accent-on flex items-center justify-center text-[10px] font-mono font-bold uppercase tracking-wider select-none shrink-0"
-                title={user?.username}
+                onClick={() => setIsAIPreferencesOpen(true)}
+                onKeyDown={activateOnKey(() => setIsAIPreferencesOpen(true))}
+                role="button"
+                tabIndex={0}
+                aria-haspopup="dialog"
+                aria-label={t('header.openAccountSettings')}
+                className="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2.5 py-1 bg-surface-800/80 border border-line-strong hover:border-content-primary/30 rounded-full select-none hover:bg-surface-700/80 transition-colors cursor-pointer shadow-sm"
               >
-                {user?.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
+                {/* Clean Avatar Badge */}
+                <div
+                  className="relative w-6 h-6 rounded-full bg-accent text-accent-on flex items-center justify-center text-[10px] font-mono font-bold uppercase tracking-wider select-none shrink-0"
+                  title={user?.username}
+                >
+                  {user?.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
+                </div>
+                <div className="hidden sm:flex flex-col gap-0.5 justify-center">
+                  <span className="text-xs font-semibold text-content-primary leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
+                    {user?.username}
+                  </span>
+                  <span className="text-[10px] font-mono text-content-muted font-bold leading-none uppercase tracking-widest mt-0.5">
+                    {planLabel}
+                  </span>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    logout();
+                    showToast(t('header.loggedOut'), 'info');
+                  }}
+                  className="tap-44 p-1 text-content-muted hover:text-content-primary hover:bg-surface-700 rounded-full transition-colors cursor-pointer ml-0.5 shrink-0"
+                  title={t('header.logOut')}
+                  aria-label={t('header.logOut')}
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <div className="hidden sm:flex flex-col gap-0.5 justify-center">
-                <span className="text-xs font-semibold text-content-primary leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
-                  {user?.username}
-                </span>
-                <span className="text-[10px] font-mono text-content-muted font-bold leading-none uppercase tracking-widest mt-0.5">
-                  {planLabel}
-                </span>
-              </div>
+            ) : (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  logout();
-                  showToast(t('header.loggedOut'), 'info');
-                }}
-                className="tap-44 p-1 text-content-muted hover:text-content-primary hover:bg-surface-700 rounded-full transition-colors cursor-pointer ml-0.5 shrink-0"
-                title={t('header.logOut')}
-                aria-label={t('header.logOut')}
+                id="auth-modal-trigger"
+                onClick={openAuthModal}
+                className="flex items-center justify-center py-1.5 px-4 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{t('header.loginSignUp')}</span>
+                <span className="inline sm:hidden">{t('header.login')}</span>
               </button>
-            </div>
-          ) : (
-            <button
-              id="auth-modal-trigger"
-              onClick={openAuthModal}
-              className="flex items-center justify-center py-1.5 px-4 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-sm"
-            >
-              <span className="hidden sm:inline">{t('header.loginSignUp')}</span>
-              <span className="inline sm:hidden">{t('header.login')}</span>
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </header>
+
+      {/* Mobile Menu Popover / Drawer */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 top-14 z-[90] bg-surface-900/95 backdrop-blur-xl md:hidden flex flex-col p-4 overflow-y-auto animate-in fade-in slide-in-from-top-4 duration-150 border-b border-line shadow-2xl"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <div className="space-y-3" onClick={e => e.stopPropagation()}>
+            {/* Quick Actions (Projects, Team, Search) */}
+            <div className="bg-surface-800/90 border border-line-strong rounded-[var(--radius-card)] p-3">
+              <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-line">
+                <span className="text-xs font-bold text-content-primary truncate">{projectName || 'Project Workspace'}</span>
+                {isAuthenticated && (
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-surface-700 border border-line text-content-muted">
+                    {planLabel}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => { setIsSidebarOpen(true); setIsMobileMenuOpen(false); }}
+                  className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-700/60 hover:bg-surface-700 text-xs font-medium text-content-primary transition-colors cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4 text-content-muted" />
+                  <span>Projects</span>
+                </button>
+                {isAuthenticated && (
+                  <button
+                    onClick={() => { setIsTeamOpen(true); setIsMobileMenuOpen(false); }}
+                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-700/60 hover:bg-surface-700 text-xs font-medium text-content-primary transition-colors cursor-pointer"
+                  >
+                    <Users className="w-4 h-4 text-content-muted" />
+                    <span>Team</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => { useCommandPaletteStore.getState().open(); setIsMobileMenuOpen(false); }}
+                  className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-700/60 hover:bg-surface-700 text-xs font-medium text-content-primary transition-colors cursor-pointer col-span-2"
+                >
+                  <Search className="w-4 h-4 text-content-muted" />
+                  <span>Search Commands (⌘K / Ctrl+K)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Navigation Routes */}
+            {!isHome && (
+              <div className="bg-surface-800/90 border border-line-strong rounded-[var(--radius-card)] p-2 space-y-1">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-content-muted px-2 py-1 block">
+                  Workspace Views
+                </span>
+                <button
+                  onClick={() => { router.push('/canvas'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
+                    pathname === '/canvas' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
+                  }`}
+                >
+                  <span>Diagram Canvas</span>
+                  <span className="text-[10px] font-mono text-content-muted">/canvas</span>
+                </button>
+                <button
+                  onClick={() => { router.push('/flow'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
+                    pathname === '/flow' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
+                  }`}
+                >
+                  <span>Namines Flow</span>
+                  <span className="text-[10px] font-mono text-content-muted">/flow</span>
+                </button>
+                <button
+                  onClick={() => { router.push('/compile'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
+                    pathname === '/compile' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
+                  }`}
+                >
+                  <span>Compile &amp; Eject</span>
+                  <span className="text-[10px] font-mono text-content-muted">/compile</span>
+                </button>
+                <button
+                  onClick={() => { router.push('/ground'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
+                    pathname === '/ground' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
+                  }`}
+                >
+                  <span>Ground Database</span>
+                  <span className="text-[10px] font-mono text-content-muted">/ground</span>
+                </button>
+                <button
+                  onClick={() => { router.push('/vault'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
+                    pathname === '/vault' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
+                  }`}
+                >
+                  <span>Vault Backups</span>
+                  <span className="text-[10px] font-mono text-content-muted">/vault</span>
+                </button>
+                <button
+                  onClick={() => { router.push('/review'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
+                    pathname.startsWith('/review') ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
+                  }`}
+                >
+                  <span>Change Review</span>
+                  <span className="text-[10px] font-mono text-content-muted">/review</span>
+                </button>
+              </div>
+            )}
+
+            {/* Quick Preferences: Theme & Lang */}
+            <div className="bg-surface-800/90 border border-line-strong rounded-[var(--radius-card)] p-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <LanguageToggle />
+                <ThemeToggleButton />
+              </div>
+              <button
+                onClick={() => { setIsAIPreferencesOpen(true); setIsMobileMenuOpen(false); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 border border-line text-xs font-medium text-content-primary transition-colors cursor-pointer"
+              >
+                <Settings className="w-3.5 h-3.5 text-content-muted" />
+                <span>Settings</span>
+              </button>
+            </div>
+
+            {/* Auth / Account Action */}
+            <div className="pt-1">
+              {isAuthenticated ? (
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsMobileMenuOpen(false);
+                    showToast(t('header.loggedOut'), 'info');
+                  }}
+                  className="w-full flex items-center justify-center gap-2 p-2.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-xs font-medium text-danger-text hover:text-danger transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>{t('header.logOut')} ({user?.username})</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { openAuthModal(); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center justify-center gap-2 p-2.5 rounded-full bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all cursor-pointer shadow-sm"
+                >
+                  <span>{t('header.loginSignUp')}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* V2 — Project Sidebar Drawer */}
       <ProjectSidebar

@@ -49,14 +49,12 @@ export default function NaminesFlowBar() {
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
-    // Görünür alanda tut — çubuk pencere dışına kaçarsa geri getirmenin bir
-    // yolu kalmaz (konum localStorage'da kalıcı olduğu için yenilemek de
-    // kurtarmaz).
-    const maxX = Math.max(0, window.innerWidth - BAR_WIDTH);
-    const maxY = Math.max(0, window.innerHeight - BAR_HEIGHT);
+    const minTop = 68;
+    const maxX = Math.max(12, window.innerWidth - BAR_WIDTH - 12);
+    const maxY = Math.max(minTop, window.innerHeight - BAR_HEIGHT - 12);
     setPosition({
-      x: Math.min(Math.max(0, e.clientX - drag.dx), maxX),
-      y: Math.min(Math.max(0, e.clientY - drag.dy), maxY),
+      x: Math.min(Math.max(12, e.clientX - drag.dx), maxX),
+      y: Math.min(Math.max(minTop, e.clientY - drag.dy), maxY),
     });
   }, [setPosition]);
 
@@ -66,6 +64,14 @@ export default function NaminesFlowBar() {
     setDragging(false);
   }, []);
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+  const safeX = typeof window !== 'undefined'
+    ? Math.max(8, Math.min(position.x, window.innerWidth - (isMobile ? 260 : 340)))
+    : position.x;
+  const safeY = typeof window !== 'undefined' && isMobile
+    ? Math.max(175, Math.min(position.y, window.innerHeight - 120))
+    : Math.max(68, position.y);
+
   // Gizlenmiş çubuk TAMAMEN kaybolmuyor: konum ve gizlilik localStorage'da
   // kalıcı olduğu için sayfayı yenilemek de geri getirmezdi ve özellik
   // erişilemez hâle gelirdi. Yerinde küçük bir düğme kalıyor.
@@ -73,13 +79,13 @@ export default function NaminesFlowBar() {
     return (
       <button
         type="button"
-        style={{ left: position.x, top: position.y }}
+        style={{ left: safeX, top: safeY }}
         onClick={() => setHidden(false)}
         aria-label="Show the Namines Flow bar"
-        title="Namines Flow"
-        className="nodrag nopan fixed z-20 flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-800/95 px-2.5 py-1 shadow-2xl backdrop-blur-md transition-colors hover:border-content-primary cursor-pointer"
+        title="Show Namines Flow Bar"
+        className="nodrag nopan fixed z-30 flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-800/95 px-3 py-1.5 shadow-2xl backdrop-blur-md transition-colors hover:border-accent-text cursor-pointer"
       >
-        <Zap className="h-3.5 w-3.5 text-content-primary" />
+        <Zap className="h-3.5 w-3.5 text-accent-text" />
         <span className="text-micro font-semibold text-content-primary">Flow</span>
       </button>
     );
@@ -90,8 +96,8 @@ export default function NaminesFlowBar() {
 
   return (
     <div
-      style={{ left: position.x, top: position.y }}
-      className={`nodrag nopan fixed z-20 flex items-center gap-2 rounded-full border bg-surface-800/95 px-3.5 py-1.5 backdrop-blur-md transition-all select-none shadow-xl min-w-[340px] max-w-[calc(100vw-24px)] ${
+      style={{ left: safeX, top: safeY }}
+      className={`nodrag nopan fixed z-30 flex items-center gap-2 rounded-full border bg-surface-800/95 px-3.5 py-1.5 backdrop-blur-md transition-all select-none shadow-xl min-w-[340px] max-w-[calc(100vw-24px)] ${
         pickingTable ? 'border-accent-text ring-1 ring-accent-text/30' : 'border-line-strong'
       } ${dragging ? 'shadow-2xl scale-[1.02]' : 'shadow-xl'}`}
     >

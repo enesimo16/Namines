@@ -9,6 +9,7 @@ import {
   Database, Info
 } from 'lucide-react';
 import { Panel, PanelBar, ActionButton, IconButton, PanelEmpty, StatStrip } from './PanelKit';
+import Select from '../ui/Select';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-sql';
 import 'prismjs/themes/prism-tomorrow.css';
@@ -114,44 +115,46 @@ export default function SmartSeedPanel({ schema, dbType }: SmartSeedPanelProps) 
         <PanelBar
           left={
             <>
-              <select
-                value={domainHint}
-                onChange={(e) => setDomainHint(e.target.value)}
-                disabled={isGenerating}
-                aria-label="Sector / domain"
-                className={selectCls}
-              >
-                <option value="">Auto detect sector</option>
-                <option value="E-Commerce">E-Commerce</option>
-                <option value="Logistics & Transportation">Logistics &amp; Transportation</option>
-                <option value="Healthcare & Medical">Healthcare &amp; Medical</option>
-                <option value="Education & Academia">Education &amp; Academia</option>
-                <option value="Finance & Banking">Finance &amp; Banking</option>
-                <option value="Human Resources">Human Resources</option>
-                <option value="Real Estate">Real Estate</option>
-                <option value="Manufacturing & Supply Chain">Manufacturing &amp; Supply Chain</option>
-                <option value="Telecommunications">Telecommunications</option>
-                <option value="Travel & Hospitality">Travel &amp; Hospitality</option>
-                <option value="Insurance">Insurance</option>
-                <option value="Media & Entertainment">Media &amp; Entertainment</option>
-                <option value="Government & Public Sector">Government &amp; Public Sector</option>
-                <option value="Retail & Inventory">Retail &amp; Inventory</option>
-              </select>
+              <div className="w-52">
+                <Select
+                  value={domainHint}
+                  onChange={(e) => setDomainHint(e.target.value)}
+                  disabled={isGenerating}
+                  aria-label="Sector / domain"
+                >
+                  <option value="">Auto detect sector</option>
+                  <option value="E-Commerce">E-Commerce</option>
+                  <option value="Logistics & Transportation">Logistics &amp; Transportation</option>
+                  <option value="Healthcare & Medical">Healthcare &amp; Medical</option>
+                  <option value="Education & Academia">Education &amp; Academia</option>
+                  <option value="Finance & Banking">Finance &amp; Banking</option>
+                  <option value="Human Resources">Human Resources</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Manufacturing & Supply Chain">Manufacturing &amp; Supply Chain</option>
+                  <option value="Telecommunications">Telecommunications</option>
+                  <option value="Travel & Hospitality">Travel &amp; Hospitality</option>
+                  <option value="Insurance">Insurance</option>
+                  <option value="Media & Entertainment">Media &amp; Entertainment</option>
+                  <option value="Government & Public Sector">Government &amp; Public Sector</option>
+                  <option value="Retail & Inventory">Retail &amp; Inventory</option>
+                </Select>
+              </div>
 
-              <select
-                value={rowCount}
-                onChange={(e) => setRowCount(Number(e.target.value))}
-                disabled={isGenerating}
-                aria-label="Rows per table"
-                className={selectCls}
-              >
-                <option value="10">10 rows</option>
-                <option value="25">25 rows</option>
-                <option value="50">50 rows</option>
-                <option value="100">100 rows</option>
-                <option value="200">200 rows</option>
-                <option value="500">500 rows (max)</option>
-              </select>
+              <div className="w-36">
+                <Select
+                  value={rowCount}
+                  onChange={(e) => setRowCount(Number(e.target.value))}
+                  disabled={isGenerating}
+                  aria-label="Rows per table"
+                >
+                  <option value="10">10 rows</option>
+                  <option value="25">25 rows</option>
+                  <option value="50">50 rows</option>
+                  <option value="100">100 rows</option>
+                  <option value="200">200 rows</option>
+                  <option value="500">500 rows (max)</option>
+                </Select>
+              </div>
 
               {rowCount === 500 && (
                 <span className="hidden xl:flex items-center gap-1 text-[10px] text-content-muted">
