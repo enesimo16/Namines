@@ -508,10 +508,10 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
     const md = `# Namines Sistem Operasyon Durumu (${timestamp})
 
 - **Toplam Kullanıcı:** ${overviewStats?.totalUsers ?? 0}
-- **Aktif Projeler:** ${overviewStats?.activeProjects ?? 0}
-- **Bugün Tüketilen Token:** ${(overviewStats?.todayTokens ?? 0).toLocaleString()}
+- **Aktif Projeler:** ${overviewStats?.totalProjects ?? 0}
+- **Bugün Tüketilen Token:** ${(overviewStats?.totalQuotaUsedToday ?? 0).toLocaleString()}
 - **Sistem Sağlığı:** %${botReport?.healthScore ?? 100} (${botReport?.overallStatus || 'Healthy'})
-- **Açık Hata / Uyarı:** ${overviewStats?.openErrorsCount ?? 0}
+- **Açık Hata / Uyarı:** ${logsStats?.unresolvedCount ?? 0}
 - **PostgreSQL Durumu:** ${botReport?.probes?.find((p) => p.serviceName.includes('Postgre'))?.status ?? 'PASS'}
 - **AI Gateway Durumu:** ${botReport?.probes?.find((p) => p.serviceName.includes('Gateway'))?.status ?? 'PASS'}
 - **Aktif İnsident Sayısı:** ${botHistory?.incidents?.length ?? 0}
