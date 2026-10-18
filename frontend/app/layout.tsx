@@ -6,6 +6,7 @@ import ToastContainer from "../components/toast/ToastContainer";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import FeedbackWidget from "../components/feedback/FeedbackWidget";
 import TourOverlay from "../components/tour/TourOverlay";
+import BackToTop from "../components/landing/BackToTop";
 
 /* ─────────────────────────────────────────────────────────────────────────
    FONT YÖNETİM MERKEZİ (Single Source of Truth for Typography)
@@ -146,6 +147,9 @@ export default function RootLayout({
 
         {/* Geri bildirim widget'ı (sol altta yüzen buton) */}
         <FeedbackWidget />
+
+        {/* Temaya uygun Başa Dön butonu (sağ altta) */}
+        <BackToTop />
       </body>
     </html>
   );

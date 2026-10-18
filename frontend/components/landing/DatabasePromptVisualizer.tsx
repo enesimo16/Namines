@@ -2,12 +2,69 @@
 
 import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Database, Sparkles, Terminal } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Sparkles, Terminal, Database, KeyRound, Link2 } from 'lucide-react';
 
-const PROMPT_SUGGESTIONS = [
-  'Add multi-tenant billing with stripe subscriptions and webhook audit logs',
-  'Design an AI agent memory ledger with vector embeddings and tenant isolation',
-  'Create e-commerce order checkout with inventory reservations and split shipments',
+interface SchemaPreset {
+  title: string;
+  badge: string;
+  tableName: string;
+  prompt: string;
+  columns: {
+    name: string;
+    type: string;
+    isPk?: boolean;
+    isFk?: boolean;
+    constraint?: string;
+  }[];
+  relationText: string;
+}
+
+const PRESETS: SchemaPreset[] = [
+  {
+    title: 'Stripe Billing & Subscriptions',
+    badge: 'Multi-Tenant',
+    tableName: 'subscriptions',
+    prompt: 'Add multi-tenant Stripe subscriptions with webhook audit logs and plan tiers',
+    columns: [
+      { name: 'id', type: 'UUID', isPk: true, constraint: 'DEFAULT uuid_generate_v7()' },
+      { name: 'org_id', type: 'UUID', isFk: true, constraint: 'FK > organizations(id) ON DELETE RESTRICT' },
+      { name: 'stripe_customer_id', type: 'VARCHAR(64)', constraint: 'UNIQUE NOT NULL' },
+      { name: 'plan_tier', type: 'VARCHAR(32)', constraint: "CHECK (plan_tier IN ('starter', 'pro', 'team'))" },
+      { name: 'current_period_end', type: 'TIMESTAMPTZ', constraint: 'NOT NULL' },
+      { name: 'status', type: 'VARCHAR(20)', constraint: "DEFAULT 'active'" },
+    ],
+    relationText: 'organizations (1) ── (N) subscriptions [Zero-Drift FK Enforced]',
+  },
+  {
+    title: 'AI Vector Memory Ledger',
+    badge: 'Vector AST',
+    tableName: 'agent_memories',
+    prompt: 'Design an AI agent memory ledger with vector embeddings and tenant isolation',
+    columns: [
+      { name: 'id', type: 'UUID', isPk: true, constraint: 'DEFAULT uuid_generate_v7()' },
+      { name: 'session_id', type: 'UUID', isFk: true, constraint: 'FK > chat_sessions(id) ON DELETE CASCADE' },
+      { name: 'embedding', type: 'VECTOR(1536)', constraint: 'HNSW INDEX (vector_cosine_ops)' },
+      { name: 'token_count', type: 'INTEGER', constraint: 'CHECK (token_count > 0)' },
+      { name: 'metadata', type: 'JSONB', constraint: "DEFAULT '{}'::jsonb" },
+      { name: 'created_at', type: 'TIMESTAMPTZ', constraint: 'DEFAULT clock_timestamp()' },
+    ],
+    relationText: 'chat_sessions (1) ── (N) agent_memories [pgvector Cosine HNSW]',
+  },
+  {
+    title: 'Order Checkout & Inventory',
+    badge: 'ACID Strict',
+    tableName: 'order_reservations',
+    prompt: 'Create e-commerce order checkout with inventory reservations and split shipments',
+    columns: [
+      { name: 'id', type: 'UUID', isPk: true, constraint: 'DEFAULT uuid_generate_v7()' },
+      { name: 'order_id', type: 'UUID', isFk: true, constraint: 'FK > orders(id) ON DELETE RESTRICT' },
+      { name: 'sku_code', type: 'VARCHAR(48)', constraint: 'REFERENCES inventory(sku)' },
+      { name: 'quantity', type: 'INTEGER', constraint: 'CHECK (quantity > 0)' },
+      { name: 'expires_at', type: 'TIMESTAMPTZ', constraint: 'NOT NULL' },
+      { name: 'lock_state', type: 'VARCHAR(24)', constraint: "DEFAULT 'reserved'" },
+    ],
+    relationText: 'orders (1) ── (N) order_reservations [Row-Level Lock Safe]',
+  },
 ];
 
 interface DatabasePromptVisualizerProps {
@@ -15,14 +72,15 @@ interface DatabasePromptVisualizerProps {
 }
 
 export default function DatabasePromptVisualizer({ children }: DatabasePromptVisualizerProps) {
-  const [activePromptIndex, setActivePromptIndex] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(0);
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(true);
-  const [activeTableHighlight, setActiveTableHighlight] = useState<'subscriptions' | 'vector_memory' | 'reservations'>('subscriptions');
 
-  // Typewriter effect cycling through prompts
+  const activePreset = PRESETS[activeIdx] ?? PRESETS[0]!;
+
+  // Smooth typewriter effect for active prompt
   useEffect(() => {
-    const fullText = PROMPT_SUGGESTIONS[activePromptIndex] ?? '';
+    const fullText = activePreset.prompt;
     let charIndex = 0;
     setDisplayedText('');
     setIsTyping(true);
@@ -34,366 +92,170 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
       } else {
         clearInterval(typingInterval);
         setIsTyping(false);
-
-        // Map prompt to emerging table
-        if (activePromptIndex === 0) setActiveTableHighlight('subscriptions');
-        else if (activePromptIndex === 1) setActiveTableHighlight('vector_memory');
-        else setActiveTableHighlight('reservations');
-
-        // Wait before transitioning to next prompt
-        const nextTimeout = setTimeout(() => {
-          setActivePromptIndex((prev) => (prev + 1) % PROMPT_SUGGESTIONS.length);
-        }, 5000);
-
-        return () => clearTimeout(nextTimeout);
       }
-    }, 34);
+    }, 28);
 
     return () => clearInterval(typingInterval);
-  }, [activePromptIndex]);
-
-  const handleSelectPrompt = (index: number) => {
-    setActivePromptIndex(index);
-  };
+  }, [activeIdx]);
 
   return (
-    <div className="relative w-full min-h-[620px] sm:min-h-[680px] lg:min-h-[720px] flex items-center overflow-visible">
-      {/* Background Soft Su Yeşili Radial Glow */}
+    <div className="relative w-full py-2">
+      {/* Background Ambient Radial Glow */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-20 rounded-full opacity-20 blur-3xl"
-        style={{
-          background: 'radial-gradient(circle, var(--namines-teal-glow) 0%, transparent 70%)',
-        }}
+        className="pointer-events-none absolute -top-10 right-1/4 w-[500px] h-[500px] rounded-full opacity-15 blur-[120px]"
+        style={{ background: 'var(--namines-teal-glow)' }}
       />
 
-      {/* Layer 1: Full-Width Expansive Faded Architectural Database Network */}
-      {/* Spans from behind the text on the left, across center, to far right */}
-      <div
-        className="pointer-events-none absolute inset-0 z-0 opacity-40 transition-opacity duration-700 hover:opacity-60 overflow-hidden"
-        aria-hidden="true"
-      >
-        {/* Dynamic Curved SVG Foreign Key Relation Lines */}
-        <svg className="absolute inset-0 w-full h-full" fill="none" viewBox="0 0 1200 700" preserveAspectRatio="none">
-          {/* organizations -> users */}
-          <path
-            d="M 170 110 C 260 110, 360 80, 440 80"
-            stroke="var(--namines-teal-vibrant)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-            className="opacity-50"
-          />
-          {/* organizations -> api_keys */}
-          <path
-            d="M 120 160 C 120 280, 80 440, 110 520"
-            stroke="var(--namines-teal-vibrant)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-            className="opacity-40"
-          />
-          {/* users -> orders */}
-          <path
-            d="M 520 160 C 520 280, 480 440, 520 520"
-            stroke="var(--namines-teal-vibrant)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-            className="opacity-45"
-          />
-          {/* orders -> payments */}
-          <path
-            d="M 640 560 C 740 560, 860 560, 940 540"
-            stroke="var(--namines-teal-vibrant)"
-            strokeWidth="1.5"
-            strokeDasharray="4 4"
-            className="opacity-40"
-          />
-          {/* users/organizations -> Emerging Table (subscriptions / vector_memory) */}
-          <path
-            d="M 580 90 C 700 90, 780 110, 920 110"
-            stroke="var(--namines-teal-vibrant)"
-            strokeWidth={isTyping ? 1.5 : 2.5}
-            strokeDasharray={isTyping ? '4 4' : 'none'}
-            className={isTyping ? 'opacity-30 transition-all duration-500' : 'opacity-95 transition-all duration-500'}
-          />
-        </svg>
-
-        {/* Table 1: organizations (Far Left — softly behind the headline area) */}
-        <div className="absolute top-8 left-0 sm:left-2 w-44 sm:w-48 rounded-[var(--radius-card)] border border-surface-500/50 bg-surface-850/80 p-3 shadow-lg backdrop-blur-sm">
-          <div className="flex items-center justify-between border-b border-surface-600/60 pb-1.5 mb-1.5">
-            <div className="flex items-center gap-1.5">
-              <Database className="w-3 h-3 text-accent" />
-              <span className="font-mono text-[11px] font-bold text-content-primary">organizations</span>
-            </div>
-            <span className="font-mono text-[10px] text-content-subtle">4 cols</span>
-          </div>
-          <div className="space-y-1 font-mono text-[10px] text-content-secondary">
-            <div className="flex justify-between items-center">
-              <span>id</span>
-              <span className="text-accent-text font-bold px-1 py-0.2 rounded-[var(--radius-control)] bg-accent/15">
-                PK
-              </span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>slug</span>
-              <span>VARCHAR</span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>plan</span>
-              <span>VARCHAR</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Table 2: api_keys (Lower Left — softly behind/below buttons) */}
-        <div className="absolute bottom-8 left-2 sm:left-8 w-44 sm:w-48 rounded-[var(--radius-card)] border border-surface-500/50 bg-surface-850/80 p-3 shadow-lg backdrop-blur-sm hidden sm:block">
-          <div className="flex items-center justify-between border-b border-surface-600/60 pb-1.5 mb-1.5">
-            <div className="flex items-center gap-1.5">
-              <Database className="w-3 h-3 text-accent" />
-              <span className="font-mono text-[11px] font-bold text-content-primary">api_keys</span>
-            </div>
-            <span className="font-mono text-[10px] text-content-subtle">3 cols</span>
-          </div>
-          <div className="space-y-1 font-mono text-[10px] text-content-secondary">
-            <div className="flex justify-between items-center">
-              <span>id</span>
-              <span className="text-accent-text font-bold px-1 py-0.2 rounded-[var(--radius-control)] bg-accent/15">
-                PK
-              </span>
-            </div>
-            <div className="flex justify-between text-accent-text">
-              <span>org_id</span>
-              <span>FK</span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>key_hash</span>
-              <span>VARCHAR</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Table 3: users (Center-Top — in the gap between headline and prompt) */}
-        <div className="absolute top-4 left-[38%] sm:left-[42%] w-52 sm:w-56 rounded-[var(--radius-card)] border border-surface-500/60 bg-surface-850/85 p-3.5 shadow-xl backdrop-blur-md hidden lg:block">
-          <div className="flex items-center justify-between border-b border-surface-600/60 pb-1.5 mb-2">
-            <div className="flex items-center gap-2">
-              <Database className="w-3.5 h-3.5 text-accent" />
-              <span className="font-mono text-xs font-bold text-content-primary">users</span>
-            </div>
-            <span className="font-mono text-[10px] text-content-subtle">5 cols</span>
-          </div>
-          <div className="space-y-1.5 font-mono text-[11px] text-content-secondary">
-            <div className="flex justify-between items-center">
-              <span>id</span>
-              <span className="text-accent-text font-bold text-[10px] px-1 py-0.5 rounded-[var(--radius-control)] bg-accent/15">
-                PK
-              </span>
-            </div>
-            <div className="flex justify-between text-accent-text items-center">
-              <span>org_id</span>
-              <span className="text-[10px] font-bold">FK &gt; orgs</span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>email</span>
-              <span className="text-[10px]">VARCHAR</span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>role</span>
-              <span className="text-[10px]">VARCHAR</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Table 4: orders (Center-Bottom) */}
-        <div className="absolute bottom-6 left-[36%] sm:left-[42%] w-52 sm:w-56 rounded-[var(--radius-card)] border border-surface-500/60 bg-surface-850/85 p-3.5 shadow-xl backdrop-blur-md hidden lg:block">
-          <div className="flex items-center justify-between border-b border-surface-600/60 pb-1.5 mb-2">
-            <div className="flex items-center gap-2">
-              <Database className="w-3.5 h-3.5 text-accent" />
-              <span className="font-mono text-xs font-bold text-content-primary">orders</span>
-            </div>
-            <span className="font-mono text-[10px] text-content-subtle">4 cols</span>
-          </div>
-          <div className="space-y-1.5 font-mono text-[11px] text-content-secondary">
-            <div className="flex justify-between items-center">
-              <span>id</span>
-              <span className="text-accent-text font-bold text-[10px] px-1 py-0.5 rounded-[var(--radius-control)] bg-accent/15">
-                PK
-              </span>
-            </div>
-            <div className="flex justify-between text-accent-text items-center">
-              <span>user_id</span>
-              <span className="text-[10px] font-bold">FK &gt; users</span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>total</span>
-              <span className="text-[10px]">DECIMAL</span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>status</span>
-              <span className="text-[10px]">VARCHAR</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Table 5: payments (Lower Right — below prompt) */}
-        <div className="absolute bottom-8 right-0 sm:right-6 w-48 sm:w-52 rounded-[var(--radius-card)] border border-surface-500/60 bg-surface-850/85 p-3 shadow-lg backdrop-blur-md hidden sm:block">
-          <div className="flex items-center justify-between border-b border-surface-600/60 pb-1.5 mb-1.5">
-            <div className="flex items-center gap-1.5">
-              <Database className="w-3 h-3 text-accent" />
-              <span className="font-mono text-[11px] font-bold text-content-primary">payments</span>
-            </div>
-            <span className="font-mono text-[10px] text-content-subtle">4 cols</span>
-          </div>
-          <div className="space-y-1 font-mono text-[10px] text-content-secondary">
-            <div className="flex justify-between items-center">
-              <span>id</span>
-              <span className="text-accent-text font-bold px-1 py-0.2 rounded-[var(--radius-control)] bg-accent/15">
-                PK
-              </span>
-            </div>
-            <div className="flex justify-between text-accent-text items-center">
-              <span>order_id</span>
-              <span>FK &gt; orders</span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>amount</span>
-              <span>DECIMAL</span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>currency</span>
-              <span>VARCHAR</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Table 6: Emerging Table (Top Right — Lights Up and Materializes Dynamically) */}
-        <div
-          className={`absolute top-4 right-0 sm:right-4 w-60 sm:w-64 rounded-[var(--radius-card)] border p-4 shadow-2xl backdrop-blur-lg transition-all duration-700 ${
-            isTyping
-              ? 'border-surface-600/50 bg-surface-850/50 opacity-35 scale-95'
-              : 'border-accent bg-surface-800/95 opacity-100 scale-100 shadow-accent/25'
-          }`}
-        >
-          <div className="flex items-center justify-between border-b border-surface-600/70 pb-2 mb-2.5">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-accent" />
-              <span className="font-mono text-xs font-bold text-content-primary">
-                {activeTableHighlight}
-              </span>
-            </div>
-            <span className="font-mono text-[10px] px-2 py-0.5 rounded-[var(--radius-control)] bg-accent/20 text-accent-text font-bold">
-              EMERGED
-            </span>
-          </div>
-          <div className="space-y-2 font-mono text-[11px] text-content-secondary">
-            <div className="flex justify-between items-center">
-              <span>id</span>
-              <span className="text-accent-text font-bold text-[10px] px-1 py-0.5 rounded-[var(--radius-control)] bg-accent/15">
-                PK
-              </span>
-            </div>
-            <div className="flex justify-between text-accent-text items-center">
-              <span>{activeTableHighlight === 'reservations' ? 'order_id' : 'org_id'}</span>
-              <span className="text-[10px] font-bold">FK</span>
-            </div>
-            <div className="flex justify-between text-content-primary font-semibold">
-              <span>
-                {activeTableHighlight === 'subscriptions'
-                  ? 'stripe_sub_id'
-                  : activeTableHighlight === 'vector_memory'
-                  ? 'embedding_1536'
-                  : 'warehouse_id'}
-              </span>
-              <span className="text-[10px] text-accent-text">
-                {activeTableHighlight === 'vector_memory' ? 'VECTOR' : 'VARCHAR'}
-              </span>
-            </div>
-            <div className="flex justify-between text-content-muted">
-              <span>{activeTableHighlight === 'subscriptions' ? 'current_period_end' : 'status'}</span>
-              <span className="text-[10px]">{activeTableHighlight === 'subscriptions' ? 'TIMESTAMP' : 'VARCHAR'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Layer 2: Main Grid containing Left Column Text + Right Column Floating Prompt */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center w-full relative z-10">
-        {/* Left Column — Typographic Headline & CTAs (Provided via children) */}
+      {/* Main Responsive Grid: Headline (Left) & Studio Preview (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-8 xl:gap-12 items-center w-full relative z-10">
+        
+        {/* Left Column — Provided via children (Headline, text, CTAs) */}
         {children}
 
-        {/* Right Column — Floating Interactive Minimal AI Prompt Bar */}
-        <div className="lg:col-span-7 w-full relative z-20 my-auto">
-          <div className="rounded-[var(--radius-modal)] border border-surface-500/70 bg-surface-900/90 p-5 sm:p-6 shadow-2xl backdrop-blur-2xl transition-all max-w-xl mx-auto">
-            {/* Top Bar inside Prompt */}
-            <div className="flex items-center justify-between border-b border-surface-600/60 pb-3 mb-3">
+        {/* Right Column — Clean, Focused Studio Interactive Card */}
+        <div className="lg:col-span-6 xl:col-span-7 w-full relative z-20">
+          <div className="w-full rounded-[var(--radius-modal)] border border-surface-500/70 bg-surface-900/95 shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-surface-400">
+            
+            {/* 1. Terminal / Studio Window Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-surface-850/90 border-b border-surface-600/70">
               <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-6 h-6 rounded-[var(--radius-control)] bg-accent/20 text-accent">
-                  <Terminal className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-surface-600" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-surface-600" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-surface-600" />
                 </div>
-                <span className="font-mono text-xs font-bold tracking-wider text-content-primary uppercase">
-                  AI SCHEMA ENGINE
+                <div className="h-4 w-px bg-surface-600 mx-1.5" />
+                <div className="flex items-center gap-1.5 text-xs font-mono text-content-secondary">
+                  <Terminal className="w-3.5 h-3.5 text-accent-text" />
+                  <span className="font-semibold text-content-primary">studio</span>
+                  <span className="text-content-subtle">/</span>
+                  <span className="text-content-muted">{activePreset.tableName}.sql</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-control)] bg-accent/15 text-accent-text font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                  PostgreSQL 17 AST
                 </span>
               </div>
+            </div>
+
+            {/* 2. Live Typewriter Prompt Area */}
+            <div className="p-4 sm:p-5 border-b border-surface-600/60 bg-surface-900/60">
+              <div className="flex items-start gap-2.5 mb-2.5">
+                <div className="w-6 h-6 rounded-[var(--radius-control)] bg-surface-800 border border-surface-600/60 flex items-center justify-center shrink-0 mt-0.5">
+                  <Sparkles className="w-3.5 h-3.5 text-accent-text" />
+                </div>
+                <div className="flex-1 min-h-[46px] font-mono text-xs sm:text-sm text-content-primary leading-relaxed">
+                  <span>{displayedText}</span>
+                  <span className="inline-block w-2 h-4 ml-0.5 bg-accent animate-pulse align-middle" />
+                </div>
+              </div>
+
+              {/* Preset Selector Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                <span className="text-[11px] font-mono text-content-subtle mr-1">Try preset:</span>
+                {PRESETS.map((preset, idx) => (
+                  <button
+                    key={preset.tableName}
+                    type="button"
+                    onClick={() => setActiveIdx(idx)}
+                    className={`tap-44 px-2.5 py-1 rounded-[var(--radius-control)] text-xs font-mono transition-all cursor-pointer ${
+                      activeIdx === idx
+                        ? 'bg-accent text-accent-on font-bold shadow-sm'
+                        : 'bg-surface-800 text-content-secondary hover:text-content-primary hover:bg-surface-700 border border-surface-600/50'
+                    }`}
+                  >
+                    {idx === 0 ? 'Stripe Billing' : idx === 1 ? 'AI Vector Memory' : 'Order Checkout'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Generated Schema Table Preview (Clean, Shopify/Stripe Quality) */}
+            <div className="p-4 sm:p-5 bg-surface-850/40">
+              <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-900/90 overflow-hidden shadow-inner">
+                
+                {/* Table Header Bar */}
+                <div className="flex items-center justify-between px-3.5 py-2.5 bg-surface-800/80 border-b border-surface-600/60 font-mono text-xs">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-3.5 h-3.5 text-accent-text" />
+                    <span className="font-bold text-content-primary">{activePreset.tableName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="text-content-subtle">{activePreset.columns.length} columns</span>
+                    <span className="px-1.5 py-0.5 rounded-[var(--radius-control)] bg-surface-700 text-content-secondary font-bold">
+                      {activePreset.badge}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Columns List */}
+                <div className="divide-y divide-surface-700/50 font-mono text-xs">
+                  {activePreset.columns.map((col) => (
+                    <div
+                      key={col.name}
+                      className="px-3.5 py-2 flex items-center justify-between gap-2 hover:bg-surface-800/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {col.isPk ? (
+                          <span className="px-1 py-0.2 rounded-[var(--radius-control)] bg-accent/20 text-accent-text text-[10px] font-bold shrink-0">
+                            PK
+                          </span>
+                        ) : col.isFk ? (
+                          <span className="px-1 py-0.2 rounded-[var(--radius-control)] bg-surface-700 text-content-secondary text-[10px] font-bold shrink-0">
+                            FK
+                          </span>
+                        ) : (
+                          <span className="w-4" />
+                        )}
+                        <span className="font-semibold text-content-primary truncate">{col.name}</span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-[11px] shrink-0">
+                        <span className="text-accent-text font-medium">{col.type}</span>
+                        {col.constraint && (
+                          <span className="text-content-muted hidden sm:inline max-w-[200px] truncate text-[10px]">
+                            {col.constraint}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Relational Link Footer */}
+                <div className="px-3.5 py-2 bg-surface-800/60 border-t border-surface-600/50 flex items-center gap-2 font-mono text-[11px] text-content-secondary">
+                  <Link2 className="w-3.5 h-3.5 text-accent-text shrink-0" />
+                  <span className="truncate">{activePreset.relationText}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Real-Time Verification Status & Studio CTA */}
+            <div className="px-4 sm:px-5 py-3.5 bg-surface-900 border-t border-surface-600/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono text-xs">
               <div className="flex items-center gap-2">
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
-                </span>
-                <span className="font-mono text-[11px] text-content-subtle">PostgreSQL 17 AST</span>
-              </div>
-            </div>
-
-            {/* Active Live Typewriter Prompt Area */}
-            <div className="min-h-[58px] sm:min-h-[64px] text-sm sm:text-base font-mono font-medium text-content-primary leading-relaxed flex items-center">
-              <p>
-                <span>{displayedText}</span>
-                <span className="inline-block w-2.5 h-4.5 ml-1 bg-accent animate-pulse align-middle" />
-              </p>
-            </div>
-
-            {/* Quick Clickable Presets */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-3 mt-2 border-t border-surface-600/50">
-              <span className="text-[11px] font-mono text-content-subtle mr-1">Presets:</span>
-              {PROMPT_SUGGESTIONS.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSelectPrompt(idx)}
-                  className={`rounded-[var(--radius-control)] px-3 py-1 text-xs font-mono transition-all cursor-pointer ${
-                    activePromptIndex === idx
-                      ? 'bg-accent text-accent-on font-bold shadow-sm'
-                      : 'bg-surface-700/60 text-content-muted hover:text-content-primary hover:bg-surface-700'
-                  }`}
-                >
-                  {idx === 0 ? '+ Billing & Subscriptions' : idx === 1 ? '+ AI Vector Memory' : '+ Order Reservations'}
-                </button>
-              ))}
-            </div>
-
-            {/* Bottom Live Verification Status */}
-            <div className="mt-3.5 pt-3 border-t border-surface-600/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs font-mono">
                 <CheckCircle2 className="w-4 h-4 text-success-text shrink-0" />
                 <span className="text-content-secondary">
-                  {isTyping ? (
-                    <span className="text-content-muted">Evaluating relational constraints...</span>
-                  ) : (
-                    <>
-                      <span className="font-bold text-content-primary">Verified zero-drift AST</span>
-                      <span className="text-content-muted"> &middot; 24 rules passed</span>
-                    </>
-                  )}
+                  <span className="font-bold text-content-primary">Verified Zero-Drift</span>
+                  <span className="text-content-muted"> &middot; 24 rules passed</span>
                 </span>
               </div>
 
               <Link
                 href="/new"
-                className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold px-4 py-1.5 text-xs transition-all shadow-md cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold transition-all shadow-sm cursor-pointer hover:scale-[1.02] active:scale-95"
               >
-                <span>Build in Studio</span>
+                <span>Try in Studio</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
+
           </div>
         </div>
+
       </div>
     </div>
   );

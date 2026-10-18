@@ -95,8 +95,8 @@ export default function ClickClickDone() {
             </p>
           </div>
 
-          {/* Equal Height Card 1 */}
-          <div className="h-[390px] rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/90 p-3.5 flex flex-col justify-between shadow-xl">
+          {/* Equal Height Card */}
+          <div className="min-h-[380px] h-full rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/90 p-3.5 flex flex-col justify-between shadow-xl">
             {/* Card Header Action */}
             <Link
               href="/new"
@@ -167,7 +167,7 @@ export default function ClickClickDone() {
           </div>
 
           {/* Equal Height Card 2 */}
-          <div className="h-[390px] rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/90 p-3.5 flex flex-col justify-between shadow-xl">
+          <div className="min-h-[380px] h-full rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/90 p-3.5 flex flex-col justify-between shadow-xl">
             <div className="space-y-2">
               {/* Interactive Target Engine Row */}
               <button
@@ -258,7 +258,7 @@ export default function ClickClickDone() {
           </div>
 
           {/* Equal Height Card 3 */}
-          <div className="h-[390px] rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/90 p-3.5 flex flex-col justify-between shadow-xl">
+          <div className="min-h-[380px] h-full rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/90 p-3.5 flex flex-col justify-between shadow-xl">
             {/* Clickable Terminal Push Header */}
             <button
               type="button"

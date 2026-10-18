@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, ShieldCheck, Lock, EyeOff, FileText, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Footer from '../../components/layout/Footer';
 
 export const metadata: Metadata = {
@@ -21,25 +21,24 @@ export default function PrivacyPage() {
           <span>Back to Namines</span>
         </Link>
 
-        {/* Header */}
+        {/* Clean Polaris Header */}
         <div className="border-b border-surface-500/80 pb-8 mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-800 border border-surface-500 text-micro font-mono text-accent-text mb-4">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>GDPR &amp; CCPA Compliant</span>
-          </div>
+          <p className="text-xs font-mono text-accent-text uppercase tracking-widest font-semibold mb-2">
+            Compliance &amp; Data Protection
+          </p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-content-primary mb-3">
             Privacy Policy
           </h1>
           <p className="text-xs font-mono text-content-subtle">
-            Last updated: September 7, 2026 &bull; Version 2.4
+            Effective Date: September 2026 &bull; Version 2.4 &bull; Namines, Yel LLC
           </p>
         </div>
 
         {/* Content Body */}
-        <div className="space-y-12 text-sm text-content-secondary leading-relaxed">
+        <div className="space-y-12 text-sm text-content-secondary leading-relaxed font-sans">
           {/* Section 1: Overview */}
           <section className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               1. Architecture &amp; Data Philosophy
             </h2>
             <p>
@@ -52,25 +51,23 @@ export default function PrivacyPage() {
 
           {/* Section 2: What We Collect */}
           <section className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               2. Information We Collect
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/60 p-5 space-y-2">
-                <div className="flex items-center gap-2 text-content-primary font-semibold text-xs">
-                  <CheckCircle2 className="w-4 h-4 text-accent" />
-                  <span>Account &amp; Workspace Data</span>
-                </div>
+              <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/60 p-5 space-y-2">
+                <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                  Account &amp; Workspace Data
+                </h3>
                 <p className="text-xs text-content-muted leading-relaxed">
                   Your registered email address, hashed authentication credentials (salted with Argon2id), organization membership, and project names.
                 </p>
               </div>
 
-              <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/60 p-5 space-y-2">
-                <div className="flex items-center gap-2 text-content-primary font-semibold text-xs">
-                  <FileText className="w-4 h-4 text-accent" />
-                  <span>Schema DDL &amp; IR Definitions</span>
-                </div>
+              <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/60 p-5 space-y-2">
+                <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                  Schema DDL &amp; IR Definitions
+                </h3>
                 <p className="text-xs text-content-muted leading-relaxed">
                   Table structures, column definitions, index layouts, foreign keys, and migration scripts required to compile deterministic SQL and ERD graphs.
                 </p>
@@ -80,39 +77,33 @@ export default function PrivacyPage() {
 
           {/* Section 3: What We Never Collect */}
           <section className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               3. Information We Never Access or Retain
             </h2>
-            <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/40 p-6 space-y-4">
-              <div className="flex items-start gap-3">
-                <EyeOff className="w-5 h-5 text-accent-text shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
-                    Zero Customer Row Data
-                  </h3>
-                  <p className="text-xs text-content-muted leading-relaxed">
-                    Namines never queries or ingests actual table rows, customer records, payment cards, or PII stored in your operational databases. Introspection queries query strictly system metadata catalogs (such as PostgreSQL <code className="font-mono text-accent-text">information_schema</code> and <code className="font-mono text-accent-text">pg_catalog</code>).
-                  </p>
-                </div>
+            <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/40 p-6 space-y-4">
+              <div className="space-y-1.5 border-b border-surface-700/60 pb-4">
+                <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                  Zero Customer Row Data
+                </h3>
+                <p className="text-xs text-content-muted leading-relaxed">
+                  Namines never queries or ingests actual table rows, customer records, payment cards, or PII stored in your operational databases. Introspection queries query strictly system metadata catalogs (such as PostgreSQL <code className="font-mono text-accent-text">information_schema</code> and <code className="font-mono text-accent-text">pg_catalog</code>).
+                </p>
               </div>
 
-              <div className="flex items-start gap-3">
-                <Lock className="w-5 h-5 text-accent-text shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
-                    Zero Plain-Text Credentials
-                  </h3>
-                  <p className="text-xs text-content-muted leading-relaxed">
-                    Connection strings and BYOK API keys are encrypted at rest using authenticated <strong className="text-content-primary font-semibold">AES-256-GCM</strong>. Decryption keys reside exclusively in secure memory enclaves during active test container execution and are never logged to disk or console output.
-                  </p>
-                </div>
+              <div className="space-y-1.5 pt-1">
+                <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                  Zero Plain-Text Credentials
+                </h3>
+                <p className="text-xs text-content-muted leading-relaxed">
+                  Connection strings and BYOK API keys are encrypted at rest using authenticated <strong className="text-content-primary font-semibold">AES-256-GCM</strong>. Decryption keys reside exclusively in secure memory enclaves during active test container execution and are never logged to disk or console output.
+                </p>
               </div>
             </div>
           </section>
 
           {/* Section 4: Ephemeral Sandboxes */}
           <section className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               4. Ephemeral Test Containers &amp; Retention
             </h2>
             <p>
@@ -125,7 +116,7 @@ export default function PrivacyPage() {
 
           {/* Section 5: Cookies & Storage */}
           <section id="cookies" className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               5. Cookies &amp; Local Preferences
             </h2>
             <p>
@@ -146,14 +137,14 @@ export default function PrivacyPage() {
 
           {/* Section 6: User Rights & Contact */}
           <section className="space-y-4 border-t border-surface-500/80 pt-8">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               6. Your Rights &amp; Contact
             </h2>
             <p>
               Under GDPR, CCPA, and global privacy frameworks, you retain full rights to inspect, export, or permanently delete your account, project metadata, and schema histories at any time from your Namines settings.
             </p>
             <p className="text-xs text-content-muted">
-              For privacy inquiries, data deletion requests, or Data Processing Addendum (DPA) execution, please contact our Data Protection Officer at:{' '}
+              For privacy inquiries, data deletion requests, or Data Processing Addendum (DPA) execution, please contact our legal team at:{' '}
               <a
                 href="mailto:privacy@namines.com"
                 className="text-accent-text hover:underline font-mono"

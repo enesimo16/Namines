@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import Logo from '../layout/Logo';
 import {
   PostgresIcon,
   MySQLIcon,
@@ -105,8 +106,8 @@ export default function OrbitingClosingCTA() {
       </div>
 
       <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Widely Dispersed Tech Badges (Continuous Floating Animation) */}
-        <div className="absolute inset-0 pointer-events-none hidden md:block" aria-hidden="true">
+        {/* Widely Dispersed Tech Badges (Continuous Floating Animation on wide desktops) */}
+        <div className="absolute inset-0 pointer-events-none hidden xl:block" aria-hidden="true">
           {ORBIT_LOGOS.map((item, idx) => {
             const duration = 3.6 + (idx % 4) * 0.7;
             const delay = (idx * 0.3) % 2.2;
@@ -133,18 +134,30 @@ export default function OrbitingClosingCTA() {
 
         {/* Soft, Free-Floating CTA Typography (No boxed card div) */}
         <div className="relative z-10 max-w-3xl mx-auto py-12 sm:py-20 flex flex-col items-center text-center gap-5">
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-content-primary">
+          {/* Glowing Brand Core Emblem */}
+          <div className="relative mb-2 flex items-center justify-center">
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 rounded-full blur-2xl opacity-60 animate-pulse"
+              style={{ backgroundColor: 'var(--namines-teal-glow)' }}
+            />
+            <div className="relative z-10 p-3 rounded-[var(--radius-modal)] bg-surface-850/80 border border-surface-500/70 shadow-2xl backdrop-blur-md">
+              <Logo size="lg" showWordmark={false} />
+            </div>
+          </div>
+
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-content-primary">
             Start building with Namines
           </h2>
 
-          <p className="text-sm sm:text-base text-content-muted max-w-md leading-relaxed">
+          <p className="text-xs sm:text-sm md:text-base text-content-muted max-w-md leading-relaxed">
             Zero drift, zero downtime, zero guesswork.
           </p>
 
-          <div className="mt-2">
+          <div className="mt-2 w-full sm:w-auto">
             <Link
               href="/new"
-              className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-accent-on font-bold py-3.5 px-8 rounded-[var(--radius-control)] transition-all text-xs uppercase tracking-wider shadow-xl shadow-accent/20 hover:scale-105 active:scale-95"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-hover text-accent-on font-bold py-3.5 px-8 rounded-[var(--radius-control)] transition-all text-xs uppercase tracking-wider shadow-xl shadow-accent/20 hover:scale-105 active:scale-95"
             >
               <span>Deploy your schema for free</span>
               <ArrowRight className="w-4 h-4" />

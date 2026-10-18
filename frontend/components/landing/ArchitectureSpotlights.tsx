@@ -88,7 +88,7 @@ export default function ArchitectureSpotlights() {
 
       {/* Spotlight 1: Rule Engine & Validation */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center mb-24">
-        <div className="lg:col-span-5 flex flex-col gap-4">
+        <div className="lg:col-span-6 xl:col-span-5 flex flex-col gap-4">
           <h3 className="text-2xl sm:text-3xl font-bold text-content-primary tracking-tight">
             The AI proposes. 24 static rules decide.
           </h3>
@@ -118,7 +118,7 @@ export default function ArchitectureSpotlights() {
           </Link>
         </div>
 
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-6 xl:col-span-7">
           <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/95 p-6 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-surface-500/70 pb-4 mb-4 font-mono text-xs">
               <div className="flex items-center gap-2">
@@ -174,7 +174,7 @@ export default function ArchitectureSpotlights() {
 
       {/* Spotlight 2: Non-Destructive Migration Lifecycle */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center mb-24">
-        <div className="lg:col-span-7 order-2 lg:order-1">
+        <div className="lg:col-span-6 xl:col-span-7 order-2 lg:order-1">
           <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/95 p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-surface-500/70 pb-4 mb-5 font-mono text-xs">
               <div className="flex items-center gap-2">
@@ -185,19 +185,19 @@ export default function ArchitectureSpotlights() {
 
             {/* Visual Pipeline Stages */}
             <div className="grid grid-cols-3 gap-2 mb-6 font-mono text-xs">
-              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2.5 flex flex-col gap-1 text-center">
+              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2 sm:p-2.5 flex flex-col gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 1</span>
-                <span className="font-bold text-content-primary">AST Diff</span>
+                <span className="font-bold text-content-primary text-[11px] sm:text-xs">AST Diff</span>
                 <span className="text-[10px] text-success-text">Passed</span>
               </div>
-              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2.5 flex flex-col gap-1 text-center">
+              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2 sm:p-2.5 flex flex-col gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 2</span>
-                <span className="font-bold text-content-primary">Ephemeral Docker</span>
+                <span className="font-bold text-content-primary text-[11px] sm:text-xs">Ephemeral Docker</span>
                 <span className="text-[10px] text-success-text">Verified DDL</span>
               </div>
-              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2.5 flex flex-col gap-1 text-center">
+              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2 sm:p-2.5 flex flex-col gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 3</span>
-                <span className="font-bold text-content-primary">Risk Sign-off</span>
+                <span className="font-bold text-content-primary text-[11px] sm:text-xs">Risk Sign-off</span>
                 <span className="text-[10px] text-accent-text">Audit Recorded</span>
               </div>
             </div>
@@ -221,7 +221,7 @@ export default function ArchitectureSpotlights() {
           </div>
         </div>
 
-        <div className="lg:col-span-5 order-1 lg:order-2 flex flex-col gap-4">
+        <div className="lg:col-span-6 xl:col-span-5 order-1 lg:order-2 flex flex-col gap-4">
           <h3 className="text-2xl sm:text-3xl font-bold text-content-primary tracking-tight">
             Non-destructive migration lifecycle
           </h3>
@@ -250,7 +250,7 @@ export default function ArchitectureSpotlights() {
 
       {/* Spotlight 3: Six Real SQL Engines */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center mb-24">
-        <div className="lg:col-span-5 flex flex-col gap-4">
+        <div className="lg:col-span-6 xl:col-span-5 flex flex-col gap-4">
           <h3 className="text-2xl sm:text-3xl font-bold text-content-primary tracking-tight">
             Native DDL for six battle-tested engines
           </h3>
@@ -282,7 +282,7 @@ export default function ArchitectureSpotlights() {
           </Link>
         </div>
 
-        <div className="lg:col-span-7">
+        <div className="lg:col-span-6 xl:col-span-7">
           <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/95 p-6 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-surface-500/70 pb-3 mb-4 font-mono text-xs">
               <div className="flex items-center gap-2">
@@ -300,7 +300,7 @@ export default function ArchitectureSpotlights() {
 
       {/* Spotlight 4: Real-time Collaboration & Drift Detection */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-        <div className="lg:col-span-7 order-2 lg:order-1">
+        <div className="lg:col-span-6 xl:col-span-7 order-2 lg:order-1">
           <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/95 p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-surface-500/70 pb-4 mb-5 font-mono text-xs">
               <div className="flex items-center gap-2">
@@ -344,7 +344,7 @@ export default function ArchitectureSpotlights() {
           </div>
         </div>
 
-        <div className="lg:col-span-5 order-1 lg:order-2 flex flex-col gap-4">
+        <div className="lg:col-span-6 xl:col-span-5 order-1 lg:order-2 flex flex-col gap-4">
           <h3 className="text-2xl sm:text-3xl font-bold text-content-primary tracking-tight">
             Real-time multiplayer canvas &amp; drift monitor
           </h3>

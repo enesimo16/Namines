@@ -1,17 +1,29 @@
 'use client';
 
+import { useRouter, usePathname } from 'next/navigation';
 import { LOCALES, setLocale, useLocale, useT, type Locale } from '../../lib/i18n';
 
 const SHORT: Record<Locale, string> = { en: 'EN', tr: 'TR' };
 
 /**
- * Arayüz dili seçici. `<html lang>`'e DOKUNMUYOR — çeviri kısmi olduğu için
- * dil, çevrilmiş bileşenlerin kendi `lang` özniteliğiyle beyan ediliyor
- * (bkz. `useLangAttr`, WCAG 3.1.2).
+ * Arayüz dili seçici. Hem yerel durumu günceller hem de pazarlama
+ * sayfalarında (/tr ve /en) temiz URL geçişi sağlar.
  */
 export default function LanguageToggle() {
+  const router = typeof useRouter === 'function' ? useRouter() : null;
+  const pathname = typeof usePathname === 'function' ? usePathname() : '';
   const locale = useLocale();
   const t = useT();
+
+  const handleSelect = (option: Locale) => {
+    setLocale(option);
+    if (pathname === '/' || pathname === '/tr' || pathname === '/en') {
+      const targetPath = option === 'tr' ? '/tr' : '/en';
+      if (pathname !== targetPath && router) {
+        router.push(targetPath);
+      }
+    }
+  };
 
   return (
     <div
@@ -34,7 +46,7 @@ export default function LanguageToggle() {
           <button
             key={option}
             type="button"
-            onClick={() => setLocale(option)}
+            onClick={() => handleSelect(option)}
             aria-pressed={active}
             aria-label={t(`language.${option}`)}
             className={`tap-44 relative z-10 flex-1 h-7 rounded-full text-[10px] font-mono font-bold tracking-wider flex items-center justify-center transition-colors duration-200 cursor-pointer ${

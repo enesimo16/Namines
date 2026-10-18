@@ -22,15 +22,23 @@ export default function FeedbackWidget() {
   const [category, setCategory] = useState<Category>('general');
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
+  const [botTrap, setBotTrap] = useState('');
   const [sending, setSending] = useState(false);
   const showToast = useToastStore((s) => s.showToast);
 
-  // Render only on the homepage
-  if (pathname !== '/') {
+  // Render only on the homepage / marketing routes
+  if (pathname !== '/' && pathname !== '/tr' && pathname !== '/en') {
     return null;
   }
 
   const submit = async () => {
+    // Bot Honeypot: If hidden field is filled, silently simulate success and discard
+    if (botTrap) {
+      setOpen(false);
+      setMessage('');
+      return;
+    }
+
     if (message.trim().length < 3) {
       showToast('Please write a bit more detail.', 'warning');
       return;
@@ -52,28 +60,42 @@ export default function FeedbackWidget() {
 
   return (
     <>
-      {/* Floating bottom-left dock: Feedback on left, Theme Toggle on right */}
-      <div className="fixed bottom-4 left-4 z-toast flex items-center gap-2">
+      {/* Floating bottom-left dock: Sleek Feedback Pill (Theme toggle is strictly in Navbar) */}
+      <div className="fixed bottom-5 left-5 z-toast flex items-center">
         {!open && (
           <button
             onClick={() => setOpen(true)}
-            title="Send feedback"
-            className="tap-44 h-8 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-800/95 hover:bg-surface-700/90 border border-surface-500/80 text-content-primary text-xs font-semibold shadow-lg backdrop-blur-md transition-all cursor-pointer hover:scale-105 active:scale-95"
+            title="Send feedback or feature request"
+            className="tap-44 h-8 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-800/90 hover:bg-surface-700/90 border border-surface-500/80 text-content-primary text-xs font-semibold shadow-lg backdrop-blur-md transition-all cursor-pointer hover:border-accent hover:scale-[1.02] active:scale-95"
           >
-            <MessageSquarePlus className="w-3.5 h-3.5 text-content-secondary" />
+            <MessageSquarePlus className="w-3.5 h-3.5 text-accent-text" />
             <span>Feedback</span>
           </button>
         )}
-        <ThemeToggleButton />
       </div>
 
       {open && (
-        <div className="fixed bottom-4 left-4 right-4 sm:right-auto z-toast sm:w-[320px] max-w-full rounded-[var(--radius-card)] bg-surface-800 border border-content-primary/10 shadow-2xl p-4 animate-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-5 left-5 right-5 sm:right-auto z-toast sm:w-[340px] max-w-full rounded-[var(--radius-card)] bg-surface-800/95 border border-surface-500 shadow-2xl p-4.5 backdrop-blur-xl animate-in slide-in-from-bottom-3 duration-200">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">Feedback</h3>
-            <button onClick={() => setOpen(false)} className="p-1 text-content-muted hover:text-content-primary rounded-[var(--radius-control)] hover:bg-white/[0.06] cursor-pointer" aria-label="Close">
+            <div className="flex items-center gap-1.5">
+              <MessageSquarePlus className="w-3.5 h-3.5 text-accent-text" />
+              <h3 className="text-xs font-bold text-content-primary tracking-wider uppercase">Share Feedback</h3>
+            </div>
+            <button onClick={() => setOpen(false)} className="p-1 text-content-muted hover:text-content-primary rounded-[var(--radius-control)] hover:bg-surface-700 cursor-pointer" aria-label="Close">
               <X className="w-3.5 h-3.5" />
             </button>
+          </div>
+
+          {/* Bot Honeypot Input - Invisible to human users */}
+          <div aria-hidden="true" style={{ opacity: 0, position: 'absolute', top: 0, left: 0, height: 0, width: 0, zIndex: -1 }}>
+            <input
+              type="text"
+              name="honeypot_namines_check"
+              value={botTrap}
+              onChange={(e) => setBotTrap(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+            />
           </div>
 
           <div className="flex gap-1.5 mb-2.5">

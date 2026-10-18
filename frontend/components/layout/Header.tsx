@@ -20,6 +20,7 @@ import WorkspaceNav from './WorkspaceNav';
 import Logo from './Logo';
 import HomeBanner from '../landing/HomeBanner';
 import ThemeToggleButton from '../landing/ThemeToggleButton';
+import LandingNavbar from '../landing/LandingNavbar';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { activateOnKey } from '../../lib/a11y';
 import { useT, useLangAttr, useLocale, type MessageKey } from '../../lib/i18n';
@@ -279,6 +280,16 @@ export default function Header() {
 
   if (pathname?.startsWith('/admin')) {
     return null;
+  }
+
+  const isMarketing = pathname === '/' || pathname === '/tr' || pathname === '/en';
+  if (isMarketing) {
+    return (
+      <>
+        <LandingNavbar />
+        <AuthModal isOpen={isAuthModalOpen} onClose={closeAuthModal} />
+      </>
+    );
   }
 
   return (

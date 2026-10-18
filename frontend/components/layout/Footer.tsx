@@ -1,13 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Moon, Sun, Terminal, ArrowUpRight } from 'lucide-react';
-import { useHomeThemeStore } from '../../store/useHomeThemeStore';
+import { Terminal, ArrowUpRight } from 'lucide-react';
 import Logo from './Logo';
 
 export default function Footer() {
-  const { theme, setTheme } = useHomeThemeStore();
-
   return (
     <footer className="relative z-10 w-full bg-surface-900 pt-16 pb-14 text-content-secondary">
       {/* Soft gradient divider instead of harsh border */}
@@ -18,14 +15,11 @@ export default function Footer() {
 
       <div className="w-full max-w-[var(--w-app)] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 mb-16">
-          {/* Brand Column (Span 2 on large) */}
-          <div className="col-span-2 flex flex-col gap-4">
-            <div className="flex items-center gap-2.5">
-              <Logo />
-              <span className="font-mono font-extrabold tracking-widest text-base text-content-primary">
-                NAMINES
-              </span>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-6 sm:gap-8 mb-16">
+          {/* Brand Column (Span full on mobile/tablet, 2 on wide screens) */}
+          <div className="col-span-2 sm:col-span-3 md:col-span-4 xl:col-span-2 flex flex-col gap-4">
+            <div className="flex items-center">
+              <Logo size="sm" showWordmark={true} />
             </div>
 
             <p className="text-xs text-content-muted leading-relaxed max-w-sm">
@@ -225,38 +219,14 @@ export default function Footer() {
 
         {/* Bottom Horizontal Bar */}
         <div className="pt-8 border-t border-surface-500/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-content-subtle">
-          {/* Left: Render-style Segmented Theme Toggle */}
-          <div className="inline-flex items-center p-0.5 rounded-full bg-surface-800 border border-surface-500/70 text-micro">
-            <button
-              type="button"
-              onClick={() => setTheme('dark')}
-              className={`tap-44 flex items-center gap-1 px-2.5 py-1 rounded-full transition-all cursor-pointer ${
-                theme === 'dark'
-                  ? 'bg-surface-600 text-content-primary font-semibold shadow-sm'
-                  : 'text-content-muted hover:text-content-secondary'
-              }`}
-              title="Force dark theme"
-            >
-              <Moon className="w-3 h-3 text-accent-text" />
-              <span>Dark</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setTheme('light')}
-              className={`tap-44 flex items-center gap-1 px-2.5 py-1 rounded-full transition-all cursor-pointer ${
-                theme === 'light'
-                  ? 'bg-surface-600 text-content-primary font-semibold shadow-sm'
-                  : 'text-content-muted hover:text-content-secondary'
-              }`}
-              title="Force light theme"
-            >
-              <Sun className="w-3 h-3 text-accent" />
-              <span>Light</span>
-            </button>
+          <span>&copy; {new Date().getFullYear()} Namines, Yel LLC. All rights reserved.</span>
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <Link href="/privacy" className="hover:text-content-primary transition-colors">Privacy</Link>
+            <span>&middot;</span>
+            <Link href="/terms" className="hover:text-content-primary transition-colors">Terms</Link>
+            <span>&middot;</span>
+            <Link href="/security" className="hover:text-content-primary transition-colors">Security</Link>
           </div>
-
-          {/* Right: Copyright */}
-          <span>&copy; {new Date().getFullYear()} Namines</span>
         </div>
       </div>
     </footer>

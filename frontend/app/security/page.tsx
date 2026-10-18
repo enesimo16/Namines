@@ -1,14 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  Shield,
-  Lock,
-  Server,
-  KeyRound,
-  FileCheck2,
-  Mail
-} from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Footer from '../../components/layout/Footer';
 
 export const metadata: Metadata = {
@@ -29,66 +21,61 @@ export default function SecurityPage() {
           <span>Back to Namines</span>
         </Link>
 
-        {/* Header */}
+        {/* Clean Polaris Header */}
         <div className="border-b border-surface-500/80 pb-8 mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-800 border border-surface-500 text-micro font-mono text-accent-text mb-4">
-            <Shield className="w-3.5 h-3.5" />
-            <span>Hardened Multi-Tenant Architecture</span>
-          </div>
+          <p className="text-xs font-mono text-accent-text uppercase tracking-widest font-semibold mb-2">
+            Enterprise Architecture &amp; Trust
+          </p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-content-primary mb-3">
             Security Architecture &amp; Whitepaper
           </h1>
           <p className="text-xs font-mono text-content-subtle">
-            Published: September 2026 &bull; Architecture Revision 3.1 &bull; SOC 2 Type II Audited
+            Published: September 2026 &bull; Architecture Revision 3.1 &bull; SOC 2 Type II Certified &bull; Namines, Yel LLC
           </p>
         </div>
 
         {/* Content Body */}
-        <div className="space-y-12 text-sm text-content-secondary leading-relaxed">
+        <div className="space-y-12 text-sm text-content-secondary leading-relaxed font-sans">
           {/* Section 1: Security Principles */}
           <section className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               1. Fundamental Security Invariants
             </h2>
             <p>
               Namines is designed from the protocol layer up to eliminate the security vulnerabilities common in generic cloud database tools. We operate under four non-negotiable architectural invariants:
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/60 p-5 space-y-2">
-                <div className="flex items-center gap-2 text-content-primary font-semibold text-xs">
-                  <Lock className="w-4 h-4 text-accent" />
-                  <span>Zero Host Socket Exposure</span>
-                </div>
+              <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/60 p-5 space-y-2">
+                <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                  Zero Host Socket Exposure
+                </h3>
                 <p className="text-xs text-content-muted leading-relaxed">
                   The host daemon socket (<code className="font-mono text-accent-text">docker.sock</code>) is strictly prohibited from mounting into any container. Test containers run within ephemeral, isolated subnets.
                 </p>
               </div>
 
-              <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/60 p-5 space-y-2">
-                <div className="flex items-center gap-2 text-content-primary font-semibold text-xs">
-                  <Server className="w-4 h-4 text-accent" />
-                  <span>DB-Per-Project Isolation</span>
-                </div>
+              <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/60 p-5 space-y-2">
+                <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                  DB-Per-Project Isolation
+                </h3>
                 <p className="text-xs text-content-muted leading-relaxed">
                   Tenants do not share database schemas or tables. Each project operates on its own discrete database instance with unique cryptographic credentials.
                 </p>
               </div>
 
-              <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/60 p-5 space-y-2">
-                <div className="flex items-center gap-2 text-content-primary font-semibold text-xs">
-                  <KeyRound className="w-4 h-4 text-accent" />
-                  <span>AES-256-GCM Envelope Encryption</span>
-                </div>
+              <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/60 p-5 space-y-2">
+                <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                  AES-256-GCM Envelope Encryption
+                </h3>
                 <p className="text-xs text-content-muted leading-relaxed">
                   All connection strings, certificates, and BYOK credentials are encrypted at rest using AES-256-GCM authenticated encryption with KMS key rotation.
                 </p>
               </div>
 
-              <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/60 p-5 space-y-2">
-                <div className="flex items-center gap-2 text-content-primary font-semibold text-xs">
-                  <FileCheck2 className="w-4 h-4 text-accent" />
-                  <span>Immutable Audit Trails</span>
-                </div>
+              <div id="audit" className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/60 p-5 space-y-2">
+                <h3 className="text-xs font-bold text-content-primary uppercase tracking-wider">
+                  Immutable Audit Trails
+                </h3>
                 <p className="text-xs text-content-muted leading-relaxed">
                   Every proposed DDL modification, test container dry run, and approval is immutably logged with actor claims and canonical AST snapshots.
                 </p>
@@ -98,19 +85,19 @@ export default function SecurityPage() {
 
           {/* Section 2: Threat Model (STRIDE) */}
           <section className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               2. STRIDE Threat Model Analysis
             </h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono border-collapse border border-surface-500">
+              <table className="w-full text-left text-xs font-mono border-collapse border border-surface-500/70">
                 <thead>
-                  <tr className="bg-surface-800 text-content-primary border-b border-surface-500">
+                  <tr className="bg-surface-800 text-content-primary border-b border-surface-500/70">
                     <th className="p-3">Threat</th>
                     <th className="p-3">Attack Vector</th>
                     <th className="p-3">Architectural Countermeasure</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-surface-500/60 text-content-muted">
+                <tbody className="divide-y divide-surface-600/60 text-content-muted">
                   <tr>
                     <td className="p-3 font-semibold text-content-primary">Spoofing</td>
                     <td className="p-3">Forged authentication tokens</td>
@@ -148,13 +135,13 @@ export default function SecurityPage() {
 
           {/* Section 3: SSRF Protection */}
           <section id="ssrf" className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               3. Zero SSRF &amp; Private Network Guard
             </h2>
             <p>
               When users introspect external databases or test live schema diffs, Namines performs deterministic IP and DNS resolution filtering prior to establishing any TCP socket:
             </p>
-            <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/50 p-5 space-y-2 text-xs font-mono">
+            <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/50 p-5 space-y-2 text-xs font-mono">
               <div className="text-accent-text font-bold uppercase tracking-wider">
                 Blocked Destination Ranges:
               </div>
@@ -169,7 +156,7 @@ export default function SecurityPage() {
 
           {/* Section 4: Gateway Guardrails */}
           <section id="gateway" className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               4. Gateway Guardrails &amp; Scoped API Keys
             </h2>
             <p>
@@ -182,7 +169,7 @@ export default function SecurityPage() {
 
           {/* Section 5: Ephemeral Container Sandboxing */}
           <section id="ephemeral" className="space-y-4">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               5. Ephemeral Container Lifecycle &amp; Sandboxing
             </h2>
             <p>
@@ -197,14 +184,13 @@ export default function SecurityPage() {
 
           {/* Section 6: Vulnerability Disclosure */}
           <section id="disclosure" className="space-y-4 border-t border-surface-500/80 pt-8">
-            <h2 className="text-xl font-bold text-content-primary tracking-tight flex items-center gap-2">
-              <Mail className="w-5 h-5 text-accent-text" />
-              <span>6. Responsible Vulnerability Disclosure</span>
+            <h2 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
+              6. Responsible Vulnerability Disclosure
             </h2>
             <p>
               We welcome reports from independent security researchers and bug bounty hunters. If you believe you have discovered a potential security vulnerability in Namines, please contact us immediately:
             </p>
-            <div className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-800/40 p-5 space-y-2 text-xs">
+            <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-850/40 p-5 space-y-2 text-xs">
               <p className="text-content-primary font-semibold">
                 Security Operations &amp; PGP Key:
               </p>

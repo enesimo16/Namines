@@ -281,8 +281,8 @@ export default function BuilderGrid() {
         </p>
       </div>
 
-      {/* 8-Grid Cards (All 100% Clickable & Interactive) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      {/* 8-Grid Cards (Balanced 1-2-3-4 columns for mobile, tablet, 13"-14" laptops, and ultrawide) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
         {BUILDER_FEATURES.map((feat) => {
           const Icon = feat.icon;
           return (
@@ -292,7 +292,7 @@ export default function BuilderGrid() {
               onKeyDown={activateOnKey(() => setActiveFeature(feat))}
               role="button"
               tabIndex={0}
-              className="group rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/85 hover:bg-surface-800 p-6 flex flex-col justify-between transition-all duration-300 shadow-lg hover:border-accent hover:shadow-xl hover:scale-[1.02] cursor-pointer"
+              className="group rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/85 hover:bg-surface-800 p-5 sm:p-6 flex flex-col justify-between transition-all duration-300 shadow-lg hover:border-accent hover:shadow-xl hover:scale-[1.02] cursor-pointer"
             >
               <div>
                 {/* Card Header: Icon, Tag & Interactive Badge */}
@@ -300,7 +300,7 @@ export default function BuilderGrid() {
                   <div className="w-10 h-10 rounded-[var(--radius-control)] bg-surface-800 group-hover:bg-accent/20 flex items-center justify-center border border-surface-500 group-hover:border-accent transition-colors shadow-sm">
                     <Icon className="w-4 h-4 text-accent-text group-hover:text-accent transition-colors" />
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
                     {feat.badge && (
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[var(--radius-control)] bg-surface-750 text-content-secondary group-hover:bg-accent/15 group-hover:text-accent-text transition-colors">
                         {feat.badge}
@@ -334,10 +334,10 @@ export default function BuilderGrid() {
       </div>
 
       {/* Quick Interactive CLI / Playground Bar */}
-      <div className="mt-12 rounded-[var(--radius-modal)] border border-surface-500 bg-surface-800/80 p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+      <div className="mt-12 rounded-[var(--radius-modal)] border border-surface-500 bg-surface-800/80 p-5 sm:p-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center border border-surface-500">
-            <Cpu className="w-4 h-4 text-accent-text" />
+          <div className="w-8 h-8 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center border border-surface-500 shrink-0">
+            <Terminal className="w-4 h-4 text-accent-text" />
           </div>
           <div className="flex flex-col">
             <span className="text-xs font-bold text-content-primary">
@@ -349,13 +349,13 @@ export default function BuilderGrid() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="px-3.5 py-2 rounded-[var(--radius-control)] bg-surface-900 border border-surface-500 font-mono text-xs text-content-primary select-all">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+          <div className="px-3.5 py-2 rounded-[var(--radius-control)] bg-surface-900 border border-surface-500 font-mono text-xs text-content-primary select-all text-center sm:text-left">
             npx namines@latest init
           </div>
           <Link
             href="/demo"
-            className="px-4 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold text-xs uppercase tracking-wider transition-colors shrink-0 cursor-pointer"
+            className="px-4 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold text-xs uppercase tracking-wider transition-colors shrink-0 text-center cursor-pointer"
           >
             Launch Playground
           </Link>

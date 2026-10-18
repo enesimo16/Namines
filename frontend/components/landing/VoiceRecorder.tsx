@@ -86,7 +86,7 @@ export default function VoiceRecorder({ onTranscription, disabled }: VoiceRecord
       onClick={isRecording ? stopRecording : startRecording}
       className={`w-8 h-8 rounded-full border transition-colors flex items-center justify-center cursor-pointer ${
         isRecording 
-          ? 'bg-danger/20 text-danger-text hover:bg-danger/30 border-danger animate-pulse' 
+          ? 'bg-accent/20 text-accent-text hover:bg-accent/30 border-accent animate-pulse' 
           : 'border-white/10 bg-white/[0.04] text-content-muted hover:text-content-primary hover:border-white/25 hover:bg-white/[0.08]'
       } disabled:opacity-50 disabled:cursor-not-allowed`}
       title={isRecording ? 'Stop Recording' : 'Voice Input'}
