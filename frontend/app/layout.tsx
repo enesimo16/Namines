@@ -40,6 +40,7 @@ export const metadata: Metadata = {
   creator: "Namines",
   icons: {
     icon: [
+      { url: '/icon.png', sizes: '512x512', type: 'image/png' },
       { url: '/icon.svg', type: 'image/svg+xml' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
       { url: '/favicon.ico', sizes: 'any' },

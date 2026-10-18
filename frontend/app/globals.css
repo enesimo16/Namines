@@ -485,6 +485,28 @@ html.light body {
   color: var(--content-primary);
 }
 
+/* Dark/Light Logo Geçiş Kuralları (Flicker-free SSR & CSR) */
+.theme-logo-dark {
+  display: block !important;
+}
+.theme-logo-light {
+  display: none !important;
+}
+
+:root[data-theme="light"] .theme-logo-dark,
+html[data-theme="light"] .theme-logo-dark,
+html.light .theme-logo-dark,
+body.light .theme-logo-dark {
+  display: none !important;
+}
+
+:root[data-theme="light"] .theme-logo-light,
+html[data-theme="light"] .theme-logo-light,
+html.light .theme-logo-light,
+body.light .theme-logo-light {
+  display: block !important;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

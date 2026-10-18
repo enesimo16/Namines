@@ -374,11 +374,25 @@ export default function NewProjectPage() {
 
       {/* Main Content Container */}
       <main className="relative z-10 my-auto w-full max-w-[var(--w-app)] px-4 sm:px-6 lg:px-8 flex flex-col items-center">
-        {/* Hero Section — minimalist, ikon kutusu kaldırıldı (bkz. FRONTEND.md) */}
-        <div className="text-center mb-6 sm:mb-10">
-          <h1 className="font-mono text-2xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-2.5 sm:mb-3 text-content-primary">
-            {t('newProjectPage.heroTitle')}
-          </h1>
+        {/* Hero Section — minimalist, logosuz orijinal kelime işareti (wordmark) */}
+        <div className="text-center mb-6 sm:mb-10 flex flex-col items-center">
+          <h1 className="sr-only">Namines</h1>
+          <div className="mb-3 sm:mb-4 flex items-center justify-center">
+            <img
+              src="/brand/namines-wordmark-dark.png"
+              alt="Namines"
+              className="theme-logo-dark h-9 sm:h-14 lg:h-16 w-auto object-contain transition-transform duration-200 hover:scale-[1.02]"
+              loading="eager"
+              decoding="async"
+            />
+            <img
+              src="/brand/namines-wordmark-light.png"
+              alt="Namines"
+              className="theme-logo-light h-9 sm:h-14 lg:h-16 w-auto object-contain transition-transform duration-200 hover:scale-[1.02]"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
           <p className="text-content-secondary text-xs sm:text-base max-w-[48ch] mx-auto leading-relaxed">
             {t('newProjectPage.heroSubtitle')}
           </p>
