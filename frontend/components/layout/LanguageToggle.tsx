@@ -10,8 +10,8 @@ const SHORT: Record<Locale, string> = { en: 'EN', tr: 'TR' };
  * sayfalarında (/tr ve /en) temiz URL geçişi sağlar.
  */
 export default function LanguageToggle() {
-  const router = typeof useRouter === 'function' ? useRouter() : null;
-  const pathname = typeof usePathname === 'function' ? usePathname() : '';
+  const router = useRouter();
+  const pathname = usePathname();
   const locale = useLocale();
   const t = useT();
 

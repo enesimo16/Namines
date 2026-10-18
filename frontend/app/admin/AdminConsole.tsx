@@ -91,12 +91,7 @@ export const VALID_ADMIN_TABS: AdminTab[] = [
 
 export default function AdminConsole({ initialTab = 'overview' }: { initialTab?: AdminTab }) {
   const router = useRouter();
-  let params: any = null;
-  try {
-    params = useParams?.();
-  } catch {
-    params = null;
-  }
+  const params = useParams();
   const locale = useLocale();
   const t = adminTranslations[locale === 'en' ? 'en' : 'tr'] || adminTranslations.tr;
 

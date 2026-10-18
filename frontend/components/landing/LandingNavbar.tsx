@@ -75,14 +75,14 @@ export default function LandingNavbar() {
           
           {/* Left: Brand Identity */}
           <div className="flex items-center gap-8">
-            <a
+            <Link
               href="/"
               onClick={handleLogoClick}
               className="tap-44 flex items-center gap-2.5 transition-transform hover:scale-[1.01] active:scale-95 cursor-pointer"
               title="Namines — Return to top"
             >
               <Logo size="sm" showWordmark={true} />
-            </a>
+            </Link>
 
             {/* Desktop Navigation Links (Switched to lg:flex for optimal laptop & tablet spacing) */}
             <nav className="hidden lg:flex items-center gap-1">
