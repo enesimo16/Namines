@@ -204,9 +204,13 @@ namespace Namines.API.Controllers
             // yanlış denemeler doğru parolayla giren kullanıcıyı kilitlerdi.
             await _userManager.ResetAccessFailedCountAsync(user);
 
-            if (!user.IsDev && string.Equals(user.Email, "namines@namines.com", StringComparison.OrdinalIgnoreCase))
+            var devConfigEmail = _configuration["Dev:Email"];
+            var isConfigDev = !string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(user.Email, devConfigEmail, StringComparison.OrdinalIgnoreCase);
+            if (!user.IsDev && (isConfigDev || string.Equals(user.Email, "namines@namines.com", StringComparison.OrdinalIgnoreCase)))
             {
                 user.IsDev = true;
+                user.EmailConfirmed = true;
+                user.Type = UserType.Corporate;
                 await _userManager.UpdateAsync(user);
             }
 

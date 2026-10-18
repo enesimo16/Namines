@@ -89,6 +89,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           username: data.user.username,
           email: data.user.email,
           type: data.user.type,
+          isDev: data.user.isDev,
           companyName: data.user.companyName ?? undefined
         }, data.quota);
         showToast('Logged in successfully. Cloud backup is active!', 'success');
@@ -112,6 +113,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           username: data.user.username,
           email: data.user.email,
           type: data.user.type,
+          isDev: data.user.isDev,
           companyName: data.user.companyName ?? undefined
         }, data.quota);
 

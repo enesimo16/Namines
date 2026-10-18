@@ -59,9 +59,16 @@ public class AdminController : ControllerBase
                 user = await _userManager.FindByEmailAsync(email);
             }
 
+            var devConfigEmail = _configuration["Dev:Email"];
+            bool IsAdminEmail(string? e) =>
+                !string.IsNullOrWhiteSpace(e) &&
+                (string.Equals(e, "namines@namines.com", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(e, "admin@namines.com", StringComparison.OrdinalIgnoreCase) ||
+                 (!string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(e, devConfigEmail, StringComparison.OrdinalIgnoreCase)));
+
             if (user != null)
             {
-                var isDesignatedAdmin = string.Equals(user.Email, "namines@namines.com", StringComparison.OrdinalIgnoreCase);
+                var isDesignatedAdmin = IsAdminEmail(user.Email);
                 var isAdminRole = await _userManager.IsInRoleAsync(user, "Admin");
                 if (user.IsDev || isAdminRole || isDesignatedAdmin)
                 {
@@ -73,7 +80,7 @@ public class AdminController : ControllerBase
                     return user;
                 }
             }
-            else if (string.Equals(email, "namines@namines.com", StringComparison.OrdinalIgnoreCase))
+            else if (IsAdminEmail(email))
             {
                 return new ApplicationUser
                 {
@@ -90,7 +97,14 @@ public class AdminController : ControllerBase
         {
             _logger.LogWarning(ex, "EnsureAdminAsync encountered DB issue; checking token claims directly");
             var email = User.FindFirstValue(ClaimTypes.Email);
-            if (string.Equals(email, "namines@namines.com", StringComparison.OrdinalIgnoreCase))
+            var devConfigEmail = _configuration["Dev:Email"];
+            bool IsAdminEmail(string? e) =>
+                !string.IsNullOrWhiteSpace(e) &&
+                (string.Equals(e, "namines@namines.com", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(e, "admin@namines.com", StringComparison.OrdinalIgnoreCase) ||
+                 (!string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(e, devConfigEmail, StringComparison.OrdinalIgnoreCase)));
+
+            if (IsAdminEmail(email))
             {
                 return new ApplicationUser
                 {

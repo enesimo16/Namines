@@ -122,10 +122,12 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
 
   const isAdmin = useMemo(() => {
     if (!isAuthenticated || !user) return false;
+    const email = user.email?.toLowerCase();
     return Boolean(
       user.isDev ||
       user.type?.toLowerCase() === 'admin' ||
-      user.email?.toLowerCase() === 'namines@namines.com'
+      email === 'namines@namines.com' ||
+      email === 'admin@namines.com'
     );
   }, [isAuthenticated, user]);
   const [loading, setLoading] = useState<boolean>(true);
