@@ -25,6 +25,7 @@ import CodeImportPanel from '../../components/canvas/panels/CodeImportPanel';
 import DbConnectionPanel from '../../components/canvas/panels/DbConnectionPanel';
 import { type RepositoryScanResult, type SchemaSourceDescriptor, DEFAULT_SCHEMA_SOURCES } from '../../types/source';
 import { useT, useLangAttr } from '../../lib/i18n';
+import { trackActivity } from '../../lib/telemetry';
 
 export default function NewProjectPage() {
   const t = useT();
@@ -93,6 +94,7 @@ export default function NewProjectPage() {
   useEffect(() => {
     useProjectHistoryStore.getState().setActiveProjectId(null);
     resetProject();
+    trackActivity({ action: 'page_view', module: 'new', path: '/new' });
   }, [resetProject]);
 
   // Handle Stripe redirect callbacks (?upgrade=success / ?upgrade=canceled)
@@ -170,6 +172,7 @@ export default function NewProjectPage() {
    * tanımı ve resim — altısı da doğrudan canvas'a çıkıyor.
    */
   const handleSourceSelect = (id: string) => {
+    trackActivity({ action: `start_${id}`, module: 'new', path: '/new', metadata: id });
     if (id === 'github') { setGithubModalOpen(true); return; }
     if (id === 'starter') { setStarterModalOpen(true); return; }
     if (id === 'code') { setCodeModalOpen(true); return; }
@@ -273,6 +276,7 @@ export default function NewProjectPage() {
     e.preventDefault();
     if (!prompt.trim()) return;
 
+    trackActivity({ action: 'start_prompt', module: 'new', path: '/new', metadata: 'prompt' });
     setIsClarifying(true);
     try {
       setClarify(await schemaService.clarify(prompt));

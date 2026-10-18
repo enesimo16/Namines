@@ -1,11 +1,13 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Sparkles, FileImage, LayoutTemplate, Plus, Database, ChevronRight } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 
 export default function EmptyCanvasState() {
+  const router = useRouter();
   const { schema, addTable, isEditMode, toggleEditMode } = useSchemaStore();
   const showToast = useToastStore((state) => state.showToast);
 
@@ -13,7 +15,7 @@ export default function EmptyCanvasState() {
   if (!schema || schema.tables.length > 0) return null;
 
   const handleGenerateWithAi = () => {
-    window.dispatchEvent(new CustomEvent('namines:open-regional-prompt'));
+    router.push('/new');
   };
 
   const handleImportFromImage = () => {
@@ -34,7 +36,7 @@ export default function EmptyCanvasState() {
   };
 
   return (
-    <div className="absolute inset-0 z-surface flex items-center justify-center bg-scrim/75 backdrop-blur-sm pointer-events-auto">
+    <div className="absolute inset-0 z-modal-backdrop flex items-center justify-center bg-scrim/75 backdrop-blur-sm pointer-events-auto">
       <div className="relative w-full max-w-md p-7 rounded-[var(--radius-modal)] bg-surface-800/95 border border-line-strong shadow-2xl backdrop-blur-2xl flex flex-col items-center text-center gap-5 animate-in zoom-in-95 duration-200 font-sans">
         
         {/* Header Icon */}

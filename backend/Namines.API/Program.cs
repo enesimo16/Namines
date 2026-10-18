@@ -286,6 +286,7 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         });
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
+    builder.Services.AddSingleton<Namines.API.Services.AdminTelemetryService>();
 
     // Rate limiting: pahalı/tehlikeli uçlar (Docker sandbox, DB execute) için istismarı sınırla.
     // KRİTİK: partition'sız bir limiter TÜM kullanıcılar için ortak sayaç tutar; tek kullanıcı

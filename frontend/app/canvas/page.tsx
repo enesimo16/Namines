@@ -34,6 +34,7 @@ import { useToastStore } from '../../store/useToastStore';
 import { useMultiplayerStore } from '../../store/useMultiplayerStore';
 import { useMultiplayer } from '../../hooks/useMultiplayer';
 import { authService } from '../../services/api';
+import { trackActivity } from '../../lib/telemetry';
 import {
   Activity, AlertTriangle, Eye, FileImage, LayoutTemplate, Loader2,
   Pencil, Plus, Redo2, Search, Sparkles, Undo2, Upload,
@@ -237,6 +238,11 @@ export default function CanvasPage() {
     return () => window.removeEventListener('namines:open-template-gallery', handler);
   }, []);
 
+  // Telemetry tracking for canvas
+  useEffect(() => {
+    trackActivity({ action: 'page_view', module: 'canvas', path: '/canvas' });
+  }, []);
+
   const paletteActions = useMemo<PaletteAction[]>(() => [
     {
       id: 'undo',
@@ -283,8 +289,13 @@ export default function CanvasPage() {
       label: 'Generate with AI',
       description: 'Describe your database in plain language',
       icon: <Sparkles className="w-4 h-4" />,
-      keywords: ['ai', 'generate', 'prompt'],
-      onSelect: () => window.dispatchEvent(new CustomEvent('namines:open-regional-prompt')),
+      onSelect: () => {
+        if (!schema || schema.tables.length === 0) {
+          router.push('/new');
+        } else {
+          window.dispatchEvent(new CustomEvent('namines:open-regional-prompt'));
+        }
+      },
     },
     {
       id: 'export-prisma',
@@ -711,8 +722,6 @@ export default function CanvasPage() {
         assessment={assessment}
       />
 
-      <EmptyCanvasState />
-
       <ReactFlowProvider>
         <CanvasContextMenu>
           <ReactFlow
@@ -747,46 +756,50 @@ export default function CanvasPage() {
               size={1.5}
             />
             
-            <MiniMap
-              nodeColor={(node) => {
-                const tableColor = (node.data as TableNodeData | undefined)?.table?.color;
-                if (tableColor) return tableColor;
-                return isEditMode ? token('--color-accent-hover') : token('--color-line-solid-strong');
-              }}
-              maskColor="color-mix(in srgb, var(--color-scrim) 70%, transparent)"
-              className="!hidden md:!block bg-surface-800 border border-line-strong rounded-[var(--radius-modal)] overflow-hidden shadow-2xl"
-            />
+            {schema.tables.length > 0 && (
+              <MiniMap
+                nodeColor={(node) => {
+                  const tableColor = (node.data as TableNodeData | undefined)?.table?.color;
+                  if (tableColor) return tableColor;
+                  return isEditMode ? token('--color-accent-hover') : token('--color-line-solid-strong');
+                }}
+                maskColor="color-mix(in srgb, var(--color-scrim) 70%, transparent)"
+                className="!hidden md:!block bg-surface-800 border border-line-strong rounded-[var(--radius-modal)] overflow-hidden shadow-2xl"
+              />
+            )}
 
             {/* Odadaki diğer kullanıcıların imleçleri (ReactFlow içinde: viewport'a erişir) */}
             <MultiplayerCursors />
 
             {/* Static Schema Info Panel (DbContext yazan yer sabit ve büyük halinde) */}
-            <Panel id="schema-info-panel" position="top-left" className="!z-sticky bg-surface-800/95 backdrop-blur-md border border-line-strong px-3 py-2.5 lg:p-4 rounded-[var(--radius-card)] !mt-[120px] lg:!mt-4 !ml-2 lg:!ml-4 w-auto max-w-[calc(100vw-1rem)] lg:w-64 select-none pointer-events-auto shadow-2xl">
-              <div className="flex items-baseline gap-3 lg:block">
-                <h2 className="text-sm lg:text-base font-bold text-content-primary lg:mb-1 truncate tracking-tight" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
-                <div className="text-[11px] lg:text-xs text-content-muted flex items-center gap-2 lg:gap-3 font-medium shrink-0">
-                  <span>{schema.tables.length} Tables</span>
-                  <span className="text-surface-500">·</span>
-                  <span>{schema.relations.length} Relations</span>
+            {schema.tables.length > 0 && (
+              <Panel id="schema-info-panel" position="top-left" className="!z-sticky bg-surface-800/95 backdrop-blur-md border border-line-strong px-3 py-2.5 lg:p-4 rounded-[var(--radius-card)] !mt-[120px] lg:!mt-4 !ml-2 lg:!ml-4 w-auto max-w-[calc(100vw-1rem)] lg:w-64 select-none pointer-events-auto shadow-2xl">
+                <div className="flex items-baseline gap-3 lg:block">
+                  <h2 className="text-sm lg:text-base font-bold text-content-primary lg:mb-1 truncate tracking-tight" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
+                  <div className="text-[11px] lg:text-xs text-content-muted flex items-center gap-2 lg:gap-3 font-medium shrink-0">
+                    <span>{schema.tables.length} Tables</span>
+                    <span className="text-surface-500">·</span>
+                    <span>{schema.relations.length} Relations</span>
+                  </div>
                 </div>
-              </div>
-              {/* Branch denetimi ve tablo listesi masaüstü araçları */}
-              <div className="hidden lg:block">
-                <BranchControlPanel />
-                <TableZoomList tables={schema.tables} />
-              </div>
-            </Panel>
+                {/* Branch denetimi ve tablo listesi masaüstü araçları */}
+                <div className="hidden lg:block">
+                  <BranchControlPanel />
+                  <TableZoomList tables={schema.tables} />
+                </div>
+              </Panel>
+            )}
           </ReactFlow>
         </CanvasContextMenu>
 
         {/* Draggable Panels */}
         <ToolbarPanel />
-        <RegionalPromptPanel />
-        <CanvasExportToolbar />
+        {schema.tables.length > 0 && <RegionalPromptPanel />}
+        {schema.tables.length > 0 && <CanvasExportToolbar />}
         <ConflictResolverModal />
 
         {/* Namines Flow çubuğu */}
-        <NaminesFlowBar />
+        {schema.tables.length > 0 && <NaminesFlowBar />}
 
         {/* Canvas arama (ReactFlowProvider içinde olmalı — fitBounds kullanır) */}
         <CanvasSearch
@@ -795,6 +808,8 @@ export default function CanvasPage() {
         />
         <TableFocusListener />
       </ReactFlowProvider>
+
+      <EmptyCanvasState />
 
       <TableEditorDrawer />
       <AutomationRuleDrawer />

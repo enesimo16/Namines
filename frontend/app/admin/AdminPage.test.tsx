@@ -4,6 +4,7 @@ import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import AdminPage from './page';
 import { useAuthStore } from '../../store/useAuthStore';
 import { adminService } from '../../services/adminService';
+import { setLocale } from '../../lib/i18n';
 
 // Mock Next router
 vi.mock('next/navigation', () => ({
@@ -86,11 +87,109 @@ vi.mock('../../services/adminService', () => ({
     updateUserPlan: vi.fn().mockResolvedValue({ message: 'Success' }),
     resetUserQuota: vi.fn().mockResolvedValue({ message: 'Reset' }),
     deleteFeedback: vi.fn().mockResolvedValue({ message: 'Deleted' }),
+    getTokenStats: vi.fn().mockResolvedValue({
+      timeline: [{ date: '2026-10-18', tokens: 1000, requests: 25 }],
+      modelDistribution: { 'NAI Standard': 20, 'Groq': 5 },
+      serverDistribution: { 'PostgreSQL': 25 },
+      advancedPreferences: { totalPrompts: 25, advancedCount: 8, ratioPercent: 32 },
+      topUsers: [{ id: 'user-1', email: 'admin@namines.com', username: 'testadmin', dailyUsage: 25, dailyLimit: 999999, plan: 'dev' }],
+    }),
+    getSessions: vi.fn().mockResolvedValue({
+      sessions: [
+        {
+          sessionId: 'sess-1',
+          userEmail: 'user@example.com',
+          startedAt: '2026-10-18T10:00:00Z',
+          lastActiveAt: '2026-10-18T10:15:00Z',
+          durationMinutes: 15,
+          pagesVisited: ['/new', '/canvas'],
+          startMode: 'prompt',
+          totalClicks: 12,
+          recentActions: [],
+        },
+      ],
+      overview: {
+        totalRecordedEvents: 45,
+        moduleClicks: { canvas: 30, desk: 15 },
+        startModes: { prompt: 20, starter: 5 },
+      },
+    }),
+    getProjects: vi.fn().mockResolvedValue({
+      totalProjects: 120,
+      totalTables: 480,
+      totalStorageMb: 35,
+      items: [
+        {
+          id: 'proj-1',
+          name: 'DemoDB',
+          ownerId: 'user-1',
+          ownerEmail: 'admin@namines.com',
+          ownerUsername: 'testadmin',
+          dbType: 'postgresql',
+          tableCount: 12,
+          estimatedMb: 2,
+          vaultBackupsCount: 1,
+          hasGroundDatabase: false,
+          createdAt: '2026-10-01T00:00:00Z',
+          updatedAt: '2026-10-18T00:00:00Z',
+        },
+      ],
+      page: 1,
+      pageSize: 50,
+      totalPages: 1,
+    }),
+    getBotDiagnostics: vi.fn().mockResolvedValue({
+      auditTimestamp: '2026-10-18T10:00:00Z',
+      overallStatus: 'Healthy',
+      healthScore: 100,
+      probes: [
+        {
+          serviceName: 'PostgreSQL Control DB',
+          status: 'pass',
+          latencyMs: 12,
+          message: 'Veritabanı bağlantısı sağlıklı',
+          checkedAt: '2026-10-18T10:00:00Z',
+        },
+      ],
+      summaryText: 'Tüm sistem bileşenleri yanıt veriyor.',
+    }),
+    runBotAudit: vi.fn().mockResolvedValue({
+      auditTimestamp: '2026-10-18T10:00:00Z',
+      overallStatus: 'Healthy',
+      healthScore: 100,
+      probes: [],
+      summaryText: 'Denetim başarılı',
+    }),
+    trackEvent: vi.fn().mockResolvedValue(undefined),
+    getLogs: vi.fn().mockResolvedValue({
+      logs: [
+        {
+          id: 'log-1',
+          timestamp: '2026-10-18T10:00:00Z',
+          level: 'Error',
+          source: 'AI Gateway',
+          message: 'Upstream timeout',
+          resolved: false,
+        },
+      ],
+      stats: { totalErrors: 1, totalWarnings: 0, unresolvedCount: 1, totalRecorded: 1 },
+    }),
+    resolveLog: vi.fn().mockResolvedValue({ message: 'Resolved' }),
+    clearLogs: vi.fn().mockResolvedValue({ message: 'Cleared' }),
+    simulateError: vi.fn().mockResolvedValue({
+      message: 'Simulated',
+      log: { id: 'sim-1', timestamp: '2026-10-18T10:00:00Z', level: 'Error', source: 'Test', message: 'Test error', resolved: false },
+    }),
+    getBotHistory: vi.fn().mockResolvedValue({
+      history: [],
+      incidents: [],
+    }),
   },
 }));
 
 describe('AdminPage', () => {
   beforeEach(() => {
+    setLocale('tr');
     useAuthStore.setState({
       isAuthenticated: false,
       user: null,
@@ -125,7 +224,7 @@ describe('AdminPage', () => {
     });
   });
 
-  it('renders 3-panel Shopify Polaris admin layout when user is Dev/Admin', async () => {
+  it('renders 3-panel Shopify Polaris admin layout with simplified tabs when user is Dev/Admin', async () => {
     useAuthStore.setState({
       isAuthenticated: true,
       user: {
@@ -139,17 +238,53 @@ describe('AdminPage', () => {
 
     render(<AdminPage />);
 
-    // Primary Left Rail
+    // Primary Left Rail: Simple Tab Names (Requested in Phase 2)
     await waitFor(() => {
       expect(screen.getByTitle('Namines')).toBeTruthy();
       expect(screen.getByText('v1.0')).toBeTruthy();
-      expect(screen.getByText('Genel Bakış (Overview)')).toBeTruthy();
-      expect(screen.getByText('Kullanıcılar & Kotalar')).toBeTruthy();
-      expect(screen.getAllByText(/Geri Bildirimler/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Genel Bakış').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Üyeler').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Tokenlar').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Oturumlar').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Projeler').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Hatalar').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Geri Bildirim').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Sistem').length).toBeGreaterThan(0);
     });
 
     // Sub-Panel and Center Workspace
     expect(screen.getByText(/Operasyon Özeti/i)).toBeTruthy();
-    expect(screen.getByText(/Toplam Kayıtlı Kullanıcı/i)).toBeTruthy();
+    expect(screen.getByText(/Toplam Kayıtlı Üye/i)).toBeTruthy();
+  });
+
+  it('renders localized English strings when locale is set to en', async () => {
+    setLocale('en');
+    useAuthStore.setState({
+      isAuthenticated: true,
+      user: {
+        username: 'enes',
+        email: 'enes@namines.com',
+        type: 'Admin',
+        isDev: true,
+      },
+      token: 'fake-jwt-token',
+    });
+
+    render(<AdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Namines')).toBeTruthy();
+      expect(screen.getAllByText('Overview').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Members').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Tokens').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Sessions').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Projects').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Errors').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Feedback').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('System').length).toBeGreaterThan(0);
+    });
+
+    expect(screen.getByText(/Operations Overview/i)).toBeTruthy();
+    expect(screen.getByText(/Total Registered Members/i)).toBeTruthy();
   });
 });

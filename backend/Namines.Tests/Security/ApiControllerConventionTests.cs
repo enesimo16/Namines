@@ -154,6 +154,8 @@ public class ApiControllerConventionTests
         ["SmartSeedController"] = "Saf dönüşüm: şemadan örnek veri.",
         ["VoiceController"] = "Saf dönüşüm: sesten metne.",
         ["FeedbackController"] = "Geri bildirim toplama; kimliksiz kabul ediliyor.",
+        ["AdminController.TrackClientEvent"] =
+            "İstemci gezinme ve tıklama telemetrisi toplama; anonim oturumlar dahil kimliksiz kabul ediliyor.",
         ["SourcesController"] =
             "Sabit kaynak kataloğu: kullanıcıya göre değişmiyor, hiçbir şey harcamıyor " +
             "ve giriş öncesi görünmesi gereken şey ürünün ne yapabildiği.",
