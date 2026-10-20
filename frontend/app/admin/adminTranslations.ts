@@ -11,6 +11,8 @@ export const adminTranslations = {
     tabLogs: 'Hatalar',
     tabFeedbacks: 'Geri Bildirim',
     tabSystem: 'Sistem',
+    tabAiRoutes: 'AI Yönlendirme',
+    tabFeatures: 'Özellik Bayrakları',
     backToCanvas: 'Tuvale Dön',
 
     // Sub-Panel Headers
@@ -22,6 +24,8 @@ export const adminTranslations = {
     subLogs: (count: number) => `Hatalar (${count})`,
     subFeedbacks: (count: number) => `Biletler (${count})`,
     subSystem: 'Sistem & Bot',
+    subAiRoutes: 'AI Model Yönlendirme',
+    subFeatures: 'Özellik Bayrakları & Kill-Switch',
     liveBadge: 'CANLI',
 
     // Infrastructure Status
@@ -124,6 +128,8 @@ export const adminTranslations = {
     tabLogs: 'Errors',
     tabFeedbacks: 'Feedback',
     tabSystem: 'System',
+    tabAiRoutes: 'AI Routing',
+    tabFeatures: 'Feature Flags',
     backToCanvas: 'Back to Canvas',
 
     // Sub-Panel Headers
@@ -135,6 +141,8 @@ export const adminTranslations = {
     subLogs: (count: number) => `Errors (${count})`,
     subFeedbacks: (count: number) => `Tickets (${count})`,
     subSystem: 'System & Bot',
+    subAiRoutes: 'AI Model Routing',
+    subFeatures: 'Feature Flags & Kill-Switch',
     liveBadge: 'LIVE',
 
     // Infrastructure Status

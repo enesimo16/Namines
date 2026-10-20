@@ -85,3 +85,27 @@ public class SchemaCheck
     /// <summary>Ham SQL koşulu. Boşsa üreticiler bu kısıtı atlar.</summary>
     public string Expression { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// PostgreSQL Row-Level Security (RLS) politikası (04 §3 rls).
+/// Çoklu kiracı (multi-tenant) sistemlerde veritabanı seviyesinde satır izolasyonu sağlar.
+/// </summary>
+public class SchemaRlsPolicy
+{
+    public string Id { get; set; } = string.Empty;
+    public string StableUuid { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Hedef SQL operasyonu: ALL · SELECT · INSERT · UPDATE · DELETE</summary>
+    public string Command { get; set; } = "ALL";
+
+    /// <summary>Hedef veritabanı rolü: PUBLIC · authenticated · anonymous vb.</summary>
+    public string Role { get; set; } = "PUBLIC";
+
+    /// <summary>Okuma/güncelleme kuralı (USING ifadesi) — ör. "tenant_id = current_setting('app.current_tenant', true)"</summary>
+    public string? Using { get; set; }
+
+    /// <summary>Ekleme/güncelleme doğrulama kuralı (WITH CHECK ifadesi) — ör. "tenant_id = current_setting('app.current_tenant', true)"</summary>
+    public string? WithCheck { get; set; }
+}
+

@@ -219,8 +219,8 @@ export default function Footer() {
 
         {/* Bottom Horizontal Bar */}
         <div className="pt-8 border-t border-surface-500/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-content-subtle">
-          <span>&copy; {new Date().getFullYear()} Namines, Yel LLC. All rights reserved.</span>
-          <div className="flex items-center gap-4 text-xs font-mono">
+          <span className="text-center sm:text-left">&copy; {new Date().getFullYear()} Namines, Yel LLC. All rights reserved.</span>
+          <div className="flex items-center justify-center sm:justify-end flex-wrap gap-4 text-xs font-mono">
             <Link href="/privacy" className="hover:text-content-primary transition-colors">Privacy</Link>
             <span>&middot;</span>
             <Link href="/terms" className="hover:text-content-primary transition-colors">Terms</Link>

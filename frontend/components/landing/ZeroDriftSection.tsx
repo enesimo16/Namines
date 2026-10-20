@@ -24,8 +24,8 @@ export default function ZeroDriftSection() {
       {/* 2-Column Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-stretch">
         {/* Card 1: Typographic Highlight List */}
-        <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/90 p-8 sm:p-10 flex flex-col justify-center shadow-xl">
-          <p className="text-xl sm:text-2xl font-medium leading-relaxed text-content-primary">
+        <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/90 p-5 sm:p-8 lg:p-10 flex flex-col justify-center shadow-xl">
+          <p className="text-base sm:text-xl lg:text-2xl font-medium leading-relaxed text-content-primary">
             Intuitive database architecture and lifecycle safety for{' '}
             <span style={{ color: 'oklch(var(--phrase-l) 0.14 var(--brand-hue))' }}>PostgreSQL schemas</span>,{' '}
             <span style={{ color: 'oklch(var(--phrase-l) 0.14 160)' }}>foreign key cascades</span>,{' '}
@@ -41,7 +41,7 @@ export default function ZeroDriftSection() {
         </div>
 
         {/* Card 2: Full-stack Previews for Every Pull Request */}
-        <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/90 p-8 sm:p-10 flex flex-col justify-between shadow-xl">
+        <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/90 p-5 sm:p-8 lg:p-10 flex flex-col justify-between shadow-xl">
           <div>
             <h3 className="text-xl sm:text-2xl font-bold text-content-primary mb-3">
               Full-stack schema diffs for every pull request

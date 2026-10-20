@@ -91,8 +91,8 @@ export default function StackRibbon() {
         <div
           className="relative flex-1 w-full overflow-hidden py-2"
           style={{
-            maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 100%)',
-            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 100%)',
+            maskImage: 'linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)',
           }}
         >
           {/* Row 1 — Gliding Continuously Left */}

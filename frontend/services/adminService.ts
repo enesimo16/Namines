@@ -557,4 +557,57 @@ export const adminService = {
     });
     return res.data;
   },
+
+  getFeatureFlags: async (): Promise<AdminFeatureFlagItem[]> => {
+    const res = await api.get<AdminFeatureFlagItem[]>('/admin/features');
+    return res.data;
+  },
+
+  updateFeatureFlag: async (
+    key: string,
+    data: { isEnabled: boolean; mode?: 'DisabledNotice' | 'Hidden'; noticeMessage?: string }
+  ): Promise<AdminFeatureFlagItem> => {
+    const res = await api.put<AdminFeatureFlagItem>(`/admin/features/${key}`, data);
+    return res.data;
+  },
+
+  getAiRoutes: async (): Promise<AdminAiRoutesResponse> => {
+    const res = await api.get<AdminAiRoutesResponse>('/admin/ai-routes');
+    return res.data;
+  },
+
+  updateAiRoute: async (
+    toolKey: string,
+    data: { provider: string; modelName: string; temperature: number; fallbackProvider?: string }
+  ): Promise<AdminAiToolRouteItem> => {
+    const res = await api.put<AdminAiToolRouteItem>(`/admin/ai-routes/${toolKey}`, data);
+    return res.data;
+  },
 };
+
+export interface AdminFeatureFlagItem {
+  featureKey: string;
+  displayName: string;
+  description: string;
+  category: string;
+  isEnabled: boolean;
+  mode: 'DisabledNotice' | 'Hidden';
+  noticeMessage?: string;
+  updatedAt?: string;
+}
+
+export interface AdminAiToolRouteItem {
+  toolKey: string;
+  displayName: string;
+  provider: string;
+  modelName: string;
+  temperature: number;
+  fallbackProvider?: string;
+  updatedAt?: string;
+}
+
+export interface AdminAiRoutesResponse {
+  routes: AdminAiToolRouteItem[];
+  providers: string[];
+}
+

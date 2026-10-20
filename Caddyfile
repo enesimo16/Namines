@@ -1,0 +1,70 @@
+# Namines — Üretim Ağ Geçidi (Caddy Reverse Proxy)
+#
+# ── DOMAIN BAĞIMSIZ TASARIM ──────────────────────────────────────────────────
+# Domain henüz alınmadıysa:
+#   APP_DOMAIN=localhost veya APP_DOMAIN=:80 verilerek yerelde ya da ham IP'de
+#   (örn. http://130.162.254.97) SSL zorlaması olmadan doğrudan HTTP olarak çalışır.
+#
+# Domain alındığında (örn. APP_DOMAIN=namines.app):
+#   Caddy Let's Encrypt / ZeroSSL üzerinden otomatik ücretsiz SSL sertifikasını
+#   kurar, yeniler ve HTTPS'e yönlendirir. Hiçbir ayar dosyası değiştirilmez.
+# ─────────────────────────────────────────────────────────────────────────────
+
+{$APP_DOMAIN:localhost} {
+    # ── Güvenlik Başlıkları (Security Hardening) ──────────────────────────────
+    header {
+        # Clickjacking koruması
+        X-Frame-Options "SAMEORIGIN"
+        # MIME-sniffing koruması
+        X-Content-Type-Options "nosniff"
+        # Gizlilik odaklı referrer politikası
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # XSS koruması
+        X-XSS-Protection "1; mode=block"
+        # HSTS (Sadece HTTPS isteklerinde uygulanır)
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Server kimliğini gizle
+        -Server
+    }
+
+    # ── 1. Backend REST API & Swagger & Health ────────────────────────────────
+    handle /api/* {
+        reverse_proxy namines-backend:8080 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+        }
+    }
+
+    handle /health* {
+        reverse_proxy namines-backend:8080
+    }
+
+    # ── 2. SignalR Canvas Hub (WebSocket Desteği) ────────────────────────────
+    handle /hubs/* {
+        reverse_proxy namines-backend:8080 {
+            header_up Upgrade {http.upgrade}
+            header_up Connection "Upgrade"
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+        }
+    }
+
+    # ── 3. Namines Desk (services/desk Mikroservisi) ──────────────────────────
+    handle /desk* {
+        reverse_proxy namines-desk:3200 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+        }
+    }
+
+    # ── 4. Ana Web Uygulaması (Next.js Frontend & PostHog /ingest Proxy) ─────
+    handle {
+        reverse_proxy namines-frontend:3000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+        }
+    }
+
+    # Gzip ve Zstandard sıkıştırma
+    encode zstd gzip
+}

@@ -65,11 +65,11 @@ export default function SecurityResilience() {
       </div>
 
       {/* 6-Grid Security Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {SECURITY_ITEMS.map((item) => (
           <div
             key={item.title}
-            className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/90 p-6 flex flex-col gap-4 shadow-lg hover:border-surface-400 transition-colors"
+            className="rounded-[var(--radius-card)] border border-surface-500 bg-surface-900/90 p-5 sm:p-6 flex flex-col gap-3.5 sm:gap-4 shadow-lg hover:border-surface-400 transition-colors"
           >
             <div className="w-10 h-10 rounded-[var(--radius-control)] bg-surface-800 flex items-center justify-center border border-surface-500 text-accent-text shrink-0">
               <item.icon className="w-5 h-5" />

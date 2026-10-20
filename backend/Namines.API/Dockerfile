@@ -7,6 +7,8 @@ COPY ["Namines.Core/Namines.Core.csproj", "Namines.Core/"]
 COPY ["Namines.Infrastructure/Namines.Infrastructure.csproj", "Namines.Infrastructure/"]
 COPY ["Namines.Vault/Namines.Vault.csproj", "Namines.Vault/"]
 COPY ["Namines.Ground/Namines.Ground.csproj", "Namines.Ground/"]
+COPY ["Namines.Flow/Namines.Flow.csproj", "Namines.Flow/"]
+COPY ["Namines.Desk/Namines.Desk.csproj", "Namines.Desk/"]
 
 # Bağımlılıkları restore et
 RUN dotnet restore "Namines.API/Namines.API.csproj"
@@ -36,7 +38,7 @@ COPY --from=build /app/publish .
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 
-# SQLite connection string'i /app/data klasörüne yönlendir (volume ile kalıcı)
-ENV ConnectionStrings__DefaultConnection="Data Source=/app/data/namines_auth.db"
+# G7: Control DB PostgreSQL varsayılanı (docker ağı içindeki namines-control-db servisi)
+ENV ConnectionStrings__DefaultConnection="Host=namines-control-db;Port=5432;Database=namines_control;Username=namines;Password=postgres"
 
 ENTRYPOINT ["dotnet", "Namines.API.dll"]

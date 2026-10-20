@@ -38,6 +38,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
+    <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
+    <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />
+    <ProjectReference Include="..\Namines.Flow\Namines.Flow.csproj" />
+    <ProjectReference Include="..\Namines.Desk\Namines.Desk.csproj" />
     <ProjectReference Include="..\Namines.Mcp\Namines.Mcp.csproj" />
     <!-- Controller sözleşmesi testleri için (ApiControllerConventionTests): yanlış
          yere düşmüş bir [ApiController] uygulamayı hiç BAŞLATMIYOR ve bunu ancak

@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Mail } from 'lucide-react';
 import RotatingHeadline from './RotatingHeadline';
 import DatabasePromptVisualizer from './DatabasePromptVisualizer';
+import TalkToSalesModal from './TalkToSalesModal';
 
 export default function Hero() {
+  const [isSalesOpen, setIsSalesOpen] = useState(false);
   return (
     <div className="relative w-full overflow-hidden bg-surface-900">
       {/* Ambient su yeşili / turquoise glow in top-left */}
@@ -75,17 +78,21 @@ export default function Hero() {
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
 
-              <a
-                href="mailto:hello@namines.com"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 font-semibold py-3 px-6 rounded-[var(--radius-control)] bg-surface-800/80 hover:bg-surface-700 border border-surface-400 text-content-primary transition-all text-xs uppercase tracking-wider hover:bg-surface-700"
+              <button
+                type="button"
+                onClick={() => setIsSalesOpen(true)}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 font-semibold py-3 px-6 rounded-[var(--radius-control)] bg-surface-800/80 hover:bg-surface-700 border border-surface-400 text-content-primary transition-all text-xs uppercase tracking-wider cursor-pointer active:scale-95 shadow-sm"
               >
-                <Mail className="w-3.5 h-3.5 text-content-subtle" />
+                <Mail className="w-3.5 h-3.5 text-accent-text" />
                 <span>Talk to sales</span>
-              </a>
+              </button>
             </div>
           </div>
         </DatabasePromptVisualizer>
       </section>
+
+      {/* Shopify-Style Interactive Animated Enterprise Sales Modal */}
+      <TalkToSalesModal isOpen={isSalesOpen} onClose={() => setIsSalesOpen(false)} />
     </div>
   );
 }

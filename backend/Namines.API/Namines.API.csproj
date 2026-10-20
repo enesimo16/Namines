@@ -40,6 +40,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
+    <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
+    <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />
+    <ProjectReference Include="..\Namines.Flow\Namines.Flow.csproj" />
+    <ProjectReference Include="..\Namines.Desk\Namines.Desk.csproj" />
   </ItemGroup>
 
   <ItemGroup>

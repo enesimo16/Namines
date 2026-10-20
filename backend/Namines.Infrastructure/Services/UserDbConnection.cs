@@ -52,8 +52,12 @@ internal static class UserDbConnection
     /// gibi göstermek, olmayan bir güvenceye güvenmek olurdu. Bkz.
     /// <see cref="AppliesReadOnlySession"/>.
     /// </summary>
+    public static Task<DbConnection> OpenAsync(
+        string connectionString, string dbType, bool readOnly, CancellationToken ct) =>
+        OpenAsync(connectionString, dbType, readOnly, sessionContext: null, ct);
+
     public static async Task<DbConnection> OpenAsync(
-        string connectionString, string dbType, bool readOnly, CancellationToken ct)
+        string connectionString, string dbType, bool readOnly, DbSessionContext? sessionContext, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(dbType);
@@ -71,7 +75,42 @@ internal static class UserDbConnection
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
+        if (sessionContext is not null)
+        {
+            await ApplySessionContextAsync(conn, dbType, sessionContext, ct);
+        }
+
         return conn;
+    }
+
+    internal static async Task ApplySessionContextAsync(
+        DbConnection conn, string dbType, DbSessionContext context, CancellationToken ct)
+    {
+        if (!dbType.Equals("POSTGRESQL", StringComparison.OrdinalIgnoreCase) &&
+            !dbType.Equals("POSTGRES", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT set_config('app.current_tenant', @tenant_id, false), " +
+                          "       set_config('app.user_id', @user_id, false), " +
+                          "       set_config('app.user_role', @user_role, false);";
+
+        var pTenant = cmd.CreateParameter();
+        pTenant.ParameterName = "tenant_id";
+        pTenant.Value = context.TenantId ?? string.Empty;
+        cmd.Parameters.Add(pTenant);
+
+        var pUser = cmd.CreateParameter();
+        pUser.ParameterName = "user_id";
+        pUser.Value = context.UserId ?? string.Empty;
+        cmd.Parameters.Add(pUser);
+
+        var pRole = cmd.CreateParameter();
+        pRole.ParameterName = "user_role";
+        pRole.Value = context.Role ?? string.Empty;
+        cmd.Parameters.Add(pRole);
+
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public static bool AppliesReadOnlySession(string dbType) => dbType.ToUpperInvariant() switch

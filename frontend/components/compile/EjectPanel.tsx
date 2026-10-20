@@ -17,6 +17,29 @@ import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { Panel, PanelBar, ActionButton, PanelEmpty } from './PanelKit';
 import Select from '../ui/Select';
+import { useFeatureStore } from '../../store/useFeatureStore';
+
+const EJECT_FEATURE_MAP: Record<string, string> = {
+  'types.typescript': 'eject_types_ts',
+  'sdk.typescript': 'eject_sdk_ts',
+  'schemas.zod': 'eject_zod',
+  'types.csharp': 'eject_types_csharp',
+  'types.pydantic': 'eject_pydantic',
+  'schema.graphql': 'eject_graphql',
+  'schema.json': 'eject_json_schema',
+  'schema.proto': 'eject_protobuf',
+  'orm.drizzle': 'eject_drizzle',
+  'orm.typeorm': 'eject_typeorm',
+  'orm.sqlalchemy': 'eject_sqlalchemy',
+  'orm.django': 'eject_django',
+  'orm.sequelize': 'eject_sequelize',
+  'orm.gorm': 'eject_gorm',
+  'console.nextjs': 'eject_nextjs_console',
+  'migration.flyway': 'eject_flyway',
+  'migration.liquibase': 'eject_liquibase',
+  'spec.ir': 'eject_canonical_ir',
+  'spec.nsl': 'eject_nsl',
+};
 
 function resolvePrismLang(fileName: string | null, selectedTarget: string): string {
   const lower = (fileName || '').toLowerCase();
@@ -52,6 +75,7 @@ interface Props {
 export default function EjectPanel({ schema, dbType }: Props) {
   const showToast = useToastStore(s => s.showToast);
   const codeRef = useRef<HTMLElement>(null);
+  const { isFeatureEnabled, getFeatureState } = useFeatureStore();
 
   const [targets, setTargets] = useState<{ target: string; name: string }[]>([]);
   const [selected, setSelected] = useState<string>('types.typescript');
@@ -61,6 +85,18 @@ export default function EjectPanel({ schema, dbType }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const visibleTargets = targets.filter(t => {
+    const key = EJECT_FEATURE_MAP[t.target];
+    if (!key) return true;
+    const state = getFeatureState(key);
+    if (!isFeatureEnabled(key) && state.mode === 'Hidden') return false;
+    return true;
+  });
+
+  const selectedFeatureKey = EJECT_FEATURE_MAP[selected];
+  const isSelectedEnabled = selectedFeatureKey ? isFeatureEnabled(selectedFeatureKey) : true;
+  const selectedState = selectedFeatureKey ? getFeatureState(selectedFeatureKey) : null;
 
   const hasTables = !!schema?.tables?.length;
 
@@ -153,16 +189,37 @@ export default function EjectPanel({ schema, dbType }: Props) {
               onChange={e => setSelected(e.target.value)}
               className="min-w-[220px]"
             >
-              {targets.map(t => (
-                <option key={t.target} value={t.target}>{t.name}</option>
-              ))}
+              {visibleTargets.map(t => {
+                const key = EJECT_FEATURE_MAP[t.target];
+                const isEnabled = key ? isFeatureEnabled(key) : true;
+                return (
+                  <option key={t.target} value={t.target}>
+                    {t.name} {!isEnabled ? '(Bakım Modunda)' : ''}
+                  </option>
+                );
+              })}
             </Select>
           }
         >
-          <ActionButton icon={Package} onClick={handleDownload} busy={isDownloading} tone="primary">
+          <ActionButton
+            icon={Package}
+            onClick={handleDownload}
+            busy={isDownloading}
+            disabled={!isSelectedEnabled}
+            tone="primary"
+          >
             Download .zip
           </ActionButton>
         </PanelBar>
+
+        {!isSelectedEnabled && (
+          <div className="p-3 bg-warning-subtle border-b border-line flex items-center gap-2 text-content-primary text-xs font-medium">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-warning-text" />
+            <span>
+              {selectedState?.noticeMessage || 'Bu kod ihraç hedefi şu anda bakım modundadır.'}
+            </span>
+          </div>
+        )}
 
         {warnings.length > 0 && (
           <details className="shrink-0 border-b border-line bg-surface-800/90 px-3.5 py-2.5 group">

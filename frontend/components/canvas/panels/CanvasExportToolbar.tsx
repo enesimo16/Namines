@@ -37,6 +37,22 @@ import { parseSqlDdl } from '../../../lib/sqlImportParser';
 import { toPrismaSchema } from '../../../lib/prismaExporter';
 import { useToastStore } from '../../../store/useToastStore';
 import { token } from '../../../lib/designTokens';
+import FeatureGuard from '../../common/FeatureGuard';
+import { useFeatureStore } from '../../../store/useFeatureStore';
+
+const TOOLKIT_FEATURE_KEYS = [
+  'tool_dba_advisor',
+  'tool_schema_explain',
+  'tool_reverse_code',
+  'tool_live_db',
+  'tool_gateway_viewer',
+  'tool_migration_engine',
+  'tool_virtual_relations',
+  'tool_vision_ocr',
+  'tool_sql_import',
+  'tool_edit_mode',
+  'tool_export_hub',
+];
 
 /** Sol-alt "toolkit" FAB'ı — canvas'a yerel araçlar (Import/DBA/Edit/Export) ve
  *  üst navbardan taşınan az-kullanılan 7 araç (Explain/Settings/DB Import/
@@ -44,6 +60,8 @@ import { token } from '../../../lib/designTokens';
 export default function CanvasExportToolbar() {
   const { projectName, schema, dbType, isEditMode, toggleEditMode, loadFromSchema } = useSchemaStore();
   const { isExporting, exportAsPng } = useCanvasExport();
+  const isFeatureEnabled = useFeatureStore((s) => s.isFeatureEnabled);
+  const enabledToolsCount = TOOLKIT_FEATURE_KEYS.filter((k) => isFeatureEnabled(k)).length;
 
   // DBA store hooks
   const isPanelOpen = useDbaStore(state => state.isPanelOpen);
@@ -376,406 +394,428 @@ export default function CanvasExportToolbar() {
           {/* Araç Listesi — Kompakt, tek hizada, dikey scroll gerektirmeyen yapı */}
           <div className="p-1.5 space-y-1 max-h-[calc(100dvh-150px)] sm:max-h-none overflow-y-auto sm:overflow-visible">
             {/* DBA Sorun Analizi */}
-            <button
-              id="canvas-dba-inspect-btn"
-              onClick={() => {
-                setIsPanelOpen(!isPanelOpen);
-                setIsDialOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
-                isPanelOpen
-                  ? 'bg-surface-700 border-line-strong'
-                  : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">DBA Health & Optimization</div>
-                  <div className="text-micro text-content-muted truncate">Index audit, keys, security & AI fixes</div>
-                </div>
-              </div>
-              {issues.length > 0 ? (
-                <span className="shrink-0 px-1.5 py-0.5 rounded-full text-micro font-bold bg-danger-subtle text-danger-text border border-danger/30">
-                  {issues.length}
-                </span>
-              ) : (
-                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                  Open ➔
-                </span>
-              )}
-            </button>
-
-            {/* AI ile Şemayı Açıkla */}
-            <button
-              id="canvas-explain-schema-btn"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('namines:explain-schema'));
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <BookOpen className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">Explain Schema with AI</div>
-                  <div className="text-micro text-content-muted truncate">Natural language summary of tables</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                Run ➔
-              </span>
-            </button>
-
-            {/* Koddan Şema Çıkar */}
-            <button
-              id="canvas-code-import-btn"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('namines:open-code-import'));
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <FileCode2 className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">Reverse Engineer from Code</div>
-                  <div className="text-micro text-content-muted truncate">Import from C# EF, TS, Python</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                Import ➔
-              </span>
-            </button>
-
-
-            {/* Canlı DB Bağlantısı */}
-            <button
-              id="canvas-db-connect-btn"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('namines:open-db-connect'));
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <Database className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">Connect Live Database</div>
-                  <div className="text-micro text-content-muted truncate">Postgres, MySQL, SQLite introspection</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                Connect ➔
-              </span>
-            </button>
-
-            {/* Canlı Verileri İncele (Gateway) */}
-            <button
-              id="canvas-gateway-btn"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('namines:open-gateway'));
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <Table className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">Browse Table Records</div>
-                  <div className="text-micro text-content-muted truncate">Read-only live data gateway viewer</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                View ➔
-              </span>
-            </button>
-
-            {/* Migrasyon Motoru */}
-            <button
-              id="canvas-migration-btn"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('namines:open-migration'));
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <History className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">DDL Migration Engine</div>
-                  <div className="text-micro text-content-muted truncate">Generate versions & migration diffs</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                Manage ➔
-              </span>
-            </button>
-
-            {/* Çapraz DB İlişkileri */}
-            <button
-              id="canvas-cross-db-btn"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('namines:open-cross-db'));
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <Network className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">Cross-Database Virtual Relations</div>
-                  <div className="text-micro text-content-muted truncate">Connect tables across disparate engines</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                Link ➔
-              </span>
-            </button>
-
-            {/* Vision / Görselden Şema */}
-            <button
-              id="canvas-vision-import-btn"
-              onClick={() => {
-                setIsVisionOpen(true);
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <Camera className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">Import from Diagram Image</div>
-                  <div className="text-micro text-content-muted truncate">OCR & Vision from whiteboard or ERD</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                Upload ➔
-              </span>
-            </button>
-
-            {/* SQL DDL Dosyası Yükle */}
-            <button
-              id="canvas-sql-import-btn"
-              onClick={() => {
-                sqlFileInputRef.current?.click();
-                setIsDialOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  <FileCode className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">Import SQL DDL (.sql)</div>
-                  <div className="text-micro text-content-muted truncate">Load CREATE TABLE script to canvas</div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                File ➔
-              </span>
-            </button>
-
-            {/* Düzenleme Modu */}
-            <button
-              id="canvas-edit-mode-btn"
-              onClick={toggleEditMode}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
-                isEditMode
-                  ? 'bg-surface-700 border-line-strong'
-                  : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                  {isEditMode ? <Eye className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-content-primary truncate">
-                    {isEditMode ? 'Visual Edit Mode (Active)' : 'Protected View Mode'}
-                  </div>
-                  <div className="text-micro text-content-muted truncate">
-                    {isEditMode ? 'Click columns to modify types' : 'Click to enable editing'}
-                  </div>
-                </div>
-              </div>
-              <span className="shrink-0 text-micro font-semibold px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-700 text-content-primary border border-line">
-                {isEditMode ? 'Active' : 'Toggle'}
-              </span>
-            </button>
-
-            {/* ── Tek Satır Dışa Aktarım & Dağıtım (Üzerine Gelince / Tıklayınca Yanda Açılan Flyout) ── */}
-            <div
-              id="canvas-export-dropdown-btn"
-              className="relative group/export pt-1 border-t border-line"
-              onMouseEnter={() => setIsExportFlyoutOpen(true)}
-              onMouseLeave={() => setIsExportFlyoutOpen(false)}
-            >
+            <FeatureGuard featureKey="tool_dba_advisor">
               <button
-                type="button"
-                onClick={() => setIsExportFlyoutOpen(v => !v)}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/70 hover:bg-surface-700 border border-line-strong transition-all text-left cursor-pointer"
+                id="canvas-dba-inspect-btn"
+                onClick={() => {
+                  setIsPanelOpen(!isPanelOpen);
+                  setIsDialOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
+                  isPanelOpen
+                    ? 'bg-surface-700 border-line-strong'
+                    : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
+                }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                    <Download className="w-3.5 h-3.5" />
+                    <ShieldCheck className="w-3.5 h-3.5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-xs font-bold text-content-primary truncate">Export & Package Schema</div>
-                    <div className="text-micro text-content-muted truncate">PNG, SVG, SQL, Prisma, PDF, Full-Stack .zip</div>
+                    <div className="text-xs font-bold text-content-primary truncate">DBA Health & Optimization</div>
+                    <div className="text-micro text-content-muted truncate">Index audit, keys, security & AI fixes</div>
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-content-muted transition-transform shrink-0 ${isExportFlyoutOpen ? 'rotate-90 sm:rotate-0 sm:translate-x-0.5 text-content-primary' : ''}`} />
+                {issues.length > 0 ? (
+                  <span className="shrink-0 px-1.5 py-0.5 rounded-full text-micro font-bold bg-danger-subtle text-danger-text border border-danger/30">
+                    {issues.length}
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                    Open ➔
+                  </span>
+                )}
               </button>
+            </FeatureGuard>
 
-              {/* Yanda Açılan (Side Flyout) Alt Menü */}
-              <div
-                className={`${
-                  isExportFlyoutOpen
-                    ? 'block sm:opacity-100 sm:scale-100 sm:pointer-events-auto'
-                    : 'hidden sm:block sm:opacity-0 sm:scale-95 sm:pointer-events-none'
-                } mt-1.5 sm:mt-0 sm:absolute sm:left-full sm:bottom-0 sm:pl-2 z-[110] transition-all duration-150`}
+            {/* AI ile Şemayı Açıkla */}
+            <FeatureGuard featureKey="tool_schema_explain">
+              <button
+                id="canvas-explain-schema-btn"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:explain-schema'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
               >
-                <div className="w-full sm:w-[300px] p-2 rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong shadow-2xl backdrop-blur-2xl space-y-1.5">
-                  <div className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-content-muted">
-                    Quick Exports
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <BookOpen className="w-3.5 h-3.5" />
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      id="export-png-btn"
-                      onClick={() => {
-                        exportAsPng({ fileName: slug });
-                        setIsDialOpen(false);
-                      }}
-                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
-                    >
-                      <FileImage className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                      <span className="truncate">PNG Image</span>
-                    </button>
-
-                    <button
-                      id="export-svg-btn"
-                      onClick={() => {
-                        exportAsSvg();
-                        setIsDialOpen(false);
-                      }}
-                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
-                    >
-                      <FileCode className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                      <span className="truncate">Vector (SVG)</span>
-                    </button>
-
-                    <button
-                      id="export-sql-btn"
-                      onClick={() => {
-                        exportAsSql();
-                        setIsDialOpen(false);
-                      }}
-                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
-                    >
-                      <Database className="w-3.5 h-3.5 text-success-text shrink-0" />
-                      <span className="truncate">SQL Code (.sql)</span>
-                    </button>
-
-                    <button
-                      id="export-prisma-btn"
-                      onClick={() => {
-                        exportAsPrisma();
-                        setIsDialOpen(false);
-                      }}
-                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
-                    >
-                      <Database className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                      <span className="truncate">Prisma Schema</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        exportAsPdf();
-                        setIsDialOpen(false);
-                      }}
-                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                      <span className="truncate">PDF Report</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        exportForCi();
-                        setIsDialOpen(false);
-                      }}
-                      className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
-                    >
-                      <GitBranch className="w-3.5 h-3.5 text-content-primary shrink-0" />
-                      <span className="truncate">CI Snapshot</span>
-                    </button>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Explain Schema with AI</div>
+                    <div className="text-micro text-content-muted truncate">Natural language summary of tables</div>
                   </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Run ➔
+                </span>
+              </button>
+            </FeatureGuard>
 
-                  <div className="pt-1 border-t border-line space-y-1">
-                    <button
-                      id="export-zip-btn"
-                      onClick={() => {
-                        setIsCloudModalOpen(true);
-                        setIsDialOpen(false);
-                      }}
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/80 hover:bg-surface-700 border border-line-strong transition-all text-left cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                          <Archive className="w-3.5 h-3.5 text-content-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-content-primary truncate">Full-Stack Project (.zip)</div>
-                          <div className="text-micro text-content-muted truncate">C# Web API + Next.js SDK + Cloud IaC</div>
-                        </div>
-                      </div>
-                      <span className="shrink-0 text-micro font-bold text-content-primary">
-                        Deploy ➔
-                      </span>
-                    </button>
+            {/* Koddan Şema Çıkar */}
+            <FeatureGuard featureKey="tool_reverse_code">
+              <button
+                id="canvas-code-import-btn"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-code-import'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <FileCode2 className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Reverse Engineer from Code</div>
+                    <div className="text-micro text-content-muted truncate">Import from C# EF, TS, Python</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Import ➔
+                </span>
+              </button>
+            </FeatureGuard>
 
-                    <button
-                      onClick={() => {
-                        setIsSharedHostingModalOpen(true);
-                        setIsDialOpen(false);
-                      }}
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-700 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
-                          <Server className="w-3.5 h-3.5 text-content-primary" />
+
+            {/* Canlı DB Bağlantısı */}
+            <FeatureGuard featureKey="tool_live_db">
+              <button
+                id="canvas-db-connect-btn"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-db-connect'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Database className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Connect Live Database</div>
+                    <div className="text-micro text-content-muted truncate">Postgres, MySQL, SQLite introspection</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Connect ➔
+                </span>
+              </button>
+            </FeatureGuard>
+
+            {/* Canlı Verileri İncele (Gateway) */}
+            <FeatureGuard featureKey="tool_gateway_viewer">
+              <button
+                id="canvas-gateway-btn"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-gateway'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Table className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Browse Table Records</div>
+                    <div className="text-micro text-content-muted truncate">Read-only live data gateway viewer</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  View ➔
+                </span>
+              </button>
+            </FeatureGuard>
+
+            {/* Migrasyon Motoru */}
+            <FeatureGuard featureKey="tool_migration_engine">
+              <button
+                id="canvas-migration-btn"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-migration'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <History className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">DDL Migration Engine</div>
+                    <div className="text-micro text-content-muted truncate">Generate versions & migration diffs</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Manage ➔
+                </span>
+              </button>
+            </FeatureGuard>
+
+            {/* Çapraz DB İlişkileri */}
+            <FeatureGuard featureKey="tool_virtual_relations">
+              <button
+                id="canvas-cross-db-btn"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('namines:open-cross-db'));
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Network className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Cross-Database Virtual Relations</div>
+                    <div className="text-micro text-content-muted truncate">Connect tables across disparate engines</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Link ➔
+                </span>
+              </button>
+            </FeatureGuard>
+
+            {/* Vision / Görselden Şema */}
+            <FeatureGuard featureKey="tool_vision_ocr">
+              <button
+                id="canvas-vision-import-btn"
+                onClick={() => {
+                  setIsVisionOpen(true);
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <Camera className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Import from Diagram Image</div>
+                    <div className="text-micro text-content-muted truncate">OCR & Vision from whiteboard or ERD</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  Upload ➔
+                </span>
+              </button>
+            </FeatureGuard>
+
+            {/* SQL DDL Dosyası Yükle */}
+            <FeatureGuard featureKey="tool_sql_import">
+              <button
+                id="canvas-sql-import-btn"
+                onClick={() => {
+                  sqlFileInputRef.current?.click();
+                  setIsDialOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    <FileCode className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">Import SQL DDL (.sql)</div>
+                    <div className="text-micro text-content-muted truncate">Load CREATE TABLE script to canvas</div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                  File ➔
+                </span>
+              </button>
+            </FeatureGuard>
+
+            {/* Düzenleme Modu */}
+            <FeatureGuard featureKey="tool_edit_mode">
+              <button
+                id="canvas-edit-mode-btn"
+                onClick={toggleEditMode}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] border transition-all text-left cursor-pointer group ${
+                  isEditMode
+                    ? 'bg-surface-700 border-line-strong'
+                    : 'bg-surface-800/50 hover:bg-surface-800 border-line hover:border-line-strong'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                    {isEditMode ? <Eye className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-content-primary truncate">
+                      {isEditMode ? 'Visual Edit Mode (Active)' : 'Protected View Mode'}
+                    </div>
+                    <div className="text-micro text-content-muted truncate">
+                      {isEditMode ? 'Click columns to modify types' : 'Click to enable editing'}
+                    </div>
+                  </div>
+                </div>
+                <span className="shrink-0 text-micro font-semibold px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-700 text-content-primary border border-line">
+                  {isEditMode ? 'Active' : 'Toggle'}
+                </span>
+              </button>
+            </FeatureGuard>
+
+            {/* ── Tek Satır Dışa Aktarım & Dağıtım (Üzerine Gelince / Tıklayınca Yanda Açılan Flyout) ── */}
+            <FeatureGuard featureKey="tool_export_hub">
+              <div
+                id="canvas-export-dropdown-btn"
+                className="relative group/export pt-1 border-t border-line"
+                onMouseEnter={() => setIsExportFlyoutOpen(true)}
+                onMouseLeave={() => setIsExportFlyoutOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsExportFlyoutOpen(v => !v)}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/70 hover:bg-surface-700 border border-line-strong transition-all text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                      <Download className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-content-primary truncate">Export & Package Schema</div>
+                      <div className="text-micro text-content-muted truncate">PNG, SVG, SQL, Prisma, PDF, Full-Stack .zip</div>
+                    </div>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 text-content-muted transition-transform shrink-0 ${isExportFlyoutOpen ? 'rotate-90 sm:rotate-0 sm:translate-x-0.5 text-content-primary' : ''}`} />
+                </button>
+
+                {/* Yanda Açılan (Side Flyout) Alt Menü */}
+                <div
+                  className={`${
+                    isExportFlyoutOpen
+                      ? 'block sm:opacity-100 sm:scale-100 sm:pointer-events-auto'
+                      : 'hidden sm:block sm:opacity-0 sm:scale-95 sm:pointer-events-none'
+                  } mt-1.5 sm:mt-0 sm:absolute sm:left-full sm:bottom-0 sm:pl-2 z-[110] transition-all duration-150`}
+                >
+                  <div className="w-full sm:w-[300px] p-2 rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong shadow-2xl backdrop-blur-2xl space-y-1.5">
+                    <div className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-content-muted">
+                      Quick Exports
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        id="export-png-btn"
+                        onClick={() => {
+                          exportAsPng({ fileName: slug });
+                          setIsDialOpen(false);
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                      >
+                        <FileImage className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                        <span className="truncate">PNG Image</span>
+                      </button>
+
+                      <button
+                        id="export-svg-btn"
+                        onClick={() => {
+                          exportAsSvg();
+                          setIsDialOpen(false);
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                      >
+                        <FileCode className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                        <span className="truncate">Vector (SVG)</span>
+                      </button>
+
+                      <button
+                        id="export-sql-btn"
+                        onClick={() => {
+                          exportAsSql();
+                          setIsDialOpen(false);
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                      >
+                        <Database className="w-3.5 h-3.5 text-success-text shrink-0" />
+                        <span className="truncate">SQL Code (.sql)</span>
+                      </button>
+
+                      <button
+                        id="export-prisma-btn"
+                        onClick={() => {
+                          exportAsPrisma();
+                          setIsDialOpen(false);
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                      >
+                        <Database className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                        <span className="truncate">Prisma Schema</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          exportAsPdf();
+                          setIsDialOpen(false);
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                        <span className="truncate">PDF Report</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          exportForCi();
+                          setIsDialOpen(false);
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-800/60 hover:bg-surface-700 border border-line hover:border-line-strong text-xs font-semibold text-content-primary transition-all text-left cursor-pointer"
+                      >
+                        <GitBranch className="w-3.5 h-3.5 text-content-primary shrink-0" />
+                        <span className="truncate">CI Snapshot</span>
+                      </button>
+                    </div>
+
+                    <div className="pt-1 border-t border-line space-y-1">
+                      <button
+                        id="export-zip-btn"
+                        onClick={() => {
+                          setIsCloudModalOpen(true);
+                          setIsDialOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/80 hover:bg-surface-700 border border-line-strong transition-all text-left cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                            <Archive className="w-3.5 h-3.5 text-content-primary" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-content-primary truncate">Full-Stack Project (.zip)</div>
+                            <div className="text-micro text-content-muted truncate">C# Web API + Next.js SDK + Cloud IaC</div>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-content-primary truncate">Shared Hosting / Mobile</div>
-                          <div className="text-micro text-content-muted truncate">phpMyAdmin SQL or mobile SQLite .db</div>
+                        <span className="shrink-0 text-micro font-bold text-content-primary">
+                          Deploy ➔
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsSharedHostingModalOpen(true);
+                          setIsDialOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-700 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-[var(--radius-control)] bg-surface-700 flex items-center justify-center text-content-primary shrink-0">
+                            <Server className="w-3.5 h-3.5 text-content-primary" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-content-primary truncate">Shared Hosting / Mobile</div>
+                            <div className="text-micro text-content-muted truncate">phpMyAdmin SQL or mobile SQLite .db</div>
+                          </div>
                         </div>
-                      </div>
-                      <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
-                        Build ➔
-                      </span>
-                    </button>
+                        <span className="shrink-0 text-micro font-semibold text-content-muted group-hover:text-content-primary">
+                          Build ➔
+                        </span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </FeatureGuard>
           </div>
         </div>
 
@@ -815,7 +855,7 @@ export default function CanvasExportToolbar() {
                   : 'bg-surface-700 text-content-secondary border border-line group-hover:text-content-primary group-hover:border-line-strong'
               }`}
             >
-              {issues.length > 0 ? `${issues.length} alerts` : '11 tools'}
+              {issues.length > 0 ? `${issues.length} alerts` : `${enabledToolsCount} tools`}
             </span>
           </button>
         </div>

@@ -1098,7 +1098,7 @@ public sealed class GatewayService : IGatewayService
     /// bunu bilinçli olarak false geçer.
     /// </param>
     private async Task<DbConnection> OpenGuardedConnectionAsync(
-        string connectionString, string dbType, bool readOnly, CancellationToken ct)
+        string connectionString, string dbType, bool readOnly, CancellationToken ct, DbSessionContext? sessionContext = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(dbType);
@@ -1109,6 +1109,6 @@ public sealed class GatewayService : IGatewayService
         if (DbIntrospectionService.FindDisallowedHost(_hostPolicy, connectionString, dbType) is { } denyReason)
             throw new InvalidOperationException(denyReason);
 
-        return await UserDbConnection.OpenAsync(connectionString, dbType, readOnly, ct);
+        return await UserDbConnection.OpenAsync(connectionString, dbType, readOnly, sessionContext, ct);
     }
 }

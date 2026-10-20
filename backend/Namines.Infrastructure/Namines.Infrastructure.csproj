@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
@@ -7,6 +7,9 @@
     <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
     <!-- Ayni tek yonlu kural: Ground da Infrastructure'i GORMEZ. -->
     <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />
+    <!-- Flow ve Desk modulleri: modular monolith sinirlari -->
+    <ProjectReference Include="..\Namines.Flow\Namines.Flow.csproj" />
+    <ProjectReference Include="..\Namines.Desk\Namines.Desk.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,6 +23,8 @@
   <ItemGroup>
     <!-- PII redaksiyon enricher'ı burada yaşıyor: log yazan her yerde (API,
          arka plan servisleri) aynı kapıdan geçmesi gerekiyor. -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="8.8.0" />
+    <PackageReference Include="Polly.Core" Version="8.4.2" />
     <PackageReference Include="Serilog" Version="4.1.0" />
   </ItemGroup>
 

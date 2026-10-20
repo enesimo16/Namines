@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,20 +9,18 @@ using Microsoft.Extensions.Hosting;
 using Namines.Infrastructure.Observability;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 namespace Namines.API.Extensions;
 
 /// <summary>
-/// OpenTelemetry kurulumu (new-phase/21-OBSERVABILITY.md §1, §3, §4).
+/// OpenTelemetry ve W3C Dağıtık İzleme (Distributed Tracing) & Prometheus Metrik kurulumu (new-phase/21-OBSERVABILITY.md).
 ///
-/// Satıcı-bağımsız kalması bilinçli: enstrümantasyon OTLP ile konuşuyor, arkasında
-/// Grafana da olabilir başka bir şey de. Kod hiçbir sağlayıcıya bağlanmıyor.
+/// Satıcı-bağımsız kalması bilinçli: enstrümantasyon W3C ve OTel standartlarıyla konuşuyor, arkasında
+/// Grafana, Jaeger veya Prometheus olabilir.
 ///
-/// <b>Şu an yalnızca METRİK var, iz (trace) yok.</b> İz toplamanın tek anlamı onu
-/// bir yere göndermek; OTLP dışa aktarıcısının denenen tüm sürümleri bilinen bir
-/// güvenlik açığı bildiriyor (NU1902) ve projede henüz bir collector yok. İz
-/// enstrümantasyonunu dışa aktarıcısız kaydetmek, hiçbir yere gitmeyen veri için
-/// CPU harcamak olurdu. Collector kurulduğunda ikisi birlikte eklenir.
+/// Tracing katmanı ASP.NET Core, HttpClient, ModuleEventBus ve Polly Resilience boru hatlarını W3C Traceparent
+/// formatında span'lar ile birbirine bağlar ve her yanıta 'X-Trace-Id' başlığı iliştirir.
 /// </summary>
 public static class ObservabilityExtensions
 {
@@ -48,22 +49,59 @@ public static class ObservabilityExtensions
                     .AddMeter(NaminesMetrics.MeterName)
                     // Prometheus scrape ucu: collector olmadan da metrik okunabilsin.
                     .AddPrometheusExporter();
+            })
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .SetResourceBuilder(resource)
+                    .AddSource(NaminesActivitySource.SourceName)
+                    .AddAspNetCoreInstrumentation(options =>
+                    {
+                        // Prometheus scrape ucu ve sağlık kontrolleri trace ağacını kirletmesin
+                        options.Filter = httpContext =>
+                            !httpContext.Request.Path.StartsWithSegments("/metrics") &&
+                            !httpContext.Request.Path.StartsWithSegments("/health");
+                    })
+                    .AddHttpClientInstrumentation();
             });
+
+        // 21 §8: PostHog Ürün Analitiği ve Feature Flags İstemcisi (Kota dostu, Fail-open)
+        services.Configure<PostHogOptions>(configuration.GetSection(PostHogOptions.SectionName));
+        services.AddHttpClient(PostHogClient.HttpClientName, (sp, client) =>
+        {
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PostHogOptions>>().Value;
+            var baseHost = string.IsNullOrWhiteSpace(options.Host) ? "https://eu.i.posthog.com" : options.Host.TrimEnd('/');
+            client.BaseAddress = new Uri(baseHost);
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+        });
+        services.AddSingleton<Namines.Core.Interfaces.IPostHogService, PostHogClient>();
 
         return services;
     }
 
     /// <summary>
-    /// Prometheus scrape ucunu bağlar.
+    /// Prometheus scrape ucunu ve W3C X-Trace-Id yanıt başlığı ara yazılımını bağlar.
     ///
     /// <b>Kimlik doğrulaması YOK ama bu bilinçli bir taviz değil:</b> metrik uçları
     /// genellikle iç ağdan kazınır ve Prometheus'un kimlik doğrulama desteği
     /// sınırlıdır. Uç, altyapı seviyesinde (ingress/firewall) korunmalıdır —
     /// dışarıya açık bırakılırsa istek hacmi ve hata oranları görünür olur.
-    /// Bu, dağıtım dokümanında belirtilmelidir.
     /// </summary>
     public static WebApplication UseNaminesObservability(this WebApplication app)
     {
+        // Her HTTP yanıtına W3C TraceId'sini iliştirerek ön yüz ve arka yüz log korelasyonunu sağlar
+        app.Use(async (context, next) =>
+        {
+            context.Response.OnStarting(() =>
+            {
+                var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+                context.Response.Headers.TryAdd("X-Trace-Id", traceId);
+                return Task.CompletedTask;
+            });
+
+            await next();
+        });
+
         app.MapPrometheusScrapingEndpoint("/metrics");
         return app;
     }

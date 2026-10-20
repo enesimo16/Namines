@@ -15,6 +15,12 @@ namespace Namines.Vault.DependencyInjection;
 /// </summary>
 public static class VaultServiceCollectionExtensions
 {
+    /// <summary>
+    /// Vault modülünü Modular Monolith mimarisinde bağımsız bir bileşen olarak DI konteynerine kaydeder.
+    /// </summary>
+    public static IServiceCollection AddVaultModule(this IServiceCollection services)
+        => services.AddNaminesVault();
+
     public static IServiceCollection AddNaminesVault(this IServiceCollection services)
     {
         // Singleton: DockerClient ve türetilmiş şifreleme anahtarı istek başına
@@ -56,6 +62,8 @@ public static class VaultServiceCollectionExtensions
             // MariaDB istemcisi --column-statistics bayrağını tanımıyor.
             hasColumnStatisticsFlag: false,
             logger: sp.GetRequiredService<ILogger<MySqlFamilyBackupProvider>>()));
+
+        services.AddSingleton<IVaultModule, VaultModule>();
 
         return services;
     }

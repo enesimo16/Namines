@@ -28,6 +28,20 @@ const nextConfig: NextConfig = {
     const backendUrl = process.env.BACKEND_API_URL || 'https://130-162-254-97.sslip.io';
     const deskUrl = process.env.DESK_ORIGIN_URL || 'https://desk.130-162-254-97.sslip.io';
     return [
+      // PostHog Ters Proxy (Reverse Proxy) — Reklam engelleyicilere (ad-blocker) takılmadan
+      // ve Safari ITP kısıtlamalarına uğramadan analitik ve feature flag isteklerini güvenle iletir.
+      {
+        source: '/ingest/static/:path*',
+        destination: 'https://eu-assets.i.posthog.com/static/:path*',
+      },
+      {
+        source: '/ingest/:path*',
+        destination: 'https://eu.i.posthog.com/:path*',
+      },
+      {
+        source: '/ingest/decide',
+        destination: 'https://eu.i.posthog.com/decide',
+      },
       {
         source: '/api/:path*',
         destination: `${backendUrl}/api/:path*`,

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Assistant, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "../components/layout/Header";
@@ -7,6 +7,13 @@ import ConfirmDialog from "../components/common/ConfirmDialog";
 import FeedbackWidget from "../components/feedback/FeedbackWidget";
 import TourOverlay from "../components/tour/TourOverlay";
 import BackToTop from "../components/landing/BackToTop";
+import PostHogProvider from "../components/providers/PostHogProvider";
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 /* ─────────────────────────────────────────────────────────────────────────
    FONT YÖNETİM MERKEZİ (Single Source of Truth for Typography)
@@ -112,6 +119,7 @@ export default function RootLayout({
           didn't match" hatası düşüyordu. Bu hata zararsız olduğu hâlde
           GERÇEK hidrasyon hatalarını gürültüye boğuyordu. */}
       <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
+        <PostHogProvider>
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
@@ -150,6 +158,7 @@ export default function RootLayout({
 
         {/* Temaya uygun Başa Dön butonu (sağ altta) */}
         <BackToTop />
+        </PostHogProvider>
       </body>
     </html>
   );

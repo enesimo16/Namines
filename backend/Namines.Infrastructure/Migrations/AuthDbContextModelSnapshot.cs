@@ -154,6 +154,83 @@ namespace Namines.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.AdminFeatureFlag", b =>
+                {
+                    b.Property<string>("FeatureKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("NoticeMessage")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("FeatureKey");
+
+                    b.ToTable("FeatureFlags");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.AiToolRoute", b =>
+                {
+                    b.Property<string>("ToolKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("FallbackProvider")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ModelName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<double>("Temperature")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ToolKey");
+
+                    b.ToTable("AiToolRoutes");
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -586,7 +663,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
-                    b.ToTable("DeskHandoffTokens");
+                    b.ToTable("desk_handoff_tokens", "desk");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKey", b =>
@@ -806,7 +883,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ProjectId")
                         .IsUnique();
 
-                    b.ToTable("GroundDatabases");
+                    b.ToTable("ground_databases", "ground");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.OrgAiUsage", b =>
@@ -915,7 +992,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("UserId", "ProjectId", "Name")
                         .IsUnique();
 
-                    b.ToTable("SavedQueries");
+                    b.ToTable("saved_queries", "desk");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.SchemaVersion", b =>
@@ -1067,7 +1144,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "ProjectId", "CreatedAt");
 
-                    b.ToTable("SqlQueryHistory");
+                    b.ToTable("sql_query_history", "desk");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.StripeWebhookEvent", b =>
@@ -1320,7 +1397,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "CreatedAt");
 
-                    b.ToTable("VaultBackups");
+                    b.ToTable("vault_backups", "vault");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
@@ -1362,7 +1439,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "StartedAt");
 
-                    b.ToTable("VaultRestores");
+                    b.ToTable("vault_restores", "vault");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
@@ -1406,7 +1483,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ProjectId")
                         .IsUnique();
 
-                    b.ToTable("VaultSchedules");
+                    b.ToTable("vault_schedules", "vault");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.AutomationAction", b =>
@@ -1433,7 +1510,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("RuleId", "SortOrder");
 
-                    b.ToTable("AutomationActions");
+                    b.ToTable("automation_actions", "flow");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.AutomationRule", b =>
@@ -1470,7 +1547,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "Enabled");
 
-                    b.ToTable("AutomationRules");
+                    b.ToTable("automation_rules", "flow");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.AutomationRunLog", b =>
@@ -1506,7 +1583,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("RuleId");
 
-                    b.ToTable("AutomationRunLogs");
+                    b.ToTable("automation_run_logs", "flow");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Feedback", b =>

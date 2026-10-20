@@ -75,6 +75,12 @@ public class SchemaTable
 
     /// <summary>Tablo seviyesi CHECK kısıtları.</summary>
     public List<SchemaCheck> Checks { get; set; } = new();
+
+    /// <summary>Tablo üzerinde Satır Seviyesi Güvenlik (Row-Level Security) aktif mi?</summary>
+    public bool EnableRls { get; set; }
+
+    /// <summary>Tablo için tanımlı RLS politikaları.</summary>
+    public List<SchemaRlsPolicy> RlsPolicies { get; set; } = new();
 }
 
 public class SchemaColumn

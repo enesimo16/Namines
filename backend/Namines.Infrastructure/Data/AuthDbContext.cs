@@ -56,6 +56,12 @@ namespace Namines.Infrastructure.Data
         /// <summary>Kullanicinin ada kaydettigi sorgular (F-02).</summary>
         public DbSet<SavedQuery> SavedQueries { get; set; } = null!;
 
+        /// <summary>Sistem araçları ve özellik bayrakları (Kill-Switch).</summary>
+        public DbSet<AdminFeatureFlag> FeatureFlags { get; set; } = null!;
+
+        /// <summary>Dinamik AI araç yönlendirme kuralları (Tool -> LLM Provider/Model).</summary>
+        public DbSet<AiToolRoute> AiToolRoutes { get; set; } = null!;
+
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
         }
@@ -63,6 +69,13 @@ namespace Namines.Infrastructure.Data
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+            var isPostgres = Database.IsNpgsql();
+
+            // ── Modular Monolith: Flow, Vault, Ground, Desk Module Model Configurations ──
+            Namines.Flow.Configurations.FlowModelConfiguration.Configure(builder, isPostgres ? "flow" : null);
+            Namines.Vault.Configurations.VaultModelConfiguration.Configure(builder, isPostgres ? "vault" : null);
+            Namines.Ground.Configurations.GroundModelConfiguration.Configure(builder, isPostgres ? "ground" : null);
+            Namines.Desk.Configurations.DeskModelConfiguration.Configure(builder, isPostgres ? "desk" : null);
 
             builder.Entity<CloudProject>()
                 .HasOne(p => p.User)
@@ -155,36 +168,6 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<SchemaVersion>()
                 .HasIndex(v => new { v.ProjectId, v.CreatedAt });
-
-            // ── Namines Flow — AutomationRule / AutomationRunLog (Bölüm 3) ──
-
-            builder.Entity<Namines.Core.Models.AutomationRule>()
-                .HasOne<CloudProject>()
-                .WithMany()
-                .HasForeignKey(r => r.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<Namines.Core.Models.AutomationRule>()
-                .HasIndex(r => new { r.ProjectId, r.Enabled });
-
-            // Aksiyonlar kuralın parçası — kural silinince onlarla birlikte gider.
-            builder.Entity<Namines.Core.Models.AutomationRule>()
-                .HasMany(r => r.Actions)
-                .WithOne()
-                .HasForeignKey(a => a.RuleId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<Namines.Core.Models.AutomationAction>()
-                .HasIndex(a => new { a.RuleId, a.SortOrder });
-
-            builder.Entity<Namines.Core.Models.AutomationRunLog>()
-                .HasOne<Namines.Core.Models.AutomationRule>()
-                .WithMany()
-                .HasForeignKey(l => l.RuleId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<Namines.Core.Models.AutomationRunLog>()
-                .HasIndex(l => l.RuleId);
 
             // ── G11 — ChangeRequest / ChangeRequestApproval ("Database PR", new-phase/29) ──
 
@@ -361,11 +344,6 @@ namespace Namines.Infrastructure.Data
             builder.Entity<TeamInvite>()
                 .HasIndex(i => i.OrganizationId);
 
-            // ── Desk v2 SSO devir jetonları — TeamInvite ile aynı gerekçe ────
-            builder.Entity<DeskHandoffToken>()
-                .HasIndex(t => t.TokenHash)
-                .IsUnique();
-
             // ── second-phase/10-COKLU-DB.md — veritabanları arası mantıksal ilişki ──
             // İki proje sınırını aşan bir kayıt olduğu için Restrict: bir projeyi
             // silmek (CloudProject zaten Cascade ile projeyi siler), o projeye bağlı
@@ -421,31 +399,6 @@ namespace Namines.Infrastructure.Data
             builder.Entity<StripeWebhookEvent>()
                 .HasIndex(e => new { e.StripeCustomerId, e.EventCreatedAt });
 
-            // Yedek listesi her zaman "bu projenin, en yenisi ustte" seklinde
-            // okunuyor; tek kolon indeksi siralamayi kapsamazdi.
-            builder.Entity<VaultBackup>()
-                .HasIndex(b => new { b.ProjectId, b.CreatedAt });
-
-            builder.Entity<VaultRestore>()
-                .HasIndex(r => new { r.ProjectId, r.StartedAt });
-
-            // Proje basina EN FAZLA bir zamanlama. Ikinci bir satir, ayni proje
-            // icin gunde iki yedek demek olurdu -- ve hangisinin gecerli oldugu
-            // hicbir yerden anlasilmazdi.
-            builder.Entity<VaultSchedule>()
-                .HasIndex(s => s.ProjectId)
-                .IsUnique();
-
-            // Proje basina EN FAZLA bir yonetilen veritabani.
-            //
-            // Bu indeks IDEMPOTANSIN DAYANAGI: "Barindir"a iki kez basmak iki
-            // kaynak acar, ikincisinin kaydi birincinin uzerine yazilir ve
-            // birincisi kimsenin bilmedigi ama faturalanan bir kaynak olarak
-            // kalirdi. Ikinci istek veritabani seviyesinde reddediliyor.
-            builder.Entity<GroundDatabase>()
-                .HasIndex(g => g.ProjectId)
-                .IsUnique();
-
             // Optimistic concurrency (REL-003a / B-32): PostgreSQL'in `xmin`
             // sistem kolonuna esleniyor.
             //
@@ -480,19 +433,27 @@ namespace Namines.Infrastructure.Data
                 builder.Entity<CloudProject>().Ignore(p => p.RowVersion);
             }
 
-            // Gecmis HER ZAMAN "bu kullanicinin, bu projedeki, en yenisi ustte"
-            // seklinde okunuyor -- ve saklama siniri da (100 kayit) ayni sirayla
-            // budaniyor. Uc kolonun tek indekste olmasi ikisini de karsiliyor.
-            builder.Entity<SqlQueryHistoryEntry>()
-                .HasIndex(h => new { h.UserId, h.ProjectId, h.CreatedAt });
+            // ── Admin: Özellik Bayrakları (Kill-Switch) ve AI Araç Yönlendirmesi ──
+            builder.Entity<AdminFeatureFlag>(entity =>
+            {
+                entity.HasKey(f => f.FeatureKey);
+                entity.Property(f => f.FeatureKey).HasMaxLength(64);
+                entity.Property(f => f.DisplayName).HasMaxLength(128);
+                entity.Property(f => f.Description).HasMaxLength(512);
+                entity.Property(f => f.Category).HasMaxLength(64);
+                entity.Property(f => f.Mode).HasMaxLength(32);
+                entity.Property(f => f.NoticeMessage).HasMaxLength(512);
+            });
 
-            // Ayni proje icinde ayni kullanicinin ayni ada iki sorgu kaydetmesi
-            // ENGELLENIYOR: iki "Aylik rapor" arasinda hangisinin dogru oldugunu
-            // kimse bilemez. Ikinci kayit hata degil, GUNCELLEME olarak ele
-            // aliniyor (bkz. denetleyici) -- ama garantiyi veritabani veriyor.
-            builder.Entity<SavedQuery>()
-                .HasIndex(q => new { q.UserId, q.ProjectId, q.Name })
-                .IsUnique();
+            builder.Entity<AiToolRoute>(entity =>
+            {
+                entity.HasKey(r => r.ToolKey);
+                entity.Property(r => r.ToolKey).HasMaxLength(64);
+                entity.Property(r => r.DisplayName).HasMaxLength(128);
+                entity.Property(r => r.Provider).HasMaxLength(64);
+                entity.Property(r => r.ModelName).HasMaxLength(128);
+                entity.Property(r => r.FallbackProvider).HasMaxLength(64);
+            });
         }
     }
 }

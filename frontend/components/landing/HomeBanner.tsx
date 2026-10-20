@@ -25,7 +25,7 @@ export default function HomeBanner() {
 
   return (
     <div
-      className="relative flex items-center justify-center gap-3 px-4 py-2 text-center text-xs sm:text-sm font-medium text-banner-ink"
+      className="relative flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-4 pr-9 sm:pr-10 py-2 text-center text-xs sm:text-sm font-medium text-banner-ink"
       style={{
         backgroundImage: 'var(--namines-gradient-banner)',
       }}

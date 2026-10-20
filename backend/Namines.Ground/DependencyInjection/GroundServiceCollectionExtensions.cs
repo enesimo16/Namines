@@ -17,6 +17,12 @@ namespace Namines.Ground.DependencyInjection;
 /// </summary>
 public static class GroundServiceCollectionExtensions
 {
+    /// <summary>
+    /// Ground modülünü Modular Monolith mimarisinde bağımsız bir bileşen olarak DI konteynerine kaydeder.
+    /// </summary>
+    public static IServiceCollection AddGroundModule(this IServiceCollection services)
+        => services.AddNaminesGround();
+
     public static IServiceCollection AddNaminesGround(this IServiceCollection services)
     {
         // Singleton: sağlayıcılar durumsuz — yapılandırmayı okuyup her çağrıda
@@ -50,6 +56,8 @@ public static class GroundServiceCollectionExtensions
         services.AddSingleton<IDatabaseProvider>(sp => new SupabaseProvider(
             sp.GetRequiredService<ISupabaseClient>(),
             sp.GetRequiredService<ILogger<SupabaseProvider>>()));
+
+        services.AddSingleton<IGroundModule, GroundModule>();
 
         return services;
     }

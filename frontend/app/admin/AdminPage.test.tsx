@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({
     prefetch: vi.fn(),
   }),
   usePathname: () => '/admin',
+  useParams: () => ({}),
 }));
 
 // Mock Link

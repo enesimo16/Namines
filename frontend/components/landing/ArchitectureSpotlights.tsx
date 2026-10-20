@@ -12,6 +12,8 @@ import {
   Database,
   Users2,
   Terminal,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 const ENGINE_SNIPPETS: Record<string, string> = {
@@ -66,10 +68,50 @@ CREATE TABLE IF NOT EXISTS "orders" (
 
 CREATE INDEX IF NOT EXISTS "idx_orders_user_created"
   ON "orders" ("user_id", "created_at" DESC);`,
+  'Oracle DB': `-- Oracle Database 23ai Dialect
+CREATE TABLE "ORDERS" (
+  "ID" RAW(16) DEFAULT SYS_GUID() NOT NULL,
+  "USER_ID" RAW(16) NOT NULL,
+  "AMOUNT" NUMBER(12, 2) NOT NULL,
+  "METADATA" JSON DEFAULT '{}' NOT NULL,
+  "CREATED_AT" TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+  CONSTRAINT "PK_ORDERS" PRIMARY KEY ("ID"),
+  CONSTRAINT "CHK_ORDERS_AMOUNT" CHECK ("AMOUNT" >= 0),
+  CONSTRAINT "FK_ORDERS_USER" FOREIGN KEY ("USER_ID")
+    REFERENCES "USERS" ("ID") ON DELETE CASCADE
+);
+
+CREATE INDEX "IDX_ORDERS_USER_CREATED"
+  ON "ORDERS" ("USER_ID", "CREATED_AT" DESC);`,
+  MariaDB: `-- MariaDB 10.5+ Dialect
+CREATE TABLE IF NOT EXISTS \`orders\` (
+  \`id\` UUID NOT NULL DEFAULT UUID(),
+  \`user_id\` UUID NOT NULL,
+  \`amount\` DECIMAL(12, 2) NOT NULL,
+  \`metadata\` LONGTEXT NOT NULL DEFAULT '{}' CHECK (JSON_VALID(\`metadata\`)),
+  \`created_at\` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (\`id\`),
+  CONSTRAINT \`chk_orders_amount\` CHECK (\`amount\` >= 0),
+  CONSTRAINT \`fk_orders_user\` FOREIGN KEY (\`user_id\`)
+    REFERENCES \`users\` (\`id\`) ON DELETE RESTRICT
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+CREATE INDEX \`idx_orders_user_created\`
+  ON \`orders\` (\`user_id\`, \`created_at\` DESC);`,
 };
 
 export default function ArchitectureSpotlights() {
   const [selectedEngine, setSelectedEngine] = useState<string>('PostgreSQL');
+  const [copiedEngine, setCopiedEngine] = useState(false);
+
+  const handleCopySnippet = () => {
+    const snippet = ENGINE_SNIPPETS[selectedEngine];
+    if (snippet) {
+      navigator.clipboard.writeText(snippet);
+      setCopiedEngine(true);
+      setTimeout(() => setCopiedEngine(false), 2000);
+    }
+  };
 
   return (
     <section className="relative z-10 w-full max-w-[var(--w-app)] mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28">
@@ -184,21 +226,21 @@ export default function ArchitectureSpotlights() {
             </div>
 
             {/* Visual Pipeline Stages */}
-            <div className="grid grid-cols-3 gap-2 mb-6 font-mono text-xs">
-              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2 sm:p-2.5 flex flex-col gap-1 text-center">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-6 font-mono text-xs">
+              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-1.5 sm:p-2.5 flex flex-col gap-0.5 sm:gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 1</span>
-                <span className="font-bold text-content-primary text-[11px] sm:text-xs">AST Diff</span>
+                <span className="font-bold text-content-primary text-[10px] sm:text-xs truncate">AST Diff</span>
                 <span className="text-[10px] text-success-text">Passed</span>
               </div>
-              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2 sm:p-2.5 flex flex-col gap-1 text-center">
+              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-1.5 sm:p-2.5 flex flex-col gap-0.5 sm:gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 2</span>
-                <span className="font-bold text-content-primary text-[11px] sm:text-xs">Ephemeral Docker</span>
-                <span className="text-[10px] text-success-text">Verified DDL</span>
+                <span className="font-bold text-content-primary text-[10px] sm:text-xs truncate">Ephemeral DDL</span>
+                <span className="text-[10px] text-success-text">Verified</span>
               </div>
-              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-2 sm:p-2.5 flex flex-col gap-1 text-center">
+              <div className="rounded-[var(--radius-control)] border border-surface-500 bg-surface-800 p-1.5 sm:p-2.5 flex flex-col gap-0.5 sm:gap-1 text-center">
                 <span className="text-[10px] text-content-subtle uppercase">Phase 3</span>
-                <span className="font-bold text-content-primary text-[11px] sm:text-xs">Risk Sign-off</span>
-                <span className="text-[10px] text-accent-text">Audit Recorded</span>
+                <span className="font-bold text-content-primary text-[10px] sm:text-xs truncate">Risk Sign-off</span>
+                <span className="text-[10px] text-accent-text">Audit Log</span>
               </div>
             </div>
 
@@ -285,11 +327,32 @@ export default function ArchitectureSpotlights() {
         <div className="lg:col-span-6 xl:col-span-7">
           <div className="rounded-[var(--radius-modal)] border border-surface-500 bg-surface-900/95 p-6 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-surface-500/70 pb-3 mb-4 font-mono text-xs">
-              <div className="flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-accent-text" />
-                <span className="font-bold text-content-primary">output.{selectedEngine.toLowerCase().replace(' ', '')}.sql</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <Terminal className="w-4 h-4 text-accent-text shrink-0" />
+                <span className="font-bold text-content-primary truncate max-w-[140px] sm:max-w-none">
+                  output.{selectedEngine.toLowerCase().replace(/\s+/g, '')}.sql
+                </span>
               </div>
-              <span className="text-[11px] text-content-subtle">Dialect-verified</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-content-subtle hidden sm:inline">Dialect-verified</span>
+                <button
+                  type="button"
+                  onClick={handleCopySnippet}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 text-content-secondary hover:text-content-primary border border-surface-600/60 text-[11px] transition-colors cursor-pointer"
+                >
+                  {copiedEngine ? (
+                    <>
+                      <Check className="w-3 h-3 text-success-text" />
+                      <span className="text-success-text font-semibold">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>Copy DDL</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
             <pre className="font-mono text-xs leading-relaxed text-content-secondary overflow-x-auto p-4 rounded-[var(--radius-card)] bg-surface-800/80 border border-surface-500/70 max-h-[300px]">
               <code>{ENGINE_SNIPPETS[selectedEngine]}</code>
@@ -310,7 +373,7 @@ export default function ArchitectureSpotlights() {
             </div>
 
             {/* Collaborators strip */}
-            <div className="flex items-center justify-between p-3 rounded-[var(--radius-control)] bg-surface-800/80 border border-surface-500/70 mb-5 text-xs font-mono">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-[var(--radius-control)] bg-surface-800/80 border border-surface-500/70 mb-5 text-xs font-mono gap-2 sm:gap-0">
               <div className="flex items-center gap-3">
                 <div className="flex -space-x-2">
                   <span className="w-7 h-7 rounded-full bg-accent/30 border border-surface-500 flex items-center justify-center font-bold text-accent-text text-[10px]">

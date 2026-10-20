@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
+using Namines.Core.Interfaces;
 using Namines.Infrastructure.Data;
 
 using Namines.API.Services;
@@ -26,19 +27,25 @@ public class AdminController : ControllerBase
     private readonly ILogger<AdminController> _logger;
     private readonly AdminTelemetryService _telemetry;
     private readonly IConfiguration _configuration;
+    private readonly IFeatureFlagService? _featureFlags;
+    private readonly IAiToolRouter? _aiRouter;
 
     public AdminController(
         UserManager<ApplicationUser> userManager,
         AuthDbContext context,
         ILogger<AdminController> logger,
         AdminTelemetryService telemetry,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IFeatureFlagService? featureFlags = null,
+        IAiToolRouter? aiRouter = null)
     {
         _userManager = userManager;
         _context = context;
         _logger = logger;
         _telemetry = telemetry;
         _configuration = configuration;
+        _featureFlags = featureFlags;
+        _aiRouter = aiRouter;
     }
 
     private async Task<ApplicationUser?> EnsureAdminAsync()
@@ -1106,6 +1113,85 @@ public class AdminController : ControllerBase
         var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
         return File(bytes, "text/csv", $"namines-export-{type.ToLowerInvariant()}-{DateTime.UtcNow:yyyyMMdd}.csv");
     }
+
+    // ── Özellik Bayrakları (Kill-Switch) Yönetimi ─────────────────────────────
+    [HttpGet("features")]
+    public async Task<IActionResult> GetFeatures()
+    {
+        var admin = await EnsureAdminAsync();
+        if (admin == null) return Unauthorized();
+
+        if (_featureFlags == null) return Ok(Array.Empty<AdminFeatureFlag>());
+        var flags = await _featureFlags.GetAllFlagsAsync();
+        return Ok(flags);
+    }
+
+    [HttpPut("features/{key}")]
+    public async Task<IActionResult> UpdateFeature(string key, [FromBody] UpdateFeatureFlagRequest request)
+    {
+        var admin = await EnsureAdminAsync();
+        if (admin == null) return Unauthorized();
+
+        if (_featureFlags == null) return BadRequest("Feature flag service is not available.");
+        if (string.IsNullOrWhiteSpace(key)) return BadRequest("Feature key is required.");
+
+        await _featureFlags.UpdateFlagAsync(
+            key,
+            request.IsEnabled,
+            request.Mode ?? "DisabledNotice",
+            request.NoticeMessage);
+
+        var updated = await _featureFlags.GetFlagAsync(key);
+        return Ok(updated);
+    }
+
+    // ── AI Model Yönlendirme (Tool-Based Routing) ───────────────────────────
+    [HttpGet("ai-routes")]
+    public async Task<IActionResult> GetAiRoutes()
+    {
+        var admin = await EnsureAdminAsync();
+        if (admin == null) return Unauthorized();
+
+        if (_aiRouter == null) return Ok(new { routes = Array.Empty<AiToolRoute>(), providers = Array.Empty<string>() });
+        var routes = await _aiRouter.GetAllRoutesAsync();
+        var providers = _aiRouter.GetAvailableProviders();
+        return Ok(new { routes, providers });
+    }
+
+    [HttpPut("ai-routes/{toolKey}")]
+    public async Task<IActionResult> UpdateAiRoute(string toolKey, [FromBody] UpdateAiRouteRequest request)
+    {
+        var admin = await EnsureAdminAsync();
+        if (admin == null) return Unauthorized();
+
+        if (_aiRouter == null) return BadRequest("AI router service is not available.");
+        if (string.IsNullOrWhiteSpace(toolKey)) return BadRequest("Tool key is required.");
+
+        await _aiRouter.UpdateRouteAsync(
+            toolKey,
+            request.Provider,
+            request.ModelName,
+            request.Temperature,
+            request.FallbackProvider);
+
+        var updated = await _aiRouter.GetRouteAsync(toolKey);
+        return Ok(updated);
+    }
+}
+
+public class UpdateFeatureFlagRequest
+{
+    public bool IsEnabled { get; set; }
+    public string? Mode { get; set; } // "DisabledNotice" | "Hidden"
+    public string? NoticeMessage { get; set; }
+}
+
+public class UpdateAiRouteRequest
+{
+    public string Provider { get; set; } = "groq";
+    public string ModelName { get; set; } = "qwen-2.5-coder-32b";
+    public double Temperature { get; set; } = 0.2;
+    public string? FallbackProvider { get; set; }
 }
 
 public class SimulateErrorRequest

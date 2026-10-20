@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquarePlus, Lightbulb, Bug, Database, Send, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { MessageSquarePlus, Lightbulb, Bug, Database, Send, CheckCircle2, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 
@@ -56,8 +56,8 @@ export default function CommunityFeedbackSection() {
   };
 
   return (
-    <section id="feedback" className="w-full max-w-[var(--w-app)] mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28">
-      <div className="relative rounded-[var(--radius-modal)] border border-surface-500/80 bg-surface-900/90 p-8 sm:p-12 lg:p-16 shadow-2xl backdrop-blur-xl overflow-hidden">
+    <section id="feedback" className="w-full max-w-[var(--w-app)] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+      <div className="relative rounded-[var(--radius-modal)] border border-surface-500/80 bg-surface-900/90 p-5 sm:p-8 lg:p-12 shadow-2xl backdrop-blur-xl overflow-hidden">
         {/* Subtle Ambient Background Glow */}
         <div
           aria-hidden="true"
@@ -69,29 +69,22 @@ export default function CommunityFeedbackSection() {
           
           {/* Left Column: Heading & Value Prop */}
           <div className="lg:col-span-5 flex flex-col gap-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-[var(--radius-control)] bg-accent/10 border border-accent/20 w-fit">
-              <Sparkles className="w-3.5 h-3.5 text-accent-text" />
-              <span className="font-mono text-xs font-bold text-accent-text uppercase tracking-wider">
-                Developer Input
-              </span>
-            </div>
-
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-content-primary">
-              Built for developers. Shaped by you.
+              Request an Engine, Dialect, or Feature
             </h2>
 
             <p className="text-sm text-content-muted leading-relaxed">
-              Tell us what database engines, ORMs, or migration workflows you want next. Every submission directly influences our engineering roadmap and dialect test suites.
+              Tell our database engineering team what engine, ORM export, or CI/CD migration rule you need next. Every submission directly influences our dialect roadmap and deterministic test suites.
             </p>
 
             <div className="flex flex-col gap-2.5 pt-2 font-mono text-xs text-content-secondary">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-accent-text" />
-                <span>Direct engineer review on every request</span>
+                <span>Reviewed directly by core database engineers</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-accent-text" />
-                <span>Zero-noise, public changelog follow-ups</span>
+                <span>Priority triage for production enterprise users</span>
               </div>
             </div>
           </div>
@@ -112,7 +105,7 @@ export default function CommunityFeedbackSection() {
                   onClick={() => setSubmitted(false)}
                   className="mt-3 px-4 py-2 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-primary text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  Send another thought
+                  Send another request
                 </button>
               </div>
             ) : (
@@ -130,10 +123,10 @@ export default function CommunityFeedbackSection() {
                   />
                 </div>
 
-                {/* Category Selector Pills */}
+                {/* Category Selector Pills — Fully Responsive, Never Truncated */}
                 <div>
                   <label className="block text-xs font-mono font-semibold text-content-secondary uppercase tracking-wider mb-2">
-                    Category
+                    Request Category
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {CATEGORIES.map((cat) => {
@@ -144,14 +137,14 @@ export default function CommunityFeedbackSection() {
                           key={cat.id}
                           type="button"
                           onClick={() => setCategory(cat.id)}
-                          className={`tap-44 flex items-center justify-center gap-1.5 px-3 py-2 rounded-[var(--radius-control)] text-xs font-mono transition-all cursor-pointer ${
+                          className={`tap-44 flex items-center justify-center gap-1.5 px-2.5 py-2.5 rounded-[var(--radius-control)] text-xs font-mono transition-all cursor-pointer text-center ${
                             isSelected
                               ? 'bg-accent text-accent-on font-bold shadow-sm'
                               : 'bg-surface-800 text-content-muted hover:text-content-primary border border-surface-600/60 hover:bg-surface-750'
                           }`}
                         >
                           <Icon className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{cat.label}</span>
+                          <span className="whitespace-nowrap">{cat.label}</span>
                         </button>
                       );
                     })}
@@ -160,18 +153,39 @@ export default function CommunityFeedbackSection() {
 
                 {/* Message Textarea */}
                 <div>
-                  <label className="block text-xs font-mono font-semibold text-content-secondary uppercase tracking-wider mb-1.5">
-                    What would improve your database workflow?
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-mono font-semibold text-content-secondary uppercase tracking-wider">
+                      Describe your engine or feature requirement
+                    </label>
+                  </div>
                   <textarea
                     required
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     rows={4}
                     maxLength={4000}
-                    placeholder="e.g., Support for CockroachDB dialects, automatic Prisma migration linting, or custom JSON column validations..."
+                    placeholder="e.g., We need CockroachDB dialect support with distributed sequence generation and automated GitHub PR migration previews..."
                     className="w-full bg-surface-900 border border-surface-500/80 focus:border-focus-ring rounded-[var(--radius-control)] p-3 text-xs sm:text-sm text-content-primary focus:outline-none resize-none placeholder:text-content-subtle font-sans leading-relaxed"
                   />
+                  {/* Quick-suggestion chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[10px] font-mono text-content-subtle">Quick tag:</span>
+                    {[
+                      'CockroachDB Dialect',
+                      'Prisma Lint Rules',
+                      'Snowflake DDL',
+                      'Custom Check Constraints',
+                    ].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setMessage((prev) => (prev ? `${prev} + [${tag}]` : `I would like support for: ${tag}`))}
+                        className="text-[10px] font-mono px-2 py-0.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 text-content-muted hover:text-content-primary border border-surface-600/50 transition-colors cursor-pointer"
+                      >
+                        +{tag}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Email (Optional) & Submit Button Row */}

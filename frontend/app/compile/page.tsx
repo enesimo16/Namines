@@ -18,11 +18,14 @@ import {
   Sparkles,
   CheckCircle2,
   Search,
-  Hash
+  Hash,
+  Lock
 } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useFeatureStore } from '../../store/useFeatureStore';
+import FeatureGuard from '../../components/common/FeatureGuard';
 import { decideCanvasBoot } from '../../lib/canvasBoot';
 import { schemaService } from '../../services/api';
 
@@ -85,11 +88,25 @@ const CATEGORIES: { id: TabCategory; label: string }[] = [
   { id: 'DOCS',   label: 'Documentation & Data' },
 ];
 
+const TAB_FEATURE_KEYS: Record<TabId, string> = {
+  LAUNCH: 'compile_launch',
+  SANDBOX: 'compile_sandbox',
+  SQL: 'compile_sql',
+  EF: 'compile_ef',
+  PRISMA: 'compile_prisma',
+  EJECT: 'compile_eject',
+  ER: 'compile_mermaid',
+  DICTIONARY: 'compile_dictionary',
+  README: 'compile_readme',
+  MOCK: 'compile_mock',
+};
+
 export default function CompilePage() {
   const router = useRouter();
   const { schema, dbType, setDbType, projectName } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
   const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
+  const { isFeatureEnabled, getFeatureState } = useFeatureStore();
 
   const [sql, setSql] = useState('');
   const [mermaidCode, setMermaidCode] = useState('');
@@ -313,9 +330,15 @@ export default function CompilePage() {
           
           {/* Mobile Horizontal Pill Strip */}
           <div className="flex lg:hidden gap-1">
-            {TABS.map(tab => {
+            {TABS.filter(t => {
+              const key = TAB_FEATURE_KEYS[t.id];
+              const state = getFeatureState(key);
+              if (!isFeatureEnabled(key) && state.mode === 'Hidden') return false;
+              return true;
+            }).map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
+              const isEnabled = isFeatureEnabled(TAB_FEATURE_KEYS[tab.id]);
               return (
                 <button
                   key={tab.id}
@@ -328,6 +351,7 @@ export default function CompilePage() {
                 >
                   <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-namines-teal-vibrant' : 'text-content-muted'}`} />
                   <span>{tab.label}</span>
+                  {!isEnabled && <Lock className="w-3 h-3 text-warning-text shrink-0" />}
                 </button>
               );
             })}
@@ -336,7 +360,16 @@ export default function CompilePage() {
           {/* Desktop Categorized Navigation */}
           <div className="hidden lg:flex flex-col space-y-4">
             {CATEGORIES.map(category => {
-              const categoryTabs = TABS.filter(t => t.category === category.id);
+              const categoryTabs = TABS.filter(t => {
+                if (t.category !== category.id) return false;
+                const key = TAB_FEATURE_KEYS[t.id];
+                const state = getFeatureState(key);
+                if (!isFeatureEnabled(key) && state.mode === 'Hidden') return false;
+                return true;
+              });
+
+              if (categoryTabs.length === 0) return null;
+
               return (
                 <div key={category.id} className="space-y-1">
                   <div className="px-2.5 py-0.5 text-micro font-bold text-content-muted uppercase tracking-wider select-none">
@@ -346,6 +379,7 @@ export default function CompilePage() {
                     {categoryTabs.map(tab => {
                       const Icon = tab.icon;
                       const isActive = activeTab === tab.id;
+                      const isEnabled = isFeatureEnabled(TAB_FEATURE_KEYS[tab.id]);
                       return (
                         <button
                           key={tab.id}
@@ -363,6 +397,7 @@ export default function CompilePage() {
                             )}
                             <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-namines-teal-vibrant' : 'text-content-muted'}`} />
                             <span className="truncate whitespace-nowrap">{tab.label}</span>
+                            {!isEnabled && <Lock className="w-3 h-3 text-warning-text shrink-0" />}
                           </div>
 
                           {tab.badge && (
@@ -458,29 +493,31 @@ export default function CompilePage() {
             </div>
           )}
 
-          {activeTab === 'SQL' && <SqlPreview sql={sql} focusTable={focusTable} />}
-          {activeTab === 'EF' && <EfCorePreview schema={schema} />}
-          {activeTab === 'PRISMA' && <PrismaPreview schema={schema} dbType={dbType} />}
-          {activeTab === 'EJECT' && <EjectPanel schema={schema} dbType={dbType} />}
-          {activeTab === 'ER' && (
-            <div className="w-full h-full relative">
-              <MermaidPreview mermaidCode={mermaidCode} />
-            </div>
-          )}
-          {activeTab === 'DICTIONARY' && <DataDictionaryPreview schema={schema} projectName={projectName} />}
-          {activeTab === 'README' && <ReadmePreview schema={schema} />}
-          {activeTab === 'MOCK' && <SmartSeedPanel schema={schema} dbType={dbType} />}
-          {activeTab === 'SANDBOX' && <DockerSandboxPanel schema={schema} dbType={dbType} sql={sql} />}
-          {activeTab === 'LAUNCH' && (
-            <LaunchPanel
-              projectId={activeProjectId}
-              projectName={projectName}
-              ddlScript={launchDdl}
-              ddlStatus={launchDdlStatus}
-              onRetryDdl={() => setLaunchDdlAttempt(n => n + 1)}
-              schema={schema}
-            />
-          )}
+          <FeatureGuard featureKey={TAB_FEATURE_KEYS[activeTab]}>
+            {activeTab === 'SQL' && <SqlPreview sql={sql} focusTable={focusTable} />}
+            {activeTab === 'EF' && <EfCorePreview schema={schema} />}
+            {activeTab === 'PRISMA' && <PrismaPreview schema={schema} dbType={dbType} />}
+            {activeTab === 'EJECT' && <EjectPanel schema={schema} dbType={dbType} />}
+            {activeTab === 'ER' && (
+              <div className="w-full h-full relative">
+                <MermaidPreview mermaidCode={mermaidCode} />
+              </div>
+            )}
+            {activeTab === 'DICTIONARY' && <DataDictionaryPreview schema={schema} projectName={projectName} />}
+            {activeTab === 'README' && <ReadmePreview schema={schema} />}
+            {activeTab === 'MOCK' && <SmartSeedPanel schema={schema} dbType={dbType} />}
+            {activeTab === 'SANDBOX' && <DockerSandboxPanel schema={schema} dbType={dbType} sql={sql} />}
+            {activeTab === 'LAUNCH' && (
+              <LaunchPanel
+                projectId={activeProjectId}
+                projectName={projectName}
+                ddlScript={launchDdl}
+                ddlStatus={launchDdlStatus}
+                onRetryDdl={() => setLaunchDdlAttempt(n => n + 1)}
+                schema={schema}
+              />
+            )}
+          </FeatureGuard>
         </div>
       </div>
 

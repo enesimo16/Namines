@@ -185,7 +185,7 @@ export default function LandingNavbar() {
                 <ExternalLink className="w-4 h-4 text-content-subtle" />
               </a>
 
-              <div className="pt-3 mt-2 border-t border-surface-500/60 flex items-center justify-between">
+              <div className="pt-3 mt-2 border-t border-surface-500/60 flex flex-col gap-2">
                 {!isAuthenticated && (
                   <button
                     type="button"
@@ -193,7 +193,7 @@ export default function LandingNavbar() {
                       setIsMobileMenuOpen(false);
                       openAuthModal();
                     }}
-                    className="flex items-center gap-2 text-sm font-semibold text-content-secondary hover:text-content-primary py-2"
+                    className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-content-primary py-2.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 transition-colors cursor-pointer"
                   >
                     <LogIn className="w-4 h-4" />
                     <span>Sign In</span>
@@ -201,7 +201,7 @@ export default function LandingNavbar() {
                 )}
                 <Link
                   href="/new"
-                  className="w-full text-center py-2.5 rounded-[var(--radius-control)] bg-accent text-accent-on text-xs font-bold uppercase tracking-wider"
+                  className="w-full text-center py-2.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold uppercase tracking-wider shadow-sm transition-colors"
                 >
                   Launch Studio
                 </Link>

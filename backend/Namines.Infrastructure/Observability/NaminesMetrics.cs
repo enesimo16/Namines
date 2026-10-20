@@ -47,6 +47,26 @@ public static class NaminesMetrics
         Meter.CreateCounter<long>("namines_gateway_requests_total",
             description: "Gateway data requests by operation and outcome.");
 
+    private static readonly Counter<long> ResilienceExecutions =
+        Meter.CreateCounter<long>("namines_resilience_executions_total",
+            description: "Resilience pipeline executions by pipeline and outcome.");
+
+    private static readonly Histogram<double> ResilienceDuration =
+        Meter.CreateHistogram<double>("namines_resilience_duration_seconds",
+            unit: "s", description: "Time spent executing guarded resilience operations.");
+
+    private static readonly Counter<long> CircuitBreakerTransitions =
+        Meter.CreateCounter<long>("namines_resilience_circuit_breaker_transitions_total",
+            description: "Circuit breaker state transition events.");
+
+    private static readonly Counter<long> EventsPublished =
+        Meter.CreateCounter<long>("namines_events_published_total",
+            description: "In-process module events published by event type and outcome.");
+
+    private static readonly Histogram<double> EventDuration =
+        Meter.CreateHistogram<double>("namines_event_handler_duration_seconds",
+            unit: "s", description: "Time spent handling module events.");
+
     /// <param name="result">"success" | "failure". Serbest metin DEĞİL: her çağıran
     /// kendi kelimesini kullanırsa ("ok", "succeeded", "true") seriler bölünür ve
     /// dashboard toplamları sessizce yanlış çıkar.</param>
@@ -79,4 +99,20 @@ public static class NaminesMetrics
     /// olduğu bir kurulum "sistem bozuk" gibi görünürdü.</param>
     public static void GatewayRequest(string operation, string outcome) =>
         GatewayRequests.Add(1, new("operation", operation), new("outcome", outcome));
+
+    public static void ResilienceExecuted(string pipeline, string outcome, TimeSpan elapsed)
+    {
+        ResilienceExecutions.Add(1, new("pipeline", pipeline), new("outcome", outcome));
+        ResilienceDuration.Record(elapsed.TotalSeconds, new KeyValuePair<string, object?>("pipeline", pipeline));
+    }
+
+    public static void CircuitBreakerTransition(string pipeline, string state) =>
+        CircuitBreakerTransitions.Add(1, new("pipeline", pipeline), new("state", state));
+
+    public static void EventPublished(string eventType, bool success, TimeSpan elapsed)
+    {
+        var outcome = success ? "success" : "failure";
+        EventsPublished.Add(1, new("event_type", eventType), new("outcome", outcome));
+        EventDuration.Record(elapsed.TotalSeconds, new KeyValuePair<string, object?>("event_type", eventType));
+    }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Sparkles, Terminal, Database, KeyRound, Link2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Sparkles, Terminal, Database, Link2 } from 'lucide-react';
 
 interface SchemaPreset {
   title: string;
@@ -117,28 +117,36 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
         <div className="lg:col-span-6 xl:col-span-7 w-full relative z-20">
           <div className="w-full rounded-[var(--radius-modal)] border border-surface-500/70 bg-surface-900/95 shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-surface-400">
             
-            {/* 1. Terminal / Studio Window Header */}
+            {/* 1. Terminal / Studio Window Header — Clean, Modern IDE Tab */}
             <div className="flex items-center justify-between px-4 py-3 bg-surface-850/90 border-b border-surface-600/70">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-surface-600" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-surface-600" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-surface-600" />
+              <div className="flex items-center gap-3">
+                {/* Mac-style subtle colored window controls */}
+                <div className="flex items-center gap-1.5" aria-hidden="true">
+                  <div className="w-2.5 h-2.5 rounded-full bg-danger/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-accent/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-success/80" />
                 </div>
-                <div className="h-4 w-px bg-surface-600 mx-1.5" />
-                <div className="flex items-center gap-1.5 text-xs font-mono text-content-secondary">
+                <div className="h-4 w-px bg-surface-600 mx-0.5" />
+                {/* Active File Tab */}
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-[var(--radius-control)] bg-surface-800 border border-surface-600/70 text-xs font-mono">
                   <Terminal className="w-3.5 h-3.5 text-accent-text" />
-                  <span className="font-semibold text-content-primary">studio</span>
-                  <span className="text-content-subtle">/</span>
-                  <span className="text-content-muted">{activePreset.tableName}.sql</span>
+                  <span className="font-semibold text-content-primary">{activePreset.tableName}.sql</span>
                 </div>
               </div>
 
+              {/* Dynamic State Indicator */}
               <div className="flex items-center gap-2 font-mono text-[11px]">
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--radius-control)] bg-accent/15 text-accent-text font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                  PostgreSQL 17 AST
-                </span>
+                {isTyping ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-accent/15 text-accent-text font-bold animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Synthesizing DDL...
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-success/15 text-success-text font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                    Verified AST
+                  </span>
+                )}
               </div>
             </div>
 
@@ -162,9 +170,9 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
                     key={preset.tableName}
                     type="button"
                     onClick={() => setActiveIdx(idx)}
-                    className={`tap-44 px-2.5 py-1 rounded-[var(--radius-control)] text-xs font-mono transition-all cursor-pointer ${
+                    className={`tap-44 px-3 py-1 rounded-[var(--radius-control)] text-xs font-mono transition-all cursor-pointer ${
                       activeIdx === idx
-                        ? 'bg-accent text-accent-on font-bold shadow-sm'
+                        ? 'bg-accent text-accent-on font-bold shadow-md scale-[1.02]'
                         : 'bg-surface-800 text-content-secondary hover:text-content-primary hover:bg-surface-700 border border-surface-600/50'
                     }`}
                   >
@@ -174,7 +182,7 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
               </div>
             </div>
 
-            {/* 3. Generated Schema Table Preview (Clean, Shopify/Stripe Quality) */}
+            {/* 3. Generated Schema Table Preview (Clean, Shopify/Stripe Quality with Staggered Fade-in) */}
             <div className="p-4 sm:p-5 bg-surface-850/40">
               <div className="rounded-[var(--radius-card)] border border-surface-500/70 bg-surface-900/90 overflow-hidden shadow-inner">
                 
@@ -192,24 +200,29 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
                   </div>
                 </div>
 
-                {/* Columns List */}
+                {/* Columns List — Staggered Dynamic Animation, Compact on Mobile */}
                 <div className="divide-y divide-surface-700/50 font-mono text-xs">
-                  {activePreset.columns.map((col) => (
+                  {activePreset.columns.map((col, cIdx) => (
                     <div
-                      key={col.name}
-                      className="px-3.5 py-2 flex items-center justify-between gap-2 hover:bg-surface-800/40 transition-colors"
+                      key={`${activePreset.tableName}-${col.name}`}
+                      className={`px-3.5 py-2 items-center justify-between gap-2 hover:bg-surface-800/40 transition-colors animate-in fade-in slide-in-from-bottom-1 duration-300 fill-mode-both ${
+                        cIdx >= 4 ? 'hidden sm:flex' : 'flex'
+                      }`}
+                      style={{
+                        animationDelay: `${cIdx * 50}ms`,
+                      }}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         {col.isPk ? (
-                          <span className="px-1 py-0.2 rounded-[var(--radius-control)] bg-accent/20 text-accent-text text-[10px] font-bold shrink-0">
+                          <span className="px-1.5 py-0.5 rounded-[var(--radius-control)] bg-accent/20 text-accent-text text-[10px] font-bold shrink-0">
                             PK
                           </span>
                         ) : col.isFk ? (
-                          <span className="px-1 py-0.2 rounded-[var(--radius-control)] bg-surface-700 text-content-secondary text-[10px] font-bold shrink-0">
+                          <span className="px-1.5 py-0.5 rounded-[var(--radius-control)] bg-surface-700 text-content-secondary text-[10px] font-bold shrink-0">
                             FK
                           </span>
                         ) : (
-                          <span className="w-4" />
+                          <span className="w-5" />
                         )}
                         <span className="font-semibold text-content-primary truncate">{col.name}</span>
                       </div>
@@ -224,6 +237,11 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
                       </div>
                     </div>
                   ))}
+                  {activePreset.columns.length > 4 && (
+                    <div className="sm:hidden px-3.5 py-1.5 text-[10px] font-mono text-content-subtle text-center bg-surface-850/60">
+                      + {activePreset.columns.length - 4} more columns
+                    </div>
+                  )}
                 </div>
 
                 {/* Relational Link Footer */}
@@ -246,7 +264,7 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
 
               <Link
                 href="/new"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold transition-all shadow-sm cursor-pointer hover:scale-[1.02] active:scale-95"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on font-bold transition-all shadow-sm cursor-pointer hover:scale-[1.02] active:scale-95 text-center"
               >
                 <span>Try in Studio</span>
                 <ArrowRight className="w-3.5 h-3.5" />

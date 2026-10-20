@@ -57,11 +57,11 @@ const ORBIT_LOGOS: OrbitLogo[] = [
 
 export default function OrbitingClosingCTA() {
   return (
-    <section className="relative z-10 w-full py-28 sm:py-44 overflow-hidden">
+    <section className="relative z-10 w-full py-16 sm:py-32 overflow-hidden">
       {/* Top soft atmospheric fade from preceding section */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-32 sm:h-44 bg-gradient-to-b from-surface-900 via-surface-900/80 to-transparent z-20"
+        className="pointer-events-none absolute inset-x-0 top-0 h-24 sm:h-36 bg-gradient-to-b from-surface-900 via-surface-900/80 to-transparent z-20"
       />
 
       {/* Bottom soft atmospheric fade into footer */}
@@ -133,7 +133,7 @@ export default function OrbitingClosingCTA() {
         </div>
 
         {/* Soft, Free-Floating CTA Typography (No boxed card div) */}
-        <div className="relative z-10 max-w-3xl mx-auto py-12 sm:py-20 flex flex-col items-center text-center gap-5">
+        <div className="relative z-10 max-w-3xl mx-auto py-8 sm:py-16 flex flex-col items-center text-center gap-5">
           {/* Glowing Brand Core Emblem */}
           <div className="relative mb-2 flex items-center justify-center">
             <div

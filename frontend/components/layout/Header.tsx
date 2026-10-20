@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical, Compass, ChevronDown, ShieldCheck } from 'lucide-react';
+import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical, Compass } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useTourStore } from '../../store/useTourStore';
@@ -537,16 +537,6 @@ export default function Header() {
                 </>
               ) : isCanvas || isCompile ? (
                 <div className="flex items-center gap-1.5">
-                  {(user?.isDev || user?.type?.toLowerCase() === 'admin' || user?.email?.toLowerCase() === 'namines@namines.com') && (
-                    <Link
-                      href="/admin"
-                      title="Admin Console"
-                      aria-label="Admin Console"
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-800 hover:bg-surface-700 border border-line-strong text-accent-text transition-all cursor-pointer active:scale-95"
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                    </Link>
-                  )}
                   <button
                     onClick={() => setIsAIPreferencesOpen(true)}
                     title={t('header.settings')}
@@ -581,17 +571,6 @@ export default function Header() {
                       {planLabel}
                     </span>
                   </div>
-                  {(user?.isDev || user?.type?.toLowerCase() === 'admin' || user?.email?.toLowerCase() === 'namines@namines.com') && (
-                    <Link
-                      href="/admin"
-                      onClick={(e) => e.stopPropagation()}
-                      className="tap-44 p-1 text-accent-text hover:text-content-primary hover:bg-surface-700 rounded-full transition-colors cursor-pointer shrink-0"
-                      title="Admin Console"
-                      aria-label="Admin Console"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                    </Link>
-                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

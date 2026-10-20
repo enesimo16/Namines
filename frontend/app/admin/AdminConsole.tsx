@@ -48,10 +48,17 @@ import {
   Shield,
   Box,
   Copy,
+  Lock,
+  Wrench,
+  Boxes,
+  Code,
+  Bot,
+  EyeOff,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useToastStore } from '../../store/useToastStore';
+import { useAdminConsoleStore } from '../../store/useAdminConsoleStore';
 import {
   adminService,
   downloadBlob,
@@ -75,8 +82,20 @@ import { Select } from '../../components/ui/Select';
 import Logo from '../../components/layout/Logo';
 import LanguageToggle from '../../components/layout/LanguageToggle';
 import ThemeToggleButton from '../../components/landing/ThemeToggleButton';
+import AiRoutingTab from './AiRoutingTab';
+import FeatureFlagsTab from './FeatureFlagsTab';
 
-export type AdminTab = 'overview' | 'users' | 'tokens' | 'sessions' | 'projects' | 'logs' | 'feedbacks' | 'system';
+export type AdminTab =
+  | 'overview'
+  | 'users'
+  | 'tokens'
+  | 'sessions'
+  | 'projects'
+  | 'logs'
+  | 'feedbacks'
+  | 'system'
+  | 'ai-routes'
+  | 'features';
 
 export const VALID_ADMIN_TABS: AdminTab[] = [
   'overview',
@@ -87,6 +106,8 @@ export const VALID_ADMIN_TABS: AdminTab[] = [
   'logs',
   'feedbacks',
   'system',
+  'ai-routes',
+  'features',
 ];
 
 export default function AdminConsole({ initialTab = 'overview' }: { initialTab?: AdminTab }) {
@@ -191,6 +212,91 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
   const [tokenStartDate, setTokenStartDate] = useState<string>('');
   const [tokenEndDate, setTokenEndDate] = useState<string>('');
   const [tokenInterval, setTokenInterval] = useState<'daily' | 'monthly'>('daily');
+
+  // Admin Console Store for Features & AI Routes Sub-Panels
+  const {
+    flags: storeFlags,
+    fetchFlags: storeFetchFlags,
+    featureSearch,
+    setFeatureSearch,
+    featureCategory,
+    setFeatureCategory,
+    featureStatus,
+    setFeatureStatus,
+    selectedFeatureKey,
+    setSelectedFeatureKey,
+    toggleFeatureFlag,
+    bulkUpdateCategory,
+    aiRoutes: storeAiRoutes,
+    fetchAiRoutes: storeFetchAiRoutes,
+    aiSearch,
+    setAiSearch,
+    aiProviderFilter,
+    setAiProviderFilter,
+    selectedAiToolKey,
+    setSelectedAiToolKey,
+    bulkSetGlobalProvider,
+  } = useAdminConsoleStore();
+
+  useEffect(() => {
+    if (activeTab === 'features' && storeFlags.length === 0) {
+      storeFetchFlags();
+    }
+    if (activeTab === 'ai-routes' && storeAiRoutes.length === 0) {
+      storeFetchAiRoutes();
+    }
+  }, [activeTab, storeFlags.length, storeAiRoutes.length, storeFetchFlags, storeFetchAiRoutes]);
+
+  const filteredSubFlags = useMemo(() => {
+    return storeFlags.filter((f) => {
+      const q = featureSearch.toLowerCase().trim();
+      const matchesSearch =
+        q === '' ||
+        f.displayName.toLowerCase().includes(q) ||
+        f.featureKey.toLowerCase().includes(q) ||
+        f.description.toLowerCase().includes(q);
+      const matchesCategory =
+        featureCategory === 'all' ||
+        f.category.toLowerCase() === featureCategory.toLowerCase();
+      const matchesStatus =
+        featureStatus === 'all' ||
+        (featureStatus === 'enabled' && f.isEnabled) ||
+        (featureStatus === 'notice' && !f.isEnabled && f.mode === 'DisabledNotice') ||
+        (featureStatus === 'hidden' && !f.isEnabled && f.mode === 'Hidden');
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [storeFlags, featureSearch, featureCategory, featureStatus]);
+
+  const filteredSubAiRoutes = useMemo(() => {
+    return storeAiRoutes.filter((r) => {
+      const q = aiSearch.toLowerCase().trim();
+      const matchesSearch =
+        q === '' ||
+        (r.displayName || '').toLowerCase().includes(q) ||
+        r.toolKey.toLowerCase().includes(q) ||
+        r.modelName.toLowerCase().includes(q);
+      const matchesProvider =
+        aiProviderFilter === 'all' ||
+        r.provider?.toLowerCase() === aiProviderFilter.toLowerCase();
+      return matchesSearch && matchesProvider;
+    });
+  }, [storeAiRoutes, aiSearch, aiProviderFilter]);
+
+  const getSubFlagIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'tools':
+        return <Wrench className="w-3.5 h-3.5 text-accent" />;
+      case 'compile':
+        return <Code className="w-3.5 h-3.5 text-success" />;
+      case 'eject':
+        return <Boxes className="w-3.5 h-3.5 text-accent" />;
+      case 'ai':
+        return <Sparkles className="w-3.5 h-3.5 text-content-primary" />;
+      case 'platform':
+      default:
+        return <Database className="w-3.5 h-3.5 text-content-muted" />;
+    }
+  };
 
   // FAZ 4: Project Deep Stats (Vault, Flow, Ground, Desk, Compile)
   const [deepStatsModalOpen, setDeepStatsModalOpen] = useState(false);
@@ -873,6 +979,34 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                 <span>{t.tabSystem}</span>
               </div>
             </button>
+
+            <button
+              onClick={() => handleSelectTab('ai-routes')}
+              className={`flex w-full items-center justify-between rounded-[var(--radius-control)] px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'ai-routes'
+                  ? 'bg-surface-800 text-content-primary border border-line-strong font-semibold shadow-xs'
+                  : 'text-content-muted hover:bg-surface-800/50 hover:text-content-secondary'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Workflow className="h-4 w-4 text-accent-text shrink-0" />
+                <span>{t.tabAiRoutes}</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => handleSelectTab('features')}
+              className={`flex w-full items-center justify-between rounded-[var(--radius-control)] px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+                activeTab === 'features'
+                  ? 'bg-surface-800 text-content-primary border border-line-strong font-semibold shadow-xs'
+                  : 'text-content-muted hover:bg-surface-800/50 hover:text-content-secondary'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-accent-text shrink-0" />
+                <span>{t.tabFeatures}</span>
+              </div>
+            </button>
           </nav>
         </div>
 
@@ -891,7 +1025,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
       {/* ─────────────────────────────────────────────────────────────
           2. İÇ PANEL: Sol panelin sağında açılan iç panel (Sub-Panel)
           ───────────────────────────────────────────────────────────── */}
-      <section className="flex w-72 sm:w-80 shrink-0 flex-col border-r border-line bg-surface-800/40 backdrop-blur-md overflow-hidden">
+      <section className="flex w-72 sm:w-80 shrink-0 flex-col border-r border-line bg-surface-800 overflow-hidden font-sans">
         {/* Sub-Panel Header */}
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
           <span className="text-xs font-bold uppercase tracking-wider text-content-secondary">
@@ -903,6 +1037,8 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
             {activeTab === 'logs' && t.subLogs(filteredLogs.length)}
             {activeTab === 'feedbacks' && t.subFeedbacks(filteredFeedbacks.length)}
             {activeTab === 'system' && t.subSystem}
+            {activeTab === 'ai-routes' && (locale === 'en' ? `AI Tools (${filteredSubAiRoutes.length})` : `AI Araçları (${filteredSubAiRoutes.length})`)}
+            {activeTab === 'features' && (locale === 'en' ? `Features (${filteredSubFlags.length}/${storeFlags.length})` : `Özellikler (${filteredSubFlags.length}/${storeFlags.length})`)}
           </span>
           <button
             onClick={() => fetchAllData()}
@@ -1476,44 +1612,358 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
         )}
 
         {activeTab === 'system' && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
-            <div className="rounded-[var(--radius-card)] border border-line bg-surface-900/60 p-3.5 space-y-2">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-content-muted font-bold">
-                Otonom Denetim Botu
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="p-3 border-b border-line space-y-2 bg-surface-900/40">
+              <div className="rounded-[var(--radius-card)] border border-line bg-surface-900/60 p-2.5 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-content-muted">Sağlık Skoru</span>
+                  <div className="text-sm font-bold font-mono text-content-primary">
+                    %{botReport?.healthScore ?? 100}
+                  </div>
+                </div>
+                <button
+                  onClick={handleRunBotAudit}
+                  disabled={runningAudit}
+                  className="p-1.5 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-primary border border-line transition-colors cursor-pointer"
+                  title="Denetimi Başlat"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${runningAudit ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-content-muted font-bold block">
+                Altyapı Bileşenleri
               </span>
-              <div className="flex items-center justify-between">
-                <span className="text-content-secondary">Durum:</span>
-                <span className="font-medium text-content-primary">
-                  {botReport?.overallStatus || 'Healthy'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-content-secondary">Sağlık Skoru:</span>
-                <span className="font-mono font-bold text-content-primary">
-                  %{botReport?.healthScore ?? 100}
-                </span>
-              </div>
-              <button
-                onClick={handleRunBotAudit}
-                disabled={runningAudit}
-                className="w-full mt-2 flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-accent px-3 py-1.5 text-xs font-bold text-accent-on transition-colors hover:bg-accent-hover cursor-pointer"
-              >
-                <RefreshCw className={`h-3 w-3 ${runningAudit ? 'animate-spin' : ''}`} />
-                {runningAudit ? 'Taranıyor...' : 'Botu Şimdi Çalıştır'}
-              </button>
             </div>
 
-            <div className="rounded-[var(--radius-card)] border border-line bg-surface-900/60 p-3 space-y-1.5">
-              <span className="text-[10px] font-mono text-content-muted uppercase">Framework</span>
-              <p className="font-semibold text-content-primary">.NET 8.0 ASP.NET Core</p>
+            {/* Diagnostics List */}
+            <div className="flex-1 overflow-y-auto divide-y divide-line/60">
+              {[
+                { name: 'PostgreSQL Control DB', port: '15432', status: 'Healthy', icon: Database },
+                { name: 'SignalR Redis Backplane', port: '6379', status: 'Connected', icon: Radio },
+                { name: 'Docker Sandbox Sweeper', port: 'DotNet', status: 'Active', icon: Box },
+                { name: 'AI Provider Gateway', port: 'Groq/DS', status: 'Active', icon: Sparkles },
+                { name: 'Log & File Retention', port: '2 Hours', status: 'Scheduled', icon: Clock },
+                { name: 'Autonomous Audit Bot', port: 'v1.4', status: 'Ready', icon: ShieldCheck },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.name} className="p-2.5 hover:bg-surface-700/40 transition-colors flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-[var(--radius-control)] bg-surface-900 border border-line">
+                        <Icon className="w-3.5 h-3.5 text-accent" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-content-primary">{item.name}</div>
+                        <div className="text-[10px] font-mono text-content-muted">{item.port}</div>
+                      </div>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded-[var(--radius-control)] text-micro font-mono bg-surface-700 text-content-primary border border-line-strong font-medium">
+                      {item.status}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-            <div className="rounded-[var(--radius-card)] border border-line bg-surface-900/60 p-3 space-y-1.5">
-              <span className="text-[10px] font-mono text-content-muted uppercase">Frontend</span>
-              <p className="font-semibold text-content-primary">Next.js 16 + React 19</p>
+
+            {/* System Actions */}
+            <div className="p-2.5 border-t border-line bg-surface-900/60 space-y-1.5">
+              <button
+                onClick={handleSimulateError}
+                disabled={simulatingError}
+                className="w-full py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-[10px] font-semibold text-content-primary transition-colors cursor-pointer"
+              >
+                {simulatingError ? 'Simüle Ediliyor...' : 'Simüle Test Hatası Üret'}
+              </button>
+              <button
+                onClick={handleClearLogs}
+                className="w-full py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-[10px] font-semibold text-danger transition-colors cursor-pointer"
+              >
+                Hata Günlüklerini Temizle
+              </button>
             </div>
-            <div className="rounded-[var(--radius-card)] border border-line bg-surface-900/60 p-3 space-y-1.5">
-              <span className="text-[10px] font-mono text-content-muted uppercase">Host Altyapısı</span>
-              <p className="font-semibold text-content-primary">Oracle Cloud + Vercel</p>
+          </div>
+        )}
+
+        {activeTab === 'ai-routes' && (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {/* Quick Presets & Search */}
+            <div className="p-3 border-b border-line space-y-2.5 bg-surface-900/40">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => bulkSetGlobalProvider('groq')}
+                  className="flex-1 py-1 px-1.5 rounded-[var(--radius-control)] bg-surface-700/80 hover:bg-surface-700 border border-line text-[10px] font-semibold text-content-primary flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Zap className="w-3 h-3 text-warning-text" />
+                  <span>Groq (32B)</span>
+                </button>
+                <button
+                  onClick={() => bulkSetGlobalProvider('deepseek')}
+                  className="flex-1 py-1 px-1.5 rounded-[var(--radius-control)] bg-surface-700/80 hover:bg-surface-700 border border-line text-[10px] font-semibold text-content-primary flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3 text-accent-text" />
+                  <span>DeepSeek (R1)</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-content-muted" />
+                <input
+                  type="text"
+                  value={aiSearch}
+                  onChange={(e) => setAiSearch(e.target.value)}
+                  placeholder={locale === 'en' ? 'Search AI tools or models...' : 'AI araç veya model ara...'}
+                  className="w-full rounded-[var(--radius-control)] border border-line bg-surface-900 py-1.5 pl-8 pr-7 text-xs text-content-primary placeholder:text-content-muted focus:border-line-strong focus:outline-none"
+                />
+                {aiSearch && (
+                  <button
+                    onClick={() => setAiSearch('')}
+                    className="absolute right-2 top-2 text-content-muted hover:text-content-primary tap-44 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Provider Filter Segment */}
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                {['all', 'groq', 'deepseek', 'claude', 'openai'].map((prov) => (
+                  <button
+                    key={prov}
+                    onClick={() => setAiProviderFilter(prov)}
+                    className={`px-2 py-0.5 rounded-[var(--radius-control)] text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer ${
+                      aiProviderFilter.toLowerCase() === prov
+                        ? 'bg-accent text-accent-on font-bold'
+                        : 'bg-surface-700 text-content-muted hover:text-content-secondary border border-line'
+                    }`}
+                  >
+                    {prov === 'all' ? (locale === 'en' ? 'All' : 'Tümü') : prov}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Scrollable AI Tool List */}
+            <div className="flex-1 overflow-y-auto divide-y divide-line/60">
+              {filteredSubAiRoutes.length === 0 ? (
+                <div className="p-6 text-center text-xs text-content-muted">
+                  {locale === 'en' ? 'No AI tools found.' : 'Kriterlere uygun AI aracı bulunamadı.'}
+                </div>
+              ) : (
+                filteredSubAiRoutes.map((route) => {
+                  const isSelected = selectedAiToolKey?.toLowerCase() === route.toolKey.toLowerCase();
+                  return (
+                    <div
+                      key={route.toolKey}
+                      onClick={() => setSelectedAiToolKey(route.toolKey)}
+                      className={`flex items-center justify-between p-2.5 cursor-pointer transition-colors text-left gap-2 ${
+                        isSelected
+                          ? 'bg-surface-700/80 border-l-2 border-accent text-content-primary'
+                          : 'hover:bg-surface-700/40 text-content-secondary'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="p-1 rounded-[var(--radius-control)] bg-surface-900 border border-line shrink-0">
+                          <Bot className="w-3.5 h-3.5 text-accent" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-content-primary truncate">
+                            {route.displayName || route.toolKey}
+                          </div>
+                          <div className="text-[10px] font-mono text-content-muted truncate">
+                            {route.modelName}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Provider Badge */}
+                      <span
+                        className={`px-1.5 py-0.5 rounded-[var(--radius-control)] text-micro font-mono font-bold uppercase tracking-wider shrink-0 border ${
+                          route.provider?.toLowerCase() === 'groq'
+                            ? 'bg-warning-subtle text-warning-text border-line'
+                            : route.provider?.toLowerCase() === 'deepseek'
+                            ? 'bg-accent-subtle text-accent-text border-accent/30'
+                            : 'bg-surface-700 text-content-primary border-line'
+                        }`}
+                      >
+                        {route.provider}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Sub-Panel Footer: Global Router Info */}
+            <div className="p-2.5 border-t border-line bg-surface-900/60 flex items-center justify-between text-[10px] font-mono text-content-muted">
+              <span>Router: In-Memory + DB</span>
+              <span className="text-content-secondary font-sans text-micro">Hot-Swap OK</span>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'features' && (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {/* Search & Quick Filters */}
+            <div className="p-3 border-b border-line space-y-2.5 bg-surface-900/40">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-content-muted" />
+                <input
+                  type="text"
+                  value={featureSearch}
+                  onChange={(e) => setFeatureSearch(e.target.value)}
+                  placeholder={locale === 'en' ? 'Search tools or flags...' : 'Araç veya bayrak ara...'}
+                  className="w-full rounded-[var(--radius-control)] border border-line bg-surface-900 py-1.5 pl-8 pr-7 text-xs text-content-primary placeholder:text-content-muted focus:border-line-strong focus:outline-none"
+                />
+                {featureSearch && (
+                  <button
+                    onClick={() => setFeatureSearch('')}
+                    className="absolute right-2 top-2 text-content-muted hover:text-content-primary tap-44 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Category Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-0.5">
+                {(
+                  [
+                    { key: 'all', label: locale === 'en' ? 'All' : 'Tümü', count: storeFlags.length },
+                    { key: 'Tools', label: 'Tools', count: storeFlags.filter((f) => f.category === 'Tools').length },
+                    { key: 'Compile', label: 'Compile', count: storeFlags.filter((f) => f.category === 'Compile').length },
+                    { key: 'Eject', label: 'Eject', count: storeFlags.filter((f) => f.category === 'Eject').length },
+                    { key: 'Platform', label: 'Platform', count: storeFlags.filter((f) => f.category === 'Platform').length },
+                    { key: 'AI', label: 'AI', count: storeFlags.filter((f) => f.category === 'AI').length },
+                  ] as const
+                ).map((cat) => (
+                  <button
+                    key={cat.key}
+                    onClick={() => setFeatureCategory(cat.key)}
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-mono transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                      featureCategory === cat.key
+                        ? 'bg-accent text-accent-on font-bold'
+                        : 'bg-surface-700 text-content-muted hover:text-content-secondary border border-line'
+                    }`}
+                  >
+                    <span>{cat.label}</span>
+                    <span className="opacity-75 text-micro">({cat.count})</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Status Filter Chips */}
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                {(['all', 'enabled', 'notice', 'hidden'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setFeatureStatus(st)}
+                    className={`px-2 py-0.5 rounded-[var(--radius-control)] text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer ${
+                      featureStatus === st
+                        ? 'bg-surface-700 text-content-primary font-bold border border-line-strong'
+                        : 'text-content-muted hover:text-content-secondary'
+                    }`}
+                  >
+                    {st === 'all'
+                      ? (locale === 'en' ? 'All' : 'Tümü')
+                      : st === 'enabled'
+                      ? (locale === 'en' ? 'Active' : 'Aktif')
+                      : st === 'notice'
+                      ? (locale === 'en' ? 'Notice' : 'Bakım')
+                      : (locale === 'en' ? 'Hidden' : 'Gizli')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Scrollable Tool & Feature List */}
+            <div className="flex-1 overflow-y-auto divide-y divide-line/60">
+              {filteredSubFlags.length === 0 ? (
+                <div className="p-6 text-center text-xs text-content-muted">
+                  {locale === 'en' ? 'No features match the criteria.' : 'Kriterlere uygun özellik bulunamadı.'}
+                </div>
+              ) : (
+                filteredSubFlags.map((flag) => {
+                  const isSelected = selectedFeatureKey?.toLowerCase() === flag.featureKey.toLowerCase();
+                  return (
+                    <div
+                      key={flag.featureKey}
+                      onClick={() => setSelectedFeatureKey(flag.featureKey)}
+                      className={`flex items-center justify-between p-2.5 cursor-pointer transition-colors text-left gap-2 ${
+                        isSelected
+                          ? 'bg-surface-700/80 border-l-2 border-accent text-content-primary'
+                          : 'hover:bg-surface-700/40 text-content-secondary'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="p-1 rounded-[var(--radius-control)] bg-surface-900 border border-line shrink-0">
+                          {getSubFlagIcon(flag.category)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-content-primary truncate">
+                            {flag.displayName}
+                          </div>
+                          <div className="text-[10px] font-mono text-content-muted truncate">
+                            {flag.featureKey}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* High-Contrast Visible Sub-Panel Switch */}
+                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        {!flag.isEnabled && flag.mode === 'DisabledNotice' && (
+                          <Lock className="w-3.5 h-3.5 text-content-muted" title="Bakım" />
+                        )}
+                        {!flag.isEnabled && flag.mode === 'Hidden' && (
+                          <EyeOff className="w-3.5 h-3.5 text-content-muted" title="Gizli" />
+                        )}
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={flag.isEnabled}
+                          onClick={() => toggleFeatureFlag(flag.featureKey)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+                            flag.isEnabled
+                              ? 'bg-surface-600 border border-content-secondary'
+                              : 'bg-surface-700 border border-line-strong'
+                          }`}
+                          title={flag.isEnabled ? 'Kapat' : 'Aç'}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full shadow-sm transition duration-200 ease-in-out ${
+                              flag.isEnabled
+                                ? 'translate-x-4 bg-content-primary'
+                                : 'translate-x-0 bg-content-muted'
+                            }`}
+                          />
+                        </button>
+                        <span
+                          className={`text-micro font-semibold w-7 text-left select-none ${
+                            flag.isEnabled ? 'text-content-primary' : 'text-content-muted'
+                          }`}
+                        >
+                          {flag.isEnabled ? (locale === 'en' ? 'ON' : 'Açık') : (locale === 'en' ? 'OFF' : 'Kapalı')}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Sub-Panel Footer: Bulk Shortcuts */}
+            <div className="p-2.5 border-t border-line bg-surface-900/60 flex items-center gap-2">
+              <button
+                onClick={() => bulkUpdateCategory(featureCategory, true)}
+                className="flex-1 py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-[10px] font-semibold text-content-primary transition-colors cursor-pointer"
+              >
+                {locale === 'en' ? 'Enable All' : 'Tümünü Aç'}
+              </button>
+              <button
+                onClick={() => bulkUpdateCategory(featureCategory, false)}
+                className="flex-1 py-1 rounded-[var(--radius-control)] bg-warning-subtle hover:bg-surface-700 border border-line text-[10px] font-semibold text-content-primary transition-colors cursor-pointer"
+              >
+                {locale === 'en' ? 'Maintenance' : 'Bakıma Al'}
+              </button>
             </div>
           </div>
         )}
@@ -1540,6 +1990,8 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                   {activeTab === 'logs' && t.tabLogs}
                   {activeTab === 'feedbacks' && t.tabFeedbacks}
                   {activeTab === 'system' && t.tabSystem}
+                  {activeTab === 'ai-routes' && t.tabAiRoutes}
+                  {activeTab === 'features' && t.tabFeatures}
                 </span>
               </div>
               <h1 className="text-lg font-bold tracking-tight text-content-primary mt-1">
@@ -1551,6 +2003,8 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                 {activeTab === 'logs' && (locale === 'en' ? 'System Error Logs & Exception Tracking' : 'Sistem Hata Günlüğü & İstisna Takibi')}
                 {activeTab === 'feedbacks' && (locale === 'en' ? 'Feedback & Inquiries Inbox' : 'Geri Bildirim & İstek Gelen Kutusu')}
                 {activeTab === 'system' && (locale === 'en' ? 'Autonomous System Audit Bot & Live Infrastructure Diagnostics' : 'Otonom Sistem Denetim Botu & Canlı Altyapı Teşhisi')}
+                {activeTab === 'ai-routes' && (locale === 'en' ? 'AI Tool Dynamic Model Routing & Provider Dispatch' : 'Yapay Zeka Araç Model Yönlendirmesi & Sağlayıcı Dağıtımı')}
+                {activeTab === 'features' && (locale === 'en' ? 'Feature Flags, Modules & Emergency Kill-Switch' : 'Özellik Bayrakları, Modül Kontrolleri & Acil Kapatma (Kill-Switch)')}
               </h1>
             </div>
 
@@ -3057,6 +3511,16 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                 </div>
               </div>
             </div>
+          )}
+
+          {/* TAB 9: AI YÖNLENDİRME (AI TOOL ROUTING) */}
+          {activeTab === 'ai-routes' && (
+            <AiRoutingTab locale={locale} />
+          )}
+
+          {/* TAB 10: ÖZELLİK BAYRAKLARI (FEATURE FLAGS & KILL-SWITCH) */}
+          {activeTab === 'features' && (
+            <FeatureFlagsTab locale={locale} />
           )}
         </div>
       </main>

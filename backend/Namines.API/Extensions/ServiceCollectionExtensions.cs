@@ -16,6 +16,11 @@ using Namines.Infrastructure.Realtime;
 using Namines.Infrastructure.Services;
 using Namines.Vault.DependencyInjection;
 using Namines.Ground.DependencyInjection;
+using Namines.Flow.DependencyInjection;
+using Namines.Desk.DependencyInjection;
+using Namines.Core.Events;
+using Namines.Infrastructure.Events;
+using Namines.Infrastructure.Resilience;
 using Namines.API.Services;
 using StackExchange.Redis;
 
@@ -25,6 +30,9 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddNaminesServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // FAZ 3: Polly v8 Harici Servis Dayanıklılık ve Zırh Altyapısı
+        services.AddNaminesResilience();
+
         // Sohbet sağlayıcısı: yapılandırmayla seçilir, varsayılan Groq.
         // Singleton çünkü tamamen durumsuz — yalnızca adres, anahtar ve model
         // tablosu taşıyor.
@@ -154,6 +162,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Namines.Core.Security.IConnectionSecretProtector,
                               Namines.Infrastructure.Security.AesGcmConnectionSecretProtector>();
 
+        // Modular Monolith (Faz 2) — Modüller arası asenkron in-process olay veri yolu
+        services.AddSingleton<IModuleEventBus, ModuleEventBus>();
+
         // Namines Vault — yedekleme/geri yükleme. Modülün kendi kayıtları
         // (sağlayıcı, depo, şifreleme) tek bir uzantıda; VaultService ise
         // veritabanına dokunduğu için scoped.
@@ -172,16 +183,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IVaultJobQueue, VaultJobQueue>();
         services.AddHostedService<VaultBackupWorker>();
 
-        // Namines Flow — otomasyon tetikleme kuyruğu (Bölüm 3). Vault kuyruğuyla
-        // aynı gerekçe (istek kapsamlı DbContext, kendi DI kapsamı); TEK FARK:
-        // kuyruk dolunca istek 503'e DÜŞMÜYOR, sessizce loglanıp atlanıyor —
-        // otomasyon tetikleme SyncProjects'in yan etkisi, asıl işi değil.
+        // Namines Flow — otomasyon tetikleme kuyruğu ve modül kaydı (Bölüm 3).
+        services.AddFlowModule();
         services.AddSingleton<IAutomationJobQueue, AutomationJobQueue>();
         services.AddScoped<IAutomationExecutor, AutomationExecutor>();
         services.AddHostedService<AutomationExecutorWorker>();
         // Çalışma kayıtları hiçbir şey tarafından silinmiyordu; sık tetiklenen
         // bir kural tabloyu süresiz büyütür.
         services.AddHostedService<AutomationRunLogRetentionService>();
+
+        // Namines Desk — Modular Monolith backend modülü
+        services.AddDeskModule();
 
         // AutomationExecutor, AI aksiyonlarının kotasını IAiQuotaReserver
         // üzerinden rezerve ediyor; bu arayüzü AiQuotaService uyguluyor ama
@@ -269,6 +281,10 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton<IPresenceStore, InMemoryPresenceStore>();
         }
+
+        // ── Admin: AI Tool Model Router & Feature Flags / Kill-Switch ───
+        services.AddSingleton<IAiToolRouter, AiToolRouter>();
+        services.AddSingleton<IFeatureFlagService, FeatureFlagService>();
 
         return services;
     }

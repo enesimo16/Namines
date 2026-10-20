@@ -80,6 +80,13 @@ public class PostgresDdlGenerator : IDdlGenerator
                 sb.Append(indexes);
                 sb.AppendLine();
             }
+
+            var rls = RlsSql.GenerateTableRls(table, DatabaseType.PostgreSQL, Quote);
+            if (!string.IsNullOrEmpty(rls))
+            {
+                sb.Append(rls);
+                sb.AppendLine();
+            }
         }
 
         if (schema.Relations != null && schema.Relations.Any())

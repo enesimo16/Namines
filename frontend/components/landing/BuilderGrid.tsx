@@ -445,23 +445,23 @@ export default function BuilderGrid() {
             </div>
 
             {/* Modal Footer Actions */}
-            <div className="flex items-center justify-between border-t border-surface-600 bg-surface-850 p-4 sm:p-5">
-              <div className="flex items-center gap-1.5 text-xs font-mono text-content-subtle">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-surface-600 bg-surface-850 p-4 sm:p-5">
+              <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs font-mono text-content-subtle">
                 <Sparkles className="w-3.5 h-3.5 text-accent" />
                 <span>Deterministic Zero Drift Guaranteed</span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setActiveFeature(null)}
-                  className="px-4 py-2 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-secondary text-xs font-bold transition-colors cursor-pointer"
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-600 text-content-secondary text-xs font-bold transition-colors cursor-pointer text-center"
                 >
                   Close
                 </button>
                 <Link
                   href={activeFeature.actionHref}
-                  className="inline-flex items-center gap-2 px-5 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all shadow-md cursor-pointer"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold transition-all shadow-md cursor-pointer text-center"
                 >
                   <span>{activeFeature.actionLabel}</span>
                   <ArrowRight className="w-3.5 h-3.5" />

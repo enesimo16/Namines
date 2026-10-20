@@ -166,6 +166,8 @@ public class ApiControllerConventionTests
         ["QuotaController"] = "Anonim kullanıcının kalan kotasını göstermek için.",
         ["TeamController.PreviewInvite"] = "Davet linkine tıklayan kişinin henüz hesabı olmayabilir.",
         ["VaultController.Health"] = "Sağlık bilgisi; sır taşımıyor.",
+        ["FeaturesController.GetFlags"] =
+            "Sistemdeki araç ve özellik bayrakları (kill-switch); istemcilerin arayüz butonlarını ve bakım uyarılarını belirlemesi için herkese açık.",
         ["GatewayController"] = "Kimlik API anahtarından çözülüyor; her uç elle kontrol ediyor (aşağıdaki test).",
     };
 
