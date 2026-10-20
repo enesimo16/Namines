@@ -51,7 +51,7 @@ describe('EmptyCanvasState', () => {
           {
             id: 't1',
             name: 'users',
-            fields: [],
+            columns: [],
           },
         ],
         relations: [],

@@ -5,7 +5,6 @@ import './globals.css';
 const primarySans = Assistant({
   variable: '--font-app-sans',
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
   display: 'swap',
   fallback: ['sans-serif'],
 });

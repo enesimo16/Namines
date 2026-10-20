@@ -1911,10 +1911,14 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                       {/* High-Contrast Visible Sub-Panel Switch */}
                       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                         {!flag.isEnabled && flag.mode === 'DisabledNotice' && (
-                          <Lock className="w-3.5 h-3.5 text-content-muted" title="Bakım" />
+                          <span title="Bakım">
+                            <Lock className="w-3.5 h-3.5 text-content-muted" />
+                          </span>
                         )}
                         {!flag.isEnabled && flag.mode === 'Hidden' && (
-                          <EyeOff className="w-3.5 h-3.5 text-content-muted" title="Gizli" />
+                          <span title="Gizli">
+                            <EyeOff className="w-3.5 h-3.5 text-content-muted" />
+                          </span>
                         )}
                         <button
                           type="button"
