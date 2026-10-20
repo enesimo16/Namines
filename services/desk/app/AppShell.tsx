@@ -58,18 +58,11 @@ const NAV_GROUPS: { labelKey: MessageKey; items: NavEntry[] }[] = [
 ];
 
 /**
- * Namines Desk'in uygulama kabuğu — kalıcı sol gezinme + üst şerit.
+ * Namines Desk uygulama kabuğu — Shopify Polaris düzen mimarisi + Cloudflare estetiği.
  *
- * <b>Neden yeniden yazıldı:</b> önceki hâlde Desk, ekranın ortasında tek bir
- * kartla ("proje seç") karşılıyordu ve tüm görünümler o karttan sonra gelen
- * yatay düğme şeridine sıkışmıştı. Bir OPERASYON paneli için bu sığ bir
- * yapıydı: kullanıcı nerede olduğunu, başka nelerin var olduğunu ve nasıl
- * geri döneceğini göremiyordu. Yeni kabuk sektörün fiili standardını
- * izliyor (Cloudflare/Vercel/Supabase panoları): solda kalıcı ve gruplu
- * gezinme + arama, üstte bağlam (ekmek kırıntısı) ve hesap, ortada içerik.
- *
- * Kabuk HİÇBİR veri çekmiyor — yalnızca sunum ve yönlendirme. Veri sahibi
- * hâlâ `page.tsx` (oturum/projeler) ve `Desk.tsx` (şema/satırlar).
+ * - Kalıcı ve bağımsız kaydırılabilir sol gezinme (50+ tabloda menüler bozulmaz).
+ * - Yalınlaştırılmış üst çubuk: mükerrer butonlar kaldırılmış, profil menüsünde toplanmıştır.
+ * - Namines ile ortak font ve hiyerarşi.
  */
 export default function AppShell({
   token, view, onNavigate, projectName, onChangeProject, onSignOut,
@@ -87,11 +80,9 @@ export default function AppShell({
   onSelectTable: (name: string) => void;
   isOwner: boolean;
   hasProject: boolean;
-  /** Sol paneldeki acilir menu icin — proje degistirmek panoya ugramadan olsun. */
   projects: DeskProject[] | null;
   projectId: string | null;
   onSelectProject: (id: string) => void;
-  /** Canvas gibi kendi yüksekliğini yöneten görünümlerde kaydırmayı kapat. */
   contentFlush?: boolean;
   children: React.ReactNode;
 }) {
@@ -99,6 +90,7 @@ export default function AppShell({
   const viewLabel = (v: DeskView) => t(`nav.views.${v}`);
   const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState('');
+  const [tableFilter, setTableFilter] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -108,8 +100,6 @@ export default function AppShell({
 
   const user = useMemo(() => decodeSessionUser(token), [token]);
 
-  // Daraltma tercihi kalıcı: her sekme açılışında yeniden daraltmak zorunda
-  // kalmak, tercihi anlamsız kılardı.
   useEffect(() => {
     try {
       setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1');
@@ -124,7 +114,7 @@ export default function AppShell({
     });
   }
 
-  // Ctrl/Cmd+K → aramaya odaklan (panonun beklenen kısayolu).
+  // Ctrl/Cmd+K → aramaya odaklan
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -138,7 +128,7 @@ export default function AppShell({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Menü dışına tıklayınca kapansın.
+  // Menü dışına tıklayınca kapansın
   useEffect(() => {
     if (!menuOpen && !projectMenuOpen) return;
     function onClick(e: MouseEvent) {
@@ -150,17 +140,19 @@ export default function AppShell({
     return () => document.removeEventListener('mousedown', onClick);
   }, [menuOpen, projectMenuOpen]);
 
-  // Gorunum degisince mobil cekmece kendiliginden kapansin — kullanicinin
-  // her secimden sonra ayrica kapatmasi gerekmesi, dar ekranda gezinmeyi
-  // iki kat tiklamaya cikariyordu.
   useEffect(() => { setDrawerOpen(false); }, [view, activeTable]);
 
   const q = query.trim().toLowerCase();
-  const matchingTables = (tables ?? []).filter(table => !q || table.name.toLowerCase().includes(q));
+  const tq = tableFilter.trim().toLowerCase();
+  const matchingTables = (tables ?? []).filter(table => {
+    const name = table.name.toLowerCase();
+    if (q && !name.includes(q)) return false;
+    if (tq && !name.includes(tq)) return false;
+    return true;
+  });
 
   return (
     <div className={`app${collapsed ? ' is-collapsed' : ''}${drawerOpen ? ' is-drawer-open' : ''}`}>
-      {/* Dar ekranda cekmecenin arkasindaki ortu — tiklayinca kapanir. */}
       <div className="side-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
 
       {/* ── Sol gezinme ─────────────────────────────────────────────── */}
@@ -188,10 +180,7 @@ export default function AppShell({
           </div>
         </div>
 
-        {/* Proje secici GERCEK bir acilir menu: onceki halde bu dugme
-            dogrudan panoya atiyordu, ama yanindaki cift ok ikonu bir liste
-            vaat ediyordu — "calismiyor" izlenimi buradan geliyordu. Artik
-            projeler burada listeleniyor, panoya ugramadan gecis yapiliyor. */}
+        {/* Proje seçici */}
         <div className="side-project" ref={projectRef}>
           <button
             className="project-switch"
@@ -224,8 +213,6 @@ export default function AppShell({
                   title={p.hasConnection ? p.name : t('shell.noConnection', { name: p.name })}
                   onClick={() => {
                     setProjectMenuOpen(false);
-                    // Baglantisi olmayan proje acilamaz (sema okunamaz);
-                    // kullaniciyi Import akisinin oldugu panoya gonderiyoruz.
                     if (p.hasConnection) onSelectProject(p.id);
                     else { onChangeProject(); }
                   }}
@@ -284,11 +271,21 @@ export default function AppShell({
                         )}
                       </button>
 
-                      {/* Tablo listesi Data'nın ALTINDA yuvalanıyor — üst
-                          seviyede olsaydı gezinme, tablo sayısı arttıkça
-                          (20+ tablo) kendi bölümlerini görünmez kılardı. */}
+                      {/* 50+ Tablolu yapılarda alt menüleri (SQL, Dağıtımlar vb.)
+                          aşağı itmeyen, bağımsız kaydırılabilir ve filtrelenebilir tablo listesi */}
                       {item.view === 'data' && !disabled && (view === 'data' || q) && (
-                        <div className="nav-sub">
+                        <div className="nav-sub-scrollable">
+                          {tables && tables.length > 8 && (
+                            <div className="nav-sub-filter">
+                              <input
+                                type="search"
+                                value={tableFilter}
+                                placeholder={t('shell.search')}
+                                aria-label={t('shell.searchLabel')}
+                                onChange={e => setTableFilter(e.target.value)}
+                              />
+                            </div>
+                          )}
                           {matchingTables.map(table => (
                             <button
                               key={table.name}
@@ -302,7 +299,7 @@ export default function AppShell({
                           ))}
                           {matchingTables.length === 0 && (
                             <div className="nav-sub-empty">
-                              {q ? t('shell.noMatchingTables') : t('shell.noAccessibleTables')}
+                              {q || tq ? t('shell.noMatchingTables') : t('shell.noAccessibleTables')}
                             </div>
                           )}
                         </div>
@@ -352,21 +349,9 @@ export default function AppShell({
             <span className="crumb-current">{viewLabel(view)}</span>
           </div>
 
+          {/* Mükerrer Namines/Destek butonları üst bardan kaldırıldı;
+              sağ tarafta yalnızca Dil, Tema ve Profil menüsü yer alır. */}
           <div className="top-actions">
-            <a
-              className="top-link"
-              href={NAMINES_FRONTEND}
-              target="_blank"
-              rel="noreferrer"
-              title={t('shell.openNaminesTitle')}
-            >
-              <ExternalLink size={14} />
-              <span>Namines</span>
-            </a>
-            <a className="top-link" href="mailto:support@namines.com" title={t('shell.emailSupport')}>
-              <LifeBuoy size={14} />
-              <span>{t('shell.support')}</span>
-            </a>
             <LanguageToggle />
             <ThemeToggle />
 

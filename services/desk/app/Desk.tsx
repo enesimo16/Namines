@@ -21,29 +21,21 @@ import Members from './Members';
 import BulkDeleteConfirm, { BULK_DELETE_THRESHOLD } from './BulkDeleteConfirm';
 import { deploymentsApi } from '../lib/deployments';
 import { useT } from '../lib/i18n';
+import { ChevronsUpDown, Check } from 'lucide-react';
 
 const PAGE_SIZE = 25;
 /** Sabit referans — `loadRows`'un useCallback kimliği her render'da değişmesin. */
 const NO_FILTERS: GatewayFilter[] = [];
-/** D5 §4.1 — yoklama aralığı. WebSocket değil: SignalR hub'ı şu an canvas
- * işbirliği için yapılandırılmış, Desk'i ona bağlamak ayrı bir iş. */
 const VERSION_POLL_MS = 30_000;
 
 /**
  * Namines Desk — proje kapsamındaki İÇERİK.
  *
- * <b>v2.1'de kabuk buradan çıktı:</b> sol gezinme, üst şerit ve görünüm
- * seçimi artık `AppShell` + `page.tsx`'in işi. Bu bileşen yalnızca seçili
- * görünümün içeriğini üretiyor — böylece kabuk, proje seçilmemişken de
- * (karşılama panosu) aynı biçimde çalışabiliyor.
- *
- * Görünüm ve seçili tablo DIŞARIDAN KONTROL EDİLİYOR (`view`, `activeTable`):
- * sol paneldeki tablo listesi kabukta yaşıyor, iki ayrı yerde ayrı bir "hangi
- * tablo seçili" durumu tutmak ikisinin ayrışmasına açık kapı bırakırdı.
- *
- * Hiçbir adımda bağlantı dizesi istemciye gelmiyor; sunucu onu oturum
- * sahibinin bu projeye erişimini doğruladıktan sonra çözüyor
- * (01-KIMLIK-VE-OTURUM.md §3).
+ * Shopify Polaris Düzeni + Cloudflare Dashboard Estetiği:
+ * - Hızlı tablo değiştirici (Topbar Quick Switcher)
+ * - Yüksek yoğunluklu veri ızgarası (High Density)
+ * - Tabular monospaced veriler (Geist Mono ile PK, UUID, sayılar)
+ * - Mükerrer bildirimlerin temizlenmesi
  */
 export default function Desk({
   session, designSchemaJson, nodePositionsJson, isOwner, allowDeskSql, onDeskSqlToggled,
@@ -52,23 +44,15 @@ export default function Desk({
   session: DeskSession;
   designSchemaJson: string | null;
   nodePositionsJson: string | null;
-  /** Namines Desk v2 §E4.2 — yalnızca Owner SQL sekmesini kullanabilir. */
   isOwner: boolean;
   allowDeskSql: boolean;
   onDeskSqlToggled: () => void;
   onChangeProject: () => void;
-  /** Kabuğun seçtiği görünüm. */
   view: DeskView;
-  /** Kabuğun seçtiği tablo (Data görünümü için). */
   activeTable: string | null;
   onSelectTable: (name: string) => void;
-  /** Şema okunduğunda kabuğun tablo listesini doldurabilmesi için. */
   onTablesLoaded: (tables: DeskTable[] | null) => void;
 }) {
-  // D5 §4.1 — "yeni sürüm bildirimi". En son görülen ChangeRequest id'si;
-  // yoklama sonucu farklı bir id gelirse şerit gösterilir. `ChangeRequest`
-  // zaten her yeni `SchemaVersion`'a eşlik ediyor (CreateQuick'in kendi
-  // yorumu), yani bu, ayrı bir uç eklemeden aynı sinyali veriyor.
   const t = useT();
   const [latestVersionSeen, setLatestVersionSeen] = useState<string | null>(null);
   const [newVersionBanner, setNewVersionBanner] = useState(false);
@@ -81,22 +65,25 @@ export default function Desk({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Record<string, unknown> | null | undefined>(undefined);
 
-  // Namines Desk v2 §E4.1 — toplu silme. Seçim pk değerleriyle tutuluyor
-  // (satır referansıyla değil) — sayfa değişse bile hangi kayıtların seçili
-  // olduğu net kalır.
   const [selectedPks, setSelectedPks] = useState<Set<string>>(new Set());
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
 
-  // D4 §2.2 — sıralama + filtre. Gateway zaten destekliyor (Filters/OrderByColumn/
-  // SortDirection); bu tamamen bir arayüz durumu, backend değişikliği gerekmiyor.
-  //
-  // <b>Ölçütler HANGİ TABLOYA ait olduklarıyla birlikte tutuluyor.</b> Önceden
-  // ayrı state'lerdi ve tablo değişince bir EFEKT onları sıfırlıyordu; efekt
-  // sıfırlamayı bir sonraki render'a bıraktığı için ilk istek ESKİ tablonun
-  // sıralama/filtresiyle gidiyordu. Yeni tabloda o kolon yoksa Gateway 400
-  // döndürüyor, hata şeridi yanıp sönüyor ve her tablo geçişi iki istek
-  // harcıyordu. Ölçütü tabloya bağlayıp TÜRETMEK bu yarışı tamamen kaldırıyor:
-  // ilk render'da zaten doğru değerler okunuyor.
+  // Topbar Hızlı Tablo Seçici Popover
+  const [tableSwitcherOpen, setTableSwitcherOpen] = useState(false);
+  const [tableSearch, setTableSearch] = useState('');
+  const tableSwitcherRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!tableSwitcherOpen) return;
+    function onClick(e: MouseEvent) {
+      if (tableSwitcherRef.current && !tableSwitcherRef.current.contains(e.target as Node)) {
+        setTableSwitcherOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [tableSwitcherOpen]);
+
   const [criteria, setCriteria] = useState<{
     table: string | null;
     sortColumn: string | null;
@@ -120,21 +107,10 @@ export default function Desk({
     });
   }, [active]);
   const [exporting, setExporting] = useState(false);
-  // Filtre paneli VARSAYILAN KAPALI: her kolon icin bir kutu ciziliyor ve
-  // 15 kolonlu bir tabloda bu, verinin kendisini ekrandan itip cikaran bir
-  // giris duvarina donusuyordu. Acik filtre varsa panel kendiliginden acilir.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const table = tables?.find(t => t.name === active) ?? null;
 
-  // Sıralama/filtre sıfırlaması ARTIK BURADA DEĞİL — `criteria` tabloya bağlı
-  // olduğu için türetiliyor (yukarı bkz.). Burada yalnızca seçim temizleniyor;
-  // seçim hiçbir isteği beslemediği için efekt gecikmesi zararsız.
-  //
-  // Table change is NOT the only reset trigger anymore: sort/filter also
-  // clear it. Otherwise a user could select rows, then apply a filter that
-  // hides them (still selected, just off-screen) and hit "Delete selected",
-  // deleting rows they can no longer see and no longer intended to touch.
   useEffect(() => {
     setSelectedPks(new Set());
   }, [active, sortColumn, sortDir, appliedFilters]);
@@ -143,26 +119,14 @@ export default function Desk({
     try {
       const res = await deskApi.schema(session);
       setTables(res.tables);
-      // Varsayılan tabloyu BURADA seçmiyoruz: `onSelectTable` aynı zamanda
-      // Data görünümüne geçiriyor, bu da projeyi açar açmaz Şema yerine ham
-      // satırlara düşmek demek olurdu. Varsayılanı kabuk belirliyor
-      // (`page.tsx` → handleTablesLoaded), görünümü değiştirmeden.
     } catch (err) {
       setError(err instanceof Error ? err.message : t('data.schemaLoadFailed'));
     }
   }, [session, t]);
 
-  // Şema bir kez: tablo listesi ve form tanımlarının ikisi de buradan geliyor.
   useEffect(() => { reloadSchema(); }, [reloadSchema]);
-
-  // Tablo listesi kabuğa (sol panel) bildiriliyor — orada ayrı bir şema
-  // isteği atmak, aynı veriyi iki kez çekmek olurdu.
   useEffect(() => { onTablesLoaded(tables); }, [tables, onTablesLoaded]);
 
-  // D5 §4.1 — yeni sürüm bildirimi. Desk açıkken ana uygulamada bir "Request
-  // Review" yapılırsa üstte bir şerit çıkar; DDL ÇALIŞTIRILMAZ, yalnızca
-  // Canvas/şemanın yeniden okunması tetiklenir (§4.2). §4.3'teki "doğrudan
-  // veritabanına uygula" bilinçli olarak burada YOK — Vault'tan sonraya bırakıldı.
   useEffect(() => {
     let cancelled = false;
 
@@ -176,8 +140,7 @@ export default function Desk({
           return latestId;
         });
       } catch {
-        // Yoklama sessizce atlanır — bu bir kullanıcı eylemi değil, arka plan
-        // sinyali; başarısızlığı bir hata bildirimiyle göstermek gürültü olurdu.
+        // Yoklama sessizce atlanır
       }
     }
 
@@ -186,14 +149,6 @@ export default function Desk({
     return () => { cancelled = true; clearInterval(id); };
   }, [session]);
 
-  // `loadRows` is fired both from effects (table/sort/filter change) and from
-  // direct user actions (pager, CRUD callbacks). Two overlapping calls can
-  // resolve out of order — e.g. the user switches tables (or a slow filtered
-  // request laps a later, faster one) and the OLDER response lands last,
-  // overwriting the newer rows with stale data. `latestRequestRef` tags each
-  // call so only the most recent one is allowed to apply its result — the
-  // same "cancelled"-guard idea as Analytics.tsx's fetch effect, generalized
-  // to a token since this fetch is also reachable outside an effect.
   const latestRequestRef = useRef<symbol | null>(null);
 
   const loadRows = useCallback(async (tableName: string, p: number) => {
@@ -205,7 +160,7 @@ export default function Desk({
       const res = await deskApi.list(session, tableName, p, PAGE_SIZE, {
         orderByColumn: sortColumn, sortDirection: sortDir, filters: appliedFilters,
       });
-      if (latestRequestRef.current !== requestToken) return; // superseded or unmounted
+      if (latestRequestRef.current !== requestToken) return;
       setRows(res.rows);
       setTotal(res.totalCount);
     } catch (err) {
@@ -217,20 +172,14 @@ export default function Desk({
     }
   }, [session, sortColumn, sortDir, appliedFilters, t]);
 
-  // Unmounting invalidates any in-flight request so its response can never
-  // apply after the component is gone.
   useEffect(() => {
     return () => { latestRequestRef.current = null; };
   }, []);
 
   useEffect(() => {
     if (active) { setPage(1); loadRows(active, 1); }
-    // sortColumn/sortDir/appliedFilters degistiginde de yeniden yuklenir —
-    // loadRows zaten bunlara bagimli (useCallback deps), burada tekrar etmiyoruz.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, loadRows]);
 
-  /** Ölçütü DAİMA aktif tabloya bağlayarak yazar — kısmi/karışık bir duruma düşmesin. */
   function updateCriteria(patch: Partial<{ sortColumn: string | null; sortDir: GatewaySortDirection; filters: GatewayFilter[] }>) {
     setCriteria(prev => {
       const base = prev.table === active
@@ -283,14 +232,6 @@ export default function Desk({
     }
   }
 
-  // D4 §2.1 — FK açılır listesi. 200'den fazla satır varsa (ölçek sınırı) ham
-  // değer girişine düşülür; RowForm bu ayrımı 'too_many' ile kendisi gösterir.
-  //
-  // Hedef tablo başına önbelleklenir: aynı forma iki FK kolonu aynı hedefe
-  // bakıyorsa (iki arama bekleme yerine bir), ya da kullanıcı arka arkaya
-  // "Yeni satır" açıyorsa gereksiz tekrar istek atılmaz. `tables` değişince
-  // (şema yeniden okunduğunda) YENİ bir Map üretilir — önbellek böylece
-  // otomatik geçersiz kalır, elle temizleme gerekmez.
   const fkOptionsCache = useMemo(() => new Map<string, Promise<FkOptionsResult>>(), [tables]);
 
   const fetchFkOptions = useCallback((targetTableName: string): Promise<FkOptionsResult> => {
@@ -319,8 +260,6 @@ export default function Desk({
     })();
 
     fkOptionsCache.set(targetTableName, promise);
-    // 'error' önbelleklenmez: geçici bir ağ hatası, form her açıldığında
-    // kalıcı olarak ham girişe düşürmesin — bir sonraki açılışta yeniden denenir.
     promise.then(r => { if (r.kind === 'error') fkOptionsCache.delete(targetTableName); });
     return promise;
   }, [session, tables, fkOptionsCache]);
@@ -329,8 +268,6 @@ export default function Desk({
     if (!table) return;
     const pk = primaryKey(table);
     if (!pk) return;
-    // Silme geri alınamaz; onay bilinçli olarak satırı adlandırıyor ki
-    // kullanıcı hangi kaydı sildiğini görsün.
     const shown = String(row[displayColumn(table)] ?? row[pk]);
     if (!confirm(t('data.confirmDelete', { name: shown }))) return;
     try {
@@ -349,20 +286,10 @@ export default function Desk({
     });
   }
 
-  /**
-   * Namines Desk v2 §E4.1 — toplu silme. 10'dan AZ seçimde tarayıcının kendi
-   * `confirm()`'ü (tekil silmeyle tutarlı); 10 ve üzeri
-   * <see cref="BulkDeleteConfirm" />'ün "SİL" yazma zorunluluğuna düşer
-   * (34-SENDEN-BEKLENENLER.md madde 12).
-   */
   function requestBulkDelete() {
     if (selectedPks.size === 0) return;
     if (selectedPks.size < BULK_DELETE_THRESHOLD) {
       if (!confirm(t(selectedPks.size === 1 ? 'data.confirmBulkOne' : 'data.confirmBulkOther', { count: selectedPks.size }))) return;
-      // Hata BURADA yakalanıyor: bu yol `BulkDeleteConfirm`'den geçmiyor, yani
-      // modalın kendi try/catch'i devrede değil. Yakalanmadığında silme
-      // başarısız oluyor, hiçbir uyarı çıkmıyor ve satırlar seçili kaldığı için
-      // kullanıcı "sildim ama liste yenilenmedi" sanıyordu.
       void executeBulkDelete().catch(err => {
         setError(err instanceof Error ? err.message : t('common.deleteFailed'));
       });
@@ -371,11 +298,6 @@ export default function Desk({
     setConfirmingBulkDelete(true);
   }
 
-  /**
-   * Hatayı BİLEREK yukarı fırlatır: 10+ seçimde çağıran `BulkDeleteConfirm`,
-   * mesajı kendi modalinde göstermek için bunu bekliyor. 10'un altındaki yol
-   * ise `requestBulkDelete` içinde yakalıyor.
-   */
   async function executeBulkDelete() {
     if (!table) return;
     const pk = primaryKey(table);
@@ -386,10 +308,6 @@ export default function Desk({
     await loadRows(table.name, page);
   }
 
-  // Barındırma görünümü şemaya BAĞLI DEĞİL ve olmamalı: Ground'un işi projeye
-  // ilk veritabanını vermek, dolayısıyla tam da şemanın okunamadığı durumda
-  // açılabilmeli. Aşağıdaki hata kapısına takılsaydı, kullanıcı "bağlantı yok"
-  // ekranıyla "bağlantı açan ekran" arasında kilitlenirdi.
   if (view === 'ground') return <Ground session={session} isOwner={isOwner} />;
   if (!tables) {
     if (view === 'deployments') return <div className="desk-content"><Deployments session={session} /></div>;
@@ -457,15 +375,77 @@ export default function Desk({
         <>
         <div className="topbar">
           <div>
-            <h1>{table?.name ?? t('data.selectTable')}</h1>
+            <div className="table-quick-select-wrap" ref={tableSwitcherRef}>
+              <button
+                type="button"
+                className="table-quick-select-btn"
+                onClick={() => setTableSwitcherOpen(o => !o)}
+                aria-haspopup="listbox"
+                aria-expanded={tableSwitcherOpen}
+                title={t('data.selectTable')}
+              >
+                <span>{table?.name ?? t('data.selectTable')}</span>
+                <ChevronsUpDown size={14} style={{ color: 'var(--content-muted)' }} />
+              </button>
+
+              {tableSwitcherOpen && tables && (
+                <div className="table-quick-popover" role="listbox">
+                  <div className="table-quick-search">
+                    <input
+                      type="search"
+                      value={tableSearch}
+                      autoFocus
+                      placeholder={t('shell.search')}
+                      onChange={e => setTableSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="table-quick-list">
+                    {tables
+                      .filter(t => !tableSearch || t.name.toLowerCase().includes(tableSearch.toLowerCase()))
+                      .map(t => (
+                        <button
+                          key={t.name}
+                          type="button"
+                          className="table-quick-item"
+                          role="option"
+                          aria-selected={t.name === active}
+                          onClick={() => {
+                            setTableSwitcherOpen(false);
+                            setTableSearch('');
+                            onSelectTable(t.name);
+                          }}
+                        >
+                          <span>{t.name}</span>
+                          {t.name === active && <Check size={13} style={{ color: 'var(--accent-text)' }} />}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {table && (
               <div className="meta">
-                {t((total ?? rows.length) === 1 ? 'common.rowsOne' : 'common.rowsOther', { count: total ?? rows.length })}
-                {' · '}{t('common.columns', { count: table.columns.length })}
-                {!editable && t('common.readOnlySuffix')}
+                <span className="mono-cell">
+                  {t((total ?? rows.length) === 1 ? 'common.rowsOne' : 'common.rowsOther', { count: total ?? rows.length })}
+                </span>
+                {' · '}
+                <span className="mono-cell">
+                  {t('common.columns', { count: table.columns.length })}
+                </span>
+                {!editable && (
+                  <span
+                    className="badge badge-off"
+                    style={{ marginLeft: 8 }}
+                    title={!table.canWrite ? t('data.noWritePermission') : t('data.noSinglePk')}
+                  >
+                    {t('data.readOnly')}
+                  </span>
+                )}
               </div>
             )}
           </div>
+
           {table && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button
@@ -496,12 +476,6 @@ export default function Desk({
 
         <div className="page">
           {error && <div className="notice notice-error">{error}</div>}
-          {table && !editable && (
-            <div className="notice">
-              {t('data.readOnly')}{' '}
-              {!table.canWrite ? t('data.noWritePermission') : t('data.noSinglePk')}
-            </div>
-          )}
 
           {table && (filtersOpen || appliedFilters.length > 0) && (
             <div className="grid-wrap" style={{ padding: 10, marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
@@ -521,27 +495,41 @@ export default function Desk({
                   );
                 }
                 if (kind === 'number' || kind === 'date' || kind === 'datetime') {
-                  const inputType = kind === 'number' ? 'number' : kind === 'datetime' ? 'datetime-local' : 'date';
                   return (
-                    <div key={c.name} className="field" style={{ margin: 0, display: 'flex', gap: 4 }}>
-                      <div>
-                        <label>{c.name} ≥</label>
-                        <input type={inputType} aria-label={`${c.name} ≥`} value={d.min ?? ''} style={{ width: 120 }}
-                               onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { ...prev[c.name], min: e.target.value || undefined } }))} />
-                      </div>
-                      <div>
-                        <label>{c.name} ≤</label>
-                        <input type={inputType} aria-label={`${c.name} ≤`} value={d.max ?? ''} style={{ width: 120 }}
-                               onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { ...prev[c.name], max: e.target.value || undefined } }))} />
+                    <div key={c.name} className="field" style={{ margin: 0 }}>
+                      <label>{c.name}</label>
+                      <div className="row" style={{ gap: 4 }}>
+                        <input
+                          type={kind === 'number' ? 'number' : kind === 'date' ? 'date' : 'datetime-local'}
+                          placeholder="Min"
+                          aria-label={`${c.name} min`}
+                          style={{ width: 110 }}
+                          value={d.min ?? ''}
+                          onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { ...prev[c.name], min: e.target.value || undefined } }))}
+                        />
+                        <input
+                          type={kind === 'number' ? 'number' : kind === 'date' ? 'date' : 'datetime-local'}
+                          placeholder="Max"
+                          aria-label={`${c.name} max`}
+                          style={{ width: 110 }}
+                          value={d.max ?? ''}
+                          onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { ...prev[c.name], max: e.target.value || undefined } }))}
+                        />
                       </div>
                     </div>
                   );
                 }
                 return (
                   <div key={c.name} className="field" style={{ margin: 0 }}>
-                    <label>{t('data.contains', { column: c.name })}</label>
-                    <input type="text" aria-label={t('data.contains', { column: c.name })} value={d.eq ?? ''} style={{ width: 140 }}
-                           onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))} />
+                    <label>{c.name}</label>
+                    <input
+                      type="text"
+                      placeholder={t('data.contains')}
+                      aria-label={c.name}
+                      style={{ width: 140 }}
+                      value={d.eq ?? ''}
+                      onChange={e => setFilterDraft(prev => ({ ...prev, [c.name]: { eq: e.target.value || undefined } }))}
+                    />
                   </div>
                 );
               })}
@@ -589,13 +577,11 @@ export default function Desk({
                           />
                         </th>
                       )}
-                      {/* lang="en": baslik CSS ile buyuk harfe cevriliyor ve kolon adi bir
-                          tanimlayici — Turkce arayuzde `id` "İD", `active` "ACTİVE" oluyordu. */}
                       {table.columns.map(c => (
                         <th key={c.name} lang="en" style={{ cursor: 'pointer', userSelect: 'none' }}
                             onClick={() => toggleSort(c.name)} title={t('data.clickToSort')}>
                           {c.name}
-                          {sortColumn === c.name && <span className="col-badge">{sortDir === 'Asc' ? '▲' : '▼'}</span>}
+                          {sortColumn === c.name && <span className="col-badge" style={{ color: 'var(--accent-text)' }}>{sortDir === 'Asc' ? '↑' : '↓'}</span>}
                           {c.isPK && <span className="col-badge">PK</span>}
                           {c.references && <span className="col-badge">→{c.references.table}</span>}
                         </th>
@@ -616,11 +602,15 @@ export default function Desk({
                             />
                           </td>
                         )}
-                        {table.columns.map(c => (
-                          <td key={c.name} className={c.isPK ? 'pk-cell' : undefined}>
-                            {formatCell(r.values[c.name])}
-                          </td>
-                        ))}
+                        {table.columns.map(c => {
+                          const kind = fieldKind(c);
+                          const isMono = c.isPK || kind === 'number' || kind === 'date' || kind === 'datetime';
+                          return (
+                            <td key={c.name} className={c.isPK ? 'pk-cell' : isMono ? 'mono-cell' : undefined}>
+                              {formatCell(r.values[c.name])}
+                            </td>
+                          );
+                        })}
                         {editable && (
                           <td className="col-actions">
                             <div className="row-actions" style={{ justifyContent: 'flex-end' }}>

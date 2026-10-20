@@ -163,7 +163,7 @@ export default function Deployments({ session }: { session: DeskSession }) {
 function StatusBadge({ status }: { status: string }) {
   const t = useT();
   const label = status === 'PendingReview' ? t('deployments.statusPending') : status === 'Approved' ? t('deployments.statusApproved') : t('deployments.statusRejected');
-  const color = status === 'Approved' ? 'var(--success)' : status === 'Rejected' ? 'var(--danger)' : 'var(--content-muted)';
+  const color = status === 'Approved' ? 'var(--accent-text)' : status === 'Rejected' ? 'var(--danger)' : 'var(--content-muted)';
   return <span style={{ color, fontWeight: 600 }}>● {label}</span>;
 }
 

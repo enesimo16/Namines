@@ -20,7 +20,7 @@ const PERIODS: { key: Period; labelKey: MessageKey; hours: number; bucket: 'hour
 // edilemiyordu (ve acik temada tek bir koyu blok gibi gorunuyordu).
 // Ton seciminde anlam var: yazma yesil, guncelleme mavi, SILME kirmizi.
 const KIND_COLORS: Record<string, string> = {
-  create: '#2e9e6b',
+  create: '#0284c7',
   update: '#3b82c4',
   delete: '#c9524b',
   import: '#8b6bc7',

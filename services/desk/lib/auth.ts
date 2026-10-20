@@ -87,6 +87,35 @@ export async function login(email: string, password: string): Promise<string> {
   return token as string;
 }
 
+export async function register(data: {
+  email: string;
+  password: string;
+  username?: string;
+  type?: 'individual' | 'corporate';
+  companyName?: string;
+}): Promise<string> {
+  const res = await fetch(`${API}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    let message = 'Registration failed.';
+    try {
+      const body = await res.json();
+      if (body?.message ?? body?.Message) message = body.message ?? body.Message;
+    } catch { /* gövde JSON değilse varsayılan mesaj kalır */ }
+    throw new AuthError(message, res.status);
+  }
+
+  const body = await res.json();
+  const token = body?.token ?? body?.Token;
+  if (!token) throw new AuthError('The server did not return a session token.', 500);
+  return token as string;
+}
+
 /**
  * Kullanıcının erişebildiği projeler — D1'in "proje seçici" bunun üstüne
  * kurulu. Kart ızgarası, bağlantı durumu ve Import akışı D2'nin kapsamı

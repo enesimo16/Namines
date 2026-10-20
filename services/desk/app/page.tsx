@@ -1,27 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Database } from 'lucide-react';
 import AppShell from './AppShell';
 import Desk from './Desk';
 import Projects from './Projects';
-import LanguageToggle from './LanguageToggle';
-import { login, fetchProjects, getToken, setToken, clearToken, AuthError, type DeskProject } from '../lib/auth';
+import DeskLanding from './DeskLanding';
+import { fetchProjects, getToken, clearToken, AuthError, type DeskProject } from '../lib/auth';
 import { type DeskView, PROJECT_VIEWS } from '../lib/nav';
 import type { DeskTable } from '../lib/schema';
 import { useT } from '../lib/i18n';
 
 /**
- * Giris kapisi + yonlendirme — D1 (namines_desk/01-KIMLIK-VE-OTURUM.md).
+ * Giriş kapısı, tek sayfalık tanıtım ve çalışma alanı yönlendirmesi.
  *
- * v0.1'deki ham Gateway API anahtari yerine ana Namines hesabiyla oturum:
- * e-posta + parola -> JWT -> pano. JWT `sessionStorage`'da tutuluyor,
- * `localStorage`'da DEGIL: sekme kapaninca kalmamali.
- *
- * <b>v2.1:</b> giris yapan kullanici artik ortada yuzen bir "proje sec"
- * kartiyla degil, tam bir yonetim panosuyla karsilaniyor (`AppShell`).
- * Proje secimi bir ADIM degil, panonun icindeki bir GORUNUM (`overview`) —
- * kullanici projeler arasinda gezinirken kabuktan hic cikmiyor.
+ * - Oturum yoksa: Namines logosu, tanıtımı ve Namines AuthModal ile tek sayfalık Landing.
+ * - Namines üzerinden gelindiyse (SSO / handoff) veya oturum açıksa: Doğrudan AppShell çalışma alanı.
  */
 const PROJECT_KEY = 'namines-desk-project';
 const VIEW_KEY = 'namines-desk-view';
@@ -31,26 +24,17 @@ export default function Page() {
   const [token, setTok] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loggingIn, setLoggingIn] = useState(false);
-
   const [projects, setProjects] = useState<DeskProject[] | null>(null);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
 
-  // Kabuk durumu: hangi gorunum, hangi tablo, ve Desk'in okudugu tablo listesi.
+  // Kabuk durumu: hangi görünüm, hangi tablo, ve Desk'in okuduğu tablo listesi.
   const [view, setView] = useState<DeskView>('overview');
   const [activeTable, setActiveTable] = useState<string | null>(null);
   const [tables, setTables] = useState<DeskTable[] | null>(null);
 
   useEffect(() => {
     setTok(getToken());
-    // Secili proje ve gorunum, JWT ile AYNI omurde (sessionStorage) saklaniyor:
-    // yenilemeden sonra kullanicinin bulundugu yerden devam etmesi icin.
-    // localStorage OLMAZ — sekme kapaninca oturum zaten bitiyor, proje
-    // baglaminin ondan uzun yasamasi tutarsiz olurdu.
     try {
       const savedProject = sessionStorage.getItem(PROJECT_KEY);
       const savedView = sessionStorage.getItem(VIEW_KEY) as DeskView | null;
@@ -60,13 +44,6 @@ export default function Page() {
     setReady(true);
   }, []);
 
-  // Secim degistikce yaz — ama GERI YUKLEME BITMEDEN YAZMA.
-  //
-  // Bu koruma olmadan gercek bir hata olusuyordu: yazma efekti ilk render'da
-  // da calisiyor ve o anda state hala baslangic degerinde ('overview', null)
-  // oluyor. Yani geri yukleme efekti kaydi okuduktan hemen sonra, yazma
-  // efekti ayni kaydi baslangic degeriyle EZIYORDU. Belirti: yenilemeden
-  // sonra proje geliyor ama gorunum hep 'Projeler'e dusuyordu.
   const restoredRef = useRef(false);
   useEffect(() => {
     if (!restoredRef.current) { restoredRef.current = true; return; }
@@ -85,8 +62,6 @@ export default function Page() {
       setProjectsError(null);
     } catch (err) {
       if (err instanceof AuthError && err.status === 401) {
-        // Oturum sunucu tarafinda gecersiz (suresi dolmus/iptal) — kullaniciyi
-        // sessizce yeniden giris ekranina dondur.
         clearToken();
         setTok(null);
         return;
@@ -97,35 +72,18 @@ export default function Page() {
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
-  // Desk'in bildirdigi tablo listesi kabuga aktariliyor. `useCallback`:
-  // Desk bunu bir effect bagimliligi olarak kullaniyor, her render'da yeni bir
-  // fonksiyon vermek sonsuz donguye yol acardi.
   const handleTablesLoaded = useCallback((next: DeskTable[] | null) => {
     setTables(next);
-    // Varsayilan tablo burada seciliyor — GORUNUM DEGISTIRMEDEN. Bu secim
-    // Desk'in icinde `onSelectTable` ile yapilsaydi, sema okunur okunmaz
-    // kullanici Data'ya atlardi (proje acilisinin varsayilani Sema).
     setActiveTable(prev => (prev && next?.some(t => t.name === prev))
       ? prev
       : (next?.[0]?.name ?? null));
   }, []);
+
   const handleSelectTable = useCallback((name: string) => {
     setActiveTable(name);
     setView('data');
   }, []);
 
-  // Oturum nesnesi MEMOIZE EDILIYOR — kritik, ve TUM erken return'lerden ONCE
-  // (hook'lar kosullu cagrilamaz).
-  //
-  // Onceden `session={{ token, projectId }}` satir ici yaziliyordu, yani her
-  // render'da YENI bir nesne uretiliyordu. `Desk.tsx`'in uc efekti de
-  // (`reloadSchema`, surum yoklamasi, `loadRows`) `[session]`'a bagli oldugu
-  // icin her render yeniden istek atiyor, gelen yanit state'i guncelleyip
-  // yeni bir render tetikliyordu: kapali bir dongu.
-  //
-  // OLCULDU: 8 saniyede 978 istek. Gateway'in 1200/dk limiti ~10 saniyede
-  // doluyor ve arayuz 429 yagmuruna tutuluyordu — "Veri ekrani duzgun
-  // calismiyor" sikayetinin gercek sebebi buydu.
   const session = useMemo(
     () => ({ token: token ?? '', projectId: projectId ?? '' }),
     [token, projectId],
@@ -154,19 +112,9 @@ export default function Page() {
     setProjectId(id);
     setActiveTable(null);
     setTables(null);
-    // Yeni projede varsayilan gorunum sema: kullanicinin once neye baktigini
-    // gormesi, ham satirlara dusmesinden daha iyi bir giris (D3).
     setView('canvas');
   }
 
-  /**
-   * Bağlantısı OLMAYAN bir projeyi Ground görünümünde açar.
-   *
-   * `selectProject` şema görünümüne düşürüyor; oysa buraya gelen kullanıcının
-   * elinde henüz veritabanı yok. Ground, projeye ilk veritabanını veren yer —
-   * ayrı bir giriş olmadan tam da ihtiyaç duyan projeler için erişilemez
-   * kalırdı.
-   */
   function useGroundFor(id: string) {
     setProjectId(id);
     setActiveTable(null);
@@ -174,58 +122,13 @@ export default function Page() {
     setView('ground');
   }
 
+  // Oturum yoksa: Namines Desk Tek Sayfalık Tanıtım & Auth Ekranı
   if (!token) {
-    return (
-      <div className="gate">
-        <form
-          className="gate-card"
-          onSubmit={async e => {
-            e.preventDefault();
-            setLoginError(null);
-            setLoggingIn(true);
-            try {
-              const jwt = await login(email.trim(), password);
-              setToken(jwt);
-              setTok(jwt);
-            } catch (err) {
-              setLoginError(err instanceof Error ? err.message : t('login.failed'));
-            } finally {
-              setLoggingIn(false);
-            }
-          }}
-        >
-          <div className="gate-brand">
-            <span className="side-mark"><Database size={15} strokeWidth={2.2} /></span>
-            <h1>Namines Desk <span className="brand-badge">beta</span></h1>
-            {/* Dil, giris YAPILMADAN once de secilebilmeli — metnin ilk goruldugu yer burasi. */}
-            <span className="gate-lang"><LanguageToggle /></span>
-          </div>
-          <p>{t('login.intro')}</p>
-          {loginError && <div className="notice notice-error">{loginError}</div>}
-          <div className="field">
-            <label htmlFor="email">{t('login.email')}</label>
-            <input id="email" type="email" value={email} placeholder="name@example.com"
-                   onChange={e => setEmail(e.target.value)} autoFocus required />
-          </div>
-          <div className="field">
-            <label htmlFor="password">{t('login.password')}</label>
-            <input id="password" type="password" value={password}
-                   onChange={e => setPassword(e.target.value)} required />
-          </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loggingIn}>
-            {loggingIn ? t('login.submitting') : t('login.submit')}
-          </button>
-        </form>
-      </div>
-    );
+    return <DeskLanding onAuthSuccess={jwt => { setTok(jwt); }} />;
   }
 
-  // Canvas (D3) drift tespiti icin: secili projenin tasarim semasi + yerlesimi.
-  // Bunlar zaten `/api/auth/projects`'ten geldi (D2) — ayri bir cagri gerekmiyor.
   const selectedProject = projects?.find(p => p.id === projectId) ?? null;
   const hasProject = !!selectedProject;
-  // Proje kapsamli bir gorunum secili ama proje yoksa (ornegin proje
-  // degistirildi), panoya dus — bos bir ekran gostermek yerine.
   const effectiveView: DeskView = !hasProject && PROJECT_VIEWS.includes(view) ? 'overview' : view;
 
   return (

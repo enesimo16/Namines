@@ -166,9 +166,7 @@ export default function Projects({
                 <span className={`badge ${p.hasConnection ? 'badge-ok' : 'badge-off'}`}>
                   {p.hasConnection ? t('projects.connected') : t('projects.notConnected')}
                 </span>
-                <span className="project-card-import">
-                  {p.hasConnection ? t('projects.open') : t('projects.addConnection')}
-                </span>
+                {!p.hasConnection && <span className="project-card-import">{t('projects.addConnection')}</span>}
               </div>
             </button>
           ))}
