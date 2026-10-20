@@ -9,7 +9,7 @@ ENV NAMINES_API=$NAMINES_API
 ENV NAMINES_FRONTEND=$NAMINES_FRONTEND
 ENV DESK_BASE_PATH=$DESK_BASE_PATH
 COPY package.json package-lock.json* ./
-RUN npm ci || npm install
+RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 COPY . .
 RUN npm run build
 
@@ -22,6 +22,7 @@ ARG DESK_BASE_PATH=/desk
 ENV NAMINES_API=$NAMINES_API
 ENV NAMINES_FRONTEND=$NAMINES_FRONTEND
 ENV DESK_BASE_PATH=$DESK_BASE_PATH
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json

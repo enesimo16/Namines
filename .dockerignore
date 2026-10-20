@@ -1,0 +1,28 @@
+# Sırlar
+**/.env
+**/.env.*
+!**/.env.example
+
+# Bağımlılıklar ve çıktılar
+**/node_modules/
+**/.next/
+**/bin/
+**/obj/
+**/dist/
+**/out/
+**/coverage/
+**/.turbo/
+**/.eslintcache
+**/*.tsbuildinfo
+
+# VCS ve editörler
+**/.git
+**/.gitignore
+**/.vscode
+**/.idea
+
+# Dokümanlar ve geçici çıktılar
+*.md
+docs/
+graphify-out/
+graphify-memory/
