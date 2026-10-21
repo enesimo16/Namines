@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { ArrowRight, Menu, X, LogIn, ExternalLink } from 'lucide-react';
+import { ArrowRight, Menu, X, LogIn, ExternalLink, ShieldCheck } from 'lucide-react';
 import Logo from '../layout/Logo';
 import ThemeToggleButton from './ThemeToggleButton';
 import LanguageToggle from '../layout/LanguageToggle';
 import HomeBanner from './HomeBanner';
-import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthStore, isUserAdmin } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useT } from '../../lib/i18n';
 
@@ -24,6 +24,7 @@ export default function LandingNavbar() {
   const t = useT();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
+  const isAdmin = isUserAdmin(user);
   const openAuthModal = useAuthModalStore((s) => s.open);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -122,13 +123,26 @@ export default function LandingNavbar() {
 
             {/* Authentication & Studio Launch */}
             {isAuthenticated ? (
-              <Link
-                href="/new"
-                className="tap-44 hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-surface-500/80 text-xs font-bold text-content-primary transition-all shadow-sm"
-              >
-                <span className="w-2 h-2 rounded-full bg-success" />
-                <span className="truncate max-w-[100px] lg:max-w-[130px]">{user?.email?.split('@')[0] || 'Studio'}</span>
-              </Link>
+              <div className="hidden md:flex items-center gap-1.5">
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="tap-44 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-surface-500/80 text-xs font-bold text-accent-text hover:text-content-primary transition-all shadow-sm"
+                    title="Admin Console"
+                    aria-label="Admin Console"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-accent-text" />
+                    <span className="hidden xl:inline text-micro">Admin</span>
+                  </Link>
+                )}
+                <Link
+                  href="/new"
+                  className="tap-44 inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-surface-500/80 text-xs font-bold text-content-primary transition-all shadow-sm"
+                >
+                  <span className="w-2 h-2 rounded-full bg-success" />
+                  <span className="truncate max-w-[100px] lg:max-w-[130px]">{user?.email?.split('@')[0] || 'Studio'}</span>
+                </Link>
+              </div>
             ) : (
               <button
                 type="button"
@@ -186,6 +200,19 @@ export default function LandingNavbar() {
               </a>
 
               <div className="pt-3 mt-2 border-t border-surface-500/60 flex flex-col gap-2">
+                {isAuthenticated && isAdmin && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-between text-sm font-semibold text-accent-text py-2.5 px-3 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-accent-text" />
+                      <span>Admin Console</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-content-muted">/admin</span>
+                  </Link>
+                )}
                 {!isAuthenticated && (
                   <button
                     type="button"

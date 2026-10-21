@@ -3,9 +3,9 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical, Compass } from 'lucide-react';
+import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical, Compass, ShieldCheck } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
-import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthStore, isUserAdmin } from '../../store/useAuthStore';
 import { useTourStore } from '../../store/useTourStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useToastStore } from '../../store/useToastStore';
@@ -172,6 +172,7 @@ export default function Header() {
   };
 
   const { isAuthenticated, user, logout } = useAuthStore();
+  const isAdmin = isUserAdmin(user);
   const showToast = useToastStore(state => state.showToast);
   const syncWithCloud = useProjectHistoryStore(s => s.syncWithCloud);
   // Proje geçmişi IndexedDB'den ASENKRON hidrate oluyor. Bu bayrak olmadan
@@ -537,6 +538,16 @@ export default function Header() {
                 </>
               ) : isCanvas || isCompile ? (
                 <div className="flex items-center gap-1.5">
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      title={locale === 'tr' ? 'Admin Paneli' : 'Admin Console'}
+                      aria-label="Admin Console"
+                      className="tap-44 w-8 h-8 flex items-center justify-center rounded-full bg-surface-800 hover:bg-surface-700 border border-line-strong text-accent-text hover:text-content-primary transition-all cursor-pointer active:scale-95 shadow-xs"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-accent-text" />
+                    </Link>
+                  )}
                   <button
                     onClick={() => setIsAIPreferencesOpen(true)}
                     title={t('header.settings')}
@@ -547,8 +558,21 @@ export default function Header() {
                   </button>
                 </div>
               ) : isAuthenticated ? (
-                <div
-                  onClick={() => setIsAIPreferencesOpen(true)}
+                <div className="flex items-center gap-1.5">
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      onClick={(e) => e.stopPropagation()}
+                      title={locale === 'tr' ? 'Admin Paneli' : 'Admin Console'}
+                      aria-label="Admin Console"
+                      className="tap-44 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-800/80 hover:bg-surface-700/80 border border-line-strong text-accent-text hover:text-content-primary text-xs font-semibold transition-colors cursor-pointer shadow-sm shrink-0"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-accent-text shrink-0" />
+                      <span className="hidden xl:inline text-micro font-medium">{locale === 'tr' ? 'Admin Paneli' : 'Admin Console'}</span>
+                    </Link>
+                  )}
+                  <div
+                    onClick={() => setIsAIPreferencesOpen(true)}
                   onKeyDown={activateOnKey(() => setIsAIPreferencesOpen(true))}
                   role="button"
                   tabIndex={0}
@@ -584,6 +608,7 @@ export default function Header() {
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
                 </div>
+              </div>
               ) : (
                 <button
                   id="auth-modal-trigger"
@@ -703,6 +728,18 @@ export default function Header() {
                   <span>Change Review</span>
                   <span className="text-[10px] font-mono text-content-muted">/review</span>
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => { router.push('/admin'); setIsMobileMenuOpen(false); }}
+                    className="w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] bg-accent-subtle border border-line-strong text-xs font-bold text-accent-text hover:text-content-primary transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-accent-text" />
+                      <span>{locale === 'tr' ? 'Admin Paneli' : 'Admin Console'}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-accent-text">/admin</span>
+                  </button>
+                )}
               </div>
             )}
 

@@ -17,6 +17,21 @@ export interface UserProfile {
   companyName?: string;
 }
 
+/**
+ * Kullanıcının admin yetkisine sahip olup olmadığını kontrol eden tek ve merkezi fonksiyon.
+ */
+export function isUserAdmin(user: UserProfile | null | undefined): boolean {
+  if (!user) return false;
+  const email = user.email?.toLowerCase().trim();
+  const type = user.type?.toLowerCase();
+  return Boolean(
+    user.isDev ||
+    type === 'admin' ||
+    email === 'namines@namines.com' ||
+    email === 'admin@namines.com'
+  );
+}
+
 interface AuthState {
   token: string | null;
   user: UserProfile | null;

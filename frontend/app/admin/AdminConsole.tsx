@@ -55,7 +55,7 @@ import {
   Bot,
   EyeOff,
 } from 'lucide-react';
-import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthStore, isUserAdmin } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useAdminConsoleStore } from '../../store/useAdminConsoleStore';
@@ -137,14 +137,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
   const showToast = useToastStore((s) => s.showToast);
 
   const isAdmin = useMemo(() => {
-    if (!isAuthenticated || !user) return false;
-    const email = user.email?.toLowerCase();
-    return Boolean(
-      user.isDev ||
-      user.type?.toLowerCase() === 'admin' ||
-      email === 'namines@namines.com' ||
-      email === 'admin@namines.com'
-    );
+    return isAuthenticated && isUserAdmin(user);
   }, [isAuthenticated, user]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -828,9 +821,15 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
             <Link href="/new" className="flex items-center gap-2 group" title="Namines">
               <Logo size="sm" showWordmark={true} />
             </Link>
-            <span className="rounded-full bg-accent-subtle border border-line px-2 py-0.5 text-[10px] font-mono font-bold text-accent-text">
-              v1.0
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 rounded-full bg-surface-800 border border-line px-2 py-0.5 text-[10px] font-mono font-bold text-accent-text">
+                <ShieldCheck className="w-3 h-3 text-accent-text" />
+                Admin
+              </span>
+              <span className="rounded-full bg-accent-subtle border border-line px-2 py-0.5 text-[10px] font-mono font-bold text-accent-text">
+                v1.0
+              </span>
+            </div>
           </div>
 
           {/* Navigation Links - Ultra Simple Turkish Nouns */}
@@ -1983,7 +1982,10 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
           <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-line">
             <div>
               <div className="flex items-center gap-2 text-xs font-mono text-content-muted">
-                <span>{locale === 'en' ? 'Management' : 'Yönetim'}</span>
+                <div className="flex items-center gap-1.5 text-accent-text font-semibold">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>{locale === 'en' ? 'Admin Console' : 'Admin Paneli'}</span>
+                </div>
                 <span>/</span>
                 <span className="text-content-primary capitalize">
                   {activeTab === 'overview' && t.tabOverview}

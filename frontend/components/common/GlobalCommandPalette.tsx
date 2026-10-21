@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useCommandPaletteStore, CommandPaletteAction, ActionCategory } from '../../store/useCommandPaletteStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import { useAuthStore, isUserAdmin } from '../../store/useAuthStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { useHomeThemeStore } from '../../store/useHomeThemeStore';
 import { useToastStore } from '../../store/useToastStore';
@@ -48,6 +49,7 @@ export default function GlobalCommandPalette() {
   const schema = useSchemaStore(s => s.schema);
   const tables = schema?.tables || [];
   const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
+  const user = useAuthStore(s => s.user);
   const projects = useProjectHistoryStore(s => s.projects);
   const switchBranch = useProjectHistoryStore(s => s.switchBranch);
   const activeProject = projects.find(p => p.id === activeProjectId);
@@ -193,6 +195,16 @@ export default function GlobalCommandPalette() {
         shortcut: ['G', 'K'],
         onSelect: openDesk,
       },
+      ...(isUserAdmin(user) ? [{
+        id: 'nav-admin',
+        label: 'Admin Console',
+        description: 'System operations, feature flags, AI routing, and error logs',
+        category: 'navigation' as const,
+        keywords: ['admin', 'console', 'panel', 'flags', 'routing', 'users', 'logs'],
+        icon: <ShieldCheck className="w-4 h-4 text-accent-text" />,
+        shortcut: ['G', 'A'],
+        onSelect: () => navigateTo('/admin'),
+      }] : []),
       {
         id: 'nav-new',
         label: 'New Project',

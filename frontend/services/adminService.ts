@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../lib/apiConfig';
 import { csrfHeaders } from '../lib/csrf';
+import { DEFAULT_FEATURE_FLAGS, DEFAULT_AI_ROUTES } from './adminCatalogDefaults';
 
 export interface AdminOverviewStats {
   totalUsers: number;
@@ -289,6 +290,93 @@ export const downloadBlob = (blob: Blob, filename: string) => {
   document.body.removeChild(a);
 };
 
+function getLocalFallbackFeatureFlags(): AdminFeatureFlagItem[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('namines_admin_features');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+  }
+  return DEFAULT_FEATURE_FLAGS;
+}
+
+function saveLocalFallbackFeatureFlag(key: string, updates: Partial<AdminFeatureFlagItem>): AdminFeatureFlagItem {
+  const flags = getLocalFallbackFeatureFlags();
+  const lowerKey = key.toLowerCase();
+  const index = flags.findIndex(f => f.featureKey.toLowerCase() === lowerKey);
+  const now = new Date().toISOString();
+  let updatedItem: AdminFeatureFlagItem;
+  if (index >= 0) {
+    updatedItem = { ...flags[index], ...updates, updatedAt: now };
+    flags[index] = updatedItem;
+  } else {
+    updatedItem = {
+      featureKey: key,
+      displayName: key,
+      description: '',
+      category: 'Tools',
+      isEnabled: updates.isEnabled ?? true,
+      mode: updates.mode ?? 'DisabledNotice',
+      noticeMessage: updates.noticeMessage,
+      updatedAt: now,
+    };
+    flags.push(updatedItem);
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('namines_admin_features', JSON.stringify(flags));
+    } catch {}
+  }
+  return updatedItem;
+}
+
+function getLocalFallbackAiRoutes(): AdminAiRoutesResponse {
+  const defaultProviders = ['groq', 'deepseek', 'claude', 'openai'];
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('namines_admin_ai_routes');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.routes && Array.isArray(parsed.routes) && parsed.routes.length > 0) {
+          return { routes: parsed.routes, providers: parsed.providers || defaultProviders };
+        }
+      }
+    } catch {}
+  }
+  return { routes: DEFAULT_AI_ROUTES, providers: defaultProviders };
+}
+
+function saveLocalFallbackAiRoute(toolKey: string, updates: Partial<AdminAiToolRouteItem>): AdminAiToolRouteItem {
+  const current = getLocalFallbackAiRoutes();
+  const index = current.routes.findIndex(r => r.toolKey === toolKey);
+  const now = new Date().toISOString();
+  let updatedItem: AdminAiToolRouteItem;
+  if (index >= 0) {
+    updatedItem = { ...current.routes[index], ...updates, updatedAt: now };
+    current.routes[index] = updatedItem;
+  } else {
+    updatedItem = {
+      toolKey,
+      displayName: toolKey,
+      provider: updates.provider || 'groq',
+      modelName: updates.modelName || 'qwen-2.5-coder-32b',
+      temperature: updates.temperature ?? 0.2,
+      fallbackProvider: updates.fallbackProvider || 'deepseek',
+      updatedAt: now,
+    };
+    current.routes.push(updatedItem);
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('namines_admin_ai_routes', JSON.stringify(current));
+    } catch {}
+  }
+  return updatedItem;
+}
+
 export const adminService = {
   getOverview: async (): Promise<AdminOverviewStats> => {
     const res = await api.get<AdminOverviewStats>('/admin/overview');
@@ -559,30 +647,75 @@ export const adminService = {
   },
 
   getFeatureFlags: async (): Promise<AdminFeatureFlagItem[]> => {
-    const res = await api.get<AdminFeatureFlagItem[]>('/admin/features');
-    return res.data;
+    try {
+      const res = await api.get<AdminFeatureFlagItem[]>('/admin/features');
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        if (typeof window !== 'undefined') {
+          try { localStorage.setItem('namines_admin_features', JSON.stringify(res.data)); } catch {}
+        }
+        return res.data;
+      }
+    } catch (err: unknown) {
+      const status = (err as any)?.response?.status;
+      if (status === 404 || status === 405 || !status) {
+        return getLocalFallbackFeatureFlags();
+      }
+      throw err;
+    }
+    return getLocalFallbackFeatureFlags();
   },
 
   updateFeatureFlag: async (
     key: string,
     data: { isEnabled: boolean; mode?: 'DisabledNotice' | 'Hidden'; noticeMessage?: string }
   ): Promise<AdminFeatureFlagItem> => {
-    const res = await api.put<AdminFeatureFlagItem>(`/admin/features/${key}`, data);
-    return res.data;
+    try {
+      const res = await api.put<AdminFeatureFlagItem>(`/admin/features/${key}`, data);
+      return res.data;
+    } catch (err: unknown) {
+      const status = (err as any)?.response?.status;
+      if (status === 404 || status === 405 || !status) {
+        return saveLocalFallbackFeatureFlag(key, data);
+      }
+      throw err;
+    }
   },
 
   getAiRoutes: async (): Promise<AdminAiRoutesResponse> => {
-    const res = await api.get<AdminAiRoutesResponse>('/admin/ai-routes');
-    return res.data;
+    try {
+      const res = await api.get<AdminAiRoutesResponse>('/admin/ai-routes');
+      if (res.data?.routes && res.data.routes.length > 0) {
+        if (typeof window !== 'undefined') {
+          try { localStorage.setItem('namines_admin_ai_routes', JSON.stringify(res.data)); } catch {}
+        }
+        return res.data;
+      }
+    } catch (err: unknown) {
+      const status = (err as any)?.response?.status;
+      if (status === 404 || status === 405 || !status) {
+        return getLocalFallbackAiRoutes();
+      }
+      throw err;
+    }
+    return getLocalFallbackAiRoutes();
   },
 
   updateAiRoute: async (
     toolKey: string,
     data: { provider: string; modelName: string; temperature: number; fallbackProvider?: string }
   ): Promise<AdminAiToolRouteItem> => {
-    const res = await api.put<AdminAiToolRouteItem>(`/admin/ai-routes/${toolKey}`, data);
-    return res.data;
+    try {
+      const res = await api.put<AdminAiToolRouteItem>(`/admin/ai-routes/${toolKey}`, data);
+      return res.data;
+    } catch (err: unknown) {
+      const status = (err as any)?.response?.status;
+      if (status === 404 || status === 405 || !status) {
+        return saveLocalFallbackAiRoute(toolKey, data);
+      }
+      throw err;
+    }
   },
+
 };
 
 export interface AdminFeatureFlagItem {
