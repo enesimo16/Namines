@@ -9,7 +9,7 @@ namespace Namines.Vault.Configurations
     /// </summary>
     public static class VaultModelConfiguration
     {
-        public const string DefaultSchema = "vault";
+        public const string DefaultSchema = "namines_vault";
 
         public static void Configure(ModelBuilder builder, string? schema = DefaultSchema)
         {

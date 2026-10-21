@@ -72,7 +72,7 @@ namespace Namines.Tests.Architecture
 
             // Tüm modüllerin model yapılandırmalarını kendi şemalarıyla uygula
             FlowModelConfiguration.Configure(builder, "flow");
-            VaultModelConfiguration.Configure(builder, "vault");
+            VaultModelConfiguration.Configure(builder, "namines_vault");
             GroundModelConfiguration.Configure(builder, "ground");
             DeskModelConfiguration.Configure(builder, "desk");
 
@@ -90,15 +90,15 @@ namespace Namines.Tests.Architecture
             Assert.NotNull(flowLogEntity);
             Assert.Equal("flow", flowLogEntity.GetSchema());
 
-            // Vault tabloları "vault" şemasında olmalı
+            // Vault tabloları "namines_vault" şemasında olmalı
             var vaultBackupEntity = builder.Model.FindEntityType(typeof(VaultBackup));
             Assert.NotNull(vaultBackupEntity);
-            Assert.Equal("vault", vaultBackupEntity.GetSchema());
+            Assert.Equal("namines_vault", vaultBackupEntity.GetSchema());
             Assert.Equal("vault_backups", vaultBackupEntity.GetTableName());
 
             var vaultRestoreEntity = builder.Model.FindEntityType(typeof(VaultRestore));
             Assert.NotNull(vaultRestoreEntity);
-            Assert.Equal("vault", vaultRestoreEntity.GetSchema());
+            Assert.Equal("namines_vault", vaultRestoreEntity.GetSchema());
 
             // Ground tabloları "ground" şemasında olmalı
             var groundDbEntity = builder.Model.FindEntityType(typeof(GroundDatabase));

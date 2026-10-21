@@ -73,7 +73,7 @@ namespace Namines.Infrastructure.Data
 
             // ── Modular Monolith: Flow, Vault, Ground, Desk Module Model Configurations ──
             Namines.Flow.Configurations.FlowModelConfiguration.Configure(builder, isPostgres ? "flow" : null);
-            Namines.Vault.Configurations.VaultModelConfiguration.Configure(builder, isPostgres ? "vault" : null);
+            Namines.Vault.Configurations.VaultModelConfiguration.Configure(builder, isPostgres ? "namines_vault" : null);
             Namines.Ground.Configurations.GroundModelConfiguration.Configure(builder, isPostgres ? "ground" : null);
             Namines.Desk.Configurations.DeskModelConfiguration.Configure(builder, isPostgres ? "desk" : null);
 

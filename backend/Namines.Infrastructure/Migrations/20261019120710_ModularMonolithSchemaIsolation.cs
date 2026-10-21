@@ -32,22 +32,22 @@ namespace Namines.Infrastructure.Migrations
                 name: "ground");
 
             migrationBuilder.EnsureSchema(
-                name: "vault");
+                name: "namines_vault");
 
             migrationBuilder.RenameTable(
                 name: "VaultSchedules",
                 newName: "vault_schedules",
-                newSchema: "vault");
+                newSchema: "namines_vault");
 
             migrationBuilder.RenameTable(
                 name: "VaultRestores",
                 newName: "vault_restores",
-                newSchema: "vault");
+                newSchema: "namines_vault");
 
             migrationBuilder.RenameTable(
                 name: "VaultBackups",
                 newName: "vault_backups",
-                newSchema: "vault");
+                newSchema: "namines_vault");
 
             migrationBuilder.RenameTable(
                 name: "SqlQueryHistory",
@@ -86,19 +86,19 @@ namespace Namines.Infrastructure.Migrations
 
             migrationBuilder.RenameIndex(
                 name: "IX_VaultSchedules_ProjectId",
-                schema: "vault",
+                schema: "namines_vault",
                 table: "vault_schedules",
                 newName: "IX_vault_schedules_ProjectId");
 
             migrationBuilder.RenameIndex(
                 name: "IX_VaultRestores_ProjectId_StartedAt",
-                schema: "vault",
+                schema: "namines_vault",
                 table: "vault_restores",
                 newName: "IX_vault_restores_ProjectId_StartedAt");
 
             migrationBuilder.RenameIndex(
                 name: "IX_VaultBackups_ProjectId_CreatedAt",
-                schema: "vault",
+                schema: "namines_vault",
                 table: "vault_backups",
                 newName: "IX_vault_backups_ProjectId_CreatedAt");
 
@@ -194,17 +194,17 @@ namespace Namines.Infrastructure.Migrations
 
             migrationBuilder.RenameTable(
                 name: "vault_schedules",
-                schema: "vault",
+                schema: "namines_vault",
                 newName: "VaultSchedules");
 
             migrationBuilder.RenameTable(
                 name: "vault_restores",
-                schema: "vault",
+                schema: "namines_vault",
                 newName: "VaultRestores");
 
             migrationBuilder.RenameTable(
                 name: "vault_backups",
-                schema: "vault",
+                schema: "namines_vault",
                 newName: "VaultBackups");
 
             migrationBuilder.RenameTable(

@@ -1397,7 +1397,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "CreatedAt");
 
-                    b.ToTable("vault_backups", "vault");
+                    b.ToTable("vault_backups", "namines_vault");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
@@ -1439,7 +1439,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "StartedAt");
 
-                    b.ToTable("vault_restores", "vault");
+                    b.ToTable("vault_restores", "namines_vault");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
@@ -1483,7 +1483,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ProjectId")
                         .IsUnique();
 
-                    b.ToTable("vault_schedules", "vault");
+                    b.ToTable("vault_schedules", "namines_vault");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.AutomationAction", b =>
