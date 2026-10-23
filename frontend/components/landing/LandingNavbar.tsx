@@ -123,56 +123,57 @@ export default function LandingNavbar() {
 
             {/* Authentication & Studio Launch */}
             {isAuthenticated ? (
-              <div className="hidden md:flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 {isAdmin && (
                   <Link
                     href="/admin"
-                    className="tap-44 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-surface-500/80 text-xs font-bold text-accent-text hover:text-content-primary transition-all shadow-sm"
+                    className="tap-44 inline-flex items-center justify-center p-2 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-surface-500/80 text-accent-text hover:text-content-primary transition-all shadow-sm"
                     title="Admin Console"
                     aria-label="Admin Console"
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-accent-text" />
-                    <span className="hidden xl:inline text-micro">Admin</span>
                   </Link>
                 )}
                 <Link
                   href="/new"
-                  className="tap-44 inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-surface-500/80 text-xs font-bold text-content-primary transition-all shadow-sm"
+                  className="tap-44 inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-accent/15 cursor-pointer hover:scale-[1.02] active:scale-95"
+                  title="Studio"
                 >
                   <span className="w-2 h-2 rounded-full bg-success" />
-                  <span className="truncate max-w-[100px] lg:max-w-[130px]">{user?.email?.split('@')[0] || 'Studio'}</span>
+                  <span className="truncate max-w-[100px] sm:max-w-[130px]">{user?.email?.split('@')[0] || 'Studio'}</span>
+                  <ArrowRight className="w-3.5 h-3.5 hidden sm:inline" />
                 </Link>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => openAuthModal()}
-                className="tap-44 hidden md:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-surface-800 transition-colors cursor-pointer"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Sign In</span>
-              </button>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => openAuthModal()}
+                  className="tap-44 hidden md:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-[var(--radius-control)] text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-surface-800 transition-colors cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+                <Link
+                  href="/new"
+                  className="tap-44 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-accent/15 cursor-pointer hover:scale-[1.02] active:scale-95"
+                >
+                  <span className="whitespace-nowrap">Launch Studio</span>
+                  <ArrowRight className="w-3.5 h-3.5 hidden sm:inline" />
+                </Link>
+              </div>
             )}
-
-            {/* Launch Studio Primary CTA */}
-            <Link
-              href="/new"
-              className="tap-44 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-2 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-accent/15 cursor-pointer hover:scale-[1.02] active:scale-95"
-            >
-              <span className="whitespace-nowrap">Launch Studio</span>
-              <ArrowRight className="w-3.5 h-3.5 hidden sm:inline" />
-            </Link>
-
-            {/* Mobile / Tablet Hamburger Toggle */}
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="tap-44 lg:hidden p-2 rounded-[var(--radius-control)] text-content-secondary hover:text-content-primary hover:bg-surface-800 transition-colors"
-              aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-            >
-              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
           </div>
+
+          {/* Mobile / Tablet Hamburger Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="tap-44 lg:hidden p-2 rounded-[var(--radius-control)] text-content-secondary hover:text-content-primary hover:bg-surface-800 transition-colors"
+            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+          >
+            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
 
         {/* Mobile / Tablet Dropdown Menu */}
@@ -200,38 +201,52 @@ export default function LandingNavbar() {
               </a>
 
               <div className="pt-3 mt-2 border-t border-surface-500/60 flex flex-col gap-2">
-                {isAuthenticated && isAdmin && (
-                  <Link
-                    href="/admin"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="w-full flex items-center justify-between text-sm font-semibold text-accent-text py-2.5 px-3 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-accent-text" />
-                      <span>Admin Console</span>
-                    </div>
-                    <span className="text-[10px] font-mono text-content-muted">/admin</span>
-                  </Link>
+                {isAuthenticated ? (
+                  <>
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="w-full flex items-center justify-between text-sm font-semibold text-accent-text py-2.5 px-3 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-accent-text" />
+                          <span>Admin Console</span>
+                        </div>
+                      </Link>
+                    )}
+                    <Link
+                      href="/new"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold uppercase tracking-wider shadow-sm transition-colors"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-success" />
+                      <span>{user?.email?.split('@')[0] || 'Studio'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        openAuthModal();
+                      }}
+                      className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-content-primary py-2.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 transition-colors cursor-pointer"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>Sign In</span>
+                    </button>
+                    <Link
+                      href="/new"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="w-full text-center py-2.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold uppercase tracking-wider shadow-sm transition-colors"
+                    >
+                      Launch Studio
+                    </Link>
+                  </>
                 )}
-                {!isAuthenticated && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      openAuthModal();
-                    }}
-                    className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-content-primary py-2.5 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 transition-colors cursor-pointer"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>Sign In</span>
-                  </button>
-                )}
-                <Link
-                  href="/new"
-                  className="w-full text-center py-2.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold uppercase tracking-wider shadow-sm transition-colors"
-                >
-                  Launch Studio
-                </Link>
               </div>
             </div>
           </div>

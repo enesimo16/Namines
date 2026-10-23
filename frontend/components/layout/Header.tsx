@@ -565,10 +565,9 @@ export default function Header() {
                       onClick={(e) => e.stopPropagation()}
                       title={locale === 'tr' ? 'Admin Paneli' : 'Admin Console'}
                       aria-label="Admin Console"
-                      className="tap-44 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-800/80 hover:bg-surface-700/80 border border-line-strong text-accent-text hover:text-content-primary text-xs font-semibold transition-colors cursor-pointer shadow-sm shrink-0"
+                      className="tap-44 flex items-center justify-center w-8 h-8 rounded-full bg-surface-800/80 hover:bg-surface-700/80 border border-line-strong text-accent-text hover:text-content-primary transition-colors cursor-pointer shadow-sm shrink-0"
                     >
-                      <ShieldCheck className="w-3.5 h-3.5 text-accent-text shrink-0" />
-                      <span className="hidden xl:inline text-micro font-medium">{locale === 'tr' ? 'Admin Paneli' : 'Admin Console'}</span>
+                      <ShieldCheck className="w-4 h-4 text-accent-text shrink-0" />
                     </Link>
                   )}
                   <div

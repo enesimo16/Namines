@@ -817,19 +817,10 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
       <aside className="flex w-56 shrink-0 flex-col justify-between border-r border-line bg-surface-900 select-none">
         <div>
           {/* Brand Header */}
-          <div className="flex h-14 items-center justify-between border-b border-line px-4">
+          <div className="flex h-14 items-center border-b border-line px-4">
             <Link href="/new" className="flex items-center gap-2 group" title="Namines">
               <Logo size="sm" showWordmark={true} />
             </Link>
-            <div className="flex items-center gap-1.5">
-              <span className="flex items-center gap-1 rounded-full bg-surface-800 border border-line px-2 py-0.5 text-[10px] font-mono font-bold text-accent-text">
-                <ShieldCheck className="w-3 h-3 text-accent-text" />
-                Admin
-              </span>
-              <span className="rounded-full bg-accent-subtle border border-line px-2 py-0.5 text-[10px] font-mono font-bold text-accent-text">
-                v1.0
-              </span>
-            </div>
           </div>
 
           {/* Navigation Links - Ultra Simple Turkish Nouns */}

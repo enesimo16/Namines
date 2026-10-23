@@ -222,7 +222,6 @@ describe('AdminPage', () => {
     render(<AdminPage />);
     await waitFor(() => {
       expect(screen.getByTitle('Namines')).toBeTruthy();
-      expect(screen.getByText('v1.0')).toBeTruthy();
     });
   });
 
@@ -243,7 +242,6 @@ describe('AdminPage', () => {
     // Primary Left Rail: Simple Tab Names (Requested in Phase 2)
     await waitFor(() => {
       expect(screen.getByTitle('Namines')).toBeTruthy();
-      expect(screen.getByText('v1.0')).toBeTruthy();
       expect(screen.getAllByText('Genel Bakış').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Üyeler').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Tokenlar').length).toBeGreaterThan(0);
