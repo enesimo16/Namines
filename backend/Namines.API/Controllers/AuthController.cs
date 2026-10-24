@@ -67,6 +67,15 @@ namespace Namines.API.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            var devConfigEmail = _configuration["Dev:Email"];
+            bool isReservedEmail = !string.IsNullOrWhiteSpace(model.Email) && (
+                string.Equals(model.Email, "namines@namines.com", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(model.Email, "admin@namines.com", StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(model.Email, devConfigEmail, StringComparison.OrdinalIgnoreCase)));
+
+            if (isReservedEmail)
+                return BadRequest(new { Message = "This email address is reserved and cannot be registered publicly." });
+
             var existingUser = await _userManager.FindByEmailAsync(model.Email);
             if (existingUser != null)
                 return BadRequest(new { Message = "An account with this email already exists." });
@@ -206,7 +215,7 @@ namespace Namines.API.Controllers
 
             var devConfigEmail = _configuration["Dev:Email"];
             var isConfigDev = !string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(user.Email, devConfigEmail, StringComparison.OrdinalIgnoreCase);
-            if (!user.IsDev && (isConfigDev || string.Equals(user.Email, "namines@namines.com", StringComparison.OrdinalIgnoreCase)))
+            if (!user.IsDev && isConfigDev)
             {
                 user.IsDev = true;
                 user.EmailConfirmed = true;

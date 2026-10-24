@@ -208,13 +208,28 @@ describe('AdminPage', () => {
     expect(screen.queryByText(/Operasyonel Genel Bakış/i)).toBeNull();
   });
 
-  it('allows designated namines@namines.com admin automatically', async () => {
+  it('blocks individual user even if email is namines@namines.com without admin/isDev privilege', () => {
     useAuthStore.setState({
       isAuthenticated: true,
       user: {
         username: 'namines',
         email: 'namines@namines.com',
         type: 'individual',
+      },
+      token: 'fake-jwt-token',
+    });
+
+    render(<AdminPage />);
+    expect(screen.getByText(/Erişim Kısıtlı/i)).toBeTruthy();
+  });
+
+  it('allows user with type admin into AdminPage', async () => {
+    useAuthStore.setState({
+      isAuthenticated: true,
+      user: {
+        username: 'admin',
+        email: 'admin@company.com',
+        type: 'admin',
       },
       token: 'fake-jwt-token',
     });

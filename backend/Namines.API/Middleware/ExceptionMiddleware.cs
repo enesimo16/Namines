@@ -187,12 +187,24 @@ public class ExceptionMiddleware
                 null
             ),
 
-            NslParseException or ArgumentException => (
+            NslParseException nsl => (
                 StatusCodes.Status400BadRequest,
                 "https://namines.dev/errors/bad-request",
                 "Bad Request",
                 "BAD_REQUEST",
-                exception.Message,
+                nsl.Message,
+                null
+            ),
+
+            ArgumentException arg => (
+                StatusCodes.Status400BadRequest,
+                "https://namines.dev/errors/bad-request",
+                "Bad Request",
+                "BAD_REQUEST",
+                // Güvenlik (M-2): Production ortamında ArgumentException mesajındaki dosya yolları veya dahili parametre detaylarının sızması önlenir.
+                isDevelopment || (!arg.Message.Contains('\\') && !arg.Message.Contains('/') && !arg.Message.Contains("Parameter '"))
+                    ? arg.Message
+                    : "Invalid request argument.",
                 null
             ),
 

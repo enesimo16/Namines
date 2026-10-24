@@ -60,6 +60,7 @@ internal static class ConstraintSql
         DatabaseSchema schema)
     {
         var lines = new List<string>();
+        var usedConstraintNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Motorun kendi enum tipi yoksa kısıt CHECK'e çevriliyor; bkz. EnumSql.
         foreach (var column in table.Columns)
@@ -74,13 +75,26 @@ internal static class ConstraintSql
             if (cols.Count == 0) continue; // geçersiz referans → sessizce atla, bozuk SQL üretme
 
             var rawUniqueName = unique.Name;
-            if (!string.IsNullOrWhiteSpace(rawUniqueName) &&
-                schema.Tables.Count(t => t.Uniques.Any(u => string.Equals(u.Name, rawUniqueName, StringComparison.OrdinalIgnoreCase))) > 1)
+            var isDuplicateAcrossTables = !string.IsNullOrWhiteSpace(rawUniqueName) &&
+                schema.Tables.Count(t => t.Uniques.Any(u => string.Equals(u.Name, rawUniqueName, StringComparison.OrdinalIgnoreCase))) > 1;
+            var isDuplicateInSameTable = !string.IsNullOrWhiteSpace(rawUniqueName) &&
+                table.Uniques.Count(u => string.Equals(u.Name, rawUniqueName, StringComparison.OrdinalIgnoreCase)) > 1;
+
+            if (isDuplicateAcrossTables || isDuplicateInSameTable)
             {
                 rawUniqueName = $"UQ_{table.Name}_{rawUniqueName}";
             }
 
-            var name = Fit(rawUniqueName ?? $"UQ_{table.Name}_{string.Join("_", cols.Select(c => c.Name))}", engine);
+            var baseName = rawUniqueName ?? $"UQ_{table.Name}_{string.Join("_", cols.Select(c => c.Name))}";
+            var candidateName = baseName;
+            var suffix = 2;
+            while (usedConstraintNames.Contains(candidateName))
+            {
+                candidateName = $"{baseName}_{suffix++}";
+            }
+            usedConstraintNames.Add(candidateName);
+
+            var name = Fit(candidateName, engine);
             lines.Add($"    CONSTRAINT {quote(name)} UNIQUE ({string.Join(", ", cols.Select(c => quote(c.Name)))})");
         }
 
@@ -88,15 +102,39 @@ internal static class ConstraintSql
         {
             if (string.IsNullOrWhiteSpace(check.Expression)) continue;
 
+            // Güvenlik doğrulaması: CHECK ifadesi noktalı virgül (statement chaining) ve geçersiz kontrol karakteri içeremez.
+            var trimmedExpr = check.Expression.Trim();
+            if (trimmedExpr.Contains(';'))
+            {
+                throw new ArgumentException($"CHECK constraint expression cannot contain semicolons: {check.Name ?? check.Id}", nameof(table));
+            }
+            if (trimmedExpr.Any(c => char.IsControl(c) && c != '\r' && c != '\n' && c != '\t'))
+            {
+                throw new ArgumentException($"CHECK constraint expression contains invalid control characters: {check.Name ?? check.Id}", nameof(table));
+            }
+
             var rawCheckName = check.Name;
-            if (!string.IsNullOrWhiteSpace(rawCheckName) &&
-                schema.Tables.Count(t => t.Checks.Any(c => string.Equals(c.Name, rawCheckName, StringComparison.OrdinalIgnoreCase))) > 1)
+            var isDuplicateAcrossTables = !string.IsNullOrWhiteSpace(rawCheckName) &&
+                schema.Tables.Count(t => t.Checks.Any(c => string.Equals(c.Name, rawCheckName, StringComparison.OrdinalIgnoreCase))) > 1;
+            var isDuplicateInSameTable = !string.IsNullOrWhiteSpace(rawCheckName) &&
+                table.Checks.Count(c => string.Equals(c.Name, rawCheckName, StringComparison.OrdinalIgnoreCase)) > 1;
+
+            if (isDuplicateAcrossTables || isDuplicateInSameTable)
             {
                 rawCheckName = $"CK_{table.Name}_{rawCheckName}";
             }
 
-            var name = Fit(rawCheckName ?? $"CK_{table.Name}_{check.Id}", engine);
-            lines.Add($"    CONSTRAINT {quote(name)} CHECK ({check.Expression.Trim()})");
+            var baseName = rawCheckName ?? $"CK_{table.Name}_{check.Id}";
+            var candidateName = baseName;
+            var suffix = 2;
+            while (usedConstraintNames.Contains(candidateName))
+            {
+                candidateName = $"{baseName}_{suffix++}";
+            }
+            usedConstraintNames.Add(candidateName);
+
+            var name = Fit(candidateName, engine);
+            lines.Add($"    CONSTRAINT {quote(name)} CHECK ({trimmedExpr})");
         }
 
         return lines;

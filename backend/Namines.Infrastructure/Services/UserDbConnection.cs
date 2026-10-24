@@ -79,8 +79,27 @@ internal static class UserDbConnection
         {
             await ApplySessionContextAsync(conn, dbType, sessionContext, ct);
         }
+        else
+        {
+            await ResetSessionContextAsync(conn, dbType, ct);
+        }
 
         return conn;
+    }
+
+    internal static async Task ResetSessionContextAsync(
+        DbConnection conn, string dbType, CancellationToken ct)
+    {
+        if (!dbType.Equals("POSTGRESQL", StringComparison.OrdinalIgnoreCase) &&
+            !dbType.Equals("POSTGRES", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT set_config('app.current_tenant', '', false), " +
+                          "       set_config('app.user_id', '', false), " +
+                          "       set_config('app.user_role', '', false);";
+
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     internal static async Task ApplySessionContextAsync(

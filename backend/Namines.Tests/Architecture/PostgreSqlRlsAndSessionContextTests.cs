@@ -23,8 +23,8 @@ public sealed class PostgreSqlRlsAndSessionContextTests
         public override DbType DbType { get; set; }
         public override ParameterDirection Direction { get; set; }
         public override bool IsNullable { get; set; }
-        public override string ParameterName { get; set; } = string.Empty;
-        public override string SourceColumn { get; set; } = string.Empty;
+        [System.Diagnostics.CodeAnalysis.AllowNull] public override string ParameterName { get; set; } = string.Empty;
+        [System.Diagnostics.CodeAnalysis.AllowNull] public override string SourceColumn { get; set; } = string.Empty;
         public override object? Value { get; set; }
         public override bool SourceColumnNullMapping { get; set; }
         public override int Size { get; set; }
@@ -57,7 +57,7 @@ public sealed class PostgreSqlRlsAndSessionContextTests
 
     private class FakeDbCommand : DbCommand
     {
-        public override string CommandText { get; set; } = string.Empty;
+        [System.Diagnostics.CodeAnalysis.AllowNull] public override string CommandText { get; set; } = string.Empty;
         public override int CommandTimeout { get; set; }
         public override CommandType CommandType { get; set; }
         public override bool DesignTimeVisible { get; set; }
@@ -76,7 +76,7 @@ public sealed class PostgreSqlRlsAndSessionContextTests
 
     private class FakeDbConnection : DbConnection
     {
-        public override string ConnectionString { get; set; } = string.Empty;
+        [System.Diagnostics.CodeAnalysis.AllowNull] public override string ConnectionString { get; set; } = string.Empty;
         public override string Database => "fake_db";
         public override string DataSource => "localhost";
         public override string ServerVersion => "16.0";
@@ -230,5 +230,100 @@ public sealed class PostgreSqlRlsAndSessionContextTests
         await UserDbConnection.ApplySessionContextAsync(fakeConn, "MYSQL", context, CancellationToken.None);
 
         Assert.Empty(fakeConn.LastCommand.CommandText);
+
+        await UserDbConnection.ResetSessionContextAsync(fakeConn, "MYSQL", CancellationToken.None);
+        Assert.Empty(fakeConn.LastCommand.CommandText);
+    }
+
+    [Fact]
+    public async Task UserDbConnection_ResetSessionContext_Postgres_Parametrelerini_Sifirliyor()
+    {
+        var fakeConn = new FakeDbConnection();
+
+        await UserDbConnection.ResetSessionContextAsync(fakeConn, "POSTGRESQL", CancellationToken.None);
+
+        var cmd = fakeConn.LastCommand;
+        Assert.Contains("set_config('app.current_tenant', '', false)", cmd.CommandText);
+        Assert.Contains("set_config('app.user_id', '', false)", cmd.CommandText);
+        Assert.Contains("set_config('app.user_role', '', false)", cmd.CommandText);
+    }
+    [Theory]
+    [InlineData("ALL; DROP TABLE users;")]
+    [InlineData("SELECT; DELETE FROM users;")]
+    [InlineData("FOOBAR")]
+    [InlineData("DROP TABLE")]
+    public void RlsSql_Gecersiz_Komut_Verildiginde_ArgumentException_Firlatir(string maliciousCommand)
+    {
+        var table = new SchemaTable
+        {
+            Name = "orders",
+            EnableRls = true,
+            RlsPolicies = new List<SchemaRlsPolicy>
+            {
+                new() { Name = "malicious_policy", Command = maliciousCommand, Using = "1=1" }
+            }
+        };
+
+        Assert.Throws<ArgumentException>(() =>
+            RlsSql.GenerateTableRls(table, DatabaseType.PostgreSQL, s => $"\"{s}\""));
+    }
+
+    [Theory]
+    [InlineData("PUBLIC; DROP TABLE users; --")]
+    [InlineData("authenticated--")]
+    [InlineData("role/*comment*/")]
+    [InlineData("bad role with spaces")]
+    [InlineData("bad;role")]
+    public void RlsSql_Zararli_Rol_Enjeksiyonunda_ArgumentException_Firlatir(string maliciousRole)
+    {
+        var table = new SchemaTable
+        {
+            Name = "orders",
+            EnableRls = true,
+            RlsPolicies = new List<SchemaRlsPolicy>
+            {
+                new() { Name = "malicious_policy", Command = "SELECT", Role = maliciousRole, Using = "1=1" }
+            }
+        };
+
+        Assert.Throws<ArgumentException>(() =>
+            RlsSql.GenerateTableRls(table, DatabaseType.PostgreSQL, s => $"\"{s}\""));
+    }
+
+    [Theory]
+    [InlineData("1=1); DROP TABLE orders; --", null)]
+    [InlineData(null, "1=1); DROP TABLE orders; --")]
+    [InlineData("tenant_id = 1; SELECT 1;", null)]
+    public void RlsSql_Using_Veya_WithCheck_Nokatali_Virgul_Icerdiginde_ArgumentException_Firlatir(string? badUsing, string? badWithCheck)
+    {
+        var table = new SchemaTable
+        {
+            Name = "orders",
+            EnableRls = true,
+            RlsPolicies = new List<SchemaRlsPolicy>
+            {
+                new() { Name = "test_policy", Command = "ALL", Using = badUsing, WithCheck = badWithCheck }
+            }
+        };
+
+        Assert.Throws<ArgumentException>(() =>
+            RlsSql.GenerateTableRls(table, DatabaseType.PostgreSQL, s => $"\"{s}\""));
+    }
+
+    [Fact]
+    public void RlsSql_Coklu_Gecerli_Rol_Dizesini_Duzenli_Uretir()
+    {
+        var table = new SchemaTable
+        {
+            Name = "orders",
+            EnableRls = true,
+            RlsPolicies = new List<SchemaRlsPolicy>
+            {
+                new() { Name = "multi_role_policy", Command = "SELECT", Role = "authenticated, app_reader, PUBLIC", Using = "1=1" }
+            }
+        };
+
+        var ddl = RlsSql.GenerateTableRls(table, DatabaseType.PostgreSQL, s => $"\"{s}\"" );
+        Assert.Contains("CREATE POLICY \"multi_role_policy\" ON \"orders\" FOR SELECT TO authenticated, app_reader, PUBLIC USING (1=1);", ddl);
     }
 }

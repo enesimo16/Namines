@@ -380,18 +380,6 @@ public class TeamController : ControllerBase
 
         var org = await ActiveOrgAsync(userId, ct);
 
-        // Ekip kurucusunun OrganizationId alanı henüz boş kalmış eski projeleri
-        // varsa tembel olarak bu organizasyona bağla ki ekip arkadaşları görebilsin.
-        var unlinkedOwnerProjects = await _context.CloudProjects
-            .Where(p => p.UserId == org.CreatedByUserId && p.OrganizationId == null)
-            .ToListAsync(ct);
-        if (unlinkedOwnerProjects.Count > 0)
-        {
-            foreach (var p in unlinkedOwnerProjects)
-                p.OrganizationId = org.Id;
-            await _context.SaveChangesAsync(ct);
-        }
-
         var projects = await _context.CloudProjects.AsNoTracking()
             .Where(p => p.OrganizationId == org.Id)
             .OrderByDescending(p => p.UpdatedAt)
@@ -431,5 +419,28 @@ public class TeamController : ControllerBase
         await _context.SaveChangesAsync(ct);
 
         return Ok(new { projectId = project.Id, organizationId = org.Id });
+    }
+
+    /// <summary>
+    /// Kullanıcının sahip olduğu bir projeyi ekip organizasyonundan çıkarıp kişisel organizasyonuna çeker.
+    /// </summary>
+    [HttpPost("projects/{projectId}/unshare")]
+    public async Task<IActionResult> UnshareProject(string projectId, CancellationToken ct)
+    {
+        var userId = CurrentUserId;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var personalOrg = await _context.GetOrCreatePersonalOrgAsync(userId, User.Identity?.Name ?? "Personal");
+        var project = await _context.CloudProjects
+            .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId, ct);
+
+        if (project is null)
+            return NotFound(new { error = "Project not found or you are not its owner." });
+
+        project.OrganizationId = personalOrg.Id;
+        project.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { projectId = project.Id, organizationId = personalOrg.Id });
     }
 }

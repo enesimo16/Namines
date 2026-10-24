@@ -255,11 +255,20 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             featureFlags: flagService,
             aiRouter: null);
 
+        var testUser = new ApplicationUser
+        {
+            Id = "admin-user-1",
+            UserName = "admin1",
+            Email = "admin1@example.com",
+            IsDev = true
+        };
+        await userManager.CreateAsync(testUser);
+
         var adminUser = new System.Security.Claims.ClaimsPrincipal(
             new System.Security.Claims.ClaimsIdentity(new[]
             {
-                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "admin-user"),
-                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, "admin@namines.com")
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, testUser.Id),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, testUser.Email)
             }, "TestAuth"));
 
         controller.ControllerContext = new ControllerContext
@@ -316,11 +325,20 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             featureFlags: null,
             aiRouter: router);
 
+        var testUser = new ApplicationUser
+        {
+            Id = "admin-user-2",
+            UserName = "admin2",
+            Email = "admin2@example.com",
+            IsDev = true
+        };
+        await userManager.CreateAsync(testUser);
+
         var adminUser = new System.Security.Claims.ClaimsPrincipal(
             new System.Security.Claims.ClaimsIdentity(new[]
             {
-                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "admin-user"),
-                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, "admin@namines.com")
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, testUser.Id),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, testUser.Email)
             }, "TestAuth"));
 
         controller.ControllerContext = new ControllerContext
@@ -347,5 +365,53 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         Assert.Equal("deepseek-reasoner", updatedRoute.ModelName);
         Assert.Equal(0.05, updatedRoute.Temperature);
     }
-}
+    [Fact]
+    public async Task AdminController_UnauthorizedUser_CannotAccessEndpoints()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AuthDbContext>(opt => opt.UseSqlite(_connection));
+        services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
+        var sp = services.BuildServiceProvider();
 
+        var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+        var scopeFactory = CreateScopeFactory();
+        var flagService = new FeatureFlagService(scopeFactory, NullLogger<FeatureFlagService>.Instance);
+        var config = new ConfigurationBuilder().Build();
+        var telemetry = new Namines.API.Services.AdminTelemetryService();
+
+        var normalUser = new ApplicationUser
+        {
+            Id = "normal-user",
+            UserName = "normal",
+            Email = "normal@example.com",
+            IsDev = false
+        };
+        await userManager.CreateAsync(normalUser);
+
+        using var db = CreateContext();
+        var controller = new AdminController(
+            userManager,
+            db,
+            NullLogger<AdminController>.Instance,
+            telemetry,
+            config,
+            featureFlags: flagService,
+            aiRouter: null);
+
+        var claims = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(new[]
+            {
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, normalUser.Id),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, normalUser.Email)
+            }, "TestAuth"));
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = claims }
+        };
+
+        var getRes = await controller.GetFeatures();
+        Assert.IsType<UnauthorizedResult>(getRes);
+    }
+}

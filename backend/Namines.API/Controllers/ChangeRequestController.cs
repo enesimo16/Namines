@@ -390,8 +390,8 @@ public class ChangeRequestController : ControllerBase
                 // çalıştırılır, sayfa ikisinin TOPLAMI değil daha YAVAŞ olanı kadar
                 // sürer. Her biri kendi hatasını yutar (AI anahtarı/servis yoksa
                 // ilgili sekme boş görünür, diğerleri etkilenmez).
-                var migrationTask = migration is null ? TryGenerateMigrationAsync() : Task.FromResult(migration);
-                var explanationTask = aiExplanation is null ? TryExplainImpactAsync() : Task.FromResult(aiExplanation);
+                var migrationTask = migration is null ? TryGenerateMigrationAsync() : Task.FromResult<MigrationResult?>(migration);
+                var explanationTask = aiExplanation is null ? TryExplainImpactAsync() : Task.FromResult<string?>(aiExplanation);
                 await Task.WhenAll(migrationTask, explanationTask);
 
                 migration = migrationTask.Result;

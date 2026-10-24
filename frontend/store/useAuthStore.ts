@@ -22,14 +22,8 @@ export interface UserProfile {
  */
 export function isUserAdmin(user: UserProfile | null | undefined): boolean {
   if (!user) return false;
-  const email = user.email?.toLowerCase().trim();
   const type = user.type?.toLowerCase();
-  return Boolean(
-    user.isDev ||
-    type === 'admin' ||
-    email === 'namines@namines.com' ||
-    email === 'admin@namines.com'
-  );
+  return Boolean(user.isDev || type === 'admin');
 }
 
 interface AuthState {

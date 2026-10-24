@@ -1,3 +1,4 @@
+using Namines.Core.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -66,61 +67,32 @@ public class AdminController : ControllerBase
                 user = await _userManager.FindByEmailAsync(email);
             }
 
-            var devConfigEmail = _configuration["Dev:Email"];
-            bool IsAdminEmail(string? e) =>
-                !string.IsNullOrWhiteSpace(e) &&
-                (string.Equals(e, "namines@namines.com", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(e, "admin@namines.com", StringComparison.OrdinalIgnoreCase) ||
-                 (!string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(e, devConfigEmail, StringComparison.OrdinalIgnoreCase)));
+            if (user == null) return null;
 
-            if (user != null)
+            var devConfigEmail = _configuration["Dev:Email"];
+            var isConfiguredDevEmail = !string.IsNullOrWhiteSpace(devConfigEmail) &&
+                                       string.Equals(user.Email, devConfigEmail, StringComparison.OrdinalIgnoreCase);
+
+            if (user.IsDev || isConfiguredDevEmail)
             {
-                var isDesignatedAdmin = IsAdminEmail(user.Email);
-                var isAdminRole = await _userManager.IsInRoleAsync(user, "Admin");
-                if (user.IsDev || isAdminRole || isDesignatedAdmin)
+                if (isConfiguredDevEmail && !user.IsDev)
                 {
-                    if (isDesignatedAdmin && !user.IsDev)
-                    {
-                        user.IsDev = true;
-                        try { await _userManager.UpdateAsync(user); } catch {}
-                    }
-                    return user;
+                    user.IsDev = true;
+                    try { await _userManager.UpdateAsync(user); } catch { }
                 }
+                return user;
             }
-            else if (IsAdminEmail(email))
+
+            if (_userManager.SupportsUserRole && await _userManager.IsInRoleAsync(user, "Admin"))
             {
-                return new ApplicationUser
-                {
-                    Id = userId ?? Guid.NewGuid().ToString(),
-                    Email = email,
-                    UserName = "SuperAdmin",
-                    IsDev = true
-                };
+                return user;
             }
 
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "EnsureAdminAsync encountered DB issue; checking token claims directly");
-            var email = User.FindFirstValue(ClaimTypes.Email);
-            var devConfigEmail = _configuration["Dev:Email"];
-            bool IsAdminEmail(string? e) =>
-                !string.IsNullOrWhiteSpace(e) &&
-                (string.Equals(e, "namines@namines.com", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(e, "admin@namines.com", StringComparison.OrdinalIgnoreCase) ||
-                 (!string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(e, devConfigEmail, StringComparison.OrdinalIgnoreCase)));
-
-            if (IsAdminEmail(email))
-            {
-                return new ApplicationUser
-                {
-                    Id = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? Guid.NewGuid().ToString(),
-                    Email = email,
-                    UserName = "SuperAdmin",
-                    IsDev = true
-                };
-            }
+            _logger.LogError(ex, "EnsureAdminAsync encountered error while validating admin privileges.");
             return null;
         }
     }
@@ -921,19 +893,54 @@ public class AdminController : ControllerBase
         var project = await _context.CloudProjects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
         if (project == null) return NotFound(new { error = "Project not found." });
 
-        var rand = new Random(id.GetHashCode());
-        var tableCount = Math.Max(2, project.SchemaJson.Split(new[] { "\"tableName\"" }, StringSplitOptions.None).Length - 1);
-        var baseMb = Math.Round(tableCount * 0.45 + (rand.Next(1, 5) * 0.2), 2);
+        // Gerçek veritabanı varlıkları sorgulanır (M-3):
+        var tableCount = Math.Max(0, (project.SchemaJson ?? "").Split(new[] { "\"tableName\"" }, StringSplitOptions.None).Length - 1);
+        var baseMb = Math.Round(tableCount * 0.45, 2);
 
-        var vaultBackups = rand.Next(1, 6);
-        var vaultTotalMb = Math.Round(baseMb * vaultBackups * 0.65, 2);
+        // Vault: Bu projeye ait gerçek yedekler
+        var backups = await _context.VaultBackups.AsNoTracking()
+            .Where(b => b.ProjectId == id)
+            .OrderByDescending(b => b.CreatedAt)
+            .ToListAsync();
+        var vaultBackups = backups.Count;
+        var vaultTotalMb = Math.Round(backups.Sum(b => b.SizeBytes) / (1024.0 * 1024.0), 2);
+        var lastBackup = backups.FirstOrDefault();
 
-        var flowRules = rand.Next(0, 4);
-        var flowExecs = flowRules > 0 ? rand.Next(12, 140) : 0;
+        // Flow: Bu projeye ait gerçek otomasyon kuralları ve çalışma logları
+        var flowRules = await _context.AutomationRules.AsNoTracking()
+            .Where(r => r.ProjectId == id)
+            .ToListAsync();
+        var flowRulesCount = flowRules.Count;
+        var ruleIds = flowRules.Select(r => r.Id).ToList();
+        var flowExecs = ruleIds.Count > 0
+            ? await _context.AutomationRunLogs.AsNoTracking().CountAsync(l => ruleIds.Contains(l.RuleId))
+            : 0;
+        var lastTriggeredAt = ruleIds.Count > 0
+            ? await _context.AutomationRunLogs.AsNoTracking()
+                .Where(l => ruleIds.Contains(l.RuleId))
+                .OrderByDescending(l => l.TriggeredAt)
+                .Select(l => (DateTime?)l.TriggeredAt)
+                .FirstOrDefaultAsync()
+            : null;
 
-        var hasGround = rand.NextDouble() > 0.4;
-        var deskQueries = rand.Next(8, 85);
-        var ddlGenerated = rand.Next(3, 24);
+        // Ground: Yönetilen DB kaydı
+        var groundDb = await _context.GroundDatabases.AsNoTracking()
+            .FirstOrDefaultAsync(g => g.ProjectId == id);
+        var hasGround = groundDb != null;
+
+        // Desk: Bu projenin SQL geçmişi
+        var deskQueries = await _context.SqlQueryHistory.AsNoTracking()
+            .CountAsync(q => q.ProjectId == id);
+        var lastDeskQuery = await _context.SqlQueryHistory.AsNoTracking()
+            .Where(q => q.ProjectId == id)
+            .OrderByDescending(q => q.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        // Compile: Change request sayısı
+        var ddlGenerated = await _context.ChangeRequests.AsNoTracking()
+            .CountAsync(c => c.ProjectId == id);
+        var hasActiveMigrations = await _context.ChangeRequests.AsNoTracking()
+            .AnyAsync(c => c.ProjectId == id && (c.Status == ChangeRequestStatus.Approved || c.Status == ChangeRequestStatus.PendingReview));
 
         return Ok(new
         {
@@ -946,36 +953,36 @@ public class AdminController : ControllerBase
             {
                 snapshotsCount = vaultBackups,
                 totalStorageMb = vaultTotalMb,
-                lastBackupAt = DateTime.UtcNow.AddHours(-rand.Next(2, 72)),
+                lastBackupAt = lastBackup?.CreatedAt,
                 encryption = "AES-256-GCM",
                 retentionPolicy = "30 Gün"
             },
             flow = new
             {
-                rulesCount = flowRules,
+                rulesCount = flowRulesCount,
                 totalExecutions = flowExecs,
-                lastTriggeredAt = flowRules > 0 ? (DateTime?)DateTime.UtcNow.AddMinutes(-rand.Next(10, 600)) : null,
-                activeTriggers = new[] { "on_table_modified", "on_schema_sync" }.Take(flowRules).ToArray()
+                lastTriggeredAt = lastTriggeredAt,
+                activeTriggers = flowRules.Select(r => r.TriggerType).Distinct().ToArray()
             },
             ground = new
             {
                 isHosted = hasGround,
-                status = hasGround ? "Active (Online)" : "Not Provisioned",
-                hostEndpoint = hasGround ? $"db-{project.Id[..Math.Min(6, project.Id.Length)]}.namines.internal:5432" : null,
-                activeConnections = hasGround ? rand.Next(1, 8) : 0,
+                status = hasGround ? groundDb!.Status.ToString() : "Not Provisioned",
+                hostEndpoint = hasGround ? $"{groundDb!.Provider} ({groundDb!.Region ?? "local"})" : null,
+                activeConnections = hasGround ? 1 : 0,
                 allocatedMb = hasGround ? Math.Round(baseMb * 2.5, 2) : 0
             },
             desk = new
             {
                 totalQueriesExecuted = deskQueries,
-                lastQueryAt = DateTime.UtcNow.AddHours(-rand.Next(1, 48)),
-                exportCount = rand.Next(1, 7)
+                lastQueryAt = lastDeskQuery?.CreatedAt,
+                exportCount = 0
             },
             compile = new
             {
                 ddlGeneratedCount = ddlGenerated,
                 lastExportFormat = project.DbType ?? "PostgreSQL",
-                hasActiveMigrations = rand.NextDouble() > 0.5
+                hasActiveMigrations = hasActiveMigrations
             }
         });
     }
@@ -1085,15 +1092,18 @@ public class AdminController : ControllerBase
         {
             sb.AppendLine("Date,TokensUsed,EstimatedRequests,PromptTokens,CompletionTokens");
             var now = DateTime.UtcNow.Date;
-            var rand = new Random(42);
+            var usages = await _context.GlobalAiUsages.AsNoTracking()
+                .Where(g => g.Date >= now.AddDays(-30))
+                .ToDictionaryAsync(g => g.Date.Date, g => g.TokensUsed);
+
             for (int i = 29; i >= 0; i--)
             {
                 var d = now.AddDays(-i);
-                var baseTokens = rand.Next(14000, 52000) + (d.DayOfWeek == DayOfWeek.Saturday || d.DayOfWeek == DayOfWeek.Sunday ? -6000 : 8000);
-                var requests = (int)(baseTokens / rand.Next(380, 520));
-                var promptT = (int)(baseTokens * 0.65);
-                var compT = baseTokens - promptT;
-                sb.AppendLine($"\"{d:yyyy-MM-dd}\",{baseTokens},{requests},{promptT},{compT}");
+                var tokens = usages.TryGetValue(d, out var t) ? t : 0;
+                var requests = tokens > 0 ? Math.Max(1, (int)(tokens / 450)) : 0;
+                var promptT = (int)(tokens * 0.65);
+                var compT = tokens - promptT;
+                sb.AppendLine($"\"{d:yyyy-MM-dd}\",{tokens},{requests},{promptT},{compT}");
             }
         }
         else

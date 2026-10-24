@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using Namines.Core.Models;
 ﻿using Namines.Core.Enums;
 using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Tests.Fixtures;
@@ -167,4 +170,62 @@ public class IndexConstraintTests
         Assert.DoesNotContain("CREATE INDEX", ddl, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("CREATE UNIQUE INDEX", ddl, StringComparison.OrdinalIgnoreCase);
     }
+    [Fact]
+    public void Check_with_semicolon_throws_argument_exception()
+    {
+        var schema = new DatabaseSchema
+        {
+            Name = "InjectionDb",
+            Tables = new List<SchemaTable>
+            {
+                new()
+                {
+                    Name = "products",
+                    Columns = new List<SchemaColumn>
+                    {
+                        new() { Id = "c1", Name = "price", Type = "INT" }
+                    },
+                    Checks = new List<SchemaCheck>
+                    {
+                        new() { Id = "ck1", Name = "bad_check", Expression = "price > 0; DROP TABLE users; --" }
+                    }
+                }
+            }
+        };
+
+        var generator = new PostgresDdlGenerator();
+        Assert.Throws<ArgumentException>(() => { generator.Generate(schema); });
+    }
+
+    [Fact]
+    public void Duplicate_check_names_in_same_table_are_disambiguated()
+    {
+        var schema = new DatabaseSchema
+        {
+            Name = "ConflictDb",
+            Tables = new List<SchemaTable>
+            {
+                new()
+                {
+                    Name = "accounts",
+                    Columns = new List<SchemaColumn>
+                    {
+                        new() { Id = "c1", Name = "balance", Type = "DECIMAL" }
+                    },
+                    Checks = new List<SchemaCheck>
+                    {
+                        new() { Id = "ck1", Name = "valid_balance", Expression = "balance >= 0" },
+                        new() { Id = "ck2", Name = "valid_balance", Expression = "balance <= 1000000" }
+                    }
+                }
+            }
+        };
+
+        var generator = new PostgresDdlGenerator();
+        var ddl = generator.Generate(schema);
+
+        Assert.Contains("CK_accounts_valid_balance", ddl);
+        Assert.Contains("CK_accounts_valid_balance_2", ddl);
+    }
 }
+

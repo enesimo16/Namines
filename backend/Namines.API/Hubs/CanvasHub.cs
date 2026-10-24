@@ -123,7 +123,42 @@ public class CanvasHub : Hub
     private static readonly Regex RoomIdPattern = new(@"^[A-Za-z0-9_\-]{1,100}$", RegexOptions.Compiled);
     private static bool IsValidRoomId(string? roomId) => !string.IsNullOrEmpty(roomId) && RoomIdPattern.IsMatch(roomId);
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DatabaseSchema> RoomSchemas = new();
+    private sealed class RoomSchemaEntry
+    {
+        public DatabaseSchema Schema { get; set; }
+        public DateTime LastUpdatedUtc { get; set; }
+
+        public RoomSchemaEntry(DatabaseSchema schema)
+        {
+            Schema = schema;
+            LastUpdatedUtc = DateTime.UtcNow;
+        }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, RoomSchemaEntry> RoomSchemas = new();
+    private const int MaxCachedRooms = 500;
+
+    private static void StoreRoomSchema(string roomId, DatabaseSchema schema)
+    {
+        if (schema?.Tables is not { Count: > 0 }) return;
+
+        // Bounded LRU eviction: Odalar dolduğunda en eski %20'yi temizle (tüm odaları silen Clear() yerine)
+        if (RoomSchemas.Count >= MaxCachedRooms && !RoomSchemas.ContainsKey(roomId))
+        {
+            var oldestKeys = RoomSchemas
+                .OrderBy(kv => kv.Value.LastUpdatedUtc)
+                .Take(MaxCachedRooms / 5)
+                .Select(kv => kv.Key)
+                .ToList();
+
+            foreach (var key in oldestKeys)
+            {
+                RoomSchemas.TryRemove(key, out _);
+            }
+        }
+
+        RoomSchemas[roomId] = new RoomSchemaEntry(schema);
+    }
 
     private string ResolveDisplayName(string clientSuppliedName) =>
         PresenceIdentity.ResolveDisplayName(Context.User, clientSuppliedName);
@@ -157,10 +192,12 @@ public class CanvasHub : Hub
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
         await Clients.OthersInGroup(roomId).SendAsync("ReceiveUserJoined", Context.ConnectionId, ResolveDisplayName(userName));
 
-        if (RoomSchemas.TryGetValue(roomId, out var cachedSchema) && cachedSchema.Tables is { Count: > 0 })
+        if (RoomSchemas.TryGetValue(roomId, out var cachedEntry) && cachedEntry.Schema.Tables is { Count: > 0 })
         {
-            await Clients.Caller.SendAsync("ReceiveSchema", cachedSchema);
+            cachedEntry.LastUpdatedUtc = DateTime.UtcNow;
+            await Clients.Caller.SendAsync("ReceiveSchema", cachedEntry.Schema);
         }
+
     }
 
     public async Task MoveCursor(string roomId, string userName, double x, double y)
@@ -176,8 +213,8 @@ public class CanvasHub : Hub
         if (!await IsCallerInRoomAsync(roomId) || !await StillAuthorizedAsync(roomId, requireEdit: true)) return;
         if (schema?.Tables is { Count: > 0 })
         {
-            if (RoomSchemas.Count > 500) RoomSchemas.Clear();
-            RoomSchemas[roomId] = schema;
+            StoreRoomSchema(roomId, schema);
+
         }
         await Clients.OthersInGroup(roomId).SendAsync("ReceiveSchema", schema);
     }
@@ -201,7 +238,7 @@ public class CanvasHub : Hub
         if (!await StillAuthorizedAsync(callerRoom, requireEdit: true)) return;
         if (schema?.Tables is { Count: > 0 })
         {
-            RoomSchemas[callerRoom] = schema;
+            StoreRoomSchema(callerRoom, schema);
         }
         await Clients.Client(peerConnectionId).SendAsync("ReceiveSchema", schema);
     }

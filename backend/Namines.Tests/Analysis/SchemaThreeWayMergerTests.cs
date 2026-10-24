@@ -85,7 +85,7 @@ public class SchemaThreeWayMergerTests
 
         // Birleşen şemada İKİ tane "status" kalmamalı — bozuk şema üretmektense
         // çakışmayı bildirip tek bir taraf koymak doğru.
-        Assert.Single(result.Merged.Tables[0].Columns.Where(c => c.Name == "status"));
+        Assert.Single(result.Merged.Tables[0].Columns, c => c.Name == "status");
 
         // Ve çakışan kolon "otomatik birleşti" diye SAYILMAMALI: canlı
         // doğrulamada tam olarak bu görüldü — rapor hem "status otomatik

@@ -23,7 +23,7 @@ namespace Namines.Tests.Integration;
 [Collection("Docker")]
 public class GatewayRateLimiterDistributedTests : IAsyncLifetime
 {
-    private readonly RedisContainer _container = new RedisBuilder().Build();
+    private readonly RedisContainer _container = new RedisBuilder("redis:7.4-alpine").Build();
     private IConnectionMultiplexer? _redis;
 
     public async Task InitializeAsync()
