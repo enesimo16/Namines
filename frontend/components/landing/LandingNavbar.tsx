@@ -139,7 +139,7 @@ export default function LandingNavbar() {
                   className="tap-44 inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-accent/15 cursor-pointer hover:scale-[1.02] active:scale-95"
                   title="Studio"
                 >
-                  <span className="w-2 h-2 rounded-full bg-success" />
+                  
                   <span className="truncate max-w-[100px] sm:max-w-[130px]">{user?.email?.split('@')[0] || 'Studio'}</span>
                   <ArrowRight className="w-3.5 h-3.5 hidden sm:inline" />
                 </Link>
@@ -220,7 +220,7 @@ export default function LandingNavbar() {
                       onClick={() => setIsMobileMenuOpen(false)}
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-xs font-bold uppercase tracking-wider shadow-sm transition-colors"
                     >
-                      <span className="w-2 h-2 rounded-full bg-success" />
+                      
                       <span>{user?.email?.split('@')[0] || 'Studio'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Link>

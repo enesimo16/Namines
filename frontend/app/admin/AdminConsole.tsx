@@ -280,7 +280,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
       case 'tools':
         return <Wrench className="w-3.5 h-3.5 text-accent" />;
       case 'compile':
-        return <Code className="w-3.5 h-3.5 text-success" />;
+        return <Code className="w-3.5 h-3.5 text-accent-text" />;
       case 'eject':
         return <Boxes className="w-3.5 h-3.5 text-accent" />;
       case 'ai':

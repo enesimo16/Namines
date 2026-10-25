@@ -72,8 +72,8 @@ export default function ZeroDriftSection() {
               <span className="text-xs font-mono text-content-secondary">
                 feature/database-branch
               </span>
-              <span className="text-[11px] font-mono text-success-text flex items-center gap-1 mt-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />
+              <span className="text-[11px] font-mono text-content-secondary flex items-center gap-1 mt-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-content-secondary" />
                 Checks passed
               </span>
             </div>
@@ -85,28 +85,28 @@ export default function ZeroDriftSection() {
               </span>
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="flex items-center gap-1.5 text-content-secondary">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                  
                   web
                 </span>
                 <span className="text-content-subtle">Available</span>
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="flex items-center gap-1.5 text-content-secondary">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                  
                   api
                 </span>
                 <span className="text-content-subtle">Available</span>
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="flex items-center gap-1.5 text-content-secondary">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                  
                   database
                 </span>
                 <span className="text-content-subtle">Available</span>
               </div>
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="flex items-center gap-1.5 text-content-secondary">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                  
                   desk-admin
                 </span>
                 <span className="text-content-subtle">Available</span>

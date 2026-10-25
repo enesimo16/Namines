@@ -33,7 +33,7 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
           <ul className="grid grid-cols-2 gap-2">
             {diff.addedTables.map((t) => (
               <li key={t} className="text-content-secondary text-xs bg-success-subtle border border-success/20 px-2.5 py-1.5 rounded-[var(--radius-control)] flex items-center gap-1.5 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                
                 {t}
               </li>
             ))}

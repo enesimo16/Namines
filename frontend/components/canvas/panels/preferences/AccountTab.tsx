@@ -85,19 +85,19 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex items-center justify-between p-3 bg-surface-900/60 border border-line-strong rounded-[var(--radius-control)]">
               <span className="text-[11px] font-medium text-content-secondary">SignalR Realtime Multiplayer</span>
-              <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border ${isCorporate ? 'border-success/30 bg-success-subtle text-success' : 'border-line bg-surface-700 text-content-muted'}`}>
+              <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border ${isCorporate ? 'border-accent/40 bg-accent-subtle text-accent-text' : 'border-line bg-surface-700 text-content-muted'}`}>
                 {isCorporate ? 'ENABLED' : 'DISABLED'}
               </span>
             </div>
             <div className="flex items-center justify-between p-3 bg-surface-900/60 border border-line-strong rounded-[var(--radius-control)]">
               <span className="text-[11px] font-medium text-content-secondary">Automated DBA Linter</span>
-              <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border ${isCorporate ? 'border-success/30 bg-success-subtle text-success' : 'border-line bg-surface-700 text-content-secondary'}`}>
+              <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border ${isCorporate ? 'border-accent/40 bg-accent-subtle text-accent-text' : 'border-line bg-surface-700 text-content-secondary'}`}>
                 {isCorporate ? 'UNLIMITED' : '100% DAILY'}
               </span>
             </div>
             <div className="flex items-center justify-between p-3 bg-surface-900/60 border border-line-strong rounded-[var(--radius-control)]">
               <span className="text-[11px] font-medium text-content-secondary">Cloud Workspace Sync</span>
-              <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border border-success/30 bg-success-subtle text-success">ACTIVE</span>
+              <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-[var(--radius-control)] border border-accent/40 bg-accent-subtle text-accent-text">ACTIVE</span>
             </div>
           </div>
         </div>

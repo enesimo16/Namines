@@ -62,7 +62,7 @@ function FeatureList({ items, iconClass }: { items: string[]; iconClass: string 
 function CurrentPlanActions({ label, isUpgrading, onManage }: { label: string; isUpgrading: boolean; onManage: () => void }) {
   return (
     <>
-      <div className="flex items-center gap-2 text-xs text-success font-semibold border border-success/30 bg-success-subtle rounded-[var(--radius-control)] px-4 py-2.5">
+      <div className="flex items-center gap-2 text-xs text-content-primary font-semibold border border-line-strong bg-surface-700/60 rounded-[var(--radius-control)] px-4 py-2.5">
         <Check className="w-4 h-4" />
         {label}
       </div>
@@ -106,7 +106,7 @@ export default function PricingTab({ plans }: { plans: Plans }) {
           ))}
         </div>
         {discountOf('pro') !== null && (
-          <span className="text-[10px] font-mono font-bold text-success border border-success/30 bg-success-subtle px-2.5 py-1 rounded-full uppercase tracking-wider">
+          <span className="text-[10px] font-mono font-bold text-accent-text border border-accent/40 bg-accent-subtle px-2.5 py-1 rounded-full uppercase tracking-wider">
             Save {discountOf('pro')}% yearly
           </span>
         )}
@@ -155,7 +155,7 @@ export default function PricingTab({ plans }: { plans: Plans }) {
           </div>
           <div className="mt-5 flex flex-col gap-2">
             {planTier === 'Dev' ? (
-              <div className="flex items-center gap-2 text-xs text-success font-semibold border border-success/30 bg-success-subtle rounded-[var(--radius-control)] px-4 py-2.5">
+              <div className="flex items-center gap-2 text-xs text-content-primary font-semibold border border-line-strong bg-surface-700/60 rounded-[var(--radius-control)] px-4 py-2.5">
                 <Check className="w-4 h-4" />
                 Included in Dev — Unlimited
               </div>
@@ -192,7 +192,7 @@ export default function PricingTab({ plans }: { plans: Plans }) {
           </div>
           <div className="mt-5 flex flex-col gap-2">
             {planTier === 'Dev' ? (
-              <div className="flex items-center gap-2 text-xs text-success font-semibold border border-success/30 bg-success-subtle rounded-[var(--radius-control)] px-4 py-2.5">
+              <div className="flex items-center gap-2 text-xs text-content-primary font-semibold border border-line-strong bg-surface-700/60 rounded-[var(--radius-control)] px-4 py-2.5">
                 <Check className="w-4 h-4" />
                 Included in Dev — Unlimited
               </div>

@@ -124,7 +124,7 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
                 <div className="flex items-center gap-1.5" aria-hidden="true">
                   <div className="w-2.5 h-2.5 rounded-full bg-danger/80" />
                   <div className="w-2.5 h-2.5 rounded-full bg-accent/80" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-success/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-surface-500" />
                 </div>
                 <div className="h-4 w-px bg-surface-600 mx-0.5" />
                 {/* Active File Tab */}
@@ -142,8 +142,8 @@ export default function DatabasePromptVisualizer({ children }: DatabasePromptVis
                     Synthesizing DDL...
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-success/15 text-success-text font-bold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-surface-700 border border-line text-content-primary font-bold">
+                    
                     Verified AST
                   </span>
                 )}

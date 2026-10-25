@@ -420,7 +420,7 @@ export default function ClickClickDone() {
               {/* Rule Engine Safety Tier (Dynamic per blueprint) */}
               <div className="flex items-center justify-between text-xs font-mono p-2.5 bg-surface-800/80 rounded-[var(--radius-control)] border border-surface-500/60">
                 <span className="text-content-muted">Rule Engine</span>
-                <span className="text-success-text font-semibold flex items-center gap-1">
+                <span className="text-content-primary font-semibold flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
                   {selectedBlueprint.safetyTier}
                 </span>
@@ -449,9 +449,9 @@ export default function ClickClickDone() {
 
             {/* Terminal Diagnostic Log Output */}
             <div className="p-3 bg-surface-800 rounded-[var(--radius-control)] border border-surface-500/80 font-mono text-[11px] flex flex-col gap-1">
-              <div className="flex items-center justify-between text-success-text">
+              <div className="flex items-center justify-between text-content-primary">
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-success-text" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-content-primary" />
                   <span className="font-bold">Verified in {lastVerifiedTime}</span>
                 </div>
                 <span className="text-[10px] text-content-subtle">24 AST rules</span>
@@ -520,7 +520,7 @@ export default function ClickClickDone() {
               <div className="flex items-center gap-1 text-[11px] text-content-muted group-hover:text-accent-text shrink-0 ml-2">
                 {copiedPush ? (
                   <>
-                    <Check className="w-3 h-3 text-success-text" />
+                    <Check className="w-3 h-3 text-content-primary" />
                     <span>Copied</span>
                   </>
                 ) : (
@@ -550,7 +550,7 @@ export default function ClickClickDone() {
                       onClick={() => setActiveStep3Tab(isActive ? null : cIdx)}
                       className="w-full text-left flex items-start gap-2.5 p-2.5 cursor-pointer"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-success-text shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-4 h-4 text-content-primary shrink-0 mt-0.5" />
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs font-mono font-semibold text-content-primary truncate">
                           {check.title}

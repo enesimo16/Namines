@@ -318,7 +318,7 @@ export default function ToolbarPanel() {
           >
             <Link2 className="w-4 h-4" />
             <span className="text-xs font-semibold">Share</span>
-            {isConnected && <span className="w-1.5 h-1.5 rounded-full bg-success" />}
+            
             <ChevronDown className={`w-3 h-3 transition-transform ${isShareOpen ? 'rotate-180' : ''}`} />
           </button>
 

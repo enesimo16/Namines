@@ -963,7 +963,7 @@ function MultiplayerLoadingScreen({ roomId, onCancel }: { roomId: string; onCanc
           <p className="text-content-muted text-xs leading-relaxed max-w-sm mt-1">
             {status === 'connecting'
               ? 'Establishing real-time connection and retrieving the shared schema from active peers...'
-              : 'We connected to the room, but there are no active peers online to share the schema.'}
+              : 'Connected to room session. No schema broadcast has been published yet.'}
           </p>
         </div>
 

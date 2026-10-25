@@ -79,10 +79,10 @@ export default function AnalyticsTab({ stats }: { stats: LocalStats }) {
             <div className="p-3.5 bg-surface-900/60 border border-line rounded-[var(--radius-control)] space-y-2">
               <div className="flex justify-between text-[11px] font-medium uppercase text-content-secondary">
                 <span>WASM Compiler Success Rate</span>
-                <span className="text-success font-semibold">100%</span>
+                <span className="text-content-primary font-semibold">100%</span>
               </div>
               <div className="w-full h-2 bg-surface-900 rounded-full overflow-hidden border border-line">
-                <div className="h-full bg-success rounded-full" style={{ width: '100%' }} />
+                <div className="h-full bg-accent-text rounded-full" style={{ width: '100%' }} />
               </div>
             </div>
             <div className="p-3.5 bg-surface-900/60 border border-line rounded-[var(--radius-control)] space-y-2">
@@ -112,7 +112,7 @@ export default function AnalyticsTab({ stats }: { stats: LocalStats }) {
               <>
                 <div className="flex items-center justify-between text-xs p-3 bg-surface-900/60 border border-line hover:bg-surface-700/60 rounded-[var(--radius-control)] transition-colors">
                   <span className="font-medium text-content-secondary">Local WASM compiler schema generation</span>
-                  <span className="text-[10px] font-mono border border-success/30 bg-success-subtle text-success px-2 py-0.5 rounded-[var(--radius-control)] font-semibold">SUCCESS</span>
+                  <span className="text-[10px] font-mono border border-line-strong bg-surface-700 text-content-primary px-2 py-0.5 rounded-[var(--radius-control)] font-semibold">SUCCESS</span>
                 </div>
                 <div className="flex items-center justify-between text-xs p-3 bg-surface-900/60 border border-line hover:bg-surface-700/60 rounded-[var(--radius-control)] transition-colors">
                   <span className="font-medium text-content-secondary">{Math.round((used / dailyLimit) * 100)}% daily credits checked</span>
