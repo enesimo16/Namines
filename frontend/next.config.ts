@@ -25,8 +25,7 @@ const nextConfig: NextConfig = {
   },
 
   async rewrites() {
-    const backendUrl = process.env.BACKEND_API_URL || 'https://130-162-254-97.sslip.io';
-    const deskUrl = process.env.DESK_ORIGIN_URL || 'https://desk.130-162-254-97.sslip.io';
+    const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'https://130-162-254-97.sslip.io');
     return [
       // PostHog Ters Proxy (Reverse Proxy) — Reklam engelleyicilere (ad-blocker) takılmadan
       // ve Safari ITP kısıtlamalarına uğramadan analitik ve feature flag isteklerini güvenle iletir.
@@ -49,14 +48,6 @@ const nextConfig: NextConfig = {
       {
         source: '/hubs/:path*',
         destination: `${backendUrl}/hubs/:path*`,
-      },
-      {
-        source: '/desk',
-        destination: `${deskUrl}/desk`,
-      },
-      {
-        source: '/desk/:path*',
-        destination: `${deskUrl}/desk/:path*`,
       },
     ];
   },

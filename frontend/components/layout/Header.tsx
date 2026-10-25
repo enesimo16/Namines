@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical, Compass, ShieldCheck } from 'lucide-react';
+import { Pencil, Check, FolderOpen, LogOut, X, Settings, Users, ArrowRight, Search, MoreVertical, Compass, ShieldCheck, Lock, Layers, ChevronDown, Plus } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore, isUserAdmin } from '../../store/useAuthStore';
 import { useTourStore } from '../../store/useTourStore';
@@ -22,6 +22,7 @@ import HomeBanner from '../landing/HomeBanner';
 import ThemeToggleButton from '../landing/ThemeToggleButton';
 import LandingNavbar from '../landing/LandingNavbar';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useActiveProjectStore } from '../../store/useActiveProjectStore';
 import { activateOnKey } from '../../lib/a11y';
 import { useT, useLangAttr, useLocale, type MessageKey } from '../../lib/i18n';
 import LanguageToggle from './LanguageToggle';
@@ -42,6 +43,18 @@ const HOME_NAV_ITEMS: { id: string; labelKey: MessageKey }[] = [
   { id: 'security', labelKey: 'header.homeNav.security' },
 ];
 
+function formatRelativeTime(dateInput?: string | number | null): string {
+  if (!dateInput) return '';
+  const date = typeof dateInput === 'number' ? new Date(dateInput) : new Date(dateInput);
+  if (isNaN(date.getTime())) return '';
+  const now = new Date();
+  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diffSec < 60) return 'şimdi';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}d önce`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}s önce`;
+  return `${Math.floor(diffSec / 86400)}g önce`;
+}
+
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
@@ -50,6 +63,7 @@ export default function Header() {
   const locale = useLocale();
   const startGuide = useTourStore(s => s.startGuide);
   const { projectName, setProjectName } = useSchemaStore();
+  const { scopedProjectId, scopedProjectName, scopedHubRepo, setScopedProject, clearProjectSession } = useActiveProjectStore();
   
   const isCanvas = pathname === '/canvas';
   const isCompile = pathname === '/compile';
@@ -58,6 +72,13 @@ export default function Header() {
   // (bkz. aşağıdaki `isHome` dallanmaları). Diğer tüm rotalarda Header
   // AYNEN eskisi gibi davranmaya devam ediyor.
   const isHome = pathname === '/';
+
+  // Faz 5: Global yönetim düzlemi (/vault, /ground, /flow, /hub parametresiz)
+  // vs. Projeye kilitli oturum (scopedProjectId mevcut).
+  const isGlobalConsoleRoute =
+    (pathname === '/vault' || pathname === '/ground' || pathname === '/flow' || pathname === '/hub') &&
+    !scopedProjectId;
+  const isProjectLocked = Boolean(scopedProjectId);
 
   const [activeSection, setActiveSection] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
@@ -68,6 +89,13 @@ export default function Header() {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isApple, setIsApple] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const localProjects = useProjectHistoryStore((s) => s.projects);
+  const activeProjectId = useProjectHistoryStore((s) => s.activeProjectId);
+
+  const currentActiveId = scopedProjectId || activeProjectId;
+  const currentActiveProject = localProjects.find((p) => p.id === currentActiveId);
+  const currentSessionName = scopedProjectName || currentActiveProject?.name || projectName || 'New Project';
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -90,25 +118,16 @@ export default function Header() {
   useKeyboardShortcut(['mod', '/'], () => setIsShortcutsOpen(v => !v), { ignoreInputs: true });
 
   // Shopify Polaris-style sequence navigation: G then key
-  useSequenceShortcut('g', 'd', () => router.push('/canvas'));
-  useSequenceShortcut('g', 'c', () => router.push('/compile'));
-  useSequenceShortcut('g', 'f', () => router.push('/flow'));
+  useSequenceShortcut('g', 'd', () => router.push(scopedProjectId ? `/canvas?project=${scopedProjectId}` : '/canvas'));
+  useSequenceShortcut('g', 'c', () => router.push(scopedProjectId ? `/compile?project=${scopedProjectId}` : '/compile'));
+  useSequenceShortcut('g', 'f', () => router.push(scopedProjectId ? `/flow?project=${scopedProjectId}` : '/flow'));
   useSequenceShortcut('g', 'r', () => router.push('/review'));
-  useSequenceShortcut('g', 'g', () => router.push('/ground'));
-  useSequenceShortcut('g', 'v', () => router.push('/vault'));
-  useSequenceShortcut('g', 'k', async () => {
-    const activeProjId = useProjectHistoryStore.getState().activeProjectId;
-    if (activeProjId) {
-      try {
-        const { token } = await authService.createDeskHandoffToken();
-        openDeskHandoff({ token, projectId: activeProjId, view: 'data' });
-        return;
-      } catch {
-        window.open(DESK_URL, '_blank');
-        return;
-      }
-    }
-    window.open(DESK_URL, '_blank');
+  useSequenceShortcut('g', 'g', () => router.push(scopedProjectId ? `/ground?project=${scopedProjectId}` : '/ground'));
+  useSequenceShortcut('g', 'v', () => router.push(scopedProjectId ? `/vault?project=${scopedProjectId}` : '/vault'));
+  useSequenceShortcut('g', 'h', () => router.push('/hub'));
+  useSequenceShortcut('g', 'k', () => {
+    const activeProjId = scopedProjectId || useProjectHistoryStore.getState().activeProjectId;
+    router.push(activeProjId ? `/desk?project=${encodeURIComponent(activeProjId)}` : '/desk');
   });
 
   // Scroll spy for homepage sections
@@ -199,19 +218,8 @@ export default function Header() {
     fetchPolicy();
     useQuotaStore.getState().fetchQuota();
 
-    // `hasHydrated` BEKLENİYOR: IndexedDB hidrasyonu asenkron, ve bu efekt
-    // sayfa açılışında (oturum localStorage'dan zaten "giriş yapılmış" gelirken)
-    // hidrasyondan ÖNCE çalışıyor. Beklenmezse yükleme boş listeyle çalışıp
-    // sessizce hiçbir şey göndermiyor ve BİR DAHA denenmiyordu — kullanıcının
-    // ana uygulamada gördüğü proje cloud'a hiç çıkmıyor, Namines Desk de
-    // (yalnızca cloud'u gördüğü için) "proje yok" diyordu. Gerçek dünyada
-    // yaşanan hata tam olarak buydu.
     if (!hasHydrated) return;
 
-    // ÖNCE YÜKLE, SONRA İNDİR. Sıra önemli: `syncWithCloud` yalnızca
-    // indiriyor; tek başına çalıştırıldığında yerelde kalmış (ör. misafirken
-    // oluşturulmuş, ya da giriş anındaki "senkronla?" diyaloğu kapatılmış)
-    // projeler cloud'a HİÇ çıkmıyordu.
     (async () => {
       await useProjectHistoryStore.getState().syncAllToCloud();
       if (syncWithCloud) await syncWithCloud();
@@ -241,11 +249,12 @@ export default function Header() {
 
   const commitEdit = () => {
     const trimmed = draft.trim();
-    if (trimmed) {
-      setProjectName(trimmed);
-    } else {
-      setProjectName('New Project');
-      setDraft('');
+    const finalName = trimmed || 'New Project';
+    setProjectName(finalName);
+    const activeId = scopedProjectId || useProjectHistoryStore.getState().activeProjectId;
+    if (activeId) {
+      useProjectHistoryStore.getState().renameProject(activeId, finalName);
+      setScopedProject(activeId, finalName);
     }
     setIsEditing(false);
   };
@@ -258,19 +267,6 @@ export default function Header() {
     }
   };
 
-  /**
-   * Marka işareti bir GEZİNME öğesi — veri silen bir eylem değil.
-   *
-   * Önceden `resetProject()` çağırıyordu: kullanıcı "ana sayfaya döneyim" diye
-   * logoya tıkladığında açık olan şema (ölçüldü: 25 tablo) sessizce siliniyordu.
-   * Kayıp ancak sonra fark ediliyordu — "Back to Diagram" boş bir tuvale ya da
-   * `/new`'e düşüyor ve kullanıcı bunu bir gezinme hatası sanıyordu. Proje
-   * sıfırlama hâlâ var, ama ait olduğu yerde: ProjectSidebar'daki "New Project",
-   * oturum kapatma ve hesap değiştirme.
-   *
-   * Zaten ana sayfadaysak gezinmek yerine başa kaydırıyoruz — aynı URL'e
-   * push etmek hiçbir şey yapmıyor gibi görünüyordu.
-   */
   const handleLogoClick = () => {
     if (isHome) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -295,11 +291,6 @@ export default function Header() {
 
   return (
     <>
-      {/* Sticky DEĞİL, normal akışta — bu yüzden aşağı kaydırınca kendiliğinden
-          görünümden çıkıyor (JS scroll dinleyicisi gerekmiyor), sticky
-          <header> ise altında top:0'a yapışıp kalıyor. Yalnızca tanıtım
-          sayfasında (`isHome`): app içi ekranlarda (canvas/compile/...)
-          promosyon şeridi göstermek yersiz olurdu. */}
       {isHome && <HomeBanner />}
 
       <header
@@ -322,9 +313,6 @@ export default function Header() {
           </button>
 
           {isHome ? (
-            /* `md` DEĞİL `lg`: yedi bağlantı (6 bölüm + Demo) 768px'de logo ve
-               sağdaki hesap/tema grubuyla aynı satıra sığmıyordu — bağlantılar
-               kırpılıyor ve tema düğmesiyle üst üste biniyordu. */
             <div className="hidden lg:flex items-center gap-4 xl:gap-6 ml-3 min-w-0">
               {HOME_NAV_ITEMS.map((item) => {
                 const isActive = activeSection === item.id;
@@ -358,9 +346,7 @@ export default function Header() {
             </div>
           ) : (
             <>
-              <div className="h-4 w-px bg-line-strong shrink-0 hidden sm:block" />
-
-              {/* Workspace / Team */}
+              {/* Workspace / Projects Sidebar Button */}
               <button
                 id="header-workspace-btn"
                 onClick={() => setIsSidebarOpen(true)}
@@ -375,7 +361,7 @@ export default function Header() {
                 <FolderOpen className="w-3.5 h-3.5" />
               </button>
 
-              {/* Ekip Butonu */}
+              {/* Ekip (Team) Butonu */}
               <button
                 id="header-team-btn"
                 onClick={() => {
@@ -393,11 +379,10 @@ export default function Header() {
                 <Users className="w-3.5 h-3.5" />
               </button>
 
-              {/* Project Name Editor — only on canvas / compile / review */}
               {pathname !== '/new' && (
                 <>
-                  <div className="h-4 w-px bg-line-strong shrink-0 hidden sm:block" />
-                  <div className="hidden md:flex items-center">
+                  <div className="h-4 w-px bg-line-strong shrink-0 hidden sm:block" aria-hidden="true" />
+                  <div className="flex items-center">
                     {isEditing ? (
                       <div className="flex items-center gap-1">
                         <input
@@ -407,7 +392,7 @@ export default function Header() {
                           onChange={(e) => setDraft(e.target.value)}
                           onBlur={commitEdit}
                           onKeyDown={handleKeyDown}
-                          className="bg-surface-800 border border-line-strong text-content-primary rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-medium w-48 focus:outline-none focus:ring-1 focus:ring-line-strong"
+                          className="bg-surface-800 border border-line-strong text-content-primary rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-semibold w-40 sm:w-48 focus:outline-none focus:ring-1 focus:ring-line-strong"
                           maxLength={60}
                           autoFocus
                         />
@@ -420,29 +405,17 @@ export default function Header() {
                         </button>
                       </div>
                     ) : (
-                      <button
+                      <div
                         onClick={startEditing}
-                        className="group flex items-center gap-1.5 text-content-primary hover:text-content-primary-hover px-2.5 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/50 border border-transparent hover:border-line transition-all cursor-pointer"
+                        className="group flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/40 cursor-pointer select-none"
                         title={t('header.editProjectName')}
                       >
-                        <span className="text-xs font-medium max-w-[160px] truncate">{projectName}</span>
-                        <Pencil className="w-3 h-3 text-content-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
+                        <span className="text-xs font-semibold text-content-primary max-w-[150px] sm:max-w-[210px] truncate">
+                          {currentSessionName}
+                        </span>
+                        <Pencil className="w-3 h-3 text-content-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      </div>
                     )}
-                    {/* Global Command Palette Trigger Pill (Shopify Polaris style) */}
-                    <button
-                      type="button"
-                      onClick={() => useCommandPaletteStore.getState().open()}
-                      className="tap-44 hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-800/80 hover:bg-surface-700/80 border border-line-strong hover:border-content-primary/30 text-content-muted hover:text-content-primary transition-all text-xs cursor-pointer shadow-sm group shrink-0 ml-2"
-                      title="Search commands, navigate, or search tables (⌘K / Ctrl+K)"
-                      aria-label="Open command palette"
-                    >
-                      <Search className="w-3.5 h-3.5 text-content-muted group-hover:text-content-primary transition-colors shrink-0" />
-                      <span className="text-content-muted group-hover:text-content-secondary hidden xl:inline text-micro">Search...</span>
-                      <kbd className="px-1.5 py-0.2 rounded-[var(--radius-control)] bg-surface-700 border border-line-strong text-[10px] font-mono text-content-muted group-hover:text-content-primary shrink-0">
-                        {isApple ? '⌘K' : 'Ctrl+K'}
-                      </kbd>
-                    </button>
                   </div>
                 </>
               )}
@@ -451,28 +424,30 @@ export default function Header() {
         </div>
 
         {/* Middle — Flow/Ground/Vault/Desk switcher or centered Project Title */}
-        <div className="flex items-center justify-center shrink-0 min-w-0 px-1 sm:px-2 z-10 relative">
+        <div className="flex items-end justify-center shrink-0 min-w-0 px-1 sm:px-2 z-10 relative h-full">
           {pathname === '/new' ? (
-            <input
-              id="header-new-project-input"
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.currentTarget.blur();
-                if (e.key === 'Escape') {
-                  setDraft(isDefaultProjectName ? '' : projectName);
-                  e.currentTarget.blur();
-                }
-              }}
-              placeholder={t('header.newProject')}
-              aria-label={t('header.projectName')}
-              maxLength={60}
-              className="bg-transparent text-xs sm:text-sm font-medium text-content-primary placeholder:text-content-muted text-center px-2 sm:px-3 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/40 focus:bg-surface-800 focus:outline-none focus:ring-1 focus:ring-line-strong transition-colors cursor-pointer focus:cursor-text w-28 sm:w-52 truncate"
-            />
+            <div className="flex items-center h-full pb-2">
+              <input
+                id="header-new-project-input"
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                  if (e.key === 'Escape') {
+                    setDraft(isDefaultProjectName ? '' : projectName);
+                    e.currentTarget.blur();
+                  }
+                }}
+                placeholder={t('header.newProject')}
+                aria-label={t('header.projectName')}
+                maxLength={60}
+                className="bg-transparent text-xs sm:text-sm font-medium text-content-primary placeholder:text-content-muted text-center px-2 sm:px-3 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/40 focus:bg-surface-800 focus:outline-none focus:ring-1 focus:ring-line-strong transition-colors cursor-pointer focus:cursor-text w-28 sm:w-52 truncate"
+              />
+            </div>
           ) : (
-            <div className="hidden md:flex items-center">
+            <div className="hidden md:flex items-end h-full">
               <WorkspaceNav />
             </div>
           )}
@@ -572,42 +547,42 @@ export default function Header() {
                   )}
                   <div
                     onClick={() => setIsAIPreferencesOpen(true)}
-                  onKeyDown={activateOnKey(() => setIsAIPreferencesOpen(true))}
-                  role="button"
-                  tabIndex={0}
-                  aria-haspopup="dialog"
-                  aria-label={t('header.openAccountSettings')}
-                  className="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2.5 py-1 bg-surface-800/80 border border-line-strong hover:border-content-primary/30 rounded-full select-none hover:bg-surface-700/80 transition-colors cursor-pointer shadow-sm"
-                >
-                  {/* Clean Avatar Badge */}
-                  <div
-                    className="relative w-6 h-6 rounded-full bg-accent text-accent-on flex items-center justify-center text-[10px] font-mono font-bold uppercase tracking-wider select-none shrink-0"
-                    title={user?.username}
+                    onKeyDown={activateOnKey(() => setIsAIPreferencesOpen(true))}
+                    role="button"
+                    tabIndex={0}
+                    aria-haspopup="dialog"
+                    aria-label={t('header.openAccountSettings')}
+                    className="flex items-center gap-2 sm:gap-2.5 pl-1.5 pr-2.5 py-1 bg-surface-800/80 border border-line-strong hover:border-content-primary/30 rounded-full select-none hover:bg-surface-700/80 transition-colors cursor-pointer shadow-sm"
                   >
-                    {user?.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
+                    {/* Clean Avatar Badge */}
+                    <div
+                      className="relative w-6 h-6 rounded-full bg-accent text-accent-on flex items-center justify-center text-[10px] font-mono font-bold uppercase tracking-wider select-none shrink-0"
+                      title={user?.username}
+                    >
+                      {user?.username ? user.username.substring(0, 2).toUpperCase() : 'US'}
+                    </div>
+                    <div className="hidden sm:flex flex-col gap-0.5 justify-center">
+                      <span className="text-xs font-semibold text-content-primary leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
+                        {user?.username}
+                      </span>
+                      <span className="text-[10px] font-mono text-content-muted font-bold leading-none uppercase tracking-widest mt-0.5">
+                        {planLabel}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        logout();
+                        showToast(t('header.loggedOut'), 'info');
+                      }}
+                      className="tap-44 p-1 text-content-muted hover:text-content-primary hover:bg-surface-700 rounded-full transition-colors cursor-pointer ml-0.5 shrink-0"
+                      title={t('header.logOut')}
+                      aria-label={t('header.logOut')}
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <div className="hidden sm:flex flex-col gap-0.5 justify-center">
-                    <span className="text-xs font-semibold text-content-primary leading-none max-w-[95px] truncate tracking-wide" title={user?.username}>
-                      {user?.username}
-                    </span>
-                    <span className="text-[10px] font-mono text-content-muted font-bold leading-none uppercase tracking-widest mt-0.5">
-                      {planLabel}
-                    </span>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      logout();
-                      showToast(t('header.loggedOut'), 'info');
-                    }}
-                    className="tap-44 p-1 text-content-muted hover:text-content-primary hover:bg-surface-700 rounded-full transition-colors cursor-pointer ml-0.5 shrink-0"
-                    title={t('header.logOut')}
-                    aria-label={t('header.logOut')}
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                  </button>
                 </div>
-              </div>
               ) : (
                 <button
                   id="auth-modal-trigger"
@@ -633,7 +608,9 @@ export default function Header() {
             {/* Quick Actions (Projects, Team, Search) */}
             <div className="bg-surface-800/90 border border-line-strong rounded-[var(--radius-card)] p-3">
               <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-line">
-                <span className="text-xs font-bold text-content-primary truncate">{projectName || 'Project Workspace'}</span>
+                <span className="text-xs font-bold text-content-primary truncate">
+                  {scopedProjectName || projectName || 'Project Workspace'}
+                </span>
                 {isAuthenticated && (
                   <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-surface-700 border border-line text-content-muted">
                     {planLabel}
@@ -641,13 +618,15 @@ export default function Header() {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => { setIsSidebarOpen(true); setIsMobileMenuOpen(false); }}
-                  className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-700/60 hover:bg-surface-700 text-xs font-medium text-content-primary transition-colors cursor-pointer"
-                >
-                  <FolderOpen className="w-4 h-4 text-content-muted" />
-                  <span>Projects</span>
-                </button>
+                {!isProjectLocked && (
+                  <button
+                    onClick={() => { setIsSidebarOpen(true); setIsMobileMenuOpen(false); }}
+                    className="flex items-center gap-2 p-2 rounded-[var(--radius-control)] bg-surface-700/60 hover:bg-surface-700 text-xs font-medium text-content-primary transition-colors cursor-pointer"
+                  >
+                    <FolderOpen className="w-4 h-4 text-content-muted" />
+                    <span>Projects</span>
+                  </button>
+                )}
                 {isAuthenticated && (
                   <button
                     onClick={() => { setIsTeamOpen(true); setIsMobileMenuOpen(false); }}
@@ -674,7 +653,7 @@ export default function Header() {
                   Workspace Views
                 </span>
                 <button
-                  onClick={() => { router.push('/canvas'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { router.push(scopedProjectId ? `/canvas?project=${scopedProjectId}` : '/canvas'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
                     pathname === '/canvas' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
                   }`}
@@ -683,7 +662,7 @@ export default function Header() {
                   <span className="text-[10px] font-mono text-content-muted">/canvas</span>
                 </button>
                 <button
-                  onClick={() => { router.push('/flow'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { router.push(scopedProjectId ? `/flow?project=${scopedProjectId}` : '/flow'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
                     pathname === '/flow' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
                   }`}
@@ -692,7 +671,7 @@ export default function Header() {
                   <span className="text-[10px] font-mono text-content-muted">/flow</span>
                 </button>
                 <button
-                  onClick={() => { router.push('/compile'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { router.push(scopedProjectId ? `/compile?project=${scopedProjectId}` : '/compile'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
                     pathname === '/compile' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
                   }`}
@@ -701,7 +680,7 @@ export default function Header() {
                   <span className="text-[10px] font-mono text-content-muted">/compile</span>
                 </button>
                 <button
-                  onClick={() => { router.push('/ground'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { router.push(scopedProjectId ? `/ground?project=${scopedProjectId}` : '/ground'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
                     pathname === '/ground' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
                   }`}
@@ -710,7 +689,7 @@ export default function Header() {
                   <span className="text-[10px] font-mono text-content-muted">/ground</span>
                 </button>
                 <button
-                  onClick={() => { router.push('/vault'); setIsMobileMenuOpen(false); }}
+                  onClick={() => { router.push(scopedProjectId ? `/vault?project=${scopedProjectId}` : '/vault'); setIsMobileMenuOpen(false); }}
                   className={`w-full flex items-center justify-between p-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors cursor-pointer ${
                     pathname === '/vault' ? 'bg-surface-700 text-content-primary font-bold' : 'text-content-secondary hover:text-content-primary hover:bg-surface-700/50'
                   }`}
@@ -874,8 +853,6 @@ function QuotaBottomRightAlert({ remainingPercent, show }: QuotaAlertProps) {
   if (!show || isDismissed || currentRange === 100) return null;
 
   let message = "";
-  // Sarı/turuncu aile kaldırıldı — yalnızca gerçek kritik durum kırmızı,
-  // geri kalanı nötr off-white ile (bkz. kullanıcı talimatı).
   let dotColor = "bg-content-muted";
   let borderClass = "border-line-strong";
 
@@ -893,7 +870,6 @@ function QuotaBottomRightAlert({ remainingPercent, show }: QuotaAlertProps) {
     borderClass = "border-line-strong";
   }
 
-  // Sağ altta; toast yığınının üstünde durması için bottom-24.
   return (
     <div lang={lang} className={`fixed bottom-24 right-6 z-toast flex items-center gap-2.5 px-4 py-2.5 rounded-[var(--radius-card)] bg-surface-800/95 border ${borderClass} shadow-xl backdrop-blur-md animate-in slide-in-from-bottom-3 duration-250 text-content-secondary font-sans text-xs select-none`}>
       <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0`} />

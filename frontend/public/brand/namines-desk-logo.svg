@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 190 36" width="100%" height="100%" fill="none">
+  <g transform="translate(0, -2) scale(0.38)">
+    
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M84 58C84 67 77 72 69 72C59 72 54 65 54 54C54 43 59 35 69 35C77 35 84 40 84 49" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M84 18V74" stroke="#00f5c4" stroke-width="7.5" stroke-linecap="round" />
+
+  </g>
+  <text x="44" y="23" fill="currentColor" font-family="Inter, -apple-system, system-ui, sans-serif" font-weight="900" font-size="14" letter-spacing="0.08em">NAMINES</text>
+  <text x="114" y="23" fill="#00f5c4" font-family="Inter, -apple-system, system-ui, sans-serif" font-weight="700" font-size="14" letter-spacing="0.12em">DESK</text>
+</svg>

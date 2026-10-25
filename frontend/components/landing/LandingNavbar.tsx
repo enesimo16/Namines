@@ -46,6 +46,10 @@ export default function LandingNavbar() {
         setActiveSection(targetId);
         setIsMobileMenuOpen(false);
       }
+    } else if (href.startsWith('/')) {
+      e.preventDefault();
+      setIsMobileMenuOpen(false);
+      router.push(href);
     }
   };
 
@@ -63,6 +67,7 @@ export default function LandingNavbar() {
     { id: 'engines', label: 'Engines', href: '#engines' },
     { id: 'spotlights', label: 'Architecture', href: '#spotlights' },
     { id: 'security', label: 'Security', href: '#security' },
+    { id: 'hub', label: 'Hub', href: '/hub' },
   ];
 
   return (

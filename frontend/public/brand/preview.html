@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Namines Modül Tipografisi & Logoları (.nv VAULT, .nf FLOW, .ng GROUND, .nd DESK, .nh HUB)</title>
+  <style>
+    :root {
+      --bg: #0d0e11;
+      --surface: #15171c;
+      --surface-card: #1c1f26;
+      --border: rgba(255,255,255,0.1);
+      --text: #f0f2f5;
+      --text-muted: #8b92a0;
+      --teal: #00f5c4;
+      --teal-glow: rgba(0, 245, 196, 0.25);
+    }
+    body.light {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --surface-card: #f0f2f5;
+      --border: rgba(0,0,0,0.12);
+      --text: #1a1d20;
+      --text-muted: #656f7d;
+      --teal: #00b894;
+      --teal-glow: rgba(0, 184, 148, 0.2);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 40px 24px; transition: background 0.2s, color 0.2s; }
+    .container { max-width: 1050px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 24px; }
+    h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+    .subtitle { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+    .theme-btn { background: var(--surface-card); color: var(--text); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+    .theme-btn:hover { border-color: var(--teal); }
+
+    .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
+
+    /* Breadcrumb Showcase */
+    .breadcrumb-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 24px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 36px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+    .bc-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .bc-slash { color: var(--text-muted); }
+    .bc-owner { color: var(--text-muted); font-family: monospace; }
+    .bc-proj { font-weight: 700; color: var(--text); }
+    .bc-pill { font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: var(--surface-card); border: 1px solid var(--border); margin-left: 8px; }
+
+    /* Grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 20px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px; transition: transform 0.2s, border-color 0.2s; }
+    .card:hover { transform: translateY(-3px); border-color: var(--teal); }
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(0,245,196,0.1); border: 1px solid rgba(0,245,196,0.25); color: var(--teal); border-radius: 6px; font-family: monospace; font-size: 13px; font-weight: 700; }
+    
+    .hero-lockup { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 16px 0; padding: 16px; background: var(--surface-card); border-radius: 12px; border: 1px solid var(--border); }
+    .hero-symbol { width: 44px; height: 44px; }
+    .meta-title { font-size: 16px; font-weight: 800; }
+    .meta-tagline { font-size: 12px; color: var(--teal); font-weight: 600; margin-top: 2px; }
+    .meta-desc { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Namines Modül Tipografisi (.nv VAULT, .nf FLOW, .ng GROUND, .nd DESK, .nh HUB)</h1>
+        <div class="subtitle">Namines (N Λ M I N E S) marka tipografisi ile özdeş geometrik kelime logoları (Wordmark).</div>
+      </div>
+      <button class="theme-btn" onclick="document.body.classList.toggle('light')">Açık / Koyu Tema</button>
+    </header>
+
+    <div class="section-title">Canlı Breadcrumb Görünümü (Sayfa Başlıkları Simülasyonu)</div>
+    <div class="breadcrumb-box">
+      <!-- Vault -->
+      <div class="bc-row">
+        <div style="width: 22px; height: 22px;"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M60 36L74 74L88 36" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="74" cy="48" r="4" fill="#00f5c4" />
+</svg></div>
+        <div><svg viewBox="0 0 154 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6L17 26L30 6" />
+    <path d="M40 26L53 6L66 26" />
+    <path d="M76 6V19C76 24 80 26 86 26C92 26 96 24 96 19V6" />
+    <path d="M106 6V26H122" />
+    <path d="M131 6H149M140 6V26" />
+  </g>
+</svg></div>
+        <span class="bc-slash">/</span>
+        <span class="bc-owner">namines@namines.com</span>
+        <span class="bc-slash">/</span>
+        <span class="bc-proj">blog_platform</span>
+        <span class="bc-pill">🛡️ PITR Active</span>
+      </div>
+
+      <!-- Flow -->
+      <div class="bc-row">
+        <div style="width: 22px; height: 22px;"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M66 74V30C66 22 72 17 82 17" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M58 43H84" stroke="#00f5c4" stroke-width="7.5" stroke-linecap="round" />
+</svg></div>
+        <div><svg viewBox="0 0 126 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6V26M4 6H22M4 16H18" />
+    <path d="M31 6V26H47" />
+    <path d="M66 6C58 6 54 10.5 54 16C54 21.5 58 26 66 26C74 26 78 21.5 78 16C78 10.5 74 6 66 6Z" />
+    <path d="M87 6L95 26L104 11L113 26L121 6" />
+  </g>
+</svg></div>
+        <span class="bc-slash">/</span>
+        <span class="bc-owner">namines@namines.com</span>
+        <span class="bc-slash">/</span>
+        <span class="bc-proj">blog_platform</span>
+        <span class="bc-pill">⚡ Automation Active</span>
+      </div>
+
+      <!-- Ground -->
+      <div class="bc-row">
+        <div style="width: 22px; height: 22px;"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M86 48C86 39 79 35 71 35C61 35 56 42 56 54C56 65 61 72 71 72C79 72 86 67 86 58" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M86 37V74C86 86 78 92 68 92C59 92 56 87 56 87" stroke="#00f5c4" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg></div>
+        <div><svg viewBox="0 0 184 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M26 11C24 7.5 19 6 15 6C7 6 4 10.5 4 16C4 21.5 7 26 15 26C22 26 26 21 26 17H15" />
+    <path d="M35 6V26M35 6H48C54 6 56 8.5 56 13C56 16.5 53 18 48 18H35M47 18L56 26" />
+    <path d="M75 6C67 6 63 10.5 63 16C63 21.5 67 26 75 26C83 26 87 21.5 87 16C87 10.5 83 6 75 6Z" />
+    <path d="M97 6V19C97 24 101 26 107 26C113 26 117 24 117 19V6" />
+    <path d="M127 26V6L147 26V6" />
+    <path d="M157 6V26M157 6H167C176 6 180 10.5 180 16C180 21.5 176 26 167 26H157" />
+  </g>
+</svg></div>
+        <span class="bc-slash">/</span>
+        <span class="bc-owner">namines@namines.com</span>
+        <span class="bc-slash">/</span>
+        <span class="bc-proj">blog_platform</span>
+        <span class="bc-pill">🐘 PostgreSQL 16</span>
+      </div>
+
+      <!-- Desk -->
+      <div class="bc-row">
+        <div style="width: 22px; height: 22px;"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M84 58C84 67 77 72 69 72C59 72 54 65 54 54C54 43 59 35 69 35C77 35 84 40 84 49" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M84 18V74" stroke="#00f5c4" stroke-width="7.5" stroke-linecap="round" />
+</svg></div>
+        <div><svg viewBox="0 0 108 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6V26M4 6H14C23 6 27 10.5 27 16C27 21.5 23 26 14 26H4" />
+    <path d="M36 6V26M36 6H52M36 16H48M36 26H52" />
+    <path d="M76 11C74 7.5 70 6 65 6C59 6 56 9 56 13 C56 17 60 18.5 66 19.5 C72 20.5 76 22 76 26 C76 30 71 32 65 32 C59 32 55 28 55 24" />
+    <path d="M86 6V26M103 6L88 17L104 26" />
+  </g>
+</svg></div>
+        <span class="bc-slash">/</span>
+        <span class="bc-owner">namines@namines.com</span>
+        <span class="bc-slash">/</span>
+        <span class="bc-proj">blog_platform</span>
+        <span class="bc-pill">📊 Data Studio</span>
+      </div>
+
+      <!-- Hub -->
+      <div class="bc-row">
+        <div style="width: 22px; height: 22px;"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M62 18V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M62 48C62 39 68 35 76 35C84 35 88 40 88 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="88" cy="48" r="4" fill="#00f5c4" />
+</svg></div>
+        <div><svg viewBox="0 0 86 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6V26M22 6V26M4 16H22" />
+    <path d="M31 6V19C31 24 35 26 41 26C47 26 51 24 51 19V6" />
+    <path d="M61 6V26M61 6H73C79 6 81 8.5 81 12.5C81 15.5 79 16.5 73 16.5M61 16.5H74C80 16.5 82 19 82 23C82 26 79 26 73 26H61" />
+  </g>
+</svg></div>
+        <span class="bc-slash">/</span>
+        <span class="bc-owner">enesimo16</span>
+        <span class="bc-slash">/</span>
+        <span class="bc-proj">Namines</span>
+        <span class="bc-pill">🌐 Public Repo</span>
+      </div>
+    </div>
+
+    <div class="section-title">Modül Sembol &amp; Tipografi Eşleşmesi</div>
+    <div class="grid">
+      
+        <div class="card">
+          <div>
+            <div class="card-top">
+              <span class="card-badge">.nf</span>
+              <span style="font-size: 11px; font-family: monospace; color: var(--text-muted);">flow</span>
+            </div>
+
+            <div class="hero-lockup">
+              <div class="hero-symbol"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M66 74V30C66 22 72 17 82 17" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M58 43H84" stroke="#00f5c4" stroke-width="7.5" stroke-linecap="round" />
+</svg></div>
+              <div style="height: 20px;"><svg viewBox="0 0 126 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6V26M4 6H22M4 16H18" />
+    <path d="M31 6V26H47" />
+    <path d="M66 6C58 6 54 10.5 54 16C54 21.5 58 26 66 26C74 26 78 21.5 78 16C78 10.5 74 6 66 6Z" />
+    <path d="M87 6L95 26L104 11L113 26L121 6" />
+  </g>
+</svg></div>
+            </div>
+
+            <div class="meta-title">NAMINES FLOW</div>
+            <div class="meta-tagline">Event & Workflow Engine</div>
+            <div class="meta-desc">Olay güdümlü veritabanı yaşam döngüsü tetikleyicileri, webhook ve arka plan akışları</div>
+          </div>
+        </div>
+      
+        <div class="card">
+          <div>
+            <div class="card-top">
+              <span class="card-badge">.ng</span>
+              <span style="font-size: 11px; font-family: monospace; color: var(--text-muted);">ground</span>
+            </div>
+
+            <div class="hero-lockup">
+              <div class="hero-symbol"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M86 48C86 39 79 35 71 35C61 35 56 42 56 54C56 65 61 72 71 72C79 72 86 67 86 58" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M86 37V74C86 86 78 92 68 92C59 92 56 87 56 87" stroke="#00f5c4" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg></div>
+              <div style="height: 20px;"><svg viewBox="0 0 184 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M26 11C24 7.5 19 6 15 6C7 6 4 10.5 4 16C4 21.5 7 26 15 26C22 26 26 21 26 17H15" />
+    <path d="M35 6V26M35 6H48C54 6 56 8.5 56 13C56 16.5 53 18 48 18H35M47 18L56 26" />
+    <path d="M75 6C67 6 63 10.5 63 16C63 21.5 67 26 75 26C83 26 87 21.5 87 16C87 10.5 83 6 75 6Z" />
+    <path d="M97 6V19C97 24 101 26 107 26C113 26 117 24 117 19V6" />
+    <path d="M127 26V6L147 26V6" />
+    <path d="M157 6V26M157 6H167C176 6 180 10.5 180 16C180 21.5 176 26 167 26H157" />
+  </g>
+</svg></div>
+            </div>
+
+            <div class="meta-title">NAMINES GROUND</div>
+            <div class="meta-tagline">Fleet & Ephemeral Sandboxes</div>
+            <div class="meta-desc">Gerçek PostgreSQL ve çoklu motor konteyner provizyonu ve canlı metrikler</div>
+          </div>
+        </div>
+      
+        <div class="card">
+          <div>
+            <div class="card-top">
+              <span class="card-badge">.nv</span>
+              <span style="font-size: 11px; font-family: monospace; color: var(--text-muted);">vault</span>
+            </div>
+
+            <div class="hero-lockup">
+              <div class="hero-symbol"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M60 36L74 74L88 36" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="74" cy="48" r="4" fill="#00f5c4" />
+</svg></div>
+              <div style="height: 20px;"><svg viewBox="0 0 154 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6L17 26L30 6" />
+    <path d="M40 26L53 6L66 26" />
+    <path d="M76 6V19C76 24 80 26 86 26C92 26 96 24 96 19V6" />
+    <path d="M106 6V26H122" />
+    <path d="M131 6H149M140 6V26" />
+  </g>
+</svg></div>
+            </div>
+
+            <div class="meta-title">NAMINES VAULT</div>
+            <div class="meta-tagline">Zero-Knowledge PITR & Keys</div>
+            <div class="meta-desc">Sıfır bilgi şifreli yedekleme, anlık geri yükleme ve Gateway API anahtarları</div>
+          </div>
+        </div>
+      
+        <div class="card">
+          <div>
+            <div class="card-top">
+              <span class="card-badge">.nd</span>
+              <span style="font-size: 11px; font-family: monospace; color: var(--text-muted);">desk</span>
+            </div>
+
+            <div class="hero-lockup">
+              <div class="hero-symbol"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M84 58C84 67 77 72 69 72C59 72 54 65 54 54C54 43 59 35 69 35C77 35 84 40 84 49" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M84 18V74" stroke="#00f5c4" stroke-width="7.5" stroke-linecap="round" />
+</svg></div>
+              <div style="height: 20px;"><svg viewBox="0 0 108 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6V26M4 6H14C23 6 27 10.5 27 16C27 21.5 23 26 14 26H4" />
+    <path d="M36 6V26M36 6H52M36 16H48M36 26H52" />
+    <path d="M76 11C74 7.5 70 6 65 6C59 6 56 9 56 13 C56 17 60 18.5 66 19.5 C72 20.5 76 22 76 26 C76 30 71 32 65 32 C59 32 55 28 55 24" />
+    <path d="M86 6V26M103 6L88 17L104 26" />
+  </g>
+</svg></div>
+            </div>
+
+            <div class="meta-title">NAMINES DESK</div>
+            <div class="meta-tagline">Data Studio & SQL Console</div>
+            <div class="meta-desc">Yüksek yoğunluklu ilişkisel veri tarayıcısı ve doğrudan SQL yönetim konsolu</div>
+          </div>
+        </div>
+      
+        <div class="card">
+          <div>
+            <div class="card-top">
+              <span class="card-badge">.nh</span>
+              <span style="font-size: 11px; font-family: monospace; color: var(--text-muted);">hub</span>
+            </div>
+
+            <div class="hero-lockup">
+              <div class="hero-symbol"><svg viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="74" r="6" fill="#00f5c4" />
+  <path d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M62 18V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M62 48C62 39 68 35 76 35C84 35 88 40 88 48V74" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="88" cy="48" r="4" fill="#00f5c4" />
+</svg></div>
+              <div style="height: 20px;"><svg viewBox="0 0 86 32" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="currentColor" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6V26M22 6V26M4 16H22" />
+    <path d="M31 6V19C31 24 35 26 41 26C47 26 51 24 51 19V6" />
+    <path d="M61 6V26M61 6H73C79 6 81 8.5 81 12.5C81 15.5 79 16.5 73 16.5M61 16.5H74C80 16.5 82 19 82 23C82 26 79 26 73 26H61" />
+  </g>
+</svg></div>
+            </div>
+
+            <div class="meta-title">NAMINES HUB</div>
+            <div class="meta-tagline">Database Change Repositories</div>
+            <div class="meta-desc">GitHub modeli veritabanı değişiklik havuzları, blueprintler ve mimari vitrini</div>
+          </div>
+        </div>
+      
+    </div>
+  </div>
+</body>
+</html>
