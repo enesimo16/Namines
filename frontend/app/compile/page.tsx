@@ -116,6 +116,24 @@ export default function CompilePage() {
   const [activeTab, setActiveTab] = useState<TabId>('SQL');
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingSvg, setIsExportingSvg] = useState(false);
+  const [isExportingToHub, setIsExportingToHub] = useState(false);
+
+  const handleExportToHub = async () => {
+    if (!schema) return;
+    setIsExportingToHub(true);
+    try {
+      const activeProject = useProjectHistoryStore.getState().projects.find((p) => p.id === schema.schemaId);
+      const projName = activeProject?.name || schema.name || 'Untitled Architecture';
+      const slug = projName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'repo';
+
+      showToast(`Derlenen yapıt "${projName}" Hub reposuna aktarıldı!`, 'success');
+      router.push(`/hub/me/${encodeURIComponent(slug)}`);
+    } catch {
+      showToast('Hub reposuna aktarma başarısız oldu.', 'error');
+    } finally {
+      setIsExportingToHub(false);
+    }
+  };
   const [focusTable, setFocusTable] = useState<string>('');
   const [tableFilterQuery, setTableFilterQuery] = useState('');
 
@@ -443,8 +461,18 @@ export default function CompilePage() {
             </div>
           </div>
 
-          {/* Right Header Controls (Diagram switcher, etc.) */}
+          {/* Right Header Controls (Export to Hub, Diagram switcher, etc.) */}
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleExportToHub}
+              disabled={isExportingToHub}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-[var(--radius-control)] bg-surface-700 hover:bg-surface-650 text-content-primary border border-line-strong transition-all cursor-pointer shadow-xs"
+              title="Export current compiled architecture to Hub Repository"
+            >
+              <GitFork className="w-3.5 h-3.5 text-accent-text" />
+              <span>Repo&apos;ya Aktar</span>
+            </button>
             {activeTab === 'ER' && (
               <div id="compile-diagram-controls" className="flex items-center gap-2">
                 <div className="w-48 shrink-0">

@@ -1405,4 +1405,116 @@ export const GUIDES: Record<string, GuideDefinition> = {
       },
     ],
   },
+
+  // ── 11. Özel Rehber: Namines Hub (/hub) ─────────────────────────────────
+  hub: {
+    id: 'hub',
+    category: { en: 'Namines Hub', tr: 'Namines Hub Mimarisi & Depo Yönetimi' },
+    steps: [
+      {
+        target: 'header',
+        badge: { en: 'Hub Repository', tr: 'Hub Deposu' },
+        directive: {
+          en: 'Explore published architecture repositories, schemas, and blueprints.',
+          tr: 'Yayınlanan mimari depolarını, şemaları ve hazır şablonları inceleyin.',
+        },
+        title: {
+          en: 'Architecture Hub & Blueprints',
+          tr: 'Mimari Deposu ve Şablonlar',
+        },
+        description: {
+          en: 'GitHub-form repository experience tailored for relational databases, schema visualizers, and team governance.',
+          tr: 'İlişkisel veritabanları, görsel şema tuvali ve ekip işbirliği için tasarlanmış GitHub benzeri depo deneyimi.',
+        },
+      },
+      {
+        target: 'main',
+        badge: { en: 'Schema Visualizer & Fullscreen', tr: 'Şema Görselleştirici & Tam Ekran' },
+        directive: {
+          en: 'Toggle interactive ER diagrams, flow pipelines, and enter fullscreen mode.',
+          tr: 'Etkileşimli ER diyagramlarını, veri akışlarını inceleyin ve tam ekran moduna geçin.',
+        },
+        title: {
+          en: 'Live Canvas & Code Explorer',
+          tr: 'Canlı Tuval ve Kod Gezgini',
+        },
+        description: {
+          en: 'Switch branches live, inspect tables, and preview compiled DDL, Prisma, EF Core, and OpenAPI specifications.',
+          tr: 'Dallar arasında canlı geçiş yapın, tabloları inceleyin ve derlenen DDL, Prisma, EF Core kodlarını görüntüleyin.',
+        },
+      },
+      {
+        target: 'main',
+        badge: { en: 'Add Artifacts & Pull Requests', tr: 'Yapıt Ekleme & PR İncelemeleri' },
+        directive: {
+          en: 'Import Mermaid diagrams, SDKs, or propose branch changes via New Pull Request.',
+          tr: 'Mermaid diyagramları ve SDK derlemelerini depoya aktarın veya New Pull Request ile PR açın.',
+        },
+        title: {
+          en: 'Build Artifacts & Governance PRs',
+          tr: 'Derleme Yapıtları & Yönetişim PR’ları',
+        },
+        description: {
+          en: 'Integrate 7 Mermaid diagram types, 10 compiler targets, and manage automated schema review requests.',
+          tr: '7 farklı Mermaid diyagramını, 10 derleyici hedefini içe aktarın ve otomatik şema inceleme isteklerini yönetin.',
+        },
+      },
+    ],
+  },
+
+  // ── 12. Özel Rehber: Namines Desk (/desk) ─────────────────────────────────
+  desk: {
+    id: 'desk',
+    category: { en: 'Namines Desk', tr: 'Namines Desk Veri Stüdyosu' },
+    steps: [
+      {
+        target: 'header',
+        badge: { en: 'Global Table Selector', tr: 'Global Tablo Seçici' },
+        directive: {
+          en: 'Switch between database tables globally across all tabs from the top breadcrumbs bar.',
+          tr: 'Üst çubuktan tüm sekmelerde geçerli olacak şekilde tablolar arasında anında geçiş yapın.',
+        },
+        title: {
+          en: 'Global Table Navigation',
+          tr: 'Genel Tablo Gezintisi',
+        },
+        description: {
+          en: 'Persists active table selection seamlessly across Data Browser, Schema & DDL, SQL Console, and Gateway API tabs.',
+          tr: 'Veri Tarayıcısı, Şema & DDL, SQL Konsolu ve Gateway sekmelerinde seçili tabloyu kesintisiz korur.',
+        },
+      },
+      {
+        target: 'main',
+        badge: { en: 'Data Browser & Inline Mutation', tr: 'Veri Tarayıcı & Doğrudan Güncelleme' },
+        directive: {
+          en: 'Inspect records with horizontal scroll indicators, filter queries, and insert new records.',
+          tr: 'Kayıtları yatay kaydırma göstergeleriyle ferahça inceleyin, arama yapın ve yeni kayıtlar ekleyin.',
+        },
+        title: {
+          en: 'High-Density Relational Grid',
+          tr: 'Yüksek Yoğunluklu İlişkisel Tablo',
+        },
+        description: {
+          en: 'View sample data, mutate columns inline, and inspect foreign key relationships directly in the grid.',
+          tr: 'Örnek verileri görüntüleyin, kolonları doğrudan güncelleyin ve yabancı anahtar ilişkilerini takip edin.',
+        },
+      },
+      {
+        target: 'main',
+        badge: { en: 'SQL Console & Gateway API', tr: 'SQL Konsolu & Gateway API' },
+        directive: {
+          en: 'Execute SQL queries or inspect REST API endpoints generated for your tables.',
+          tr: 'SQL sorgularını çalıştırın veya tablolarınız için otomatik üretilen REST Gateway uçlarını test edin.',
+        },
+        title: {
+          en: 'Interactive SQL & Auto REST Endpoints',
+          tr: 'Etkileşimli SQL & Otomatik REST Uçları',
+        },
+        description: {
+          en: 'Test CRUD operations, filter query history, and simulate real API requests against your database.',
+          tr: 'CRUD işlemlerini test edin, sorgu geçmişinizi inceleyin ve veritabanınıza karşı gerçek API istekleri simüle edin.',
+        },
+      },
+    ],
+  },
 };
