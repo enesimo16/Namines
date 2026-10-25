@@ -251,3 +251,46 @@ export function getFeatureFlagPayload(flagKey: string): unknown {
   }
   return null;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NAMINES HUB OLAYLARI (G57 — Faz 4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function trackHubRepoViewed(owner: string, slug: string): void {
+  trackEvent('hub_repo_viewed', {
+    owner,
+    slug,
+    module: 'hub',
+  });
+}
+
+export function trackHubRepoStarred(projectId: string, isStarred: boolean): void {
+  trackEvent('hub_repo_starred', {
+    projectId,
+    isStarred,
+    module: 'hub',
+  });
+}
+
+export function trackHubRepoForked(projectId: string): void {
+  trackEvent('hub_repo_forked', {
+    projectId,
+    module: 'hub',
+  });
+}
+
+export function trackHubIssueCreated(projectId: string, issueNumber: number): void {
+  trackEvent('hub_issue_created', {
+    projectId,
+    issueNumber,
+    module: 'hub',
+  });
+}
+
+export function trackHubGithubSync(projectId: string, repo: string): void {
+  trackEvent('hub_github_sync', {
+    projectId,
+    repo,
+    module: 'hub',
+  });
+}

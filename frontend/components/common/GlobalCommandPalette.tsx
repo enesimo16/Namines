@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
-  Search, X, Boxes, Zap, Hammer, ShieldCheck, HardDrive, GitPullRequest,
+  Search, X, Boxes, Globe, Zap, Hammer, ShieldCheck, HardDrive, GitPullRequest,
   Table2, Plus, Settings, Sun, Moon, Languages, Keyboard,
   Sparkles, Columns, GitBranch, ArrowRight, CornerDownLeft, FileText,
   Database
@@ -18,6 +18,7 @@ import { setLocale, useLangAttr } from '../../lib/i18n';
 import { formatShortcutKey, isMac } from '../../lib/shortcuts';
 import { openDeskHandoff, DESK_URL } from '../../lib/deskHandoff';
 import { authService } from '../../services/api';
+import { ModuleSymbol } from '../layout/ModuleLogo';
 
 const CATEGORY_ORDER: ActionCategory[] = [
   'navigation',
@@ -131,7 +132,7 @@ export default function GlobalCommandPalette() {
         description: 'Interactive ERD whiteboard and schema design',
         category: 'navigation',
         keywords: ['canvas', 'diagram', 'whiteboard', 'erd', 'schema'],
-        icon: <Boxes className="w-4 h-4 text-accent-text" />,
+        icon: <ModuleSymbol module="diagram" size={16} />,
         shortcut: ['G', 'D'],
         onSelect: () => navigateTo('/canvas'),
       },
@@ -141,7 +142,7 @@ export default function GlobalCommandPalette() {
         description: 'Export DDL, Prisma, EF Core, README and test sandbox',
         category: 'navigation',
         keywords: ['compile', 'studio', 'export', 'sql', 'prisma', 'docker'],
-        icon: <Hammer className="w-4 h-4 text-accent-text" />,
+        icon: <ModuleSymbol module="build" size={16} />,
         shortcut: ['G', 'C'],
         onSelect: () => navigateTo('/compile'),
       },
@@ -161,7 +162,7 @@ export default function GlobalCommandPalette() {
         description: 'Event-driven database webhooks, rules, and actions',
         category: 'navigation',
         keywords: ['flow', 'automation', 'rules', 'triggers', 'events'],
-        icon: <Zap className="w-4 h-4 text-accent-text" />,
+        icon: <ModuleSymbol module="flow" size={16} />,
         shortcut: ['G', 'F'],
         onSelect: () => navigateTo('/flow'),
       },
@@ -171,7 +172,7 @@ export default function GlobalCommandPalette() {
         description: 'Managed database instances and live connection metrics',
         category: 'navigation',
         keywords: ['ground', 'host', 'database', 'postgres', 'finops'],
-        icon: <HardDrive className="w-4 h-4 text-accent-text" />,
+        icon: <ModuleSymbol module="ground" size={16} />,
         shortcut: ['G', 'G'],
         onSelect: () => navigateTo('/ground'),
       },
@@ -181,9 +182,19 @@ export default function GlobalCommandPalette() {
         description: 'Encrypted backups, verification runs, and point-in-time restore',
         category: 'navigation',
         keywords: ['vault', 'backup', 'restore', 'encrypted', 'security'],
-        icon: <ShieldCheck className="w-4 h-4 text-accent-text" />,
+        icon: <ModuleSymbol module="vault" size={16} />,
         shortcut: ['G', 'V'],
         onSelect: () => navigateTo('/vault'),
+      },
+      {
+        id: 'nav-hub',
+        label: 'Namines Hub',
+        description: 'Explore public database repositories, blueprints, and architecture showcase',
+        category: 'navigation',
+        keywords: ['hub', 'repository', 'showcase', 'blueprints', 'explore', 'stars'],
+        icon: <ModuleSymbol module="hub" size={16} />,
+        shortcut: ['G', 'H'],
+        onSelect: () => navigateTo('/hub'),
       },
       {
         id: 'nav-desk',
@@ -191,7 +202,7 @@ export default function GlobalCommandPalette() {
         description: 'Data browser, table management, and raw SQL console',
         category: 'navigation',
         keywords: ['desk', 'admin', 'crud', 'data', 'backoffice'],
-        icon: <Table2 className="w-4 h-4 text-accent-text" />,
+        icon: <ModuleSymbol module="desk" size={16} />,
         shortcut: ['G', 'K'],
         onSelect: openDesk,
       },

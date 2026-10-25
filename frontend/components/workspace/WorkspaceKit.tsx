@@ -26,13 +26,15 @@ const focusRing =
 /* ── Sayfa kabuğu ────────────────────────────────────────────────────────── */
 export function PageShell({
   children,
-  width = 'max-w-5xl',
+  width = 'max-w-6xl',
+  className = '',
 }: {
   children: React.ReactNode;
   width?: string;
+  className?: string;
 }) {
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-surface-900 text-content-primary font-sans">
+    <div className={`min-h-[calc(100vh-56px)] bg-surface-900 text-content-primary font-sans ${className}`}>
       <div className={`mx-auto w-full ${width} px-4 sm:px-6 py-6 sm:py-8 space-y-6`}>{children}</div>
     </div>
   );
@@ -54,7 +56,7 @@ export function PageHeader({
   return (
     <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-start gap-3.5 min-w-0">
-        <span className="shrink-0 flex items-center justify-center w-10 h-10 rounded-[var(--radius-card)] bg-surface-800 border border-line-strong text-namines-teal-vibrant shadow-xs">
+        <span className="shrink-0 flex items-center justify-center w-10 h-10 rounded-[var(--radius-card)] bg-surface-800 border border-line-strong text-content-primary shadow-xs">
           <Icon className="w-5 h-5" aria-hidden="true" />
         </span>
         <div className="min-w-0">
@@ -230,7 +232,7 @@ export function StatTile({ label, value, hint }: { label: string; value: React.R
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const BUTTON: Record<ButtonVariant, string> = {
-  primary: 'bg-namines-teal-vibrant text-surface-900 font-bold hover:brightness-105 active:scale-95 shadow-xs',
+  primary: 'bg-content-primary hover:bg-content-primary/90 text-surface-900 font-semibold active:scale-95 shadow-xs',
   secondary: 'bg-surface-700 hover:bg-surface-600 text-content-primary border border-line-strong font-semibold shadow-xs',
   ghost: 'text-content-secondary hover:text-content-primary hover:bg-surface-700/60 font-medium',
   danger: 'bg-danger-subtle hover:bg-danger/25 text-danger-text border border-danger/30 font-semibold shadow-xs',
@@ -327,7 +329,7 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative shrink-0 w-10 h-6 rounded-full border transition-colors duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${focusRing} ${
-        checked ? 'bg-namines-teal-vibrant border-transparent' : 'bg-surface-600 border-line-strong'
+        checked ? 'bg-content-primary border-transparent' : 'bg-surface-600 border-line-strong'
       }`}
     >
       <span
@@ -471,7 +473,7 @@ export function Tabs<T extends string>({
                 {tab.count}
               </span>
             )}
-            {active && <span className="absolute left-3 right-3 -bottom-px h-0.5 rounded-full bg-namines-teal-vibrant" />}
+            {active && <span className="absolute left-3 right-3 -bottom-px h-0.5 rounded-full bg-content-primary" />}
           </button>
         );
       })}

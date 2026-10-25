@@ -42,42 +42,7 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
   const { activeProjectId } = useProjectHistoryStore();
   const [isFixing, setIsFixing] = useState(false);
   const [isAnalyzingLocal, setIsAnalyzingLocal] = useState(false);
-  const [isCopyingBadge, setIsCopyingBadge] = useState(false);
   const showToast = useToastStore(state => state.showToast);
-
-  const handleCopyBadge = async () => {
-    if (!activeProjectId) {
-      showToast('Save the project to the cloud first.', 'warning');
-      return;
-    }
-    setIsCopyingBadge(true);
-    try {
-      // Force sync with cloud first to ensure project is saved in database
-      const state = useProjectHistoryStore.getState();
-      const activeProject = state.projects.find(p => p.id === activeProjectId);
-      if (activeProject && activeProject.schema) {
-        const syncData = [{
-          id: activeProject.id,
-          name: activeProject.name,
-          dbType: activeProject.dbType,
-          schemaJson: JSON.stringify(activeProject.schema),
-          nodePositionsJson: JSON.stringify(activeProject.nodePositions ?? {}),
-        }];
-        await authService.syncProjects(syncData);
-      }
-
-      const { token } = await authService.createShareLink(activeProjectId);
-      const badgeUrl = `${API_ORIGIN}/api/share/badge/${token}`;
-      const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/share/${token}`;
-      const markdown = `[![DBA Score](${badgeUrl})](${shareUrl})`;
-      await navigator.clipboard.writeText(markdown);
-      showToast('DBA badge Markdown copied to clipboard!', 'success');
-    } catch {
-      showToast('Failed to generate badge URL.', 'error');
-    } finally {
-      setIsCopyingBadge(false);
-    }
-  };
 
   const { analyzeNow } = useAIDba();
   const { checkAccess } = useAIGateway();
@@ -253,19 +218,6 @@ export default function DbaIssuePanel({ isOpen, onClose, issues, score, assessme
           </div>
         </div>
 
-        {/* DBA Badge */}
-        <button
-          onClick={handleCopyBadge}
-          disabled={isCopyingBadge}
-          className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-[var(--radius-control)] border border-line bg-surface-700/50 hover:bg-surface-700 hover:border-line-strong text-content-secondary hover:text-content-primary text-xs font-medium transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          title="Copy Markdown badge for your README"
-        >
-          {isCopyingBadge
-            ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-            : <Shield className="w-3.5 h-3.5 shrink-0" />
-          }
-          <span>Copy DBA Badge (Markdown)</span>
-        </button>
 
         {/* Assessment */}
         <div className="p-3 bg-surface-700/30 border border-line rounded-[var(--radius-control)] space-y-1">

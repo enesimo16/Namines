@@ -4,6 +4,13 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Namines.Core.Models.Auth
 {
+    public enum ProjectVisibility
+    {
+        Private = 0,
+        Team = 1,
+        Public = 2
+    }
+
     public class CloudProject
     {
         [Key]
@@ -105,5 +112,27 @@ namespace Namines.Core.Models.Auth
         /// kullanıcı bu bayrak açıkken SQL çalıştırabilir — iki ayrı kontrol.
         /// </summary>
         public bool AllowDeskSql { get; set; } = false;
+
+        /// <summary>URL-dostu benzersiz kısa ad (ör: "multi-tenant-saas").</summary>
+        public string? Slug { get; set; }
+
+        public string? Description { get; set; }
+
+        public ProjectVisibility Visibility { get; set; } = ProjectVisibility.Private;
+
+        /// <summary>Hub kategorisi: "FinTech", "SaaS", "E-Commerce", "ERP", "AI", "Healthcare", "General".</summary>
+        public string Category { get; set; } = "General";
+
+        /// <summary>Virgülle ayrılmış etiketler (ör: "postgresql,3nf,multi-tenant").</summary>
+        public string? Tags { get; set; }
+
+        public int StarCount { get; set; } = 0;
+        public int ForkCount { get; set; } = 0;
+
+        /// <summary>Bu proje başka bir projeden fork edildiyse kaynak projenin ID'si.</summary>
+        public string? ForkedFromProjectId { get; set; }
+
+        /// <summary>Bağlı GitHub deposu ("owner/repo").</summary>
+        public string? LinkedGithubRepo { get; set; }
     }
 }

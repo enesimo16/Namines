@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
+using Namines.Core.Models.Hub;
 
 namespace Namines.Infrastructure.Data
 {
@@ -61,6 +62,10 @@ namespace Namines.Infrastructure.Data
 
         /// <summary>Dinamik AI araç yönlendirme kuralları (Tool -> LLM Provider/Model).</summary>
         public DbSet<AiToolRoute> AiToolRoutes { get; set; } = null!;
+
+        public DbSet<RepoIssue> RepoIssues { get; set; } = null!;
+        public DbSet<RepoIssueComment> RepoIssueComments { get; set; } = null!;
+        public DbSet<RepoStar> RepoStars { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -453,6 +458,59 @@ namespace Namines.Infrastructure.Data
                 entity.Property(r => r.Provider).HasMaxLength(64);
                 entity.Property(r => r.ModelName).HasMaxLength(128);
                 entity.Property(r => r.FallbackProvider).HasMaxLength(64);
+            });
+
+            // ── Namines Hub: Architecture Repositories, Issues, Comments & Stars ──
+            builder.Entity<CloudProject>(entity =>
+            {
+                entity.HasIndex(p => p.Slug);
+                entity.HasIndex(p => p.Visibility);
+            });
+
+            builder.Entity<RepoIssue>(entity =>
+            {
+                entity.HasKey(i => i.Id);
+                entity.HasIndex(i => new { i.ProjectId, i.IssueNumber }).IsUnique();
+                entity.HasIndex(i => new { i.ProjectId, i.IsClosed });
+                entity.Property(i => i.Title).HasMaxLength(256);
+                entity.Property(i => i.RelatedTableName).HasMaxLength(128);
+                entity.Property(i => i.NslRuleCode).HasMaxLength(32);
+                entity.Property(i => i.Labels).HasMaxLength(256);
+                entity.HasOne(i => i.Project)
+                    .WithMany()
+                    .HasForeignKey(i => i.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(i => i.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(i => i.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<RepoIssueComment>(entity =>
+            {
+                entity.HasKey(c => c.Id);
+                entity.HasIndex(c => c.IssueId);
+                entity.HasOne(c => c.Issue)
+                    .WithMany()
+                    .HasForeignKey(c => c.IssueId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(c => c.AuthorUser)
+                    .WithMany()
+                    .HasForeignKey(c => c.AuthorUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<RepoStar>(entity =>
+            {
+                entity.HasKey(s => new { s.ProjectId, s.UserId });
+                entity.HasOne(s => s.Project)
+                    .WithMany()
+                    .HasForeignKey(s => s.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(s => s.User)
+                    .WithMany()
+                    .HasForeignKey(s => s.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

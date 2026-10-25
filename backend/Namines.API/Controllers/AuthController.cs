@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -407,6 +408,11 @@ namespace Namines.API.Controllers
                     existing.SchemaJson = projDto.SchemaJson;
                     existing.NodePositionsJson = projDto.NodePositionsJson;
                     existing.UpdatedAt = DateTime.UtcNow;
+                    if (string.IsNullOrWhiteSpace(existing.Slug))
+                    {
+                        var clean = System.Text.RegularExpressions.Regex.Replace(existing.Name.ToLowerInvariant(), @"[^a-z0-9\-]", "-").Trim('-');
+                        existing.Slug = string.IsNullOrWhiteSpace(clean) ? $"project-{existing.Id[..Math.Min(6, existing.Id.Length)]}" : clean;
+                    }
                     existing.OrganizationId ??= activeOrgId;
                     _context.CloudProjects.Update(existing);
 
@@ -425,6 +431,7 @@ namespace Namines.API.Controllers
                     {
                         Id = idTakenByOther ? Guid.NewGuid().ToString() : projDto.Id,
                         Name = projDto.Name,
+                        Slug = System.Text.RegularExpressions.Regex.Replace(projDto.Name.ToLowerInvariant(), @"[^a-z0-9\-]", "-").Trim('-'),
                         DbType = projDto.DbType,
                         SchemaJson = projDto.SchemaJson,
                         NodePositionsJson = projDto.NodePositionsJson,
@@ -1037,6 +1044,272 @@ namespace Namines.API.Controllers
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
+        /// <summary>
+        /// Namines Hub & Auth (Faz 4): OAuth sağlayıcılarının (Google, GitHub)
+        /// yapılandırma durumunu ve istemci kimliklerini döner.
+        /// </summary>
+        [HttpGet("oauth/providers")]
+        [AllowAnonymous]
+        public IActionResult GetOAuthProviders()
+        {
+            var googleClientId = _configuration["Authentication:Google:ClientId"]
+                                 ?? _configuration["Google:ClientId"]
+                                 ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
+
+            var githubClientId = _configuration["Authentication:GitHub:ClientId"]
+                                 ?? _configuration["GitHub:ClientId"]
+                                 ?? Environment.GetEnvironmentVariable("GITHUB_CLIENT_ID");
+
+            return Ok(new
+            {
+                google = new
+                {
+                    enabled = !string.IsNullOrWhiteSpace(googleClientId),
+                    clientId = googleClientId
+                },
+                github = new
+                {
+                    enabled = !string.IsNullOrWhiteSpace(githubClientId),
+                    clientId = githubClientId
+                }
+            });
+        }
+
+        /// <summary>
+        /// Namines Hub & Auth (Faz 4): Google veya GitHub OAuth callback'ini işler,
+        /// kullanıcıyı bulur veya otomatik oluşturur, oturum cookie'sini yazar.
+        /// Geliştirme ortamında (Development) sağlayıcı anahtarı yoksa güvenli simülasyon sunar.
+        /// </summary>
+        [HttpPost("oauth/callback")]
+        [AllowAnonymous]
+        public async Task<IActionResult> OAuthCallback([FromBody] OAuthCallbackRequestDto model)
+        {
+            if (model == null || string.IsNullOrWhiteSpace(model.Provider))
+                return BadRequest(new { Message = "Provider is required (google or github)." });
+
+            var provider = model.Provider.Trim().ToLowerInvariant();
+            string email = "";
+            string name = "";
+            string? avatar = null;
+
+            // 1. Geliştirme ortamı / Simülasyon modu
+            if (model.IsDevSimulation)
+            {
+                if (provider == "google")
+                {
+                    email = "google.dev@namines.app";
+                    name = "Google Developer";
+                }
+                else if (provider == "github")
+                {
+                    email = "github.dev@namines.app";
+                    name = "github-developer";
+                }
+                else
+                {
+                    return BadRequest(new { Message = $"Unknown provider '{provider}'." });
+                }
+            }
+            else
+            {
+                // Canlı OAuth akışı (Google ID Token veya GitHub Auth Code)
+                if (provider == "google")
+                {
+                    if (string.IsNullOrWhiteSpace(model.IdToken) && string.IsNullOrWhiteSpace(model.Code))
+                        return BadRequest(new { Message = "Google idToken or code is required." });
+
+                    using var httpClient = new HttpClient();
+                    if (!string.IsNullOrWhiteSpace(model.IdToken))
+                    {
+                        var resp = await httpClient.GetAsync($"https://oauth2.googleapis.com/tokeninfo?id_token={model.IdToken}");
+                        if (!resp.IsSuccessStatusCode)
+                            return BadRequest(new { Message = "Invalid Google ID token." });
+
+                        using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync());
+                        var root = doc.RootElement;
+                        email = root.TryGetProperty("email", out var e) ? e.GetString() ?? "" : "";
+                        name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        avatar = root.TryGetProperty("picture", out var p) ? p.GetString() : null;
+                    }
+                    else
+                    {
+                        var clientId = _configuration["Authentication:Google:ClientId"] ?? _configuration["Google:ClientId"];
+                        var clientSecret = _configuration["Authentication:Google:ClientSecret"] ?? _configuration["Google:ClientSecret"];
+                        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+                            return BadRequest(new { Message = "Google OAuth credentials not configured on server." });
+
+                        var tokenResp = await httpClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+                        {
+                            { "code", model.Code! },
+                            { "client_id", clientId },
+                            { "client_secret", clientSecret },
+                            { "redirect_uri", model.RedirectUri ?? "http://localhost:3000/auth/callback" },
+                            { "grant_type", "authorization_code" }
+                        }));
+
+                        if (!tokenResp.IsSuccessStatusCode)
+                            return BadRequest(new { Message = "Failed to exchange Google auth code." });
+
+                        using var tokenDoc = await JsonDocument.ParseAsync(await tokenResp.Content.ReadAsStreamAsync());
+                        var idToken = tokenDoc.RootElement.GetProperty("id_token").GetString();
+                        var verifyResp = await httpClient.GetAsync($"https://oauth2.googleapis.com/tokeninfo?id_token={idToken}");
+                        using var doc = await JsonDocument.ParseAsync(await verifyResp.Content.ReadAsStreamAsync());
+                        var root = doc.RootElement;
+                        email = root.TryGetProperty("email", out var e) ? e.GetString() ?? "" : "";
+                        name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                    }
+                }
+                else if (provider == "github")
+                {
+                    if (string.IsNullOrWhiteSpace(model.Code))
+                        return BadRequest(new { Message = "GitHub authorization code is required." });
+
+                    var clientId = _configuration["Authentication:GitHub:ClientId"] ?? _configuration["GitHub:ClientId"];
+                    var clientSecret = _configuration["Authentication:GitHub:ClientSecret"] ?? _configuration["GitHub:ClientSecret"];
+                    if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+                        return BadRequest(new { Message = "GitHub OAuth credentials not configured on server." });
+
+                    using var httpClient = new HttpClient();
+                    httpClient.DefaultRequestHeaders.Add("User-Agent", "Namines-OAuth");
+                    httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+
+                    var tokenResp = await httpClient.PostAsync("https://github.com/login/oauth/access_token", new FormUrlEncodedContent(new Dictionary<string, string>
+                    {
+                        { "client_id", clientId },
+                        { "client_secret", clientSecret },
+                        { "code", model.Code! },
+                        { "redirect_uri", model.RedirectUri ?? "http://localhost:3000/auth/callback" }
+                    }));
+
+                    if (!tokenResp.IsSuccessStatusCode)
+                        return BadRequest(new { Message = "Failed to exchange GitHub auth code." });
+
+                    using var tokenDoc = await JsonDocument.ParseAsync(await tokenResp.Content.ReadAsStreamAsync());
+                    if (!tokenDoc.RootElement.TryGetProperty("access_token", out var accessTokenProp))
+                        return BadRequest(new { Message = "GitHub did not return an access token." });
+
+                    var accessToken = accessTokenProp.GetString();
+                    httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                    var userResp = await httpClient.GetAsync("https://api.github.com/user");
+                    if (!userResp.IsSuccessStatusCode)
+                        return BadRequest(new { Message = "Failed to fetch GitHub user profile." });
+
+                    using var userDoc = await JsonDocument.ParseAsync(await userResp.Content.ReadAsStreamAsync());
+                    var userRoot = userDoc.RootElement;
+                    name = userRoot.TryGetProperty("login", out var l) ? l.GetString() ?? "" : "";
+                    avatar = userRoot.TryGetProperty("avatar_url", out var av) ? av.GetString() : null;
+
+                    if (userRoot.TryGetProperty("email", out var em) && !string.IsNullOrEmpty(em.GetString()))
+                    {
+                        email = em.GetString()!;
+                    }
+                    else
+                    {
+                        var emailsResp = await httpClient.GetAsync("https://api.github.com/user/emails");
+                        if (emailsResp.IsSuccessStatusCode)
+                        {
+                            using var emailsDoc = await JsonDocument.ParseAsync(await emailsResp.Content.ReadAsStreamAsync());
+                            foreach (var item in emailsDoc.RootElement.EnumerateArray())
+                            {
+                                if (item.TryGetProperty("primary", out var prim) && prim.GetBoolean() &&
+                                    item.TryGetProperty("verified", out var ver) && ver.GetBoolean() &&
+                                    item.TryGetProperty("email", out var e))
+                                {
+                                    email = e.GetString() ?? "";
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    return BadRequest(new { Message = $"Unsupported OAuth provider '{provider}'." });
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest(new { Message = "Could not obtain verified email from OAuth provider." });
+
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                var baseUsername = !string.IsNullOrWhiteSpace(name)
+                    ? System.Text.RegularExpressions.Regex.Replace(name.Trim().ToLowerInvariant(), @"[^a-z0-9\-]", "")
+                    : email.Split('@')[0];
+                if (string.IsNullOrWhiteSpace(baseUsername)) baseUsername = "user";
+                var uniqueUsername = baseUsername;
+                int suffix = 1;
+                while (await _userManager.FindByNameAsync(uniqueUsername) != null)
+                {
+                    uniqueUsername = $"{baseUsername}{suffix++}";
+                }
+
+                user = new ApplicationUser
+                {
+                    UserName = uniqueUsername,
+                    Email = email,
+                    EmailConfirmed = true,
+                    Type = UserType.Individual,
+                    CreatedAt = DateTime.UtcNow,
+                    ProfileJson = !string.IsNullOrEmpty(avatar)
+                        ? JsonSerializer.Serialize(new { avatarUrl = avatar })
+                        : null
+                };
+
+                var createRes = await _userManager.CreateAsync(user);
+                if (!createRes.Succeeded)
+                {
+                    var errors = string.Join(", ", createRes.Errors.Select(e => e.Description));
+                    return BadRequest(new { Message = $"Could not create user account: {errors}" });
+                }
+
+                var defaultPolicy = new UserAIPolicy
+                {
+                    UserId = user.Id,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _context.UserAIPolicies.AddAsync(defaultPolicy);
+
+                var defaultQuota = new UserAIQuota
+                {
+                    UserId = user.Id,
+                    DailyLimit = 100,
+                    DailyUsageCount = 0,
+                    LastResetDate = DateTime.UtcNow
+                };
+                await _context.UserAIQuotas.AddAsync(defaultQuota);
+                await _context.SaveChangesAsync();
+            }
+
+            var token = GenerateJwtToken(user);
+            SetAuthCookie(token);
+
+            var quota = await _context.UserAIQuotas.AsNoTracking().FirstOrDefaultAsync(q => q.UserId == user.Id);
+            var quotaInfo = quota != null ? new
+            {
+                dailyLimit = quota.DailyLimit,
+                used = quota.DailyUsageCount,
+                remaining = Math.Max(0, quota.DailyLimit - quota.DailyUsageCount),
+                resetAt = quota.LastResetDate.AddHours(3).Date.AddDays(1).AddHours(-3).ToString("o")
+            } : null;
+
+            return Ok(new
+            {
+                Token = token,
+                User = new
+                {
+                    Username = user.UserName,
+                    Email = user.Email,
+                    Type = user.Type.ToString().ToLowerInvariant(),
+                    IsDev = user.IsDev,
+                    CompanyName = user.CompanyName
+                },
+                Quota = quotaInfo
+            });
+        }
     }
 
     public class RegisterRequestDto
@@ -1116,5 +1389,14 @@ namespace Namines.API.Controllers
         public string TwitterUrl  { get; set; } = "";
         public string Bio         { get; set; } = "";
         public string Location    { get; set; } = "";
+    }
+
+    public class OAuthCallbackRequestDto
+    {
+        public string Provider { get; set; } = null!;
+        public string? Code { get; set; }
+        public string? IdToken { get; set; }
+        public string? RedirectUri { get; set; }
+        public bool IsDevSimulation { get; set; }
     }
 }

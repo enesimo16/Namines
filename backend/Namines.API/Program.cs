@@ -748,6 +748,20 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
                 Log.Error(ex, "Deneme projesi tohumlanamadı; uygulama onsuz devam ediyor.");
             }
         }
+
+        // Namines Hub (G57 — Faz 3): Başlangıç vitrini mimarilerini tohumla (10 doğrulanmış kurumsal blueprint).
+        try
+        {
+            await Namines.API.Services.HubBlueprintSeeder.SeedAsync(
+                ownerScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
+                ownerScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                ownerScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger(nameof(Namines.API.Services.HubBlueprintSeeder)));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Namines Hub vitrin blueprintleri tohumlanamadı; uygulama onsuz devam ediyor.");
+        }
     }
 
     // X-Forwarded-* header'larını en başta işle: sonraki tüm middleware'ler (cookie Secure

@@ -656,7 +656,7 @@ export const adminService = {
         return res.data;
       }
     } catch (err: unknown) {
-      const status = (err as any)?.response?.status;
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status === 404 || status === 405 || !status) {
         return getLocalFallbackFeatureFlags();
       }
@@ -673,7 +673,7 @@ export const adminService = {
       const res = await api.put<AdminFeatureFlagItem>(`/admin/features/${key}`, data);
       return res.data;
     } catch (err: unknown) {
-      const status = (err as any)?.response?.status;
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status === 404 || status === 405 || !status) {
         return saveLocalFallbackFeatureFlag(key, data);
       }
@@ -691,7 +691,7 @@ export const adminService = {
         return res.data;
       }
     } catch (err: unknown) {
-      const status = (err as any)?.response?.status;
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status === 404 || status === 405 || !status) {
         return getLocalFallbackAiRoutes();
       }
@@ -708,7 +708,7 @@ export const adminService = {
       const res = await api.put<AdminAiToolRouteItem>(`/admin/ai-routes/${toolKey}`, data);
       return res.data;
     } catch (err: unknown) {
-      const status = (err as any)?.response?.status;
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
       if (status === 404 || status === 405 || !status) {
         return saveLocalFallbackAiRoute(toolKey, data);
       }

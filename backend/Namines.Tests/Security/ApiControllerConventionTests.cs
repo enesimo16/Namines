@@ -112,6 +112,10 @@ public class ApiControllerConventionTests
         ["AuthController.Logout"] = "Cookie silme; kimliksiz çağrı zararsız.",
         ["AuthController.ExchangeDeskHandoffToken"] =
             "Tek kullanımlık devir jetonunu JWT'ye çevirir; jetonun kendisi kimlik yerine geçiyor.",
+        ["AuthController.GetOAuthProviders"] =
+            "OAuth sağlayıcılarının durumu (Google, GitHub) — oturum açılmadan önce istemci tarafından sorgulanır.",
+        ["AuthController.OAuthCallback"] =
+            "OAuth sağlayıcısından dönen yetki kodu/token'ın oturuma çevrilmesi — tanımı gereği kimliksiz.",
 
         // Dış sistemlerin çağırdığı uçlar: JWT gönderemezler, imzayla korunuyorlar.
         ["StripeWebhookController.HandleStripeWebhook"] = "Stripe imza doğrulaması ile korunuyor.",
@@ -169,6 +173,13 @@ public class ApiControllerConventionTests
         ["FeaturesController.GetFlags"] =
             "Sistemdeki araç ve özellik bayrakları (kill-switch); istemcilerin arayüz butonlarını ve bakım uyarılarını belirlemesi için herkese açık.",
         ["GatewayController"] = "Kimlik API anahtarından çözülüyor; her uç elle kontrol ediyor (aşağıdaki test).",
+        // Namines Hub (G57) — Keşif, açık repo/issue inceleme ve README rozetleri.
+        // Public olmayan projelere erişim gövde içinde CanViewAsync ile denetlenir.
+        ["HubController.Explore"] = "Namines Hub keşif akışı — yalnızca Public ve Quality Gate'i geçen mimarileri listeler.",
+        ["HubController.GetRepo"] = "Public repolar herkese açıktır; Private/Team repolarda CanViewAsync ile 401/404 döner.",
+        ["HubController.ListIssues"] = "Public repoların issue listesi herkese açıktır; özel repolarda CanViewAsync kontrol edilir.",
+        ["HubController.ListComments"] = "Public repolardaki issue yorumları herkese açıktır; özel repolarda CanViewAsync kontrol edilir.",
+        ["HubController.Badge"] = "GitHub README'lerinde kullanılacak dinamik SVG rozet; gizli repo durumunda nötr döner.",
     };
 
     private static IEnumerable<(Type Controller, MethodInfo Action)> AllActions() =>

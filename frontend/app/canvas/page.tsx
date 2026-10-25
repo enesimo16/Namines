@@ -28,6 +28,7 @@ import { useNaminesFlowRuntime } from '../../hooks/useNaminesFlowRuntime';
 import { useDbaStore } from '../../store/useDbaStore';
 import { useProjectAutoSave } from '../../hooks/useProjectAutoSave';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useActiveProjectStore } from '../../store/useActiveProjectStore';
 import { useBranchStore } from '../../store/useBranchStore';
 import { calculateSchemaDiff } from '../../utils/schemaDiff';
 import { useToastStore } from '../../store/useToastStore';
@@ -204,6 +205,23 @@ export default function CanvasPage() {
 
   const activeProject = projects.find(p => p.id === activeProjectId);
   const branches = activeProject?.branches || [];
+
+  // Faz 5: URL ?project=<id> ile gelindiyse ilgili projeye kilitle ve yükle
+  useEffect(() => {
+    if (typeof window === 'undefined' || !hasHydrated) return;
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get('project');
+    if (pid) {
+      const targetProj = projects.find(p => p.id === pid);
+      useActiveProjectStore.getState().setScopedProject(pid, targetProj?.name ?? null);
+      if (activeProjectId !== pid) {
+        useProjectHistoryStore.getState().setActiveProjectId(pid);
+        if (targetProj) {
+          useProjectHistoryStore.getState().loadProject(pid);
+        }
+      }
+    }
+  }, [hasHydrated, projects, activeProjectId]);
 
   const [isTemplateGalleryOpen, setIsTemplateGalleryOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -742,6 +760,7 @@ export default function CanvasPage() {
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
+            onlyRenderVisibleElements={schema.tables.length > 50}
             colorMode={theme === 'light' ? 'light' : 'dark'}
             nodesDraggable={!isDiffMode && !isOffline}
             // Diff görünümü salt-okunur ve çevrimdışıyken değişiklik yayınlanamaz.

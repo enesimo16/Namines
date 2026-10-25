@@ -73,8 +73,48 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setShowMigration(false);
   };
 
-  const handleOAuthPlaceholder = (provider: string) => {
-    showToast(`${provider} sign-in is coming soon.`, 'info');
+  const handleOAuth = async (provider: 'google' | 'github') => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const providers = await authService.getOAuthProviders();
+      const config = providers[provider];
+      const redirectUri = `${window.location.origin}/auth/callback?provider=${provider}`;
+
+      if (config && config.enabled && config.clientId) {
+        if (provider === 'github') {
+          window.location.href = `https://github.com/login/oauth/authorize?client_id=${config.clientId}&scope=read:user,user:email&redirect_uri=${encodeURIComponent(redirectUri)}`;
+          return;
+        } else if (provider === 'google') {
+          window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${config.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20email%20profile`;
+          return;
+        }
+      }
+
+      // Geliştirme ortamında (canlı OAuth anahtarı henüz girilmemişse) tek tıkla simülasyon girişi
+      showToast(`Signing in via ${provider === 'google' ? 'Google' : 'GitHub'} (Dev Simulation)...`, 'info');
+      const data = await authService.oauthCallback({
+        provider,
+        isDevSimulation: true,
+      });
+
+      setAuth(data.token, {
+        username: data.user.username,
+        email: data.user.email,
+        type: data.user.type,
+        isDev: data.user.isDev,
+        companyName: data.user.companyName ?? undefined,
+      }, data.quota);
+
+      showToast(`Welcome! Logged in as ${data.user.username} via ${provider}.`, 'success');
+      onClose();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'OAuth sign-in failed.';
+      setErrorMsg(message);
+      showToast(message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -199,7 +239,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         <div className="flex flex-col gap-2 mb-4">
           <button
             type="button"
-            onClick={() => handleOAuthPlaceholder('Google')}
+            onClick={() => handleOAuth('google')} disabled={isLoading}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-control)] border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary text-sm font-medium transition-all cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -209,7 +249,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </button>
           <button
             type="button"
-            onClick={() => handleOAuthPlaceholder('GitHub')}
+            onClick={() => handleOAuth('github')} disabled={isLoading}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[var(--radius-control)] border border-content-primary/15 bg-surface-700 hover:bg-surface-600 text-content-primary hover:text-content-primary text-sm font-medium transition-all cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="var(--color-content-subtle)">

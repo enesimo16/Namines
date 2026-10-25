@@ -225,9 +225,18 @@ export default function ToolbarPanel() {
         projId = useProjectHistoryStore.getState().activeProjectId;
       }
 
-      const { id } = await changeRequestService.createQuick(projId || 'local-project', currentSchema);
-      showToast('Change request created! Opening review…', 'success');
-      router.push(`/review/${id}`);
+      await changeRequestService.createQuick(projId || 'local-project', currentSchema);
+      showToast('Pull Request created in Hub!', 'success');
+
+      const activeProj = useProjectHistoryStore.getState().projects.find((p) => p.id === projId);
+      const owner = useAuthStore.getState().user?.username || 'me';
+      const slug = (activeProj?.name || schema?.name || 'project')
+        .toLowerCase()
+        .replace(/[^a-z0-9\-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || projId || 'project';
+
+      router.push(`/hub/${encodeURIComponent(owner)}/${encodeURIComponent(slug)}?tab=prs`);
     } catch {
       showToast('Failed to create change request. Please try again.', 'error');
     } finally {
@@ -403,7 +412,7 @@ export default function ToolbarPanel() {
           aria-label="Request a database change review"
         >
           {isRequestingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitPullRequest className="w-4 h-4" />}
-          <span className="hidden xl:inline text-xs font-semibold">Request Review</span>
+          <span className="hidden xl:inline text-xs font-semibold">Review PR</span>
         </button>
 
         </>

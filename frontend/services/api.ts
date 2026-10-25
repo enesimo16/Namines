@@ -864,6 +864,25 @@ export const authService = {
     return response.data;
   },
 
+  getOAuthProviders: async (): Promise<{
+    google: { enabled: boolean; clientId?: string };
+    github: { enabled: boolean; clientId?: string };
+  }> => {
+    const response = await api.get('/auth/oauth/providers');
+    return response.data;
+  },
+
+  oauthCallback: async (payload: {
+    provider: 'google' | 'github';
+    code?: string;
+    idToken?: string;
+    redirectUri?: string;
+    isDevSimulation?: boolean;
+  }): Promise<AuthResponse> => {
+    const response = await api.post('/auth/oauth/callback', payload);
+    return response.data;
+  },
+
   syncProjects: async (projects: SyncProjectPayload[]): Promise<SyncResult> => {
     const response = await api.post('/auth/sync', projects);
     return response.data;

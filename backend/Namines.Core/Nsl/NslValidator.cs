@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Models;
@@ -149,6 +150,21 @@ public static class NslValidator
                         $"Index covers {index.Columns.Count} columns; wide indexes are rarely used past the first few.",
                         table.Name));
             }
+
+            // NSL019 — 1NF: Yinelenen / numaralandırılmış kolon grupları
+            var repeatingGroups = table.Columns
+                .Select(c => new { Column = c, Match = Regex.Match(c.Name, @"^([a-zA-Z_]+?)[_-]?([1-9])$") })
+                .Where(x => x.Match.Success)
+                .GroupBy(x => x.Match.Groups[1].Value, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1);
+
+            foreach (var group in repeatingGroups)
+            {
+                var colNames = string.Join(", ", group.Select(x => x.Column.Name));
+                findings.Add(new("NSL019", "warning",
+                    $"Table '{table.Name}' contains repeating numbered columns '{colNames}'. In 1NF (First Normal Form), repeating groups should be placed in a related table.",
+                    table.Name));
+            }
         }
 
         ValidateEngineSupport(schema, engine, findings);
@@ -252,6 +268,21 @@ public static class NslValidator
                 findings.Add(new("NSL010", "warning",
                     "Foreign key column has no index; deletes on the target table will scan this one.",
                     from.Name, fromColumn.Name, true));
+
+            // NSL020 — 3NF: Hedef tablonun özniteliklerini kopyalayan geçişli bağımlılık
+            var toSingular = to.Name.TrimEnd('s', 'S');
+            var duplicateAttrs = from.Columns
+                .Where(c => c.Id != fromColumn.Id &&
+                            (c.Name.StartsWith(to.Name + "_", StringComparison.OrdinalIgnoreCase) ||
+                             (toSingular.Length > 2 && c.Name.StartsWith(toSingular + "_", StringComparison.OrdinalIgnoreCase))))
+                .ToList();
+
+            foreach (var dup in duplicateAttrs)
+            {
+                findings.Add(new("NSL020", "warning",
+                    $"Column '{dup.Name}' in table '{from.Name}' duplicates attributes of foreign table '{to.Name}'. In 3NF (Third Normal Form), non-key attributes should reside solely in the parent entity.",
+                    from.Name, dup.Name));
+            }
         }
 
         // NSL018 — yetim tablo. Bilgi seviyesi: tek başına duran tablolar
