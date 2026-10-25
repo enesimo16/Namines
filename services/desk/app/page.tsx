@@ -5,7 +5,7 @@ import AppShell from './AppShell';
 import Desk from './Desk';
 import Projects from './Projects';
 import DeskLanding from './DeskLanding';
-import { fetchProjects, getToken, clearToken, AuthError, type DeskProject } from '../lib/auth';
+import { fetchProjects, getToken, setToken, clearToken, AuthError, type DeskProject } from '../lib/auth';
 import { type DeskView, PROJECT_VIEWS } from '../lib/nav';
 import type { DeskTable } from '../lib/schema';
 import { useT } from '../lib/i18n';
@@ -34,13 +34,32 @@ export default function Page() {
   const [tables, setTables] = useState<DeskTable[] | null>(null);
 
   useEffect(() => {
-    setTok(getToken());
+    let currentTok = getToken();
     try {
-      const savedProject = sessionStorage.getItem(PROJECT_KEY);
-      const savedView = sessionStorage.getItem(VIEW_KEY) as DeskView | null;
-      if (savedProject) setProjectId(savedProject);
-      if (savedView && (savedView === 'overview' || PROJECT_VIEWS.includes(savedView))) setView(savedView);
-    } catch { /* gizli mod */ }
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryToken = urlParams.get('token');
+      const queryProject = urlParams.get('project');
+      const queryView = urlParams.get('view') as DeskView | null;
+
+      if (queryToken) {
+        setToken(queryToken);
+        currentTok = queryToken;
+      }
+      setTok(currentTok);
+
+      const savedProject = queryProject || sessionStorage.getItem(PROJECT_KEY);
+      const savedView = queryView || (sessionStorage.getItem(VIEW_KEY) as DeskView | null);
+      if (savedProject) {
+        setProjectId(savedProject);
+        sessionStorage.setItem(PROJECT_KEY, savedProject);
+      }
+      if (savedView && (savedView === 'overview' || PROJECT_VIEWS.includes(savedView))) {
+        setView(savedView);
+        sessionStorage.setItem(VIEW_KEY, savedView);
+      }
+    } catch {
+      setTok(getToken());
+    }
     setReady(true);
   }, []);
 
