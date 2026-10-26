@@ -1,33 +1,36 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data;
+using System.Data.Common;
+using System.Diagnostics;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
 using ModelContextProtocol.Server;
+using MySqlConnector;
 using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Flow.Abstractions;
+using Namines.Infrastructure.Catalogs;
 using Namines.Infrastructure.Generators.DdlGenerator;
+using Namines.Infrastructure.Generators.Eject;
+using Npgsql;
+using Oracle.ManagedDataAccess.Client;
 
 namespace Namines.Mcp;
 
 /// <summary>
-/// new-phase/33-MCP-AND-SKILL.md §5 — YENİ İŞ MANTIĞI YOK, hepsi mevcut ve test
-/// edilmiş servisleri sarar. Faz 1: pull/analyze/prove (tamamen yerel, salt-okunur).
-/// Faz 2: generate_ddl (yerel, deterministik) + open_change_request (sunucuya yazar).
+/// Namines Universal Database Lifecycle MCP Tools.
 ///
-/// <b>Bilinçli eksik: `generate_migration` YOK.</b> Mevcut
-/// <c>MigrationService.GenerateMigrationAsync</c> migration kodunu Groq'a yazdırıyor.
-/// Onu araç olarak sunmak, BAŞKA bir dil modelinin tahminini Claude'a "Namines'in
-/// deterministik çıktısı" kılığında geri verirdi — §3'teki tüm konumlandırmanın tam
-/// tersi. ALTER cümlelerini Claude zaten yazabilir; bizim katma değerimiz onu
-/// kanıtlamak (prove_migration). Deterministik bir migration üreticisi yazıldığında
-/// (6 motor + golden-file) araç olarak eklenebilir.
-///
-/// Konumlandırma (33 §3): bu araçların vaadi "Claude DB'ni görsün" değil —
-/// onu Claude zaten `psql` ile yapabiliyor. Vaat: <b>Claude'un yazdığı
-/// migration'ı, çalıştırmadan önce kanıtlat.</b> Bir LLM riski tahmin eder;
-/// SchemaImpactAnalyzer deterministik hesaplar, BranchTestRunnerService gerçek
-/// motorda çalıştırıp kanıtlar.
+/// Deterministic schema analysis, live database inspection, code generation across 19 targets,
+/// ephemeral Docker migration proving, Hub architectural blueprints, and Namines Flow automation.
 /// </summary>
 [McpServerToolType]
 public sealed class NaminesTools
@@ -36,7 +39,12 @@ public sealed class NaminesTools
     private readonly IBranchTestRunner _testRunner;
     private readonly IDdlGeneratorFactory _ddlFactory;
     private readonly IPrismaGenerator _prisma;
+    private readonly IEjectGeneratorRegistry _ejectRegistry;
+    private readonly IGatewayService _gateway;
+    private readonly IDatabaseExecutor _executor;
+    private readonly IFlowRuleMatcher _flowMatcher;
     private readonly NaminesCloudClient _cloud;
+    private readonly McpConnectionGuard _connectionGuard;
 
     public NaminesTools(
         IDbIntrospectionService introspection,
@@ -45,36 +53,49 @@ public sealed class NaminesTools
         IPrismaGenerator prisma,
         NaminesCloudClient cloud,
         McpConnectionGuard connectionGuard)
+        : this(
+            introspection,
+            testRunner,
+            ddlFactory,
+            prisma,
+            new EjectGeneratorRegistry(ddlFactory),
+            null!,
+            null!,
+            null!,
+            cloud,
+            connectionGuard)
+    {
+    }
+
+    public NaminesTools(
+        IDbIntrospectionService introspection,
+        IBranchTestRunner testRunner,
+        IDdlGeneratorFactory ddlFactory,
+        IPrismaGenerator prisma,
+        IEjectGeneratorRegistry ejectRegistry,
+        IGatewayService gateway,
+        IDatabaseExecutor executor,
+        IFlowRuleMatcher flowMatcher,
+        NaminesCloudClient cloud,
+        McpConnectionGuard connectionGuard)
     {
         _introspection = introspection;
         _testRunner = testRunner;
         _ddlFactory = ddlFactory;
         _prisma = prisma;
+        _ejectRegistry = ejectRegistry;
+        _gateway = gateway;
+        _executor = executor;
+        _flowMatcher = flowMatcher;
         _cloud = cloud;
         _connectionGuard = connectionGuard;
     }
 
-    private readonly McpConnectionGuard _connectionGuard;
-
-    /// <summary>
-    /// Araç girdi/çıktı JSON'u.
-    ///
-    /// <b>camelCase zorunlu:</b> ürünün geri kalanı (ASP.NET Core varsayılanı) camelCase
-    /// üretiyor; MCP araçları PascalCase döndürseydi <c>pull_schema → analyze_impact</c>
-    /// zinciri kopardı.
-    ///
-    /// <b>PropertyNameCaseInsensitive kritik:</b> bu bayrak olmadan camelCase bir şema
-    /// JSON'u SESSİZCE boş şemaya çözülüyordu — analiz "Safe, hiçbir şey değişmemiş"
-    /// diyordu, oysa tablo eklenmişti. Sessizce yanlış analiz, aracın tüm değerini
-    /// yok eder; hem camelCase hem PascalCase girdi kabul edilir.
-    /// </summary>
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        // Enum DEĞERLERİ PascalCase kalır ("Breaking", "Safe") — barındırılan API de
-        // böyle döndürüyor, iki yüzey arasında fark olmasın.
         Converters = { new JsonStringEnumConverter() },
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
@@ -101,58 +122,40 @@ public sealed class NaminesTools
             throw new ArgumentException($"{paramName} is not a valid Namines schema JSON: {ex.Message}");
         }
 
-        // SESSİZ BOŞALMA KORUMASI. Bağlama hatası (alan adı uyuşmazlığı, yanlış şekil)
-        // istisna fırlatmaz — boş bir DatabaseSchema üretir. O hâlde analiz "hiçbir şey
-        // değişmemiş, Safe" der ve KULLANICI YANLIŞ GÜVEN KAZANIR. Girdi tablo taşıdığını
-        // söylüyorsa ama bağlama 0 tablo ürettiyse, sessizce devam etmek yerine patla.
         const string shapeHint =
             "Expected an object like {\"name\":\"app\",\"tables\":[{\"name\":\"users\"," +
             "\"columns\":[{\"name\":\"id\",\"type\":\"INT\",\"isPK\":true}]}],\"relations\":[]}. " +
             "Use the output of namines_pull_schema verbatim.";
 
         if (schema.Tables.Count == 0 && MentionsNonEmptyTables(schemaJson))
+        {
             throw new ArgumentException(
                 $"{paramName} contains tables but none could be read — the JSON shape does not match " +
                 $"the Namines schema format. {shapeHint}");
+        }
 
-        // Adsız tablo = bağlama kısmen tuttu ama alanlar eşleşmedi. İstisna fırlatmadığı
-        // için analiz devam eder ve tableName:"" içeren ANLAMSIZ bir rapor üretir; bunu
-        // otoriteymiş gibi sunmak, aracın "deterministik kanıt" vaadini çürütür.
         var unnamed = schema.Tables.Count(t => string.IsNullOrWhiteSpace(t.Name));
         if (unnamed > 0)
+        {
             throw new ArgumentException(
                 $"{paramName} has {unnamed} table(s) without a name — the JSON shape does not match " +
                 $"the Namines schema format. {shapeHint}");
+        }
 
         NormalizeIdentities(schema, schemaJson);
         return schema;
     }
 
-    /// <summary>
-    /// StableUuid VERİLMEMİŞSE adından türet.
-    ///
-    /// Model varsayılanı <c>Guid.NewGuid()</c> olduğu için, uuid taşımayan bir JSON
-    /// her çözümlemede FARKLI kimlikler üretir. Analizör tabloları uuid ile eşleştirip
-    /// eşleşmeyeni "kaldırıldı + eklendi" saydığından, elle yazılmış iki şema —
-    /// birebir aynı olsalar bile — "her tablo silinecek, veri kaybı" olarak raporlanır.
-    /// Bir agent'ın hedef şemayı JSON olarak yazması tam da beklenen kullanım.
-    ///
-    /// Açıkça uuid veren kaynaklar (canvas) kendi değerlerini korur, böylece rename
-    /// tespiti bozulmaz: rename = aynı uuid, farklı ad.
-    /// </summary>
     private static void NormalizeIdentities(DatabaseSchema schema, string rawJson)
     {
         using var doc = JsonDocument.Parse(rawJson);
         if (!TryGetPropertyIgnoreCase(doc.RootElement, "tables", out var rawTables) ||
             rawTables.ValueKind != JsonValueKind.Array)
         {
-            // Ham JSON okunamıyorsa da adlardan türet: uuid'siz bir şemayı olduğu gibi
-            // bırakmak sahte "silindi+eklendi" üretir.
             foreach (var table in schema.Tables) DeriveAll(table);
             return;
         }
 
-        // System.Text.Json dizi sırasını korur, bu yüzden index eşlemesi güvenli.
         var rawList = rawTables.EnumerateArray().ToList();
         for (var i = 0; i < schema.Tables.Count; i++)
         {
@@ -169,32 +172,23 @@ public sealed class NaminesTools
 
             for (var j = 0; j < table.Columns.Count; j++)
             {
+                var col = table.Columns[j];
                 var rawCol = j < rawCols.Count ? rawCols[j] : default;
                 if (!HasText(rawCol, "stableUuid"))
-                    table.Columns[j].StableUuid = SchemaIdentity.ForColumn(table.Name, table.Columns[j].Name);
-            }
-
-            var rawIdx = TryGetPropertyIgnoreCase(raw, "indexes", out var x) &&
-                         x.ValueKind == JsonValueKind.Array
-                ? x.EnumerateArray().ToList()
-                : new List<JsonElement>();
-
-            for (var j = 0; j < table.Indexes.Count; j++)
-            {
-                var rawOne = j < rawIdx.Count ? rawIdx[j] : default;
-                if (!HasText(rawOne, "stableUuid"))
-                    table.Indexes[j].StableUuid = SchemaIdentity.ForIndex(table.Name, table.Indexes[j].Name);
+                    col.StableUuid = SchemaIdentity.ForColumn(table.Name, col.Name);
             }
         }
     }
 
     private static void DeriveAll(SchemaTable table)
     {
-        table.StableUuid = SchemaIdentity.ForTable(table.Name);
+        if (string.IsNullOrWhiteSpace(table.StableUuid))
+            table.StableUuid = SchemaIdentity.ForTable(table.Name);
         foreach (var col in table.Columns)
-            col.StableUuid = SchemaIdentity.ForColumn(table.Name, col.Name);
-        foreach (var idx in table.Indexes)
-            idx.StableUuid = SchemaIdentity.ForIndex(table.Name, idx.Name);
+        {
+            if (string.IsNullOrWhiteSpace(col.StableUuid))
+                col.StableUuid = SchemaIdentity.ForColumn(table.Name, col.Name);
+        }
     }
 
     private static bool HasText(JsonElement element, string property) =>
@@ -216,7 +210,6 @@ public sealed class NaminesTools
         return false;
     }
 
-    /// <summary>Ham JSON'da dolu bir "tables" dizisi var mı? (büyük/küçük harf duyarsız)</summary>
     private static bool MentionsNonEmptyTables(string json)
     {
         try
@@ -237,64 +230,162 @@ public sealed class NaminesTools
         }
     }
 
-    // ── 1. pull_schema  (CLI: namines pull) ──────────────────────────────────
+    private static DbConnection CreateConnection(string connectionString, DatabaseType dbType)
+    {
+        return dbType switch
+        {
+            DatabaseType.MSSQL      => new SqlConnection(connectionString),
+            DatabaseType.PostgreSQL => new NpgsqlConnection(connectionString),
+            DatabaseType.MySQL      => new MySqlConnection(connectionString),
+            DatabaseType.MariaDB    => new MySqlConnection(connectionString),
+            DatabaseType.Oracle     => new OracleConnection(connectionString),
+            DatabaseType.SQLite     => new SqliteConnection(connectionString),
+            _                       => throw new NotSupportedException($"Database type {dbType} is not supported.")
+        };
+    }
+
+    private static SchemaDiffResult CalculateDiff(DatabaseSchema oldSchema, DatabaseSchema newSchema)
+    {
+        var result = new SchemaDiffResult();
+        var oldTables = oldSchema?.Tables ?? new List<SchemaTable>();
+        var newTables = newSchema?.Tables ?? new List<SchemaTable>();
+
+        bool MatchTable(SchemaTable a, SchemaTable b) =>
+            (!string.IsNullOrEmpty(a.StableUuid) && !string.IsNullOrEmpty(b.StableUuid))
+                ? string.Equals(a.StableUuid, b.StableUuid, StringComparison.OrdinalIgnoreCase)
+                : string.Equals(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+
+        bool MatchCol(SchemaColumn a, SchemaColumn b) =>
+            (!string.IsNullOrEmpty(a.StableUuid) && !string.IsNullOrEmpty(b.StableUuid))
+                ? string.Equals(a.StableUuid, b.StableUuid, StringComparison.OrdinalIgnoreCase)
+                : string.Equals(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+
+        foreach (var nt in newTables)
+        {
+            var ot = oldTables.FirstOrDefault(o => MatchTable(o, nt));
+            if (ot != null && !string.Equals(ot.Name, nt.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                result.RenamedTables.Add(new TableRenameDetail { OldName = ot.Name, NewName = nt.Name });
+            }
+        }
+
+        foreach (var nt in newTables)
+        {
+            if (!oldTables.Any(o => MatchTable(o, nt))) result.AddedTables.Add(nt.Name);
+        }
+
+        foreach (var ot in oldTables)
+        {
+            if (!newTables.Any(n => MatchTable(ot, n))) result.RemovedTables.Add(ot.Name);
+        }
+
+        foreach (var ot in oldTables)
+        {
+            var nt = newTables.FirstOrDefault(n => MatchTable(ot, n));
+            if (nt == null) continue;
+
+            var tableDiff = new TableDiffDetail { TableName = nt.Name };
+            bool modified = false;
+
+            foreach (var nc in nt.Columns)
+            {
+                var oc = ot.Columns.FirstOrDefault(o => MatchCol(o, nc));
+                if (oc != null && !string.Equals(oc.Name, nc.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    tableDiff.RenamedColumns.Add(new ColumnRenameDetail { OldName = oc.Name, NewName = nc.Name });
+                    modified = true;
+                }
+            }
+
+            foreach (var nc in nt.Columns)
+            {
+                if (!ot.Columns.Any(o => MatchCol(o, nc)))
+                {
+                    tableDiff.AddedColumns.Add(nc.Name);
+                    modified = true;
+                }
+            }
+
+            foreach (var oc in ot.Columns)
+            {
+                if (!nt.Columns.Any(n => MatchCol(oc, n)))
+                {
+                    tableDiff.RemovedColumns.Add(oc.Name);
+                    modified = true;
+                }
+            }
+
+            foreach (var nc in nt.Columns)
+            {
+                var oc = ot.Columns.FirstOrDefault(o => MatchCol(o, nc));
+                if (oc != null && string.Equals(oc.Name, nc.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(oc.Type, nc.Type, StringComparison.OrdinalIgnoreCase) ||
+                        oc.Length != nc.Length ||
+                        oc.IsNullable != nc.IsNullable ||
+                        oc.IsPK != nc.IsPK)
+                    {
+                        tableDiff.ModifiedColumns.Add(nc.Name);
+                        modified = true;
+                    }
+                }
+            }
+
+            if (modified) result.ModifiedTables.Add(tableDiff);
+        }
+
+        return result;
+    }
+
+    // ── 1. pull_schema ───────────────────────────────────────────────────────
 
     [McpServerTool(Name = "namines_pull_schema")]
     [Description(
         "Read the live structure of a database and return it as a Namines schema (JSON). " +
-        "Read-only: it queries INFORMATION_SCHEMA and never modifies anything. " +
-        "Feed the result into namines_analyze_impact as `base_schema_json` to see what a " +
-        "proposed change would do. Runs locally, so localhost and private-network databases work.")]
+        "Read-only: queries INFORMATION_SCHEMA and never modifies anything. " +
+        "Feed the result into namines_analyze_impact as `base_schema_json`. Runs locally, so localhost works.")]
     public async Task<string> PullSchemaAsync(
-        [Description("ADO.NET connection string for the database to read, e.g. 'Host=localhost;Port=5432;Database=app;Username=postgres;Password=secret'.")]
+        [Description("ADO.NET connection string for the database to read.")]
         string connectionString,
         [Description("Database engine: PostgreSQL, MSSQL, MySQL, MariaDB or Oracle.")]
         string engine,
         CancellationToken cancellationToken = default)
     {
-        // Hedef kaydediliyor ve (tanimliysa) allowlist uygulaniyor: baglanti
-        // dizesi MODELIN ciktisindan geliyor, bkz. McpConnectionGuard
-        // (docs/last-review M-16).
         _connectionGuard.EnsureAllowed(connectionString, engine);
-
         var schema = await _introspection.IntrospectAsync(connectionString, engine, cancellationToken);
         return JsonSerializer.Serialize(schema, Json);
     }
 
-    // ── 2. analyze_impact  (CLI: namines diff) ───────────────────────────────
+    // ── 2. analyze_impact ────────────────────────────────────────────────────
 
     [McpServerTool(Name = "namines_analyze_impact")]
     [Description(
-        "Compare two schema versions and return a DETERMINISTIC impact report: affected tables, " +
-        "breaking changes, data-loss risks, migration lock risks, missing-index suggestions, " +
-        "rollback assessment and an overall risk level (Safe, Risky, Destructive, Breaking). " +
-        "This is computed by a rule engine, not by a language model — treat its findings as facts, " +
-        "not suggestions. Call this BEFORE proposing any schema migration.")]
+        "Deterministic schema impact analysis between base and target schemas. " +
+        "Calculates overallRisk (Safe, Risky, Breaking, Destructive), findings, breaking changes, data-loss warnings, " +
+        "lock risks, and rollback instructions. Pass Namines schema JSON.")]
     public string AnalyzeImpact(
-        [Description("Current schema as Namines JSON (typically the output of namines_pull_schema). Pass '{}' if the database is empty.")]
+        [Description("Current baseline schema JSON (from namines_pull_schema or project export).")]
         string baseSchemaJson,
-        [Description("Proposed schema as Namines JSON — the state you want to migrate to.")]
+        [Description("Proposed target schema JSON.")]
         string targetSchemaJson,
-        [Description("Target engine: PostgreSQL, MSSQL, MySQL, MariaDB, Oracle or SQLite. Engine matters — e.g. SQL Server rejects multiple cascade paths.")]
+        [Description("Database engine: PostgreSQL, MSSQL, MySQL, MariaDB, Oracle or SQLite.")]
         string engine)
     {
         var baseSchema = ParseSchema(baseSchemaJson, nameof(baseSchemaJson));
         var targetSchema = ParseSchema(targetSchemaJson, nameof(targetSchemaJson));
+        var dbType = ParseEngine(engine);
 
-        var report = SchemaImpactAnalyzer.Analyze(baseSchema, targetSchema, ParseEngine(engine));
+        var report = SchemaImpactAnalyzer.Analyze(baseSchema, targetSchema, dbType);
         return JsonSerializer.Serialize(report, Json);
     }
 
-    // ── 3. prove_migration  (CLI: namines apply --dry-run) ───────────────────
+    // ── 3. prove_migration ───────────────────────────────────────────────────
 
     [McpServerTool(Name = "namines_prove_migration")]
     [Description(
-        "PROVE that a schema actually works: generates DDL for the target engine, starts a real " +
-        "throwaway database container, executes the DDL against it, and reports whether the engine " +
-        "accepted it — returning the engine's raw error verbatim if not. This is evidence, not a " +
-        "prediction: it catches things static analysis cannot, such as SQL Server's Msg 1785 on " +
-        "multiple cascade paths. Requires Docker to be running (SQLite runs without it). " +
-        "Takes roughly 10-30 seconds because a container has to start.")]
+        "Prove whether a migration/DDL actually runs against a real database engine container. " +
+        "Starts a throwaway Docker container, executes the DDL, and reports whether the engine accepted it. " +
+        "Returns raw error messages from the engine (e.g., MSSQL Msg 1785). Docker must be running on host.")]
     public async Task<string> ProveMigrationAsync(
         [Description("Schema to verify, as Namines JSON.")]
         string schemaJson,
@@ -307,18 +398,13 @@ public sealed class NaminesTools
         return JsonSerializer.Serialize(result, Json);
     }
 
-    // ── 4. generate_ddl  (CLI: namines ddl) ──────────────────────────────────
+    // ── 4. generate_ddl ──────────────────────────────────────────────────────
 
     [McpServerTool(Name = "namines_generate_ddl")]
     [Description(
-        "Generate the complete CREATE-side DDL for a schema, correct for the chosen engine. " +
-        "This is deterministic, engine-aware code generation covering 6 dialects — it handles " +
-        "the details that get silently wrong when written by hand: identity/auto-increment " +
-        "syntax, quoting rules, type mapping, and referential actions. On referential actions " +
-        "the generator deliberately falls back to the most restrictive behaviour (NO ACTION) " +
-        "when an engine does not support what was asked, never to CASCADE, so a default can " +
-        "never drift toward data loss. Every dialect is covered by golden-file tests and " +
-        "verified against real database containers.")]
+        "Generate deterministic, engine-specific SQL DDL for a Namines schema. " +
+        "Covers tables, columns, primary keys, foreign keys with referential actions, indexes, and constraints. " +
+        "Golden-file tested across all 6 engines.")]
     public string GenerateDdl(
         [Description("Schema to generate DDL for, as Namines JSON.")]
         string schemaJson,
@@ -329,56 +415,17 @@ public sealed class NaminesTools
         return _ddlFactory.GetGenerator(ParseEngine(engine)).Generate(schema);
     }
 
-    // ── 5. open_change_request  (CLI: namines review) ────────────────────────
-
-    [McpServerTool(Name = "namines_open_change_request")]
-    [Description(
-        "Submit a schema as a Change Request on the Namines server, so a human can review and " +
-        "approve it in the Database Change Review UI. This is the ONLY tool that writes anything " +
-        "anywhere, and it still does not touch the user's database — it opens a review, it does " +
-        "not apply a migration. Use it when a change is Destructive or Breaking and therefore " +
-        "needs human sign-off. Requires NAMINES_API_TOKEN to be configured; the other tools work " +
-        "offline without it. Ask the user before calling this: it creates something other people " +
-        "will see.")]
-    public async Task<string> OpenChangeRequestAsync(
-        [Description("Namines project id to open the change request against.")]
-        string projectId,
-        [Description("Proposed schema as Namines JSON — the state you want reviewers to approve.")]
-        string schemaJson,
-        [Description("Short title for the review, e.g. 'Drop legacy users.email column'.")]
-        string? title = null,
-        [Description("Context for the reviewer: why this change, and what the impact analysis found.")]
-        string? message = null,
-        CancellationToken cancellationToken = default)
-    {
-        // Sunucuya göndermeden önce yerelde doğrula. Bozuk şemayı sunucuya yollayıp
-        // 400'ü kullanıcıya aktarmak, aynı hatayı bir ağ turu daha geç göstermek olurdu.
-        ParseSchema(schemaJson, nameof(schemaJson));
-
-        if (string.IsNullOrWhiteSpace(projectId))
-            throw new ArgumentException("projectId is empty.");
-
-        var response = await _cloud.OpenChangeRequestAsync(
-            projectId, schemaJson, title, message, cancellationToken);
-        return JsonSerializer.Serialize(response, Json);
-    }
-
-    // ── 6. generate_prisma  (CLI: namines prisma) ────────────────────────────
+    // ── 5. generate_prisma ───────────────────────────────────────────────────
 
     [McpServerTool(Name = "namines_generate_prisma")]
     [Description(
-        "Generate a Prisma schema (schema.prisma) from a Namines schema. Deterministic and " +
-        "engine-aware: model/field names are mapped with @@map/@map so the database is never " +
-        "renamed, VARCHAR lengths survive as native types, and referential actions are written " +
-        "explicitly because Prisma's defaults differ from SQL's. " +
-        "IMPORTANT: read the `warnings` array and relay it to the user. Prisma cannot express " +
-        "CHECK constraints or partial indexes; anything listed there is ABSENT from the output, " +
-        "and running `prisma db push` from it would DROP those from the database. " +
-        "Oracle is rejected outright — Prisma has no Oracle provider.")]
+        "Generate a Prisma schema (schema.prisma) from a Namines schema. " +
+        "Engine-aware: model/field names use @@map/@map, native column types are mapped, referential actions explicit. " +
+        "Returns schema, env example, and warnings of structures Prisma cannot express (CHECK, partial index).")]
     public string GeneratePrisma(
         [Description("Schema to convert, as Namines JSON.")]
         string schemaJson,
-        [Description("Target engine: PostgreSQL, MySQL, MariaDB, MSSQL or SQLite. Oracle is not supported by Prisma.")]
+        [Description("Target engine: PostgreSQL, MySQL, MariaDB, MSSQL or SQLite.")]
         string engine)
     {
         var result = GeneratePrismaFiles(schemaJson, engine);
@@ -391,9 +438,407 @@ public sealed class NaminesTools
         }, Json);
     }
 
+    // ── 6. generate_artifact (NEW: All 19 Eject Targets) ─────────────────────
+
+    [McpServerTool(Name = "namines_generate_artifact")]
+    [Description(
+        "Generate source code artifacts from a Namines schema across 19 targets. " +
+        "Supported targets: 'orm.drizzle', 'types.typescript', 'types.zod', 'types.pydantic', 'orm.sqlalchemy', " +
+        "'types.graphql', 'types.csharp', 'orm.gorm', 'orm.typeorm', 'schema.nsl', 'schema.canonical-ir', " +
+        "'migration.flyway', 'migration.liquibase', 'migration.golang-migrate', 'console.nextjs', 'schema.json-schema', 'types.protobuf'. " +
+        "Short aliases like 'drizzle', 'zod', 'typescript', 'pydantic', 'sqlalchemy', 'gorm' are accepted.")]
+    public string GenerateArtifact(
+        [Description("Schema to generate code for, as Namines JSON.")]
+        string schemaJson,
+        [Description("Target technology (e.g. 'orm.drizzle', 'types.zod', 'types.typescript', 'types.pydantic', 'orm.sqlalchemy', 'types.graphql').")]
+        string target,
+        [Description("Database dialect: PostgreSQL, MySQL, MSSQL, SQLite, MariaDB, Oracle.")]
+        string engine = "PostgreSQL")
+    {
+        var schema = ParseSchema(schemaJson, nameof(schemaJson));
+        var dbType = ParseEngine(engine);
+
+        var resolvedTarget = ResolveTargetAlias(target);
+        var generator = _ejectRegistry.Get(resolvedTarget);
+        var result = generator.Generate(schema, dbType);
+
+        return JsonSerializer.Serialize(new
+        {
+            target = generator.Target,
+            displayName = generator.DisplayName,
+            engine = dbType.ToString(),
+            files = result.Files,
+            warnings = result.Warnings,
+        }, Json);
+    }
+
+    // ── 7. list_artifact_targets (NEW) ───────────────────────────────────────
+
+    [McpServerTool(Name = "namines_list_artifact_targets")]
+    [Description(
+        "List all 19 supported code-generation and schema-export targets supported by Namines, " +
+        "including ORMs (Drizzle, Prisma, SQLAlchemy, TypeORM, Gorm), Types (TypeScript, Zod, Pydantic, C#, GraphQL, Protobuf), " +
+        "Migrations (Flyway, Liquibase, golang-migrate), and Consoles.")]
+    public string ListArtifactTargets()
+    {
+        var targets = _ejectRegistry.All.Select(g => new
+        {
+            id = g.Target,
+            name = g.DisplayName,
+            category = g.Target.Split('.')[0] switch
+            {
+                "orm" => "ORM",
+                "types" => "Types & Validation",
+                "schema" => "Schema & IR",
+                "migration" => "Migration Tools",
+                "console" => "Fullstack Console",
+                _ => "Other"
+            }
+        }).ToList();
+
+        return JsonSerializer.Serialize(targets, Json);
+    }
+
+    private static string ResolveTargetAlias(string input)
+    {
+        var t = input.Trim().ToLowerInvariant();
+        return t switch
+        {
+            "drizzle" or "orm.drizzle" => "orm.drizzle",
+            "zod" or "types.zod" => "types.zod",
+            "typescript" or "ts" or "types.typescript" => "types.typescript",
+            "typescript-sdk" or "sdk" or "sdk.typescript" or "types.typescript-sdk" => "sdk.typescript",
+            "pydantic" or "python" or "types.python" or "types.pydantic" => "types.python",
+            "sqlalchemy" or "orm.sqlalchemy" => "orm.sqlalchemy",
+            "graphql" or "gql" or "contract.graphql" or "types.graphql" or "types.graphql-sdl" => "contract.graphql",
+            "csharp" or "c#" or "types.csharp" => "types.csharp",
+            "gorm" or "go" or "orm.gorm" => "orm.gorm",
+            "typeorm" or "orm.typeorm" => "orm.typeorm",
+            "django" or "orm.django" => "orm.django",
+            "sequelize" or "orm.sequelize" => "orm.sequelize",
+            "nsl" or "schema.nsl" => "nsl",
+            "ir" or "ir.json" or "canonical-ir" or "schema.canonical-ir" => "ir.json",
+            "jsonschema" or "json-schema" or "contract.jsonschema" or "schema.json-schema" => "contract.jsonschema",
+            "protobuf" or "proto" or "contract.protobuf" or "types.protobuf" => "contract.protobuf",
+            "console" or "nextjs" or "console.nextjs" => "console.nextjs",
+            "flyway" or "mig.flyway" or "migration.flyway" => "mig.flyway",
+            "liquibase" or "mig.liquibase" or "migration.liquibase" => "mig.liquibase",
+            _ => input
+        };
+    }
+
+    // ── 8. desk_execute_query (NEW: Desk SQL runner) ─────────────────────────
+
+    [McpServerTool(Name = "namines_desk_execute_query")]
+    [Description(
+        "Safely execute a SQL query or mutation against a connected database via Namines Desk. " +
+        "Guarded by SSRF policy. For SELECT queries, returns column schema and paginated rows. " +
+        "For INSERT/UPDATE/DELETE/DDL, returns rows affected.")]
+    public async Task<string> DeskExecuteQueryAsync(
+        [Description("ADO.NET connection string.")]
+        string connectionString,
+        [Description("Database engine: PostgreSQL, MSSQL, MySQL, MariaDB, Oracle or SQLite.")]
+        string engine,
+        [Description("SQL query or command to execute.")]
+        string sql,
+        [Description("Maximum rows to return for SELECT queries (default: 50, max: 500).")]
+        int maxRows = 50,
+        CancellationToken cancellationToken = default)
+    {
+        _connectionGuard.EnsureAllowed(connectionString, engine);
+        var dbType = ParseEngine(engine);
+
+        var sw = Stopwatch.StartNew();
+        await using var connection = CreateConnection(connectionString, dbType);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.CommandTimeout = 30;
+
+        var isSelect = sql.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase) ||
+                       sql.TrimStart().StartsWith("WITH", StringComparison.OrdinalIgnoreCase);
+
+        if (isSelect)
+        {
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            var columns = new List<string>();
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                columns.Add(reader.GetName(i));
+            }
+
+            var rows = new List<Dictionary<string, object?>>();
+            var limit = Math.Clamp(maxRows, 1, 500);
+
+            while (await reader.ReadAsync(cancellationToken) && rows.Count < limit)
+            {
+                var row = new Dictionary<string, object?>();
+                for (var i = 0; i < reader.FieldCount; i++)
+                {
+                    var val = reader.GetValue(i);
+                    row[columns[i]] = val == DBNull.Value ? null : val;
+                }
+                rows.Add(row);
+            }
+
+            sw.Stop();
+            return JsonSerializer.Serialize(new
+            {
+                succeeded = true,
+                isQuery = true,
+                durationMs = sw.ElapsedMilliseconds,
+                columns,
+                rowCount = rows.Count,
+                rows,
+            }, Json);
+        }
+        else
+        {
+            var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
+            sw.Stop();
+            return JsonSerializer.Serialize(new
+            {
+                succeeded = true,
+                isQuery = false,
+                durationMs = sw.ElapsedMilliseconds,
+                rowsAffected = affected,
+            }, Json);
+        }
+    }
+
+    // ── 9. desk_browse_table (NEW: Desk Table Explorer) ──────────────────────
+
+    [McpServerTool(Name = "namines_desk_browse_table")]
+    [Description(
+        "Browse records in a database table through Namines Gateway with pagination and column selection. " +
+        "Read-only and parameterized. Fast high-density table inspection for database models.")]
+    public async Task<string> DeskBrowseTableAsync(
+        [Description("ADO.NET connection string.")]
+        string connectionString,
+        [Description("Database engine: PostgreSQL, MSSQL, MySQL, MariaDB, Oracle or SQLite.")]
+        string engine,
+        [Description("Name of the table to browse.")]
+        string tableName,
+        [Description("Page index (1-based, default: 1).")]
+        int page = 1,
+        [Description("Page size (default: 20, max: 100).")]
+        int pageSize = 20,
+        [Description("Optional column name to order by.")]
+        string? orderByColumn = null,
+        CancellationToken cancellationToken = default)
+    {
+        _connectionGuard.EnsureAllowed(connectionString, engine);
+
+        var clampedSize = Math.Clamp(pageSize, 1, 100);
+        var clampedPage = Math.Max(1, page);
+
+        var result = await _gateway.ListAsync(
+            connectionString,
+            engine,
+            tableName,
+            page: clampedPage,
+            pageSize: clampedSize,
+            orderByColumn: orderByColumn,
+            includeTotalCount: true,
+            cancellationToken: cancellationToken);
+
+        return JsonSerializer.Serialize(result, Json);
+    }
+
+    // ── 10. hub_search_blueprints (NEW: Verified Architectures) ──────────────
+
+    [McpServerTool(Name = "namines_hub_search_blueprints")]
+    [Description(
+        "Search certified, 3NF-compliant production database architectures from Namines Hub. " +
+        "Includes complete models for FinTech, ERP, Multi-Tenant SaaS, E-Commerce, Healthcare EHR, AI Ops, " +
+        "IoT Telemetry, Logistics, Social Graph, and Education LMS.")]
+    public string HubSearchBlueprints(
+        [Description("Search query keyword (e.g. 'fintech', 'saas', 'erp', 'healthcare', 'ecommerce', 'iot', 'ai').")]
+        string? query = null,
+        [Description("Optional category filter: 'FinTech', 'ERP', 'SaaS', 'E-Commerce', 'Healthcare', 'AI', 'Enterprise', 'General'.")]
+        string? category = null)
+    {
+        var blueprints = HubBlueprintCatalog.Search(query, category)
+            .Select(b => new
+            {
+                slug = b.Slug,
+                name = b.Name,
+                category = b.Category,
+                description = b.Description,
+                tags = b.Tags,
+                starCount = b.StarCount,
+                forkCount = b.ForkCount,
+                tableCount = b.Schema.Tables.Count,
+                tables = b.Schema.Tables.Select(t => t.Name).ToList(),
+                relationCount = b.Schema.Relations.Count,
+            })
+            .ToList();
+
+        return JsonSerializer.Serialize(blueprints, Json);
+    }
+
+    // ── 11. hub_get_blueprint (NEW: Get Full Architecture Schema) ────────────
+
+    [McpServerTool(Name = "namines_hub_get_blueprint")]
+    [Description(
+        "Retrieve the complete, verified DatabaseSchema and DBA notes of a Namines Hub architectural blueprint by slug. " +
+        "Ready to be directly analyzed, migrated, code-generated (Prisma/Drizzle/SQL), or deployed.")]
+    public string HubGetBlueprint(
+        [Description("Slug of the blueprint (e.g. 'fintech-ledger-engine', 'enterprise-erp-core', 'multitenant-b2b-saas', 'ecommerce-order-pipeline').")]
+        string slug)
+    {
+        var bp = HubBlueprintCatalog.FindBySlug(slug)
+                 ?? throw new ArgumentException($"Blueprint with slug '{slug}' not found. Use namines_hub_search_blueprints to see available architectures.");
+
+        return JsonSerializer.Serialize(new
+        {
+            slug = bp.Slug,
+            name = bp.Name,
+            category = bp.Category,
+            description = bp.Description,
+            tags = bp.Tags,
+            starCount = bp.StarCount,
+            forkCount = bp.ForkCount,
+            starterIssue = new
+            {
+                title = bp.StarterIssueTitle,
+                body = bp.StarterIssueBody,
+                table = bp.StarterIssueTable,
+                nslRuleCode = bp.StarterIssueNslCode,
+            },
+            schema = bp.Schema,
+        }, Json);
+    }
+
+    // ── 12. flow_match_rules (NEW: Flow Automation Matcher) ──────────────────
+
+    [McpServerTool(Name = "namines_flow_match_rules")]
+    [Description(
+        "Evaluate Namines Flow automation rules against a proposed schema change. " +
+        "Calculates schema diff and identifies triggered automation rules (e.g. backup on destructive changes, " +
+        "webhook notifications on column modifications, index quality warnings).")]
+    public string FlowMatchRules(
+        [Description("Base schema JSON.")]
+        string baseSchemaJson,
+        [Description("Target schema JSON.")]
+        string targetSchemaJson,
+        [Description("Optional JSON list of custom AutomationRule objects. If omitted, standard Namines Flow policies are evaluated.")]
+        string? rulesJson = null)
+    {
+        var baseSchema = ParseSchema(baseSchemaJson, nameof(baseSchemaJson));
+        var targetSchema = ParseSchema(targetSchemaJson, nameof(targetSchemaJson));
+
+        var diff = CalculateDiff(baseSchema, targetSchema);
+
+        List<AutomationRule> rules;
+        if (!string.IsNullOrWhiteSpace(rulesJson))
+        {
+            rules = JsonSerializer.Deserialize<List<AutomationRule>>(rulesJson, Json) ?? new();
+        }
+        else
+        {
+            rules = new List<AutomationRule>
+            {
+                new()
+                {
+                    Id = "rule_table_added",
+                    Name = "Notify & Scaffold on Table Added",
+                    TriggerType = "TableAdded",
+                    Enabled = true,
+                    Actions = new List<AutomationAction>
+                    {
+                        new() { Id = "act_1", ActionType = "Webhook", ActionConfigJson = "{\"channel\":\"slack\"}" }
+                    }
+                },
+                new()
+                {
+                    Id = "rule_column_deleted",
+                    Name = "Guard against Column Dropping",
+                    TriggerType = "ColumnDeleted",
+                    Enabled = true,
+                    Actions = new List<AutomationAction>
+                    {
+                        new() { Id = "act_2", ActionType = "DbaCheck", ActionConfigJson = "{\"level\":\"strict\"}" }
+                    }
+                },
+                new()
+                {
+                    Id = "rule_column_changed",
+                    Name = "Type Mutation Audit",
+                    TriggerType = "ColumnChanged",
+                    Enabled = true,
+                    Actions = new List<AutomationAction>
+                    {
+                        new() { Id = "act_3", ActionType = "Toast", ActionConfigJson = "{}" }
+                    }
+                }
+            };
+        }
+
+        var matches = _flowMatcher.Match(diff, baseSchema, targetSchema, rules);
+
+        return JsonSerializer.Serialize(new
+        {
+            diffSummary = new
+            {
+                tablesAdded = diff.AddedTables,
+                tablesRemoved = diff.RemovedTables,
+                tablesModified = diff.ModifiedTables.Select(m => new
+                {
+                    table = m.TableName,
+                    addedCols = m.AddedColumns,
+                    removedCols = m.RemovedColumns,
+                    modifiedCols = m.ModifiedColumns
+                }).ToList()
+            },
+            matchedRulesCount = matches.Count,
+            matchedRules = matches.Select(m => new
+            {
+                ruleId = m.Rule.Id,
+                ruleName = m.Rule.Name,
+                trigger = m.Rule.TriggerType,
+                actions = m.Rule.Actions.Select(a => a.ActionType).ToList(),
+                context = new
+                {
+                    table = m.Context.TableName,
+                    column = m.Context.ColumnName,
+                    type = m.Context.ColumnType
+                }
+            }).ToList()
+        }, Json);
+    }
+
+    // ── 13. open_change_request ──────────────────────────────────────────────
+
+    [McpServerTool(Name = "namines_open_change_request")]
+    [Description(
+        "Open a Change Request for a proposed schema change on the Namines cloud server. " +
+        "Creates a branch/CR for team discussion and human review. " +
+        "Requires NAMINES_API_TOKEN environment variable. Does NOT touch the live database.")]
+    public async Task<string> OpenChangeRequestAsync(
+        [Description("ID of the project in Namines Cloud.")]
+        string projectId,
+        [Description("Proposed schema as Namines JSON.")]
+        string schemaJson,
+        [Description("Short descriptive title for the review.")]
+        string? title = null,
+        [Description("Context for the reviewer: why this change, and what the impact analysis found.")]
+        string? message = null,
+        CancellationToken cancellationToken = default)
+    {
+        ParseSchema(schemaJson, nameof(schemaJson));
+
+        if (string.IsNullOrWhiteSpace(projectId))
+            throw new ArgumentException("projectId is empty.");
+
+        var response = await _cloud.OpenChangeRequestAsync(
+            projectId, schemaJson, title, message, cancellationToken);
+        return JsonSerializer.Serialize(response, Json);
+    }
+
     /// <summary>
-    /// Yapılandırılmış hâl. MCP aracı bunun JSON'a serileştirilmiş hâlidir; CLI ise
-    /// uyarıları stderr'e ayırabilmek için doğrudan bunu kullanır. Tek gövde, iki yüzey.
+    /// Yapılandırılmış hâl. Prisma üreticisinin ortak çağırma noktası.
     /// </summary>
     public PrismaGenerationResult GeneratePrismaFiles(string schemaJson, string engine)
     {

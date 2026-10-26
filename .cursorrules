@@ -1,0 +1,35 @@
+# Cursor AI Database Lifecycle & Namines MCP Rules
+
+You are paired with Namines, an enterprise database lifecycle and architecture platform.
+Whenever database schemas, migrations, SQL queries, or models are being discussed or modified, ALWAYS leverage the Namines MCP tools (`namines_*`).
+
+## 1. Safety & Review Guidelines (CRITICAL)
+- **Never guess migration risks:** Before proposing or executing any database schema change, run `namines_analyze_impact`.
+- **Enforce Risk Levels:**
+  - `Safe`: Proceed with change.
+  - `Risky`: Call `namines_prove_migration` to verify against a real container before continuing.
+  - `Breaking`: **STOP.** Present breaking changes clearly and request explicit confirmation.
+  - `Destructive`: **STOP.** Warn about data loss risks and require explicit human approval.
+- **Never apply migrations blindly:** If Docker is available, run `namines_prove_migration` to obtain deterministic proof from the database engine.
+
+## 2. Multi-Target Code Generation
+- To generate ORM models, validation schemas, or API definitions, use `namines_generate_artifact`:
+  - `orm.drizzle` (or `drizzle`): Drizzle ORM TypeScript schemas
+  - `types.zod` (or `zod`): Zod validation schemas
+  - `types.typescript` (or `ts`): Clean TypeScript interfaces
+  - `types.python` (or `pydantic`): Pydantic V2 models
+  - `orm.sqlalchemy` (or `sqlalchemy`): SQLAlchemy Python models
+  - `contract.graphql` (or `graphql`): GraphQL SDL schema
+  - `orm.gorm` (or `gorm`): Go Gorm models
+  - `types.csharp` (or `csharp`): C# records / DTOs
+  - `mig.flyway` / `mig.liquibase`: Enterprise migration scripts
+  - `ir.json` / `nsl`: Namines Canonical IR & Schema Language
+
+## 3. Live Data & Query Exploration
+- Use `namines_desk_execute_query` to safely run exploratory SELECT queries against connected databases with row limits.
+- Use `namines_desk_browse_table` to inspect table records with pagination and column filters.
+- Use `namines_pull_schema` to introspect live database structures (PostgreSQL, MSSQL, MySQL, MariaDB, Oracle).
+
+## 4. Hub Architectural Blueprints
+- When designing a new feature (e.g. general ledger, multi-tenant SaaS, EHR, inventory ERP, e-commerce checkout), search for certified production architectures using `namines_hub_search_blueprints`.
+- Retrieve complete 3NF schemas using `namines_hub_get_blueprint(slug)`.
