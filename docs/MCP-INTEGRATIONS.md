@@ -1,80 +1,197 @@
-# Namines Universal MCP — Entegrasyon ve Kurulum Kılavuzu
+# Namines Universal MCP — Harici Kullanıcı ve IDE Entegrasyon Kılavuzu
 
-Namines Model Context Protocol (MCP) sunucusu; **Google Antigravity**, **Cursor**, **Claude Code** ve **GitHub Copilot / OpenAI Codex (VS Code)** gibi yapay zeka kodlama araçlarına deterministik veritabanı analiz, migrasyon kanıtlama, 19 dilde kod üretimi ve canlı sorgulama yetenekleri kazandırır.
+Namines Model Context Protocol (MCP) sunucusu; **dışarıdaki son kullanıcılar ve geliştiriciler** için sıfır bağımlılıkla çalışacak şekilde tasarlanmıştır.
+
+> [!IMPORTANT]
+> **Kullanıcıların makinesinde .NET, C# veya herhangi bir derleyici kurulu olmasına GEREK YOKTUR.**
+> Sunucu platforma özel (Windows, macOS, Linux, ARM64) derlenmiş bağımsız binary'leri `npx -y @namines/mcp` üzerinden otomatik olarak çeker. Kullanıcı yalnızca aşağıdaki 5-6 satırlık JSON yapılandırmasını kendi editörüne yapıştırır.
 
 ---
 
-## 🛠️ Desteklenen Araçlar (Tools)
+## 📋 Hızlı Başvuru Tablosu
 
-Namines MCP sunucusu 13 adet birinci sınıf araç sunar:
-
-| Araç Adı | Kapsam / Modül | Ne İşe Yarar? |
+| Editör / AI Asistanı | Yapılandırma Dosyası / Yolu | Kurulum Tipi |
 |---|---|---|
-| `namines_analyze_impact` | **Diagram / Review** | Temel şema ile hedef şema arasındaki riski deterministik olarak hesaplar (`Safe`, `Risky`, `Breaking`, `Destructive`). |
-| `namines_prove_migration` | **Run Tests** | DDL kodunu gerçek bir Docker motor konteynerinde çalıştırarak motorun kabul edip etmediğini kanıtlar. |
-| `namines_generate_artifact` | **Build / Eject** | Şemayı 19 farklı hedefe (Drizzle, SQLAlchemy, Pydantic, TypeScript SDK, Zod, GraphQL, Gorm vb.) derler. |
-| `namines_list_artifact_targets`| **Build / Eject** | Desteklenen tüm hedef dilleri ve ORM kütüphanelerini listeler. |
-| `namines_generate_prisma` | **Build / Eject** | Şemadan eksiksiz `schema.prisma` ve ortam değişkeni üretir. |
-| `namines_generate_ddl` | **Build / Eject** | 6 veritabanı motoruna (PostgreSQL, MSSQL, MySQL, MariaDB, SQLite, Oracle) özel DDL çıktısı verir. |
-| `namines_pull_schema` | **Gateway / Introspect** | Canlı veritabanını salt-okunur analiz edip Namines JSON formatında şemasını çeker. |
-| `namines_desk_execute_query` | **Desk** | Bağlı veritabanı üzerinde güvenli, sınırlı ve denetimli SQL sorgusu çalıştırır. |
-| `namines_desk_browse_table` | **Desk** | Bir tablodaki kayıtları sayfalı, sıralı ve yüksek yoğunluklu olarak inceler. |
-| `namines_hub_search_blueprints`| **Hub** | FinTech, ERP, SaaS, EHR, IoT, E-Commerce gibi 10 onaylı kurumsal mimari şablonunu arar. |
-| `namines_hub_get_blueprint` | **Hub** | İlgili mimari şablonunun tüm tablolarını, ilişkilerini ve DBA başlangıç notlarını çeker. |
-| `namines_flow_match_rules` | **Flow** | Şema değişikliklerini Namines Flow olay kurallarıyla (webhook, yedekleme vb.) eşleştirir. |
-| `namines_open_change_request` | **Hub / Cloud** | İnsan onayı gerektiren şemaları Namines Cloud üzerinde Change Request olarak açar. |
+| **Cursor IDE** | `.cursor/mcp.json` veya `Settings -> Features -> MCP` | Stdio (`npx`) |
+| **VS Code (GitHub Copilot Chat)** | `.vscode/mcp.json` | Stdio (`npx`) |
+| **Claude Desktop** | `claude_desktop_config.json` | Stdio (`npx`) |
+| **Claude Code (CLI)** | Terminal komutu (`claude mcp add`) | CLI argümanı |
+| **Windsurf IDE (Codeium)** | `~/.codeium/windsurf/mcp_config.json` | Stdio (`npx`) |
+| **Zed Editor** | `~/.config/zed/settings.json` (`context_servers`) | JSON formatı |
+| **Roo Code / Cline (VS Code)** | `cline_mcp_settings.json` | Stdio (`npx`) |
+| **Continue (VS Code & JetBrains)** | `~/.continue/config.json` | Stdio (`npx`) |
+| **Google Antigravity** | `.mcp.json` veya WorkSpace Custom Skill | Stdio (`npx`) |
 
 ---
 
-## 🚀 Platform Entegrasyonları
+## 1. Cursor Entegrasyonu
 
-### 1. Cursor Entegrasyonu
-
-Depo kökünde [`.cursor/mcp.json`](../.cursor/mcp.json) ve [`.cursorrules`](../.cursorrules) dosyaları hazırdır.
-
-Cursor Ayarlarında (`Settings -> Features -> MCP`):
-1. **Name**: `namines`
-2. **Type**: `command`
-3. **Command**:
-   ```bash
-   dotnet run --project backend/Namines.Mcp/Namines.Mcp.csproj --no-build
-   ```
-   *(Veya npx ile: `npx -y @namines/mcp`)*
-4. Artık Cursor Composer veya Chat penceresinde `namines_*` araçları otomatik olarak algılanır.
-
----
-
-### 2. Google Antigravity Entegrasyonu
-
-Antigravity, MCP standart protokolünü JSON-RPC stdio ile destekler:
-- Kök dizindeki [`.mcp.json`](../.mcp.json) otomatik olarak tanınır.
-- [`skills/namines-schema-review/SKILL.md`](../skills/namines-schema-review/SKILL.md) becerisi sayesinde Antigravity, şema değişikliklerinde önce `namines_analyze_impact` çalıştırır ve yıkıcı değişikliklerde kullanıcıdan onay ister.
-
----
-
-### 3. Claude Code Entegrasyonu
-
-Claude Code terminalinden doğrudan:
-```bash
-claude mcp add namines -- dotnet run --project backend/Namines.Mcp/Namines.Mcp.csproj --no-build
-```
-Veya projedeki [`CLAUDE.md`](../CLAUDE.md) talimatları ile Claude otomatik olarak `namines_*` araçlarını veritabanı işlemlerinde devreye sokar.
-
----
-
-### 4. VS Code & GitHub Copilot / OpenAI Codex
-
-VS Code'un yerel MCP desteği için [`.vscode/mcp.json`](../.vscode/mcp.json) ve [`.github/copilot-instructions.md`](../.github/copilot-instructions.md) yapılandırılmıştır.
+Kullanıcı kendi projesinin kök dizinine `.cursor/mcp.json` ekleyebilir ya da Cursor global ayarlarından (`Cursor Settings -> Features -> MCP -> Add New MCP Server`) tanımlayabilir:
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "namines": {
-      "command": "dotnet",
-      "args": ["run", "--project", "backend/Namines.Mcp/Namines.Mcp.csproj", "--no-build"]
+      "command": "npx",
+      "args": ["-y", "@namines/mcp"]
     }
   }
 }
 ```
 
-Copilot Chat açıldığında `@namines` araçları bağlamda hazır bulunur.
+*İsteğe bağlı:* Projeye eklenen [`.cursorrules`](../.cursorrules) dosyası, Cursor Composer'ın şema işlemlerinde önce `namines_analyze_impact` çağırmasını zorunlu kılar.
+
+---
+
+## 2. VS Code & GitHub Copilot Chat (Codex)
+
+VS Code'un yerel MCP desteği için proje köküne [`.vscode/mcp.json`](../.vscode/mcp.json) eklenir:
+
+```json
+{
+  "servers": {
+    "namines": {
+      "command": "npx",
+      "args": ["-y", "@namines/mcp"]
+    }
+  }
+}
+```
+
+GitHub Copilot Chat, `@namines` araçlarını otomatik olarak tanır ve veri modelleme sorularında devreye sokar.
+
+---
+
+## 3. Claude Desktop (Anthropic)
+
+Claude Desktop uygulamasında ayarlar dosyasını açın:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+İçeriğine ekleyin:
+
+```json
+{
+  "mcpServers": {
+    "namines": {
+      "command": "npx",
+      "args": ["-y", "@namines/mcp"]
+    }
+  }
+}
+```
+
+Claude Desktop yeniden başlatıldığında sağ alttaki çekiç (Tools) simgesinde 13 adet `namines_*` aracı yeşil olarak görünür.
+
+---
+
+## 4. Claude Code (Terminal CLI)
+
+Terminalden tek bir komut çalıştırmak yeterlidir:
+
+```bash
+claude mcp add namines -- npx -y @namines/mcp
+```
+
+Ayrıca proje kök dizinindeki [`CLAUDE.md`](../CLAUDE.md) talimatları sayesinde Claude Code şema değişikliklerinde otomatik olarak etki analizi ve kanıtlama döngüsünü uygular.
+
+---
+
+## 5. Windsurf IDE (Codeium)
+
+Windsurf yapılandırma dosyasını açın:
+`~/.codeium/windsurf/mcp_config.json`
+
+```json
+{
+  "mcpServers": {
+    "namines": {
+      "command": "npx",
+      "args": ["-y", "@namines/mcp"]
+    }
+  }
+}
+```
+
+Cascade AI, veritabanı düzenlemelerinde Namines araçlarını kullanmaya başlar.
+
+---
+
+## 6. Zed Editor
+
+`~/.config/zed/settings.json` içerisine `context_servers` alanını ekleyin:
+
+```json
+{
+  "context_servers": [
+    {
+      "id": "namines",
+      "command": {
+        "path": "npx",
+        "args": ["-y", "@namines/mcp"]
+      }
+    }
+  ]
+}
+```
+
+---
+
+## 7. Roo Code & Cline (VS Code Eklentileri)
+
+Eklenti ayarları (`cline_mcp_settings.json` veya Roo Code MCP paneli):
+
+```json
+{
+  "mcpServers": {
+    "namines": {
+      "command": "npx",
+      "args": ["-y", "@namines/mcp"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+---
+
+## 8. Continue (VS Code & JetBrains Eklentisi)
+
+`~/.continue/config.json` dosyasında `experimental.modelContextProtocolServers` altına ekleyin:
+
+```json
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@namines/mcp"]
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 🛠️ Dış Kullanıcıların Sahip Olduğu 13 Araç
+
+Kullanıcı bu entegrasyonu kurduğu andan itibaren AI asistanı şu yetenekleri kazanır:
+
+1. **`namines_analyze_impact`**: İki şema arasındaki migrasyon riskini hesaplar (`Safe`, `Risky`, `Breaking`, `Destructive`).
+2. **`namines_prove_migration`**: DDL'i gerçek Docker veritabanında çalıştırıp kabul edilip edilmediğini kanıtlar.
+3. **`namines_generate_artifact`**: Şemadan **19 hedefte** (Drizzle, Prisma, SQLAlchemy, Pydantic, Zod, TypeScript, GraphQL, Gorm vb.) hazır kod üretir.
+4. **`namines_list_artifact_targets`**: Tüm desteklenen kod üretimi dillerini listeler.
+5. **`namines_generate_prisma`**: `schema.prisma` modellerini üretir.
+6. **`namines_generate_ddl`**: 6 veritabanı motoru için (Postgres, MSSQL, MySQL, MariaDB, SQLite, Oracle) hatasız SQL DDL üretir.
+7. **`namines_pull_schema`**: Kullanıcının canlı veritabanını tarayarak şemasını JSON olarak çeker.
+8. **`namines_desk_execute_query`**: Kullanıcının veritabanında güvenli, sınırlı ve korumalı SELECT/UPDATE/INSERT çalıştırır.
+9. **`namines_desk_browse_table`**: Tablo satırlarını sayfalı ve filtreli olarak inceler.
+10. **`namines_hub_search_blueprints`**: FinTech, SaaS, ERP, EHR gibi 10 onaylı kurumsal mimari şablonunu arar.
+11. **`namines_hub_get_blueprint`**: İstenen mimari şablonunun tüm tablolarını ve ilişkilerini projeye aktarır.
+12. **`namines_flow_match_rules`**: Şema değişikliklerinin tetikleyeceği otomasyon kurallarını denetler.
+13. **`namines_open_change_request`**: İnsan onayı için Namines sunucusunda Change Request açar.

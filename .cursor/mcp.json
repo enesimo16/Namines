@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "namines": {
-      "command": "dotnet",
-      "args": ["run", "--project", "backend/Namines.Mcp/Namines.Mcp.csproj", "--no-build"]
+      "command": "npx",
+      "args": ["-y", "@namines/mcp"]
     }
   }
 }
