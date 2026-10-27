@@ -1,22 +1,23 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { LOCALES, setLocale, useLocale, useT, type Locale } from '../../lib/i18n';
+import { Globe, Check } from 'lucide-react';
+import { setLocale, useLocale, useT, type Locale } from '../../lib/i18n';
 
-const SHORT: Record<Locale, string> = { en: 'EN', tr: 'TR' };
-
-/**
- * Arayüz dili seçici. Hem yerel durumu günceller hem de pazarlama
- * sayfalarında (/tr ve /en) temiz URL geçişi sağlar.
- */
 export default function LanguageToggle() {
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale();
   const t = useT();
+  const [open, setOpen] = useState(false);
+  const [spinning, setSpinning] = useState(false);
 
   const handleSelect = (option: Locale) => {
+    setSpinning(true);
+    setTimeout(() => setSpinning(false), 450);
     setLocale(option);
+    setOpen(false);
     if (pathname === '/' || pathname === '/tr' || pathname === '/en') {
       const targetPath = option === 'tr' ? '/tr' : '/en';
       if (pathname !== targetPath && router) {
@@ -27,36 +28,54 @@ export default function LanguageToggle() {
 
   return (
     <div
-      role="group"
-      aria-label={t('language.label')}
-      title={locale === 'tr' ? t('language.betaNote') : undefined}
-      className="relative inline-flex items-center h-8 w-[72px] p-0.5 rounded-full border border-line-strong bg-surface-800/80 shrink-0 select-none shadow-sm overflow-hidden"
+      className="relative inline-flex items-center"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
     >
-      {/* Sliding Active Indicator */}
-      <span
-        aria-hidden="true"
-        className={`absolute top-0.5 bottom-0.5 left-0.5 w-[33px] rounded-full bg-accent shadow-sm transition-transform duration-200 ease-out pointer-events-none ${
-          locale === 'tr' ? 'translate-x-[33px]' : 'translate-x-0'
-        }`}
-      />
+      <button
+        type="button"
+        onClick={() => handleSelect(locale === 'en' ? 'tr' : 'en')}
+        aria-label={t('language.label')}
+        title={locale === 'en' ? 'English (Click to switch to Türkçe)' : 'Türkçe (İngilizceye geçmek için tıklayın)'}
+        className="tap-44 relative w-9 h-9 inline-flex items-center justify-center rounded-full text-content-primary/80 hover:text-content-primary hover:bg-surface-800 transition-colors duration-200 active:scale-90 cursor-pointer select-none shrink-0 group"
+      >
+        <Globe
+          className={`w-[18px] h-[18px] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-12 ${
+            spinning ? 'rotate-180 scale-110' : 'rotate-0 scale-100'
+          }`}
+        />
+      </button>
 
-      {LOCALES.map(option => {
-        const active = option === locale;
-        return (
-          <button
-            key={option}
-            type="button"
-            onClick={() => handleSelect(option)}
-            aria-pressed={active}
-            aria-label={t(`language.${option}`)}
-            className={`tap-44 relative z-10 flex-1 h-7 rounded-full text-[10px] font-mono font-bold tracking-wider flex items-center justify-center transition-colors duration-200 cursor-pointer ${
-              active ? 'text-accent-on' : 'text-content-muted hover:text-content-primary'
-            }`}
-          >
-            {SHORT[option]}
-          </button>
-        );
-      })}
+      {open && (
+        <div className="absolute right-0 top-full pt-1.5 z-dropdown w-36 animate-dropdown-in">
+          <div className="rounded-[10px] bg-surface-900 border border-surface-600/80 shadow-xl p-1.5 flex flex-col gap-0.5">
+            <button
+              type="button"
+              onClick={() => handleSelect('en')}
+              className={`w-full px-3 py-2 rounded-[7px] text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                locale === 'en'
+                  ? 'bg-surface-800 text-content-primary font-semibold'
+                  : 'text-content-secondary hover:text-content-primary hover:bg-surface-800/60'
+              }`}
+            >
+              <span>English</span>
+              {locale === 'en' && <Check className="w-3.5 h-3.5 text-content-primary" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelect('tr')}
+              className={`w-full px-3 py-2 rounded-[7px] text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
+                locale === 'tr'
+                  ? 'bg-surface-800 text-content-primary font-semibold'
+                  : 'text-content-secondary hover:text-content-primary hover:bg-surface-800/60'
+              }`}
+            >
+              <span>Türkçe</span>
+              {locale === 'tr' && <Check className="w-3.5 h-3.5 text-content-primary" />}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

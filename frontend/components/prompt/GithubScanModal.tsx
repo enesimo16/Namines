@@ -24,7 +24,16 @@ interface GithubScanModalProps {
  */
 export function GithubScanModal({ onScan, onImport, onClose }: GithubScanModalProps) {
   useEscapeKey(true, onClose);
-  const [repoUrl, setRepoUrl] = useState('');
+  const [repoUrl, setRepoUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('namines-demo-github-url');
+      if (saved) {
+        sessionStorage.removeItem('namines-demo-github-url');
+        return saved;
+      }
+    }
+    return '';
+  });
   const [branch, setBranch] = useState('');
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -94,6 +94,23 @@ export default function NewProjectPage() {
   useEffect(() => {
     useProjectHistoryStore.getState().setActiveProjectId(null);
     resetProject();
+    if (typeof window !== 'undefined') {
+      const savedDemoPrompt = sessionStorage.getItem('namines-demo-prompt');
+      if (savedDemoPrompt) {
+        setPrompt(savedDemoPrompt);
+        sessionStorage.removeItem('namines-demo-prompt');
+      }
+      const savedDemoSource = sessionStorage.getItem('namines-demo-source');
+      if (savedDemoSource) {
+        sessionStorage.removeItem('namines-demo-source');
+        if (savedDemoSource === 'starter') setStarterModalOpen(true);
+        else if (savedDemoSource === 'github') setGithubModalOpen(true);
+        else if (savedDemoSource === 'db') setDbModalOpen(true);
+        else if (savedDemoSource === 'code') setCodeModalOpen(true);
+        else if (savedDemoSource === 'openapi') setShowUrlInput(true);
+        else if (savedDemoSource === 'json') setJsonModalOpen(true);
+      }
+    }
     trackActivity({ action: 'page_view', module: 'new', path: '/new' });
   }, [resetProject]);
 

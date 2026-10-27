@@ -279,7 +279,7 @@ export default function Header() {
     return null;
   }
 
-  const isMarketing = pathname === '/' || pathname === '/tr' || pathname === '/en';
+  const isMarketing = pathname === '/' || pathname === '/tr' || pathname === '/en' || pathname === '/demo';
   if (isMarketing) {
     return (
       <>

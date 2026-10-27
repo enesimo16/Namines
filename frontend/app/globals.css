@@ -227,6 +227,14 @@
   --namines-teal-tile: oklch(20% 0.06 168);
   --namines-teal-tile-border: oklch(34% 0.10 168);
   --namines-gradient-banner: linear-gradient(90deg, oklch(24% 0.08 175) 0%, oklch(30% 0.12 168) 50%, oklch(36% 0.13 160) 100%);
+  --namines-hero-aura: radial-gradient(ellipse 68% 55% at 50% 58%, oklch(28% 0.09 260 / 0.45) 0%, oklch(25% 0.08 285 / 0.30) 45%, transparent 78%);
+  --namines-hero-card-bg: linear-gradient(165deg, oklch(19% 0.02 255 / 0.92) 0%, oklch(17% 0.03 275 / 0.88) 100%);
+  --brand-icon-claude: #d97757;
+  --brand-icon-vscode: #007acc;
+  --brand-icon-windsurf: #00b4a0;
+  --brand-icon-antigravity: #4285f4;
+  --brand-icon-zed: #087ea4;
+  --brand-icon-cline: #e06c75;
 
   /* Şerit mürekkebi. Şerit gradyanı temaya göre ters yönde değiştiği için
      (koyu temada KOYU yeşil, açık temada AÇIK yeşil) mürekkep de dönmek
@@ -447,6 +455,11 @@ body.light {
   --namines-teal-tile: oklch(95% 0.03 168);
   --namines-teal-tile-border: oklch(84% 0.06 168);
   --namines-gradient-banner: linear-gradient(90deg, oklch(94% 0.05 175) 0%, oklch(90% 0.09 168) 50%, oklch(92% 0.09 160) 100%);
+  --namines-hero-aura:
+    radial-gradient(ellipse 42% 38% at 34% 66%, oklch(84% 0.10 242 / 0.75) 0%, transparent 72%),
+    radial-gradient(ellipse 42% 38% at 66% 66%, oklch(84% 0.10 285 / 0.65) 0%, transparent 72%),
+    radial-gradient(ellipse 75% 55% at 50% 52%, oklch(92% 0.05 255 / 0.60) 0%, transparent 80%);
+  --namines-hero-card-bg: linear-gradient(160deg, oklch(99% 0.008 245 / 0.94) 0%, oklch(94% 0.032 255 / 0.88) 55%, oklch(93% 0.038 278 / 0.86) 100%);
   /* ÖLÇÜM: bu gradyanın üç durağına karşı 16.51 / 14.83 / 15.80. */
   --banner-ink: oklch(16% 0.004 var(--ui-hue));
   /* ÖLÇÜM: %48'de altı ifade rengi de 5.52-5.83 veriyor (3.0 gerekiyor). */

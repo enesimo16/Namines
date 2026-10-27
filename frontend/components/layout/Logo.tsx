@@ -3,7 +3,7 @@
 import React from 'react';
 
 interface LogoProps {
-  size?: 'xs' | 'sm' | 'default' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'default' | 'lg' | 'xl';
   showWordmark?: boolean;
   className?: string;
   variant?: 'light' | 'dark' | 'auto';
@@ -18,13 +18,15 @@ export default function Logo({
   showWordmark = true,
   className = '',
 }: LogoProps) {
-  const heightClass = {
-    xs: 'h-5',
-    sm: 'h-7',
-    default: 'h-8',
-    lg: 'h-10',
-    xl: 'h-12',
-  }[size];
+  const heightClass =
+    {
+      xs: 'h-5',
+      sm: 'h-7',
+      md: 'h-8',
+      default: 'h-8',
+      lg: 'h-10',
+      xl: 'h-12',
+    }[size] ?? 'h-8';
 
   return (
     <span className={`inline-flex items-center group select-none ${className}`}>
