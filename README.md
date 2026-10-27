@@ -246,6 +246,7 @@ needed.
 
 Internal planning, architecture, and audit documents live under [`docs/`](docs/):
 
+- [`docs/second-phase/18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md`](docs/second-phase/18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md) — **Ecosystem, OAuth Connectors (Supabase, Neon, Cloudflare D1, Turso, PlanetScale, GitHub, OpenRouter, Gemini), Tauri v2 Desktop App, Mobile Remote Control, Browser Extension, Distributed Subdomains (`*.namines.com`), and Commercial/Startup Credits Guide**
 - [`docs/new-phase/BASLA-BURADAN.md`](docs/new-phase/BASLA-BURADAN.md) — product history and current
   direction; the best starting point for a first-time reader
 - [`docs/new-phase/README.md`](docs/new-phase/README.md) — full index of product/architecture/market
@@ -268,6 +269,22 @@ Internal planning, architecture, and audit documents live under [`docs/`](docs/)
 Most of this documentation is written in Turkish, reflecting the primary working language of this
 project's planning process. The root [`AGENTS.md`](AGENTS.md) file indexes the documents an AI coding
 agent should read first when picking up work on this repo.
+
+## Direct OAuth Connectors & Multi-Platform Roadmap
+
+Namines supports direct account connections (OAuth2 / PKCE) and native desktop execution so users can connect their databases and AI providers with a single click instead of copying API keys or connection strings (see [`18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md`](docs/second-phase/18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md) for the complete setup guide):
+
+| Category | Provider / Platform | How It Connects & How to Obtain Credentials |
+|---|---|---|
+| **Database & Cloud** | **Supabase** | Obtain `Client ID/Secret` instantly via `Supabase Dashboard → Org Settings → OAuth Apps` (`api.supabase.com/v1/oauth/authorize`). Lists user projects and applies schemas directly. |
+| **Database & Cloud** | **Neon** | Connect via `Neon Console → OAuth / API Keys`. Powers instant serverless PostgreSQL provisioning for Namines Ground and Branching. |
+| **Database & Cloud** | **Cloudflare D1** | Connect via Cloudflare OAuth / Scoped API Token template (`D1:Edit`) to manage Edge SQLite databases directly. |
+| **Database & Cloud** | **Turso (libSQL)** | Connect via Turso Platform API / OAuth (`api.turso.tech`) to manage distributed libSQL/SQLite databases. |
+| **Database & Cloud** | **PlanetScale** | Obtain credentials via `PlanetScale Settings → OAuth Applications` (`api.planetscale.com/v1/oauth`) for direct MySQL/PostgreSQL branch integration. |
+| **Code & CI/CD** | **GitHub** | Obtain via `GitHub Developer Settings → GitHub Apps & OAuth Apps`. Powers repository scanning, code-to-schema extraction, and the **Namines Bot** PR risk reports. |
+| **AI Providers (OAuth)** | **OpenRouter (Claude, GPT-4o, DeepSeek)** | **Zero registration or Client ID required!** Uses OpenRouter **OAuth PKCE** (`openrouter.ai/auth`) so users can connect their own AI account in one click. |
+| **AI & Auth** | **Google & Gemini** | Obtain via `Google Cloud Console → Credentials → OAuth Client ID` for one-click Google Sign-In and Gemini/Cloud integration. |
+| **Desktop (Mac & Win)** | **Tauri v2 (Native App)** | Not a PWA — wraps the existing Next.js UI using native OS WebView2/WebKit + Rust (~10 MB `.exe` and `.dmg`) with zero UI rewrite, enabling direct connections to `localhost` and intranet/VPN databases. |
 
 ## License
 

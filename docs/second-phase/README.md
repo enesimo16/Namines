@@ -46,6 +46,7 @@ orada. Yeni bir şey yaparken **önce oraya bak**, çoğu tasarım zaten düşü
 | 13 | [Dağıtım hedefleri](13-DAGITIM-HEDEFLERI.md) ✅ | Plesk/cPanel/mobil — rakiplerin bakmadığı kitle | S |
 | 16 | [Kota ve maliyet](16-KOTA-VE-MALIYET.md) ✅ | Deploy öncesi token kilitleri, adil paylaşım, aylık gider | M |
 | 17 | [İlk temas ve fiyat](17-ILK-TEMAS-VE-FIYAT.md) ✅ | Girişsiz canlı demo, paylaşım sayfası dönüşümü, 20 şablon (384 tablo, 3 ölçek), "neden biz", Pro $15 / Team $40 + yıllık | M |
+| 18 | [Ekosistem, Ticari Altyapı ve Büyüme Planı](18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md) | 9 ana sütun: MCP & IDE, Stripe US & ABD şirketi kredileri, Domain & Çift katmanlı Mail, SMS & Auth, Dağıtık Subdomain (`*.namines.com`), Viral büyüme motorları, Extension/Mobil/Masaüstü ve OAuth Connectors | XL |
 
 ### Ayrı ürünler — kayıt için, şimdi başlanmayacak
 

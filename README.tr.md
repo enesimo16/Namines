@@ -247,6 +247,7 @@ gerekmez.
 
 İç planlama, mimari ve denetim belgeleri [`docs/`](docs/) altında duruyor:
 
+- [`docs/second-phase/18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md`](docs/second-phase/18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md) — **Ekosistem, OAuth Bağlayıcıları (Supabase, Neon, Cloudflare D1, Turso, PlanetScale, GitHub, OpenRouter, Gemini), Tauri v2 Masaüstü, Mobil, Extension, Dağıtık Subdomain (`*.namines.com`) ve Ticari/Kredi Başvuru Rehberi**
 - [`docs/new-phase/BASLA-BURADAN.md`](docs/new-phase/BASLA-BURADAN.md) — ürünün hikâyesi ve güncel yön;
   ilk kez bakan biri için en iyi başlangıç noktası
 - [`docs/new-phase/README.md`](docs/new-phase/README.md) — ürün/mimari/pazar planlama belgelerinin tam indeksi
@@ -268,6 +269,22 @@ gerekmez.
 Bu belgelerin çoğu Türkçe yazılmıştır — bu projenin planlama sürecinin ana çalışma dilini yansıtıyor.
 Kök dizindeki [`AGENTS.md`](AGENTS.md) dosyası, bu depoda çalışmaya başlayan bir yapay zeka ajanının
 önce hangi belgeleri okuması gerektiğini indeksliyor.
+
+## Doğrudan Bağlantılar (OAuth Connectors) ve Çoklu Platform Yol Haritası
+
+Namines, kullanıcıların API anahtarı veya bağlantı dizesi kopyala-yapıştır yapmadan tek tıkla hesaplarını bağlayabilmesi ve her ortamdan çalışabilmesi için aşağıdaki entegrasyon mimarisini destekler (tam teknik rehber ve adım adım OAuth alma adımları için bkz. [`18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md`](docs/second-phase/18-EKOSISTEM-TICARI-VE-BUYUME-PLANI.md)):
+
+| Kategori | Sağlayıcı / Platform | Nasıl Bağlanır ve Nasıl Alınır? |
+|---|---|---|
+| **Veritabanı & Bulut** | **Supabase** | `Supabase Dashboard → Org Settings → OAuth Apps` üzerinden `Client ID/Secret` anında alınır (`api.supabase.com/v1/oauth/authorize`). Kullanıcının projelerini otomatik listeler ve şemayı doğrudan uygular. |
+| **Veritabanı & Bulut** | **Neon** | `Neon Console → OAuth / API Keys` üzerinden bağlanır. Namines Ground ve Branching için saniyeler içinde sunucusuz PostgreSQL açar. |
+| **Veritabanı & Bulut** | **Cloudflare D1** | Cloudflare OAuth / Scoped API Token şablonu (`D1:Edit`) ile Edge SQLite veritabanlarına doğrudan bağlanır ve SQLite derleyicisiyle şema basar. |
+| **Veritabanı & Bulut** | **Turso (libSQL)** | Turso Platform API / OAuth (`api.turso.tech`) üzerinden dağıtık libSQL/SQLite veritabanlarına doğrudan bağlanır. |
+| **Veritabanı & Bulut** | **PlanetScale** | `PlanetScale Settings → OAuth Applications` (`api.planetscale.com/v1/oauth`) üzerinden MySQL/PostgreSQL veritabanı dallarına (branch) doğrudan bağlanır. |
+| **Kod & CI/CD** | **GitHub** | `GitHub Developer Settings → GitHub Apps & OAuth Apps` üzerinden alınır. Depo taraması, koddan şema çıkarma ve PR'lara otomatik risk raporu yazan **Namines Bot** için kullanılır. |
+| **Yapay Zeka (OAuth)** | **OpenRouter (Claude, GPT-4o, DeepSeek)** | **Kayıt veya Client ID gerektirmez!** OpenRouter **OAuth PKCE** (`openrouter.ai/auth`) akışı ile kullanıcı tek tıkla kendi hesabını bağlar ve tüm modelleri kullanır. |
+| **Yapay Zeka & Giriş** | **Google & Gemini** | `Google Cloud Console → Credentials → OAuth Client ID` üzerinden alınır. Hem tek tıkla giriş (Google Sign-In) hem de kullanıcının kendi Gemini/Cloud hesabını bağlaması için kullanılır. |
+| **Masaüstü (Mac & Win)** | **Tauri v2 (Native App)** | PWA değildir; mevcut Next.js arayüzünü sıfırdan kodlamadan işletim sisteminin yerleşik WebView2/WebKit + Rust çekirdeğiyle sarar (~10 MB `.exe` ve `.dmg`). Kullanıcının `localhost` ve VPN arkasındaki veritabanlarına doğrudan bağlanmasını sağlar. |
 
 ## Lisans
 
