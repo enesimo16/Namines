@@ -88,8 +88,10 @@ public static class SqlStatementKind
 
     private static bool ContainsEmbeddedWriteVerb(string sql)
     {
-        var words = sql.Split(new[] { ' ', '\t', '\r', '\n', '(', ')', ',', ';' },
-            StringSplitOptions.RemoveEmptyEntries);
+        // Yalnızca boşluk/parantezde bölmek `INSERT/**/INTO`, `SELECT*INTO`, `x=1;DROP`
+        // gibi bitişik yazımları tek "kelime" yapıp kaçırıyordu. Tanımlayıcı olamayacak her
+        // karakterde bölüyoruz; fazladan eşleşme (ör. string içindeki "drop") güvenli yönde.
+        var words = System.Text.RegularExpressions.Regex.Split(sql, @"[^\p{L}\p{N}_]+");
 
         return words.Any(w => EmbeddedWriteVerbs.Contains(w.ToUpperInvariant(), StringComparer.Ordinal));
     }
