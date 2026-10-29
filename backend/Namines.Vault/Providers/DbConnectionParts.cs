@@ -133,7 +133,10 @@ internal sealed record DbConnectionParts(
     /// şeyi doğrulanmış gibi göstermek olurdu; bağlantıyı tamamen reddetmek ise
     /// çözümlemenin geçici olarak başarısız olduğu her durumda yedeği kesecekti.
     /// </summary>
-    private static string? ResolveAndValidate(string host)
+    private static string? ResolveAndValidate(string host) =>
+        ResolveAndValidate(host, System.Net.Dns.GetHostAddresses);
+
+    internal static string? ResolveAndValidate(string host, Func<string, System.Net.IPAddress[]> resolve)
     {
         if (LoopbackNames.Contains(host)) return null;
 
@@ -142,15 +145,19 @@ internal sealed record DbConnectionParts(
             return SsrfGuard.IsHostSafe(host) ? literal.ToString() : null;
 
         System.Net.IPAddress[] addresses;
-        try { addresses = System.Net.Dns.GetHostAddresses(host); }
+        try { addresses = resolve(host); }
         catch { return null; }
 
         if (addresses.Length == 0) return null;
 
-        // TEK adres sabitleniyor ama guard TÜM adreslerin güvenli olmasını istiyor
-        // (IsHostSafe'in kendi davranışı): bir adın adreslerinden biri iç ağa
-        // çözülüyorsa o ad hiç kullanılmamalı.
-        if (!SsrfGuard.IsHostSafe(host)) return null;
+        // Doğrulanan liste ile sabitlenen adres AYNI çözümlemeden gelmeli: IsHostSafe(host)
+        // adı ikinci kez çözüyordu, yani iki sorgu arasında DNS değişirse guard başka bir
+        // listeyi onaylayıp biz başka bir adresi sabitleyebilirdi. Burada tam olarak bu
+        // listenin her adresi (IP literal olarak, yeniden çözümleme YOK) doğrulanıyor.
+        // Güvensizse ada geri DÜŞÜLMÜYOR: ad konteynerde yeniden çözülüp iç ağa gidebilirdi.
+        if (!addresses.All(a => SsrfGuard.IsHostSafe(a.ToString())))
+            throw new ArgumentException(
+                "The database host resolves to a non-public address and cannot be used.", nameof(host));
 
         return addresses[0].ToString();
     }

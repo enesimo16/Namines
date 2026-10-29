@@ -137,10 +137,12 @@ internal sealed record PostgresConnectionParts(
 
         if (addresses.Length == 0) return null;
 
-        // TEK adres sabitleniyor ama guard TÜM adreslerin güvenli olmasını istiyor
-        // (IsHostSafe'in kendi davranışı): bir adın adreslerinden biri iç ağa
-        // çözülüyorsa o ad hiç kullanılmamalı.
-        if (!SsrfGuard.IsHostSafe(host)) return null;
+        // Doğrulanan liste ile sabitlenen adres AYNI çözümlemeden gelmeli (IsHostSafe(host)
+        // adı ikinci kez çözüyordu). Güvensizse ada geri DÜŞÜLMÜYOR: ad konteynerde
+        // yeniden çözülüp iç ağa gidebilirdi.
+        if (!addresses.All(a => SsrfGuard.IsHostSafe(a.ToString())))
+            throw new ArgumentException(
+                "The database host resolves to a non-public address and cannot be used.", nameof(host));
 
         return addresses[0].ToString();
     }
