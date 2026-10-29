@@ -9,6 +9,7 @@ import TourOverlay from "../components/tour/TourOverlay";
 import BackToTop from "../components/landing/BackToTop";
 import PostHogProvider from "../components/providers/PostHogProvider";
 import FeatureFlagsLoader from "../components/providers/FeatureFlagsLoader";
+import UpgradeReturnHandler from "../components/providers/UpgradeReturnHandler";
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -121,6 +122,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
         <PostHogProvider>
         <FeatureFlagsLoader />
+        <UpgradeReturnHandler />
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
