@@ -390,12 +390,23 @@ public class ChangeRequestController : ControllerBase
                 // çalıştırılır, sayfa ikisinin TOPLAMI değil daha YAVAŞ olanı kadar
                 // sürer. Her biri kendi hatasını yutar (AI anahtarı/servis yoksa
                 // ilgili sekme boş görünür, diğerleri etkilenmez).
+                var needsMigration = migration is null;
+                var needsExplanation = aiExplanation is null;
                 var migrationTask = migration is null ? TryGenerateMigrationAsync() : Task.FromResult<MigrationResult?>(migration);
                 var explanationTask = aiExplanation is null ? TryExplainImpactAsync() : Task.FromResult<string?>(aiExplanation);
                 await Task.WhenAll(migrationTask, explanationTask);
 
                 migration = migrationTask.Result;
                 aiExplanation = explanationTask.Result;
+
+                // Başarısız (null dönen) çağrıların payı iade ediliyor: servis arızası
+                // kullanıcının günlük hakkından kesilmemeli. Rezervasyon iki çağrıyı
+                // birlikte kapsıyor; yalnızca gerçekten ÇAĞRILANLAR sayılır.
+                var attempted = (needsMigration ? 1 : 0) + (needsExplanation ? 1 : 0);
+                var failed = (needsMigration && migration is null ? 1 : 0)
+                           + (needsExplanation && aiExplanation is null ? 1 : 0);
+                if (failed > 0)
+                    await _quota.RefundAsync(userId, ImpactExplanationTokenEstimate * failed / attempted);
 
                 // YALNIZCA başarılı sonuç saklanıyor: null yazmak, geçici bir
                 // servis arızasını kalıcı bir "açıklama yok" hâline çevirirdi.
@@ -416,7 +427,7 @@ public class ChangeRequestController : ControllerBase
 
         // UI'ın gösterdiği sayı, Decide'ın uyguladığı sayıyla AYNI olmalı — yoksa
         // "1/2 onay" yazarken CR onaylanmış görünür (kafa karıştırıcı ve güvensiz).
-        var teamSize = await _context.CountVotingMembersAsync(cr.ProjectId);
+        var teamSize = EffectiveTeamSize(cr, await _context.CountVotingMembersAsync(cr.ProjectId));
         var required = ChangeRequestApprovalPolicy.EffectiveRequiredApprovals(cr.RiskLevel, teamSize);
         var approvedCount = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Approved);
         var rejectedCount = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Rejected);
@@ -495,11 +506,22 @@ public class ChangeRequestController : ControllerBase
             c.CreatedAt,
             c.ResolvedAt,
             ApprovedCount = c.Approvals.Count(a => a.Decision == ApprovalDecision.Approved),
-            RequiredApprovals = ChangeRequestApprovalPolicy.EffectiveRequiredApprovals(c.RiskLevel, listTeamSize)
+            RequiredApprovals = ChangeRequestApprovalPolicy.EffectiveRequiredApprovals(c.RiskLevel, EffectiveTeamSize(c, listTeamSize))
         });
 
         return Ok(list);
     }
+
+    /// <summary>
+    /// Onay kuralının dayanağı olan ekip büyüklüğü — UI (liste/detay) ile
+    /// <see cref="Decide"/> AYNI değeri kullanmalı; yoksa ekip küçüldüğünde ekran
+    /// "1/1 onay" gösterirken oylama hâlâ 2 onay isteyebilir.
+    /// 0 = alan eklenmeden önce açılmış CR → canlı sayı.
+    /// </summary>
+    private static int EffectiveTeamSize(ChangeRequest cr, int liveTeamSize) =>
+        cr.VotingMembersAtCreation > 0
+            ? Math.Max(cr.VotingMembersAtCreation, liveTeamSize)
+            : liveTeamSize;
 
     [HttpPost("{id}/decide")]
     public async Task<IActionResult> Decide(string id, [FromBody] DecideChangeRequestRequest request)
@@ -539,10 +561,7 @@ public class ChangeRequestController : ControllerBase
         // yıkıcı bir değişikliğin yetkisiz onaylanması olurdu.
         //
         // 0 = bu alan eklenmeden ÖNCE açılmış CR → canlı sayıya düş.
-        var liveTeamSize = await _context.CountVotingMembersAsync(cr.ProjectId);
-        var teamSize = cr.VotingMembersAtCreation > 0
-            ? Math.Max(cr.VotingMembersAtCreation, liveTeamSize)
-            : liveTeamSize;
+        var teamSize = EffectiveTeamSize(cr, await _context.CountVotingMembersAsync(cr.ProjectId));
 
         var evaluation = ChangeRequestApprovalPolicy.EvaluateVote(
             cr.RiskLevel, cr.Status, cr.CreatedByUserId, userId, request.Decision,
@@ -590,7 +609,17 @@ public class ChangeRequestController : ControllerBase
             cr.ResolvedAt = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex) when (DbUniqueViolation.IsUniqueViolation(ex))
+        {
+            // Aynı kullanıcının eşzamanlı ikinci oyu: (ChangeRequestId, UserId)
+            // benzersiz indeksine çarptı. Ön kontrol (alreadyVoted) yarışı
+            // kapatamaz, bu yüzden 500 yerine ilk oyla aynı 409 dönüyor.
+            return Conflict(new { error = "You have already voted on this change request." });
+        }
 
         // OYLAR SAYILDIKTAN SONRA YENİDEN UZLAŞTIRMA (docs/last-review L-2).
         //
