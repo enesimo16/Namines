@@ -1062,6 +1062,14 @@ api.interceptors.response.use(
         if (typeof window !== 'undefined') {
           useQuotaStore.getState().setExhaustedModalOpen(true);
         }
+      } else if (error.response.status === 503 && error.response.data?.code === 'FEATURE_DISABLED') {
+        // Yönetici bu özelliği kapattı: genel "başarısız" yerine sunucunun mesajını göster
+        const data = error.response.data as { error?: string; message?: string; featureKey?: string };
+        const text = data.error || data.message || `This feature (${data.featureKey ?? 'unknown'}) is currently disabled by an administrator.`;
+        error.message = text;
+        if (typeof window !== 'undefined') {
+          useToastStore.getState().showToast(text, 'warning');
+        }
       }
     }
     return Promise.reject(error);
