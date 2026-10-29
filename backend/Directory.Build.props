@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Geçişli (transitive) paketlerdeki bilinen CVE için güvenli alt sınır.
+    EF Core 8.0.8, Microsoft.Extensions.Caching.Memory 8.0.0'ı çekiyor (CI'daki
+    NuGet güvenlik kapısı High olarak işaretliyor). Doğrudan PackageReference,
+    geçişli sürümü "nearest wins" ile ezer. EF Core yükseltilip yamalı sürümü
+    getirdiğinde bu satır silinebilir. Diğer pinler ilgili csproj'lardadır.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+  </ItemGroup>
+</Project>
