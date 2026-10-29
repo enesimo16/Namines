@@ -60,8 +60,11 @@ const TOOLKIT_FEATURE_KEYS = [
 export default function CanvasExportToolbar() {
   const { projectName, schema, dbType, isEditMode, toggleEditMode, loadFromSchema } = useSchemaStore();
   const { isExporting, exportAsPng } = useCanvasExport();
-  const isFeatureEnabled = useFeatureStore((s) => s.isFeatureEnabled);
-  const enabledToolsCount = TOOLKIT_FEATURE_KEYS.filter((k) => isFeatureEnabled(k)).length;
+  // `isFeatureEnabled` kararlı bir fonksiyon: ona abone olmak bayraklar gelince
+  // yeniden render tetiklemezdi. Sayıyı seçici içinde hesaplayıp ona abone ol.
+  const enabledToolsCount = useFeatureStore(
+    (s) => TOOLKIT_FEATURE_KEYS.filter((k) => s.isFeatureEnabled(k)).length,
+  );
 
   // DBA store hooks
   const isPanelOpen = useDbaStore(state => state.isPanelOpen);
