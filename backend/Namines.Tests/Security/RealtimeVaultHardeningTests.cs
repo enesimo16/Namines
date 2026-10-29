@@ -20,17 +20,29 @@ public sealed class VaultHostPinningTests
     }
 
     [Fact]
-    public void A_single_non_public_address_in_the_resolved_list_rejects_the_host()
+    public void A_single_non_public_address_in_the_resolved_list_is_not_pinned()
     {
-        Assert.Throws<ArgumentException>(() => DbConnectionParts.ResolveAndValidate("db.example.test",
+        // Karışık liste sabitlenmez (ad geçer); ilk public adresi sabitlemek, iç adresi
+        // "doğrulanmış" gibi göstermenin bir başka yolu olurdu.
+        Assert.Null(DbConnectionParts.ResolveAndValidate("db.example.test",
             _ => new[] { IPAddress.Parse("8.8.8.8"), IPAddress.Parse("10.0.0.5") }, null));
     }
 
-    [Fact]
-    public void Metadata_address_is_rejected_instead_of_falling_back_to_the_hostname()
+    [Theory]
+    [InlineData("169.254.169.254")]
+    [InlineData("fe80::1")]
+    public void Metadata_and_link_local_addresses_are_rejected_instead_of_falling_back(string address)
     {
         Assert.Throws<ArgumentException>(() => DbConnectionParts.ResolveAndValidate("rebind.example.test",
-            _ => new[] { IPAddress.Parse("169.254.169.254") }, null));
+            _ => new[] { IPAddress.Parse(address) }, null));
+    }
+
+    [Fact]
+    public void Internal_container_names_fall_back_to_the_hostname_for_managed_ground()
+    {
+        // Üretimde Ground veritabanı iç ağdaki bir konteyner adı; reddetmek yedeği keserdi.
+        Assert.Null(DbConnectionParts.ResolveAndValidate("namines-ground-pg",
+            _ => new[] { IPAddress.Parse("172.18.0.5") }, null));
     }
 
     private sealed class FixedPolicy(bool allow) : Namines.Core.Security.IDbHostAccessPolicy
@@ -38,20 +50,13 @@ public sealed class VaultHostPinningTests
         public bool IsHostAllowed(string? host, out string denyReason) { denyReason = ""; return allow; }
     }
 
-    [Fact]
-    public void Private_resolution_is_accepted_when_the_policy_allows_private_hosts()
-    {
-        var pinned = DbConnectionParts.ResolveAndValidate("db.internal.test",
-            _ => new[] { IPAddress.Parse("10.0.0.5") }, new FixedPolicy(true));
-
-        Assert.Null(pinned); // eski davranış: ad geçer
-    }
-
-    [Fact]
-    public void Private_resolution_is_rejected_when_the_policy_disallows_private_hosts()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Metadata_is_rejected_even_when_the_policy_allows_private_hosts(bool allow)
     {
         Assert.Throws<ArgumentException>(() => DbConnectionParts.ResolveAndValidate("db.internal.test",
-            _ => new[] { IPAddress.Parse("10.0.0.5") }, new FixedPolicy(false)));
+            _ => new[] { IPAddress.Parse("169.254.169.254") }, new FixedPolicy(allow)));
     }
 }
 

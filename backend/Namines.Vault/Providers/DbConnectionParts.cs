@@ -152,19 +152,28 @@ internal sealed record DbConnectionParts(
         // adı ikinci kez çözüyordu, yani iki sorgu arasında DNS değişirse guard başka bir
         // listeyi onaylayıp biz başka bir adresi sabitleyebilirdi. Burada tam olarak bu
         // listenin her adresi (IP literal olarak, yeniden çözümleme YOK) doğrulanıyor.
-        // Güvensizse ada geri DÜŞÜLMÜYOR: ad konteynerde yeniden çözülüp iç ağa gidebilirdi.
-        if (!addresses.All(a => SsrfGuard.IsHostSafe(a.ToString())))
-        {
-            // Mevcut egress politikası özel hedefe izin veriyorsa (yalnızca Development +
-            // Security:AllowPrivateDbHosts) eski davranış: ad olduğu gibi geçer, sabitleme yok.
-            // Politika kendi içinde IsHostSafe'i de çağırdığından, güvensiz çözülen bir adı
-            // yalnızca bu bayrak geçirebilir.
-            if (hostPolicy is not null && hostPolicy.IsHostAllowed(host, out _)) return null;
+        if (addresses.All(a => SsrfGuard.IsHostSafe(a.ToString())))
+            return addresses[0].ToString();
 
+        // Bulut metadata / link-local hiçbir zaman meşru bir DB hedefi değil: politika
+        // ne derse desin reddet (ada geri düşmek, konteynerin oraya gitmesine izin verirdi).
+        if (addresses.Any(IsLinkLocal))
             throw new ArgumentException(
-                "The database host resolves to a non-public address and cannot be used.", nameof(host));
-        }
+                "The database host resolves to a link-local or metadata address and cannot be used.", nameof(host));
 
-        return addresses[0].ToString();
+        // Diğer özel adresler: ada geri düşülüyor (sabitleme yok). Reddetmek yönetilen Ground
+        // veritabanlarının (iç ağdaki konteyner adları, ör. namines-ground-pg) yedeğini
+        // üretimde keserdi — üretim politikası özel host'a hiç izin vermiyor. Kullanıcı
+        // girdisi bağlantılar bu noktaya gelmeden API'nin egress politikasından geçiyor.
+        return null;
+    }
+
+    private static bool IsLinkLocal(System.Net.IPAddress address)
+    {
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            return address.IsIPv6LinkLocal;
+        var b = address.GetAddressBytes();
+        return b[0] == 169 && b[1] == 254;
     }
 }
