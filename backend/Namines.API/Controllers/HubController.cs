@@ -548,7 +548,7 @@ public class HubController : ControllerBase
     /// </summary>
     [HttpPost("repos/{projectId}/star")]
     [Authorize]
-    [EnableRateLimiting("sensitive")]
+    [EnableRateLimiting("hub-write")]
     public async Task<IActionResult> ToggleStar(string projectId, CancellationToken ct)
     {
         var userId = CurrentUserId;
@@ -797,7 +797,7 @@ public class HubController : ControllerBase
     /// </summary>
     [HttpPost("repos/{projectId}/issues")]
     [Authorize]
-    [EnableRateLimiting("sensitive")]
+    [EnableRateLimiting("hub-write")]
     public async Task<IActionResult> CreateIssue(string projectId, [FromBody] CreateIssueRequest request, CancellationToken ct)
     {
         var userId = CurrentUserId;
@@ -892,7 +892,7 @@ public class HubController : ControllerBase
     /// </summary>
     [HttpPatch("issues/{issueId}/state")]
     [Authorize]
-    [EnableRateLimiting("sensitive")]
+    [EnableRateLimiting("hub-write")]
     public async Task<IActionResult> UpdateIssueState(string issueId, [FromBody] UpdateIssueStateRequest request, CancellationToken ct)
     {
         var userId = CurrentUserId;
@@ -982,7 +982,7 @@ public class HubController : ControllerBase
     /// </summary>
     [HttpPost("issues/{issueId}/comments")]
     [Authorize]
-    [EnableRateLimiting("sensitive")]
+    [EnableRateLimiting("hub-write")]
     public async Task<IActionResult> CreateComment(string issueId, [FromBody] CreateCommentRequest request, CancellationToken ct)
     {
         var userId = CurrentUserId;

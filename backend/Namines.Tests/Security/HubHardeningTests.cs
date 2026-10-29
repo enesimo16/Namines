@@ -465,20 +465,20 @@ public sealed class HubHardeningTests : IAsyncLifetime
     // ── Hız sınırı ────────────────────────────────────────────────────────────
 
     [Theory]
-    [InlineData(nameof(HubController.UpdateSettings))]
-    [InlineData(nameof(HubController.DeleteRepo))]
-    [InlineData(nameof(HubController.ToggleStar))]
-    [InlineData(nameof(HubController.Fork))]
-    [InlineData(nameof(HubController.CreateIssue))]
-    [InlineData(nameof(HubController.UpdateIssueState))]
-    [InlineData(nameof(HubController.CreateComment))]
-    public void Hub_yazma_uclari_hiz_sinirina_bagli(string action)
+    [InlineData(nameof(HubController.UpdateSettings), "sensitive")]
+    [InlineData(nameof(HubController.DeleteRepo), "sensitive")]
+    [InlineData(nameof(HubController.Fork), "sensitive")]
+    [InlineData(nameof(HubController.ToggleStar), "hub-write")]
+    [InlineData(nameof(HubController.CreateIssue), "hub-write")]
+    [InlineData(nameof(HubController.UpdateIssueState), "hub-write")]
+    [InlineData(nameof(HubController.CreateComment), "hub-write")]
+    public void Hub_yazma_uclari_hiz_sinirina_bagli(string action, string policy)
     {
         var method = typeof(HubController).GetMethod(action)!;
         var attribute = method.GetCustomAttribute<EnableRateLimitingAttribute>();
 
         Assert.NotNull(attribute);
-        Assert.Equal("sensitive", attribute!.PolicyName);
+        Assert.Equal(policy, attribute!.PolicyName);
     }
 
     // ── Vitrin tohumlayıcısı ──────────────────────────────────────────────────
