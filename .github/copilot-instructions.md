@@ -15,8 +15,8 @@ This workspace connects to the **Namines Enterprise MCP Server**, providing dete
    - Never write ORM models by hand when Namines can deterministically generate them from verified schemas.
 
 3. **Database Exploration & Desk:**
-   - Inspect connected databases using `namines_desk_execute_query` and `namines_desk_browse_table`.
+   - Inspect connected databases using the read-only `namines_desk_execute_query` (single SELECT/WITH/EXPLAIN/SHOW) and `namines_desk_browse_table`.
    - Introspect live databases using `namines_pull_schema`.
 
 4. **Production Architecture Blueprints:**
-   - Search certified production database templates with `namines_hub_search_blueprints` and `namines_hub_get_blueprint`.
+   - Search curated production database templates with `namines_hub_search_blueprints` and `namines_hub_get_blueprint`.

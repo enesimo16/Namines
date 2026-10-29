@@ -15,9 +15,9 @@ description: Comprehensive database lifecycle, migration verification, code gene
   - Canonical: `nsl`, `ir.json`
 - **`namines_generate_prisma`**: Deterministic `schema.prisma` generator with engine warnings.
 - **`namines_generate_ddl`**: 6-engine SQL DDL generation.
-- **`namines_desk_execute_query`**: Safe SQL execution against connected database.
+- **`namines_desk_execute_query`**: READ-ONLY SQL against a connected database: a single SELECT / WITH / EXPLAIN / SHOW statement. Writes, DDL, `SELECT ... INTO` and multi-statement batches are rejected; SQLite is not supported. It never modifies data.
 - **`namines_desk_browse_table`**: High-density paginated table browsing.
-- **`namines_hub_search_blueprints`** & **`namines_hub_get_blueprint`**: 10 certified 3NF production database architectures (FinTech, SaaS, ERP, EHR, AI Ops, IoT, etc.).
+- **`namines_hub_search_blueprints`** & **`namines_hub_get_blueprint`**: 10 curated production database architecture blueprints (starting points, not certifications) (FinTech, SaaS, ERP, EHR, AI Ops, IoT, etc.).
 - **`namines_flow_match_rules`**: Evaluate event-driven schema automation policies.
 - **`namines_open_change_request`**: Open human review request in Namines Cloud.
 

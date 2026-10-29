@@ -45,7 +45,7 @@ Kullanıcı kendi projesinin kök dizinine `.cursor/mcp.json` ekleyebilir ya da 
 
 ## 2. VS Code & GitHub Copilot Chat (Codex)
 
-VS Code'un yerel MCP desteği için proje köküne [`.vscode/mcp.json`](../.vscode/mcp.json) eklenir:
+VS Code'un yerel MCP desteği için proje köküne bir `.vscode/mcp.json` dosyası oluşturun (bu depoda hazır bir kopyası yoktur):
 
 ```json
 {
@@ -119,19 +119,17 @@ Cascade AI, veritabanı düzenlemelerinde Namines araçlarını kullanmaya başl
 
 ## 6. Zed Editor
 
-`~/.config/zed/settings.json` içerisine `context_servers` alanını ekleyin:
+`~/.config/zed/settings.json` içerisine `context_servers` alanını ekleyin (sunucu adına göre anahtarlanmış bir nesne; dizi değil):
 
 ```json
 {
-  "context_servers": [
-    {
-      "id": "namines",
-      "command": {
-        "path": "npx",
-        "args": ["-y", "@namines/mcp"]
-      }
+  "context_servers": {
+    "namines": {
+      "source": "custom",
+      "command": "npx",
+      "args": ["-y", "@namines/mcp"]
     }
-  ]
+  }
 }
 ```
 
@@ -189,9 +187,9 @@ Kullanıcı bu entegrasyonu kurduğu andan itibaren AI asistanı şu yetenekleri
 5. **`namines_generate_prisma`**: `schema.prisma` modellerini üretir.
 6. **`namines_generate_ddl`**: 6 veritabanı motoru için (Postgres, MSSQL, MySQL, MariaDB, SQLite, Oracle) hatasız SQL DDL üretir.
 7. **`namines_pull_schema`**: Kullanıcının canlı veritabanını tarayarak şemasını JSON olarak çeker.
-8. **`namines_desk_execute_query`**: Kullanıcının veritabanında güvenli, sınırlı ve korumalı SELECT/UPDATE/INSERT çalıştırır.
+8. **`namines_desk_execute_query`**: Kullanıcının veritabanında **yalnızca okuma** amaçlı tek bir SELECT / WITH / EXPLAIN / SHOW ifadesi çalıştırır. Yazma (INSERT/UPDATE/DELETE), DDL, `SELECT ... INTO` ve birden çok ifade reddedilir; PostgreSQL/MySQL/MariaDB'de oturum ayrıca salt-okunur açılır. SQLite desteklenmez.
 9. **`namines_desk_browse_table`**: Tablo satırlarını sayfalı ve filtreli olarak inceler.
-10. **`namines_hub_search_blueprints`**: FinTech, SaaS, ERP, EHR gibi 10 onaylı kurumsal mimari şablonunu arar.
+10. **`namines_hub_search_blueprints`**: FinTech, SaaS, ERP, EHR gibi 10 seçilmiş kurumsal mimari şablonunu arar (başlangıç noktasıdır, sertifikasyon değildir).
 11. **`namines_hub_get_blueprint`**: İstenen mimari şablonunun tüm tablolarını ve ilişkilerini projeye aktarır.
 12. **`namines_flow_match_rules`**: Şema değişikliklerinin tetikleyeceği otomasyon kurallarını denetler.
 13. **`namines_open_change_request`**: İnsan onayı için Namines sunucusunda Change Request açar.

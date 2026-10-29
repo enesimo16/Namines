@@ -23,7 +23,7 @@ Use `namines_generate_artifact` to generate:
 - `schema.prisma` (via `namines_generate_prisma`)
 
 ### 3. Live Database Queries
-- Execute queries safely with `namines_desk_execute_query`.
+- Run read-only exploratory queries (single SELECT/WITH/EXPLAIN/SHOW; writes and DDL are rejected) with `namines_desk_execute_query`.
 - Explore table records with `namines_desk_browse_table`.
 - Introspect live databases with `namines_pull_schema`.
 

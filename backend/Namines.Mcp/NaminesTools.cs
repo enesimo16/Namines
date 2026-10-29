@@ -2,17 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
-using System.Data.Common;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Data.SqlClient;
-using Microsoft.Data.Sqlite;
 using ModelContextProtocol.Server;
-using MySqlConnector;
 using Namines.Core.Analysis;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
@@ -21,8 +17,7 @@ using Namines.Flow.Abstractions;
 using Namines.Infrastructure.Catalogs;
 using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Infrastructure.Generators.Eject;
-using Npgsql;
-using Oracle.ManagedDataAccess.Client;
+using Namines.Infrastructure.Services;
 
 namespace Namines.Mcp;
 
@@ -40,9 +35,9 @@ public sealed class NaminesTools
     private readonly IDdlGeneratorFactory _ddlFactory;
     private readonly IPrismaGenerator _prisma;
     private readonly IEjectGeneratorRegistry _ejectRegistry;
-    private readonly IGatewayService _gateway;
+    private readonly IGatewayService? _gateway;
     private readonly IDatabaseExecutor _executor;
-    private readonly IFlowRuleMatcher _flowMatcher;
+    private readonly IFlowRuleMatcher? _flowMatcher;
     private readonly NaminesCloudClient _cloud;
     private readonly McpConnectionGuard _connectionGuard;
 
@@ -230,112 +225,14 @@ public sealed class NaminesTools
         }
     }
 
-    private static DbConnection CreateConnection(string connectionString, DatabaseType dbType)
-    {
-        return dbType switch
-        {
-            DatabaseType.MSSQL      => new SqlConnection(connectionString),
-            DatabaseType.PostgreSQL => new NpgsqlConnection(connectionString),
-            DatabaseType.MySQL      => new MySqlConnection(connectionString),
-            DatabaseType.MariaDB    => new MySqlConnection(connectionString),
-            DatabaseType.Oracle     => new OracleConnection(connectionString),
-            DatabaseType.SQLite     => new SqliteConnection(connectionString),
-            _                       => throw new NotSupportedException($"Database type {dbType} is not supported.")
-        };
-    }
+    // Diff'in tek doğruluk kaynağı MigrationService: eskiden burada ayrı bir kopya vardı
+    // ve ilişki (Added/RemovedRelations) farklarını hiç doldurmuyordu. MigrationService'in
+    // CalculateDiffAsync'i Groq'a dokunmuyor (yalnızca ParseDbContextAsync kullanıyor) ve
+    // Task.FromResult döndüğü için eşzamanlı beklemek güvenli.
+    private static readonly MigrationService DiffService = new(null!);
 
-    private static SchemaDiffResult CalculateDiff(DatabaseSchema oldSchema, DatabaseSchema newSchema)
-    {
-        var result = new SchemaDiffResult();
-        var oldTables = oldSchema?.Tables ?? new List<SchemaTable>();
-        var newTables = newSchema?.Tables ?? new List<SchemaTable>();
-
-        bool MatchTable(SchemaTable a, SchemaTable b) =>
-            (!string.IsNullOrEmpty(a.StableUuid) && !string.IsNullOrEmpty(b.StableUuid))
-                ? string.Equals(a.StableUuid, b.StableUuid, StringComparison.OrdinalIgnoreCase)
-                : string.Equals(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-
-        bool MatchCol(SchemaColumn a, SchemaColumn b) =>
-            (!string.IsNullOrEmpty(a.StableUuid) && !string.IsNullOrEmpty(b.StableUuid))
-                ? string.Equals(a.StableUuid, b.StableUuid, StringComparison.OrdinalIgnoreCase)
-                : string.Equals(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-
-        foreach (var nt in newTables)
-        {
-            var ot = oldTables.FirstOrDefault(o => MatchTable(o, nt));
-            if (ot != null && !string.Equals(ot.Name, nt.Name, StringComparison.OrdinalIgnoreCase))
-            {
-                result.RenamedTables.Add(new TableRenameDetail { OldName = ot.Name, NewName = nt.Name });
-            }
-        }
-
-        foreach (var nt in newTables)
-        {
-            if (!oldTables.Any(o => MatchTable(o, nt))) result.AddedTables.Add(nt.Name);
-        }
-
-        foreach (var ot in oldTables)
-        {
-            if (!newTables.Any(n => MatchTable(ot, n))) result.RemovedTables.Add(ot.Name);
-        }
-
-        foreach (var ot in oldTables)
-        {
-            var nt = newTables.FirstOrDefault(n => MatchTable(ot, n));
-            if (nt == null) continue;
-
-            var tableDiff = new TableDiffDetail { TableName = nt.Name };
-            bool modified = false;
-
-            foreach (var nc in nt.Columns)
-            {
-                var oc = ot.Columns.FirstOrDefault(o => MatchCol(o, nc));
-                if (oc != null && !string.Equals(oc.Name, nc.Name, StringComparison.OrdinalIgnoreCase))
-                {
-                    tableDiff.RenamedColumns.Add(new ColumnRenameDetail { OldName = oc.Name, NewName = nc.Name });
-                    modified = true;
-                }
-            }
-
-            foreach (var nc in nt.Columns)
-            {
-                if (!ot.Columns.Any(o => MatchCol(o, nc)))
-                {
-                    tableDiff.AddedColumns.Add(nc.Name);
-                    modified = true;
-                }
-            }
-
-            foreach (var oc in ot.Columns)
-            {
-                if (!nt.Columns.Any(n => MatchCol(oc, n)))
-                {
-                    tableDiff.RemovedColumns.Add(oc.Name);
-                    modified = true;
-                }
-            }
-
-            foreach (var nc in nt.Columns)
-            {
-                var oc = ot.Columns.FirstOrDefault(o => MatchCol(o, nc));
-                if (oc != null && string.Equals(oc.Name, nc.Name, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!string.Equals(oc.Type, nc.Type, StringComparison.OrdinalIgnoreCase) ||
-                        oc.Length != nc.Length ||
-                        oc.IsNullable != nc.IsNullable ||
-                        oc.IsPK != nc.IsPK)
-                    {
-                        tableDiff.ModifiedColumns.Add(nc.Name);
-                        modified = true;
-                    }
-                }
-            }
-
-            if (modified) result.ModifiedTables.Add(tableDiff);
-        }
-
-        return result;
-    }
+    private static SchemaDiffResult CalculateDiff(DatabaseSchema oldSchema, DatabaseSchema newSchema) =>
+        DiffService.CalculateDiffAsync(oldSchema, newSchema).GetAwaiter().GetResult();
 
     // ── 1. pull_schema ───────────────────────────────────────────────────────
 
@@ -343,7 +240,7 @@ public sealed class NaminesTools
     [Description(
         "Read the live structure of a database and return it as a Namines schema (JSON). " +
         "Read-only: queries INFORMATION_SCHEMA and never modifies anything. " +
-        "Feed the result into namines_analyze_impact as `base_schema_json`. Runs locally, so localhost works.")]
+        "Feed the result into namines_analyze_impact as `baseSchemaJson`. Runs locally, so localhost works.")]
     public async Task<string> PullSchemaAsync(
         [Description("ADO.NET connection string for the database to read.")]
         string connectionString,
@@ -443,14 +340,16 @@ public sealed class NaminesTools
     [McpServerTool(Name = "namines_generate_artifact")]
     [Description(
         "Generate source code artifacts from a Namines schema across 19 targets. " +
-        "Supported targets: 'orm.drizzle', 'types.typescript', 'types.zod', 'types.pydantic', 'orm.sqlalchemy', " +
-        "'types.graphql', 'types.csharp', 'orm.gorm', 'orm.typeorm', 'schema.nsl', 'schema.canonical-ir', " +
-        "'migration.flyway', 'migration.liquibase', 'migration.golang-migrate', 'console.nextjs', 'schema.json-schema', 'types.protobuf'. " +
-        "Short aliases like 'drizzle', 'zod', 'typescript', 'pydantic', 'sqlalchemy', 'gorm' are accepted.")]
+        "Supported targets (the ids namines_list_artifact_targets returns): " +
+        "'orm.drizzle', 'orm.typeorm', 'orm.sequelize', 'orm.sqlalchemy', 'orm.django', 'orm.gorm', " +
+        "'types.typescript', 'types.zod', 'types.python', 'types.csharp', 'sdk.typescript', " +
+        "'contract.graphql', 'contract.jsonschema', 'contract.protobuf', 'nsl', 'ir.json', " +
+        "'mig.flyway', 'mig.liquibase', 'console.nextjs'. " +
+        "Short aliases like 'drizzle', 'zod', 'typescript', 'pydantic', 'sqlalchemy', 'django', 'sequelize', 'gorm', 'flyway' are accepted.")]
     public string GenerateArtifact(
         [Description("Schema to generate code for, as Namines JSON.")]
         string schemaJson,
-        [Description("Target technology (e.g. 'orm.drizzle', 'types.zod', 'types.typescript', 'types.pydantic', 'orm.sqlalchemy', 'types.graphql').")]
+        [Description("Target technology (e.g. 'orm.drizzle', 'types.zod', 'types.typescript', 'types.python', 'orm.sqlalchemy', 'contract.graphql').")]
         string target,
         [Description("Database dialect: PostgreSQL, MySQL, MSSQL, SQLite, MariaDB, Oracle.")]
         string engine = "PostgreSQL")
@@ -476,9 +375,10 @@ public sealed class NaminesTools
 
     [McpServerTool(Name = "namines_list_artifact_targets")]
     [Description(
-        "List all 19 supported code-generation and schema-export targets supported by Namines, " +
-        "including ORMs (Drizzle, Prisma, SQLAlchemy, TypeORM, Gorm), Types (TypeScript, Zod, Pydantic, C#, GraphQL, Protobuf), " +
-        "Migrations (Flyway, Liquibase, golang-migrate), and Consoles.")]
+        "List all 19 supported code-generation and schema-export targets with their ids, " +
+        "including ORMs (Drizzle, SQLAlchemy, Django, TypeORM, Sequelize, Gorm), Types and SDK (TypeScript, Zod, Pydantic, C#), " +
+        "Contracts (GraphQL SDL, JSON Schema, Protobuf), Migrations (Flyway, Liquibase), IR/NSL and a Next.js console. " +
+        "Prisma has its own tool: namines_generate_prisma.")]
     public string ListArtifactTargets()
     {
         var targets = _ejectRegistry.All.Select(g => new
@@ -527,85 +427,65 @@ public sealed class NaminesTools
         };
     }
 
-    // ── 8. desk_execute_query (NEW: Desk SQL runner) ─────────────────────────
+    // ── 8. desk_execute_query (Desk SQL runner — SALT OKUNUR) ────────────────
 
     [McpServerTool(Name = "namines_desk_execute_query")]
     [Description(
-        "Safely execute a SQL query or mutation against a connected database via Namines Desk. " +
-        "Guarded by SSRF policy. For SELECT queries, returns column schema and paginated rows. " +
-        "For INSERT/UPDATE/DELETE/DDL, returns rows affected.")]
+        "Run a single READ-ONLY SQL statement (SELECT / WITH / EXPLAIN / SHOW) against a connected database. " +
+        "Anything that writes is refused: INSERT/UPDATE/DELETE, DDL, SELECT..INTO, stacked statements and " +
+        "multi-statement batches are rejected before a connection is opened. On PostgreSQL/MySQL/MariaDB the " +
+        "session is additionally opened read-only. SQLite is not supported by this tool. " +
+        "Guarded by the MCP connection-target policy. Returns column values and rows (truncated at maxRows).")]
     public async Task<string> DeskExecuteQueryAsync(
         [Description("ADO.NET connection string.")]
         string connectionString,
-        [Description("Database engine: PostgreSQL, MSSQL, MySQL, MariaDB, Oracle or SQLite.")]
+        [Description("Database engine: PostgreSQL, MSSQL, MySQL, MariaDB or Oracle (SQLite is not supported).")]
         string engine,
-        [Description("SQL query or command to execute.")]
+        [Description("A single read-only SQL statement (SELECT, WITH, EXPLAIN or SHOW).")]
         string sql,
-        [Description("Maximum rows to return for SELECT queries (default: 50, max: 500).")]
+        [Description("Maximum rows to return (default: 50, max: 500).")]
         int maxRows = 50,
         CancellationToken cancellationToken = default)
     {
-        _connectionGuard.EnsureAllowed(connectionString, engine);
         var dbType = ParseEngine(engine);
 
+        // Gateway'in bağlantı katmanı SQLite'ı hiç açmıyor; eskiden bu araç kendi
+        // SqliteConnection'ını açıp salt-okunur oturum olmadan her şeyi çalıştırıyordu.
+        if (dbType == DatabaseType.SQLite)
+            throw new NotSupportedException(
+                "namines_desk_execute_query does not support SQLite. Use namines_desk_browse_table " +
+                "or query the file with your own tooling.");
+
+        _connectionGuard.EnsureAllowed(connectionString, engine);
+
+        // Tek ve salt-okunur yol: tek ifade + SELECT/WITH/EXPLAIN/SHOW + yasaklı anahtar
+        // kelime taraması (GatewayService.EnsureReadOnlySelectStatement) ve motor
+        // destekliyorsa salt-okunur oturum. Bu araç artık kendi komutunu ÇALIŞTIRMIYOR.
         var sw = Stopwatch.StartNew();
-        await using var connection = CreateConnection(connectionString, dbType);
-        await connection.OpenAsync(cancellationToken);
+        var limit = Math.Clamp(maxRows, 1, 500);
+        var result = await RequireGateway().DeskSqlQueryAsync(
+            connectionString, dbType.ToString(), sql, limit, cancellationToken);
+        sw.Stop();
 
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.CommandTimeout = 30;
+        var rows = result.Rows.Select(r => r.Values).ToList();
+        var columns = result.Rows.Count > 0 ? result.Rows[0].Values.Keys.ToList() : new List<string>();
 
-        var isSelect = sql.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase) ||
-                       sql.TrimStart().StartsWith("WITH", StringComparison.OrdinalIgnoreCase);
-
-        if (isSelect)
+        return JsonSerializer.Serialize(new
         {
-            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-            var columns = new List<string>();
-            for (var i = 0; i < reader.FieldCount; i++)
-            {
-                columns.Add(reader.GetName(i));
-            }
-
-            var rows = new List<Dictionary<string, object?>>();
-            var limit = Math.Clamp(maxRows, 1, 500);
-
-            while (await reader.ReadAsync(cancellationToken) && rows.Count < limit)
-            {
-                var row = new Dictionary<string, object?>();
-                for (var i = 0; i < reader.FieldCount; i++)
-                {
-                    var val = reader.GetValue(i);
-                    row[columns[i]] = val == DBNull.Value ? null : val;
-                }
-                rows.Add(row);
-            }
-
-            sw.Stop();
-            return JsonSerializer.Serialize(new
-            {
-                succeeded = true,
-                isQuery = true,
-                durationMs = sw.ElapsedMilliseconds,
-                columns,
-                rowCount = rows.Count,
-                rows,
-            }, Json);
-        }
-        else
-        {
-            var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
-            sw.Stop();
-            return JsonSerializer.Serialize(new
-            {
-                succeeded = true,
-                isQuery = false,
-                durationMs = sw.ElapsedMilliseconds,
-                rowsAffected = affected,
-            }, Json);
-        }
+            succeeded = true,
+            isQuery = true,
+            readOnly = true,
+            durationMs = sw.ElapsedMilliseconds,
+            columns,
+            rowCount = rows.Count,
+            truncated = result.Truncated,
+            rows,
+        }, Json);
     }
+
+    private IGatewayService RequireGateway() =>
+        _gateway ?? throw new InvalidOperationException(
+            "This tool needs the gateway service, which is not available in this host configuration.");
 
     // ── 9. desk_browse_table (NEW: Desk Table Explorer) ──────────────────────
 
@@ -633,7 +513,7 @@ public sealed class NaminesTools
         var clampedSize = Math.Clamp(pageSize, 1, 100);
         var clampedPage = Math.Max(1, page);
 
-        var result = await _gateway.ListAsync(
+        var result = await RequireGateway().ListAsync(
             connectionString,
             engine,
             tableName,
@@ -650,7 +530,7 @@ public sealed class NaminesTools
 
     [McpServerTool(Name = "namines_hub_search_blueprints")]
     [Description(
-        "Search certified, 3NF-compliant production database architectures from Namines Hub. " +
+        "Search curated production database architecture blueprints from Namines Hub (starting points, not certifications). " +
         "Includes complete models for FinTech, ERP, Multi-Tenant SaaS, E-Commerce, Healthcare EHR, AI Ops, " +
         "IoT Telemetry, Logistics, Social Graph, and Education LMS.")]
     public string HubSearchBlueprints(
@@ -667,8 +547,6 @@ public sealed class NaminesTools
                 category = b.Category,
                 description = b.Description,
                 tags = b.Tags,
-                starCount = b.StarCount,
-                forkCount = b.ForkCount,
                 tableCount = b.Schema.Tables.Count,
                 tables = b.Schema.Tables.Select(t => t.Name).ToList(),
                 relationCount = b.Schema.Relations.Count,
@@ -682,7 +560,7 @@ public sealed class NaminesTools
 
     [McpServerTool(Name = "namines_hub_get_blueprint")]
     [Description(
-        "Retrieve the complete, verified DatabaseSchema and DBA notes of a Namines Hub architectural blueprint by slug. " +
+        "Retrieve the complete DatabaseSchema and DBA notes of a Namines Hub architectural blueprint by slug. " +
         "Ready to be directly analyzed, migrated, code-generated (Prisma/Drizzle/SQL), or deployed.")]
     public string HubGetBlueprint(
         [Description("Slug of the blueprint (e.g. 'fintech-ledger-engine', 'enterprise-erp-core', 'multitenant-b2b-saas', 'ecommerce-order-pipeline').")]
@@ -698,8 +576,6 @@ public sealed class NaminesTools
             category = bp.Category,
             description = bp.Description,
             tags = bp.Tags,
-            starCount = bp.StarCount,
-            forkCount = bp.ForkCount,
             starterIssue = new
             {
                 title = bp.StarterIssueTitle,
@@ -776,7 +652,9 @@ public sealed class NaminesTools
             };
         }
 
-        var matches = _flowMatcher.Match(diff, baseSchema, targetSchema, rules);
+        var matcher = _flowMatcher ?? throw new InvalidOperationException(
+            "This tool needs the Flow rule matcher, which is not available in this host configuration.");
+        var matches = matcher.Match(diff, baseSchema, targetSchema, rules);
 
         return JsonSerializer.Serialize(new
         {
@@ -784,6 +662,8 @@ public sealed class NaminesTools
             {
                 tablesAdded = diff.AddedTables,
                 tablesRemoved = diff.RemovedTables,
+                relationsAdded = diff.AddedRelations.Count,
+                relationsRemoved = diff.RemovedRelations.Count,
                 tablesModified = diff.ModifiedTables.Select(m => new
                 {
                     table = m.TableName,
