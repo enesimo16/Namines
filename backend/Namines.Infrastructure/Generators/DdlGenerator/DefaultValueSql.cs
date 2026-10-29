@@ -65,6 +65,8 @@ internal static class DefaultValueSql
         if (KnownFunctions.TryGetValue(trimmed, out var perEngine) && perEngine.TryGetValue(engine, out var translated))
             return translated;
 
-        return defaultValue;
+        // Tanınmayan değer OLDUĞU GİBİ geçer ama artık ham SQL parçası olarak
+        // doğrulanır: DEFAULT, 6 motorun hepsinde satıra olduğu gibi yapışıyordu.
+        return SqlFragmentGuard.EnsureSafeDefault(defaultValue, engine);
     }
 }
