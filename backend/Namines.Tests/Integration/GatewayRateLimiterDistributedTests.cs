@@ -70,7 +70,7 @@ public class GatewayRateLimiterDistributedTests : IAsyncLifetime
     }
 
     [RequiresDockerFact]
-    public void Sayac_SURECLER_ARASI_paylasiliyor()
+    public async Task Sayac_SURECLER_ARASI_paylasiliyor()
     {
         // ASIL İDDİA: bellek içi sayaçta bu test geçmez, çünkü her "instance"
         // kendi sözlüğünü görür. Burada tek süreç var ama sayaç Redis'te —
@@ -79,21 +79,21 @@ public class GatewayRateLimiterDistributedTests : IAsyncLifetime
         var keyId = "shared-" + Guid.NewGuid().ToString("N");
         var now = DateTime.UtcNow;
 
-        Assert.True(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 3, now));
-        Assert.True(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 3, now));
-        Assert.True(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 3, now));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 3, now));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 3, now));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 3, now));
 
         // Dördüncü istek sınırı aşıyor.
-        Assert.False(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 3, now));
+        Assert.False(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 3, now));
 
         // Bellek içi sözlük BOŞ — karar gerçekten Redis'ten geldi.
         GatewayRateLimiter.Reset();
         GatewayRateLimiter.UseDistributedCounter(_redis!, NullLogger.Instance);
-        Assert.False(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 3, now));
+        Assert.False(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 3, now));
     }
 
     [RequiresDockerFact]
-    public void Pencere_dolunca_sayac_SIFIRLANIYOR()
+    public async Task Pencere_dolunca_sayac_SIFIRLANIYOR()
     {
         // Pencere numarası anahtarın İÇİNDE: yeni pencere yeni anahtar demek,
         // yani sıfırlama ayrı bir yazma gerektirmiyor.
@@ -111,7 +111,7 @@ public class GatewayRateLimiterDistributedTests : IAsyncLifetime
         var windowStart = new DateTime(
             utc.Ticks - (utc.Ticks % TimeSpan.FromMinutes(1).Ticks), DateTimeKind.Utc);
 
-        Assert.True(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 1, windowStart));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 1, windowStart));
 
         // İlk çağrı GERÇEKTEN Redis'e gitti mi? `TryAcquireDistributed` hata
         // alırsa sessizce bellek içine düşüyor (bilinçli), ve o durumda bu test
@@ -124,23 +124,23 @@ public class GatewayRateLimiterDistributedTests : IAsyncLifetime
             "dagitik sayaci olcemez.");
 
         // AYNI kovada: reddediliyor.
-        Assert.False(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 1, windowStart.AddSeconds(30)));
+        Assert.False(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 1, windowStart.AddSeconds(30)));
 
         // SONRAKİ kovada: yeni anahtar, yeni sayaç.
-        Assert.True(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 1, windowStart.AddMinutes(1)));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 1, windowStart.AddMinutes(1)));
     }
 
     [RequiresDockerFact]
-    public void Farkli_anahtarlar_BIRBIRINI_etkilemiyor()
+    public async Task Farkli_anahtarlar_BIRBIRINI_etkilemiyor()
     {
         UseRedis();
         var suffix = Guid.NewGuid().ToString("N");
         var now = DateTime.UtcNow;
 
-        Assert.True(GatewayRateLimiter.TryAcquire("a-" + suffix, limitPerMinute: 1, now));
-        Assert.False(GatewayRateLimiter.TryAcquire("a-" + suffix, limitPerMinute: 1, now));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync("a-" + suffix, limitPerMinute: 1, now));
+        Assert.False(await GatewayRateLimiter.TryAcquireAsync("a-" + suffix, limitPerMinute: 1, now));
 
-        Assert.True(GatewayRateLimiter.TryAcquire("b-" + suffix, limitPerMinute: 1, now));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync("b-" + suffix, limitPerMinute: 1, now));
     }
 
     [RequiresDockerFact]
@@ -165,8 +165,8 @@ public class GatewayRateLimiterDistributedTests : IAsyncLifetime
         var now = DateTime.UtcNow;
 
         // Bellek içi sayaç devrede: ilk istek geçiyor, sınır yine uygulanıyor.
-        Assert.True(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 1, now));
-        Assert.False(GatewayRateLimiter.TryAcquire(keyId, limitPerMinute: 1, now));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 1, now));
+        Assert.False(await GatewayRateLimiter.TryAcquireAsync(keyId, limitPerMinute: 1, now));
 
         await broken.DisposeAsync();
     }

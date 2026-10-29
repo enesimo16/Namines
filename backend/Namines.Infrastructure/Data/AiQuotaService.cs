@@ -417,6 +417,23 @@ public sealed class AiQuotaService : Namines.Infrastructure.Services.IAiQuotaRes
     /// </summary>
     public async Task<AiQuotaDecision> TryReserveAsync(string userId, int estimatedTokens, CancellationToken ct = default)
     {
+        var decision = await TryReserveCoreAsync(userId, estimatedTokens, ct);
+        if (decision == AiQuotaDecision.Allowed) HasReservedInScope = true;
+        return decision;
+    }
+
+    /// <summary>
+    /// Bu kapsamda (scoped = istek) en az bir başarılı rezervasyon yapıldı mı?
+    ///
+    /// <b>Neden var:</b> <c>AIQuotaMiddleware</c> başarılı istekten sonra tahmini
+    /// maliyeti ayrıca düşüyor. Kendi rezervasyonunu yapan bir uç (ör.
+    /// <c>/api/schema/generate</c>) o zaman İKİ KEZ ücretlendiriliyordu. Middleware
+    /// bu bayrağa bakıp ikinci düşüşü atlıyor.
+    /// </summary>
+    public bool HasReservedInScope { get; private set; }
+
+    private async Task<AiQuotaDecision> TryReserveCoreAsync(string userId, int estimatedTokens, CancellationToken ct)
+    {
         var decision = await CheckAsync(userId, estimatedTokens, ct);
         if (decision != AiQuotaDecision.Allowed) return decision;
 
@@ -580,14 +597,18 @@ public sealed class AiQuotaService : Namines.Infrastructure.Services.IAiQuotaRes
             // Günün ilk harcaması: satır henüz yok. Yarışta ikinci istek de
             // buraya düşerse ekleme çakışır; o durumda güncellemeyi tekrar
             // deniyoruz — harcamayı sessizce kaybetmek, havuzu ölçülemez kılardı.
+            var globalRow = new GlobalAiUsage { Date = today, TokensUsed = estimatedTokens };
             try
             {
-                await _context.GlobalAiUsages.AddAsync(
-                    new GlobalAiUsage { Date = today, TokensUsed = estimatedTokens }, ct);
+                await _context.GlobalAiUsages.AddAsync(globalRow, ct);
                 await _context.SaveChangesAsync(ct);
             }
             catch (DbUpdateException)
             {
+                // Başarısız eklenen varlık izleyicide Added kalırsa aynı kapsamdaki
+                // sonraki SaveChanges onu yeniden eklemeye çalışıp tekrar patlar.
+                _context.Entry(globalRow).State = EntityState.Detached;
+
                 await _context.GlobalAiUsages
                     .Where(g => g.Date == today)
                     .ExecuteUpdateAsync(s => s.SetProperty(g => g.TokensUsed, g => g.TokensUsed + estimatedTokens), ct);
@@ -605,18 +626,21 @@ public sealed class AiQuotaService : Namines.Infrastructure.Services.IAiQuotaRes
 
             if (orgRows == 0)
             {
+                var orgRow = new OrgAiUsage
+                {
+                    OrganizationId = team.Value.OrgId,
+                    Date = today,
+                    TokensUsed = estimatedTokens,
+                };
                 try
                 {
-                    await _context.OrgAiUsages.AddAsync(new OrgAiUsage
-                    {
-                        OrganizationId = team.Value.OrgId,
-                        Date = today,
-                        TokensUsed = estimatedTokens,
-                    }, ct);
+                    await _context.OrgAiUsages.AddAsync(orgRow, ct);
                     await _context.SaveChangesAsync(ct);
                 }
                 catch (DbUpdateException)
                 {
+                    _context.Entry(orgRow).State = EntityState.Detached;
+
                     await _context.OrgAiUsages
                         .Where(o => o.OrganizationId == team.Value.OrgId && o.Date == today)
                         .ExecuteUpdateAsync(s => s.SetProperty(o => o.TokensUsed, o => o.TokensUsed + estimatedTokens), ct);

@@ -170,7 +170,11 @@ namespace Namines.API.Middleware
 
             // Yalnızca BAŞARILI istek harcanmış sayılır: hata dönen bir çağrı
             // kullanıcıya hiçbir şey vermedi, bütçesinden de düşmemeli.
-            if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
+            //
+            // Uç kendi bütçesini zaten rezerve edip uzlaştırdıysa (SchemaController
+            // /generate) burada tekrar düşmek aynı işi İKİ KEZ ücretlendirirdi.
+            if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300
+                && !quotaService.HasReservedInScope)
                 await quotaService.ConsumeAsync(userId, estTokens);
         }
     }

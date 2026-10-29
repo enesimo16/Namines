@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Models.Auth;
 using StackExchange.Redis;
@@ -57,12 +58,12 @@ public static class GatewayRateLimiter
     /// Anahtarın kendi sınırı yoksa sınır uygulanmaz — sunucunun genel
     /// rate-limit politikası zaten devrede (Program.cs "sensitive" politikası).
     /// </summary>
-    public static bool TryAcquire(GatewayApiKey key) =>
-        key.RateLimitPerMinute is not > 0 || TryAcquire(key.Id, key.RateLimitPerMinute.Value, DateTime.UtcNow);
+    public static async Task<bool> TryAcquireAsync(GatewayApiKey key) =>
+        key.RateLimitPerMinute is not > 0 || await TryAcquireAsync(key.Id, key.RateLimitPerMinute.Value, DateTime.UtcNow);
 
-    internal static bool TryAcquire(string keyId, int limitPerMinute, DateTime now)
+    internal static async Task<bool> TryAcquireAsync(string keyId, int limitPerMinute, DateTime now)
     {
-        if (_redis is not null && TryAcquireDistributed(keyId, limitPerMinute, now) is { } distributed)
+        if (_redis is not null && await TryAcquireDistributedAsync(keyId, limitPerMinute, now) is { } distributed)
             return distributed;
 
         return TryAcquireInMemory(keyId, limitPerMinute, now);
@@ -77,8 +78,20 @@ public static class GatewayRateLimiter
     /// çok daha büyük bir zarar. Bellek içi sayaç devreye giriyor, yani sınır
     /// "instance başına"ya geri düşüyor — eski davranış, yani hiç sınır olmaması değil.
     /// </summary>
-    private static bool? TryAcquireDistributed(string keyId, int limitPerMinute, DateTime now)
+    private static async Task<bool?> TryAcquireDistributedAsync(string keyId, int limitPerMinute, DateTime now)
     {
+        // Devre kesici: Redis düştüğünde her istek zaman aşımına kadar bekleyip
+        // istek süresi yakıyordu. Hatadan sonra kısa süre Redis'e hiç gidilmiyor;
+        // süre dolunca TEK istek deniyor (yarı açık), başarılıysa kesici kapanıyor.
+        var nowMs = Environment.TickCount64;
+        var retryAt = Interlocked.Read(ref _redisRetryAtMs);
+        if (retryAt != 0)
+        {
+            if (nowMs < retryAt) return null;
+            if (Interlocked.CompareExchange(ref _redisRetryAtMs, nowMs + RedisCooldownMs, retryAt) != retryAt)
+                return null;
+        }
+
         try
         {
             // Pencere numarası ANAHTARIN İÇİNDE: böylece pencere sıfırlaması ayrı
@@ -110,15 +123,18 @@ public static class GatewayRateLimiter
                 end
                 return count";
 
-            var result = _redis!.GetDatabase().ScriptEvaluate(
+            var result = await _redis!.GetDatabase().ScriptEvaluateAsync(
                 script,
                 new[] { redisKey },
                 new RedisValue[] { (long)WindowLength.TotalMilliseconds * 2 });
 
+            Interlocked.Exchange(ref _redisRetryAtMs, 0);
             return (long)result <= limitPerMinute;
         }
         catch (Exception ex)
         {
+            Interlocked.Exchange(ref _redisRetryAtMs, Environment.TickCount64 + RedisCooldownMs);
+
             // Her istekte hata basmak log'u boğar; ilk hatadan sonra susuyor.
             if (Interlocked.Exchange(ref _redisFailureLogged, 1) == 0)
                 _logger?.LogWarning(ex,
@@ -130,6 +146,10 @@ public static class GatewayRateLimiter
     }
 
     private static int _redisFailureLogged;
+
+    // Environment.TickCount64 cinsinden "Redis'e şu ana kadar dokunma"; 0 = kesici kapalı.
+    private const long RedisCooldownMs = 10_000;
+    private static long _redisRetryAtMs;
 
     private static bool TryAcquireInMemory(string keyId, int limitPerMinute, DateTime now)
     {
@@ -159,5 +179,6 @@ public static class GatewayRateLimiter
         _redis = null;
         _logger = null;
         _redisFailureLogged = 0;
+        _redisRetryAtMs = 0;
     }
 }

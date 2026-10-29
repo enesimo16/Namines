@@ -224,7 +224,7 @@ public class GatewayController : ControllerBase
                 key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
             return (false, StatusCode(403, new { message = ipReason }), null);
 
-        if (!GatewayRateLimiter.TryAcquire(key))
+        if (!await GatewayRateLimiter.TryAcquireAsync(key))
             return (false, StatusCode(429, new
             {
                 message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
@@ -1505,7 +1505,10 @@ public class GatewayController : ControllerBase
         // paylaşılan havuza hiç dokunulmuyordu ve gün sınırı middleware'inkinden
         // farklıydı. Fatura anahtarı ÜRETEN kullanıcıya yazılıyor: isteği yapan
         // taraf anonim bir uygulama, ödeyen hesap sahibi.
-        var decision = await _quota.CheckAsync(key.CreatedByUserId, NlQueryTokenEstimate, cancellationToken);
+        //
+        // Kontrol + sonradan düşme DEĞİL, atomik rezervasyon: Check→Consume arasındaki
+        // pencerede eşzamanlı N istek aynı bütçeyi birlikte harcayabiliyordu.
+        var decision = await _quota.TryReserveAsync(key.CreatedByUserId, NlQueryTokenEstimate, cancellationToken);
         if (decision != AiQuotaDecision.Allowed)
         {
             return StatusCode(429, new
@@ -1532,10 +1535,12 @@ public class GatewayController : ControllerBase
         }
         catch (Exception ex)
         {
-            // İADE KODU YOK ve gerek de yok: bütçe yalnızca BAŞARIDA harcanıyor
-            // (aşağıdaki ConsumeAsync). Peşin alıp geri vermek, iadenin kendisi de
-            // başarısız olabildiği için ikinci bir arıza yolu açıyordu.
-            //
+            // Model çalışmadı: peşin rezerve edilen bütçe tamamen iade ediliyor.
+            // Sağlayıcı arızasını kullanıcının günlük hakkından kesmek yanlış olurdu.
+            // İade, istemci bağlantıyı kopardıysa da yapılsın diye iptal belirteci
+            // GEÇİRİLMİYOR.
+            await _quota.RefundAsync(key.CreatedByUserId, NlQueryTokenEstimate);
+
             // Upstream'in hata GÖVDESİ geçirilmiyor: sağlayıcı mesajları uç adresi,
             // model adı ve kota ayrıntısı taşıyabiliyor ve bunlar çağıranın işine
             // yaramaz, saldırganın işine yarar. Ayrıntı log'a gidiyor.
@@ -1543,8 +1548,7 @@ public class GatewayController : ControllerBase
             return StatusCode(502, new { message = "The language model could not be reached." });
         }
 
-        // Model gerçekten cevap verdi: hem AI bütçesi hem faturalama ölçümü işleniyor.
-        await _quota.ConsumeAsync(key.CreatedByUserId, NlQueryTokenEstimate, cancellationToken);
+        // Model gerçekten cevap verdi: bütçe zaten rezerve edildi, faturalama ölçümü işleniyor.
         await _context.RecordAsync(key.CreatedByUserId, UsageResource.AiCall, 1, "query/nl", cancellationToken);
 
         // Model "cevaplayamıyorum" diyebilmeli: uyduran bir sorgu, boş dönenden
@@ -1677,7 +1681,7 @@ public class GatewayController : ControllerBase
                 key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
             return (false, StatusCode(403, new { message = ipReason }), null);
 
-        if (!GatewayRateLimiter.TryAcquire(key))
+        if (!await GatewayRateLimiter.TryAcquireAsync(key))
             return (false, StatusCode(429, new
             {
                 message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
@@ -1918,7 +1922,7 @@ public class GatewayController : ControllerBase
                 key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
             return (null, StatusCode(403, new { message = ipReason }));
 
-        if (!GatewayRateLimiter.TryAcquire(key))
+        if (!await GatewayRateLimiter.TryAcquireAsync(key))
             return (null, StatusCode(429, new
             {
                 message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
