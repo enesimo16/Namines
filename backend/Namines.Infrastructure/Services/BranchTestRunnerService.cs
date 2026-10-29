@@ -138,7 +138,9 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
                     // DDL container içinde süper kullanıcı olarak çalışıyor; ağ YOK (şema docker
                     // arşiv API ile taşınıyor, hazırlık kontrolü ve istemci container İÇİNDE,
                     // loopback üzerinden çalışıyor). Sertleştirme DockerBackupService ile aynı.
-                    NetworkMode = "none",
+                    // MSSQL ağsız açıldığında CI'da hazırlık kontrolüne 6 dakikada bile cevap vermedi;
+                    // onda varsayılan ağ kalıyor (yetki ve PID kısıtları yine geçerli).
+                    NetworkMode = dbType == DatabaseType.MSSQL ? null : "none",
                     PidsLimit = SandboxContainerHardening.PidsLimitFor(dbType),
                     CapDrop = SandboxContainerHardening.CapDrop(),
                 }
