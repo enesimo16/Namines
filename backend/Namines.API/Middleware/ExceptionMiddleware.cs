@@ -198,11 +198,13 @@ public class ExceptionMiddleware
                 null
             ),
 
+            // 401 değil 403: bu istisna dosya sistemi/IO kodundan da fırlar ve 401,
+            // frontend'in kullanıcıyı oturumdan atmasına yol açar. Mesaj yansıtılmaz.
             UnauthorizedAccessException => (
-                StatusCodes.Status401Unauthorized,
-                "https://namines.dev/errors/unauthorized",
-                "Unauthorized",
-                "UNAUTHORIZED",
+                StatusCodes.Status403Forbidden,
+                "https://namines.dev/errors/forbidden",
+                "Forbidden",
+                "FORBIDDEN",
                 "Access denied.",
                 null
             ),
