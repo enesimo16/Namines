@@ -503,7 +503,7 @@ public class GatewayKeyController : ControllerBase
             .FirstOrDefaultAsync(g => g.ProjectId == projectId, ct);
 
         if (managed is not null &&
-            managed.Status is GroundStatus.Provisioning or GroundStatus.Active or GroundStatus.PendingDelete)
+            managed.Status is GroundStatus.Provisioning or GroundStatus.Active or GroundStatus.PendingDelete or GroundStatus.Deleting)
         {
             return BadRequest(new
             {
