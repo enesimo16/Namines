@@ -9,6 +9,7 @@ import ThemeToggleButton from './ThemeToggleButton';
 import LanguageToggle from '../layout/LanguageToggle';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
+import { useT } from '../../lib/i18n';
 
 interface DropdownCardItem {
   title: string;
@@ -122,6 +123,7 @@ const RESOURCES_SUPPORT = [
 type OpenMenuId = 'products' | 'solutions' | 'developers' | 'apps' | 'resources' | 'notifications' | null;
 
 export default function LandingNavbar() {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -470,7 +472,7 @@ export default function LandingNavbar() {
           </nav>
         </div>
 
-        {/* Right: Bell Icon, Theme Icon, Language Icon, Log in, Ücretsiz deneyin */}
+        {/* Right: Bell Icon, Theme Icon, Language Icon, Log in, Try for free */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Bell Notification Icon with Smooth Hover Popover */}
           <div
@@ -529,7 +531,7 @@ export default function LandingNavbar() {
             href="/new"
             className="tap-44 inline-flex items-center justify-center px-5 py-2.5 rounded-[8px] bg-accent hover:bg-accent-hover text-accent-on text-[15px] font-semibold transition-all duration-200 shadow-xs hover:scale-[1.01] active:scale-95"
           >
-            Ücretsiz deneyin
+            {t('landing.tryFree')}
           </Link>
 
           {/* Mobile Menu Toggle */}
@@ -584,7 +586,7 @@ export default function LandingNavbar() {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="flex-1 text-center py-2.5 rounded-[8px] bg-accent text-accent-on text-[15px] font-semibold"
               >
-                Ücretsiz deneyin
+                {t('landing.tryFree')}
               </Link>
             </div>
           </div>

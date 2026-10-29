@@ -567,6 +567,17 @@ body.light .theme-logo-light {
   --color-surface-800: var(--surface-800);
   --color-surface-700: var(--surface-700);
   --color-surface-600: var(--surface-600);
+  /* Ara basamaklar: Hub/Flow/Desk bileşenleri `bg-surface-850/750/650/950` ve
+     `text-ink-*` yazıyordu ama bu token'lar tanımsızdı — Tailwind sınıfı hiç
+     üretmiyor, öğe sessizce saydam/devralınan renkte kalıyordu. Yeni renk
+     icat edilmiyor: komşu basamakların orta noktası ve mevcut içerik token'ları. */
+  --color-surface-950: var(--surface-900);
+  --color-surface-850: color-mix(in oklch, var(--surface-900) 50%, var(--surface-800));
+  --color-surface-750: color-mix(in oklch, var(--surface-800) 50%, var(--surface-700));
+  --color-surface-650: color-mix(in oklch, var(--surface-700) 50%, var(--surface-600));
+  --color-ink-primary: var(--content-primary);
+  --color-ink-secondary: var(--content-secondary);
+  --color-ink-muted: var(--content-muted);
   /* 500/400 kenarlık: opak bir ton değil, off-white'ın düşük opaklığı —
      koyu-üstüne-koyu kenarlık her yüzey basamağında ayrı ayrı ayarlanmak
      zorunda kalırdı; alfa, zemin ne olursa olsun doğru ayrımı veriyor. */

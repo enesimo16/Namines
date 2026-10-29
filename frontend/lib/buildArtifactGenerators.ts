@@ -76,18 +76,24 @@ export function generateMermaidByType(schema: DatabaseSchema, typeId: string): s
       return generateGitGraph(schema);
     case 'ER':
     default: {
-      const tableMap = new Map((schema?.tables || []).map((t) => [t.id, t.name]));
+      // Mermaid ER kimlikleri boşluk/parantez içeremez ("varchar(255)", "order items" diyagramı bozar)
+      const safeId = (raw: string) => {
+        const id = (raw || '').replace(/[^A-Za-z0-9_]/g, '_');
+        return /^[0-9]/.test(id) || id === '' ? `_${id}` : id;
+      };
+      const safeType = (raw: string) => (raw || 'string').replace(/\(.*?\)/g, '').replace(/[^A-Za-z0-9_]/g, '_') || 'string';
+      const tableMap = new Map((schema?.tables || []).map((t) => [t.id, safeId(t.name)]));
       const lines = ['erDiagram'];
       for (const table of schema?.tables || []) {
-        lines.push(`    ${table.name} {`);
+        lines.push(`    ${safeId(table.name)} {`);
         for (const col of table.columns) {
-          lines.push(`        ${col.type} ${col.name}${col.isPK ? ' PK' : ''}`);
+          lines.push(`        ${safeType(col.type)} ${safeId(col.name)}${col.isPK ? ' PK' : ''}`);
         }
         lines.push('    }');
       }
       for (const rel of schema?.relations || []) {
-        const srcTable = tableMap.get(rel.sourceTableId) || rel.sourceTableId;
-        const tgtTable = tableMap.get(rel.targetTableId) || rel.targetTableId;
+        const srcTable = tableMap.get(rel.sourceTableId) || safeId(rel.sourceTableId);
+        const tgtTable = tableMap.get(rel.targetTableId) || safeId(rel.targetTableId);
         lines.push(`    ${srcTable} }|--|| ${tgtTable} : references`);
       }
       return lines.join('\n');
