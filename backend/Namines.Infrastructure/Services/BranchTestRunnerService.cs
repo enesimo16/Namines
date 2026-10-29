@@ -133,7 +133,14 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
                 {
                     Memory = dbType == DatabaseType.MSSQL ? 2500L * 1024 * 1024 : 2048L * 1024 * 1024,
                     NanoCPUs = 1000000000,
-                    AutoRemove = true // temizlik garanti — stop sonrası kendini siler
+                    AutoRemove = true, // temizlik garanti — stop sonrası kendini siler
+
+                    // DDL container içinde süper kullanıcı olarak çalışıyor; ağ YOK (şema docker
+                    // arşiv API ile taşınıyor, hazırlık kontrolü ve istemci container İÇİNDE,
+                    // loopback üzerinden çalışıyor). Sertleştirme DockerBackupService ile aynı.
+                    NetworkMode = "none",
+                    PidsLimit = SandboxContainerHardening.PidsLimit,
+                    CapDrop = SandboxContainerHardening.CapDrop(),
                 }
             }, ct);
             containerId = createResponse.ID;

@@ -183,6 +183,10 @@ public sealed class BranchDatabaseProvisioner : IBranchDatabaseProvisioner, IDis
             {
                 Memory = engine == DatabaseType.MSSQL ? 2500L * 1024 * 1024 : 2048L * 1024 * 1024,
                 NanoCPUs = 1_000_000_000,
+                // Ağ KAPATILAMAZ (host portu gerekiyor); bellek/CPU limitinin durdurmadığı
+                // fork bombasını ve gereksiz yetkileri DockerBackupService ile aynı değerlerle kapat.
+                PidsLimit = SandboxContainerHardening.PidsLimit,
+                CapDrop = SandboxContainerHardening.CapDrop(),
                 // AutoRemove YOK: bu container yaşamaya devam etmeli.
                 PortBindings = new Dictionary<string, IList<PortBinding>>
                 {
