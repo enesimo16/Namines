@@ -9,6 +9,7 @@ import LanguageToggle from './LanguageToggle';
 import ThemeToggle from './ThemeToggle';
 import AuthModal from './AuthModal';
 import { useT } from '../lib/i18n';
+import { assetUrl } from '../lib/config';
 
 const NAMINES_FRONTEND = process.env.NAMINES_FRONTEND ?? 'http://localhost:3000';
 
@@ -32,7 +33,7 @@ export default function DeskLanding({ onAuthSuccess }: DeskLandingProps) {
       <header className="landing-nav">
         <div className="landing-nav-inner">
           <div className="landing-brand">
-            <img src="/brand/namines-symbol.svg" alt="Namines Logo" className="landing-logo-img" />
+            <img src={assetUrl('/brand/namines-symbol.svg')} alt="Namines Logo" className="landing-logo-img" />
             <span className="landing-brand-title">Namines Desk</span>
             <span className="brand-badge">beta</span>
           </div>
@@ -274,7 +275,7 @@ export default function DeskLanding({ onAuthSuccess }: DeskLandingProps) {
       <footer className="landing-footer">
         <div className="landing-footer-inner">
           <div className="footer-left">
-            <img src="/brand/namines-symbol.svg" alt="Namines" width="20" height="20" />
+            <img src={assetUrl('/brand/namines-symbol.svg')} alt="Namines" width="20" height="20" />
             <span className="footer-brand-name">Namines Desk</span>
             <span className="footer-copy">© 2026 Namines Inc. {t('landing.footerRights')}</span>
           </div>
