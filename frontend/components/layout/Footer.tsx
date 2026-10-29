@@ -159,15 +159,13 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <a
-                  href="http://localhost:3200"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  href="/desk"
                   className="inline-flex items-center gap-1 hover:text-content-primary transition-colors"
                 >
                   <span>Namines Desk</span>
                   <ArrowUpRight className="w-3 h-3 text-content-subtle" />
-                </a>
+                </Link>
               </li>
               <li>
                 <a href="#builder-grid" className="hover:text-content-primary transition-colors">
