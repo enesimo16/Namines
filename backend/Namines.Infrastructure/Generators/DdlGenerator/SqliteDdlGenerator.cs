@@ -18,6 +18,7 @@ public class SqliteDdlGenerator : IDdlGenerator
     public string Generate(DatabaseSchema schema)
     {
         var sb = new StringBuilder();
+        var names = new ObjectNameRegistry(DatabaseType.SQLite);
 
         // SQLite foreign key desteğini aktifleştir
         sb.AppendLine("PRAGMA foreign_keys = ON;");
@@ -94,13 +95,13 @@ public class SqliteDdlGenerator : IDdlGenerator
                 }
             }
 
-            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.SQLite, Quote, schema));
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.SQLite, Quote, schema, names));
 
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(");");
             sb.AppendLine();
 
-            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.SQLite, Quote);
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.SQLite, Quote, names);
             if (!string.IsNullOrEmpty(indexes))
             {
                 sb.Append(indexes);

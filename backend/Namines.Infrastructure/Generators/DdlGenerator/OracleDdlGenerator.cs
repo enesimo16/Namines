@@ -19,6 +19,7 @@ public class OracleDdlGenerator : IDdlGenerator
     public string Generate(DatabaseSchema schema)
     {
         var sb = new StringBuilder();
+        var names = new ObjectNameRegistry(DatabaseType.Oracle);
 
         foreach (var table in schema.Tables)
         {
@@ -66,16 +67,16 @@ public class OracleDdlGenerator : IDdlGenerator
             if (pkColumns.Any())
             {
                 var pkCols = string.Join(", ", pkColumns.Select(c => Quote(c.Name)));
-                lines.Add($"    CONSTRAINT {Quote($"PK_{table.Name}")} PRIMARY KEY ({pkCols})");
+                lines.Add($"    CONSTRAINT {Quote(names.ClaimConstraint(table.Name, $"PK_{table.Name}", createsIndex: true))} PRIMARY KEY ({pkCols})");
             }
 
-            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.Oracle, Quote, schema));
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.Oracle, Quote, schema, names));
 
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(");");
             sb.AppendLine();
 
-            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.Oracle, Quote);
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.Oracle, Quote, names);
             if (!string.IsNullOrEmpty(indexes))
             {
                 sb.Append(indexes);
@@ -96,9 +97,8 @@ public class OracleDdlGenerator : IDdlGenerator
                 var targetCol = targetTable.Columns.FirstOrDefault(c => c.Id == relation.TargetColumnId);
                 if (sourceCol == null || targetCol == null) continue;
 
-                // FK adı 30 karakterle sınırlandır (Oracle 12c- uyumluluğu)
-                var fkName = $"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}";
-                if (fkName.Length > 30) fkName = fkName[..30];
+                // FK adı motor sınırına (Oracle 12c- uyumluluğu için 30) kayıt defteri üzerinden sığdırılır.
+                var fkName = names.ClaimConstraint(sourceTable.Name, $"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}");
 
                 var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.Oracle);
 
