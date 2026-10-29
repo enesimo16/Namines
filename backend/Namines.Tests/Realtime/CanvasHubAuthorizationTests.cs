@@ -233,4 +233,129 @@ public sealed class CanvasHubAuthorizationTests : IAsyncLifetime
 
         Assert.False(h.Context.Items.ContainsKey("canvas.branchProjectId"));
     }
+
+    // ── A-5: başarısız JoinRoom yetkiyi sıfırlamamalı ────────────────────────
+
+    private async Task AddBranchAsync(string branchId, string projectId = ProjectId)
+    {
+        await using var db = new AuthDbContext(_options);
+        db.Branches.Add(new Branch { Id = branchId, ProjectId = projectId, Name = branchId, CreatedByUserId = "owner" });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task AddPrivateProjectBranchAsync(string branchId)
+    {
+        await using var db = new AuthDbContext(_options);
+        db.CloudProjects.Add(new CloudProject
+        {
+            Id = "proj-private", Name = "private", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}",
+            UserId = "owner", OrganizationId = null,
+        });
+        db.Branches.Add(new Branch { Id = branchId, ProjectId = "proj-private", Name = "main", IsDefault = true, CreatedByUserId = "owner" });
+        await db.SaveChangesAsync();
+    }
+
+    private static DatabaseSchema SchemaWithTable() => new() { Tables = { new SchemaTable { Name = "t" } } };
+
+    [Fact]
+    public async Task A_failed_join_keeps_the_previous_authorization_so_a_viewer_still_cannot_write()
+    {
+        await AddPrivateProjectBranchAsync("branch-private");
+        var h = NewHub("viewer");
+        await h.Hub.JoinRoom(BranchId, "v");
+
+        await Assert.ThrowsAsync<HubException>(() => h.Hub.JoinRoom("branch-private", "v"));
+
+        // Durum değişmedi: hâlâ eski odada, hâlâ Viewer.
+        Assert.True(h.Context.Items.ContainsKey("canvas.branchProjectId"));
+        Assert.Contains((h.Context.ConnectionId, BranchId), h.Groups.Members);
+        h.Clients.Group.Methods.Clear();
+        await h.Hub.UpdateSchema(BranchId, new DatabaseSchema());
+        Assert.Empty(h.Clients.Group.Methods);
+    }
+
+    [Fact]
+    public async Task Switching_rooms_leaves_the_previous_group()
+    {
+        await AddBranchAsync("branch-2");
+        var h = NewHub("editor");
+        await h.Hub.JoinRoom(BranchId, "e");
+
+        await h.Hub.JoinRoom("branch-2", "e");
+
+        Assert.DoesNotContain((h.Context.ConnectionId, BranchId), h.Groups.Members);
+        Assert.Contains((h.Context.ConnectionId, "branch-2"), h.Groups.Members);
+        // Eski odaya artık yayın yapılamaz.
+        h.Clients.Group.Methods.Clear();
+        await h.Hub.UpdateSchema(BranchId, new DatabaseSchema());
+        Assert.Empty(h.Clients.Group.Methods);
+    }
+
+    [Fact]
+    public async Task Authorization_fails_closed_when_the_room_state_is_missing()
+    {
+        var h = NewHub("viewer");
+        await h.Hub.JoinRoom(BranchId, "v");
+        // Branch anahtarı da guest işareti de yok → eskiden "guest sayılıp" izin veriliyordu.
+        h.Context.Items.Remove("canvas.branchProjectId");
+        h.Clients.Group.Methods.Clear();
+
+        await h.Hub.MoveCursor(BranchId, "v", 1, 2);
+        await h.Hub.UpdateSchema(BranchId, new DatabaseSchema());
+
+        Assert.Empty(h.Clients.Group.Methods);
+    }
+
+    // ── B-16: oda şema önbelleği ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task Branch_room_schema_is_replayed_to_a_late_joiner_and_evicted_when_the_last_member_leaves()
+    {
+        await AddBranchAsync("branch-cache");
+        var editor = NewHub("editor", "conn-a");
+        await editor.Hub.JoinRoom("branch-cache", "e");
+        await editor.Hub.UpdateSchema("branch-cache", SchemaWithTable());
+
+        var viewer = NewHub("viewer", "conn-b");
+        await viewer.Hub.JoinRoom("branch-cache", "v");
+        Assert.Contains("ReceiveSchema", viewer.Clients.Group.Methods);
+
+        // Herkes ayrılınca önbellek düşer; sonradan gelen bayat şema almamalı.
+        await editor.Hub.OnDisconnectedAsync(null);
+        await viewer.Hub.OnDisconnectedAsync(null);
+        var late = NewHub("owner", "conn-c");
+        await late.Hub.JoinRoom("branch-cache", "o");
+        Assert.DoesNotContain("ReceiveSchema", late.Clients.Group.Methods);
+    }
+
+    [Fact]
+    public async Task Guest_room_schema_is_never_cached()
+    {
+        var first = NewHub(userId: null, "conn-g1");
+        await first.Hub.JoinRoom("guest-cache-room", "g");
+        await first.Hub.UpdateSchema("guest-cache-room", SchemaWithTable());
+
+        var second = NewHub(userId: null, "conn-g2");
+        await second.Hub.JoinRoom("guest-cache-room", "g2");
+
+        Assert.DoesNotContain("ReceiveSchema", second.Clients.Group.Methods);
+    }
+
+    [Fact]
+    public async Task A_room_prefixed_branch_id_is_still_authorized_as_a_branch_room()
+    {
+        // Frontend URL'de "room-<branchId>" kullanıyor; önek yüzünden yetki atlanmamalı.
+        var stranger = NewHub("stranger");
+        await Assert.ThrowsAsync<HubException>(() => stranger.Hub.JoinRoom("room-" + BranchId, "x"));
+        Assert.Empty(stranger.Groups.Members);
+
+        var anon = NewHub(userId: null);
+        await Assert.ThrowsAsync<HubException>(() => anon.Hub.JoinRoom("room-" + BranchId, "x"));
+
+        var viewer = NewHub("viewer");
+        await viewer.Hub.JoinRoom("room-" + BranchId, "v");
+        viewer.Clients.Group.Methods.Clear();
+        await viewer.Hub.UpdateSchema("room-" + BranchId, new DatabaseSchema());
+        Assert.Empty(viewer.Clients.Group.Methods);
+    }
 }

@@ -31,12 +31,8 @@ namespace Namines.Infrastructure.Migrations
                             ALTER TABLE vault.vault_schedules SET SCHEMA namines_vault;
                         END IF;
 
-                        -- Clean up empty legacy vault schema if it exists and has no remaining tables
-                        IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'vault') THEN
-                            IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'vault') THEN
-                                DROP SCHEMA IF EXISTS vault CASCADE;
-                            END IF;
-                        END IF;
+                        -- Eski 'vault' sema BILEREK silinmiyor: Supabase'de 'vault' bir SISTEM semasi
+                        -- (pgsodium/secrets) ve DROP ... CASCADE onu ve bagimlilarini yok eder.
                     END $$;
                 ");
             }

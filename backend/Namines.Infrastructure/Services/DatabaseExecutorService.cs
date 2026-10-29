@@ -95,12 +95,16 @@ public class DatabaseExecutorService : IDatabaseExecutor
     private static IEnumerable<string> ExtractHosts(string connectionString, DatabaseType dbType)
     {
         string? raw = null;
+        string? failoverPartner = null;
         try
         {
             switch (dbType)
             {
                 case DatabaseType.MSSQL:
-                    raw = new SqlConnectionStringBuilder(connectionString).DataSource;
+                    var sqlBuilder = new SqlConnectionStringBuilder(connectionString);
+                    raw = sqlBuilder.DataSource;
+                    // Failover Partner de bir bağlantı hedefi; doğrulanmazsa iç ağa yedek kapı olur.
+                    failoverPartner = sqlBuilder.FailoverPartner;
                     break;
                 case DatabaseType.PostgreSQL:
                     raw = new NpgsqlConnectionStringBuilder(connectionString).Host;
@@ -142,6 +146,19 @@ public class DatabaseExecutorService : IDatabaseExecutor
             if (slashIdx >= 0) h = h.Substring(0, slashIdx); // named instance / service
             h = h.Trim();
             if (!string.IsNullOrEmpty(h)) yield return h;
+        }
+
+        if (!string.IsNullOrWhiteSpace(failoverPartner))
+        {
+            var partner = failoverPartner.Trim();
+            var colon = partner.IndexOf(':');
+            if (colon >= 0 && (partner[..colon].Equals("tcp", StringComparison.OrdinalIgnoreCase)
+                               || partner[..colon].Equals("np", StringComparison.OrdinalIgnoreCase)))
+                partner = partner[(colon + 1)..];
+            var cut = partner.IndexOfAny(new[] { ',', ':', '\\', '/' });
+            if (cut >= 0) partner = partner[..cut];
+            partner = partner.Trim();
+            if (partner.Length > 0) yield return partner;
         }
     }
 

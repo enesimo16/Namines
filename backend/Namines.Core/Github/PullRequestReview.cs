@@ -95,7 +95,7 @@ public static class PullRequestReviewComposer
             sb.AppendLine("### Migration locks");
             sb.AppendLine();
             foreach (var risk in report.LockRisks)
-                sb.AppendLine($"- `{Md(risk.Operation)}` on **{Md(risk.TableName)}** — {Md(risk.Severity.ToString())} lock");
+                sb.AppendLine($"- {CodeSpan(risk.Operation)} on **{Md(risk.TableName)}** — {Md(risk.Severity.ToString())} lock");
             sb.AppendLine();
         }
 
@@ -111,7 +111,7 @@ public static class PullRequestReviewComposer
             sb.AppendLine("### Suggested indexes");
             sb.AppendLine();
             foreach (var suggestion in report.IndexSuggestions)
-                sb.AppendLine($"- `{suggestion.TableName}` — {suggestion.Reason}");
+                sb.AppendLine($"- {CodeSpan(suggestion.TableName)} — {Md(suggestion.Reason)}");
             sb.AppendLine();
         }
 
@@ -119,7 +119,7 @@ public static class PullRequestReviewComposer
         {
             sb.AppendLine("### Preview database");
             sb.AppendLine();
-            sb.AppendLine($"A throwaway database with this schema is available: `{previewDatabaseUrl}`");
+            sb.AppendLine($"A throwaway database with this schema is available: {CodeSpan(previewDatabaseUrl)}");
             sb.AppendLine();
         }
 
@@ -202,5 +202,28 @@ public static class PullRequestReviewComposer
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Değeri güvenli bir inline kod aralığına koyar. Kod aralığında ters eğik çizgi kaçışı
+    /// ÇALIŞMAZ, yani <see cref="Md"/> burada yetmez: değerdeki bir backtick aralığı erken
+    /// kapatıp sonrasını yorum metni yapar. Çözüm CommonMark kuralı: değerdeki en uzun
+    /// backtick dizisinden bir fazla uzunlukta çit kullanmak.
+    /// </summary>
+    private static string CodeSpan(string? value)
+    {
+        var text = (value ?? string.Empty).Replace("\r", string.Empty).Replace('\n', ' ').Replace('\t', ' ');
+
+        int longest = 0, run = 0;
+        foreach (var c in text)
+        {
+            run = c == '`' ? run + 1 : 0;
+            if (run > longest) longest = run;
+        }
+
+        var fence = new string('`', longest + 1);
+        // Başta/sonda backtick varsa çitle birleşmesin diye boşlukla ayır.
+        var pad = text.StartsWith('`') || text.EndsWith('`') ? " " : string.Empty;
+        return fence + pad + text + pad + fence;
     }
 }

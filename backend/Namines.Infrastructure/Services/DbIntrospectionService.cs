@@ -144,6 +144,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     private static IEnumerable<string> BuilderHosts(string cs, string dbType)
     {
         string? raw = null;
+        string? failoverPartner = null;
         var isPostgres = false;
         try
         {
@@ -151,7 +152,11 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
             {
                 case "MSSQL":
                 case "SQLSERVER":
-                    raw = new SqlConnectionStringBuilder(cs).DataSource;
+                    var sqlBuilder = new SqlConnectionStringBuilder(cs);
+                    raw = sqlBuilder.DataSource;
+                    // Failover Partner da bir bağlantı hedefi: asıl sunucu düşünce sürücü
+                    // buna bağlanıyor, yani doğrulanmazsa iç ağa giden bir yedek kapı olurdu.
+                    failoverPartner = sqlBuilder.FailoverPartner;
                     break;
                 case "POSTGRESQL":
                 case "POSTGRES":
@@ -182,6 +187,13 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         {
             var host = segment.Trim().Split(',', ':', '/', '\\')[0].Trim();
             if (host.Length > 0) yield return host;
+        }
+
+        if (!string.IsNullOrWhiteSpace(failoverPartner))
+        {
+            var partner = Regex.Replace(failoverPartner.Trim(), @"^(?:tcp|np|lpc):", string.Empty, RegexOptions.IgnoreCase);
+            var partnerHost = partner.Split(',', ':', '/', '\\')[0].Trim();
+            if (partnerHost.Length > 0) yield return partnerHost;
         }
     }
 
