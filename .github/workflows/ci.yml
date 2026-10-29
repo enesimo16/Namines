@@ -51,8 +51,15 @@ jobs:
           set -uo pipefail
           out=$(dotnet list backend/Namines.sln package --vulnerable --include-transitive 2>&1)
           echo "$out"
-          if echo "$out" | grep -qiE '(Critical|High)'; then
+          # Tablo satırları `   > Paket  İstenen  Çözülen  Önem  Advisory-URL` biçiminde;
+          # yalnızca ÖNEM sütununa bakılır (paket adı/URL içinde geçen "High" yanlış alarm vermesin).
+          if echo "$out" | grep -qE '^[[:space:]]*>.*[[:space:]](Critical|High)[[:space:]]+https?://'; then
             echo "::error::Yüksek/kritik seviyede güvenlik açığı olan paket var."
+            exit 1
+          fi
+          # NU1900: açık veritabanına ulaşılamadı → tarama HİÇ yapılmadı demektir; sessiz geçmek yerine kır.
+          if echo "$out" | grep -q 'NU1900'; then
+            echo "::error::NuGet güvenlik açığı verisi alınamadı (NU1900); tarama doğrulanamadı."
             exit 1
           fi
 
@@ -142,7 +149,7 @@ jobs:
           total=0
           for f in $(find . -name '*.trx'); do
             # .trx özeti: <Counters ... skipped="N" .../>  (notExecuted da olabilir)
-            n=$(grep -oE '(skipped|notExecuted)="[0-9]+"' "$f" | grep -oE '[0-9]+' | paste -sd+ - | bc 2>/dev/null || echo 0)
+            n=$(grep -oE '(skipped|notExecuted)="[0-9]+"' "$f" | grep -oE '[0-9]+' | awk '{s+=$1} END{print s+0}')
             total=$((total + ${n:-0}))
           done
           echo "Atlanan test toplamı: $total (eşik: $MAX_SKIPPED)"
@@ -175,7 +182,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -187,6 +194,10 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit -p tsconfig.json
 
+      # Birim testleri (vitest) — daha önce CI'da hiç koşmuyordu.
+      - name: Test
+        run: npm test
+
       # B-57: lint artık CI'da. Başlangıçta 149 ihlal vardı; tamamı sıfıra
       # indirildi (`any` kullanımı 26 → 0). `eslint` UYARIDA çıkış kodu 0
       # döndürür, o yüzden bu adım yalnızca HATA seviyesinde kırar — kalan
@@ -196,6 +207,40 @@ jobs:
 
       - name: Bağımlılık güvenlik taraması (npm)
         run: npm audit --audit-level=high
+
+      - name: Build
+        run: npm run build
+
+  # ── Desk mikroservisi: tip kontrolü + test + production build ─────────────
+  # services/desk ayrı bir Next.js uygulaması (kendi package.json'ı); frontend
+  # job'ı onu kapsamıyordu, yani Desk'teki bir kırılma CI'da hiç görünmüyordu.
+  desk:
+    name: Desk (typecheck + test + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: services/desk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/desk/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build
