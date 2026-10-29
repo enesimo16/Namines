@@ -17,6 +17,7 @@ public class MariaDbDdlGenerator : IDdlGenerator
     public string Generate(DatabaseSchema schema)
     {
         var sb = new StringBuilder();
+        var names = new ObjectNameRegistry(DatabaseType.MariaDB);
 
         foreach (var table in schema.Tables)
         {
@@ -63,13 +64,13 @@ public class MariaDbDdlGenerator : IDdlGenerator
                 lines.Add($"    PRIMARY KEY ({pkCols})");
             }
 
-            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.MariaDB, Quote, schema));
+            lines.AddRange(ConstraintSql.InlineConstraints(table, DatabaseType.MariaDB, Quote, schema, names));
 
             sb.AppendLine(string.Join(",\n", lines));
             sb.AppendLine(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
             sb.AppendLine();
 
-            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.MariaDB, Quote);
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.MariaDB, Quote, names);
             if (!string.IsNullOrEmpty(indexes))
             {
                 sb.Append(indexes);
@@ -92,7 +93,7 @@ public class MariaDbDdlGenerator : IDdlGenerator
 
                 var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.MariaDB);
 
-                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} ADD CONSTRAINT {Quote($"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}")}");
+                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} ADD CONSTRAINT {Quote(names.ClaimConstraint(sourceTable.Name, $"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}"))}");
                 sb.AppendLine($"    FOREIGN KEY ({Quote(sourceCol.Name)}) REFERENCES {Quote(targetTable.Name)} ({Quote(targetCol.Name)}){actions};");
                 sb.AppendLine();
             }

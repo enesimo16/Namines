@@ -64,10 +64,17 @@ public class DockerController : ControllerBase
             var generator = _ddlFactory.GetGenerator(request.DbType);
             sql = generator.Generate(request.Schema);
         }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            // Geçersiz tanımlayıcı/ifade ya da motorun desteklemediği özellik: kullanıcının
+            // düzeltebileceği girdi sorunu (CompileController ile aynı ayrım ve aynı temizleme).
+            return BadRequest(new { message = $"DDL could not be generated for '{request.DbType}': {CompileController.CleanMessage(ex.Message)}" });
+        }
         catch (Exception ex)
         {
+            // Beklenmeyen hatanın iç ayrıntısı (yol, tip adı, yığın) istemciye sızmasın; günlükte kalır.
             _logger.LogWarning(ex, "Docker sandbox için DDL üretilemedi. DbType={DbType}", request.DbType);
-            return BadRequest(new { message = $"DDL could not be generated for '{request.DbType}': {ex.Message}" });
+            return BadRequest(new { message = $"DDL could not be generated for '{request.DbType}'. Check the schema and try again." });
         }
 
         var jobId = Guid.NewGuid().ToString();

@@ -69,19 +69,19 @@ public static class RlsSql
                 var role = FormatAndValidateRoles(policy.Role, table.Name);
 
                 // Using ve WithCheck ifadelerinde noktalı virgül (statement chaining) engeli
-                ValidateRlsExpression(policy.Using, "USING", table.Name);
-                ValidateRlsExpression(policy.WithCheck, "WITH CHECK", table.Name);
+                var usingExpr = ValidateRlsExpression(policy.Using, "USING", table.Name);
+                var withCheck = ValidateRlsExpression(policy.WithCheck, "WITH CHECK", table.Name);
 
                 sb.Append($"CREATE POLICY {quotedPolicy} ON {quotedTable} FOR {command} TO {role}");
 
-                if (!string.IsNullOrWhiteSpace(policy.Using))
+                if (usingExpr is not null)
                 {
-                    sb.Append($" USING ({policy.Using.Trim()})");
+                    sb.Append($" USING ({usingExpr})");
                 }
 
-                if (!string.IsNullOrWhiteSpace(policy.WithCheck))
+                if (withCheck is not null)
                 {
-                    sb.Append($" WITH CHECK ({policy.WithCheck.Trim()})");
+                    sb.Append($" WITH CHECK ({withCheck})");
                 }
 
                 sb.AppendLine(";");
@@ -142,18 +142,12 @@ public static class RlsSql
         return string.Join(", ", validatedParts);
     }
 
-    private static void ValidateRlsExpression(string? expression, string clauseName, string tableName)
+    private static string? ValidateRlsExpression(string? expression, string clauseName, string tableName)
     {
-        if (string.IsNullOrWhiteSpace(expression)) return;
+        if (string.IsNullOrWhiteSpace(expression)) return null;
 
-        if (expression.Contains(';'))
-        {
-            throw new ArgumentException($"RLS {clauseName} ifadesi noktalı virgül (;) içeremez ({tableName}).", nameof(tableName));
-        }
-
-        if (expression.Any(c => char.IsControl(c) && c != '\r' && c != '\n' && c != '\t'))
-        {
-            throw new ArgumentException($"RLS {clauseName} ifadesi geçersiz kontrol karakteri içeriyor ({tableName}).", nameof(tableName));
-        }
+        // Ortak doğrulayıcı: noktalı virgül yanında satır sonu, ters eğik çizgi, `--` ve blok yorum da reddedilir.
+        // RLS yalnızca PostgreSQL için üretilir.
+        return SqlFragmentGuard.EnsureSafeExpression(expression, $"RLS {clauseName} on {tableName}", DatabaseType.PostgreSQL);
     }
 }

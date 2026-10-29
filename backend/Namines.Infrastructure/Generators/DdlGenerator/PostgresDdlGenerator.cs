@@ -12,6 +12,7 @@ public class PostgresDdlGenerator : IDdlGenerator
     public string Generate(DatabaseSchema schema)
     {
         var sb = new StringBuilder();
+        var names = new ObjectNameRegistry(DatabaseType.PostgreSQL);
 
         // Tip tanımları tablolardan ÖNCE: PostgreSQL'de bir tablo, henüz var
         // olmayan bir tipe başvuramaz.
@@ -63,10 +64,10 @@ public class PostgresDdlGenerator : IDdlGenerator
 
             if (pkColumns.Any())
             {
-                sb.AppendLine($"    , CONSTRAINT {Quote($"PK_{table.Name}")} PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => Quote(c.Name)))})");
+                sb.AppendLine($"    , CONSTRAINT {Quote(names.ClaimConstraint(table.Name, $"PK_{table.Name}", createsIndex: true))} PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => Quote(c.Name)))})");
             }
 
-            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.PostgreSQL, Quote, schema))
+            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.PostgreSQL, Quote, schema, names))
             {
                 sb.AppendLine($"    , {constraint.TrimStart()}");
             }
@@ -74,7 +75,7 @@ public class PostgresDdlGenerator : IDdlGenerator
             sb.AppendLine(");");
             sb.AppendLine();
 
-            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.PostgreSQL, Quote);
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.PostgreSQL, Quote, names);
             if (!string.IsNullOrEmpty(indexes))
             {
                 sb.Append(indexes);
@@ -105,7 +106,7 @@ public class PostgresDdlGenerator : IDdlGenerator
 
                 var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.PostgreSQL);
 
-                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} ADD CONSTRAINT {Quote($"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}")} FOREIGN KEY({Quote(sourceCol.Name)})");
+                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} ADD CONSTRAINT {Quote(names.ClaimConstraint(sourceTable.Name, $"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}"))} FOREIGN KEY({Quote(sourceCol.Name)})");
                 sb.AppendLine($"REFERENCES {Quote(targetTable.Name)} ({Quote(targetCol.Name)}){actions};");
                 sb.AppendLine();
             }

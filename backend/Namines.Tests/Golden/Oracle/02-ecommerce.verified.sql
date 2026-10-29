@@ -40,7 +40,7 @@ ALTER TABLE "OrderItems"
     REFERENCES "Orders" ("Id");
 
 ALTER TABLE "OrderItems"
-    ADD CONSTRAINT "FK_OrderItems_Products_Product"
+    ADD CONSTRAINT "FK_OrderItems_Product_49d2bc23"
     FOREIGN KEY ("ProductId")
     REFERENCES "Products" ("Id");
 

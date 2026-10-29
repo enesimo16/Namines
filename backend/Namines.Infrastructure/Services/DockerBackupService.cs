@@ -113,7 +113,7 @@ public class DockerBackupService : IDockerService, IDisposable
 
                     // Fork bombasi ve kacak surec zinciri: bellek/CPU limiti bunlari
                     // durdurmuyor.
-                    PidsLimit = 512,
+                    PidsLimit = SandboxContainerHardening.PidsLimit,
 
                     // Docker'in VARSAYILAN kume icinde olup bu is icin GEREKSIZ olanlar.
                     //
@@ -128,7 +128,7 @@ public class DockerBackupService : IDockerService, IDisposable
                     // 4 dakikada hazir olmadigi icin ucdan uca dogrulanamadi; log'unda
                     // yetki hatasi yok. MSSQL yedegi/geri yuklemesi degisirse bu satir
                     // gercek bir MSSQL container'iyla yeniden sinanmali.
-                    CapDrop = new List<string> { "NET_RAW", "MKNOD", "AUDIT_WRITE", "SETFCAP" },
+                    CapDrop = SandboxContainerHardening.CapDrop(),
                 }
             };
 

@@ -412,7 +412,7 @@ public class CompileController : ControllerBase
     /// <c>ArgumentException</c>'in mesaj sonuna eklediği <c>(Parameter '...')</c>
     /// ekini atar — çağıran için anlamsız bir iç ayrıntı.
     /// </summary>
-    private static string CleanMessage(string message)
+    internal static string CleanMessage(string message)
     {
         var marker = message.IndexOf(" (Parameter ", StringComparison.Ordinal);
         return marker < 0 ? message : message[..marker];

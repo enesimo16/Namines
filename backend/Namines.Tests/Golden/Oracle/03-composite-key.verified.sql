@@ -16,12 +16,12 @@ CREATE TABLE "OrderProducts" (
 );
 
 ALTER TABLE "OrderProducts"
-    ADD CONSTRAINT "FK_OrderProducts_Orders_OrderI"
+    ADD CONSTRAINT "FK_OrderProducts_Orde_31b3d9e8"
     FOREIGN KEY ("OrderId")
     REFERENCES "Orders" ("Id");
 
 ALTER TABLE "OrderProducts"
-    ADD CONSTRAINT "FK_OrderProducts_Products_Prod"
+    ADD CONSTRAINT "FK_OrderProducts_Prod_4963638b"
     FOREIGN KEY ("ProductId")
     REFERENCES "Products" ("Id");
 

@@ -144,7 +144,7 @@ public class SandboxOutputRetentionService : BackgroundService
         //    temizlenmeyen bir dosya türü bırakmamak için.
         foreach (var jobId in expiredJobIds)
         {
-            foreach (var path in SafeEnumerate($"*{jobId}*"))
+            foreach (var path in SafeEnumerate($"*{jobId}*").Where(IsOwnedOutput))
                 if (TryDelete(path)) deleted++;
         }
 
@@ -153,7 +153,7 @@ public class SandboxOutputRetentionService : BackgroundService
         var activeJobIds = _jobs.GetActiveJobIds();
         var orphanCutoff = DateTime.UtcNow - (OutputRetention + OrphanGrace);
 
-        foreach (var path in SafeEnumerate("*"))
+        foreach (var path in SafeEnumerate("*").Where(IsOwnedOutput))
         {
             var name = Path.GetFileNameWithoutExtension(path);
             if (activeJobIds.Any(id => name.Contains(id, StringComparison.OrdinalIgnoreCase)))
@@ -173,6 +173,31 @@ public class SandboxOutputRetentionService : BackgroundService
             _logger.LogInformation(
                 "Sandbox temizligi: {Files} dosya silindi, {Jobs} is kaydi dusuruldu.",
                 deleted, expiredJobIds.Count);
+    }
+
+    /// <summary>
+    /// Dosya bu servisin kendi ürettiği çıktı kalıplarından biri mi.
+    ///
+    /// <b>Neden:</b> sahipsiz dosya taraması eskiden dizindeki HER dosyayı yaşına göre
+    /// siliyordu; <c>Sandbox:OutputsDirectory</c> ortak bir birimi gösterirse (ya da biri
+    /// oraya başka bir şey koyarsa) ilgisiz dosyalar 3 saat sonra kaybolurdu. Kalıplar
+    /// üreticilerle aynı: <c>{jobId}.bak|sql|tar</c> (DockerBackupService),
+    /// <c>coderai_*.zip</c> (CoderAI paketleme) ve <c>backup_*.zip</c>.
+    /// </summary>
+    private static bool IsOwnedOutput(string path)
+    {
+        var name = Path.GetFileName(path);
+
+        if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
+            (name.StartsWith("coderai_", StringComparison.OrdinalIgnoreCase) ||
+             name.StartsWith("backup_", StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        var extension = Path.GetExtension(name);
+        return (extension.Equals(".bak", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".sql", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".tar", StringComparison.OrdinalIgnoreCase)) &&
+               Guid.TryParse(Path.GetFileNameWithoutExtension(name), out _);
     }
 
     private string[] SafeEnumerate(string pattern)

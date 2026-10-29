@@ -6,7 +6,7 @@
 );
 
 ALTER TABLE "Categories"
-    ADD CONSTRAINT "FK_Categories_Categories_Paren"
+    ADD CONSTRAINT "FK_Categories_Categor_a2d9d449"
     FOREIGN KEY ("ParentId")
     REFERENCES "Categories" ("Id");
 
