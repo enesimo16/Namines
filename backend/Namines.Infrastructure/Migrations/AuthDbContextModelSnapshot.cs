@@ -611,9 +611,11 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("Slug");
 
-                    b.HasIndex("UserId");
-
                     b.HasIndex("Visibility");
+
+                    b.HasIndex("UserId", "Slug")
+                        .IsUnique()
+                        .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
 
                     b.ToTable("CloudProjects");
                 });

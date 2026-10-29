@@ -464,6 +464,11 @@ namespace Namines.Infrastructure.Data
             builder.Entity<CloudProject>(entity =>
             {
                 entity.HasIndex(p => p.Slug);
+                // Benzersizlik sahip bazında ve yalnızca dolu slug'larda (NULL/boş serbest);
+                // HubController slug'ı (UserId, Slug) çiftiyle çözüyor.
+                entity.HasIndex(p => new { p.UserId, p.Slug })
+                    .IsUnique()
+                    .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
                 entity.HasIndex(p => p.Visibility);
             });
 
