@@ -129,7 +129,9 @@ export function useMultiplayer() {
 
         if (isAuthenticated && activeProjectId) {
           branchService.getOrCreateDefault(activeProjectId)
-            .then(branch => pushRoomUrl(branch.id.startsWith('room-') ? branch.id : `room-${branch.id}`))
+            // Branch kimliği DEĞİŞTİRİLMEDEN oda kimliği olur: `room-` öneki eklenirse sunucu
+            // odayı branch'e eşleyemez ve branch ACL kontrolü atlanır.
+            .then(branch => pushRoomUrl(branch.id))
             .catch(() => pushRoomUrl(randomRoomId()));
         } else {
           pushRoomUrl(randomRoomId());
@@ -248,8 +250,15 @@ export function useMultiplayer() {
           const initialSchema = useSchemaStore.getState().schema;
           lastAgreedSchemaRef.current = initialSchema;
           await connection.invoke('JoinRoom', currentRoomId, currentUserName);
-          if (initialSchema && initialSchema.tables.length > 0) {
-            connection.invoke('UpdateSchema', currentRoomId, initialSchema).catch(() => {});
+          // JoinRoom beklenirken bir peer'ın şeması gelip birleştirilmiş olabilir; eski
+          // `initialSchema`'yı yayınlamak o birleşimi ezerdi. Güncel store şemasını
+          // gönder, peer'dan az önce uyguladığımızla aynıysa hiç gönderme.
+          const joinedSchema = useSchemaStore.getState().schema;
+          if (
+            joinedSchema && joinedSchema.tables.length > 0 &&
+            JSON.stringify(joinedSchema) !== lastAppliedRemoteRef.current
+          ) {
+            connection.invoke('UpdateSchema', currentRoomId, joinedSchema).catch(() => {});
           }
         }
       } catch {

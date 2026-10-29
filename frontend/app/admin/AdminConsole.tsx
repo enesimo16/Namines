@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { useLocale } from '../../lib/i18n';
 import { adminTranslations } from './adminTranslations';
+import { useIsClient } from '../../hooks/useIsClient';
 
 import {
   LayoutDashboard,
@@ -58,6 +59,7 @@ import {
 import { useAuthStore, isUserAdmin } from '../../store/useAuthStore';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useToastStore } from '../../store/useToastStore';
+import { confirmDialog } from '../../store/useConfirmStore';
 import { useAdminConsoleStore } from '../../store/useAdminConsoleStore';
 import {
   adminService,
@@ -110,6 +112,9 @@ export const VALID_ADMIN_TABS: AdminTab[] = [
   'features',
 ];
 
+/** "Test hatası üret" yalnızca geliştirmede görünür; canlıda gerçek log defterine sahte kayıt yazmasın. */
+const SHOW_SIMULATE_ERROR = process.env.NODE_ENV !== 'production';
+
 export default function AdminConsole({ initialTab = 'overview' }: { initialTab?: AdminTab }) {
   const router = useRouter();
   const params = useParams();
@@ -136,6 +141,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
   const openAuthModal = useAuthModalStore((s) => s.open);
   const showToast = useToastStore((s) => s.showToast);
 
+  const isClient = useIsClient();
   const isAdmin = useMemo(() => {
     return isAuthenticated && isUserAdmin(user);
   }, [isAuthenticated, user]);
@@ -301,6 +307,11 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
   const [userSessionsLoading, setUserSessionsLoading] = useState(false);
   const [userSessionsData, setUserSessionsData] = useState<UserSessionsDetailResponse | null>(null);
 
+  // Kullanıcının seçtiği güncel token sorgusu (gün sayısı ya da özel aralık). fetchAllData
+  // bunu ref'ten okur: state olarak bağımlılık olsaydı her filtre/seçim değişiminde 9 uç
+  // nokta yeniden çekilir ve özel tarih aralığı varsayılana ezilirdi.
+  const tokenQueryRef = useRef<Parameters<typeof adminService.getTokenStats>[0]>(14);
+
   // Initial Load
   const fetchAllData = useCallback(async () => {
     if (!isAdmin) return;
@@ -310,7 +321,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
         adminService.getOverview(),
         adminService.getUsers({ pageSize: 100 }),
         adminService.getFeedbacks({ pageSize: 100 }),
-        adminService.getTokenStats(tokenDaysFilter),
+        adminService.getTokenStats(tokenQueryRef.current),
         adminService.getSessions(50),
         adminService.getProjects({ pageSize: 100 }),
         adminService.getBotDiagnostics(),
@@ -321,45 +332,49 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
       if (stats.status === 'fulfilled') setOverviewStats(stats.value);
       if (usersRes.status === 'fulfilled') {
         setUsersList(usersRes.value.items);
-        if (usersRes.value.items.length > 0 && !selectedUserId) {
-          setSelectedUserId(usersRes.value.items[0].id);
+        // Seçim varsa korunur (işlevsel güncelleme → selectedUserId bağımlılığı gerekmez).
+        if (usersRes.value.items.length > 0) {
+          setSelectedUserId((prev) => prev ?? usersRes.value.items[0].id);
         }
       }
       if (fbRes.status === 'fulfilled') {
         setFeedbacksList(fbRes.value.items);
-        if (fbRes.value.items.length > 0 && !selectedFeedbackId) {
-          setSelectedFeedbackId(fbRes.value.items[0].id);
+        if (fbRes.value.items.length > 0) {
+          setSelectedFeedbackId((prev) => prev ?? fbRes.value.items[0].id);
         }
       }
       if (tokensRes.status === 'fulfilled') setTokensStats(tokensRes.value);
       if (sessRes.status === 'fulfilled') {
         setSessionsData(sessRes.value);
-        if (sessRes.value.sessions.length > 0 && !selectedSessionId) {
-          setSelectedSessionId(sessRes.value.sessions[0].sessionId);
+        if (sessRes.value.sessions.length > 0) {
+          setSelectedSessionId((prev) => prev ?? sessRes.value.sessions[0].sessionId);
         }
       }
       if (projRes.status === 'fulfilled') {
         setProjectsData(projRes.value);
-        if (projRes.value.items.length > 0 && !selectedProjectId) {
-          setSelectedProjectId(projRes.value.items[0].id);
+        if (projRes.value.items.length > 0) {
+          setSelectedProjectId((prev) => prev ?? projRes.value.items[0].id);
         }
       }
+      // Denetim verisi gelmediyse eski/uydurma rapor yerine boş durum gösterilir.
       if (botRes.status === 'fulfilled') setBotReport(botRes.value);
+      else setBotReport(null);
       if (logsRes.status === 'fulfilled') {
         setLogsList(logsRes.value.logs);
         setLogsStats(logsRes.value.stats);
-        if (logsRes.value.logs.length > 0 && !selectedLogId) {
-          setSelectedLogId(logsRes.value.logs[0].id);
+        if (logsRes.value.logs.length > 0) {
+          setSelectedLogId((prev) => prev ?? logsRes.value.logs[0].id);
         }
       }
       if (botHistRes.status === 'fulfilled') setBotHistory(botHistRes.value);
+      else setBotHistory(null);
     } catch {
       showToast('Veriler güncellenirken hata oluştu', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isAdmin, tokenDaysFilter, selectedUserId, selectedFeedbackId, selectedSessionId, selectedProjectId, selectedLogId, showToast]);
+  }, [isAdmin, showToast]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -402,6 +417,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
   // Token stats change handler
   const handleDaysChange = async (days: number) => {
     setTokenDaysFilter(days);
+    tokenQueryRef.current = days;
     try {
       setLoadingTokens(true);
       const res = await adminService.getTokenStats(days);
@@ -459,6 +475,17 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
   };
 
   const handleClearLogs = async () => {
+    const ok = await confirmDialog({
+      title: locale === 'en' ? 'Clear all logs?' : 'Tüm kayıtlar silinsin mi?',
+      message:
+        locale === 'en'
+          ? 'All system logs will be permanently deleted. This cannot be undone.'
+          : 'Tüm sistem hata kayıtları kalıcı olarak silinecek. Bu işlem geri alınamaz.',
+      confirmLabel: locale === 'en' ? 'Delete' : 'Sil',
+      cancelLabel: locale === 'en' ? 'Cancel' : 'Vazgeç',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await adminService.clearLogs();
       setLogsList([]);
@@ -501,6 +528,17 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
   // User Actions
   const handleUpdatePlan = async () => {
     if (!selectedUserId) return;
+    const ok = await confirmDialog({
+      title: locale === 'en' ? 'Change user plan?' : 'Kullanıcı planı değiştirilsin mi?',
+      message:
+        locale === 'en'
+          ? `The user's plan will be set to "${editPlanCode}". Quota and billing limits change immediately.`
+          : `Kullanıcının planı "${editPlanCode}" olarak değiştirilecek. Kota ve faturalama limitleri hemen değişir.`,
+      confirmLabel: locale === 'en' ? 'Change plan' : 'Planı değiştir',
+      cancelLabel: locale === 'en' ? 'Cancel' : 'Vazgeç',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       setUpdatingPlan(true);
       const result = await adminService.updateUserPlan(selectedUserId, editPlanCode);
@@ -538,6 +576,17 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
   };
 
   const handleDeleteFeedback = async (id: number) => {
+    const ok = await confirmDialog({
+      title: locale === 'en' ? 'Delete feedback?' : 'Geri bildirim silinsin mi?',
+      message:
+        locale === 'en'
+          ? 'This feedback ticket will be permanently removed.'
+          : 'Bu geri bildirim bileti kalıcı olarak kaldırılacak.',
+      confirmLabel: locale === 'en' ? 'Delete' : 'Sil',
+      cancelLabel: locale === 'en' ? 'Cancel' : 'Vazgeç',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       setDeletingFeedback(true);
       await adminService.deleteFeedback(id);
@@ -606,10 +655,10 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
 - **Toplam Kullanıcı:** ${overviewStats?.totalUsers ?? 0}
 - **Aktif Projeler:** ${overviewStats?.totalProjects ?? 0}
 - **Bugün Tüketilen Token:** ${(overviewStats?.totalQuotaUsedToday ?? 0).toLocaleString()}
-- **Sistem Sağlığı:** %${botReport?.healthScore ?? 100} (${botReport?.overallStatus || 'Healthy'})
+- **Sistem Sağlığı:** ${botReport ? `%${botReport.healthScore} (${botReport.overallStatus})` : 'Bilinmiyor (denetim verisi yok)'}
 - **Açık Hata / Uyarı:** ${logsStats?.unresolvedCount ?? 0}
-- **PostgreSQL Durumu:** ${botReport?.probes?.find((p) => p.serviceName.includes('Postgre'))?.status ?? 'PASS'}
-- **AI Gateway Durumu:** ${botReport?.probes?.find((p) => p.serviceName.includes('Gateway'))?.status ?? 'PASS'}
+- **PostgreSQL Durumu:** ${botReport?.probes?.find((p) => p.serviceName.includes('Postgre'))?.status ?? 'Bilinmiyor'}
+- **AI Gateway Durumu:** ${botReport?.probes?.find((p) => p.serviceName.includes('Gateway'))?.status ?? 'Bilinmiyor'}
 - **Aktif İnsident Sayısı:** ${botHistory?.incidents?.length ?? 0}
 
 *Rapor Namines Admin Konsolundan otomatik üretilmiştir.*`;
@@ -642,16 +691,20 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
       if (preset === 'custom') {
         const start = customStart !== undefined ? customStart : tokenStartDate;
         const end = customEnd !== undefined ? customEnd : tokenEndDate;
-        const res = await adminService.getTokenStats({
+        const query = {
           startDate: start || undefined,
           endDate: end || undefined,
           interval: activeInterval,
-        });
+        };
+        const res = await adminService.getTokenStats(query);
+        tokenQueryRef.current = query;
         setTokensStats(res);
       } else {
         const days = preset === '7d' ? 7 : preset === '14d' ? 14 : preset === '30d' ? 30 : 90;
         setTokenDaysFilter(days);
-        const res = await adminService.getTokenStats({ days, interval: activeInterval });
+        const query = { days, interval: activeInterval };
+        const res = await adminService.getTokenStats(query);
+        tokenQueryRef.current = query;
         setTokensStats(res);
       }
     } catch {
@@ -757,8 +810,11 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
     return logsList.find((l) => l.id === selectedLogId) || null;
   }, [logsList, selectedLogId]);
 
-  // Giriş Koruması (AdminGuard)
-  if (!loading && !isAdmin) {
+  // Giriş Koruması (AdminGuard). Oturum durumu tarayıcıdan (localStorage) geldiği için
+  // istemci hazır olana kadar hiçbir şey çizilmez; yoksa admin olmayan kullanıcı veri
+  // yüklemesi bitene dek yönetim kabuğunu bir an görürdü.
+  if (!isClient) return null;
+  if (!isAdmin) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-surface-900 p-6 font-sans text-content-primary select-none">
         <div className="w-full max-w-sm rounded-[var(--radius-modal)] border border-line bg-surface-800 p-7 shadow-xl text-center space-y-5">
@@ -1074,11 +1130,11 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
               <div className="flex items-center justify-between">
                 <span className="text-content-secondary">{t.healthScore}</span>
                 <span className="font-mono font-medium text-content-primary">
-                  %{botReport?.healthScore ?? 100}
+                  {botReport ? `%${botReport.healthScore}` : '—'}
                 </span>
               </div>
               <p className="text-[10px] text-content-muted">
-                {botReport?.summaryText || t.allServicesOk}
+                {botReport?.summaryText || t.notScannedYet}
               </p>
               <button
                 onClick={handleRunBotAudit}
@@ -1420,14 +1476,16 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                 <span className="text-[10px] font-mono uppercase tracking-wider text-content-muted font-bold">
                   Hata Seviyesi
                 </span>
-                <button
-                  onClick={handleSimulateError}
-                  disabled={simulatingError}
-                  title="Test Hatası Simüle Et"
-                  className="rounded-[var(--radius-control)] bg-danger/10 border border-danger/30 px-2 py-0.5 text-[10px] font-mono text-danger hover:bg-danger/20 transition-colors cursor-pointer"
-                >
-                  + Simüle Et
-                </button>
+                {SHOW_SIMULATE_ERROR && (
+                  <button
+                    onClick={handleSimulateError}
+                    disabled={simulatingError}
+                    title="Test Hatası Simüle Et"
+                    className="rounded-[var(--radius-control)] bg-danger/10 border border-danger/30 px-2 py-0.5 text-[10px] font-mono text-danger hover:bg-danger/20 transition-colors cursor-pointer"
+                  >
+                    + Simüle Et
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-0.5">
@@ -1608,7 +1666,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                 <div>
                   <span className="text-[10px] font-mono uppercase text-content-muted">Sağlık Skoru</span>
                   <div className="text-sm font-bold font-mono text-content-primary">
-                    %{botReport?.healthScore ?? 100}
+                    {botReport ? `%${botReport.healthScore}` : '—'}
                   </div>
                 </div>
                 <button
@@ -1657,13 +1715,15 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
 
             {/* System Actions */}
             <div className="p-2.5 border-t border-line bg-surface-900/60 space-y-1.5">
-              <button
-                onClick={handleSimulateError}
-                disabled={simulatingError}
-                className="w-full py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-[10px] font-semibold text-content-primary transition-colors cursor-pointer"
-              >
-                {simulatingError ? 'Simüle Ediliyor...' : 'Simüle Test Hatası Üret'}
-              </button>
+              {SHOW_SIMULATE_ERROR && (
+                <button
+                  onClick={handleSimulateError}
+                  disabled={simulatingError}
+                  className="w-full py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-[10px] font-semibold text-content-primary transition-colors cursor-pointer"
+                >
+                  {simulatingError ? 'Simüle Ediliyor...' : 'Simüle Test Hatası Üret'}
+                </button>
+              )}
               <button
                 onClick={handleClearLogs}
                 className="w-full py-1 rounded-[var(--radius-control)] bg-surface-800 hover:bg-surface-700 border border-line text-[10px] font-semibold text-danger transition-colors cursor-pointer"
@@ -2168,7 +2228,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                     {user?.username || user?.email || 'Admin'}
                   </span>
                   <span className="text-[10px] font-mono text-accent-text font-bold leading-tight">
-                    {user?.isDev || user?.email === 'namines@namines.com' ? 'SuperAdmin' : 'Admin'}
+                    {user?.isDev ? 'SuperAdmin' : 'Admin'}
                   </span>
                 </div>
               </div>
@@ -2447,7 +2507,6 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                             { value: 'free', label: 'Free Plan (15 istek / gün)' },
                             { value: 'pro', label: 'Pro Solo (100 istek / gün)' },
                             { value: 'team', label: 'Team Plan (500 istek / gün)' },
-                            { value: 'dev', label: 'Developer / SuperAdmin (Sınırsız)' },
                           ]}
                         />
 
@@ -3411,7 +3470,7 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                   <div className="flex items-center gap-2">
                     <span className="text-content-muted">{t.generalHealth}</span>
                     <span className="font-mono font-bold text-content-primary">
-                      %{botReport?.healthScore ?? 100} ({botReport?.overallStatus || 'Healthy'})
+                      {botReport ? `%${botReport.healthScore} (${botReport.overallStatus})` : '—'}
                     </span>
                   </div>
                 </div>
@@ -3425,6 +3484,9 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                 </div>
 
                 <div className="divide-y divide-line/60 rounded-[var(--radius-control)] border border-line bg-surface-900 overflow-hidden">
+                  {(!botReport?.probes || botReport.probes.length === 0) && (
+                    <p className="p-3.5 text-xs text-content-muted">{t.notScannedYet}</p>
+                  )}
                   {botReport?.probes?.map((probe, idx) => (
                     <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 gap-2 text-xs">
                       <div className="flex items-center gap-2.5">

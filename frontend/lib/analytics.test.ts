@@ -39,7 +39,9 @@ describe('analytics & quota protection', () => {
   });
 
   afterEach(() => {
-    process.env.NEXT_PUBLIC_POSTHOG_KEY = originalEnv;
+    // `= undefined` atamak env'e "undefined" STRING'i yazar (truthy) — silmek gerekir.
+    if (originalEnv === undefined) delete process.env.NEXT_PUBLIC_POSTHOG_KEY;
+    else process.env.NEXT_PUBLIC_POSTHOG_KEY = originalEnv;
   });
 
   it('PostHog yapılandırıldığında olayı doğru alanlarla iletir', () => {

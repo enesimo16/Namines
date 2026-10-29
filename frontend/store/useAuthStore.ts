@@ -8,6 +8,7 @@ import { useMultiplayerStore } from './useMultiplayerStore';
 import { useProjectHistoryStore } from './useProjectHistoryStore';
 import { useSchemaStore } from './useSchemaStore';
 import { API_BASE_URL } from '../lib/apiConfig';
+import { resetUser } from '../lib/analytics';
 
 export interface UserProfile {
   username: string;
@@ -63,6 +64,8 @@ export const useAuthStore = create<AuthState>()(
         }).catch(() => {});
         set({ token: null, user: null, isAuthenticated: false });
         useQuotaStore.getState().reset();
+        // Analitik kimliği ayır: sonraki kullanıcı bu tarayıcıda önceki kullanıcıya atfedilmesin.
+        resetUser();
 
         // Gizlilik (özellikle paylaşılan makine): oturum kapanınca oda/live-share
         // durumunu, yerel projeleri ve tuvali temizle; URL'deki roomId'yi kaldır.
@@ -74,6 +77,15 @@ export const useAuthStore = create<AuthState>()(
           useSchemaStore.getState().resetProject();
           if (typeof window !== 'undefined') {
             localStorage.removeItem('namines_username');
+            // Eski sürümlerin admin önbellekleri paylaşılan makinede kalmasın.
+            for (const k of [
+              'namines_last_bot_report',
+              'namines_bot_history',
+              'namines_admin_features',
+              'namines_admin_ai_routes',
+            ]) {
+              localStorage.removeItem(k);
+            }
             const url = new URL(window.location.href);
             if (url.searchParams.has('roomId')) {
               url.searchParams.delete('roomId');

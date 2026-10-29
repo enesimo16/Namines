@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import AdminConsole from './AdminConsole';
 
+/**
+ * `/admin` yalnızca yönlendirir. Eskiden burada AdminConsole da çiziliyordu; hem
+ * `/admin/overview` rotasında hem burada iki kez bağlanıp tüm uç noktaları iki kez çekiyordu.
+ */
 export default function AdminPage() {
   const router = useRouter();
 
@@ -11,5 +14,5 @@ export default function AdminPage() {
     router.replace('/admin/overview');
   }, [router]);
 
-  return <AdminConsole initialTab="overview" />;
+  return null;
 }

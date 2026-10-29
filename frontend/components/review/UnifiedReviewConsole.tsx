@@ -16,6 +16,7 @@ import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
+import { confirmDialog } from '../../store/useConfirmStore';
 import {
   ChangeRequestDetail, ChangeRequestSummary,
   ApprovalDecision, AffectedCodeScanResult, ChangeRequestAuditEntry, RiskLevel
@@ -95,9 +96,15 @@ export default function UnifiedReviewConsole({ initialCrId }: UnifiedReviewConso
 
   // Load project change requests list
   useEffect(() => {
-    const projId = activeProjectId || 'local-project';
-    changeRequestService.listForProject(projId)
+    // Proje yokken sunucuya uydurma 'local-project' kimliği gönderme.
+    if (!activeProjectId) {
+      setRequestsList([]);
+      return;
+    }
+    let cancelled = false;
+    changeRequestService.listForProject(activeProjectId)
       .then(items => {
+        if (cancelled) return;
         setRequestsList(items);
         // If no CR was specified in URL, auto-select the first pending (or latest) CR for detail view when switched
         if (!initialCrId && items && items.length > 0) {
@@ -105,12 +112,8 @@ export default function UnifiedReviewConsole({ initialCrId }: UnifiedReviewConso
           setCurrentCrId(defaultCr.id);
         }
       })
-      .catch((err) => {
-        if (err?.response?.status === 404) {
-          setRequestsList([]);
-          return;
-        }
-        setRequestsList([]);
+      .catch(() => {
+        if (!cancelled) setRequestsList([]);
       });
 
     if (isAuthenticated && activeProjectId) {
@@ -121,6 +124,7 @@ export default function UnifiedReviewConsole({ initialCrId }: UnifiedReviewConso
         })
         .catch(() => setAutoApproveSafeState(false));
     }
+    return () => { cancelled = true; };
   }, [activeProjectId, isAuthenticated, initialCrId]);
 
   // Load details whenever currentCrId changes
@@ -133,20 +137,24 @@ export default function UnifiedReviewConsole({ initialCrId }: UnifiedReviewConso
     setLoadingCr(true);
     setCrError(null);
 
+    // Hızlı CR değişiminde geç gelen eski yanıt yeni seçimi ezmesin.
+    let cancelled = false;
     Promise.all([
       changeRequestService.getDetail(currentCrId),
       changeRequestService.getAuditLog(currentCrId).catch(() => [] as ChangeRequestAuditEntry[]),
     ])
       .then(([detail, audit]) => {
+        if (cancelled) return;
         setCr(detail);
         setAuditLog(audit);
       })
       .catch(() => {
-        setCrError('Failed to load review details.');
+        if (!cancelled) setCrError('Failed to load review details.');
       })
       .finally(() => {
-        setLoadingCr(false);
+        if (!cancelled) setLoadingCr(false);
       });
+    return () => { cancelled = true; };
   }, [currentCrId]);
 
   // Syntax highlight when viewing migration SQL
@@ -182,6 +190,16 @@ export default function UnifiedReviewConsole({ initialCrId }: UnifiedReviewConso
   // Decide on active CR
   const handleDecide = async (decision: ApprovalDecision) => {
     if (!cr) return;
+    if (decision === 'Approved' && (cr.riskLevel === 'Destructive' || cr.riskLevel === 'Breaking')) {
+      const ok = await confirmDialog({
+        title: 'Approve high-risk change?',
+        message: `This change request is classified as ${cr.riskLevel}. Approving it allows data loss or breaking schema changes to proceed.`,
+        confirmLabel: 'Approve',
+        cancelLabel: 'Cancel',
+        danger: true,
+      });
+      if (!ok) return;
+    }
     setIsDeciding(true);
     try {
       await changeRequestService.decide(cr.id, decision);
@@ -190,7 +208,7 @@ export default function UnifiedReviewConsole({ initialCrId }: UnifiedReviewConso
       // Refresh detail, list & audit log
       const [updatedDetail, items, logs] = await Promise.all([
         changeRequestService.getDetail(cr.id).catch(() => null),
-        changeRequestService.listForProject(activeProjectId || 'local-project').catch(() => null),
+        activeProjectId ? changeRequestService.listForProject(activeProjectId).catch(() => null) : Promise.resolve(null),
         changeRequestService.getAuditLog(cr.id).catch(() => [] as ChangeRequestAuditEntry[]),
       ]);
       if (updatedDetail) setCr(updatedDetail);

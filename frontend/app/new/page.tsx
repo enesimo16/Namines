@@ -114,20 +114,7 @@ export default function NewProjectPage() {
     trackActivity({ action: 'page_view', module: 'new', path: '/new' });
   }, [resetProject]);
 
-  // Handle Stripe redirect callbacks (?upgrade=success / ?upgrade=canceled)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const upgradeParam = params.get('upgrade');
-    if (upgradeParam === 'success') {
-      showToast('Subscription activated! You are now a Pro Member.', 'success');
-      // Clean URL
-      window.history.replaceState({}, '', '/');
-    } else if (upgradeParam === 'canceled') {
-      showToast('Upgrade canceled. You can try again anytime.', 'info');
-      window.history.replaceState({}, '', '/');
-    }
-  }, [showToast]);
+  // Stripe dönüşü (?upgrade=...) artık kökte UpgradeReturnHandler tarafından işleniyor.
 
   // Click outside dropdowns listener
   useEffect(() => {

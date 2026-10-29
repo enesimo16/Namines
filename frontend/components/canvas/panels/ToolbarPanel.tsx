@@ -225,18 +225,18 @@ export default function ToolbarPanel() {
         projId = useProjectHistoryStore.getState().activeProjectId;
       }
 
-      await changeRequestService.createQuick(projId || 'local-project', currentSchema);
+      if (!projId) {
+        showToast('Failed to create change request. Please try again.', 'error');
+        return;
+      }
+
+      await changeRequestService.createQuick(projId, currentSchema);
       showToast('Pull Request created in Hub!', 'success');
 
-      const activeProj = useProjectHistoryStore.getState().projects.find((p) => p.id === projId);
+      // Hub rotası proje kimliğini de slug olarak tanır; addan türetilen slug aynı
+      // adlı iki projede yanlış repoya götürürdü.
       const owner = useAuthStore.getState().user?.username || 'me';
-      const slug = (activeProj?.name || schema?.name || 'project')
-        .toLowerCase()
-        .replace(/[^a-z0-9\-]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') || projId || 'project';
-
-      router.push(`/hub/${encodeURIComponent(owner)}/${encodeURIComponent(slug)}?tab=prs`);
+      router.push(`/hub/${encodeURIComponent(owner)}/${encodeURIComponent(projId)}?tab=prs`);
     } catch {
       showToast('Failed to create change request. Please try again.', 'error');
     } finally {
@@ -296,9 +296,9 @@ export default function ToolbarPanel() {
         ? crypto.randomUUID()
         : Math.random().toString(36).substring(2, 11);
       activeRoomId = `room-${rand}`;
-    } else if (!activeRoomId.startsWith('room-')) {
-      activeRoomId = `room-${activeRoomId}`;
     }
+    // Mevcut oda kimliği (branch id dahil) olduğu gibi paylaşılır; önek eklemek
+    // sunucuda branch eşlemesini ve ACL'i bozar.
 
     const shareUrl = `${window.location.protocol}//${window.location.host}/canvas?roomId=${activeRoomId}`;
     if (new URLSearchParams(window.location.search).get('roomId') !== activeRoomId) {

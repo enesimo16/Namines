@@ -8,6 +8,7 @@ import Logo from '../layout/Logo';
 import ThemeToggleButton from './ThemeToggleButton';
 import LanguageToggle from '../layout/LanguageToggle';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useIsClient } from '../../hooks/useIsClient';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 
 interface DropdownCardItem {
@@ -124,7 +125,9 @@ type OpenMenuId = 'products' | 'solutions' | 'developers' | 'apps' | 'resources'
 export default function LandingNavbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  // Oturum bayrağı localStorage'dan gelir; sunucu HTML'iyle eşleşmesi için hidrasyondan önce false.
+  const isAuthenticatedStored = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = useIsClient() && isAuthenticatedStored;
   const openAuthModal = useAuthModalStore((s) => s.open);
 
   const [openMenu, setOpenMenu] = useState<OpenMenuId>(null);

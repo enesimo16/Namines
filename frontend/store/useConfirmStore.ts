@@ -24,6 +24,8 @@ export const useConfirmStore = create<ConfirmState>((set, get) => ({
   _resolve: null,
   confirm: (options) =>
     new Promise<boolean>((resolve) => {
+      // Açık bir onay varken ikincisi gelirse birincinin promise'i asılı kalmasın: iptal say.
+      get()._resolve?.(false);
       set({ isOpen: true, options, _resolve: resolve });
     }),
   respond: (value) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   RefreshCw,
   Search,
@@ -25,6 +25,38 @@ import {
 
 interface FeatureFlagsTabProps {
   locale?: string;
+}
+
+/**
+ * Bakım mesajı alanı: her tuş vuruşunda PUT yerine yerel taslak; blur / Enter'da kaydedilir.
+ * Boş değer geçerlidir (mesajı varsayılana döndürür).
+ */
+function NoticeMessageInput({
+  value,
+  placeholder,
+  onCommit,
+}: {
+  value: string;
+  placeholder: string;
+  onCommit: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+
+  return (
+    <input
+      type="text"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { if (draft !== value) onCommit(draft); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        else if (e.key === 'Escape') setDraft(value);
+      }}
+      placeholder={placeholder}
+      className="flex-1 px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-700 border border-line-strong text-xs text-content-primary placeholder:text-content-muted focus:outline-none"
+    />
+  );
 }
 
 export default function FeatureFlagsTab({ locale = 'tr' }: FeatureFlagsTabProps) {
@@ -394,18 +426,16 @@ export default function FeatureFlagsTab({ locale = 'tr' }: FeatureFlagsTabProps)
 
                     {flag.mode === 'DisabledNotice' && (
                       <div className="flex items-center gap-2">
-                        <input
-                          type="text"
+                        <NoticeMessageInput
                           value={flag.noticeMessage || ''}
-                          onChange={(e) =>
-                            updateFeatureFlag(flag.featureKey, { noticeMessage: e.target.value })
+                          onCommit={(next) =>
+                            updateFeatureFlag(flag.featureKey, { noticeMessage: next })
                           }
                           placeholder={
                             isEn
                               ? 'Custom notice message (optional)...'
                               : 'Özel bakım mesajı (opsiyonel)...'
                           }
-                          className="flex-1 px-3 py-1.5 rounded-[var(--radius-control)] bg-surface-700 border border-line-strong text-xs text-content-primary placeholder:text-content-muted focus:outline-none"
                         />
                       </div>
                     )}
