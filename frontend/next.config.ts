@@ -26,6 +26,18 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5000' : 'https://130-162-254-97.sslip.io');
+    // Desk ayrı bir mikroservis (basePath=/desk). Yalnızca ortam tanımlıysa proxy'lenir:
+    // varsayılan bir sslip.io adresi, prod'da sessizce yanlış hosta yönlendirirdi.
+    const deskUrl = process.env.DESK_ORIGIN_URL;
+    const deskRewrites = deskUrl
+      ? [
+          // DÜZ dizi = afterFiles semantiği: dosya sistemi sayfaları ÖNCE eşleşir, yani
+          // ana uygulamanın kendi `app/desk/page.tsx` sayfası (`/desk`) kazanır. `:path+`
+          // en az bir segment ister; böylece yalnızca Desk servisinin alt yolları
+          // (`/desk/handoff`, `/desk/_next/...`) servise gider, `/desk` kendisi gitmez.
+          { source: '/desk/:path+', destination: `${deskUrl}/desk/:path*` },
+        ]
+      : [];
     return [
       // PostHog Ters Proxy (Reverse Proxy) — Reklam engelleyicilere (ad-blocker) takılmadan
       // ve Safari ITP kısıtlamalarına uğramadan analitik ve feature flag isteklerini güvenle iletir.
@@ -49,6 +61,7 @@ const nextConfig: NextConfig = {
         source: '/hubs/:path*',
         destination: `${backendUrl}/hubs/:path*`,
       },
+      ...deskRewrites,
     ];
   },
 };

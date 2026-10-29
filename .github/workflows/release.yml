@@ -10,6 +10,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Yayınlanacak etiket (örn. v0.1.0). Bu etiket zaten mevcut olmalı.'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -32,7 +37,11 @@ jobs:
           - { rid: osx-arm64,  os: macos-latest,   ext: '' }
 
     steps:
+      # Elle tetiklemede `github.ref_name` DAL adıdır (örn. main) — sürüm/etiket olarak
+      # kullanılamaz. Bu yüzden girdi olarak verilen etiket checkout edilir.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -113,6 +122,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: dist/*
           generate_release_notes: true
 
@@ -123,6 +133,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -137,10 +149,11 @@ jobs:
         working-directory: packaging/npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "NPM_TOKEN repo secret not set — skipping npm publish. See new-phase/34-SENDEN-BEKLENENLER.md paragraf 2."
             exit 0
           fi
-          npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+          npm version "${RELEASE_TAG#v}" --no-git-tag-version --allow-same-version
           npm publish --access public

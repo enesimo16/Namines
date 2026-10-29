@@ -81,34 +81,46 @@ async function download() {
   log(`downloading ${rid} binary for v${VERSION}...`);
   const bytes = await get(assetUrl);
 
-  // Yayınlanmış checksum varsa doğrula. Yoksa indirmeyi engelleme — ama
-  // doğrulanmadığını AÇIKÇA söyle; sessizce atlamak "doğrulandı" izlenimi verir.
+  // FAIL-CLOSED: checksum doğrulanamıyorsa binary kurulmaz. Çalıştırılacak bir
+  // yürütülebilir dosyada "doğrulanamadı ama yine de kuruldu" kabul edilemez;
+  // ağ saldırganı hem binary'yi hem de checksums.txt'in yokluğunu taklit edebilir.
+  let sums;
   try {
-    const sums = (await get(`${base}/checksums.txt`)).toString('utf8');
-    const expected = sums
-      .split('\n')
-      .map((l) => l.trim().split(/\s+/))
-      .find((p) => p[1] && p[1].endsWith(path.basename(assetUrl)));
-
-    if (expected) {
-      const actual = createHash('sha256').update(bytes).digest('hex');
-      if (actual !== expected[0]) {
-        throw new Error(
-          `checksum mismatch for ${path.basename(assetUrl)}: expected ${expected[0]}, got ${actual}`
-        );
-      }
-      log('checksum verified.');
-    } else {
-      log('warning: no checksum published for this asset; integrity NOT verified.');
-    }
+    sums = (await get(`${base}/checksums.txt`)).toString('utf8');
   } catch (err) {
-    if (String(err.message).includes('checksum mismatch')) throw err;
-    log(`warning: could not verify checksum (${err.message}); integrity NOT verified.`);
+    throw new Error(`could not fetch checksums.txt (${err.message}); refusing to install an unverified binary.`);
   }
 
+  const assetName = path.basename(assetUrl);
+  const expected = sums
+    .split('\n')
+    .map((l) => l.trim().split(/\s+/))
+    // "hash  dosya" ya da "hash *dosya" (binary mod) biçimi; tam ad eşleşmesi
+    // (endsWith, "xnamines-mcp-linux-x64" gibi bir ekle eşleşirdi).
+    .find((p) => p.length >= 2 && p[1].replace(/^\*/, '') === assetName);
+
+  if (!expected) {
+    throw new Error(`no checksum published for ${assetName}; refusing to install an unverified binary.`);
+  }
+
+  const actual = createHash('sha256').update(bytes).digest('hex');
+  if (actual !== expected[0].toLowerCase()) {
+    throw new Error(`checksum mismatch for ${assetName}: expected ${expected[0]}, got ${actual}`);
+  }
+  log('checksum verified.');
+
+  // Atomik yazım: yarım kalmış bir indirme `fs.existsSync(dest)` kontrolünü
+  // geçip bozuk bir binary'yi sonsuza dek "kurulu" gösterirdi.
   fs.mkdirSync(BIN_DIR, { recursive: true });
   const dest = binaryPath();
-  fs.writeFileSync(dest, bytes, { mode: 0o755 });
+  const tmp = `${dest}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, bytes, { mode: 0o755 });
+    fs.renameSync(tmp, dest);
+  } catch (err) {
+    try { fs.unlinkSync(tmp); } catch { /* yoksa sorun değil */ }
+    throw err;
+  }
   log(`installed: ${dest}`);
   return dest;
 }

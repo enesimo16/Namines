@@ -40,7 +40,12 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
-    <PackageReference Include="MySqlConnector" Version="2.5.0" />
+    <PackageReference Include="MySqlConnector" Version="2.6.1" />
+    <!-- Geçişli CVE alt sınırları (bkz. backend/Directory.Build.props): SQLitePCLRaw (Microsoft.Data.Sqlite), Pkcs (SqlClient/Oracle). -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.2" />
+    <!-- EF Design araç zinciri System.Text.Json 8.0.4 çekiyor; çalışma zamanına/bağımlılara SIZMASIN (Mcp 10.x ister). -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" PrivateAssets="all" />
     <PackageReference Include="Npgsql" Version="8.0.7" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.8" />
     <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.200" />

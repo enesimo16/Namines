@@ -2,8 +2,10 @@
 # Namines — Production Smoke Test Suite (FAZ 7)
 set -eo pipefail
 
-API_URL="${1:-http://localhost:5250}"
-FRONTEND_URL="${2:-http://localhost:3005}"
+# Varsayılanlar docker-compose.yml (geliştirme) host portlarıdır. Caddy arkasındaki üretimde
+# yalnızca /health/live dışarı açıktır; tam kontrol için iç ağdan ya da portlarla çalıştırın.
+API_URL="${1:-http://localhost:5000}"
+FRONTEND_URL="${2:-http://localhost:3000}"
 
 echo -e "\n========================================================"
 echo "  NAMINES PRODUCTION SMOKE TEST SUITE (FAZ 7)          "
