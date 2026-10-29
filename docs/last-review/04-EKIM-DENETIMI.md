@@ -39,8 +39,12 @@ Ayrıntılı bulgu listesi her commit mesajının gövdesinde.
 - Frontend: `tsc` 0, `eslint` 0 hata, design-rules temiz, vitest 264/264,
   `next build` geçti, `npm audit --audit-level=high` temiz (next 16.4.3).
 - Desk: typecheck, 121/121 test, `next build`, `npm audit` 0.
-- **Docker'lı integration testleri ve `Namines.Tests.RunTests` koşulamadı** —
-  CI'da (ubuntu, Docker var) koşacaklar.
+- **GitHub CI (push sonrası): dört job da YEŞİL** — Docker'lı integration
+  testleri ve `Namines.Tests.RunTests` (19/19) dahil. Bu koşu, CI'ın bugüne
+  kadar hiç ulaşamadığı üç hatayı ortaya çıkardı; üçü de düzeltildi:
+  MSSQL Run Tests konteyneri ağsız açılmıyordu, Linux'ta Vault yedek konteyneri
+  127.0.0.1'e yayımlanmış porta ulaşamıyordu (Launch'ın ilk yedeği hep
+  başarısızdı), CLI duman testi `bash -e` yüzünden beklenen çıkış kodunda ölüyordu.
 
 ## Davranış değişiklikleri (duyurulmalı)
 
