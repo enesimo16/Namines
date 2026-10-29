@@ -293,7 +293,7 @@ public sealed class ResilienceAndProblemDetailsTests
     }
 
     [Theory]
-    [InlineData(typeof(UnauthorizedAccessException), StatusCodes.Status401Unauthorized, "UNAUTHORIZED")]
+    [InlineData(typeof(UnauthorizedAccessException), StatusCodes.Status403Forbidden, "FORBIDDEN")]
     [InlineData(typeof(GithubRepositoryUnavailableException), StatusCodes.Status404NotFound, "RESOURCE_NOT_FOUND")]
     [InlineData(typeof(NslParseException), StatusCodes.Status400BadRequest, "BAD_REQUEST")]
     [InlineData(typeof(BrokenCircuitException), StatusCodes.Status503ServiceUnavailable, "CIRCUIT_BREAKER_OPEN")]

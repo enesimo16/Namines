@@ -841,7 +841,7 @@ public class AdminController : ControllerBase
         var report = _telemetry.GetLastAuditReport();
         if (report == null)
         {
-            report = await _telemetry.RunSystemAuditAsync(_context, _configuration, _logger);
+            report = await _telemetry.RunSystemAuditAsync(_context, _configuration, _logger, HttpContext.RequestServices);
         }
 
         return Ok(report);
@@ -859,7 +859,7 @@ public class AdminController : ControllerBase
             if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
             _logger.LogInformation("Admin {AdminEmail} triggered on-demand autonomous bot audit", admin.Email);
-            var freshReport = await _telemetry.RunSystemAuditAsync(_context, _configuration, _logger);
+            var freshReport = await _telemetry.RunSystemAuditAsync(_context, _configuration, _logger, HttpContext.RequestServices);
             return Ok(freshReport);
         }
         catch (Exception ex)

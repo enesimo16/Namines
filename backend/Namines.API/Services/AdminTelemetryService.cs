@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -44,7 +45,7 @@ public class UserSessionSummary
 public class SystemBotProbeResult
 {
     public string ServiceName { get; set; } = string.Empty;
-    public string Status { get; set; } = "pass"; // pass, warn, fail
+    public string Status { get; set; } = "pass"; // pass, warn, fail, skipped
     public int LatencyMs { get; set; }
     public string Message { get; set; } = string.Empty;
     public DateTime CheckedAt { get; set; } = DateTime.UtcNow;
@@ -272,160 +273,61 @@ public class AdminTelemetryService
 
     // ── Otonom Sistem Denetim Botu ──────────────────────────────────────────────
 
+    // Her probe için üst süre: yavaş bir bağımlılık tüm denetimi asılı bırakmasın.
+    internal static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(3);
+
     public async Task<SystemBotAuditReport> RunSystemAuditAsync(
         AuthDbContext dbContext,
         IConfiguration configuration,
-        ILogger logger)
+        ILogger logger,
+        IServiceProvider? services = null)
     {
         var report = new SystemBotAuditReport
         {
             AuditTimestamp = DateTime.UtcNow
         };
 
-        var probes = new List<SystemBotProbeResult>();
-        int passCount = 0;
+        var redis = services?.GetService(typeof(StackExchange.Redis.IConnectionMultiplexer))
+            as StackExchange.Redis.IConnectionMultiplexer;
+        var redisConfigured = !string.IsNullOrWhiteSpace(configuration["Redis:ConnectionString"]);
 
-        // 1. PostgreSQL Control DB Probe
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        try
+        // Probe'lar paralel koşar; her biri kendi süre sınırı ve hata yakalamasıyla sarılıdır.
+        var tasks = new[]
         {
-            await dbContext.Database.ExecuteSqlRawAsync("SELECT 1;");
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
+            RunProbeAsync("PostgreSQL Control DB", logger, async ct =>
             {
-                ServiceName = "PostgreSQL Control DB",
-                Status = "pass",
-                LatencyMs = (int)sw.ElapsedMilliseconds,
-                Message = "Veritabanı bağlantısı ve EF Core kontrol sorgusu başarılı."
-            });
-            passCount++;
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
+                await dbContext.Database.ExecuteSqlRawAsync("SELECT 1;", ct);
+                return ("pass", "Veritabanı bağlantısı ve EF Core kontrol sorgusu başarılı.");
+            }),
+            RunProbeAsync("SignalR Canvas Hub & Redis", logger, ct => ProbeRedisBackplaneAsync(
+                redisConfigured,
+                redis == null ? null : async c => await redis.GetDatabase().PingAsync().WaitAsync(c),
+                ct)),
+            RunProbeAsync("AI Inference Gateway (Groq/NAI/DeepSeek)", logger,
+                ct => Task.FromResult(ProbeAiGateway(configuration))),
+            RunProbeAsync("Docker Sandbox Engine (RunTests)", logger, ct => Task.FromResult(
+                // API süreci docker.sock'a bağlanmamalı (AGENTS.md); sandbox'ı burada yoklamak
+                // yerine dürüstçe "atlandı" raporlanır.
+                ("skipped", "API süreci Docker daemon'a bağlanmaz; sandbox durumu buradan doğrulanamaz."))),
+            RunProbeAsync("Vault & Ground Depolama Hacmi", logger, async ct =>
             {
-                ServiceName = "PostgreSQL Control DB",
-                Status = "fail",
-                LatencyMs = (int)sw.ElapsedMilliseconds,
-                Message = $"Veritabanı erişim hatası: {ex.Message}"
-            });
-        }
+                var testFile = Path.Combine(Path.GetTempPath(), $"namines_bot_test_{Guid.NewGuid():N}.tmp");
+                try
+                {
+                    await File.WriteAllTextAsync(testFile, "OK", ct);
+                }
+                finally
+                {
+                    try { File.Delete(testFile); } catch (IOException) { }
+                }
+                return ("pass", "Yedekleme ve veri dosyası dizini okuma/yazma testi başarılı.");
+            }),
+        };
 
-        // 2. SignalR Canvas Hub & Redis Probe
-        sw.Restart();
-        try
-        {
-            var redisConn = configuration.GetConnectionString("Redis");
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
-            {
-                ServiceName = "SignalR Canvas Hub & Redis",
-                Status = "pass",
-                LatencyMs = Math.Max(2, (int)sw.ElapsedMilliseconds),
-                Message = "WebSocket & Hub dinleyicileri hazır, çok oyunculu senkronizasyon aktif."
-            });
-            passCount++;
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
-            {
-                ServiceName = "SignalR Canvas Hub & Redis",
-                Status = "warn",
-                LatencyMs = (int)sw.ElapsedMilliseconds,
-                Message = $"SignalR Redis uyarısı: {ex.Message}"
-            });
-        }
-
-        // 3. AI Gateway Probe
-        sw.Restart();
-        try
-        {
-            var groqKey = configuration["Groq:ApiKey"];
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
-            {
-                ServiceName = "AI Inference Gateway (Groq/NAI/DeepSeek)",
-                Status = "pass",
-                LatencyMs = Math.Max(8, (int)sw.ElapsedMilliseconds),
-                Message = "AI sağlayıcı uç noktaları ve hız sınırı denetleyicisi çalışıyor."
-            });
-            passCount++;
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
-            {
-                ServiceName = "AI Inference Gateway (Groq/NAI/DeepSeek)",
-                Status = "warn",
-                LatencyMs = (int)sw.ElapsedMilliseconds,
-                Message = $"AI Gateway bağlantı gecikmesi: {ex.Message}"
-            });
-        }
-
-        // 4. Docker Sandbox Engine Probe
-        sw.Restart();
-        try
-        {
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
-            {
-                ServiceName = "Docker Sandbox Engine (RunTests)",
-                Status = "pass",
-                LatencyMs = Math.Max(15, (int)sw.ElapsedMilliseconds),
-                Message = "Geçici DDL doğrulama container havuzu dinleniyor."
-            });
-            passCount++;
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
-            {
-                ServiceName = "Docker Sandbox Engine (RunTests)",
-                Status = "warn",
-                LatencyMs = (int)sw.ElapsedMilliseconds,
-                Message = $"Docker daemon yanıt vermedi: {ex.Message}"
-            });
-        }
-
-        // 5. Vault & Ground Storage Volume Probe
-        sw.Restart();
-        try
-        {
-            var tempPath = Path.GetTempPath();
-            var testFile = Path.Combine(tempPath, $"namines_bot_test_{Guid.NewGuid():N}.tmp");
-            await File.WriteAllTextAsync(testFile, "OK");
-            File.Delete(testFile);
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
-            {
-                ServiceName = "Vault & Ground Depolama Hacmi",
-                Status = "pass",
-                LatencyMs = (int)sw.ElapsedMilliseconds,
-                Message = "Yedekleme ve veri dosyası dizini okuma/yazma testi başarılı."
-            });
-            passCount++;
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            probes.Add(new SystemBotProbeResult
-            {
-                ServiceName = "Vault & Ground Depolama Hacmi",
-                Status = "warn",
-                LatencyMs = (int)sw.ElapsedMilliseconds,
-                Message = $"Dosya sistemi testi uyarısı: {ex.Message}"
-            });
-        }
+        var probes = (await Task.WhenAll(tasks)).ToList();
 
         report.Probes = probes;
-        report.HealthScore = (int)Math.Round((double)passCount / probes.Count * 100);
-        report.OverallStatus = report.HealthScore >= 80 ? "Healthy" : "Degraded";
-        report.SummaryText = $"Otonom denetim botu {probes.Count} servisi taradı: {passCount} başarılı, {probes.Count - passCount} uyarı.";
+        ApplyScore(report);
 
         lock (_auditLock)
         {
@@ -435,6 +337,85 @@ public class AdminTelemetryService
         }
 
         return report;
+    }
+
+    /// <summary>
+    /// Skor yalnızca gerçekten çalıştırılan probe'lardan hesaplanır; "skipped" paya da paydaya girmez.
+    /// </summary>
+    internal static void ApplyScore(SystemBotAuditReport report)
+    {
+        var counted = report.Probes.Where(p => p.Status != "skipped").ToList();
+        var passCount = counted.Count(p => p.Status == "pass");
+        var skipped = report.Probes.Count - counted.Count;
+
+        report.HealthScore = counted.Count == 0
+            ? 0
+            : (int)Math.Round((double)passCount / counted.Count * 100);
+        report.OverallStatus = counted.Count > 0 && report.HealthScore >= 80 ? "Healthy" : "Degraded";
+        report.SummaryText = $"Otonom denetim botu {counted.Count} servisi taradı: {passCount} başarılı, " +
+            $"{counted.Count - passCount} uyarı/hata" + (skipped > 0 ? $", {skipped} atlandı." : ".");
+    }
+
+    internal static async Task<(string Status, string Message)> ProbeRedisBackplaneAsync(
+        bool configured,
+        Func<CancellationToken, Task<TimeSpan>>? ping,
+        CancellationToken ct)
+    {
+        if (!configured)
+            return ("pass", "Redis tanımlı değil; SignalR tek instance (bellek içi) modunda çalışıyor.");
+        if (ping == null)
+            return ("fail", "Redis tanımlı ama bağlantı nesnesi kayıtlı değil.");
+
+        var rtt = await ping(ct);
+        return rtt.TotalMilliseconds > 500
+            ? ("warn", $"Redis yanıt veriyor ancak yavaş ({(int)rtt.TotalMilliseconds} ms).")
+            : ("pass", "Redis backplane yanıt veriyor.");
+    }
+
+    internal static (string Status, string Message) ProbeAiGateway(IConfiguration configuration)
+    {
+        // Ücretli bir LLM çağrısı yapılmaz; yalnızca sağlayıcı anahtarının varlığına bakılır.
+        var configured = new[] { "Groq", "DeepSeek", "Gemini" }
+            .Where(p => !string.IsNullOrWhiteSpace(configuration[$"{p}:ApiKey"]))
+            .ToList();
+
+        return configured.Count == 0
+            ? ("fail", "Hiçbir AI sağlayıcı anahtarı yapılandırılmamış.")
+            : ("pass", $"{configured.Count} AI sağlayıcı anahtarı yapılandırılmış ({string.Join(", ", configured)}); canlı çağrı yapılmadı.");
+    }
+
+    internal static async Task<SystemBotProbeResult> RunProbeAsync(
+        string name,
+        ILogger logger,
+        Func<CancellationToken, Task<(string Status, string Message)>> probe)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            using var cts = new CancellationTokenSource(ProbeTimeout);
+            var (status, message) = await probe(cts.Token).WaitAsync(ProbeTimeout);
+            return new SystemBotProbeResult
+            {
+                ServiceName = name,
+                Status = status,
+                LatencyMs = (int)sw.ElapsedMilliseconds,
+                Message = message
+            };
+        }
+        catch (Exception ex)
+        {
+            // Ham istisna mesajı yanıta konmaz (bağlantı dizesi/yol sızabilir); loga yazılır.
+            logger.LogWarning(ex, "Denetim probe'u başarısız: {Probe}", name);
+            return new SystemBotProbeResult
+            {
+                ServiceName = name,
+                Status = "fail",
+                LatencyMs = (int)sw.ElapsedMilliseconds,
+                Message = ex is TimeoutException or OperationCanceledException
+                    ? $"Yanıt {ProbeTimeout.TotalSeconds:0} sn içinde alınamadı."
+                    : "Kontrol başarısız oldu; ayrıntı için sunucu loglarına bakın."
+            };
+        }
     }
 
     public SystemBotAuditReport? GetLastAuditReport()
@@ -460,7 +441,7 @@ public class AdminTelemetryService
 
         if (last != null && last.HealthScore < 80)
         {
-            var failed = last.Probes.FirstOrDefault(p => p.Status != "pass");
+            var failed = last.Probes.FirstOrDefault(p => p.Status != "pass" && p.Status != "skipped");
             if (failed != null)
             {
                 incidents.Add(new SystemIncidentItem
