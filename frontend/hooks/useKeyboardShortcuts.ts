@@ -66,6 +66,12 @@ export function useSequenceShortcut(
 ) {
   const pendingFirstKeyRef = useRef(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Çağıranlar genelde satır-içi (her render yeni) fonksiyon verir; handler efekt
+  // bağımlılığı olursa dinleyici her render'da sökülüp takılır ve bekleyen "g" kaybolurdu.
+  const handlerRef = useRef(handler);
+  useEffect(() => {
+    handlerRef.current = handler;
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -82,7 +88,7 @@ export function useSequenceShortcut(
 
         if (key === secondKey.toLowerCase()) {
           event.preventDefault();
-          handler();
+          handlerRef.current();
         }
         return;
       }
@@ -99,6 +105,9 @@ export function useSequenceShortcut(
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      // Zamanlayıcı iptal edildi ama bayrak kalırsa, devre dışı kalıp tekrar açılan
+      // kısayol ilk tuşu "basılmış" sanıp ikinci tuşu yanlışlıkla çalıştırırdı.
+      pendingFirstKeyRef.current = false;
     };
-  }, [firstKey, secondKey, handler, enabled]);
+  }, [firstKey, secondKey, enabled]);
 }
