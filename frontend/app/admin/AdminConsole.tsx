@@ -2507,7 +2507,6 @@ export default function AdminConsole({ initialTab = 'overview' }: { initialTab?:
                             { value: 'free', label: 'Free Plan (15 istek / gün)' },
                             { value: 'pro', label: 'Pro Solo (100 istek / gün)' },
                             { value: 'team', label: 'Team Plan (500 istek / gün)' },
-                            { value: 'dev', label: 'Developer / SuperAdmin (Sınırsız)' },
                           ]}
                         />
 
