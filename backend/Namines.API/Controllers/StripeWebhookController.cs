@@ -105,6 +105,55 @@ public class StripeWebhookController : ControllerBase
             return Ok(new { received = true, duplicate = true });
         }
 
+        // ── ATOMİK İŞLEME ──────────────────────────────────────────────────
+        //
+        // <b>Bulunan açık (Oct-2 security A-1):</b> tekrar-iletim kaydı işleyiciden
+        // ÖNCE ayrı bir SaveChanges ile yazılıyordu. İşleyici (ör. kullanıcı
+        // güncellemesi) patlarsa kayıt kalıyor, Stripe'ın yeniden denemesi "zaten
+        // işlenmiş" diye 200 alıyor ve ÖDEME YAPAN müşteri hiç yükseltilmiyordu.
+        // Üstüne her `DbUpdateException` "yarış" sayılıyordu: bağlantı kopması da
+        // sessizce "duplicate" oluyordu.
+        //
+        // Şimdi kayıt + işleyici TEK veritabanı işleminde: işleyici başarısız olursa
+        // kayıt da geri alınır, 500 döner ve Stripe aynı olayı yeniden dener. Yalnızca
+        // GERÇEK bir benzersizlik ihlali (SQLSTATE 23505) "başka istek aldı" demektir.
+        WebhookOutcome outcome;
+        try
+        {
+            // EnableRetryOnFailure açık: elle açılan işlem bir yürütme stratejisinin
+            // içinde olmak ZORUNDA. Strateji yeniden denerse temsilci baştan çalışır,
+            // o yüzden önceki denemeden kalan izleyici durumu temizleniyor.
+            var strategy = _db.Database.CreateExecutionStrategy();
+            outcome = await strategy.ExecuteAsync(() => ProcessInTransactionAsync(stripeEvent, customerId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "[STRIPE WEBHOOK] Olay {Id} ({Type}) islenemedi; kayit geri alindi, Stripe yeniden deneyecek.",
+                stripeEvent.Id, stripeEvent.Type);
+            return StatusCode(500, new { error = "Webhook processing failed." });
+        }
+
+        return outcome switch
+        {
+            WebhookOutcome.Duplicate => Ok(new { received = true, duplicate = true }),
+            WebhookOutcome.Stale => Ok(new { received = true, stale = true }),
+            _ => Ok(new { received = true }),
+        };
+    }
+
+    private enum WebhookOutcome { Processed, Duplicate, Stale }
+
+    /// <summary>
+    /// Olay kaydını ve işleyiciyi tek işlemde çalıştırır. Hata → işlem geri alınır,
+    /// istisna dışarı çıkar (500).
+    /// </summary>
+    private async Task<WebhookOutcome> ProcessInTransactionAsync(Event stripeEvent, string? customerId)
+    {
+        _db.ChangeTracker.Clear();
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+
         // ── SIRA DIŞI TESLİMAT ───────────────────────────────────────
         //
         // Idempotency tek başına yetmiyor: Stripe teslimat SIRASINI garanti
@@ -125,10 +174,9 @@ public class StripeWebhookController : ControllerBase
             isLatest = newestProcessed is null || stripeEvent.Created >= newestProcessed;
         }
 
-        // Kayıt İŞLEMEDEN ÖNCE yazılıyor ve ayıklı bir şekilde kaydediliyor:
-        // birincil anahtar çakışması eşzamanlı ikinci isteği burada durdurur.
-        // İşlemden SONRA yazmak, işleme ile kayıt arasında çöken bir süreçte
-        // olayın ikinci kez uygulanmasına izin verirdi.
+        // Kayıt İŞLEMEDEN ÖNCE (ama aynı işlemde) yazılıyor: birincil anahtar
+        // çakışması eşzamanlı ikinci isteği burada durdurur — Postgres ikincinin
+        // eklemesini birincinin commit/rollback'ine kadar bekletir.
         _db.StripeWebhookEvents.Add(new StripeWebhookEvent
         {
             Id = stripeEvent.Id,
@@ -142,13 +190,13 @@ public class StripeWebhookController : ControllerBase
         {
             await _db.SaveChangesAsync();
         }
-        catch (DbUpdateException)
+        catch (Exception ex) when (DbUniqueViolation.IsUniqueViolation(ex))
         {
             // Yarış: aynı olayı başka bir istek bizden önce yazdı. İşlemeden
             // 200 dönülüyor — Stripe'ın yeniden denemesine gerek yok.
             _logger.LogInformation(
                 "[STRIPE WEBHOOK] Olay {Id} esZAMANLI olarak baska bir istek tarafindan alindi.", stripeEvent.Id);
-            return Ok(new { received = true, duplicate = true });
+            return WebhookOutcome.Duplicate;
         }
 
         if (!isLatest)
@@ -157,7 +205,8 @@ public class StripeWebhookController : ControllerBase
                 "[STRIPE WEBHOOK] Olay {Id} ({Type}) SIRA DISI geldi: {Customer} icin daha yeni bir olay " +
                 "zaten islenmis. Abonelik durumu DEGISTIRILMIYOR.",
                 stripeEvent.Id, stripeEvent.Type, customerId);
-            return Ok(new { received = true, stale = true });
+            await tx.CommitAsync();
+            return WebhookOutcome.Stale;
         }
 
         // ── EVENT DISPATCH ─────────────────────────────────────────────────
@@ -181,8 +230,8 @@ public class StripeWebhookController : ControllerBase
                 break;
         }
 
-        // Always return 200 to acknowledge receipt to Stripe
-        return Ok(new { received = true });
+        await tx.CommitAsync();
+        return WebhookOutcome.Processed;
     }
 
     /// <summary>
@@ -236,7 +285,11 @@ public class StripeWebhookController : ControllerBase
             }
             catch (Exception ex)
             {
+                // Yutulmuyor: ödeme alındı ama plan okunamadıysa kullanıcıyı PlanCode'suz
+                // "ücretli" bırakmak yerine istek 500 dönüp Stripe'ın yeniden denemesine
+                // izin veriyoruz (kayıt işlemle birlikte geri alınır).
                 _logger.LogWarning("[STRIPE WEBHOOK] Could not fetch subscription details: {Message}", ex.Message);
+                throw;
             }
         }
 
@@ -249,10 +302,8 @@ public class StripeWebhookController : ControllerBase
         user.Type                 = UserType.Corporate; // Elevate to paid
 
         var result = await _userManager.UpdateAsync(user);
-        if (result.Succeeded)
-            _logger.LogInformation("[STRIPE WEBHOOK] ✅ User {UserId} elevated to Pro Member. Subscription: {SubId}", userId, session.SubscriptionId);
-        else
-            _logger.LogError("[STRIPE WEBHOOK] Failed to update user {UserId}: {Errors}", userId, string.Join(", ", result.Errors.Select(e => e.Description)));
+        ThrowIfFailed(result, "elevate", userId);
+        _logger.LogInformation("[STRIPE WEBHOOK] ✅ User {UserId} elevated to Pro Member. Subscription: {SubId}", userId, session.SubscriptionId);
     }
 
     // ── customer.subscription.deleted ─────────────────────────────────────────
@@ -278,10 +329,8 @@ public class StripeWebhookController : ControllerBase
         user.Type                 = UserType.Individual; // Downgrade to Free
 
         var result = await _userManager.UpdateAsync(user);
-        if (result.Succeeded)
-            _logger.LogInformation("[STRIPE WEBHOOK] 🔴 User {UserId} downgraded to Free. Subscription canceled.", user.Id);
-        else
-            _logger.LogError("[STRIPE WEBHOOK] Failed to downgrade user {UserId}: {Errors}", user.Id, string.Join(", ", result.Errors.Select(e => e.Description)));
+        ThrowIfFailed(result, "downgrade", user.Id);
+        _logger.LogInformation("[STRIPE WEBHOOK] 🔴 User {UserId} downgraded to Free. Subscription canceled.", user.Id);
     }
 
     // ── customer.subscription.updated ─────────────────────────────────────────
@@ -307,8 +356,20 @@ public class StripeWebhookController : ControllerBase
         else if (subscription.Status is "canceled" or "unpaid")
             user.Type = UserType.Individual;
 
-        await _userManager.UpdateAsync(user);
+        ThrowIfFailed(await _userManager.UpdateAsync(user), "update", user.Id);
         _logger.LogInformation("[STRIPE WEBHOOK] 🔄 Subscription updated for user {UserId}: {Status}", user.Id, subscription.Status);
+    }
+
+    /// <summary>
+    /// Başarısız bir Identity sonucu sessizce loglanıp yutulmuyor: istisna işlemi geri
+    /// alır, istek 500 döner ve Stripe olayı yeniden gönderir.
+    /// </summary>
+    private static void ThrowIfFailed(IdentityResult result, string action, string userId)
+    {
+        if (result.Succeeded) return;
+
+        throw new InvalidOperationException(
+            $"Failed to {action} user {userId}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
     }
 
     /// <summary>
