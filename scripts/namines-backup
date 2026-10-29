@@ -13,6 +13,12 @@ REPO_DIR="/home/ubuntu/namines"
 BACKUP_ROOT="/home/ubuntu/backups"
 COMPOSE_FILE="$REPO_DIR/docker-compose.oracle.yml"
 RETENTION_DAYS=14
+# Yaş ne olursa olsun en yeni N arşiv HİÇBİR ZAMAN silinmez: yedekleme sessizce
+# bozulursa (yeni arşiv üretilemezse) retention eldeki son sağlam yedekleri de
+# silip geriye hiçbir şey bırakmazdı.
+KEEP_MIN=7
+# Gerçek bir pg_dump şema bile olsa bundan büyüktür; boş/kesik dump'ı yakalar.
+MIN_DUMP_BYTES=1024
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -35,6 +41,21 @@ extract_db_param() {
   echo "$conn_line" | sed -n "s/.*${key}=\([^;\"]*\).*/\1/p"
 }
 
+# Yaşı RETENTION_DAYS'i aşan arşivleri siler, ama en yeni KEEP_MIN tanesini korur.
+prune_old_backups() {
+  local f idx=0
+  # En yeni önce; ad zaman damgası içerdiği için ters sözlük sırası = en yeni önce.
+  while IFS= read -r f; do
+    idx=$((idx + 1))
+    if [ "$idx" -le "$KEEP_MIN" ]; then
+      continue
+    fi
+    if [ -n "$(find "$f" -maxdepth 0 -mtime +"$RETENTION_DAYS" 2>/dev/null)" ]; then
+      rm -f -- "$f" "${f}.sha256"
+    fi
+  done < <(ls -1 "$BACKUP_ROOT"/namines-backup-*.tar.gz 2>/dev/null | sort -r)
+}
+
 cmd="${1:-run}"
 
 case "$cmd" in
@@ -52,8 +73,8 @@ case "$cmd" in
 
   clean)
     log_info "${RETENTION_DAYS} gunden eski yedekler siliniyor..."
-    find "$BACKUP_ROOT" -name "namines-backup-*.tar.gz*" -mtime +"$RETENTION_DAYS" -delete
-    log_ok "Eski yedek temizligi tamamlandi."
+    prune_old_backups
+    log_ok "Eski yedek temizligi tamamlandi (en yeni ${KEEP_MIN} arsiv her zaman korunur)."
     exit 0
     ;;
 
@@ -72,8 +93,23 @@ case "$cmd" in
       exit 1
     fi
 
-    RESTORE_DIR="/tmp/namines-restore-$(date +%s)"
-    mkdir -p "$RESTORE_DIR"
+    # Bütünlük: yedekle birlikte üretilen .sha256 varsa doğrula; bozuk/kurcalanmış
+    # arşivden geri yükleme yapılmasın. İmza yoksa uyar ama engelleme (eski yedekler).
+    if [ -f "${ARCHIVE}.sha256" ]; then
+      EXPECTED_SUM=$(awk '{print $1}' "${ARCHIVE}.sha256")
+      ACTUAL_SUM=$(sha256sum "$ARCHIVE" | awk '{print $1}')
+      if [ "$EXPECTED_SUM" != "$ACTUAL_SUM" ]; then
+        log_err "SHA-256 uyusmuyor, arsiv bozuk veya degistirilmis: $ARCHIVE"
+        exit 1
+      fi
+      log_ok "SHA-256 dogrulandi."
+    else
+      log_warn "${ARCHIVE}.sha256 bulunamadi; arsivin butunlugu DOGRULANAMADI."
+    fi
+
+    # Tahmin edilebilir /tmp adı (symlink saldırısı) yerine 0700 mktemp; içinde .env var.
+    umask 077
+    RESTORE_DIR=$(mktemp -d "/tmp/namines-restore-XXXXXX")
     log_info "Arsiv aciliyor: $ARCHIVE -> $RESTORE_DIR"
     tar -xzf "$ARCHIVE" -C "$RESTORE_DIR"
 
@@ -103,19 +139,33 @@ case "$cmd" in
     DB_USER=$(extract_db_param "Username")
     DB_PASS=$(extract_db_param "Password")
 
-    if [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASS" ]; then
-      log_info "[1/4] Supabase PostgreSQL veritabani tam yedegi aliniyor ($DB_HOST)..."
-      sudo docker run --rm \
-        -e PGPASSWORD="$DB_PASS" \
-        postgres:17-alpine \
-        pg_dump -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER" -d "${DB_NAME:-postgres}" \
-        --no-owner --no-acl --clean --if-exists \
-        | gzip -9 > "$WORK_DIR/supabase-db.sql.gz"
-      DB_SIZE=$(du -h "$WORK_DIR/supabase-db.sql.gz" | awk '{print $1}')
-      log_ok "Veritabani yedegi tamamlandi ($DB_SIZE)."
-    else
-      log_warn "[1/4] Veritabani baglanti bilgisi okunamadi, DB dump atlandi."
+    # DB dump ZORUNLU: bağlantı bilgisi yoksa ya da dump bozuksa yedek BAŞARISIZDIR.
+    # Eskiden "atlandı" uyarısıyla başarı dönüyor, retention da gerçek yedekleri
+    # silip DB'siz arşivlerle değiştiriyordu.
+    if [ -z "$DB_HOST" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASS" ]; then
+      log_err "[1/4] Veritabani baglanti bilgisi okunamadi (ConnectionStrings__DefaultConnection). Yedek ALINMADI."
+      exit 1
     fi
+
+    log_info "[1/4] Supabase PostgreSQL veritabani tam yedegi aliniyor ($DB_HOST)..."
+    DUMP_FILE="$WORK_DIR/supabase-db.sql.gz"
+    sudo docker run --rm \
+      -e PGPASSWORD="$DB_PASS" \
+      postgres:17-alpine \
+      pg_dump -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER" -d "${DB_NAME:-postgres}" \
+      --no-owner --no-acl --clean --if-exists \
+      | gzip -9 > "$DUMP_FILE"
+    if ! gzip -t "$DUMP_FILE" 2>/dev/null; then
+      log_err "[1/4] DB dump gecerli bir gzip degil. Yedek ALINMADI."
+      exit 1
+    fi
+    DUMP_BYTES=$(stat -c %s "$DUMP_FILE")
+    if [ "$DUMP_BYTES" -lt "$MIN_DUMP_BYTES" ]; then
+      log_err "[1/4] DB dump supheli derecede kucuk (${DUMP_BYTES} bayt). Yedek ALINMADI."
+      exit 1
+    fi
+    DB_SIZE=$(du -h "$DUMP_FILE" | awk '{print $1}')
+    log_ok "Veritabani yedegi tamamlandi ($DB_SIZE)."
 
     # 2. Konfigurasyon ve Sirlar (.env, docker-compose, Caddyfile)
     log_info "[2/4] Konfigurasyon dosyalari (.env, compose, Caddyfile) yedekleniyor..."
@@ -142,12 +192,18 @@ EOF
 
     # Arsivle ve SHA256 olustur
     log_info "[4/4] Sikistirilmis arsiv ve SHA-256 dogrulama imzasi olusturuluyor..."
-    tar -czf "$ARCHIVE_PATH" -C "$WORK_DIR" .
-    chmod 600 "$ARCHIVE_PATH"
+    # Önce .partial'a yaz, doğrula, sonra yeniden adlandır: yarım kalan arşiv
+    # geçerli bir yedek gibi görünmesin.
+    PARTIAL_PATH="${ARCHIVE_PATH}.partial"
+    trap 'rm -rf "$WORK_DIR" "$PARTIAL_PATH"' EXIT
+    tar -czf "$PARTIAL_PATH" -C "$WORK_DIR" .
+    gzip -t "$PARTIAL_PATH"
+    chmod 600 "$PARTIAL_PATH"
+    mv "$PARTIAL_PATH" "$ARCHIVE_PATH"
     sha256sum "$ARCHIVE_PATH" > "${ARCHIVE_PATH}.sha256"
 
-    # Eski yedekleri otomatik temizle
-    find "$BACKUP_ROOT" -name "namines-backup-*.tar.gz*" -mtime +"$RETENTION_DAYS" -delete 2>/dev/null || true
+    # Eski yedekleri otomatik temizle (yalnızca bu yedek BAŞARIYLA yazıldıktan sonra)
+    prune_old_backups
 
     FINAL_SIZE=$(du -h "$ARCHIVE_PATH" | awk '{print $1}')
     log_ok "Yedekleme basariyla tamamlandi!"
