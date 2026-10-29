@@ -163,6 +163,8 @@ services:
       dockerfile: Dockerfile
       args:
         NAMINES_API: ${PUBLIC_APP_URL:-http://localhost}
+        # Tarayici ayni origin uzerinden /api (Caddy) cagirir; bos = goreli.
+        NAMINES_PUBLIC_API: ""
         NAMINES_FRONTEND: ${PUBLIC_APP_URL:-http://localhost}
         DESK_BASE_PATH: /desk
     restart: unless-stopped
