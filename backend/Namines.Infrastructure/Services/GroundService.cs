@@ -85,6 +85,7 @@ public class GroundService
             Provider = provider.Name,
             CreatedByUserId = userId,
             Status = GroundStatus.Provisioning,
+            ClaimedAt = DateTime.UtcNow,
         };
 
         _context.GroundDatabases.Add(record);
@@ -116,6 +117,7 @@ public class GroundService
             record.ProviderBranchId = provisioned.ProviderBranchId;
             record.Region = provisioned.Region;
             record.Status = GroundStatus.Active;
+            record.ClaimedAt = null;
 
             // Bağlantı, Desk/Vault ile AYNI mekanizmayla ve AYNI yere yazılıyor.
             // İkinci bir kopya tutmak, sızdırılabilecek yüzeyi ikiye katlardı.
@@ -135,6 +137,7 @@ public class GroundService
             // Ham istisna metni (saglayici API'sinin ham HTTP govdesi ya da
             // surucu mesaji) İSTEMCİYE degil, yalnizca loga yazilir.
             record.Status = GroundStatus.Failed;
+            record.ClaimedAt = null;
             record.Error = "Provisioning failed. Contact support if this persists.";
             _logger.LogError(ex, "Ground: {ProjectId} icin provizyon basarisiz.", project.Id);
         }
@@ -235,6 +238,7 @@ public class GroundService
             .Where(g => g.Id == record.Id && g.Status == GroundStatus.PendingDelete)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(g => g.Status, GroundStatus.Provisioning)
+                .SetProperty(g => g.ClaimedAt, (DateTime?)DateTime.UtcNow)
                 .SetProperty(g => g.DeleteRequestedAt, (DateTime?)null), ct);
 
         if (claimed == 0)
@@ -262,6 +266,7 @@ public class GroundService
 
             // Sahiplenme Provisioning'e cekmisti; is bitti, Active'e geciyor.
             record.Status = GroundStatus.Active;
+            record.ClaimedAt = null;
             record.DeleteRequestedAt = null;
             record.Error = null;
         }
@@ -273,6 +278,7 @@ public class GroundService
             // purge ne de ikinci bir iptal denemesi onu ele alabilir — kullanici
             // ne verisini geri alabilir ne de silinmesini bekleyebilir.
             record.Status = GroundStatus.PendingDelete;
+            record.ClaimedAt = null;
             record.DeleteRequestedAt = DateTime.UtcNow;
             record.Error = "Canceling deletion failed. Contact support if this persists.";
             _logger.LogError(ex, "Ground: {ProjectId} icin silme geri alinamadi.", record.ProjectId);
@@ -285,6 +291,77 @@ public class GroundService
     }
 
     /// <summary>
+    /// Bir sahiplenmenin "terk edilmiş" sayılması için geçmesi gereken süre.
+    /// Cömert tutuldu: yavaş bir sağlayıcı çağrısının ortasındaki canlı bir işi
+    /// yanlışlıkla geri almak, bayat kaydı biraz geç kurtarmaktan pahalı.
+    /// </summary>
+    public static readonly TimeSpan StaleClaimLease = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// Süreç ölünce <c>Deleting</c>/<c>Provisioning</c>'de asılı kalan kayıtları
+    /// kurtarır. Her geçiş, durum VE ClaimedAt üzerinde koşullu tek bir UPDATE:
+    /// iş o sırada gerçekten bittiyse (durum değiştiyse) 0 satır döner.
+    ///
+    /// <b>Hiçbiri veri kaybına doğru düşmüyor:</b>
+    /// <list type="bullet">
+    /// <item><c>Deleting</c> → <c>PendingDelete</c>: normal purge yeniden dener
+    /// (silme zaten istenmişti, DeleteRequestedAt purge sahiplenmesinde korunur).</item>
+    /// <item><c>Provisioning</c> + ProviderProjectId var → iptal sahiplenmesiydi
+    /// (kaynak mevcut); <c>PendingDelete</c>'e dönüyor ve bekleme penceresi
+    /// BAŞTAN başlıyor — orijinal istek zamanı iptalde silinmişti, kullanıcıya
+    /// kısa değil tam süre tanımak güvenli taraf.</item>
+    /// <item><c>Provisioning</c> + ProviderProjectId yok → ilk açılış yarıda
+    /// kaldı; mevcut "başarısız provizyon" durumu <c>Failed</c>'e alınıyor.</item>
+    /// </list>
+    /// ClaimedAt'i null olan (migration öncesi) asılı kayıtlara DOKUNULMUYOR: canlı
+    /// bir işi geri almamak için yalnızca uyarı loglanıyor.
+    /// </summary>
+    public async Task<int> ReclaimStaleClaimsAsync(TimeSpan lease, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var cutoff = now - lease;
+
+        var deleting = await _context.GroundDatabases
+            .Where(g => g.Status == GroundStatus.Deleting && g.ClaimedAt != null && g.ClaimedAt < cutoff)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(g => g.Status, GroundStatus.PendingDelete)
+                .SetProperty(g => g.ClaimedAt, (DateTime?)null), ct);
+
+        var cancelClaims = await _context.GroundDatabases
+            .Where(g => g.Status == GroundStatus.Provisioning && g.ClaimedAt != null && g.ClaimedAt < cutoff
+                        && g.ProviderProjectId != null && g.ProviderProjectId != "")
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(g => g.Status, GroundStatus.PendingDelete)
+                .SetProperty(g => g.DeleteRequestedAt, (DateTime?)now)
+                .SetProperty(g => g.ClaimedAt, (DateTime?)null), ct);
+
+        var failedProvisions = await _context.GroundDatabases
+            .Where(g => g.Status == GroundStatus.Provisioning && g.ClaimedAt != null && g.ClaimedAt < cutoff
+                        && (g.ProviderProjectId == null || g.ProviderProjectId == ""))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(g => g.Status, GroundStatus.Failed)
+                .SetProperty(g => g.Error, "Provisioning was interrupted. Contact support if this persists.")
+                .SetProperty(g => g.ClaimedAt, (DateTime?)null), ct);
+
+        var total = deleting + cancelClaims + failedProvisions;
+        if (total > 0)
+            _logger.LogWarning(
+                "Ground: {Total} asili kayit kurtarildi (Deleting->PendingDelete: {Deleting}, " +
+                "iptal->PendingDelete: {Cancel}, Provisioning->Failed: {Failed}).",
+                total, deleting, cancelClaims, failedProvisions);
+
+        var legacy = await _context.GroundDatabases.CountAsync(
+            g => (g.Status == GroundStatus.Deleting || g.Status == GroundStatus.Provisioning)
+                 && g.ClaimedAt == null && g.CreatedAt < cutoff, ct);
+        if (legacy > 0)
+            _logger.LogWarning(
+                "Ground: {Count} kayit ClaimedAt olmadan Deleting/Provisioning'de; migration oncesi " +
+                "asili kalmis olabilir, otomatik dokunulmadi — elle incelenmeli.", legacy);
+
+        return total;
+    }
+
+    /// <summary>
     /// Bekleme penceresi dolmuş kayıtları KALICI olarak siler.
     ///
     /// Arka plan işinden çağrılıyor ve tek tek hata yakalıyor: bir kaydın
@@ -292,6 +369,8 @@ public class GroundService
     /// </summary>
     public async Task<int> PurgeExpiredAsync(int graceDays, CancellationToken ct)
     {
+        await ReclaimStaleClaimsAsync(StaleClaimLease, ct);
+
         var cutoff = DateTime.UtcNow.AddDays(-graceDays);
 
         var expired = await _context.GroundDatabases
@@ -309,7 +388,9 @@ public class GroundService
             // CAGRILMAZ — yarisin kaybeden tarafi hicbir sey yapmiyor.
             var claimed = await _context.GroundDatabases
                 .Where(g => g.Id == record.Id && g.Status == GroundStatus.PendingDelete)
-                .ExecuteUpdateAsync(s => s.SetProperty(g => g.Status, GroundStatus.Deleting), ct);
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(g => g.Status, GroundStatus.Deleting)
+                    .SetProperty(g => g.ClaimedAt, (DateTime?)DateTime.UtcNow), ct);
 
             if (claimed == 0)
             {
@@ -328,6 +409,7 @@ public class GroundService
                 // gerçekte duran bir kaynağı görünmez yapardı. Sahiplenme geri
                 // alınıyor: Deleting'de bırakmak kaydı hiç işlenemez kılardı.
                 record.Status = GroundStatus.PendingDelete;
+                record.ClaimedAt = null;
                 await _context.SaveChangesAsync(CancellationToken.None);
                 _logger.LogError(
                     "Ground: {Provider} saglayicisi kayitli degil, {ProjectId} silinemedi.",
@@ -345,6 +427,7 @@ public class GroundService
             if (string.IsNullOrWhiteSpace(record.ProviderProjectId))
             {
                 record.Status = GroundStatus.Deleted;
+                record.ClaimedAt = null;
                 record.DeletedAt = DateTime.UtcNow;
                 record.Error = null;
                 purged++;
@@ -362,6 +445,7 @@ public class GroundService
                     ct);
 
                 record.Status = GroundStatus.Deleted;
+                record.ClaimedAt = null;
                 record.DeletedAt = DateTime.UtcNow;
                 record.Error = null;
                 purged++;
@@ -375,6 +459,7 @@ public class GroundService
                 // Sahiplenme geri aliniyor ki bir sonraki turda yeniden denenebilsin;
                 // Deleting'de asili kalan kayit hic islenmezdi.
                 record.Status = GroundStatus.PendingDelete;
+                record.ClaimedAt = null;
                 record.Error = "Deletion failed and will be retried automatically.";
                 _logger.LogError(ex, "Ground: {ProjectId} kalici olarak silinemedi.", record.ProjectId);
             }
