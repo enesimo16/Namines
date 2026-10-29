@@ -19,12 +19,14 @@ namespace Namines.Infrastructure.Generators.DdlGenerator;
 /// gelen <c>\! komut</c> (istemci meta-komutu) ya da <c>--</c> ile kapatılan
 /// kuyruk, container içinde komut çalıştırmaya kadar gidiyordu.
 ///
-/// <b>Reddedilen:</b> her kontrol karakteri (satır sonu dahil — meta-komut yeni
-/// satırda başlar), noktalı virgül, ters eğik çizgi, <c>--</c>, blok yorum
-/// açılış/kapanışı, MySQL ailesinde <c>#</c> ve dengesiz tek tırnak.
-/// Sessizce temizlemek yerine REDDEDİLİR: temizlemek, kullanıcının yazdığından
-/// farklı bir ifadeyi sessizce çalıştırırdı (bkz. <see cref="SqlIdentifier"/>
-/// ile aynı gerekçe).
+/// <b>Normalize edilen:</b> satır sonu ve sekme tek boşluğa indirilir. Ters eğik çizgi,
+/// <c>--</c>, blok yorum ve noktalı virgül yasak olduğundan tek başına bir satır sonu
+/// meta-komut ya da yorum başlatamaz; yapıştırılan/AI üretimi çok satırlı ifadeler geçerli.
+///
+/// <b>Reddedilen:</b> diğer her kontrol karakteri, noktalı virgül, ters eğik çizgi,
+/// <c>--</c>, blok yorum açılış/kapanışı, MySQL ailesinde <c>#</c> ve dengesiz tek tırnak.
+/// Bunlar temizlenmez REDDEDİLİR: temizlemek, kullanıcının yazdığından farklı bir ifadeyi
+/// sessizce çalıştırırdı (bkz. <see cref="SqlIdentifier"/> ile aynı gerekçe).
 ///
 /// <b>Gövdeler kapsam dışı:</b> trigger/prosedür gövdeleri tasarım gereği ham
 /// SQL'dir (bkz. <see cref="TriggerProcedureSql"/>); burada yalnızca onların
@@ -48,8 +50,11 @@ internal static class SqlFragmentGuard
     };
 
     private static readonly Regex TypeNamePattern = new(
-        @"^[A-Za-z][A-Za-z0-9_ ]*(\(\s*(\d+(\s*,\s*\d+)?|max)\s*\))?(\[\])?$",
+        @"^[A-Za-z_][A-Za-z0-9_ ]*(\.[A-Za-z_][A-Za-z0-9_ ]*)*(\(\s*(\d+(\s*,\s*\d+)?|max)\s*\))?(\[\])?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    private static readonly Regex WhitespaceRun = new(
+        @"[ ]*[\r\n\t\u0085  ][\s]*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly Regex NumericLiteral = new(
         @"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$",
@@ -61,7 +66,10 @@ internal static class SqlFragmentGuard
     /// <param name="what">Hata mesajında görünen alan adı ("CHECK", "WHERE"...).</param>
     public static string EnsureSafeExpression(string expression, string what, DatabaseType engine)
     {
-        var trimmed = expression.Trim();
+        // Satır sonu/sekme tek boşluğa indirilir, REDDEDİLMEZ: ``, `--`, blok yorum ve `;`
+        // aşağıda zaten yasak, yani yalnızca satır sonu bir meta-komut ya da yorum başlatamaz;
+        // yapıştırılan/AI üretimi çok satırlı ifadeler geçerli. Diğer kontrol karakterleri reddedilir.
+        var trimmed = WhitespaceRun.Replace(expression, " ").Trim();
 
         if (trimmed.Any(IsLineOrControl))
             throw Reject(what, "a control character or line break", trimmed);
@@ -100,7 +108,7 @@ internal static class SqlFragmentGuard
     /// <summary>
     /// Eşlemesi olmayan (varsayılan kola düşen) kolon tipi adını doğrular.
     /// Bilinen tipler zaten sabit karşılıklara çevriliyor; ham metin yalnızca
-    /// <c>ad</c>, <c>ad(10)</c>, <c>ad(10,2)</c>, <c>ad(max)</c>, <c>ad[]</c> biçiminde geçer.
+    /// <c>ad</c>, <c>sema.ad</c>, <c>ad(10)</c>, <c>ad(10,2)</c>, <c>ad(max)</c>, <c>ad[]</c> biçiminde geçer.
     /// </summary>
     public static string EnsureTypeName(string typeName)
     {
@@ -129,8 +137,7 @@ internal static class SqlFragmentGuard
             IsWellFormedStringLiteral(trimmed, engine))
             return value;
 
-        EnsureSafeExpression(value, "DEFAULT", engine);
-        return value;
+        return EnsureSafeExpression(value, "DEFAULT", engine);
     }
 
     /// <summary>

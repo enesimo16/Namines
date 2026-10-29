@@ -83,7 +83,7 @@ public class DdlFragmentHardeningTests
 
     [Theory]
     [InlineData("a>0\n\\! cmd")]
-    [InlineData("a>0 \r\n b")]
+    [InlineData("a>0\u0001")]
     [InlineData("a>0 -- trailing")]
     [InlineData("a>0 /* c */")]
     [InlineData("a>0\\")]
@@ -92,6 +92,47 @@ public class DdlFragmentHardeningTests
         foreach (var engine in AllEngines)
             Assert.Throws<ArgumentException>(() =>
                 Ddl(engine, Schema(t => t.Checks.Add(new SchemaCheck { Id = "ck", Name = "ck", Expression = payload }))));
+    }
+
+    [Fact]
+    public void Multi_line_expressions_are_accepted_and_emitted_on_one_line()
+    {
+        const string multi = "total >= 0\r\n  AND total\t< 100";
+
+        foreach (var engine in AllEngines)
+        {
+            var ddl = Ddl(engine, Schema(t => t.Checks.Add(new SchemaCheck { Id = "ck", Name = "rng", Expression = multi })));
+            Assert.Contains("CHECK (total >= 0 AND total < 100)", ddl);
+        }
+
+        Assert.Contains("GENERATED ALWAYS AS (id * 2 + 1) STORED",
+            Ddl(DatabaseType.PostgreSQL, Schema(_ => { }, c => c.Generated = "id * 2\n + 1")));
+        Assert.Contains("WHERE total > 0 AND total < 9",
+            Ddl(DatabaseType.PostgreSQL, Schema(t => t.Indexes.Add(Index(i => i.Where = "total > 0\n AND total < 9")))));
+        Assert.Contains("DEFAULT now() + interval '1 day'",
+            Ddl(DatabaseType.PostgreSQL, Schema(_ => { }, c => c.DefaultValue = "now()\n + interval '1 day'")));
+    }
+
+    [Theory]
+    [InlineData("public.citext", "public.citext")]
+    [InlineData("myschema.my_enum", "myschema.my_enum")]
+    [InlineData("timestamp with time zone", "timestamp with time zone")]
+    [InlineData("character varying(255)", "character varying(255)")]
+    [InlineData("numeric(10,2)", "numeric(10,2)")]
+    [InlineData("text[]", "text[]")]
+    public void Schema_qualified_and_multi_word_type_names_are_accepted(string type, string expected)
+    {
+        Assert.Contains(expected, Ddl(DatabaseType.PostgreSQL, Schema(_ => { }, c => c.Type = type)));
+    }
+
+    [Theory]
+    [InlineData("public.citext; DROP TABLE x")]
+    [InlineData("public.citext\n\\! id")]
+    [InlineData("public..citext")]
+    [InlineData("public.citext--")]
+    public void Qualified_type_payloads_are_still_rejected(string type)
+    {
+        Assert.Throws<ArgumentException>(() => Ddl(DatabaseType.PostgreSQL, Schema(_ => { }, c => c.Type = type)));
     }
 
     [Fact]
