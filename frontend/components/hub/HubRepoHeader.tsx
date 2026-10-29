@@ -23,7 +23,9 @@ import { ProjectVisibility, normalizeVisibility } from '../../types/hub';
 import { hubService } from '../../services/hubService';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
-import { useSchemaStore } from '../../store/useSchemaStore';
+import { useSchemaStore, type DbType } from '../../store/useSchemaStore';
+import { useAuthModalStore } from '../../store/useAuthModalStore';
+import { useT } from '../../lib/i18n';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { trackHubRepoStarred, trackHubRepoForked } from '../../lib/analytics';
 import { ModuleSymbol, ModuleWordmark } from '../layout/ModuleLogo';
@@ -44,6 +46,7 @@ export function HubRepoHeader({
   onRepoUpdated,
 }: HubRepoHeaderProps) {
   const router = useRouter();
+  const t = useT();
   const { isAuthenticated } = useAuthStore();
   const { showToast } = useToastStore();
 
@@ -81,62 +84,31 @@ export function HubRepoHeader({
     e.preventDefault();
     if (isForking) return;
 
+    // Fork sunucu tarafı bir Hub işlemi: oturum yoksa yerel taklit üretmiyoruz.
+    if (!isAuthenticated) {
+      showToast(t('hub.loginToFork'), 'warning');
+      useAuthModalStore.getState().open();
+      return;
+    }
+
     setIsForking(true);
     const cleanForkName = (forkName || `${repo.name}-fork`).trim();
-    const fallbackSlug = cleanForkName
-      .toLowerCase()
-      .replace(/[^a-z0-9\-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '') || `${repo.slug}-fork`;
 
     try {
-      let targetOwner = 'me';
-      let targetSlug = fallbackSlug;
+      const res = await hubService.fork(repo.id, cleanForkName);
+      const targetSlug = res?.slug || res?.id;
+      const targetOwner = res?.owner?.username || useAuthStore.getState().user?.username;
+      if (!targetSlug || !targetOwner) throw new Error('Fork response is missing the new repository address.');
 
-      if (isAuthenticated) {
-        try {
-          const res = await hubService.fork(repo.id, cleanForkName);
-          if (res?.slug) targetSlug = res.slug;
-          if (res?.owner?.username) {
-            targetOwner = res.owner.username;
-          } else if (useAuthStore.getState().user?.username) {
-            targetOwner = useAuthStore.getState().user!.username;
-          }
-        } catch (apiErr) {
-          console.warn('[Hub] Remote fork API call failed, falling back to local clone:', apiErr);
-        }
-      }
-
-      // Always create a local clone in project history so the user can work with it immediately
-      const newProjectId = 'fork-' + Date.now();
-      const clonedSchema = repo.schema
-        ? JSON.parse(JSON.stringify(repo.schema))
-        : {
-            schemaId: newProjectId,
-            name: cleanForkName,
-            tables: [],
-            relations: [],
-          };
-      clonedSchema.schemaId = newProjectId;
-      clonedSchema.name = cleanForkName;
-
-      useProjectHistoryStore.getState().saveCurrentProject(
-        clonedSchema,
-        [],
-        cleanForkName,
-        (repo.dbType as any) || 'PostgreSQL'
-      );
-      useProjectHistoryStore.getState().setActiveProjectId(newProjectId);
-
-      showToast(`Fork oluşturuldu: ${cleanForkName}`, 'success');
+      showToast(t('hub.forkCreated', { name: cleanForkName }), 'success');
       trackHubRepoForked(repo.id);
       setIsForkModalOpen(false);
       onRepoUpdated?.({ forkCount: (repo.forkCount || 0) + 1 });
 
-      // Redirect to the newly forked repo page
       router.push(`/hub/${encodeURIComponent(targetOwner)}/${encodeURIComponent(targetSlug)}`);
     } catch {
-      showToast('Depo çatallanırken (fork) bir hata oluştu.', 'error');
+      // Başarısızlıkta yerel kopya/yönlendirme yok; modal açık kalır, kullanıcı tekrar dener.
+      showToast(t('hub.forkFailed'), 'error');
     } finally {
       setIsForking(false);
     }
@@ -145,12 +117,22 @@ export function HubRepoHeader({
   const handleOpenInStudio = () => {
     try {
       if (repo.schema) {
+        // Yerelde olmayan/başkasının deposu açılırken etkin proje bırakılıyor; aksi hâlde
+        // canvas autosave'i bu şemayı daha önce açık olan projenin üzerine yazardı.
+        const ownLocal = repo.caller?.canEdit &&
+          useProjectHistoryStore.getState().projects.some((p) => p.id === repo.id);
+        if (ownLocal) {
+          showToast(t('hub.openedInStudio', { name: repo.name }), 'info');
+          router.push(`/canvas?project=${encodeURIComponent(repo.id)}`);
+          return;
+        }
+        useProjectHistoryStore.getState().setActiveProjectId(null);
         useSchemaStore.getState().loadFromSchema(repo.schema);
         if (repo.dbType) {
-          useSchemaStore.getState().setDbType(repo.dbType as any);
+          useSchemaStore.getState().setDbType(repo.dbType as DbType);
         }
       }
-      showToast(`Opened ${repo.name} in studio`, 'info');
+      showToast(t('hub.openedInStudio', { name: repo.name }), 'info');
       router.push('/canvas');
     } catch {
       router.push('/canvas');
@@ -305,9 +287,6 @@ export function HubRepoHeader({
           >
             <Layers className="w-4 h-4 text-accent-text" />
             <span>Integrations</span>
-            <span className="px-1.5 py-0.2 text-[10px] font-mono rounded-full bg-surface-700 text-ink-secondary border border-line">
-              5
-            </span>
           </button>
 
           <button
