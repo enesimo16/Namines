@@ -488,7 +488,16 @@ public class HubController : ControllerBase
             project.DbType = newDbType;
 
         project.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (DbUniqueViolation.IsUniqueViolation(ex))
+        {
+            // Ön kontrol ile kayıt arasında aynı sahibin başka bir isteği slug'ı aldıysa
+            // (UserId, Slug) unique index yakalar; 500 yerine ön kontroldekiyle aynı 409.
+            return Conflict(new { error = "This slug is already taken." });
+        }
 
         return Ok(new
         {
