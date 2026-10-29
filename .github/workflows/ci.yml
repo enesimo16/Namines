@@ -95,6 +95,9 @@ jobs:
       - name: Duman testi — namines CLI çıkış kodları
         shell: bash
         run: |
+          # `shell: bash` adımı `bash -e` ile koşuyor; diff'in BEKLENEN 2 çıkışı, `$?`
+          # kontrol edilemeden adımı öldürüyordu. Çıkış kodlarını kendimiz denetliyoruz.
+          set +e
           set -uo pipefail
           CLI="dotnet backend/Namines.Cli/bin/Release/net8.0/namines.dll"
           cat > /tmp/base.json <<'JSON'
