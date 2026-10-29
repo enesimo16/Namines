@@ -11,7 +11,7 @@
  * oturumu açık bırakır.
  */
 
-const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+import { API_BASE as API } from './config';
 const TOKEN_KEY = 'namines-desk-token';
 
 export class AuthError extends Error {
@@ -70,6 +70,9 @@ export async function login(email: string, password: string): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
     cache: 'no-store',
+    // Bearer jeton kullaniliyor; /desk ana uygulamayla ayni origin'de olabilir ve
+    // Set-Cookie ana uygulamanin oturum cerezinin ustune yazardi.
+    credentials: 'omit',
   });
 
   if (!res.ok) {
@@ -99,6 +102,9 @@ export async function register(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
     cache: 'no-store',
+    // Bearer jeton kullaniliyor; /desk ana uygulamayla ayni origin'de olabilir ve
+    // Set-Cookie ana uygulamanin oturum cerezinin ustune yazardi.
+    credentials: 'omit',
   });
 
   if (!res.ok) {
