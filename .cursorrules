@@ -26,10 +26,10 @@ Whenever database schemas, migrations, SQL queries, or models are being discusse
   - `ir.json` / `nsl`: Namines Canonical IR & Schema Language
 
 ## 3. Live Data & Query Exploration
-- Use `namines_desk_execute_query` to safely run exploratory SELECT queries against connected databases with row limits.
+- Use `namines_desk_execute_query` for READ-ONLY exploration: a single SELECT/WITH/EXPLAIN/SHOW statement with a row limit. It rejects writes, DDL and multi-statement input (and does not support SQLite); never use it to change data.
 - Use `namines_desk_browse_table` to inspect table records with pagination and column filters.
 - Use `namines_pull_schema` to introspect live database structures (PostgreSQL, MSSQL, MySQL, MariaDB, Oracle).
 
 ## 4. Hub Architectural Blueprints
-- When designing a new feature (e.g. general ledger, multi-tenant SaaS, EHR, inventory ERP, e-commerce checkout), search for certified production architectures using `namines_hub_search_blueprints`.
-- Retrieve complete 3NF schemas using `namines_hub_get_blueprint(slug)`.
+- When designing a new feature (e.g. general ledger, multi-tenant SaaS, EHR, inventory ERP, e-commerce checkout), search for curated production architecture blueprints using `namines_hub_search_blueprints`.
+- Retrieve complete blueprint schemas using `namines_hub_get_blueprint(slug)`.
