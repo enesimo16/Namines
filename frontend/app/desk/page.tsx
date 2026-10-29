@@ -83,8 +83,8 @@ function DeskPageContent() {
       const localMatch = localProjects.find((p) => p.id === projectParam);
       const resolvedName =
         cloudMatch?.name || localMatch?.name || scopedProjectName || scopedHubRepo?.name || 'Project Studio';
+      // activeProjectId bilerek değiştirilmiyor (autosave başka projenin şemasını ezmesin)
       setScopedProject(projectParam, resolvedName);
-      useProjectHistoryStore.getState().setActiveProjectId(projectParam);
     } else {
       clearProjectSession();
     }
