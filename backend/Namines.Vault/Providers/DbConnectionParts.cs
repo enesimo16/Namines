@@ -74,7 +74,7 @@ internal sealed record DbConnectionParts(
     /// (PostgreSQL 5432, MySQL/MariaDB 3306). Yanlış varsayılan, kullanıcının
     /// portu yazmadığı her bağlantıda sessiz bir "connection refused" demekti.
     /// </param>
-    public static DbConnectionParts Parse(string connectionString, int defaultPort)
+    public static DbConnectionParts Parse(string connectionString, int defaultPort, IDbHostAccessPolicy? hostPolicy = null)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("Connection string is required.", nameof(connectionString));
@@ -105,7 +105,7 @@ internal sealed record DbConnectionParts(
 
         var result = new DbConnectionParts(host, port, database, username, password);
         // Ad yerine DOGRULANAN ADRESI sabitle — bkz. ResolveAndValidate.
-        result.ResolvedAddress = ResolveAndValidate(result.Host);
+        result.ResolvedAddress = ResolveAndValidate(result.Host, System.Net.Dns.GetHostAddresses, hostPolicy);
         return result;
     }
 
@@ -133,10 +133,8 @@ internal sealed record DbConnectionParts(
     /// şeyi doğrulanmış gibi göstermek olurdu; bağlantıyı tamamen reddetmek ise
     /// çözümlemenin geçici olarak başarısız olduğu her durumda yedeği kesecekti.
     /// </summary>
-    private static string? ResolveAndValidate(string host) =>
-        ResolveAndValidate(host, System.Net.Dns.GetHostAddresses);
-
-    internal static string? ResolveAndValidate(string host, Func<string, System.Net.IPAddress[]> resolve)
+    internal static string? ResolveAndValidate(
+        string host, Func<string, System.Net.IPAddress[]> resolve, IDbHostAccessPolicy? hostPolicy)
     {
         if (LoopbackNames.Contains(host)) return null;
 
@@ -156,8 +154,16 @@ internal sealed record DbConnectionParts(
         // listenin her adresi (IP literal olarak, yeniden çözümleme YOK) doğrulanıyor.
         // Güvensizse ada geri DÜŞÜLMÜYOR: ad konteynerde yeniden çözülüp iç ağa gidebilirdi.
         if (!addresses.All(a => SsrfGuard.IsHostSafe(a.ToString())))
+        {
+            // Mevcut egress politikası özel hedefe izin veriyorsa (yalnızca Development +
+            // Security:AllowPrivateDbHosts) eski davranış: ad olduğu gibi geçer, sabitleme yok.
+            // Politika kendi içinde IsHostSafe'i de çağırdığından, güvensiz çözülen bir adı
+            // yalnızca bu bayrak geçirebilir.
+            if (hostPolicy is not null && hostPolicy.IsHostAllowed(host, out _)) return null;
+
             throw new ArgumentException(
                 "The database host resolves to a non-public address and cannot be used.", nameof(host));
+        }
 
         return addresses[0].ToString();
     }

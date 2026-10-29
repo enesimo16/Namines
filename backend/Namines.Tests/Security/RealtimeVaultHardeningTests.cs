@@ -14,7 +14,7 @@ public sealed class VaultHostPinningTests
     public void Public_resolution_pins_the_first_validated_address()
     {
         var pinned = DbConnectionParts.ResolveAndValidate("db.example.test",
-            _ => new[] { IPAddress.Parse("8.8.8.8"), IPAddress.Parse("1.1.1.1") });
+            _ => new[] { IPAddress.Parse("8.8.8.8"), IPAddress.Parse("1.1.1.1") }, null);
 
         Assert.Equal("8.8.8.8", pinned);
     }
@@ -23,14 +23,35 @@ public sealed class VaultHostPinningTests
     public void A_single_non_public_address_in_the_resolved_list_rejects_the_host()
     {
         Assert.Throws<ArgumentException>(() => DbConnectionParts.ResolveAndValidate("db.example.test",
-            _ => new[] { IPAddress.Parse("8.8.8.8"), IPAddress.Parse("10.0.0.5") }));
+            _ => new[] { IPAddress.Parse("8.8.8.8"), IPAddress.Parse("10.0.0.5") }, null));
     }
 
     [Fact]
     public void Metadata_address_is_rejected_instead_of_falling_back_to_the_hostname()
     {
         Assert.Throws<ArgumentException>(() => DbConnectionParts.ResolveAndValidate("rebind.example.test",
-            _ => new[] { IPAddress.Parse("169.254.169.254") }));
+            _ => new[] { IPAddress.Parse("169.254.169.254") }, null));
+    }
+
+    private sealed class FixedPolicy(bool allow) : Namines.Core.Security.IDbHostAccessPolicy
+    {
+        public bool IsHostAllowed(string? host, out string denyReason) { denyReason = ""; return allow; }
+    }
+
+    [Fact]
+    public void Private_resolution_is_accepted_when_the_policy_allows_private_hosts()
+    {
+        var pinned = DbConnectionParts.ResolveAndValidate("db.internal.test",
+            _ => new[] { IPAddress.Parse("10.0.0.5") }, new FixedPolicy(true));
+
+        Assert.Null(pinned); // eski davranış: ad geçer
+    }
+
+    [Fact]
+    public void Private_resolution_is_rejected_when_the_policy_disallows_private_hosts()
+    {
+        Assert.Throws<ArgumentException>(() => DbConnectionParts.ResolveAndValidate("db.internal.test",
+            _ => new[] { IPAddress.Parse("10.0.0.5") }, new FixedPolicy(false)));
     }
 }
 
