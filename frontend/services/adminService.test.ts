@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const get = vi.fn();
-const put = vi.fn();
+// vi.mock fabrikası dosyanın en üstüne taşınıyor; mock'ları onunla birlikte taşı.
+const { get, put } = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
 vi.mock('axios', () => {
   const instance = { get, put, post: vi.fn(), delete: vi.fn(), interceptors: { request: { use: vi.fn() } } };
   return { default: { create: () => instance, isAxiosError: () => false } };
