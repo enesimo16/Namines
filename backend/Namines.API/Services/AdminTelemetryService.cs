@@ -95,13 +95,48 @@ public class AdminTelemetryService
     private SystemBotAuditReport? _lastAuditReport;
     private readonly object _auditLock = new();
 
-    public AdminTelemetryService()
+    // Kimliksiz telemetri ucu için IP başına dakikalık sayaç.
+    private const int MaxEventsPerIpPerMinute = 120;
+    private const int MaxTrackedIps = 10_000;
+    private readonly ConcurrentDictionary<string, (long WindowStartTicks, int Count)> _ipWindows = new();
+
+    /// <summary>
+    /// IP başına dakikalık olay sınırı. Sınır aşılmışsa false döner; kayıt alınmamalı.
+    /// </summary>
+    public bool TryAcceptFrom(string? ip)
     {
-        // Seed initial demo logs
-        foreach (var log in GenerateDemoLogs())
+        var key = string.IsNullOrEmpty(ip) ? "unknown" : ip;
+        var now = DateTime.UtcNow.Ticks;
+        var window = TimeSpan.FromMinutes(1).Ticks;
+
+        if (_ipWindows.Count > MaxTrackedIps)
         {
-            _logs.Enqueue(log);
+            foreach (var kv in _ipWindows)
+            {
+                if (now - kv.Value.WindowStartTicks > window) _ipWindows.TryRemove(kv.Key, out _);
+            }
         }
+
+        var accepted = true;
+        _ipWindows.AddOrUpdate(
+            key,
+            _ => (now, 1),
+            (_, cur) =>
+            {
+                if (now - cur.WindowStartTicks > window)
+                {
+                    accepted = true;
+                    return (now, 1);
+                }
+                if (cur.Count >= MaxEventsPerIpPerMinute)
+                {
+                    accepted = false;
+                    return cur;
+                }
+                accepted = true;
+                return (cur.WindowStartTicks, cur.Count + 1);
+            });
+        return accepted;
     }
 
     public void Track(TelemetryEventItem item)
@@ -121,9 +156,10 @@ public class AdminTelemetryService
     public List<UserSessionSummary> GetRecentSessions(int limit = 50)
     {
         var allEvents = _events.ToArray();
+        // Olay yoksa oturum da yok: uydurma örnek oturum göstermek admin'i yanıltır.
         if (allEvents.Length == 0)
         {
-            return GenerateDemoSessions();
+            return new List<UserSessionSummary>();
         }
 
         var grouped = allEvents
@@ -177,26 +213,6 @@ public class AdminTelemetryService
                 var mode = ev.Action.Replace("start_", "");
                 startModes[mode] = startModes.GetValueOrDefault(mode, 0) + 1;
             }
-        }
-
-        if (moduleClicks.Count == 0)
-        {
-            moduleClicks["canvas"] = 142;
-            moduleClicks["new"] = 89;
-            moduleClicks["desk"] = 47;
-            moduleClicks["compile"] = 38;
-            moduleClicks["ground"] = 24;
-            moduleClicks["vault"] = 18;
-            moduleClicks["flow"] = 15;
-        }
-
-        if (startModes.Count == 0)
-        {
-            startModes["prompt"] = 54;
-            startModes["starter"] = 22;
-            startModes["database"] = 14;
-            startModes["code"] = 8;
-            startModes["json"] = 5;
         }
 
         return (allEvents.Length, moduleClicks, startModes);
@@ -475,129 +491,5 @@ public class AdminTelemetryService
         }
 
         return incidents;
-    }
-
-    private List<AdminSystemLogItem> GenerateDemoLogs()
-    {
-        var now = DateTime.UtcNow;
-        return new List<AdminSystemLogItem>
-        {
-            new AdminSystemLogItem
-            {
-                Id = "log-e101",
-                Timestamp = now.AddMinutes(-5),
-                Level = "Error",
-                Source = "AI Gateway",
-                Message = "Model token context limit warning: generation truncated at 8192 tokens.",
-                StackTrace = "at Namines.API.Services.AiGateway.ExecuteAsync() in /app/Services/AiGateway.cs:line 144",
-                Path = "/api/schema/generate-stream",
-                UserEmail = "developer@acme.corp",
-                Resolved = false
-            },
-            new AdminSystemLogItem
-            {
-                Id = "log-w202",
-                Timestamp = now.AddMinutes(-18),
-                Level = "Warning",
-                Source = "SignalR Hub",
-                Message = "Client heartbeat delayed by 2400ms: packet dropped on high socket volume.",
-                Path = "/hubs/canvas",
-                UserEmail = "namines@namines.com",
-                Resolved = false
-            },
-            new AdminSystemLogItem
-            {
-                Id = "log-e303",
-                Timestamp = now.AddMinutes(-45),
-                Level = "Error",
-                Source = "Control DB",
-                Message = "Npgsql.NpgsqlException: Connection pool timeout (15000ms) under concurrent stress.",
-                StackTrace = "at Npgsql.NpgsqlConnector.Connect(NpgsqlTimeout timeout) in /src/Npgsql/NpgsqlConnector.cs:line 280",
-                Path = "/api/admin/users",
-                UserEmail = "admin@namines.com",
-                Resolved = true
-            },
-            new AdminSystemLogItem
-            {
-                Id = "log-w404",
-                Timestamp = now.AddHours(-2),
-                Level = "Warning",
-                Source = "Vault",
-                Message = "Automated snapshot backup completed with 1 skipped circular table reference.",
-                Path = "/api/vault/backup",
-                UserEmail = "data.team@fintech.io",
-                Resolved = true
-            },
-            new AdminSystemLogItem
-            {
-                Id = "log-i505",
-                Timestamp = now.AddHours(-3),
-                Level = "Info",
-                Source = "Runner",
-                Message = "DDL compilation and syntax audit passed cleanly across all 6 SQL engines.",
-                Path = "/api/compile/ddl",
-                UserEmail = "dev@startup.app",
-                Resolved = true
-            }
-        };
-    }
-
-    private List<UserSessionSummary> GenerateDemoSessions()
-    {
-        var now = DateTime.UtcNow;
-        return new List<UserSessionSummary>
-        {
-            new UserSessionSummary
-            {
-                SessionId = "sess-8a12f9b1",
-                UserEmail = "namines@namines.com",
-                StartedAt = now.AddMinutes(-42),
-                LastActiveAt = now.AddMinutes(-2),
-                DurationMinutes = 40,
-                PagesVisited = new List<string> { "/new", "/canvas", "/compile" },
-                StartMode = "prompt",
-                TotalClicks = 28,
-                RecentActions = new List<TelemetryEventItem>
-                {
-                    new TelemetryEventItem { Action = "start_prompt", Module = "new", Path = "/new", Timestamp = now.AddMinutes(-41) },
-                    new TelemetryEventItem { Action = "generate_schema", Module = "canvas", Path = "/canvas", Timestamp = now.AddMinutes(-39) },
-                    new TelemetryEventItem { Action = "add_table", Module = "canvas", Path = "/canvas", Timestamp = now.AddMinutes(-25) },
-                    new TelemetryEventItem { Action = "view_sql", Module = "compile", Path = "/compile", Timestamp = now.AddMinutes(-3) },
-                }
-            },
-            new UserSessionSummary
-            {
-                SessionId = "sess-4f81c20e",
-                UserEmail = "developer@acme.corp",
-                StartedAt = now.AddHours(-2).AddMinutes(-15),
-                LastActiveAt = now.AddHours(-1).AddMinutes(-45),
-                DurationMinutes = 30,
-                PagesVisited = new List<string> { "/new", "/canvas", "/flow" },
-                StartMode = "starter_template",
-                TotalClicks = 19,
-                RecentActions = new List<TelemetryEventItem>
-                {
-                    new TelemetryEventItem { Action = "start_starter", Module = "new", Path = "/new", Timestamp = now.AddHours(-2).AddMinutes(-14) },
-                    new TelemetryEventItem { Action = "configure_automation", Module = "flow", Path = "/flow", Timestamp = now.AddHours(-1).AddMinutes(-50) },
-                }
-            },
-            new UserSessionSummary
-            {
-                SessionId = "sess-9c33d11b",
-                UserEmail = "data.team@fintech.io",
-                StartedAt = now.AddHours(-4),
-                LastActiveAt = now.AddHours(-3).AddMinutes(-35),
-                DurationMinutes = 25,
-                PagesVisited = new List<string> { "/new", "/canvas", "/ground", "/vault" },
-                StartMode = "db_connect",
-                TotalClicks = 34,
-                RecentActions = new List<TelemetryEventItem>
-                {
-                    new TelemetryEventItem { Action = "start_dbconnect", Module = "new", Path = "/new", Timestamp = now.AddHours(-4) },
-                    new TelemetryEventItem { Action = "test_connection", Module = "ground", Path = "/ground", Timestamp = now.AddHours(-3).AddMinutes(-55) },
-                    new TelemetryEventItem { Action = "create_backup", Module = "vault", Path = "/vault", Timestamp = now.AddHours(-3).AddMinutes(-38) },
-                }
-            }
-        };
     }
 }
