@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using System.Net;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
@@ -131,45 +132,45 @@ public class GatewayKeyRestrictionTests
     // ── Rate limit ───────────────────────────────────────────────────────────
 
     [Fact]
-    public void A_key_without_a_limit_is_never_throttled_here()
+    public async Task A_key_without_a_limit_is_never_throttled_here()
     {
         // Sunucunun genel politikası zaten devrede; anahtar sınırı ek bir katman.
         var key = Key();
-        for (var i = 0; i < 100; i++) Assert.True(GatewayRateLimiter.TryAcquire(key));
+        for (var i = 0; i < 100; i++) Assert.True(await GatewayRateLimiter.TryAcquireAsync(key));
     }
 
     [Fact]
-    public void A_key_is_throttled_once_its_limit_is_reached()
+    public async Task A_key_is_throttled_once_its_limit_is_reached()
     {
         GatewayRateLimiter.Reset();
         var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         for (var i = 0; i < 3; i++)
-            Assert.True(GatewayRateLimiter.TryAcquire("throttle-test", 3, now));
+            Assert.True(await GatewayRateLimiter.TryAcquireAsync("throttle-test", 3, now));
 
-        Assert.False(GatewayRateLimiter.TryAcquire("throttle-test", 3, now));
+        Assert.False(await GatewayRateLimiter.TryAcquireAsync("throttle-test", 3, now));
     }
 
     [Fact]
-    public void The_window_resets_after_a_minute()
+    public async Task The_window_resets_after_a_minute()
     {
         GatewayRateLimiter.Reset();
         var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        Assert.True(GatewayRateLimiter.TryAcquire("window-test", 1, now));
-        Assert.False(GatewayRateLimiter.TryAcquire("window-test", 1, now.AddSeconds(59)));
-        Assert.True(GatewayRateLimiter.TryAcquire("window-test", 1, now.AddSeconds(60)));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync("window-test", 1, now));
+        Assert.False(await GatewayRateLimiter.TryAcquireAsync("window-test", 1, now.AddSeconds(59)));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync("window-test", 1, now.AddSeconds(60)));
     }
 
     [Fact]
-    public void Keys_do_not_share_a_window()
+    public async Task Keys_do_not_share_a_window()
     {
         GatewayRateLimiter.Reset();
         var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        Assert.True(GatewayRateLimiter.TryAcquire("key-a", 1, now));
-        Assert.False(GatewayRateLimiter.TryAcquire("key-a", 1, now));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync("key-a", 1, now));
+        Assert.False(await GatewayRateLimiter.TryAcquireAsync("key-a", 1, now));
         // Bir anahtarın limiti diğerini etkilememeli.
-        Assert.True(GatewayRateLimiter.TryAcquire("key-b", 1, now));
+        Assert.True(await GatewayRateLimiter.TryAcquireAsync("key-b", 1, now));
     }
 }
