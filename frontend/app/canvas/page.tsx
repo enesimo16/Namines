@@ -77,6 +77,7 @@ import AIGatewayModal from '../../components/canvas/panels/AIGatewayModal';
 import SchemaTextualSummary from '../../components/canvas/SchemaTextualSummary';
 import MultiplayerCursors from '../../components/canvas/MultiplayerCursors';
 import EmptyCanvasState from '../../components/canvas/EmptyCanvasState';
+import VisionImportHost from '../../components/canvas/VisionImportHost';
 import { token } from '../../lib/designTokens';
 import { useHomeThemeStore } from '../../store/useHomeThemeStore';
 import { useActiveEdgeMenuStore } from '../../store/useActiveEdgeMenuStore';
@@ -829,6 +830,7 @@ export default function CanvasPage() {
       </ReactFlowProvider>
 
       <EmptyCanvasState />
+      <VisionImportHost />
 
       <TableEditorDrawer />
       <AutomationRuleDrawer />
