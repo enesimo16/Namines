@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +11,7 @@ namespace Namines.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[FeatureGate("tool_migration_engine")]
 public class MigrationController : ControllerBase
 {
     private readonly IMigrationService _migrationService;

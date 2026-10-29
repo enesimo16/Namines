@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -15,6 +16,7 @@ namespace Namines.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[FeatureGate("smart_seed")]
 public class SmartSeedController : ControllerBase
 {
     private readonly ISmartSeedService _smartSeedService;

@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
@@ -67,6 +68,7 @@ public class SchemaController : ControllerBase
     ///
     /// Sonuç: bu uç <b>bedava</b> ve kotayı hiç etkilemiyor.
     /// </summary>
+    [FeatureGate("schema_generator")]
     [HttpPost("clarify")]
     [AllowAnonymous]
     public IActionResult Clarify([FromBody] ClarifyRequest request)
@@ -126,6 +128,7 @@ public class SchemaController : ControllerBase
     /// tablo çıkardı. O metni prompt'a eklemek, modele kendi bulduğu alanı
     /// unutturup dörde razı olmasını söylemek olurdu.
     /// </summary>
+    [FeatureGate("schema_generator")]
     [HttpPost("plan")]
     [AllowAnonymous]
     public IActionResult Plan([FromBody] PlanRequest request)
@@ -243,6 +246,7 @@ public class SchemaController : ControllerBase
         });
     }
 
+    [FeatureGate("schema_generator")]
     [HttpPost("generate")]
     [EnableRateLimiting("ai-generation")]
     public async Task<IActionResult> GenerateSchema([FromForm] GenerateRequest request)
@@ -657,6 +661,7 @@ public class SchemaController : ControllerBase
         return Math.Min(affordable, ceiling);
     }
 
+    [FeatureGate("schema_generator")]
     [HttpPost("revise")]
     public async Task<IActionResult> ReviseSchema([FromBody] ReviseRequest request)
     {

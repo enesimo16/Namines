@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.IO;
 using System.Linq;
@@ -28,6 +29,7 @@ public class ReverseEngineerController : ControllerBase
         _logger = logger;
     }
 
+    [FeatureGate("tool_vision_ocr")]
     [HttpPost("analyze")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> AnalyzeImage(IFormFile image)

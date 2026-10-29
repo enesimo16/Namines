@@ -412,6 +412,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         };
 
         var getRes = await controller.GetFeatures();
-        Assert.IsType<UnauthorizedResult>(getRes);
+        var forbidden = Assert.IsType<ObjectResult>(getRes);
+        Assert.Equal(403, forbidden.StatusCode);
     }
 }

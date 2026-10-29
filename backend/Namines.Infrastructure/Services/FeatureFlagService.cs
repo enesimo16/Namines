@@ -26,7 +26,13 @@ public sealed class FeatureFlagService : IFeatureFlagService
     private readonly ConcurrentDictionary<string, AdminFeatureFlag> _flagsCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<FeatureFlagService> _logger;
-    private bool _initialized;
+    // Başarılı yüklemeden sonra bir sonraki tazelemenin zamanı. DB okuması patlarsa
+    // "başlatıldı" işaretlenmez (aksi hâlde kapatılmış bir bayrak sonsuza dek açık
+    // görünürdü); kısa aralıkla tekrar denenir. Başarıda da periyodik tazelenir ki
+    // başka bir örnekte yapılan değişiklik buraya yansısın.
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(5);
+    private DateTime _nextRefreshUtc = DateTime.MinValue;
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
     public FeatureFlagService(
@@ -545,15 +551,16 @@ public sealed class FeatureFlagService : IFeatureFlagService
 
     private async Task EnsureInitializedAsync(CancellationToken ct)
     {
-        if (_initialized) return;
+        if (DateTime.UtcNow < _nextRefreshUtc) return;
 
         await _initLock.WaitAsync(ct);
         try
         {
-            if (_initialized) return;
+            if (DateTime.UtcNow < _nextRefreshUtc) return;
 
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetService<AuthDbContext>();
+            var loaded = db == null;
             if (db != null)
             {
                 try
@@ -591,14 +598,15 @@ public sealed class FeatureFlagService : IFeatureFlagService
                             _flagsCache[d.FeatureKey] = d;
                         }
                     }
+                    loaded = true;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "FeatureFlags tablosu okunamadı veya henüz migrate edilmedi. Bellek içi bayraklar devrede.");
+                    _logger.LogWarning(ex, "FeatureFlags tablosu okunamadı veya henüz migrate edilmedi. Bellek içi bayraklar devrede, kısa süre sonra tekrar denenecek.");
                 }
             }
 
-            _initialized = true;
+            _nextRefreshUtc = DateTime.UtcNow + (loaded ? RefreshInterval : RetryInterval);
         }
         finally
         {
@@ -628,56 +636,67 @@ public sealed class FeatureFlagService : IFeatureFlagService
     {
         await EnsureInitializedAsync(ct);
 
-        if (!_flagsCache.TryGetValue(featureKey, out var flag))
+        // Katalogda olmayan anahtar kabul edilmez: yazım hatası "özel bayrak" olarak
+        // DB'ye girip hiçbir şeyi kapatmayan, ama kapatılmış gibi görünen kayıt yaratırdı.
+        if (string.IsNullOrWhiteSpace(featureKey) || !_flagsCache.TryGetValue(featureKey, out var current))
         {
-            flag = new AdminFeatureFlag
-            {
-                FeatureKey = featureKey,
-                DisplayName = featureKey,
-                Description = "Özel Tanımlı Özellik",
-                Category = "Custom"
-            };
+            throw new ArgumentException($"Unknown feature key: '{featureKey}'.", nameof(featureKey));
         }
 
-        flag.IsEnabled = isEnabled;
-        flag.Mode = string.Equals(mode, "Hidden", StringComparison.OrdinalIgnoreCase) ? "Hidden" : "DisabledNotice";
-        if (!string.IsNullOrWhiteSpace(noticeMessage))
+        // Mod verilmediyse mevcut mod korunur (Hidden bayrağı sessizce DisabledNotice'a dönmesin).
+        string newMode;
+        if (string.IsNullOrWhiteSpace(mode)) newMode = current.Mode;
+        else if (string.Equals(mode, "Hidden", StringComparison.OrdinalIgnoreCase)) newMode = "Hidden";
+        else if (string.Equals(mode, "DisabledNotice", StringComparison.OrdinalIgnoreCase)) newMode = "DisabledNotice";
+        else throw new ArgumentException("Mode must be 'DisabledNotice' or 'Hidden'.", nameof(mode));
+
+        // Önbellekteki nesne paylaşımlı: yazma başarısız olursa yarım güncelleme kalmasın diye kopya üzerinde çalışılır.
+        var updated = new AdminFeatureFlag
         {
-            flag.NoticeMessage = noticeMessage.Trim();
-        }
-        flag.UpdatedAt = DateTime.UtcNow;
+            FeatureKey = current.FeatureKey,
+            DisplayName = current.DisplayName,
+            Description = current.Description,
+            Category = current.Category,
+            IsEnabled = isEnabled,
+            Mode = newMode,
+            NoticeMessage = string.IsNullOrWhiteSpace(noticeMessage) ? current.NoticeMessage : noticeMessage.Trim(),
+            UpdatedAt = DateTime.UtcNow
+        };
 
-        _flagsCache[featureKey] = flag;
-
-        // DB'ye yaz
+        // Önce DB'ye yaz; başarısızsa çağıran hatayı görür ve önbellek eski (doğru) değerde kalır.
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetService<AuthDbContext>();
         if (db != null)
         {
-            try
+            var existing = await db.FeatureFlags.FirstOrDefaultAsync(f => f.FeatureKey == updated.FeatureKey, ct);
+            if (existing != null)
             {
-                var existing = await db.FeatureFlags.FirstOrDefaultAsync(f => f.FeatureKey == featureKey, ct);
-                if (existing != null)
-                {
-                    existing.IsEnabled = flag.IsEnabled;
-                    existing.Mode = flag.Mode;
-                    existing.NoticeMessage = flag.NoticeMessage;
-                    existing.UpdatedAt = flag.UpdatedAt;
-                }
-                else
-                {
-                    db.FeatureFlags.Add(flag);
-                }
-                await db.SaveChangesAsync(ct);
+                existing.IsEnabled = updated.IsEnabled;
+                existing.Mode = updated.Mode;
+                existing.NoticeMessage = updated.NoticeMessage;
+                existing.UpdatedAt = updated.UpdatedAt;
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogWarning(ex, "FeatureFlag veritabanına kaydedilirken hata: {FeatureKey}", featureKey);
+                db.FeatureFlags.Add(new AdminFeatureFlag
+                {
+                    FeatureKey = updated.FeatureKey,
+                    DisplayName = updated.DisplayName,
+                    Description = updated.Description,
+                    Category = updated.Category,
+                    IsEnabled = updated.IsEnabled,
+                    Mode = updated.Mode,
+                    NoticeMessage = updated.NoticeMessage,
+                    UpdatedAt = updated.UpdatedAt
+                });
             }
+            await db.SaveChangesAsync(ct);
         }
 
+        _flagsCache[updated.FeatureKey] = updated;
+
         _logger.LogInformation("Özellik bayrağı güncellendi: {FeatureKey} -> IsEnabled: {IsEnabled}, Mode: {Mode}",
-            featureKey, flag.IsEnabled, flag.Mode);
+            updated.FeatureKey, updated.IsEnabled, updated.Mode);
     }
 
     public bool IsFeatureEnabled(string featureKey, out string displayMode, out string noticeMessage)

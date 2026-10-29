@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Namines.Core.Analysis;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Interfaces;
@@ -97,6 +99,51 @@ public class AdminController : ControllerBase
         }
     }
 
+    private const double BytesPerMb = 1024.0 * 1024.0;
+    private const int MaxBonusPoints = 100_000;
+
+    /// <summary>
+    /// Şema JSON'undaki gerçek tablo sayısı. Ayrıştırılamayan/boş şema 0 sayılır:
+    /// uydurma bir taban değer vermektense "bilinmiyor"u sıfır göstermek dürüst olandır.
+    /// (SchemaTable JSON'da <c>name</c> olarak serileşir; eski <c>tableName</c> araması hep 0 dönüyordu.)
+    /// </summary>
+    internal static int CountTables(string? schemaJson)
+    {
+        if (string.IsNullOrWhiteSpace(schemaJson)) return 0;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(schemaJson);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return 0;
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                if (prop.Name.Equals("tables", StringComparison.OrdinalIgnoreCase) &&
+                    prop.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    return prop.Value.GetArrayLength();
+                }
+            }
+            return 0;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Admin sorgusundan gelen tarih Kind=Unspecified olabilir; Npgsql timestamptz
+    /// kolonuna karşı Unspecified/Local DateTime'ı reddeder.
+    /// </summary>
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private static string? Cap(string? value, int max) =>
+        value is null ? null : (value.Length <= max ? value : value[..max]);
+
     /// <summary>
     /// Genel Bakış KPI metrikleri (kullanıcılar, projeler, abonelikler, kotalar).
     /// </summary>
@@ -164,16 +211,16 @@ public class AdminController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(q))
         {
-            var search = q.Trim().ToLower();
+            var search = q.Trim().ToLowerInvariant();
             query = query.Where(u =>
-                (u.Email != null && u.Email.ToLower().Contains(search)) ||
-                (u.UserName != null && u.UserName.ToLower().Contains(search)) ||
-                (u.CompanyName != null && u.CompanyName.ToLower().Contains(search)));
+                (u.Email != null && u.Email.ToLowerInvariant().Contains(search)) ||
+                (u.UserName != null && u.UserName.ToLowerInvariant().Contains(search)) ||
+                (u.CompanyName != null && u.CompanyName.ToLowerInvariant().Contains(search)));
         }
 
         if (!string.IsNullOrWhiteSpace(plan) && plan != "all")
         {
-            var p = plan.Trim().ToLower();
+            var p = plan.Trim().ToLowerInvariant();
             if (p == "dev")
             {
                 query = query.Where(u => u.IsDev);
@@ -315,20 +362,19 @@ public class AdminController : ControllerBase
         if (user == null) return NotFound(new { error = "User not found." });
 
         var targetPlan = (dto.PlanCode ?? "free").Trim().ToLowerInvariant();
-        if (targetPlan is not ("free" or "pro" or "team" or "dev"))
-        {
-            return BadRequest(new { error = "Invalid plan code. Valid values: free, pro, team, dev." });
-        }
-
-        user.PlanCode = targetPlan;
         if (targetPlan == "dev")
         {
-            user.IsDev = true;
+            // IsDev sınırsız kotalı süper yetkidir ve yalnızca yapılandırmadaki Dev:Email hesabına
+            // aittir; bir admin ucu bunu başka bir hesaba (ya da kendine) veremez.
+            return BadRequest(new { error = "The dev plan cannot be assigned from the admin panel. It is reserved for the configured Dev:Email account." });
         }
-        else if (user.IsDev && targetPlan != "dev")
+        if (targetPlan is not ("free" or "pro" or "team"))
         {
-            user.IsDev = false;
+            return BadRequest(new { error = "Invalid plan code. Valid values: free, pro, team." });
         }
+
+        // IsDev'e DOKUNULMAZ: plan değişikliği hesabın dev/admin durumunu ne yükseltir ne düşürür.
+        user.PlanCode = targetPlan;
 
         var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == id);
         if (quota == null)
@@ -342,26 +388,47 @@ public class AdminController : ControllerBase
             await _context.UserAIQuotas.AddAsync(quota);
         }
 
-        quota.DailyLimit = targetPlan switch
+        quota.DailyLimit = user.IsDev ? int.MaxValue : targetPlan switch
         {
-            "dev" => int.MaxValue,
             "team" => 2000,
             "pro" => 500,
             _ => 100
         };
 
-        await _userManager.UpdateAsync(user);
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            _logger.LogWarning("Admin plan update failed for User {UserId}: {Errors}",
+                user.Id, string.Join("; ", updateResult.Errors.Select(e => e.Code)));
+            return BadRequest(new
+            {
+                error = "Plan could not be updated.",
+                details = updateResult.Errors.Select(e => e.Description).ToArray()
+            });
+        }
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Admin {AdminEmail} updated User {UserEmail} plan to {Plan}", admin.Email, user.Email, targetPlan);
+
+        // Etkin plan, kayıtlı plan kodundan farklı olabilir: PlanQuotas.Resolve aktif abonelik
+        // yoksa plan kodunu okumaz. Admin "Pro yaptım" derken kullanıcının hâlâ Free
+        // olduğunu görebilmeli.
+        var effective = PlanQuotas.Resolve(user.SubscriptionStatus, user.PlanCode, user.IsDev);
+        var effectivePlan = effective.ToString().ToLowerInvariant();
+        var message = $"User plan updated to {targetPlan.ToUpperInvariant()} successfully.";
+        if (!string.Equals(effectivePlan, targetPlan, StringComparison.Ordinal))
+        {
+            message += $" Note: the effective plan is {effectivePlan.ToUpperInvariant()} because plan codes only apply with an active subscription (or the dev flag).";
+        }
 
         return Ok(new
         {
             id = user.Id,
             planCode = targetPlan,
+            effectivePlan,
             isDev = user.IsDev,
             dailyLimit = quota.DailyLimit,
-            message = $"User plan updated to {targetPlan.ToUpper()} successfully."
+            message
         });
     }
 
@@ -406,7 +473,10 @@ public class AdminController : ControllerBase
         {
             if (quota.DailyLimit != int.MaxValue)
             {
-                quota.DailyLimit += dto.BonusPoints.Value;
+                // int taşması limiti negatife çevirip kullanıcıyı kilitlerdi; int.MaxValue ise
+                // "sınırsız" işaretidir, bonusla ona ulaşılmamalı.
+                var bonus = Math.Min(dto.BonusPoints.Value, MaxBonusPoints);
+                quota.DailyLimit = (int)Math.Min((long)quota.DailyLimit + bonus, int.MaxValue - 1);
             }
         }
 
@@ -442,7 +512,7 @@ public class AdminController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(category) && category != "all")
         {
-            query = query.Where(f => f.Category.ToLower() == category.Trim().ToLower());
+            query = query.Where(f => f.Category.ToLowerInvariant() == category.Trim().ToLowerInvariant());
         }
 
         var totalCount = await query.CountAsync();
@@ -496,21 +566,52 @@ public class AdminController : ControllerBase
         if (days < 1) days = 14;
         if (days > 180) days = 180;
 
-        var filterStartDate = startDate ?? DateTime.UtcNow.Date.AddDays(-days);
-        var filterEndDate = endDate ?? DateTime.UtcNow.Date.AddDays(1);
+        var filterStartDate = AsUtc(startDate ?? DateTime.UtcNow.Date.AddDays(-days));
+        var filterEndDate = AsUtc(endDate ?? DateTime.UtcNow.Date.AddDays(1));
+
+        // Gerçek istek sayıları: ölçüm olayları (UsageEvent) günlük gruplanır. Token'dan
+        // "tahmini istek" türetmek uydurmaydı; olay yoksa istek sayısı 0'dır.
+        var requestsByDay = new Dictionary<string, int>();
+        var totalAiCalls = 0;
+        try
+        {
+            var perDay = await _context.UsageEvents
+                .AsNoTracking()
+                .Where(e => e.Resource == UsageResource.AiCall && e.OccurredAt >= filterStartDate && e.OccurredAt <= filterEndDate)
+                .GroupBy(e => e.OccurredAt.Date)
+                .Select(g => new { Day = g.Key, Count = g.Count() })
+                .ToListAsync();
+            foreach (var row in perDay)
+            {
+                requestsByDay[row.Day.ToString("yyyy-MM-dd")] = row.Count;
+                totalAiCalls += row.Count;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Token stats: AI çağrı olayları okunamadı, istek sayıları 0 gösterilecek.");
+        }
 
         // Geçmiş günler: GlobalAiUsages
-        var historicalUsage = await _context.GlobalAiUsages
+        var historicalRaw = await _context.GlobalAiUsages
             .AsNoTracking()
             .Where(g => g.Date >= filterStartDate && g.Date <= filterEndDate)
             .OrderBy(g => g.Date)
-            .Select(g => new
-            {
-                date = g.Date.ToString("yyyy-MM-dd"),
-                tokens = g.TokensUsed,
-                requests = (int)Math.Max(1, g.TokensUsed / 420)
-            })
+            .Select(g => new { g.Date, g.TokensUsed })
             .ToListAsync();
+
+        var timeline = historicalRaw
+            .Select(g =>
+            {
+                var date = g.Date.ToString("yyyy-MM-dd");
+                return new
+                {
+                    date,
+                    tokens = g.TokensUsed,
+                    requests = requestsByDay.GetValueOrDefault(date, 0)
+                };
+            })
+            .ToList();
 
         // Bugünkü anlık tüketim
         long todayTokens = 0;
@@ -521,49 +622,32 @@ public class AdminController : ControllerBase
         catch { }
 
         var todayDateStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
-        var timeline = new List<object>(historicalUsage);
-        if (!timeline.Any(h => h.GetType().GetProperty("date")?.GetValue(h)?.ToString() == todayDateStr))
+        if (!timeline.Any(h => h.date == todayDateStr))
         {
             timeline.Add(new
             {
                 date = todayDateStr,
                 tokens = todayTokens,
-                requests = (int)Math.Max(1, todayTokens / 380)
+                requests = requestsByDay.GetValueOrDefault(todayDateStr, 0)
             });
         }
 
-        // En çok kullanılan veritabanı motorları
+        // En çok kullanılan veritabanı motorları (yalnızca gerçek proje kayıtları; veri yoksa boş)
         var serverDistribution = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var projects = await _context.CloudProjects.AsNoTracking().Select(p => p.DbType).ToListAsync();
         foreach (var p in projects)
         {
-            var db = string.IsNullOrWhiteSpace(p) ? "PostgreSQL" : p.Trim();
-            if (!serverDistribution.ContainsKey(db)) serverDistribution[db] = 0;
-            serverDistribution[db]++;
-        }
-        if (serverDistribution.Count == 0)
-        {
-            serverDistribution["PostgreSQL"] = 18;
-            serverDistribution["SQLite"] = 11;
-            serverDistribution["MySQL"] = 7;
-            serverDistribution["SQL Server"] = 4;
-            serverDistribution["Oracle"] = 2;
+            var db = string.IsNullOrWhiteSpace(p) ? "Unknown" : p.Trim();
+            serverDistribution[db] = serverDistribution.GetValueOrDefault(db, 0) + 1;
         }
 
-        // Model dağılımı
-        var modelDistribution = new Dictionary<string, int>
-        {
-            ["NAI Standard (GPT-OSS)"] = Math.Max(24, (int)(todayTokens * 0.45 / 500) + 12),
-            ["NAI Pro (Reasoning)"] = Math.Max(14, (int)(todayTokens * 0.25 / 500) + 8),
-            ["Groq (Llama 3.3 70B)"] = Math.Max(18, (int)(todayTokens * 0.20 / 500) + 6),
-            ["DeepSeek V3"] = Math.Max(9, (int)(todayTokens * 0.10 / 500) + 3),
-            ["Claude 3.5 Sonnet"] = 5,
-            ["OpenAI GPT-4o"] = 3
-        };
+        // Model bazında kullanım henüz ölçülmüyor: uydurma dağılım yerine boş döner
+        // (arayüz alanı zaten opsiyonel işliyor).
+        var modelDistribution = new Dictionary<string, int>();
 
-        // Advanced AI Preferences kullanımı
-        var totalPromptsEstimated = Math.Max(50, timeline.Count * 25);
-        var advancedUsedEstimated = (int)Math.Round(totalPromptsEstimated * 0.38);
+        // Gelişmiş AI tercihi kullanımı ölçülmüyor: toplam gerçek AI çağrısı döner, oran bilinmiyor (0).
+        var totalPrompts = totalAiCalls;
+        var advancedUsed = 0;
 
         // En çok tüketen kullanıcılar
         var topUsers = await _context.UserAIQuotas
@@ -589,9 +673,9 @@ public class AdminController : ControllerBase
             serverDistribution,
             advancedPreferences = new
             {
-                totalPrompts = totalPromptsEstimated,
-                advancedCount = advancedUsedEstimated,
-                ratioPercent = 38.0
+                totalPrompts,
+                advancedCount = advancedUsed,
+                ratioPercent = 0.0
             },
             topUsers
         });
@@ -620,20 +704,39 @@ public class AdminController : ControllerBase
     /// FAZ 2: İstemci telemetri ve tıklama akışı alma ucu (Ziyaretçiler dahil).
     /// </summary>
     [AllowAnonymous]
+    [RequestSizeLimit(16_384)]
+    // Kimliksiz uç: "sensitive" (dk'da 5) tıklama akışı için çok dar; mevcut en geniş
+    // kullanıcı/IP bölümlü politika kullanılıyor.
+    [EnableRateLimiting("gateway")]
     [HttpPost("telemetry/track")]
     public IActionResult TrackClientEvent([FromBody] TelemetryEventItem item)
     {
         if (item == null) return BadRequest();
 
-        // E-posta ve kullanıcı kimliği oturum varsa otomatik eklenir
-        if (User?.Identity?.IsAuthenticated == true && string.IsNullOrEmpty(item.UserId))
-        {
-            item.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            item.UserEmail = User.FindFirstValue(ClaimTypes.Email);
-        }
+        // Kimlik istemciden ASLA alınmaz: aksi hâlde anonim biri admin panelindeki oturum
+        // ve log listesine başkası adına kayıt yazabilir. Oturum yoksa null kalır.
+        var authenticated = User?.Identity?.IsAuthenticated == true;
+        item.UserId = authenticated ? User!.FindFirstValue(ClaimTypes.NameIdentifier) : null;
+        item.UserEmail = authenticated ? User!.FindFirstValue(ClaimTypes.Email) : null;
+
+        // Bellekte tutulan (5000 olay) kuyruğu şişirmesin diye alan uzunlukları sınırlı.
+        item.Id = Guid.NewGuid().ToString("N");
+        item.SessionId = Cap(item.SessionId, 256) ?? string.Empty;
+        item.Path = Cap(item.Path, 256) ?? string.Empty;
+        item.Action = Cap(item.Action, 256) ?? string.Empty;
+        item.Module = Cap(item.Module, 256) ?? "general";
+        item.Metadata = Cap(item.Metadata, 2048);
+        item.DurationSeconds = Math.Clamp(item.DurationSeconds, 0, 86_400);
 
         item.IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        item.UserAgent = Request.Headers.UserAgent.ToString();
+        item.UserAgent = Cap(Request.Headers.UserAgent.ToString(), 256);
+
+        // "gateway" politikası bölüm anahtarını X-Namines-Key başlığından da türetir; kimliksiz bir
+        // istemci o başlığı değiştirerek sınırı aşabilir. IP başına sayaç bunu kapatır.
+        if (!_telemetry.TryAcceptFrom(item.IpAddress))
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = "Too many telemetry events." });
+        }
 
         _telemetry.Track(item);
         return Ok(new { success = true });
@@ -675,25 +778,16 @@ public class AdminController : ControllerBase
             .Select(g => g.ProjectId)
             .ToListAsync()).ToHashSet();
 
-        int totalTablesCount = 0;
-        double totalEstimatedMb = 0;
-
         var items = projectsRaw.Select(p =>
         {
-            // Tablo sayısını şema JSON'undan veya regex'ten hesapla
-            int tableCount = 3;
-            if (!string.IsNullOrWhiteSpace(p.SchemaJson))
-            {
-                var matches = System.Text.RegularExpressions.Regex.Matches(p.SchemaJson, "\"name\"\\s*:\\s*\"");
-                tableCount = Math.Max(1, matches.Count);
-            }
-
-            totalTablesCount += tableCount;
+            var tableCount = CountTables(p.SchemaJson);
 
             vaultBackupCounts.TryGetValue(p.Id, out var vb);
             long backupBytes = vb?.TotalBytes ?? 0;
-            double estimatedMb = Math.Round((backupBytes / 1024.0 / 1024.0) + (tableCount * 0.45) + 1.2, 2);
-            totalEstimatedMb += estimatedMb;
+            // Ölçülen depolama: şema JSON'unun bayt boyutu + gerçek Vault yedekleri.
+            // Eski formül (tablo*0.45 + 1.2 MB) uydurma bir "tahmin"di.
+            long schemaBytes = string.IsNullOrEmpty(p.SchemaJson) ? 0 : System.Text.Encoding.UTF8.GetByteCount(p.SchemaJson);
+            double estimatedMb = Math.Round((backupBytes + schemaBytes) / BytesPerMb, 2);
 
             return new
             {
@@ -712,11 +806,22 @@ public class AdminController : ControllerBase
             };
         }).ToList();
 
+        // Toplamlar TÜM projeler üzerinden gerçek değerlerle hesaplanır (sayfa toplamı değil,
+        // taban değer de yok). Şemalar tek tek akıtılır; hepsi belleğe alınmaz.
+        long totalTablesCount = 0;
+        await foreach (var schemaJson in _context.CloudProjects.AsNoTracking().Select(p => p.SchemaJson).AsAsyncEnumerable())
+        {
+            totalTablesCount += CountTables(schemaJson);
+        }
+        var totalBackupBytes = await _context.VaultBackups.AsNoTracking().SumAsync(b => (long?)b.SizeBytes) ?? 0L;
+        var totalSchemaChars = await _context.CloudProjects.AsNoTracking()
+            .SumAsync(p => (long?)(p.SchemaJson == null ? 0 : p.SchemaJson.Length)) ?? 0L;
+
         return Ok(new
         {
             totalProjects,
-            totalTables = Math.Max(totalTablesCount, totalProjects * 6),
-            totalStorageMb = Math.Round(Math.Max(totalEstimatedMb, totalProjects * 3.4), 2),
+            totalTables = totalTablesCount,
+            totalStorageMb = Math.Round((totalBackupBytes + totalSchemaChars) / BytesPerMb, 2),
             items,
             page,
             pageSize,
@@ -760,18 +865,16 @@ public class AdminController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error while running on-demand bot audit");
+            // Denetimin kendisi çöktüyse hiçbir servis için "pass" uydurulmaz.
             return Ok(new SystemBotAuditReport
             {
                 AuditTimestamp = DateTime.UtcNow,
-                HealthScore = 80,
+                HealthScore = 0,
                 OverallStatus = "Degraded",
-                SummaryText = $"Otonom denetim botu çalıştırıldı (Kısmi tanı: {ex.Message}).",
+                SummaryText = "Otonom denetim botu çalıştırılamadı; servis durumu doğrulanamadı.",
                 Probes = new List<SystemBotProbeResult>
                 {
-                    new SystemBotProbeResult { ServiceName = "PostgreSQL Control DB", Status = "warn", LatencyMs = 45, Message = ex.Message },
-                    new SystemBotProbeResult { ServiceName = "SignalR Redis Backplane", Status = "pass", LatencyMs = 6, Message = "Bağlantı aktif." },
-                    new SystemBotProbeResult { ServiceName = "AI Provider Gateway", Status = "pass", LatencyMs = 12, Message = "İstek havuzu dinleniyor." },
-                    new SystemBotProbeResult { ServiceName = "Vault & Ground Storage", Status = "pass", LatencyMs = 3, Message = "Dizin erişimi sağlandı." }
+                    new SystemBotProbeResult { ServiceName = "Audit Runner", Status = "fail", LatencyMs = 0, Message = "Denetim çalıştırılamadı. Ayrıntı için sunucu loglarına bakın." }
                 }
             });
         }
@@ -894,8 +997,8 @@ public class AdminController : ControllerBase
         if (project == null) return NotFound(new { error = "Project not found." });
 
         // Gerçek veritabanı varlıkları sorgulanır (M-3):
-        var tableCount = Math.Max(0, (project.SchemaJson ?? "").Split(new[] { "\"tableName\"" }, StringSplitOptions.None).Length - 1);
-        var baseMb = Math.Round(tableCount * 0.45, 2);
+        var tableCount = CountTables(project.SchemaJson);
+        var baseMb = Math.Round((string.IsNullOrEmpty(project.SchemaJson) ? 0 : System.Text.Encoding.UTF8.GetByteCount(project.SchemaJson)) / BytesPerMb, 2);
 
         // Vault: Bu projeye ait gerçek yedekler
         var backups = await _context.VaultBackups.AsNoTracking()
@@ -969,8 +1072,8 @@ public class AdminController : ControllerBase
                 isHosted = hasGround,
                 status = hasGround ? groundDb!.Status.ToString() : "Not Provisioned",
                 hostEndpoint = hasGround ? $"{groundDb!.Provider} ({groundDb!.Region ?? "local"})" : null,
-                activeConnections = hasGround ? 1 : 0,
-                allocatedMb = hasGround ? Math.Round(baseMb * 2.5, 2) : 0
+                activeConnections = 0, // canlı bağlantı sayısı ölçülmüyor
+                allocatedMb = 0 // ayrılan alan ölçülmüyor
             },
             desk = new
             {
@@ -1002,30 +1105,6 @@ public class AdminController : ControllerBase
         var allSessions = _telemetry.GetRecentSessions(100);
         var userSessions = allSessions.Where(s => s.UserId == id || (!string.IsNullOrEmpty(targetUser.Email) && s.UserEmail.Equals(targetUser.Email, StringComparison.OrdinalIgnoreCase))).ToList();
 
-        if (userSessions.Count == 0)
-        {
-            var now = DateTime.UtcNow;
-            userSessions.Add(new UserSessionSummary
-            {
-                SessionId = $"sess-{id[..Math.Min(8, id.Length)]}",
-                UserId = targetUser.Id,
-                UserEmail = targetUser.Email ?? targetUser.UserName ?? "User",
-                StartedAt = now.AddHours(-3),
-                LastActiveAt = now.AddMinutes(-12),
-                DurationMinutes = 45,
-                PagesVisited = new List<string> { "/new", "/canvas", "/compile", "/desk" },
-                StartMode = "prompt",
-                TotalClicks = 32,
-                RecentActions = new List<TelemetryEventItem>
-                {
-                    new TelemetryEventItem { Action = "start_prompt", Module = "new", Path = "/new", Timestamp = now.AddHours(-3) },
-                    new TelemetryEventItem { Action = "add_table", Module = "canvas", Path = "/canvas", Timestamp = now.AddHours(-2).AddMinutes(-40) },
-                    new TelemetryEventItem { Action = "view_sql", Module = "compile", Path = "/compile", Timestamp = now.AddHours(-1) },
-                    new TelemetryEventItem { Action = "sql_query", Module = "desk", Path = "/desk", Timestamp = now.AddMinutes(-15) }
-                }
-            });
-        }
-
         return Ok(new
         {
             userId = targetUser.Id,
@@ -1045,65 +1124,80 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
+        // Dosya adına serbest metin girmesin: bilinmeyen tür "users" sayılır.
+        var kind = (type ?? "users").Trim().ToLowerInvariant();
+        if (kind is not ("projects" or "logs" or "feedbacks" or "sessions" or "tokens")) kind = "users";
+
         var sb = new System.Text.StringBuilder();
 
-        if (type.Equals("projects", StringComparison.OrdinalIgnoreCase))
+        if (kind == "projects")
         {
             sb.AppendLine("ID,Name,OwnerEmail,Engine,TableCount,StorageMb,CreatedAt");
             var projs = await _context.CloudProjects.AsNoTracking().Include(p => p.User).Take(500).ToListAsync();
+            var projIds = projs.Select(p => p.Id).ToList();
+            var backupBytes = await _context.VaultBackups.AsNoTracking()
+                .Where(b => projIds.Contains(b.ProjectId))
+                .GroupBy(b => b.ProjectId)
+                .Select(g => new { ProjectId = g.Key, Bytes = g.Sum(x => x.SizeBytes) })
+                .ToDictionaryAsync(x => x.ProjectId, x => x.Bytes);
             foreach (var p in projs)
             {
-                var tableCount = !string.IsNullOrEmpty(p.SchemaJson) ? Math.Max(0, p.SchemaJson.Split(new[] { "\"tableName\"" }, StringSplitOptions.None).Length - 1) : 0;
-                var safeName = (p.Name ?? "Unnamed").Replace("\"", "\"\"");
-                sb.AppendLine($"\"{p.Id}\",\"{safeName}\",\"{p.User?.Email}\",\"{p.DbType}\",{tableCount},2.4,\"{p.CreatedAt:s}\"");
+                var schemaBytes = string.IsNullOrEmpty(p.SchemaJson) ? 0 : System.Text.Encoding.UTF8.GetByteCount(p.SchemaJson);
+                var storageMb = Math.Round((schemaBytes + backupBytes.GetValueOrDefault(p.Id, 0L)) / BytesPerMb, 2);
+                sb.AppendLine(AdminCsv.Row(p.Id, p.Name ?? "Unnamed", p.User?.Email, p.DbType, CountTables(p.SchemaJson), storageMb, p.CreatedAt));
             }
         }
-        else if (type.Equals("logs", StringComparison.OrdinalIgnoreCase))
+        else if (kind == "logs")
         {
             sb.AppendLine("ID,Timestamp,Level,Source,Message,Path,UserEmail,Resolved");
             var logs = _telemetry.GetLogs(limit: 500);
             foreach (var l in logs)
             {
-                var msg = (l.Message ?? "").Replace("\"", "\"\"");
-                sb.AppendLine($"\"{l.Id}\",\"{l.Timestamp:s}\",\"{l.Level}\",\"{l.Source}\",\"{msg}\",\"{l.Path}\",\"{l.UserEmail}\",{l.Resolved}");
+                sb.AppendLine(AdminCsv.Row(l.Id, l.Timestamp, l.Level, l.Source, l.Message, l.Path, l.UserEmail, l.Resolved));
             }
         }
-        else if (type.Equals("feedbacks", StringComparison.OrdinalIgnoreCase))
+        else if (kind == "feedbacks")
         {
             sb.AppendLine("ID,Category,UserEmail,Message,CreatedAt");
             var feedbacks = await _context.Feedbacks.AsNoTracking().OrderByDescending(f => f.CreatedAt).Take(500).ToListAsync();
             foreach (var f in feedbacks)
             {
-                var msg = (f.Message ?? "").Replace("\"", "\"\"").Replace("\r", " ").Replace("\n", " ");
-                sb.AppendLine($"\"{f.Id}\",\"{f.Category}\",\"{f.Email}\",\"{msg}\",\"{f.CreatedAt:s}\"");
+                sb.AppendLine(AdminCsv.Row(f.Id, f.Category, f.Email, f.Message, f.CreatedAt));
             }
         }
-        else if (type.Equals("sessions", StringComparison.OrdinalIgnoreCase))
+        else if (kind == "sessions")
         {
             sb.AppendLine("SessionId,UserId,UserEmail,StartedAt,LastActiveAt,DurationMinutes,StartMode,TotalClicks,PagesVisited");
             var sessions = _telemetry.GetRecentSessions(limit: 500);
             foreach (var s in sessions)
             {
                 var pages = string.Join(" > ", s.PagesVisited ?? new List<string>());
-                sb.AppendLine($"\"{s.SessionId}\",\"{s.UserId}\",\"{s.UserEmail}\",\"{s.StartedAt:s}\",\"{s.LastActiveAt:s}\",{s.DurationMinutes},\"{s.StartMode}\",{s.TotalClicks},\"{pages}\"");
+                sb.AppendLine(AdminCsv.Row(s.SessionId, s.UserId, s.UserEmail, s.StartedAt, s.LastActiveAt, s.DurationMinutes, s.StartMode, s.TotalClicks, pages));
             }
         }
-        else if (type.Equals("tokens", StringComparison.OrdinalIgnoreCase))
+        else if (kind == "tokens")
         {
+            // Gerçek ölçülen alanlar: günlük token ve AI çağrı sayısı. Prompt/completion
+            // ayrımı kaydedilmiyor; eski %65/%35 sabit oranı uydurmaydı → boş bırakılır.
             sb.AppendLine("Date,TokensUsed,EstimatedRequests,PromptTokens,CompletionTokens");
             var now = DateTime.UtcNow.Date;
+            var from = now.AddDays(-30);
             var usages = await _context.GlobalAiUsages.AsNoTracking()
-                .Where(g => g.Date >= now.AddDays(-30))
+                .Where(g => g.Date >= from)
                 .ToDictionaryAsync(g => g.Date.Date, g => g.TokensUsed);
+            var callsPerDay = (await _context.UsageEvents.AsNoTracking()
+                .Where(e => e.Resource == UsageResource.AiCall && e.OccurredAt >= from)
+                .GroupBy(e => e.OccurredAt.Date)
+                .Select(g => new { Day = g.Key, Count = g.Count() })
+                .ToListAsync())
+                .ToDictionary(x => x.Day.Date, x => x.Count);
 
             for (int i = 29; i >= 0; i--)
             {
                 var d = now.AddDays(-i);
                 var tokens = usages.TryGetValue(d, out var t) ? t : 0;
-                var requests = tokens > 0 ? Math.Max(1, (int)(tokens / 450)) : 0;
-                var promptT = (int)(tokens * 0.65);
-                var compT = tokens - promptT;
-                sb.AppendLine($"\"{d:yyyy-MM-dd}\",{tokens},{requests},{promptT},{compT}");
+                var requests = callsPerDay.TryGetValue(d, out var c) ? c : 0;
+                sb.AppendLine(AdminCsv.Row(d.ToString("yyyy-MM-dd"), tokens, requests, null, null));
             }
         }
         else
@@ -1115,13 +1209,16 @@ public class AdminController : ControllerBase
             {
                 quotas.TryGetValue(u.Id, out var quota);
                 var dailyUsage = quota?.DailyUsageCount ?? 0;
-                var dailyLimit = quota?.DailyLimit ?? (u.PlanCode == "pro" ? 100 : (u.PlanCode == "team" ? 500 : 15));
-                sb.AppendLine($"\"{u.Id}\",\"{u.UserName}\",\"{u.Email}\",\"{u.PlanCode ?? "free"}\",{dailyUsage},{dailyLimit},\"{u.CreatedAt:s}\"");
+                // Kota satırı yoksa GetUsers ile aynı varsayılan (dev sınırsız, diğerleri 100).
+                var dailyLimit = quota?.DailyLimit ?? (u.IsDev ? int.MaxValue : 100);
+                var plan = u.IsDev ? "dev" : (string.IsNullOrWhiteSpace(u.PlanCode) ? "free" : u.PlanCode);
+                sb.AppendLine(AdminCsv.Row(u.Id, u.UserName, u.Email, plan, dailyUsage, dailyLimit, u.CreatedAt));
             }
         }
 
+        // BOM'suz UTF-8; hücreler AdminCsv ile formül enjeksiyonuna karşı kaçışlanmış durumda.
         var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
-        return File(bytes, "text/csv", $"namines-export-{type.ToLowerInvariant()}-{DateTime.UtcNow:yyyyMMdd}.csv");
+        return File(bytes, "text/csv", $"namines-export-{kind}-{DateTime.UtcNow:yyyyMMdd}.csv");
     }
 
     // ── Özellik Bayrakları (Kill-Switch) Yönetimi ─────────────────────────────
@@ -1129,7 +1226,7 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> GetFeatures()
     {
         var admin = await EnsureAdminAsync();
-        if (admin == null) return Unauthorized();
+        if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
         if (_featureFlags == null) return Ok(Array.Empty<AdminFeatureFlag>());
         var flags = await _featureFlags.GetAllFlagsAsync();
@@ -1140,16 +1237,30 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> UpdateFeature(string key, [FromBody] UpdateFeatureFlagRequest request)
     {
         var admin = await EnsureAdminAsync();
-        if (admin == null) return Unauthorized();
+        if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
         if (_featureFlags == null) return BadRequest("Feature flag service is not available.");
         if (string.IsNullOrWhiteSpace(key)) return BadRequest("Feature key is required.");
 
-        await _featureFlags.UpdateFlagAsync(
-            key,
-            request.IsEnabled,
-            request.Mode ?? "DisabledNotice",
-            request.NoticeMessage);
+        // Yalnızca katalogdaki bayraklar güncellenir; yazım hatası sessizce yeni bayrak yaratmasın.
+        if (await _featureFlags.GetFlagAsync(key) == null)
+        {
+            return NotFound(new { error = $"Unknown feature key '{key}'." });
+        }
+
+        try
+        {
+            // Mod verilmediyse (null) servis mevcut modu korur; "Hidden" bayrak DisabledNotice'a dönmez.
+            await _featureFlags.UpdateFlagAsync(
+                key,
+                request.IsEnabled,
+                request.Mode ?? string.Empty,
+                request.NoticeMessage);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
 
         var updated = await _featureFlags.GetFlagAsync(key);
         return Ok(updated);
@@ -1160,7 +1271,7 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> GetAiRoutes()
     {
         var admin = await EnsureAdminAsync();
-        if (admin == null) return Unauthorized();
+        if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
         if (_aiRouter == null) return Ok(new { routes = Array.Empty<AiToolRoute>(), providers = Array.Empty<string>() });
         var routes = await _aiRouter.GetAllRoutesAsync();
@@ -1172,7 +1283,7 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> UpdateAiRoute(string toolKey, [FromBody] UpdateAiRouteRequest request)
     {
         var admin = await EnsureAdminAsync();
-        if (admin == null) return Unauthorized();
+        if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
         if (_aiRouter == null) return BadRequest("AI router service is not available.");
         if (string.IsNullOrWhiteSpace(toolKey)) return BadRequest("Tool key is required.");
@@ -1211,3 +1322,37 @@ public class SimulateErrorRequest
     public string? Message { get; set; }
 }
 
+
+/// <summary>
+/// CSV hücre kaçışlama. Admin dışa aktarımı kullanıcı kaynaklı metin (proje adı, geri bildirim,
+/// log mesajı) içerir; Excel/Sheets bunu açınca '=' '+' '-' '@' ile başlayan hücreyi formül
+/// olarak çalıştırır (CSV injection). Bu yüzden metin hücrelerin başına tek tırnak konur,
+/// çift tırnaklar ikilenir ve HER hücre tırnaklanır.
+/// </summary>
+public static class AdminCsv
+{
+    public static string Field(object? value)
+    {
+        string text = value switch
+        {
+            null => string.Empty,
+            string s => s,
+            DateTime dt => dt.ToString("s", System.Globalization.CultureInfo.InvariantCulture),
+            DateTimeOffset dto => dto.ToString("s", System.Globalization.CultureInfo.InvariantCulture),
+            bool b => b ? "True" : "False",
+            IFormattable f => f.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+            _ => value.ToString() ?? string.Empty
+        };
+
+        // Sayısal hücreler kendi başına formül tehlikesi taşımaz (negatif sayı '-' ile başlar);
+        // yalnızca string kaynaklı metin tehlikeli önekler için kontrol edilir.
+        if (value is string && text.Length > 0 && text[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+        {
+            text = "'" + text;
+        }
+
+        return "\"" + text.Replace("\"", "\"\"") + "\"";
+    }
+
+    public static string Row(params object?[] cells) => string.Join(",", cells.Select(Field));
+}
