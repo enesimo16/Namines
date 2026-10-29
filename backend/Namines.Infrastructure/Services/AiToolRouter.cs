@@ -31,7 +31,10 @@ public sealed class AiToolRouter : IAiToolRouter
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AiToolRouter> _logger;
     private readonly IConfiguration _configuration;
-    private bool _initialized;
+    // DB yüklemesi başarısız olursa "başlatıldı" işaretlenmez; kısa aralıkla tekrar denenir (bkz. FeatureFlagService).
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(5);
+    private DateTime _nextRefreshUtc = DateTime.MinValue;
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
     public AiToolRouter(
@@ -132,15 +135,16 @@ public sealed class AiToolRouter : IAiToolRouter
 
     private async Task EnsureInitializedAsync(CancellationToken ct)
     {
-        if (_initialized) return;
+        if (DateTime.UtcNow < _nextRefreshUtc) return;
 
         await _initLock.WaitAsync(ct);
         try
         {
-            if (_initialized) return;
+            if (DateTime.UtcNow < _nextRefreshUtc) return;
 
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetService<AuthDbContext>();
+            var loaded = db == null;
             if (db != null)
             {
                 try
@@ -160,14 +164,15 @@ public sealed class AiToolRouter : IAiToolRouter
                         db.AiToolRoutes.AddRange(defaults);
                         await db.SaveChangesAsync(ct);
                     }
+                    loaded = true;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "AiToolRoutes tablosu okunamadı veya henüz migrate edilmedi. Bellek içi rotalar kullanılıyor.");
+                    _logger.LogWarning(ex, "AiToolRoutes tablosu okunamadı veya henüz migrate edilmedi. Bellek içi rotalar kullanılıyor, kısa süre sonra tekrar denenecek.");
                 }
             }
 
-            _initialized = true;
+            _nextRefreshUtc = DateTime.UtcNow + (loaded ? RefreshInterval : RetryInterval);
         }
         finally
         {
@@ -211,42 +216,51 @@ public sealed class AiToolRouter : IAiToolRouter
     {
         await EnsureInitializedAsync(ct);
 
-        var route = await GetRouteAsync(toolKey, ct);
-        route.Provider = provider.ToLowerInvariant().Trim();
-        route.ModelName = modelName.Trim();
-        route.Temperature = Math.Clamp(temperature, 0.0, 1.0);
-        route.FallbackProvider = string.IsNullOrWhiteSpace(fallbackProvider) ? null : fallbackProvider.ToLowerInvariant().Trim();
-        route.UpdatedAt = DateTime.UtcNow;
+        var current = await GetRouteAsync(toolKey, ct);
 
-        _routesCache[toolKey] = route;
+        // Önbellekteki nesne paylaşımlı: DB yazımı başarısız olursa yarım güncelleme kalmasın diye kopya üzerinde çalışılır.
+        var route = new AiToolRoute
+        {
+            ToolKey = toolKey,
+            DisplayName = current.DisplayName,
+            Provider = provider.ToLowerInvariant().Trim(),
+            ModelName = modelName.Trim(),
+            Temperature = Math.Clamp(temperature, 0.0, 1.0),
+            FallbackProvider = string.IsNullOrWhiteSpace(fallbackProvider) ? null : fallbackProvider.ToLowerInvariant().Trim(),
+            UpdatedAt = DateTime.UtcNow
+        };
 
-        // DB'ye kalıcı kaydet
+        // Önce DB'ye kalıcı yaz; başarısızsa çağıran hatayı görür, önbellek eski (doğru) değerde kalır.
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetService<AuthDbContext>();
         if (db != null)
         {
-            try
+            var existing = await db.AiToolRoutes.FirstOrDefaultAsync(r => r.ToolKey == toolKey, ct);
+            if (existing != null)
             {
-                var existing = await db.AiToolRoutes.FirstOrDefaultAsync(r => r.ToolKey == toolKey, ct);
-                if (existing != null)
-                {
-                    existing.Provider = route.Provider;
-                    existing.ModelName = route.ModelName;
-                    existing.Temperature = route.Temperature;
-                    existing.FallbackProvider = route.FallbackProvider;
-                    existing.UpdatedAt = route.UpdatedAt;
-                }
-                else
-                {
-                    db.AiToolRoutes.Add(route);
-                }
-                await db.SaveChangesAsync(ct);
+                existing.Provider = route.Provider;
+                existing.ModelName = route.ModelName;
+                existing.Temperature = route.Temperature;
+                existing.FallbackProvider = route.FallbackProvider;
+                existing.UpdatedAt = route.UpdatedAt;
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogWarning(ex, "AiToolRoute veritabanına kaydedilirken hata oluştu: {ToolKey}", toolKey);
+                db.AiToolRoutes.Add(new AiToolRoute
+                {
+                    ToolKey = route.ToolKey,
+                    DisplayName = route.DisplayName,
+                    Provider = route.Provider,
+                    ModelName = route.ModelName,
+                    Temperature = route.Temperature,
+                    FallbackProvider = route.FallbackProvider,
+                    UpdatedAt = route.UpdatedAt
+                });
             }
+            await db.SaveChangesAsync(ct);
         }
+
+        _routesCache[toolKey] = route;
 
         _logger.LogInformation("AI Tool rotası güncellendi: {ToolKey} -> Provider: {Provider}, Model: {ModelName}",
             toolKey, route.Provider, route.ModelName);
