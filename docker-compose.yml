@@ -47,6 +47,9 @@ services:
       # Konteyner ağındaki (özel adresli) demo veritabanlarına bağlanabilmek için.
       # Yalnızca Development'ta etkili — Production'da kod bunu yok sayar ve loglar.
       - Security__AllowPrivateDbHosts=true
+      # Yalnızca Development: OAuth anahtarı olmadan tek tıkla GitHub/Google simülasyonu.
+      # Üretimde bu bayrak tanımsız kalır; AuthController ayrıca IsDevelopment() şartı arar.
+      - Auth__AllowOAuthDevSimulation=true
       - Jwt__Issuer=NaminesServer
       - Jwt__Audience=NaminesClient
       # CORS: Production'da localhost otomatik eklenmez, açıkça bildirilmeli.
