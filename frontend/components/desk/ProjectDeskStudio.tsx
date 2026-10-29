@@ -154,7 +154,10 @@ function exportToCsv(tableName: string, columns: SchemaColumn[], rows: Record<st
         .map((c) => {
           const val = row[c.name];
           if (val === null || val === undefined) return '""';
-          return `"${String(val).replace(/"/g, '""')}"`;
+          // =, +, -, @ ile başlayan hücre Excel/Sheets'te formül olarak çalışır: başa ' koyarak etkisizleştir
+          const text = String(val);
+          const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+          return `"${safe.replace(/"/g, '""')}"`;
         })
         .join(','),
     )
@@ -168,6 +171,7 @@ function exportToCsv(tableName: string, columns: SchemaColumn[], rows: Record<st
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function exportToJson(tableName: string, rows: Record<string, unknown>[]) {
@@ -180,6 +184,7 @@ function exportToJson(tableName: string, rows: Record<string, unknown>[]) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function generateTableDdl(table: SchemaTable, dbEngine: string): string {
@@ -246,10 +251,16 @@ export function ProjectDeskStudio({
     const localSnap = useProjectHistoryStore.getState().projects.find((p) => p.id === projectId);
     if (localSnap?.schema?.tables?.length) return localSnap.schema;
 
+    // Canvas'taki canlı şema yalnızca ETKİN proje bu proje ise geçerli; aksi hâlde başka projenin tabloları görünürdü
     const liveSchema = useSchemaStore.getState().schema;
-    if (liveSchema?.tables?.length) return liveSchema;
+    if (
+      liveSchema?.tables?.length &&
+      useProjectHistoryStore.getState().activeProjectId === projectId
+    ) {
+      return liveSchema;
+    }
 
-    // Fallback schema if completely empty
+    // Proje şeması hiç yoksa: açıkça örnek şema (arayüzde "sample" olarak etiketleniyor)
     return {
       schemaId: projectId,
       name: projectName,
@@ -304,13 +315,42 @@ export function ProjectDeskStudio({
   const activeTable = tables.find((t) => t.id === activeTableId) || tables[0] || null;
 
   // Table Data Store (Record<tableId, rows[]>)
-  const [dataStore, setDataStore] = useState<Record<string, Record<string, unknown>[]>>(() => {
+  // Anahtar proje + şema imzası: şema sonradan geldiğinde/değiştiğinde örnek veri yeniden üretilir
+  // (eski kod yalnızca ilk render'daki tablolardan üretip bir daha dokunmuyordu).
+  const schemaKey = useMemo(
+    () =>
+      `${projectId}|${tables
+        .map((t) => `${t.id}:${t.columns.map((c) => `${c.name}/${c.type}`).join(',')}`)
+        .join(';')}`,
+    [projectId, tables],
+  );
+  const [dataState, setDataState] = useState<{ key: string; data: Record<string, Record<string, unknown>[]> }>({
+    key: '',
+    data: {},
+  });
+  const buildInitialData = useCallback(() => {
     const initial: Record<string, Record<string, unknown>[]> = {};
     tables.forEach((t) => {
       initial[t.id] = generateSampleDataForTable(t, 6);
     });
     return initial;
-  });
+  }, [tables]);
+  const dataStore = useMemo(
+    () => (dataState.key === schemaKey ? dataState.data : buildInitialData()),
+    [dataState, schemaKey, buildInitialData],
+  );
+  const setDataStore = useCallback(
+    (
+      update: (
+        prev: Record<string, Record<string, unknown>[]>,
+      ) => Record<string, Record<string, unknown>[]>,
+    ) =>
+      setDataState((prev) => ({
+        key: schemaKey,
+        data: update(prev.key === schemaKey ? prev.data : buildInitialData()),
+      })),
+    [schemaKey, buildInitialData],
+  );
 
   // Table Search & Sort & Pagination
   const [searchQuery, setSearchQuery] = useState('');
@@ -558,7 +598,7 @@ export function ProjectDeskStudio({
       const cType = c.type.toLowerCase();
       if (raw === '' && c.isNullable && !c.isPK) {
         formattedRow[c.name] = null;
-      } else if (cType.includes('int') || cType.includes('serial')) {
+      } else if (/^(tiny|small|medium|big)?(integer|int|serial)(\d+|\b|\()/i.test(cType.trim())) {
         formattedRow[c.name] = parseInt(raw, 10) || 0;
       } else if (cType.includes('float') || cType.includes('numeric') || cType.includes('decimal')) {
         formattedRow[c.name] = parseFloat(raw) || 0;
@@ -609,13 +649,14 @@ export function ProjectDeskStudio({
         setSqlResult({ columns: cols, rows, durationMs });
       } else {
         const durationMs = Math.max(1, Math.round(performance.now() - start));
+        // Bu önizlemede gerçek bir veritabanı çalıştırıcısı YOK: SELECT dışı ifadeler hiçbir yere gönderilmez
         setSqlResult({
           columns: ['status', 'message', 'rows_affected'],
           rows: [
             {
-              status: 'OK',
-              message: 'Statement executed against database runner.',
-              rows_affected: 1,
+              status: 'NOT_EXECUTED',
+              message: 'Preview only: this statement was not run against any database.',
+              rows_affected: 0,
             },
           ],
           durationMs,
@@ -712,6 +753,11 @@ export function ProjectDeskStudio({
           </Button>
         </div>
       </div>
+
+      <Callout tone="info" title="Sample data preview">
+        Rows, edits and SQL results below are generated in your browser from this project&apos;s column types. They are
+        never sent to your database. Use the Gateway tab to connect real data.
+      </Callout>
 
       {/* ── Studio Navigation Tabs ───────────────────────────────────────── */}
       <Tabs<StudioTab>
@@ -1422,7 +1468,7 @@ export function ProjectDeskStudio({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Endpoint 1: List */}
               <Card
-                title={`GET /api/gateway/list (${activeTable.name})`}
+                title={`POST /api/gateway/list (${activeTable.name})`}
                 description="List and paginate records with server-side filtering and sorting."
                 actions={
                   <Button

@@ -430,6 +430,16 @@ function saveLocalCR(cr: ChangeRequestDetail) {
   } catch {}
 }
 
+/**
+ * Yerel (sunucusuz) değişiklik talebi YALNIZCA açıkça yerel olan taslaklar için kullanılır:
+ * projectId 'local-project' (henüz kayıtlı projesi olmayan canvas) ya da id'si 'local-cr-' ile
+ * başlayan, zaten yerelde üretilmiş talepler. Gerçek bir projede sunucu hatasını yutup yerelde
+ * "başarılı" bir talep/test sonucu uydurmak kullanıcıya olmayan bir incelemeyi gösterirdi;
+ * orada hata çağırana fırlatılır.
+ */
+const LOCAL_PROJECT_ID = 'local-project';
+const isLocalCrId = (id: string) => id.startsWith('local-cr-');
+
 export const changeRequestService = {
   createQuick: async (projectId: string, schema: DatabaseSchema, title?: string, message?: string): Promise<{ id: string }> => {
     try {
@@ -440,12 +450,13 @@ export const changeRequestService = {
         message,
       });
       return response.data;
-    } catch {
+    } catch (err) {
+      if (projectId && projectId !== LOCAL_PROJECT_ID) throw err;
       const id = 'local-cr-' + Date.now();
       const tables = schema?.tables || [];
       const localCr: ChangeRequestDetail = {
         id,
-        projectId: projectId || 'local-project',
+        projectId: LOCAL_PROJECT_ID,
         branchId: 'main-branch',
         branchName: 'main',
         title: title || `${schema?.name || 'Schema'} Change Review`,
@@ -480,7 +491,7 @@ export const changeRequestService = {
             reason: null,
           },
         },
-        aiExplanation: `Impact Analysis: Adds ${tables.length} tables (${tables.map(t => t.name).join(', ')}) with initial schemas. All constraints and primary keys are valid. No breaking or destructive operations detected.`,
+        aiExplanation: `Local draft: ${tables.length} table(s) (${tables.map(t => t.name).join(', ')}). No server analysis was run — sign in and save the project for a real impact analysis.`,
         migration: {
           upCode: tables.map(t => `-- Create table: ${t.name}\nCREATE TABLE ${t.name} (\n  ${t.columns.map(c => `${c.name} ${c.type}${c.isPK ? ' PRIMARY KEY' : ''}`).join(',\n  ')}\n);`).join('\n\n'),
           downCode: tables.map(t => `DROP TABLE IF EXISTS ${t.name} CASCADE;`).join('\n'),
@@ -488,12 +499,12 @@ export const changeRequestService = {
           warnings: [],
         },
         testRun: {
-          testRunSupported: true,
-          testRunSuccess: true,
-          testRunMessage: 'DDL verified against local ephemeral environment.',
+          testRunSupported: false,
+          testRunSuccess: null,
+          testRunMessage: 'Not run: local drafts are not verified against a database.',
           testRunFailedStatement: null,
-          testRunDurationMs: 84,
-          testRunAt: new Date().toISOString(),
+          testRunDurationMs: null,
+          testRunAt: null,
         },
         requiredApprovals: 1,
         approvedCount: 0,
@@ -509,11 +520,11 @@ export const changeRequestService = {
     try {
       const response = await api.get<ChangeRequestSummary[]>(`/changerequest/project/${projectId}`);
       return response.data;
-    } catch {
-      const allLocal = getLocalCRList();
-      const local = allLocal.filter(x => !projectId || projectId === 'local-project' || x.projectId === projectId);
-      const itemsToReturn = local.length > 0 ? local : allLocal;
-      return itemsToReturn.map(x => ({
+    } catch (err) {
+      if (projectId && projectId !== LOCAL_PROJECT_ID) throw err;
+      // Yalnızca yerel taslak taleplerini döndür; başka projelerin yerel talepleri karışmasın
+      const local = getLocalCRList().filter(x => x.projectId === LOCAL_PROJECT_ID);
+      return local.map(x => ({
         id: x.id,
         title: x.title,
         status: x.status,
@@ -532,7 +543,8 @@ export const changeRequestService = {
     try {
       const response = await api.get<ChangeRequestDetail>(`/changerequest/${id}`);
       return response.data;
-    } catch {
+    } catch (err) {
+      if (!isLocalCrId(id)) throw err;
       const found = getLocalCRList().find(x => x.id === id);
       if (found) return found;
       throw new Error('Change request not found');
@@ -543,7 +555,8 @@ export const changeRequestService = {
     try {
       const response = await api.post<{ id: string; status: ChangeRequestStatus }>(`/changerequest/${id}/decide`, { decision, comment });
       return response.data;
-    } catch {
+    } catch (err) {
+      if (!isLocalCrId(id)) throw err;
       const list = getLocalCRList();
       const item = list.find(x => x.id === id);
       if (item) {
@@ -570,26 +583,15 @@ export const changeRequestService = {
     try {
       const response = await api.post(`/changerequest/${id}/run-tests`, {}, { timeout: 90000 });
       return response.data;
-    } catch {
-      const list = getLocalCRList();
-      const item = list.find(x => x.id === id);
-      if (item) {
-        item.testRun = {
-          testRunSupported: true,
-          testRunSuccess: true,
-          testRunMessage: 'Migration applied cleanly in ephemeral verification container.',
-          testRunFailedStatement: null,
-          testRunDurationMs: 112,
-          testRunAt: new Date().toISOString(),
-        };
-        saveLocalCR(item);
-      }
+    } catch (err) {
+      if (!isLocalCrId(id)) throw err;
+      // Yerel taslakta çalıştırılacak bir veritabanı yok: başarı uydurmak yerine "desteklenmiyor" dön
       return {
-        supported: true,
-        success: true,
-        engineMessage: 'Migration applied cleanly in ephemeral verification container.',
+        supported: false,
+        success: false,
+        engineMessage: 'Tests cannot run for a local draft. Sign in and save the project to verify the migration.',
         failedStatement: null,
-        durationMs: 112,
+        durationMs: 0,
       };
     }
   },
@@ -598,9 +600,10 @@ export const changeRequestService = {
     try {
       const response = await api.post<AffectedCodeScanResult>(`/changerequest/${id}/scan-affected-code`, { files });
       return response.data;
-    } catch {
+    } catch (err) {
+      if (!isLocalCrId(id)) throw err;
       const item = getLocalCRList().find(x => x.id === id);
-      const identifiers: string[] = item ? item.impact.affectedTables.map(it => it.tableName) : ['users', 'orders', 'id'];
+      const identifiers: string[] = item ? item.impact.affectedTables.map(it => it.tableName) : [];
       const matches: { fileName: string; lineNumber: number; matchedIdentifier: string; lineText: string }[] = [];
       files.forEach(f => {
         const fileLines = f.content.split('\n');
@@ -629,8 +632,9 @@ export const changeRequestService = {
     try {
       const response = await api.put(`/changerequest/project/${projectId}/auto-approve-safe`, { enabled });
       return response.data;
-    } catch {
-      return { id: projectId, autoApproveSafeChanges: enabled };
+    } catch (err) {
+      // Sunucuya yazılamadıysa ayar değişmedi: başarı döndürmek kullanıcıyı yanıltırdı
+      throw err;
     }
   },
 
@@ -638,7 +642,8 @@ export const changeRequestService = {
     try {
       const response = await api.get(`/changerequest/${id}/audit`);
       return response.data;
-    } catch {
+    } catch (err) {
+      if (!isLocalCrId(id)) throw err;
       return [
         {
           id: 'audit-1',
@@ -1056,6 +1061,14 @@ api.interceptors.response.use(
       } else if (error.response.status === 429 && error.response.data?.code === 'QUOTA_EXCEEDED') {
         if (typeof window !== 'undefined') {
           useQuotaStore.getState().setExhaustedModalOpen(true);
+        }
+      } else if (error.response.status === 503 && error.response.data?.code === 'FEATURE_DISABLED') {
+        // Yönetici bu özelliği kapattı: genel "başarısız" yerine sunucunun mesajını göster
+        const data = error.response.data as { error?: string; message?: string; featureKey?: string };
+        const text = data.error || data.message || `This feature (${data.featureKey ?? 'unknown'}) is currently disabled by an administrator.`;
+        error.message = text;
+        if (typeof window !== 'undefined') {
+          useToastStore.getState().showToast(text, 'warning');
         }
       }
     }

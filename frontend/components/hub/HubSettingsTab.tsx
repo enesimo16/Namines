@@ -81,7 +81,6 @@ export function HubSettingsTab({ repo, onRepoUpdated }: HubSettingsTabProps) {
   const [autoApproveSafeChanges, setAutoApproveSafeChanges] = useState(
     Boolean(repo.autoApproveSafeChanges)
   );
-  const [strict3NF, setStrict3NF] = useState(true);
 
   // Saving states
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
@@ -545,32 +544,11 @@ export function HubSettingsTab({ repo, onRepoUpdated }: HubSettingsTabProps) {
             <span>Governance &amp; Quality Gates</span>
           </h2>
           <p className="text-xs text-content-muted mt-1">
-            Enforce normalization rules and automated migration approval policies.
+            Automated migration approval policies.
           </p>
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Strict 3NF Gate */}
-          <div className="flex items-start justify-between gap-4 p-3.5 rounded-[var(--radius-control)] bg-surface-900/50 border border-line">
-            <div className="space-y-1">
-              <h4 className="text-xs font-semibold text-content-primary">
-                Enforce Strict 3NF Normalization
-              </h4>
-              <p className="text-xs text-content-muted leading-relaxed">
-                Flags missing primary keys, redundant composite attributes, and unindexed foreign keys before permitting branch merges.
-              </p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-              <input
-                type="checkbox"
-                checked={strict3NF}
-                onChange={e => setStrict3NF(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-surface-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-900 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface-900 after:border-line after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-content-primary"></div>
-            </label>
-          </div>
-
           {/* Auto-Approve Safe Migrations */}
           <div className="flex items-start justify-between gap-4 p-3.5 rounded-[var(--radius-control)] bg-surface-900/50 border border-line">
             <div className="space-y-1">

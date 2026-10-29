@@ -48,6 +48,41 @@ export default function WorkspaceNav() {
 
   const visible = !!pathname && WORKSPACE_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
+  const navBarRef = useRef<HTMLDivElement>(null);
+  const [glider, setGlider] = useState<{ left: number; width: number; visible: boolean }>({
+    left: 0,
+    width: 0,
+    visible: false,
+  });
+
+  useEffect(() => {
+    const updateGlider = () => {
+      if (!navBarRef.current) return;
+      const activeBtn = navBarRef.current.querySelector<HTMLButtonElement>('button[aria-current="page"]');
+      if (activeBtn) {
+        const parentRect = navBarRef.current.getBoundingClientRect();
+        const btnRect = activeBtn.getBoundingClientRect();
+        setGlider({
+          left: btnRect.left - parentRect.left,
+          width: btnRect.width,
+          visible: true,
+        });
+      } else {
+        setGlider((prev) => ({ ...prev, visible: false }));
+      }
+    };
+
+    updateGlider();
+    // Re-check after render
+    const tId = setTimeout(updateGlider, 50);
+    window.addEventListener('resize', updateGlider);
+    return () => {
+      clearTimeout(tId);
+      window.removeEventListener('resize', updateGlider);
+    };
+  }, [pathname]);
+
+  // Hook'lar erken dönüşten ÖNCE çağrılmalı; yoksa görünür/gizli rotalar arasında "Rendered fewer hooks" çöküşü olur.
   if (!visible) return null;
 
   const goToBuild = () => {
@@ -124,40 +159,6 @@ export default function WorkspaceNav() {
     },
   ];
 
-  const navBarRef = useRef<HTMLDivElement>(null);
-  const [glider, setGlider] = useState<{ left: number; width: number; visible: boolean }>({
-    left: 0,
-    width: 0,
-    visible: false,
-  });
-
-  useEffect(() => {
-    const updateGlider = () => {
-      if (!navBarRef.current) return;
-      const activeBtn = navBarRef.current.querySelector<HTMLButtonElement>('button[aria-current="page"]');
-      if (activeBtn) {
-        const parentRect = navBarRef.current.getBoundingClientRect();
-        const btnRect = activeBtn.getBoundingClientRect();
-        setGlider({
-          left: btnRect.left - parentRect.left,
-          width: btnRect.width,
-          visible: true,
-        });
-      } else {
-        setGlider((prev) => ({ ...prev, visible: false }));
-      }
-    };
-
-    updateGlider();
-    // Re-check after render
-    const tId = setTimeout(updateGlider, 50);
-    window.addEventListener('resize', updateGlider);
-    return () => {
-      clearTimeout(tId);
-      window.removeEventListener('resize', updateGlider);
-    };
-  }, [pathname]);
-
   return (
     <nav
       id="workspace-nav"
@@ -214,7 +215,7 @@ export default function WorkspaceNav() {
                     aria-hidden="true"
                   >
                     <path d="M0 8 C4 8 8 4 8 0 V8 H0 Z" fill="currentColor" />
-                    <path d="M0 8 C4 8 8 4 8 0" stroke="var(--line-strong)" strokeWidth="1" fill="none" />
+                    <path d="M0 8 C4 8 8 4 8 0" stroke="var(--color-line-strong)" strokeWidth="1" fill="none" />
                   </svg>
                 )}
 
@@ -240,7 +241,7 @@ export default function WorkspaceNav() {
                     aria-hidden="true"
                   >
                     <path d="M0 0 C0 4 4 8 8 8 H0 V0 Z" fill="currentColor" />
-                    <path d="M0 0 C0 4 4 8 8 8" stroke="var(--line-strong)" strokeWidth="1" fill="none" />
+                    <path d="M0 0 C0 4 4 8 8 8" stroke="var(--color-line-strong)" strokeWidth="1" fill="none" />
                   </svg>
                 )}
               </button>

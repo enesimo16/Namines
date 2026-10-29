@@ -57,6 +57,15 @@ function saveLocalIssues(projectId: string, issues: HubIssue[]) {
   }
 }
 
+/**
+ * Sunucuya ulaşılamadığında yerel taklit YALNIZCA Hub'da karşılığı olmayan yerel taslak repolar için
+ * geçerli (`repo.isLocalDraft`). Gerçek bir repoda hata yutulup localStorage'a sahte başarı yazmak,
+ * kullanıcıya olmayan bir issue'yu "oluştu" göstermek olurdu; orada hata çağırana fırlatılır.
+ */
+export interface LocalFallbackOptions {
+  localDraft?: boolean;
+}
+
 export const hubService = {
   explore: async (params?: ExploreParams): Promise<HubExploreResponse> => {
     const res = await api.get<HubExploreResponse>('/hub/explore', { params });
@@ -119,7 +128,8 @@ export const hubService = {
       label?: string;
       page?: number;
       pageSize?: number;
-    }
+    },
+    opts?: LocalFallbackOptions
   ): Promise<HubIssuesResponse> => {
     try {
       const res = await api.get<HubIssuesResponse>(
@@ -127,7 +137,8 @@ export const hubService = {
         { params }
       );
       return res.data;
-    } catch {
+    } catch (err) {
+      if (!opts?.localDraft) throw err;
       const all = getLocalIssues(projectId);
       const filtered = all.filter((iss) => {
         if (params?.status === 'open' && iss.isClosed) return false;
@@ -150,7 +161,8 @@ export const hubService = {
 
   createIssue: async (
     projectId: string,
-    payload: CreateIssuePayload
+    payload: CreateIssuePayload,
+    opts?: LocalFallbackOptions
   ): Promise<HubIssue> => {
     try {
       const res = await api.post<HubIssue>(
@@ -158,7 +170,8 @@ export const hubService = {
         payload
       );
       return res.data;
-    } catch {
+    } catch (err) {
+      if (!opts?.localDraft) throw err;
       const all = getLocalIssues(projectId);
       const newIssue: HubIssue = {
         id: 'issue-' + Date.now().toString(36),
@@ -184,7 +197,8 @@ export const hubService = {
 
   updateIssueState: async (
     issueId: string,
-    isClosed: boolean
+    isClosed: boolean,
+    opts?: LocalFallbackOptions
   ): Promise<{ id: string; issueNumber: number; isClosed: boolean; closedAt: string | null }> => {
     try {
       const res = await api.patch(
@@ -192,7 +206,8 @@ export const hubService = {
         { isClosed }
       );
       return res.data;
-    } catch {
+    } catch (err) {
+      if (!opts?.localDraft) throw err;
       if (typeof window !== 'undefined') {
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -217,7 +232,7 @@ export const hubService = {
           }
         }
       }
-      return { id: issueId, issueNumber: 1, isClosed, closedAt: isClosed ? new Date().toISOString() : null };
+      throw err;
     }
   },
 

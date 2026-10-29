@@ -23,6 +23,10 @@ import {
 } from 'lucide-react';
 import { useSchemaStore, DbType } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthModalStore } from '../../store/useAuthModalStore';
+import { hubService } from '../../services/hubService';
+import { useT } from '../../lib/i18n';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import { useFeatureStore } from '../../store/useFeatureStore';
 import FeatureGuard from '../../components/common/FeatureGuard';
@@ -103,6 +107,7 @@ const TAB_FEATURE_KEYS: Record<TabId, string> = {
 
 export default function CompilePage() {
   const router = useRouter();
+  const t = useT();
   const { schema, dbType, setDbType, projectName } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
   const activeProjectId = useProjectHistoryStore(s => s.activeProjectId);
@@ -120,16 +125,29 @@ export default function CompilePage() {
 
   const handleExportToHub = async () => {
     if (!schema) return;
+    const auth = useAuthStore.getState();
+    if (!auth.isAuthenticated || !auth.user?.username) {
+      showToast(t('hub.export.loginRequired'), 'warning');
+      useAuthModalStore.getState().open();
+      return;
+    }
+    const history = useProjectHistoryStore.getState();
+    const activeProject = history.projects.find((p) => p.id === history.activeProjectId);
+    if (!activeProject) {
+      showToast(t('hub.export.noProject'), 'warning');
+      return;
+    }
+
     setIsExportingToHub(true);
     try {
-      const activeProject = useProjectHistoryStore.getState().projects.find((p) => p.id === schema.schemaId);
-      const projName = activeProject?.name || schema.name || 'Untitled Architecture';
-      const slug = projName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'repo';
-
-      showToast(`Derlenen yapıt "${projName}" Hub reposuna aktarıldı!`, 'success');
-      router.push(`/hub/me/${encodeURIComponent(slug)}`);
+      // Gerçek aktarım: önce projeyi buluta yükle, sonra Hub'ın repoyu gerçekten döndürdüğünü doğrula.
+      // (syncAllToCloud hatayı yutuyor; başarıyı yalnızca getRepo'nun cevabı kanıtlar.)
+      await history.syncAllToCloud();
+      const repo = await hubService.getRepo(auth.user.username, activeProject.id);
+      showToast(t('hub.export.success', { name: repo.name || activeProject.name }), 'success');
+      router.push(`/hub/${encodeURIComponent(repo.owner?.username || auth.user.username)}/${encodeURIComponent(repo.slug || repo.id)}`);
     } catch {
-      showToast('Hub reposuna aktarma başarısız oldu.', 'error');
+      showToast(t('hub.export.failed'), 'error');
     } finally {
       setIsExportingToHub(false);
     }

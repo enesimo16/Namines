@@ -107,6 +107,45 @@ const tr: Messages = {
       help: { nav: 'Yardım ve SSS', title: 'Yardım ve SSS', subtitle: 'Sık sorulan sorular ve destek rehberi.' },
     },
   },
+  hub: {
+    loginToFork: 'Bu depoyu çatallamak için lütfen giriş yapın.',
+    forkCreated: 'Fork oluşturuldu: {name}',
+    forkFailed: 'Depo çatallanamadı. Hiçbir şey oluşturulmadı; lütfen tekrar deneyin.',
+    openedInStudio: '{name} stüdyoda açıldı',
+    repo: {
+      privateLogin: 'Bu depo gizlidir. Görüntülemek için lütfen giriş yapın.',
+      notFound: 'Depo bulunamadı veya henüz Hub üzerinde yayınlanmadı.',
+      loadFailed: 'Depo yüklenemedi. Lütfen tekrar deneyin.',
+      loading: 'Depo mimarisi ve şema yükleniyor...',
+      accessError: 'Depo erişim hatası',
+      notFoundFallback: 'Depo bulunamadı veya silinmiş olabilir.',
+      backToHub: 'Hub keşif vitrinine dön',
+      localDraft: 'Yerel taslak',
+      tablesCount: '{db} • {count} tablo',
+      notPublishedTitle: 'Bu proje henüz Namines Hub’a aktarılmadı',
+      notPublishedBody: 'Şema çalışmanız bu tarayıcıda kayıtlı. Hub’a aktararak mimariyi sürümleyebilir, şema kodlarını inceleyebilir, Issue ve Pull Request açabilirsiniz.',
+      publishPrivate: 'Özel repo olarak yayınla',
+      publishPublic: 'Public vitrine yayınla',
+      signInSync: 'Giriş yap ve Hub’a senkronla',
+      backToCanvas: 'Canvas çalışma alanına dön',
+      exploreHub: 'Genel Hub vitrinini keşfet →',
+      publishFailed: 'Hub’a yayınlanamadı. Bağlantınızı kontrol edip tekrar deneyin.',
+      publishVisibilityFailed: 'Proje senkronlandı ancak görünürlüğü değiştirilemedi.',
+    },
+    pr: {
+      noSourceSchema: 'Seçili kaynak dalın bu tarayıcıda şema anlık görüntüsü yok; bu daldan pull request oluşturulamaz.',
+      baseFixed: 'Pull request’ler her zaman deponun varsayılan dalıyla karşılaştırılır.',
+    },
+    export: {
+      loginRequired: 'Projeyi bir Hub reposuna aktarmak için giriş yapın.',
+      noProject: 'Önce projeyi kaydedin — aktarılacak kayıtlı bir proje yok.',
+      success: '"{name}" Hub reposuna aktarıldı.',
+      failed: 'Hub’a aktarılamadı. Proje yayınlanmadı; lütfen tekrar deneyin.',
+    },
+  },
+  landing: {
+    tryFree: 'Ücretsiz deneyin',
+  },
 };
 
 export default tr;

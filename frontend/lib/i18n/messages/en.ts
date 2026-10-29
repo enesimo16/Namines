@@ -113,6 +113,45 @@ const en = {
       help: { nav: 'Help & FAQ', title: 'Help & FAQ', subtitle: 'Frequently Asked Questions & support guidelines.' },
     },
   },
+  hub: {
+    loginToFork: 'Please log in to fork this repository.',
+    forkCreated: 'Fork created: {name}',
+    forkFailed: 'Could not fork this repository. Nothing was created — please try again.',
+    openedInStudio: 'Opened {name} in studio',
+    repo: {
+      privateLogin: 'This repository is private. Log in to view it.',
+      notFound: 'Repository not found, or it has not been published to the Hub yet.',
+      loadFailed: 'The repository could not be loaded. Please try again.',
+      loading: 'Loading repository architecture and schema...',
+      accessError: 'Repository access error',
+      notFoundFallback: 'Repository not found or it may have been deleted.',
+      backToHub: 'Back to Hub discovery',
+      localDraft: 'Local draft',
+      tablesCount: '{db} • {count} tables',
+      notPublishedTitle: 'This project has not been exported to Namines Hub yet',
+      notPublishedBody: 'Your schema work is stored in this browser. Export it to Hub to version the architecture, review schema code and open issues and pull requests.',
+      publishPrivate: 'Publish as private repo',
+      publishPublic: 'Publish to public showcase',
+      signInSync: 'Log in and sync to Hub',
+      backToCanvas: 'Back to the canvas workspace',
+      exploreHub: 'Explore the public Hub showcase →',
+      publishFailed: 'Could not publish to Hub. Check your connection and try again.',
+      publishVisibilityFailed: 'The project was synced but its visibility could not be changed.',
+    },
+    pr: {
+      noSourceSchema: 'The selected source branch has no schema snapshot in this browser, so a pull request cannot be created from it.',
+      baseFixed: 'Pull requests are always compared against the repository default branch.',
+    },
+    export: {
+      loginRequired: 'Log in to export this project to a Hub repository.',
+      noProject: 'Save the project first — there is no saved project to export.',
+      success: 'Exported "{name}" to your Hub repository.',
+      failed: 'Could not export to Hub. The project was not published — please try again.',
+    },
+  },
+  landing: {
+    tryFree: 'Try for free',
+  },
 } as const;
 
 export default en;

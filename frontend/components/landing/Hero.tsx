@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sourceService } from '../../services/api';
@@ -331,7 +331,7 @@ async function scanGitHubRepoLive(
     };
   } catch {
     // 2. Fallback to direct public GitHub API inspection in browser
-    const repoResp = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`);
+    const repoResp = await fetch(`https://api.github.com/repos/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`);
     if (!repoResp.ok) {
       throw new Error(
         repoResp.status === 404
@@ -343,7 +343,7 @@ async function scanGitHubRepoLive(
     const activeBranch = branchInput?.trim() || repoMeta.default_branch || 'main';
 
     const treeResp = await fetch(
-      `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/git/trees/${encodeURIComponent(activeBranch)}?recursive=1`
+      `https://api.github.com/repos/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/git/trees/${encodeURIComponent(activeBranch)}?recursive=1`
     );
     if (!treeResp.ok) {
       throw new Error(`Could not read branch "${activeBranch}" from ${repoSlug}.`);
@@ -376,7 +376,7 @@ async function scanGitHubRepoLive(
     for (const filePath of filesToInspect.slice(0, 3)) {
       try {
         const rawFileResp = await fetch(
-          `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${encodeURIComponent(activeBranch)}/${filePath}`
+          `https://raw.githubusercontent.com/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/${encodeURIComponent(activeBranch)}/${filePath.split('/').map(encodeURIComponent).join('/')}`
         );
         if (!rawFileResp.ok) continue;
         const content = await rawFileResp.text();
@@ -852,17 +852,28 @@ export default function Hero() {
 
   const currentIdeConfig = MCP_IDES.find((i) => i.key === selectedIde) ?? MCP_IDES[0];
 
+  // Sayfadan çıkılırsa bekleyen yönlendirme iptal edilir (unmount sonrası router.push olmasın)
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+  }, []);
+
   const redirectToNew = (promptText?: string, sourceId?: string, githubUrl?: string) => {
     if (typeof window !== 'undefined') {
-      if (sourceId) {
-        sessionStorage.setItem('namines-demo-source', sourceId);
-      }
-      if (githubUrl?.trim()) {
-        sessionStorage.setItem('namines-demo-github-url', githubUrl.trim());
-      }
-      const toSave = promptText?.trim() || promptInput.trim();
-      if (toSave) {
-        sessionStorage.setItem('namines-demo-prompt', toSave);
+      // sessionStorage gizli modda/engelliyken fırlatabilir; yönlendirme yine de çalışmalı
+      try {
+        if (sourceId) {
+          sessionStorage.setItem('namines-demo-source', sourceId);
+        }
+        if (githubUrl?.trim()) {
+          sessionStorage.setItem('namines-demo-github-url', githubUrl.trim());
+        }
+        const toSave = promptText?.trim() || promptInput.trim();
+        if (toSave) {
+          sessionStorage.setItem('namines-demo-prompt', toSave);
+        }
+      } catch {
+        /* storage kullanılamıyor: demo bağlamı taşınmaz, /new yine açılır */
       }
     }
     router.push('/new');
@@ -910,7 +921,7 @@ export default function Hero() {
       // If repository is too large for miniature preview (> 6 tables), show preview and redirect to Studio
       if (preview.totalTables > 6) {
         setGithubScanResult({ ...preview, redirecting: true });
-        setTimeout(() => {
+        redirectTimerRef.current = setTimeout(() => {
           redirectToNew('', 'github', githubUrlInput);
         }, 1100);
         return;

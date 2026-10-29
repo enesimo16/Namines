@@ -76,7 +76,7 @@ export function HubIssuesTab({ repo, onIssueCountChanged }: HubIssuesTabProps) {
       const res = await hubService.listIssues(repo.id, {
         status: statusFilter,
         relatedTable: tableFilter !== 'all' ? tableFilter : undefined,
-      });
+      }, { localDraft: repo.isLocalDraft });
       setIssues(res.items);
       setOpenCount(res.openCount);
       setClosedCount(res.closedCount);
@@ -107,7 +107,7 @@ export function HubIssuesTab({ repo, onIssueCountChanged }: HubIssuesTabProps) {
         body: newBody.trim(),
         relatedTableName: newRelatedTable || undefined,
         labels: newLabels.trim() || undefined,
-      });
+      }, { localDraft: repo.isLocalDraft });
       showToast(`Created issue #${created.issueNumber}`, 'success');
       setIsNewIssueModalOpen(false);
       setNewTitle('');
@@ -165,7 +165,7 @@ export function HubIssuesTab({ repo, onIssueCountChanged }: HubIssuesTabProps) {
     setIsUpdatingState(true);
     const nextState = !activeIssue.isClosed;
     try {
-      const res = await hubService.updateIssueState(activeIssue.id, nextState);
+      const res = await hubService.updateIssueState(activeIssue.id, nextState, { localDraft: repo.isLocalDraft });
       setActiveIssue(prev => (prev ? { ...prev, isClosed: res.isClosed, closedAt: res.closedAt } : null));
       showToast(nextState ? 'Issue closed' : 'Issue reopened', 'info');
       loadIssues();

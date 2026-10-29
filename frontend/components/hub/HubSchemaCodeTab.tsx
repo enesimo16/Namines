@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ReactFlow,
@@ -42,7 +42,9 @@ import { HubTableNode } from './HubTableNode';
 import { HubFlowNode } from './HubFlowNode';
 import { schemaService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
-import { useAutomationStore } from '../../store/useAutomationStore';
+import { fetchAutomationRules } from '../../lib/automationApi';
+import type { AutomationRule } from '../../store/useAutomationStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 import MermaidPreview from '../compile/MermaidPreview';
 import {
@@ -324,8 +326,8 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
   const currentBranchSchema: DatabaseSchema = useMemo(() => {
     // A. Check if the active branch in repo has schema attached
     const targetBranch = branches.find((b) => b.name === selectedBranch);
-    if ((targetBranch as any)?.schema?.tables?.length) {
-      return (targetBranch as any).schema;
+    if (targetBranch?.schema?.tables?.length) {
+      return targetBranch.schema;
     }
     // B. Check if local history store has this branch
     const localProj = useProjectHistoryStore.getState().projects.find((p) => p.id === repo.id);
@@ -335,13 +337,29 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
     }
     // C. Fallback to repo schema
     return repo.schema || { schemaId: repo.id, name: repo.name, tables: [], relations: [] };
-  }, [branches, selectedBranch, repo]);
+  }, [branches, selectedBranch, repo.id, repo.name, repo.schema]);
 
   const tables = currentBranchSchema.tables || [];
   const relations = currentBranchSchema.relations || [];
 
   // Automation / Flow integration
-  const rules = useAutomationStore((s) => s.rules);
+  // Kurallar kullanıcının KENDİ projesine ait: başkasının reposunda (ya da yerel taslakta) gösterilmez.
+  // Eskiden global store'daki, görüntüleyenin son açtığı projenin kuralları her repoda görünüyordu.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const canSeeFlows = !!repo.caller?.canEdit && isAuthenticated && !repo.isLocalDraft;
+  const [repoRules, setRepoRules] = useState<{ repoId: string; rules: AutomationRule[] } | null>(null);
+  useEffect(() => {
+    if (!canSeeFlows) return;
+    let cancelled = false;
+    fetchAutomationRules(repo.id)
+      .then((rules) => { if (!cancelled) setRepoRules({ repoId: repo.id, rules }); })
+      .catch(() => { /* kural yoksa akış görünümü boş kalır */ });
+    return () => { cancelled = true; };
+  }, [canSeeFlows, repo.id]);
+  const rules = useMemo(
+    () => (canSeeFlows && repoRules?.repoId === repo.id ? repoRules.rules : []),
+    [canSeeFlows, repoRules, repo.id],
+  );
   const projectFlows = useMemo(() => {
     return rules.filter((r) => !r.scopeTableId || tables.some((t) => t.id === r.scopeTableId));
   }, [rules, tables]);
@@ -369,10 +387,10 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as any)) {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as globalThis.Node)) {
         setIsBranchDropdownOpen(false);
       }
-      if (moduleDropdownRef.current && !moduleDropdownRef.current.contains(event.target as any)) {
+      if (moduleDropdownRef.current && !moduleDropdownRef.current.contains(event.target as globalThis.Node)) {
         setIsModuleDropdownOpen(false);
       }
     }
@@ -386,7 +404,23 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
   const [activeVisualizerView, setActiveVisualizerView] = useState<'ERD' | 'FLOWS'>('ERD');
 
   const [activeFile, setActiveFile] = useState<GeneratedFileType>('DIAGRAM');
-  const [fileContents, setFileContents] = useState<Partial<Record<GeneratedFileType, string>>>({});
+  // Derlenmiş dosya önbelleği şemaya bağlı: dal/şema değişince eski dalın çıktısı gösterilmesin.
+  type FileMap = Partial<Record<GeneratedFileType, string>>;
+  const [fileCache, setFileCache] = useState<{ source: DatabaseSchema | null; files: FileMap }>({ source: null, files: {} });
+  // Kullanıcının "Add" ile eklediği dosyalar o anki şemadan üretilmiş anlık görüntü; önbellekle silinmez.
+  const [customContents, setCustomContents] = useState<FileMap>({});
+  const fileContents = useMemo<FileMap>(
+    () => ({ ...(fileCache.source === currentBranchSchema ? fileCache.files : {}), ...customContents }),
+    [fileCache, currentBranchSchema, customContents],
+  );
+  const setFileContents = useCallback(
+    (update: (prev: FileMap) => FileMap) =>
+      setFileCache((prev) => ({
+        source: currentBranchSchema,
+        files: update(prev.source === currentBranchSchema ? prev.files : {}),
+      })),
+    [currentBranchSchema],
+  );
   const [loadingFile, setLoadingFile] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -555,7 +589,7 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
               return `- \`${src}.${r.sourceColumnId}\` ➔ \`${tgt}.${r.targetColumnId}\``;
             })
             .join('\n');
-          content = `# ${repo.name}\n\n${repo.description || 'Production-ready database architecture.'}\n\n## Dialect & Specifications\n- Database Engine: **${repo.dbType || 'PostgreSQL'}**\n- Normalization: **3NF Compliant**\n- Active Branch: **${selectedBranch}**\n\n## Table Architecture (${tables.length})\n${tables.map((t) => `- **\`${t.name}\`** (${t.columns.length} columns)`).join('\n')}\n\n## Relationships & Foreign Keys (${relations.length})\n${relLines}`;
+          content = `# ${repo.name}\n\n${repo.description || 'Production-ready database architecture.'}\n\n## Dialect & Specifications\n- Database Engine: **${repo.dbType || 'PostgreSQL'}**\n- Active Branch: **${selectedBranch}**\n\n## Table Architecture (${tables.length})\n${tables.map((t) => `- **\`${t.name}\`** (${t.columns.length} columns)`).join('\n')}\n\n## Relationships & Foreign Keys (${relations.length})\n${relLines}`;
         } else if (activeFile === 'DbContext.cs') {
           content = `// Auto-generated EF Core DbContext for ${repo.name} (${repo.dbType || 'PostgreSQL'})\nusing Microsoft.EntityFrameworkCore;\n\nnamespace ${repo.name.replace(/[^a-zA-Z0-9]/g, '')}.Data;\n\npublic class AppDbContext : DbContext\n{\n    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }\n\n${tables.map((t) => `    public DbSet<${t.name}> ${t.name} { get; set; } = null!;`).join('\n')}\n}`;
         } else if (activeFile === 'openapi.json') {
@@ -602,8 +636,10 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
     loadContent();
     return () => {
       isSubscribed = false;
+      // İptal edilen yükleme loadingFile'ı true bırakmasın (yeni çalışma erken dönerse takılırdı)
+      setLoadingFile(false);
     };
-  }, [activeFile, currentBranchSchema, repo, tables, fileContents, relations, selectedBranch]);
+  }, [activeFile, currentBranchSchema, repo, tables, fileContents, relations, selectedBranch, setFileContents]);
 
   const handleCopy = () => {
     const text = fileContents[activeFile];
@@ -623,7 +659,7 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
       ...prev.filter((f) => f.key !== mmdKey),
       { key: mmdKey, label: mmdKey, tag: 'Mermaid', icon: CodeXml },
     ]);
-    setFileContents((prev) => ({ ...prev, [mmdKey]: mmdContent }));
+    setCustomContents((prev) => ({ ...prev, [mmdKey]: mmdContent }));
     setActiveFile(mmdKey);
     setIsAddModalOpen(false);
     showToast(`Mermaid ${typeDef.name} diagram added to visualizer!`, 'success');
@@ -648,7 +684,7 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
       ...prev.filter((f) => f.key !== fileName),
       { key: fileName, label: fileName, tag, icon: FileCode },
     ]);
-    setFileContents((prev) => ({ ...prev, [fileName]: content }));
+    setCustomContents((prev) => ({ ...prev, [fileName]: content }));
     setActiveFile(fileName);
     setIsAddModalOpen(false);
     showToast(`${fileName} compiled and added from Build!`, 'success');
@@ -742,7 +778,7 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
                   <button
                     key={f.key}
                     type="button"
-                    onClick={() => setActiveFile(f.key as any)}
+                    onClick={() => setActiveFile(f.key)}
                     className={`w-full flex items-center justify-between px-4 py-2.5 transition-colors text-left cursor-pointer ${
                       isSelected
                         ? 'bg-surface-700/70 text-content-primary font-semibold'
@@ -1036,12 +1072,6 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
               <div className="flex items-center justify-between text-content-muted">
                 <span>Database Engine:</span>
                 <span className="text-content-primary font-semibold">{repo.dbType || 'PostgreSQL'}</span>
-              </div>
-              <div className="flex items-center justify-between text-content-muted">
-                <span>Quality Gate:</span>
-                <span className="text-accent-text font-medium flex items-center gap-1">
-                  3NF Compliant
-                </span>
               </div>
               <div className="flex items-center justify-between text-content-muted">
                 <span>Community:</span>
