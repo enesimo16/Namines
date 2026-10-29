@@ -174,6 +174,11 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
                 CreatedAt = DateTime.UtcNow
             };
             db.Organizations.Add(personalOrg);
+            // GetOrCreatePersonalOrgAsync gerçekte Owner üyeliğini de ekler.
+            db.OrganizationMembers.Add(new OrganizationMember
+            {
+                OrganizationId = personalOrg.Id, UserId = userId, Role = OrgRole.Owner, JoinedAt = DateTime.UtcNow
+            });
 
             var teamOrg = new Organization
             {

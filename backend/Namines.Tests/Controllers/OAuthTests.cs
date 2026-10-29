@@ -49,14 +49,25 @@ public sealed class OAuthTests : IAsyncLifetime
             logger: NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 
-    private static AuthController NewController(AuthDbContext db, IConfiguration? config = null)
+    private sealed class FakeEnv(string name) : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = name;
+        public string ApplicationName { get; set; } = "Namines.Tests";
+        public string ContentRootPath { get; set; } = "";
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = new Microsoft.Extensions.FileProviders.NullFileProvider();
+        public string WebRootPath { get; set; } = "";
+        public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; } = new Microsoft.Extensions.FileProviders.NullFileProvider();
+    }
+
+    private static AuthController NewController(AuthDbContext db, IConfiguration? config = null, string environment = "Development")
     {
         config ??= new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Jwt:Key"] = "SuperSecretDevJwtKeyThatIsLongEnough12345!",
                 ["Jwt:Issuer"] = "NaminesServer",
-                ["Jwt:Audience"] = "NaminesClient"
+                ["Jwt:Audience"] = "NaminesClient",
+                ["Auth:AllowOAuthDevSimulation"] = "true"
             })
             .Build();
 
@@ -66,7 +77,8 @@ public sealed class OAuthTests : IAsyncLifetime
             config,
             new MigrationService(null!),
             new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance)
+            NullLogger<AuthController>.Instance,
+            new FakeEnv(environment))
         {
             ControllerContext = new ControllerContext
             {
@@ -115,6 +127,23 @@ public sealed class OAuthTests : IAsyncLifetime
             IsDevSimulation = true
         }) as BadRequestObjectResult;
         Assert.NotNull(unknownResult);
+    }
+
+    [Fact]
+    public async Task OAuthCallback_DevSimulation_IsRejectedOutsideDevelopment()
+    {
+        using var db = new AuthDbContext(_options);
+        // Bayrak açık olsa bile Production'da simülasyon reddedilmeli.
+        var controller = NewController(db, environment: "Production");
+
+        var result = await controller.OAuthCallback(new OAuthCallbackRequestDto
+        {
+            Provider = "google",
+            IsDevSimulation = true
+        });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Empty(await db.Users.ToListAsync());
     }
 
     [Fact]
