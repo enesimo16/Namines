@@ -151,7 +151,20 @@ public class VaultProviderTests
         var conn = DbConnectionParts.Parse(
             $"Host={host};Database=uygulama;Username=kok;Password=gizli;", 5432);
 
-        Assert.Equal(DbConnectionParts.HostGatewayName, conn.ContainerVisibleHost);
+        // Linux'ta konteyner host ağında koşar (127.0.0.1'e yayımlanmış porta host-gateway
+        // ulaşamıyor); Docker Desktop'ta host ağı yok, host-gateway adı kullanılır.
+        var expected = OperatingSystem.IsLinux() ? "127.0.0.1" : DbConnectionParts.HostGatewayName;
+        Assert.Equal(expected, conn.ContainerVisibleHost);
+        Assert.Equal(OperatingSystem.IsLinux(), conn.UseHostNetwork);
+    }
+
+    [Fact]
+    public void Uzak_adres_icin_host_agi_kullanilmaz()
+    {
+        var conn = DbConnectionParts.Parse(
+            "Host=db.example.com;Database=uygulama;Username=kok;Password=gizli;", 5432);
+
+        Assert.False(conn.UseHostNetwork);
     }
 
     /// <summary>

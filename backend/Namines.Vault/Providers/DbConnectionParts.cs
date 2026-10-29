@@ -56,9 +56,19 @@ internal sealed record DbConnectionParts(
     /// tam olarak bu yüzden var. O dal zaten geliştirme çift kapısıyla kapılı.
     /// </summary>
     public string ContainerVisibleHost =>
-        LoopbackNames.Contains(Host)
-            ? HostGatewayName
+        IsLoopback
+            ? (UseHostNetwork ? "127.0.0.1" : HostGatewayName)
             : (ResolvedAddress ?? Host);
+
+    public bool IsLoopback => LoopbackNames.Contains(Host);
+
+    /// <summary>
+    /// Linux'ta loopback hedefi için konteyner host ağında koşar. host-gateway orada
+    /// docker0 köprüsüne çözülüyor ve yalnızca 127.0.0.1'e yayımlanmış bir porta
+    /// (BranchDatabaseProvisioner, yerel Ground) ULAŞAMIYOR; Docker Desktop'ta ise
+    /// tam tersi — host ağı yok, host-gateway çalışıyor.
+    /// </summary>
+    public bool UseHostNetwork => IsLoopback && OperatingSystem.IsLinux();
 
     /// <summary>
     /// API tarafında ÇÖZÜLMÜŞ ve SSRF guard'ından GEÇMİŞ IP adresi.

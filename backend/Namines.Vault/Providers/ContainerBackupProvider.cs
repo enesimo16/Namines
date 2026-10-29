@@ -307,10 +307,14 @@ public abstract class ContainerBackupProvider : IBackupProvider, IDisposable
             HostConfig = new HostConfig
             {
                 // Konteynerin host makinesindeki veritabanına ulaşabilmesi icin.
-                // NetworkMode="host" DEGIL: Docker Desktop (Windows/macOS) onu
-                // desteklemiyor; host-gateway uc platformda da calisiyor.
+                // Varsayilan host-gateway: Docker Desktop (Windows/macOS) host agini
+                // desteklemiyor. Linux'ta loopback hedefi icin host agi — bkz.
+                // DbConnectionParts.UseHostNetwork.
                 // Binds YOK: hicbir host dizini baglanmiyor, docker.sock hic degil.
-                ExtraHosts = new List<string> { $"{DbConnectionParts.HostGatewayName}:host-gateway" },
+                NetworkMode = conn.UseHostNetwork ? "host" : null,
+                ExtraHosts = conn.UseHostNetwork
+                    ? null
+                    : new List<string> { $"{DbConnectionParts.HostGatewayName}:host-gateway" },
                 AutoRemove = false,
             },
         }, ct);
