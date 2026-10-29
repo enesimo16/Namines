@@ -95,7 +95,7 @@ internal static class ColumnFeatureSql
     {
         if (string.IsNullOrWhiteSpace(column.Generated)) return null;
 
-        var expression = column.Generated.Trim();
+        var expression = SqlFragmentGuard.EnsureSafeExpression(column.Generated, "generated column", engine);
 
         // SQLite hesaplanan bir kolonun birincil anahtar olmasına İZİN VERMİYOR
         // ("generated columns cannot be part of the PRIMARY KEY"). Bu tahmin değil,

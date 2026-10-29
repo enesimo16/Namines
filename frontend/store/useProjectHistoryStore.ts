@@ -551,7 +551,7 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
       // ── Cloud Sync Throttle implementation ──────────────────────────────────
       pendingCloudSync: false,
       lastCloudSyncAt: 0,
-      CLOUD_SYNC_THROTTLE_MS: 5_000, // 5 saniye
+      CLOUD_SYNC_THROTTLE_MS: 30_000, // 30 saniye
 
       triggerCloudSyncIfDue: async () => {
         const state = get();

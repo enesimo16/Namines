@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,6 +42,7 @@ public sealed record SaveScheduleRequest(
 [Authorize]
 [ApiController]
 [Route("api/vault")]
+[FeatureGate("vault")]
 public class VaultController : ControllerBase
 {
     private readonly AuthDbContext _context;

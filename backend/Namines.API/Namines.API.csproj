@@ -34,6 +34,9 @@
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageReference Include="Stripe.net" Version="46.2.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+    <!-- Geçişli CVE alt sınırları: Swashbuckle -> Microsoft.OpenApi, SignalR Redis -> MessagePack. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageReference Include="MessagePack" Version="2.5.303" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8" />
   </ItemGroup>
 

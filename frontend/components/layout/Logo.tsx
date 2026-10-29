@@ -36,14 +36,14 @@ export default function Logo({
             src="/brand/namines-logo-horizontal.png"
             alt="Namines"
             className={`theme-logo-dark ${heightClass} w-auto max-w-none object-contain transition-transform duration-200 group-hover:scale-[1.02]`}
-            loading="eager"
+            loading="lazy"
             decoding="async"
           />
           <img
             src="/brand/namines-logo-horizontal-light.png"
             alt="Namines"
             className={`theme-logo-light ${heightClass} w-auto max-w-none object-contain transition-transform duration-200 group-hover:scale-[1.02]`}
-            loading="eager"
+            loading="lazy"
             decoding="async"
           />
         </>
@@ -53,14 +53,14 @@ export default function Logo({
             src="/brand/namines-logo-only.png"
             alt="Namines"
             className={`theme-logo-dark ${heightClass} aspect-[1200/930] object-contain transition-transform duration-200 group-hover:scale-105`}
-            loading="eager"
+            loading="lazy"
             decoding="async"
           />
           <img
             src="/brand/namines-logo-only-light.png"
             alt="Namines"
             className={`theme-logo-light ${heightClass} aspect-[1200/930] object-contain transition-transform duration-200 group-hover:scale-105`}
-            loading="eager"
+            loading="lazy"
             decoding="async"
           />
         </>

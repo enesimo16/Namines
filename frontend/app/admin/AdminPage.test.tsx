@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
-import AdminPage from './page';
+import AdminPage from './AdminConsole';
 import { useAuthStore } from '../../store/useAuthStore';
 import { adminService } from '../../services/adminService';
 import { setLocale } from '../../lib/i18n';

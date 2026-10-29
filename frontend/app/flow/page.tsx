@@ -166,16 +166,11 @@ function FlowPageContent() {
         scopedHubRepo?.name ||
         schemaProjectName ||
         'Project Workspace';
+      // activeProjectId BİLEREK değiştirilmiyor: şema store'u başka projeye ait olabilir ve
+      // canvas autosave'i o şemayı bu projenin üzerine yazardı.
       setScopedProject(projectParam, resolvedName);
-      useProjectHistoryStore.getState().setActiveProjectId(projectParam);
-      if (isAuthenticated) {
-        void loadRules(projectParam);
-      }
     } else {
       clearProjectSession();
-      if (isAuthenticated && activeProjectId) {
-        void loadRules(activeProjectId);
-      }
     }
   }, [
     projectParam,
@@ -184,12 +179,17 @@ function FlowPageContent() {
     schemaProjectName,
     scopedProjectName,
     scopedHubRepo,
-    isAuthenticated,
-    activeProjectId,
-    loadRules,
     setScopedProject,
     clearProjectSession,
   ]);
+
+  // Kurallar yalnızca proje/oturum değişince çekilir (autosave her tetiklendiğinde değil)
+  const rulesProjectId = projectParam || activeProjectId;
+  useEffect(() => {
+    if (isAuthenticated && rulesProjectId) {
+      void loadRules(rulesProjectId);
+    }
+  }, [isAuthenticated, rulesProjectId, loadRules]);
 
   const anchorTableId = templateTableId || tables?.[0]?.id || '';
 
@@ -197,6 +197,34 @@ function FlowPageContent() {
     tableId === '' ? 'Whole project' : (tables?.find((t) => t.id === tableId)?.name ?? 'Unknown table');
 
   const detached = useMemo(() => rules.filter((r) => isDetachedRule(r, tables)), [rules, tables]);
+
+  // Hook erken dönüşlerden önce olmalı (kural ihlali = render sırasında hook sayısı değişir)
+  const mergedProjects = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; name: string; dbType: string; tableCount: number; hasConnection: boolean }
+    >();
+    for (const lp of localProjects) {
+      map.set(lp.id, {
+        id: lp.id,
+        name: lp.name,
+        dbType: lp.dbType || 'PostgreSQL',
+        tableCount: lp.schema?.tables?.length ?? 0,
+        hasConnection: false,
+      });
+    }
+    for (const cp of cloudProjects ?? []) {
+      const existing = map.get(cp.id);
+      map.set(cp.id, {
+        id: cp.id,
+        name: cp.name,
+        dbType: cp.dbType || existing?.dbType || 'PostgreSQL',
+        tableCount: existing?.tableCount ?? 0,
+        hasConnection: Boolean(cp.hasConnection),
+      });
+    }
+    return Array.from(map.values());
+  }, [localProjects, cloudProjects]);
 
   const applyTemplate = (template: NaminesFlowTemplate) => {
     const scopeTableId = template.requiresTable ? anchorTableId : '';
@@ -435,33 +463,6 @@ function FlowPageContent() {
   // ─────────────────────────────────────────────────────────────────────────
   // MODE B: GLOBAL FLOW AUTOMATION CONSOLE (/flow without ?project=)
   // ─────────────────────────────────────────────────────────────────────────
-  const mergedProjects = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; name: string; dbType: string; tableCount: number; hasConnection: boolean }
-    >();
-    for (const lp of localProjects) {
-      map.set(lp.id, {
-        id: lp.id,
-        name: lp.name,
-        dbType: lp.dbType || 'PostgreSQL',
-        tableCount: lp.schema?.tables?.length ?? 0,
-        hasConnection: false,
-      });
-    }
-    for (const cp of cloudProjects ?? []) {
-      const existing = map.get(cp.id);
-      map.set(cp.id, {
-        id: cp.id,
-        name: cp.name,
-        dbType: cp.dbType || existing?.dbType || 'PostgreSQL',
-        tableCount: existing?.tableCount ?? 0,
-        hasConnection: Boolean(cp.hasConnection),
-      });
-    }
-    return Array.from(map.values());
-  }, [localProjects, cloudProjects]);
-
   return (
     <PageShell>
       <div id="flow-header">

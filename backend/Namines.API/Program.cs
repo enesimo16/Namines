@@ -313,6 +313,24 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
             });
         });
 
+        // Hub'ın sık ama ucuz yazmaları (yıldız, issue, yorum). "sensitive"in dakikada
+        // 5'i bir issue tartışmasını bile tıkardı; spam'i durdurmak için kullanıcı
+        // başına 30 yeterli. Pahalı/yıkıcı olanlar (fork, ayar, silme) "sensitive"te kalır.
+        options.AddPolicy("hub-write", httpContext =>
+        {
+            var partitionKey =
+                httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "anonymous";
+
+            return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+            {
+                Window = TimeSpan.FromMinutes(1),
+                PermitLimit = 30,
+                QueueLimit = 0
+            });
+        });
+
         // ── AI üretimi: kullanıcı başına EŞZAMANLILIK sınırı ─────────────────
         //
         // Kota rezervasyonu (AiQuotaService.TryReserveAsync) bütçe aşımını zaten

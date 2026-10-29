@@ -43,7 +43,7 @@ internal static class EnumSql
         var sb = new StringBuilder();
         foreach (var e in schema.Enums)
         {
-            var values = string.Join(", ", e.Values.Select(Literal));
+            var values = string.Join(", ", e.Values.Select(v => Literal(engine, v)));
             sb.AppendLine($"CREATE TYPE {Quote(engine, e.Name)} AS ENUM ({values});");
         }
         sb.AppendLine();
@@ -61,7 +61,7 @@ internal static class EnumSql
         if (HasNamedType(engine)) return Quote(engine, definition.Name);
 
         if (HasInlineEnum(engine))
-            return $"ENUM({string.Join(", ", definition.Values.Select(Literal))})";
+            return $"ENUM({string.Join(", ", definition.Values.Select(v => Literal(engine, v)))})";
 
         // Karşılığı yok: değerleri tutabilecek bir metin tipi + ayrıca CHECK.
         // Uzunluk en uzun değere göre; sabit bir 255 seçmek, kısa bir enum için
@@ -80,21 +80,24 @@ internal static class EnumSql
     /// Enum'ın CHECK karşılığı; motorun kendi enum'ı varsa <c>null</c>
     /// (tip zaten kısıtlıyor, ikinci bir kontrol gürültü olurdu).
     /// </summary>
-    public static string? CheckConstraint(SchemaTable table, SchemaColumn column, DatabaseSchema schema, DatabaseType engine)
+    public static string? CheckConstraint(
+        SchemaTable table, SchemaColumn column, DatabaseSchema schema, DatabaseType engine, ObjectNameRegistry names)
     {
         if (HasNamedType(engine) || HasInlineEnum(engine)) return null;
 
         var definition = Resolve(column, schema);
         if (definition is null) return null;
 
-        var values = string.Join(", ", definition.Values.Select(Literal));
+        var values = string.Join(", ", definition.Values.Select(v => Literal(engine, v)));
 
         // Nullable kolonda ayrıca "OR col IS NULL" YAZILMIYOR ve buna gerek yok:
         // SQL'de NULL bir CHECK'i ihlal etmez, çünkü karşılaştırma true değil
         // UNKNOWN döner. Fazladan yazmak, okuyanı "demek ki gerekiyormuş" diye
         // düşündürüp aynı kalıbı gereksiz yere çoğaltırdı.
         var quoted = Quote(engine, column.Name);
-        return $"CONSTRAINT {Quote(engine, "CK_" + table.Name + "_" + column.Name)} CHECK ({quoted} IN ({values}))";
+        // Ad kayıt defterinden geçer: uzun tablo+kolon adı CHECK adını motor sınırının üstüne taşıyabilir.
+        var name = names.ClaimConstraint(table.Name, "CK_" + table.Name + "_" + column.Name);
+        return $"CONSTRAINT {Quote(engine, name)} CHECK ({quoted} IN ({values}))";
     }
 
     /// <summary>
@@ -126,7 +129,7 @@ internal static class EnumSql
     /// SQL dize sabiti. Tek tırnak ikilenir — bir enum değeri kesme işareti
     /// içeriyorsa (<c>can't_ship</c>) kaçırılmadığında DDL ayrıştırılamaz olur.
     /// </summary>
-    private static string Literal(string value) => "'" + (value ?? string.Empty).Replace("'", "''") + "'";
+    private static string Literal(DatabaseType engine, string value) => SqlFragmentGuard.StringLiteral(value, engine);
 
     private static string Quote(DatabaseType engine, string identifier) => SqlIdentifier.For(engine, identifier);
 }

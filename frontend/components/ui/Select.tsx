@@ -17,6 +17,17 @@ export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectE
   placement?: 'bottom' | 'top' | 'auto';
 }
 
+/** React düğümünden düz metin çıkarır; `<option>{a}{b}</option>` gibi dizi çocuklar "a,b" olmasın. */
+function nodeText(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join('');
+  if (React.isValidElement(node)) {
+    return nodeText((node.props as { children?: React.ReactNode }).children);
+  }
+  return '';
+}
+
 /**
  * Shopify Polaris-tarzı Özel Açılır Menü (Custom Dropdown).
  *
@@ -87,8 +98,9 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       React.Children.forEach(children, child => {
         if (React.isValidElement(child) && child.props) {
           const p = child.props as { value?: string | number; children?: React.ReactNode; disabled?: boolean };
-          const val = p.value !== undefined ? p.value : String(p.children ?? '');
-          const lbl = p.children !== undefined ? String(p.children) : String(val);
+          const text = nodeText(p.children);
+          const val = p.value !== undefined ? p.value : text;
+          const lbl = p.children !== undefined ? text : String(val);
           list.push({
             value: val,
             label: lbl,

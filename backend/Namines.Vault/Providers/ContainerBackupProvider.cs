@@ -66,6 +66,9 @@ public abstract class ContainerBackupProvider : IBackupProvider, IDisposable
 
     protected ContainerBackupProvider(ILogger logger) => Logger = logger;
 
+    /// <summary>Özel host izni (dev) için mevcut egress politikası; yoksa özel çözümleme reddedilir.</summary>
+    public Namines.Core.Security.IDbHostAccessPolicy? HostPolicy { get; init; }
+
     private DockerClient Docker => _dockerClient.Value;
 
     protected ILogger Logger { get; }
@@ -111,13 +114,13 @@ public abstract class ContainerBackupProvider : IBackupProvider, IDisposable
 
     public async Task BackupAsync(BackupSpec spec, Stream destination, CancellationToken ct)
     {
-        var conn = DbConnectionParts.Parse(spec.ConnectionString, DefaultPort);
+        var conn = DbConnectionParts.Parse(spec.ConnectionString, DefaultPort, HostPolicy);
         await RunAsync(BuildDumpCommand(conn), conn, uploadFromPath: null, stdout: destination, ct);
     }
 
     public async Task RestoreAsync(RestoreSpec spec, Stream source, CancellationToken ct)
     {
-        var conn = DbConnectionParts.Parse(spec.ConnectionString, DefaultPort);
+        var conn = DbConnectionParts.Parse(spec.ConnectionString, DefaultPort, HostPolicy);
         // Komutu ERKEN üret: sağlayıcı kısmi geri yüklemeyi desteklemiyorsa
         // (NotSupportedException) hiç dosya yazmadan/indirmeden hemen patlasın.
         var restoreCommand = BuildRestoreCommand(conn, spec.Tables);
@@ -304,10 +307,14 @@ public abstract class ContainerBackupProvider : IBackupProvider, IDisposable
             HostConfig = new HostConfig
             {
                 // Konteynerin host makinesindeki veritabanına ulaşabilmesi icin.
-                // NetworkMode="host" DEGIL: Docker Desktop (Windows/macOS) onu
-                // desteklemiyor; host-gateway uc platformda da calisiyor.
+                // Varsayilan host-gateway: Docker Desktop (Windows/macOS) host agini
+                // desteklemiyor. Linux'ta loopback hedefi icin host agi — bkz.
+                // DbConnectionParts.UseHostNetwork.
                 // Binds YOK: hicbir host dizini baglanmiyor, docker.sock hic degil.
-                ExtraHosts = new List<string> { $"{DbConnectionParts.HostGatewayName}:host-gateway" },
+                NetworkMode = conn.UseHostNetwork ? "host" : null,
+                ExtraHosts = conn.UseHostNetwork
+                    ? null
+                    : new List<string> { $"{DbConnectionParts.HostGatewayName}:host-gateway" },
                 AutoRemove = false,
             },
         }, ct);

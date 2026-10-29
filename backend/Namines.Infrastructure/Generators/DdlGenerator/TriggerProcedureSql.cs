@@ -22,7 +22,7 @@ internal static class TriggerProcedureSql
         {
             if (string.IsNullOrWhiteSpace(trigger.Body)) continue;
 
-            sb.AppendLine($"-- Trigger: {trigger.Id} ({trigger.Timing} {trigger.Event})");
+            sb.AppendLine($"-- Trigger: {SqlFragmentGuard.CommentText(trigger.Id)} ({SqlFragmentGuard.CommentText(trigger.Timing)} {SqlFragmentGuard.CommentText(trigger.Event)})");
             sb.AppendLine(trigger.Body.Trim());
             sb.AppendLine();
         }
@@ -31,7 +31,7 @@ internal static class TriggerProcedureSql
         {
             if (string.IsNullOrWhiteSpace(proc.Body)) continue;
 
-            sb.AppendLine($"-- Stored Procedure: {proc.Name}");
+            sb.AppendLine($"-- Stored Procedure: {SqlFragmentGuard.CommentText(proc.Name)}");
             sb.AppendLine(proc.Body.Trim());
             sb.AppendLine();
         }

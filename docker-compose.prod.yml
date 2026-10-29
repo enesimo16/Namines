@@ -55,7 +55,7 @@ services:
       redis-server
       --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD zorunludur}
       --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy volatile-lru
     volumes:
       - namines-redis-data:/data
     expose:
@@ -97,6 +97,9 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - Database__MigrateOnStartup=false
+      # Caddy aynı docker ağından gelir; Production X-Forwarded-For'u yalnızca bu ağdan kabul eder
+      # (Program.cs bu ayar olmadan açılışta hata verir). Docker bridge ağları 172.16.0.0/12 içindedir.
+      - ForwardedHeaders__KnownNetworks__0=${FORWARDED_HEADERS_NETWORK:-172.16.0.0/12}
       - ConnectionStrings__DefaultConnection=Host=namines-control-db;Port=5432;Database=${POSTGRES_DB:-namines_control};Username=${POSTGRES_USER:-namines};Password=${POSTGRES_PASSWORD}
       - ConnectionStrings__Redis=namines-redis:6379,password=${REDIS_PASSWORD}
       - Jwt__Issuer=NaminesServer
@@ -134,6 +137,8 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost/api}
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-/ingest}
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -157,13 +162,18 @@ services:
       context: ./services/desk
       dockerfile: Dockerfile
       args:
-        NAMINES_API: ${PUBLIC_API_URL:-http://localhost/api}
+        NAMINES_API: ${PUBLIC_APP_URL:-http://localhost}
+        # Tarayici ayni origin uzerinden /api (Caddy) cagirir; bos = goreli.
+        NAMINES_PUBLIC_API: ""
         NAMINES_FRONTEND: ${PUBLIC_APP_URL:-http://localhost}
         DESK_BASE_PATH: /desk
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - NAMINES_API=http://namines-backend:8080
+      # Sunucu tarafi (handoff route) icin runtime adresi. NAMINES_API build zamaninda
+      # tarayici adresiyle (PUBLIC_APP_URL) sabitlendigi icin sunucuda ise yaramaz.
+      - NAMINES_API_INTERNAL=http://namines-backend:8080
       - NAMINES_FRONTEND=http://namines-frontend:3000
       - DESK_BASE_PATH=/desk
     expose:

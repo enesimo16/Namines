@@ -17,6 +17,14 @@ export type FeatureCategoryFilter =
 
 export type FeatureStatusFilter = 'all' | 'enabled' | 'notice' | 'hidden';
 
+/** Toplu sağlayıcı değişiminde her sağlayıcının varsayılan modeli. */
+const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
+  groq: 'qwen-2.5-coder-32b',
+  deepseek: 'deepseek-chat',
+  claude: 'claude-3-5-sonnet-20241022',
+  openai: 'gpt-4o',
+};
+
 export interface AdminConsoleStore {
   // ── Features State ──────────────────────────────────────────────────────────
   flags: AdminFeatureFlagItem[];
@@ -242,12 +250,14 @@ export const useAdminConsoleStore = create<AdminConsoleStore>((set, get) => ({
       }
     }
 
-    try {
-      await Promise.all(
-        targetKeys.map((k) =>
-          adminService.updateFeatureFlag(k, { isEnabled })
-        )
-      );
+    // allSettled: Promise.all ilk hatada reddedip diğer isteklerin sonucunu gizliyordu ve
+    // sunucuda uygulanmış değişiklikleri de arayüzde geri alıyordu. Sonuç anahtar bazında okunur.
+    const results = await Promise.allSettled(
+      targetKeys.map((k) => adminService.updateFeatureFlag(k, { isEnabled }))
+    );
+    const failedKeys = targetKeys.filter((_, i) => results[i].status === 'rejected');
+
+    if (failedKeys.length === 0) {
       useToastStore
         .getState()
         .showToast(
@@ -255,13 +265,29 @@ export const useAdminConsoleStore = create<AdminConsoleStore>((set, get) => ({
           'success'
         );
       return true;
-    } catch {
-      set({ flags: current });
-      useToastStore
-        .getState()
-        .showToast('Toplu işlem sırasında bazı bayraklar güncellenemedi', 'error');
-      return false;
     }
+
+    // Yalnızca başarısız olanları eski değerine döndür; başarılılar sunucuda kalıcı.
+    set((state) => ({
+      flags: state.flags.map((f) =>
+        failedKeys.includes(f.featureKey)
+          ? current.find((c) => c.featureKey === f.featureKey) ?? f
+          : f
+      ),
+    }));
+    for (const k of failedKeys) {
+      const it = current.find((c) => c.featureKey === k);
+      if (it) {
+        useFeatureStore.getState().setFlagLocal(k, it.isEnabled, it.mode, it.noticeMessage);
+      }
+    }
+    useToastStore
+      .getState()
+      .showToast(
+        `${targetKeys.length - failedKeys.length}/${targetKeys.length} bayrak güncellendi; başarısız: ${failedKeys.join(', ')}`,
+        'error'
+      );
+    return false;
   },
 
   // ── AI Routes Implementation ──────────────────────────────────────────────
@@ -321,48 +347,63 @@ export const useAdminConsoleStore = create<AdminConsoleStore>((set, get) => ({
     }
   },
 
+
   bulkSetGlobalProvider: async (provider: string) => {
     const current = get().aiRoutes;
-    const defaultModel =
-      provider.toLowerCase() === 'groq'
-        ? 'qwen-2.5-coder-32b'
-        : provider.toLowerCase() === 'deepseek'
-        ? 'deepseek-chat'
-        : 'claude-3-5-sonnet-20241022';
+    // Her sağlayıcının kendi varsayılan modeli var; hepsine tek bir (claude) modeli
+    // yazmak ör. openai seçildiğinde geçersiz model adı üretiyordu. Eşlemesi olmayan
+    // sağlayıcıda rotanın mevcut modeli korunur.
+    const defaultModel = PROVIDER_DEFAULT_MODELS[provider.toLowerCase()];
+    const now = new Date().toISOString();
+    const nextModelOf = (r: AdminAiToolRouteItem) => defaultModel ?? r.modelName;
 
     set({
       aiRoutes: current.map((r) => ({
         ...r,
         provider,
-        modelName: defaultModel,
-        updatedAt: new Date().toISOString(),
+        modelName: nextModelOf(r),
+        updatedAt: now,
       })),
     });
 
-    try {
-      await Promise.all(
-        current.map((r) =>
-          adminService.updateAiRoute(r.toolKey, {
-            provider,
-            modelName: defaultModel,
-            temperature: r.temperature ?? 0.2,
-          })
-        )
-      );
+    const results = await Promise.allSettled(
+      current.map((r) =>
+        adminService.updateAiRoute(r.toolKey, {
+          provider,
+          modelName: nextModelOf(r),
+          temperature: r.temperature ?? 0.2,
+          fallbackProvider: r.fallbackProvider,
+        })
+      )
+    );
+    const failed = current.filter((_, i) => results[i].status === 'rejected');
+
+    if (failed.length === 0) {
       useToastStore
         .getState()
         .showToast(
-          `Tüm AI araçları ${provider.toUpperCase()} (${defaultModel}) sağlayıcısına aktarıldı`,
+          defaultModel
+            ? `Tüm AI araçları ${provider.toUpperCase()} (${defaultModel}) sağlayıcısına aktarıldı`
+            : `Tüm AI araçları ${provider.toUpperCase()} sağlayıcısına aktarıldı`,
           'success'
         );
       return true;
-    } catch {
-      set({ aiRoutes: current });
-      useToastStore
-        .getState()
-        .showToast('Toplu sağlayıcı değişimi sırasında hata oluştu', 'error');
-      return false;
     }
+
+    // Sadece başarısız rotaları eski haline döndür; başarılılar sunucuda kalıcı.
+    const failedKeys = new Set(failed.map((r) => r.toolKey));
+    set((state) => ({
+      aiRoutes: state.aiRoutes.map((r) =>
+        failedKeys.has(r.toolKey) ? current.find((c) => c.toolKey === r.toolKey) ?? r : r
+      ),
+    }));
+    useToastStore
+      .getState()
+      .showToast(
+        `${current.length - failed.length}/${current.length} rota güncellendi; başarısız: ${failed.map((r) => r.toolKey).join(', ')}`,
+        'error'
+      );
+    return false;
   },
 
   // ── System Diagnostics Implementation ─────────────────────────────────────

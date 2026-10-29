@@ -9,7 +9,7 @@ import type { DeskSession } from './api';
  * için ayrı dosyada.
  */
 
-const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+import { API_BASE as API } from './config';
 
 export class DeskSqlError extends Error {
   constructor(message: string, readonly status: number) { super(message); }

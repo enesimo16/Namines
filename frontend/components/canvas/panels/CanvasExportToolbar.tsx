@@ -32,7 +32,6 @@ import { schemaService, scaffolderService } from '../../../services/api';
 import { DatabaseSchema } from '../../../types/schema';
 import { useRef, useState, useEffect } from 'react';
 import * as htmlToImage from 'html-to-image';
-import VisionUploadModal from './VisionUploadModal';
 import { parseSqlDdl } from '../../../lib/sqlImportParser';
 import { toPrismaSchema } from '../../../lib/prismaExporter';
 import { useToastStore } from '../../../store/useToastStore';
@@ -60,8 +59,11 @@ const TOOLKIT_FEATURE_KEYS = [
 export default function CanvasExportToolbar() {
   const { projectName, schema, dbType, isEditMode, toggleEditMode, loadFromSchema } = useSchemaStore();
   const { isExporting, exportAsPng } = useCanvasExport();
-  const isFeatureEnabled = useFeatureStore((s) => s.isFeatureEnabled);
-  const enabledToolsCount = TOOLKIT_FEATURE_KEYS.filter((k) => isFeatureEnabled(k)).length;
+  // `isFeatureEnabled` kararlı bir fonksiyon: ona abone olmak bayraklar gelince
+  // yeniden render tetiklemezdi. Sayıyı seçici içinde hesaplayıp ona abone ol.
+  const enabledToolsCount = useFeatureStore(
+    (s) => TOOLKIT_FEATURE_KEYS.filter((k) => s.isFeatureEnabled(k)).length,
+  );
 
   // DBA store hooks
   const isPanelOpen = useDbaStore(state => state.isPanelOpen);
@@ -70,7 +72,6 @@ export default function CanvasExportToolbar() {
 
   const showToast = useToastStore(s => s.showToast);
 
-  const [isVisionOpen, setIsVisionOpen] = useState(false);
   const [isLocalExporting, setIsLocalExporting] = useState(false);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [isSharedHostingModalOpen, setIsSharedHostingModalOpen] = useState(false);
@@ -84,15 +85,6 @@ export default function CanvasExportToolbar() {
 
   const dialRef = useRef<HTMLDivElement>(null);
   const sqlFileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const handleOpenVision = () => {
-      setIsVisionOpen(true);
-      setIsDialOpen(true);
-    };
-    window.addEventListener('namines:open-vision-modal', handleOpenVision);
-    return () => window.removeEventListener('namines:open-vision-modal', handleOpenVision);
-  }, []);
 
   // Event listener for automated interactive tour
   useEffect(() => {
@@ -584,7 +576,7 @@ export default function CanvasExportToolbar() {
               <button
                 id="canvas-vision-import-btn"
                 onClick={() => {
-                  setIsVisionOpen(true);
+                  window.dispatchEvent(new CustomEvent('namines:open-vision-modal'));
                   setIsDialOpen(false);
                 }}
                 className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-[var(--radius-card)] bg-surface-800/50 hover:bg-surface-800 border border-line hover:border-line-strong transition-all text-left cursor-pointer group"
@@ -860,12 +852,6 @@ export default function CanvasExportToolbar() {
           </button>
         </div>
       </div>
-
-      {/* Vision Import Modal */}
-      <VisionUploadModal
-        isOpen={isVisionOpen}
-        onClose={() => setIsVisionOpen(false)}
-      />
 
       {/* Zero-to-Cloud Infrastructure Selector Modal */}
       {isCloudModalOpen && (

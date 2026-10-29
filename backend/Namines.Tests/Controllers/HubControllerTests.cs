@@ -200,7 +200,7 @@ public sealed class HubControllerTests : IAsyncLifetime
     public async Task GetRepo_AnonymousCanAccessPublic_RejectsPrivate()
     {
         await using var db = new AuthDbContext(_options);
-        var owner = new ApplicationUser { Id = "u2", UserName = "bob" };
+        var owner = new ApplicationUser { Id = "u2", UserName = "bob", NormalizedUserName = "BOB" };
         db.Users.Add(owner);
 
         var pubRepo = new CloudProject
@@ -240,9 +240,9 @@ public sealed class HubControllerTests : IAsyncLifetime
         dynamic val = ok.Value!;
         Assert.Equal("p-pub", (string)val.Id);
 
-        // Private repo -> 401 Unauthorized for anonymous
+        // Private repo -> 404 (401 ile 404 arasındaki fark "bu private repo var" bilgisini sızdırıyordu)
         var privResult = await anonController.GetRepo("bob", "private-repo", CancellationToken.None);
-        Assert.IsType<UnauthorizedResult>(privResult);
+        Assert.IsType<NotFoundObjectResult>(privResult);
     }
 
     [Fact]
@@ -322,8 +322,9 @@ public sealed class HubControllerTests : IAsyncLifetime
         Assert.Equal("p-original", (string)val.ForkedFromProjectId);
         Assert.Equal(ProjectVisibility.Private, (ProjectVisibility)val.Visibility);
 
-        // Verify parent fork count was incremented
-        var updatedParent = await db.CloudProjects.FindAsync("p-original");
+        // Sayaç SQL'de artırılıyor (ExecuteUpdate) — izlenen varlık bayat kalır, taze bağlamla oku.
+        await using var verifyDb = new AuthDbContext(_options);
+        var updatedParent = await verifyDb.CloudProjects.FindAsync("p-original");
         Assert.NotNull(updatedParent);
         Assert.Equal(1, updatedParent.ForkCount);
 
@@ -447,7 +448,7 @@ public sealed class HubControllerTests : IAsyncLifetime
     public async Task Badge_ReturnsValidSvgWithStatus()
     {
         await using var db = new AuthDbContext(_options);
-        var owner = new ApplicationUser { Id = "u9", UserName = "ivan" };
+        var owner = new ApplicationUser { Id = "u9", UserName = "ivan", NormalizedUserName = "IVAN" };
         db.Users.Add(owner);
 
         var repo = new CloudProject
@@ -472,6 +473,8 @@ public sealed class HubControllerTests : IAsyncLifetime
         Assert.Equal("image/svg+xml; charset=utf-8", content.ContentType);
         Assert.Contains("<svg", content.Content);
         Assert.Contains("namines hub", content.Content);
-        Assert.Contains("3NF verified", content.Content);
+        // "3NF verified" bir sezgiyi kanıt gibi sunuyordu.
+        Assert.DoesNotContain("3NF verified", content.Content);
+        Assert.Contains("no normalization warnings", content.Content);
     }
 }

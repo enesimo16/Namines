@@ -56,9 +56,19 @@ internal sealed record DbConnectionParts(
     /// tam olarak bu yüzden var. O dal zaten geliştirme çift kapısıyla kapılı.
     /// </summary>
     public string ContainerVisibleHost =>
-        LoopbackNames.Contains(Host)
-            ? HostGatewayName
+        IsLoopback
+            ? (UseHostNetwork ? "127.0.0.1" : HostGatewayName)
             : (ResolvedAddress ?? Host);
+
+    public bool IsLoopback => LoopbackNames.Contains(Host);
+
+    /// <summary>
+    /// Linux'ta loopback hedefi için konteyner host ağında koşar. host-gateway orada
+    /// docker0 köprüsüne çözülüyor ve yalnızca 127.0.0.1'e yayımlanmış bir porta
+    /// (BranchDatabaseProvisioner, yerel Ground) ULAŞAMIYOR; Docker Desktop'ta ise
+    /// tam tersi — host ağı yok, host-gateway çalışıyor.
+    /// </summary>
+    public bool UseHostNetwork => IsLoopback && OperatingSystem.IsLinux();
 
     /// <summary>
     /// API tarafında ÇÖZÜLMÜŞ ve SSRF guard'ından GEÇMİŞ IP adresi.
@@ -74,7 +84,7 @@ internal sealed record DbConnectionParts(
     /// (PostgreSQL 5432, MySQL/MariaDB 3306). Yanlış varsayılan, kullanıcının
     /// portu yazmadığı her bağlantıda sessiz bir "connection refused" demekti.
     /// </param>
-    public static DbConnectionParts Parse(string connectionString, int defaultPort)
+    public static DbConnectionParts Parse(string connectionString, int defaultPort, IDbHostAccessPolicy? hostPolicy = null)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("Connection string is required.", nameof(connectionString));
@@ -105,7 +115,7 @@ internal sealed record DbConnectionParts(
 
         var result = new DbConnectionParts(host, port, database, username, password);
         // Ad yerine DOGRULANAN ADRESI sabitle — bkz. ResolveAndValidate.
-        result.ResolvedAddress = ResolveAndValidate(result.Host);
+        result.ResolvedAddress = ResolveAndValidate(result.Host, System.Net.Dns.GetHostAddresses, hostPolicy);
         return result;
     }
 
@@ -133,7 +143,8 @@ internal sealed record DbConnectionParts(
     /// şeyi doğrulanmış gibi göstermek olurdu; bağlantıyı tamamen reddetmek ise
     /// çözümlemenin geçici olarak başarısız olduğu her durumda yedeği kesecekti.
     /// </summary>
-    private static string? ResolveAndValidate(string host)
+    internal static string? ResolveAndValidate(
+        string host, Func<string, System.Net.IPAddress[]> resolve, IDbHostAccessPolicy? hostPolicy)
     {
         if (LoopbackNames.Contains(host)) return null;
 
@@ -142,16 +153,37 @@ internal sealed record DbConnectionParts(
             return SsrfGuard.IsHostSafe(host) ? literal.ToString() : null;
 
         System.Net.IPAddress[] addresses;
-        try { addresses = System.Net.Dns.GetHostAddresses(host); }
+        try { addresses = resolve(host); }
         catch { return null; }
 
         if (addresses.Length == 0) return null;
 
-        // TEK adres sabitleniyor ama guard TÜM adreslerin güvenli olmasını istiyor
-        // (IsHostSafe'in kendi davranışı): bir adın adreslerinden biri iç ağa
-        // çözülüyorsa o ad hiç kullanılmamalı.
-        if (!SsrfGuard.IsHostSafe(host)) return null;
+        // Doğrulanan liste ile sabitlenen adres AYNI çözümlemeden gelmeli: IsHostSafe(host)
+        // adı ikinci kez çözüyordu, yani iki sorgu arasında DNS değişirse guard başka bir
+        // listeyi onaylayıp biz başka bir adresi sabitleyebilirdi. Burada tam olarak bu
+        // listenin her adresi (IP literal olarak, yeniden çözümleme YOK) doğrulanıyor.
+        if (addresses.All(a => SsrfGuard.IsHostSafe(a.ToString())))
+            return addresses[0].ToString();
 
-        return addresses[0].ToString();
+        // Bulut metadata / link-local hiçbir zaman meşru bir DB hedefi değil: politika
+        // ne derse desin reddet (ada geri düşmek, konteynerin oraya gitmesine izin verirdi).
+        if (addresses.Any(IsLinkLocal))
+            throw new ArgumentException(
+                "The database host resolves to a link-local or metadata address and cannot be used.", nameof(host));
+
+        // Diğer özel adresler: ada geri düşülüyor (sabitleme yok). Reddetmek yönetilen Ground
+        // veritabanlarının (iç ağdaki konteyner adları, ör. namines-ground-pg) yedeğini
+        // üretimde keserdi — üretim politikası özel host'a hiç izin vermiyor. Kullanıcı
+        // girdisi bağlantılar bu noktaya gelmeden API'nin egress politikasından geçiyor.
+        return null;
+    }
+
+    private static bool IsLinkLocal(System.Net.IPAddress address)
+    {
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            return address.IsIPv6LinkLocal;
+        var b = address.GetAddressBytes();
+        return b[0] == 169 && b[1] == 254;
     }
 }

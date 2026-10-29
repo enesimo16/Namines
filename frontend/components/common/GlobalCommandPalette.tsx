@@ -213,7 +213,6 @@ export default function GlobalCommandPalette() {
         category: 'navigation' as const,
         keywords: ['admin', 'console', 'panel', 'flags', 'routing', 'users', 'logs'],
         icon: <ShieldCheck className="w-4 h-4 text-accent-text" />,
-        shortcut: ['G', 'A'],
         onSelect: () => navigateTo('/admin'),
       }] : []),
       {

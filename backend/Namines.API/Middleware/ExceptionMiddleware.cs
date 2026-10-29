@@ -53,6 +53,16 @@ public class ExceptionMiddleware
         {
             await _next(context);
         }
+        // İstemci bağlantıyı kopardı/iptal etti: sunucu hatası değil. 500 + Error log'u
+        // hem yanlış alarm üretir hem de hata oranı metriğini şişirir.
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogDebug("İstek istemci tarafından iptal edildi. Path={Path}", context.Request.Path);
+            if (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = 499;
+            }
+        }
         catch (Exception ex)
         {
             var correlationId = context.TraceIdentifier;
@@ -160,12 +170,22 @@ public class ExceptionMiddleware
                 "60"
             ),
 
-            GithubRepositoryUnavailableException or System.Collections.Generic.KeyNotFoundException => (
+            GithubRepositoryUnavailableException => (
                 StatusCodes.Status404NotFound,
                 "https://namines.dev/errors/not-found",
                 "Resource Not Found",
                 "RESOURCE_NOT_FOUND",
                 exception.Message,
+                null
+            ),
+
+            // KeyNotFoundException mesajı sözlük anahtarını/iç tanımlayıcıyı içerebilir; üretimde yansıtılmaz.
+            System.Collections.Generic.KeyNotFoundException => (
+                StatusCodes.Status404NotFound,
+                "https://namines.dev/errors/not-found",
+                "Resource Not Found",
+                "RESOURCE_NOT_FOUND",
+                isDevelopment ? exception.Message : "The requested resource was not found.",
                 null
             ),
 
@@ -178,11 +198,13 @@ public class ExceptionMiddleware
                 null
             ),
 
+            // 401 değil 403: bu istisna dosya sistemi/IO kodundan da fırlar ve 401,
+            // frontend'in kullanıcıyı oturumdan atmasına yol açar. Mesaj yansıtılmaz.
             UnauthorizedAccessException => (
-                StatusCodes.Status401Unauthorized,
-                "https://namines.dev/errors/unauthorized",
-                "Unauthorized",
-                "UNAUTHORIZED",
+                StatusCodes.Status403Forbidden,
+                "https://namines.dev/errors/forbidden",
+                "Forbidden",
+                "FORBIDDEN",
                 "Access denied.",
                 null
             ),

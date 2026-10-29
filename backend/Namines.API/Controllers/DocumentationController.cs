@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Namines.API.Filters;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
@@ -35,6 +36,7 @@ public class DocumentationController : ControllerBase
     /// Önce AI yönetici özeti üretir, ardından kurumsal PDF oluşturur.
     /// Body: { schema: DatabaseSchema, projectName: string }
     /// </summary>
+    [FeatureGate("compile_dictionary")]
     [HttpPost("pdf")]
     public async Task<IActionResult> GeneratePdf([FromBody] PdfRequest request)
     {
@@ -93,6 +95,7 @@ public class DocumentationController : ControllerBase
         return File(pdfBytes, "application/pdf", fileName);
     }
 
+    [FeatureGate("compile_mermaid")]
     [HttpPost("mermaid")]
     public IActionResult GenerateMermaid([FromBody] DatabaseSchema schema)
     {
@@ -100,6 +103,7 @@ public class DocumentationController : ControllerBase
         return Ok(new { mermaid });
     }
 
+    [FeatureGate("compile_readme")]
     [HttpPost("readme")]
     public IActionResult GenerateReadme([FromBody] DatabaseSchema schema, [FromQuery] string language = "tr")
     {

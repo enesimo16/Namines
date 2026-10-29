@@ -22,6 +22,7 @@ import type { ChangeRequestSummary } from '../../types/changeRequest';
 import type { DatabaseSchema } from '../../types/schema';
 import { changeRequestService } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
+import { useT } from '../../lib/i18n';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
 
@@ -31,6 +32,7 @@ interface HubPullRequestsTabProps {
 
 export function HubPullRequestsTab({ repo }: HubPullRequestsTabProps) {
   const { showToast } = useToastStore();
+  const t = useT();
   const [prs, setPrs] = useState<ChangeRequestSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>('open');
@@ -85,14 +87,28 @@ export function HubPullRequestsTab({ repo }: HubPullRequestsTabProps) {
 
     setIsSubmittingPr(true);
     try {
-      const activeSchema = useSchemaStore.getState().schema;
+      // Gönderilen şema SEÇİLİ kaynak dalın şeması olmalı. Eskiden dal seçimi yok sayılıp canvas'taki
+      // (başka bir projeye ait olabilecek) şema gönderiliyordu.
       const projectSnap = useProjectHistoryStore.getState().projects.find(p => p.id === repo.id);
-      const schemaToSubmit: DatabaseSchema = projectSnap?.schema || activeSchema || {
-        schemaId: repo.id,
-        name: repo.name,
-        tables: [],
-        relations: [],
-      };
+      let schemaToSubmit: DatabaseSchema | undefined;
+      if (sourceBranch === 'feature/schema-update') {
+        // "active draft" = canvas'taki canlı şema; yalnızca etkin proje bu repo ise geçerli
+        if (useProjectHistoryStore.getState().activeProjectId === repo.id) {
+          schemaToSubmit = useSchemaStore.getState().schema ?? undefined;
+        }
+      } else {
+        schemaToSubmit = projectSnap?.branches?.find(b => b.name === sourceBranch)?.schema;
+        if (!schemaToSubmit && projectSnap && sourceBranch === (projectSnap.currentBranch || 'main')) {
+          schemaToSubmit = projectSnap.schema;
+        }
+        if (!schemaToSubmit && branches.find(b => b.name === sourceBranch)?.isDefault) {
+          schemaToSubmit = repo.schema;
+        }
+      }
+      if (!schemaToSubmit) {
+        showToast(t('hub.pr.noSourceSchema'), 'error');
+        return;
+      }
 
       const created = await changeRequestService.createQuick(
         repo.id,
@@ -307,6 +323,8 @@ export function HubPullRequestsTab({ repo }: HubPullRequestsTabProps) {
                 <select
                   value={targetBranch}
                   onChange={e => setTargetBranch(e.target.value)}
+                  disabled
+                  title={t('hub.pr.baseFixed')}
                   className="h-7 px-2.5 rounded-[var(--radius-control)] bg-surface-700 border border-line-strong text-content-primary text-xs font-semibold cursor-pointer"
                 >
                   {branches.map(b => (

@@ -5,14 +5,14 @@
     Dağıtım sonrasında API, Veritabanı, Dağıtık İzleme, Metrikler ve Ön Yüz
     sağlığını 10 saniye içinde uçtan uca doğrulayan otomatik duman testi.
 .PARAMETER ApiUrl
-    Test edilecek API ana adresi (Varsayılan: http://localhost:5250 veya http://localhost:5000).
+    Test edilecek API ana adresi (Varsayılan: http://localhost:5000).
 .PARAMETER FrontendUrl
-    Test edilecek Ön Yüz ana adresi (Varsayılan: http://localhost:3005 veya http://localhost:3000).
+    Test edilecek Ön Yüz ana adresi (Varsayılan: http://localhost:3000).
 #>
 [CmdletBinding()]
 param (
-    [string]$ApiUrl = "http://localhost:5250",
-    [string]$FrontendUrl = "http://localhost:3005"
+    [string]$ApiUrl = "http://localhost:5000",
+    [string]$FrontendUrl = "http://localhost:3000"
 )
 
 $ErrorActionPreference = "Continue"

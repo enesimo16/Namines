@@ -38,10 +38,6 @@ internal static class ConstraintSql
     private static bool SupportsIndexMethod(DatabaseType e) =>
         e is DatabaseType.PostgreSQL or DatabaseType.MySQL or DatabaseType.MariaDB;
 
-    /// <summary>Oracle 12c ve öncesinde tanımlayıcılar 30 karakterle sınırlıdır.</summary>
-    private static string Fit(string name, DatabaseType engine) =>
-        engine == DatabaseType.Oracle && name.Length > 30 ? name[..30] : name;
-
     // ── CREATE TABLE içine giren kısıtlar ────────────────────────────────────
 
     /// <summary>
@@ -57,15 +53,15 @@ internal static class ConstraintSql
         SchemaTable table,
         DatabaseType engine,
         Func<string, string> quote,
-        DatabaseSchema schema)
+        DatabaseSchema schema,
+        ObjectNameRegistry names)
     {
         var lines = new List<string>();
-        var usedConstraintNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Motorun kendi enum tipi yoksa kısıt CHECK'e çevriliyor; bkz. EnumSql.
         foreach (var column in table.Columns)
         {
-            var check = EnumSql.CheckConstraint(table, column, schema, engine);
+            var check = EnumSql.CheckConstraint(table, column, schema, engine, names);
             if (check is not null) lines.Add("    " + check);
         }
 
@@ -86,15 +82,8 @@ internal static class ConstraintSql
             }
 
             var baseName = rawUniqueName ?? $"UQ_{table.Name}_{string.Join("_", cols.Select(c => c.Name))}";
-            var candidateName = baseName;
-            var suffix = 2;
-            while (usedConstraintNames.Contains(candidateName))
-            {
-                candidateName = $"{baseName}_{suffix++}";
-            }
-            usedConstraintNames.Add(candidateName);
-
-            var name = Fit(candidateName, engine);
+            // UNIQUE kısıtı aynı adlı bir index de yaratır; iki ad uzayına birden yazılır.
+            var name = names.ClaimConstraint(table.Name, baseName, createsIndex: true);
             lines.Add($"    CONSTRAINT {quote(name)} UNIQUE ({string.Join(", ", cols.Select(c => quote(c.Name)))})");
         }
 
@@ -102,16 +91,10 @@ internal static class ConstraintSql
         {
             if (string.IsNullOrWhiteSpace(check.Expression)) continue;
 
-            // Güvenlik doğrulaması: CHECK ifadesi noktalı virgül (statement chaining) ve geçersiz kontrol karakteri içeremez.
-            var trimmedExpr = check.Expression.Trim();
-            if (trimmedExpr.Contains(';'))
-            {
-                throw new ArgumentException($"CHECK constraint expression cannot contain semicolons: {check.Name ?? check.Id}", nameof(table));
-            }
-            if (trimmedExpr.Any(c => char.IsControl(c) && c != '\r' && c != '\n' && c != '\t'))
-            {
-                throw new ArgumentException($"CHECK constraint expression contains invalid control characters: {check.Name ?? check.Id}", nameof(table));
-            }
+            // Güvenlik doğrulaması: ortak ham-SQL doğrulayıcısı (bkz. SqlFragmentGuard) —
+            // noktalı virgül, satır sonu, yorum ve ters eğik çizgi reddedilir.
+            var trimmedExpr = SqlFragmentGuard.EnsureSafeExpression(
+                check.Expression, $"CHECK constraint {check.Name ?? check.Id}", engine);
 
             var rawCheckName = check.Name;
             var isDuplicateAcrossTables = !string.IsNullOrWhiteSpace(rawCheckName) &&
@@ -125,15 +108,7 @@ internal static class ConstraintSql
             }
 
             var baseName = rawCheckName ?? $"CK_{table.Name}_{check.Id}";
-            var candidateName = baseName;
-            var suffix = 2;
-            while (usedConstraintNames.Contains(candidateName))
-            {
-                candidateName = $"{baseName}_{suffix++}";
-            }
-            usedConstraintNames.Add(candidateName);
-
-            var name = Fit(candidateName, engine);
+            var name = names.ClaimConstraint(table.Name, baseName);
             lines.Add($"    CONSTRAINT {quote(name)} CHECK ({trimmedExpr})");
         }
 
@@ -149,7 +124,8 @@ internal static class ConstraintSql
     public static string CreateIndexes(
         SchemaTable table,
         DatabaseType engine,
-        Func<string, string> quote)
+        Func<string, string> quote,
+        ObjectNameRegistry names)
     {
         if (table.Indexes.Count == 0) return string.Empty;
 
@@ -161,9 +137,9 @@ internal static class ConstraintSql
             if (cols.Count == 0) continue;
 
             var prefix = index.IsUnique ? "UX" : "IX";
-            var name = Fit(
-                index.Name ?? $"{prefix}_{table.Name}_{string.Join("_", cols.Select(c => c.Column.Name))}",
-                engine);
+            var name = names.ClaimIndex(
+                table.Name,
+                index.Name ?? $"{prefix}_{table.Name}_{string.Join("_", cols.Select(c => c.Column.Name))}");
 
             var colList = string.Join(", ", cols.Select(c =>
                 c.Descending ? $"{quote(c.Column.Name)} DESC" : quote(c.Column.Name)));
@@ -176,13 +152,13 @@ internal static class ConstraintSql
             if (!string.IsNullOrWhiteSpace(index.Method) && SupportsIndexMethod(engine))
             {
                 if (engine == DatabaseType.PostgreSQL)
-                    usingBefore = $" USING {index.Method.ToLowerInvariant()}";
+                    usingBefore = $" USING {SqlFragmentGuard.EnsureIndexMethod(index.Method)}";
                 else
-                    usingAfter = $" USING {index.Method.ToUpperInvariant()}";
+                    usingAfter = $" USING {SqlFragmentGuard.EnsureIndexMethod(index.Method).ToUpperInvariant()}";
             }
             else if (!string.IsNullOrWhiteSpace(index.Method))
             {
-                sb.AppendLine($"-- NOTE: index method '{index.Method}' is not supported by {engine}; the default was used.");
+                sb.AppendLine($"-- NOTE: index method '{SqlFragmentGuard.CommentText(index.Method)}' is not supported by {engine}; the default was used.");
             }
 
             sb.Append($"CREATE {unique}INDEX {quote(name)} ON {quote(table.Name)}{usingBefore} ({colList}){usingAfter}");
@@ -196,7 +172,7 @@ internal static class ConstraintSql
                     if (SupportsIncludeColumns(engine))
                         sb.Append($" INCLUDE ({string.Join(", ", includeCols.Select(c => quote(c.Name)))})");
                     else
-                        sb.Append($" /* INCLUDE ({string.Join(", ", includeCols.Select(c => c.Name))}) — not supported by {engine} */");
+                        sb.Append($" /* INCLUDE ({SqlFragmentGuard.CommentText(string.Join(", ", includeCols.Select(c => c.Name)))}) — not supported by {engine} */");
                 }
             }
 
@@ -205,13 +181,13 @@ internal static class ConstraintSql
             {
                 if (SupportsPartialIndex(engine))
                 {
-                    sb.Append($" WHERE {index.Where.Trim()}");
+                    sb.Append($" WHERE {SqlFragmentGuard.EnsureSafeExpression(index.Where, "index WHERE", engine)}");
                 }
                 else
                 {
                     // Koşulu düşürmek index'i SESSİZCE farklı bir şeye çevirirdi.
                     // Kullanıcının bunu görmesi gerekir.
-                    sb.Append($" /* WHERE {index.Where.Trim()} — partial indexes are not supported by {engine} */");
+                    sb.Append($" /* WHERE {SqlFragmentGuard.EnsureSafeExpression(index.Where, "index WHERE", engine)} — partial indexes are not supported by {engine} */");
                 }
             }
 

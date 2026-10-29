@@ -10,7 +10,14 @@ set -euo pipefail
 
 REPO_DIR="/home/ubuntu/namines"
 COMPOSE_FILE="docker-compose.oracle.yml"
+# Acik proje adi: dizin adindan turetilen varsayilana guvenmeyelim; repo tasinsa
+# ya da farkli dizinden calistirilsa bile ayni stack (volume/network) kullanilsin.
+COMPOSE_PROJECT="namines"
 IMAGE_RETENTION_HOURS=72
+# Son BASARIYLA yayinlanan commit. HEAD'e degil buna gore fark alinir: build
+# yarida patlarsa HEAD zaten ilerlemis olur ve bir sonraki calistirma "degisiklik
+# yok" deyip bozuk surumu sessizce birakirdi.
+STATE_FILE="$REPO_DIR/.git/namines-deployed-sha"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -23,28 +30,30 @@ log_ok()    { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[UYARI]${NC} $1"; }
 log_err()   { echo -e "${RED}[HATA]${NC} $1"; }
 
-FORCE_BUILD=false
-CLEAN_ONLY=false
+compose() { sudo docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" "$@"; }
 
-for arg in "$@"; do
-  case "$arg" in
-    --force|-f) FORCE_BUILD=true ;;
-    --clean|-c) CLEAN_ONLY=true ;;
-    --help|-h)
-      echo "Kullanim: namines-update [--force] [--clean]"
-      echo "  (parametresiz) : GitHub'dan ceker, sadece degisen servisleri (backend/desk) derler ve temizlik yapar."
-      echo "  --force, -f    : Degisiklik olmasa bile tum imajlari yeniden derler."
-      echo "  --clean, -c    : Sadece eski Docker imajlarini, cache'i ve loglari temizler."
-      exit 0
-      ;;
-  esac
-done
+# `docker ps | grep -q` + pipefail: grep ilk eslesmede cikinca docker SIGPIPE
+# alir ve boru hatti "basarisiz" sayilir. Dogrudan filtreyle sorgula.
+container_running() {
+  [ -n "$(sudo docker ps -q --filter "name=^${1}\$")" ]
+}
+
+# Calisan betigin uzerine yazmak, bash artimli okudugu icin yarim/bozuk komut
+# calistirabilir. Gecici dosyaya kopyala, sonra atomik mv (eski inode calismaya devam eder).
+install_script() {
+  local src="$1" dest="$2"
+  [ -f "$src" ] || return 0
+  sudo install -m 0755 "$src" "${dest}.new"
+  sudo mv -f "${dest}.new" "$dest"
+}
 
 cleanup_system() {
   log_info "Disk alani (temizlik oncesi): $(df -h / | awk 'NR==2 {print $3 " kullaniliyor / " $4 " bos (" $5 ")"}')"
 
-  log_info "Askida (dangling) Docker imajlari ve durmus konteynerler siliniyor..."
-  sudo docker container prune -f >/dev/null 2>&1 || true
+  log_info "Askida (dangling) Docker imajlari ve eski durmus konteynerler siliniyor..."
+  # Kosulsuz `container prune` bu makinedeki TUM durmus konteynerleri (migrate
+  # gibi tek seferlikler, elle durdurulanlar) siliyordu; yalnizca eskileri temizle.
+  sudo docker container prune -f --filter "until=${IMAGE_RETENTION_HOURS}h" >/dev/null 2>&1 || true
   sudo docker image prune -f >/dev/null 2>&1 || true
 
   log_info "${IMAGE_RETENTION_HOURS} saatten eski kullanilmayan Docker build cache ve askida imajlar temizleniyor..."
@@ -58,135 +67,192 @@ cleanup_system() {
   log_ok "Disk alani (temizlik sonrasi): $(df -h / | awk 'NR==2 {print $3 " kullaniliyor / " $4 " bos (" $5 ")"}')"
 }
 
-if [ "$CLEAN_ONLY" = true ]; then
-  cleanup_system
-  exit 0
-fi
-
-cd "$REPO_DIR"
-
-OLD_HEAD=$(git rev-parse HEAD)
-log_info "Mevcut commit: ${OLD_HEAD:0:7}"
-
-log_info "GitHub'dan (origin/main) guncellemeler kontrol ediliyor..."
-git fetch origin main --quiet
-NEW_HEAD=$(git rev-parse origin/main)
-
-if [ "$OLD_HEAD" != "$NEW_HEAD" ]; then
-  log_info "Yeni surum bulundu (${OLD_HEAD:0:7} -> ${NEW_HEAD:0:7}), cekiliyor..."
-  git pull --ff-only origin main
-
-  # Komut betiklerinin kendisi guncellendiyse /usr/local/bin altina kopyala
-  if [ -f "$REPO_DIR/scripts/namines-update" ]; then
-    sudo cp "$REPO_DIR/scripts/namines-update" /usr/local/bin/namines-update
-    sudo chmod +x /usr/local/bin/namines-update
+# Geri donus icin mevcut imaji :previous olarak etiketle (build basarisiz/bozuk
+# cikarsa `docker tag <img>:previous <img>:latest` + compose up ile donulur).
+tag_previous() {
+  local image="$1"
+  if sudo docker image inspect "${image}:latest" >/dev/null 2>&1; then
+    sudo docker tag "${image}:latest" "${image}:previous"
   fi
-  if [ -f "$REPO_DIR/scripts/namines-backup" ]; then
-    sudo cp "$REPO_DIR/scripts/namines-backup" /usr/local/bin/namines-backup
-    sudo chmod +x /usr/local/bin/namines-backup
+}
+
+main() {
+  local FORCE_BUILD=false
+  local CLEAN_ONLY=false
+  local arg
+
+  for arg in "$@"; do
+    case "$arg" in
+      --force|-f) FORCE_BUILD=true ;;
+      --clean|-c) CLEAN_ONLY=true ;;
+      --help|-h)
+        echo "Kullanim: namines-update [--force] [--clean]"
+        echo "  (parametresiz) : GitHub'dan ceker, sadece degisen servisleri (backend/desk) derler ve temizlik yapar."
+        echo "  --force, -f    : Degisiklik olmasa bile tum imajlari yeniden derler."
+        echo "  --clean, -c    : Sadece eski Docker imajlarini, cache'i ve loglari temizler."
+        return 0
+        ;;
+    esac
+  done
+
+  if [ "$CLEAN_ONLY" = true ]; then
+    cleanup_system
+    return 0
   fi
 
-  CHANGED_FILES=$(git diff --name-only "$OLD_HEAD" "$NEW_HEAD")
-  echo -e "${CYAN}Degisen dosyalar:${NC}\n$CHANGED_FILES"
-else
-  log_ok "Git deposu zaten en guncel surumde (${NEW_HEAD:0:7})."
+  cd "$REPO_DIR"
+
+  local OLD_HEAD NEW_HEAD HEAD_NOW DEPLOYED_SHA CHANGED_FILES
+  OLD_HEAD=$(git rev-parse HEAD)
+  log_info "Mevcut commit: ${OLD_HEAD:0:7}"
+
+  log_info "GitHub'dan (origin/main) guncellemeler kontrol ediliyor..."
+  git fetch origin main --quiet
+  NEW_HEAD=$(git rev-parse origin/main)
+
+  if [ "$OLD_HEAD" != "$NEW_HEAD" ]; then
+    log_info "Yeni surum bulundu (${OLD_HEAD:0:7} -> ${NEW_HEAD:0:7}), cekiliyor..."
+    git pull --ff-only origin main
+
+    # Komut betiklerinin kendisi guncellendiyse /usr/local/bin altina (atomik) kopyala
+    install_script "$REPO_DIR/scripts/namines-update" /usr/local/bin/namines-update
+    install_script "$REPO_DIR/scripts/namines-backup" /usr/local/bin/namines-backup
+  else
+    log_ok "Git deposu zaten en guncel surumde (${NEW_HEAD:0:7})."
+  fi
+
+  HEAD_NOW=$(git rev-parse HEAD)
+
+  # Fark, son BASARILI deploy'a gore alinir. Kayit yoksa (ilk calistirma) ya da
+  # kayitli commit artik yoksa neyin degistigi bilinemez -> hepsini derle.
+  DEPLOYED_SHA=""
+  if [ -f "$STATE_FILE" ]; then
+    DEPLOYED_SHA=$(tr -d '[:space:]' < "$STATE_FILE")
+  fi
   CHANGED_FILES=""
-fi
-
-BACKEND_CHANGED=false
-DESK_CHANGED=false
-
-if echo "$CHANGED_FILES" | grep -qE '^(backend/|docker-compose)'; then
-  BACKEND_CHANGED=true
-fi
-
-if echo "$CHANGED_FILES" | grep -qE '^services/desk/'; then
-  DESK_CHANGED=true
-fi
-
-# Eger namines-desk imaji henuz yoksa derle
-if ! sudo docker image inspect namines-desk:latest >/dev/null 2>&1; then
-  DESK_CHANGED=true
-fi
-
-if [ "$FORCE_BUILD" = true ]; then
-  log_warn "--force verildi: Backend ve Desk degismemis olsa bile yeniden derlenecek."
-  BACKEND_CHANGED=true
-  DESK_CHANGED=true
-fi
-
-ANY_REBUILT=false
-
-if [ "$BACKEND_CHANGED" = true ]; then
-  log_info "Backend degisikligi algilandi! namines-api:latest derleniyor..."
-  cd "$REPO_DIR/backend"
-  sudo docker build -t namines-api:latest -f Namines.API/Dockerfile .
-  ANY_REBUILT=true
-else
-  log_ok "Backend kodlarinda degisiklik yok. Gereksiz Backend derlemesi atlandi!"
-fi
-
-if [ "$DESK_CHANGED" = true ]; then
-  log_info "Namines Desk degisikligi algilandi! namines-desk:latest derleniyor..."
-  cd "$REPO_DIR/services/desk"
-  sudo docker build -t namines-desk:latest .
-  ANY_REBUILT=true
-else
-  log_ok "Namines Desk kodlarinda degisiklik yok. Gereksiz Desk derlemesi atlandi!"
-fi
-
-if [ "$ANY_REBUILT" = true ]; then
-  log_info "Degisen konteynerler guncelleniyor..."
-  cd "$REPO_DIR"
-  sudo docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
-fi
-
-# Eksik konteyner varsa ayaga kaldir
-if ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-backend$' || \
-   ! sudo docker ps --format '{{.Names}}' | grep -q '^namines-desk$'; then
-  log_warn "Eksik konteyner algilandi, baslatiliyor..."
-  cd "$REPO_DIR"
-  sudo docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
-fi
-
-# Ground PostgreSQL hairpin NAT kuralini guncel tut
-if sudo docker ps --format '{{.Names}}' | grep -q '^namines-ground-pg$'; then
-  PG_IP=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' namines-ground-pg 2>/dev/null || true)
-  PUBLIC_IP=$(grep -E '^Ground__LocalPostgres__PublicHost=' "$REPO_DIR/.env" 2>/dev/null | cut -d= -f2 || echo "130.162.254.97")
-  if [ -n "$PG_IP" ] && [ -n "$PUBLIC_IP" ]; then
-    sudo iptables -t nat -C PREROUTING -d "$PUBLIC_IP" -p tcp --dport 5432 -j DNAT --to-destination "${PG_IP}:5432" 2>/dev/null || \
-      sudo iptables -t nat -I PREROUTING 1 -d "$PUBLIC_IP" -p tcp --dport 5432 -j DNAT --to-destination "${PG_IP}:5432" 2>/dev/null || true
-    sudo iptables -t nat -C POSTROUTING -d "$PG_IP" -p tcp --dport 5432 -j MASQUERADE 2>/dev/null || \
-      sudo iptables -t nat -A POSTROUTING -d "$PG_IP" -p tcp --dport 5432 -j MASQUERADE 2>/dev/null || true
-    sudo iptables -C FORWARD -d "$PG_IP" -p tcp --dport 5432 -j ACCEPT 2>/dev/null || \
-      sudo iptables -I FORWARD 1 -d "$PG_IP" -p tcp --dport 5432 -j ACCEPT 2>/dev/null || true
+  local UNKNOWN_BASE=false
+  if [ -z "$DEPLOYED_SHA" ] || ! git cat-file -e "${DEPLOYED_SHA}^{commit}" 2>/dev/null; then
+    UNKNOWN_BASE=true
+    log_warn "Son basarili deploy kaydi yok/gecersiz; tum servisler derlenecek."
+  elif [ "$DEPLOYED_SHA" != "$HEAD_NOW" ]; then
+    CHANGED_FILES=$(git diff --name-only "$DEPLOYED_SHA" "$HEAD_NOW")
+    echo -e "${CYAN}Degisen dosyalar (${DEPLOYED_SHA:0:7} -> ${HEAD_NOW:0:7}):${NC}\n$CHANGED_FILES"
+  else
+    log_ok "Son basarili deploy zaten bu commit (${HEAD_NOW:0:7})."
   fi
-fi
 
-log_info "Saglik kontrolu (/health & Desk :3200) bekleniyor..."
-HEALTH_OK=false
-for i in {1..15}; do
-  if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
-    HEALTH_OK=true
-    break
+  local BACKEND_CHANGED=false
+  local DESK_CHANGED=false
+
+  if [ "$UNKNOWN_BASE" = true ]; then
+    BACKEND_CHANGED=true
+    DESK_CHANGED=true
   fi
-  sleep 2
-done
 
-if [ "$HEALTH_OK" = true ]; then
-  HEALTH_JSON=$(curl -fsS http://localhost:8080/health)
-  log_ok "Backend canli ve saglikli: $HEALTH_JSON"
-else
-  log_err "Backend saglik kontrolunden gecemedi! Son loglar:"
-  sudo docker logs --tail 30 namines-backend
-  exit 1
-fi
+  if grep -qE '^(backend/|docker-compose)' <<<"$CHANGED_FILES"; then
+    BACKEND_CHANGED=true
+  fi
 
-if curl -fsS -o /dev/null http://localhost:3200/desk 2>/dev/null; then
-  log_ok "Namines Desk canli ve saglikli (port 3200 -> https://namines-sigma.vercel.app/desk)"
-fi
+  if grep -qE '^services/desk/' <<<"$CHANGED_FILES"; then
+    DESK_CHANGED=true
+  fi
 
-rm -f "$REPO_DIR/deploy.sh"
+  # Eger namines-desk imaji henuz yoksa derle
+  if ! sudo docker image inspect namines-desk:latest >/dev/null 2>&1; then
+    DESK_CHANGED=true
+  fi
 
-cleanup_system
-log_ok "namines-update basariyla tamamlandi!"
+  if [ "$FORCE_BUILD" = true ]; then
+    log_warn "--force verildi: Backend ve Desk degismemis olsa bile yeniden derlenecek."
+    BACKEND_CHANGED=true
+    DESK_CHANGED=true
+  fi
+
+  local ANY_REBUILT=false
+
+  if [ "$BACKEND_CHANGED" = true ]; then
+    log_info "Backend degisikligi algilandi! namines-api:latest derleniyor..."
+    tag_previous namines-api
+    ( cd "$REPO_DIR/backend" && sudo docker build -t namines-api:latest -f Namines.API/Dockerfile . )
+    ANY_REBUILT=true
+  else
+    log_ok "Backend kodlarinda degisiklik yok. Gereksiz Backend derlemesi atlandi!"
+  fi
+
+  if [ "$DESK_CHANGED" = true ]; then
+    log_info "Namines Desk degisikligi algilandi! namines-desk:latest derleniyor..."
+    tag_previous namines-desk
+    ( cd "$REPO_DIR/services/desk" && sudo docker build -t namines-desk:latest . )
+    ANY_REBUILT=true
+  else
+    log_ok "Namines Desk kodlarinda degisiklik yok. Gereksiz Desk derlemesi atlandi!"
+  fi
+
+  cd "$REPO_DIR"
+
+  if [ "$ANY_REBUILT" = true ]; then
+    log_info "Degisen konteynerler guncelleniyor..."
+    compose up -d --remove-orphans
+  fi
+
+  # Eksik konteyner varsa ayaga kaldir
+  if ! container_running namines-backend || ! container_running namines-desk; then
+    log_warn "Eksik konteyner algilandi, baslatiliyor..."
+    compose up -d --remove-orphans
+  fi
+
+  # Ground PostgreSQL hairpin NAT kuralini guncel tut
+  if container_running namines-ground-pg; then
+    local PG_IP PUBLIC_IP
+    PG_IP=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' namines-ground-pg 2>/dev/null || true)
+    PUBLIC_IP=$(grep -E '^Ground__LocalPostgres__PublicHost=' "$REPO_DIR/.env" 2>/dev/null | cut -d= -f2 || echo "130.162.254.97")
+    if [ -n "$PG_IP" ] && [ -n "$PUBLIC_IP" ]; then
+      sudo iptables -t nat -C PREROUTING -d "$PUBLIC_IP" -p tcp --dport 5432 -j DNAT --to-destination "${PG_IP}:5432" 2>/dev/null || \
+        sudo iptables -t nat -I PREROUTING 1 -d "$PUBLIC_IP" -p tcp --dport 5432 -j DNAT --to-destination "${PG_IP}:5432" 2>/dev/null || true
+      sudo iptables -t nat -C POSTROUTING -d "$PG_IP" -p tcp --dport 5432 -j MASQUERADE 2>/dev/null || \
+        sudo iptables -t nat -A POSTROUTING -d "$PG_IP" -p tcp --dport 5432 -j MASQUERADE 2>/dev/null || true
+      sudo iptables -C FORWARD -d "$PG_IP" -p tcp --dport 5432 -j ACCEPT 2>/dev/null || \
+        sudo iptables -I FORWARD 1 -d "$PG_IP" -p tcp --dport 5432 -j ACCEPT 2>/dev/null || true
+    fi
+  fi
+
+  log_info "Saglik kontrolu (/health & Desk :3200) bekleniyor..."
+  local HEALTH_OK=false i
+  for i in {1..15}; do
+    if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
+      HEALTH_OK=true
+      break
+    fi
+    sleep 2
+  done
+
+  if [ "$HEALTH_OK" = true ]; then
+    local HEALTH_JSON
+    HEALTH_JSON=$(curl -fsS http://localhost:8080/health)
+    log_ok "Backend canli ve saglikli: $HEALTH_JSON"
+  else
+    log_err "Backend saglik kontrolunden gecemedi! Son loglar:"
+    sudo docker logs --tail 30 namines-backend || true
+    log_warn "Deploy kaydi GUNCELLENMEDI; bir sonraki calistirma ayni degisiklikleri yeniden dener."
+    log_warn "Geri donmek icin: docker tag namines-api:previous namines-api:latest && docker compose up -d"
+    return 1
+  fi
+
+  if curl -fsS -o /dev/null http://localhost:3200/desk 2>/dev/null; then
+    log_ok "Namines Desk canli ve saglikli (port 3200 -> https://namines-sigma.vercel.app/desk)"
+  fi
+
+  # Yalnizca saglik kontrolunden SONRA kaydet.
+  echo "$HEAD_NOW" > "$STATE_FILE"
+
+  rm -f "$REPO_DIR/deploy.sh"
+
+  cleanup_system
+  log_ok "namines-update basariyla tamamlandi!"
+}
+
+# Tum govde main() icinde: bash dosyayi artimli okur; calisirken yeni surum
+# uzerine yazilsa bile fonksiyon bellekte tam tanimlidir ve `exit` sonrasi
+# dosyanin geri kalani okunmaz.
+main "$@"
+exit $?

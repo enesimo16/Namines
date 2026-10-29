@@ -25,6 +25,7 @@ Icon?
 .env.*
 !.env.example
 !.env.sample
+!.env.prod.example
 .env.local
 .env.development.local
 .env.test.local

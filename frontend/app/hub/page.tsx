@@ -80,37 +80,39 @@ export default function HubExplorePage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const loadExplore = async () => {
-    setLoading(true);
-    try {
-      const res = await hubService.explore({
-        q: search.trim() || undefined,
-        category: selectedCategory !== 'All Categories' ? selectedCategory : undefined,
-        dbType: selectedEngine !== 'All Engines' ? selectedEngine : undefined,
-        sort: sortBy === 'forks' ? 'popular' : sortBy,
-      });
-
-      let items = res.items;
-      if (sortBy === 'forks') {
-        items = [...items].sort((a, b) => b.forkCount - a.forkCount);
-      }
-      setRepos(items);
-    } catch {
-      // Empty fallback
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     useActiveProjectStore.getState().clearProjectSession();
   }, []);
 
+  // Tek efekt: debounce + iptal bayrağı. Yavaş eski yanıt, yeni aramanın sonucunu ezemez.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadExplore();
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await hubService.explore({
+          q: search.trim() || undefined,
+          category: selectedCategory !== 'All Categories' ? selectedCategory : undefined,
+          dbType: selectedEngine !== 'All Engines' ? selectedEngine : undefined,
+          sort: sortBy === 'forks' ? 'popular' : sortBy,
+        });
+        if (cancelled) return;
+
+        let items = res.items;
+        if (sortBy === 'forks') {
+          items = [...items].sort((a, b) => b.forkCount - a.forkCount);
+        }
+        setRepos(items);
+      } catch {
+        // Empty fallback
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }, 250);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [search, selectedCategory, selectedEngine, sortBy]);
 
   const sortLabel = () => {
@@ -163,7 +165,7 @@ export default function HubExplorePage() {
           </h1>
 
           <p className="text-xs sm:text-sm text-ink-secondary max-w-xl mx-auto leading-relaxed font-sans">
-            Verified relational architectures, normalized 3NF data models, and ERP schemas tested with deterministic multi-engine DDL.
+            Relational database architectures and ERP schemas shared by the Namines community.
           </p>
         </div>
 
@@ -400,7 +402,7 @@ export default function HubExplorePage() {
                   </h3>
 
                   <p className="text-xs text-ink-secondary line-clamp-2 leading-relaxed font-sans">
-                    {r.description || 'Verified production schema architecture in 3NF.'}
+                    {r.description || 'No description provided.'}
                   </p>
                 </div>
 
@@ -422,7 +424,7 @@ export default function HubExplorePage() {
 
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-secondary">
                     <ShieldCheck className="w-3.5 h-3.5 text-accent-text" />
-                    <span>3NF Verified</span>
+                    <span>{r.dbType}</span>
                   </span>
                 </div>
               </Link>

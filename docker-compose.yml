@@ -16,7 +16,7 @@ services:
     ports:
       # Yerel geliştirmede host'tan da bağlanabilmek için (dotnet ef vb.).
       # Prod'da bu portu dışarı açma — yönetilen bir DB kullan (bkz. 06-DATA-PLANE.md).
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   # ─── Backend: ASP.NET Core 8 API ─────────────────────────────────────────
   namines-backend:
@@ -24,7 +24,7 @@ services:
       context: ./backend
       dockerfile: Namines.API/Dockerfile
     ports:
-      - "5000:8080"
+      - "127.0.0.1:5000:8080"
     # Tüm sırlar kök .env dosyasından gelir ('__' convention — tek kaynak).
     env_file:
       - .env
@@ -47,6 +47,9 @@ services:
       # Konteyner ağındaki (özel adresli) demo veritabanlarına bağlanabilmek için.
       # Yalnızca Development'ta etkili — Production'da kod bunu yok sayar ve loglar.
       - Security__AllowPrivateDbHosts=true
+      # Yalnızca Development: OAuth anahtarı olmadan tek tıkla GitHub/Google simülasyonu.
+      # Üretimde bu bayrak tanımsız kalır; AuthController ayrıca IsDevelopment() şartı arar.
+      - Auth__AllowOAuthDevSimulation=true
       - Jwt__Issuer=NaminesServer
       - Jwt__Audience=NaminesClient
       # CORS: Production'da localhost otomatik eklenmez, açıkça bildirilmeli.
@@ -119,7 +122,7 @@ services:
         # NOT: api.ts sonuna "/api" ekliyor; buraya /api YAZMA yoksa ".../api/api" olur.
         NEXT_PUBLIC_API_URL: http://localhost:5000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - NODE_ENV=production
     depends_on:

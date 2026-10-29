@@ -10,7 +10,7 @@ import type { DeskSession } from './api';
  * — Desk bu kuralı gevşetmiyor; yetkisiz kullanıcı açıklayıcı bir 403 alır.
  */
 
-const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+import { API_BASE as API } from './config';
 
 /**
  * `read` sonradan eklendi: denetim kaydı artık MASKELİ kolon içeren tablolardan

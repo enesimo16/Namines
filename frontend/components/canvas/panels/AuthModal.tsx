@@ -82,13 +82,24 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       const redirectUri = `${window.location.origin}/auth/callback?provider=${provider}`;
 
       if (config && config.enabled && config.clientId) {
+        // Login CSRF koruması: sağlayıcıya giden rastgele `state` oturumda saklanır,
+        // callback sayfası dönen değeri bununla karşılaştırır.
+        const stateBytes = crypto.getRandomValues(new Uint8Array(16));
+        const state = Array.from(stateBytes, b => b.toString(16).padStart(2, '0')).join("");
+        try { sessionStorage.setItem(`oauth_state_${provider}`, state); } catch { /* gizli mod */ }
         if (provider === 'github') {
-          window.location.href = `https://github.com/login/oauth/authorize?client_id=${config.clientId}&scope=read:user,user:email&redirect_uri=${encodeURIComponent(redirectUri)}`;
+          window.location.href = `https://github.com/login/oauth/authorize?client_id=${config.clientId}&scope=read:user,user:email&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
           return;
         } else if (provider === 'google') {
-          window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${config.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20email%20profile`;
+          window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${config.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20email%20profile&state=${state}`;
           return;
         }
+      }
+
+      // Simülasyon yalnızca yerel geliştirmede; sunucu da (Auth:AllowOAuthDevSimulation)
+      // aynı kapıyı uyguluyor. Canlıda sağlayıcı yapılandırılmamışsa açık hata göster.
+      if (process.env.NODE_ENV !== 'development') {
+        throw new Error(`${provider === 'google' ? 'Google' : 'GitHub'} sign-in is unavailable: OAuth not configured.`);
       }
 
       // Geliştirme ortamında (canlı OAuth anahtarı henüz girilmemişse) tek tıkla simülasyon girişi

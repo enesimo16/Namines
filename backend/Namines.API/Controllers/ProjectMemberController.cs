@@ -172,9 +172,29 @@ public class ProjectMemberController : ControllerBase
                 return Conflict(new { error = "The last owner's role cannot be lowered - assign another owner first." });
         }
 
+        var wasOwner = member.Role == OrgRole.Owner;
         member.Role = request.Role;
+
+        // Owner'lıktan düşürülen üyenin ham-SQL / dışa-aktarım anahtarları iptal edilir:
+        // bu yetkiler yalnızca Owner'a verilebiliyor (bkz. GatewayAccess.AuthenticateAsync,
+        // aynı kural orada da uygulanıyor). Yalnızca listede "aktif" görünüp
+        // yeniden Owner yapılınca canlanmasın diye açıkça iptal ediliyor.
+        var revokedKeys = 0;
+        if (wasOwner && request.Role != OrgRole.Owner)
+        {
+            var privilegedKeys = await _context.GatewayApiKeys
+                .Where(k => k.ProjectId == projectId
+                            && k.CreatedByUserId == memberUserId
+                            && k.RevokedAt == null
+                            && (k.CanExecuteSql || k.CanExport))
+                .ToListAsync(ct);
+            var now = DateTime.UtcNow;
+            foreach (var key in privilegedKeys) key.RevokedAt = now;
+            revokedKeys = privilegedKeys.Count;
+        }
+
         await _context.SaveChangesAsync(ct);
-        return Ok(new { member.UserId, member.Role });
+        return Ok(new { member.UserId, member.Role, revokedKeys });
     }
 
     [HttpDelete("{memberUserId}")]

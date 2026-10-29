@@ -8,12 +8,17 @@ import { useConfirmStore } from '../../store/useConfirmStore';
 export default function ConfirmDialog() {
   const { isOpen, options, respond } = useConfirmStore();
 
-  // Esc = iptal, Enter = onayla
+  // Esc = iptal, Enter = onayla. Odak bir düğmedeyse Enter'ı tarayıcının yerel
+  // "tıkla" davranışına bırak: yoksa "İptal" odaktayken Enter yıkıcı işlemi onaylıyordu.
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') respond(false);
-      if (e.key === 'Enter') respond(true);
+      if (e.key === 'Enter') {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'BUTTON' || target.tagName === 'A')) return;
+        respond(true);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

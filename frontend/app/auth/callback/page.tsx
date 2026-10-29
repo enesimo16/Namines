@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { authService } from '../../../services/api';
@@ -15,8 +15,14 @@ function CallbackContent() {
 
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  // StrictMode effect'i iki kez çalıştırır; tek kullanımlık `code` ikinci kez gönderilince
+  // başarılı giriş hataya dönüyordu.
+  const startedRef = useRef(false);
 
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
     const processOAuth = async () => {
       const code = searchParams.get('code');
       const providerParam = searchParams.get('provider') || 'github';
@@ -32,6 +38,19 @@ function CallbackContent() {
       if (!code) {
         setStatus('error');
         setErrorMessage('No authorization code was received from OAuth provider.');
+        return;
+      }
+
+      // Login CSRF: dönen `state`, bu tarayıcıda başlatılan akışın değeriyle eşleşmeli.
+      const returnedState = searchParams.get('state');
+      let expectedState: string | null = null;
+      try {
+        expectedState = sessionStorage.getItem(`oauth_state_${provider}`);
+        sessionStorage.removeItem(`oauth_state_${provider}`);
+      } catch { /* gizli mod */ }
+      if (!expectedState || !returnedState || expectedState !== returnedState) {
+        setStatus('error');
+        setErrorMessage('Sign-in could not be verified (state mismatch). Please start again.');
         return;
       }
 

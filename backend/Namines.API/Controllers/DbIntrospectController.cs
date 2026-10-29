@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Namines.Core.Interfaces;
@@ -7,6 +8,7 @@ namespace Namines.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[FeatureGate("tool_live_db")]
 public class DbIntrospectController : ControllerBase
 {
     private readonly IDbIntrospectionService _introspection;

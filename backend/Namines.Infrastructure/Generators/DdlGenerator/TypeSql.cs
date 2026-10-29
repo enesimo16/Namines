@@ -38,7 +38,7 @@ internal static class TypeSql
             DatabaseType.MSSQL => Mssql(t, length, scale),
             DatabaseType.PostgreSQL => Postgres(t, length, scale),
             DatabaseType.MySQL or DatabaseType.MariaDB => MySqlFamily(t, length, scale),
-            _ => WithLength(t, length) // SQLite/Oracle buraya gelmez, kendi eşlemeleri var
+            _ => WithLength(SqlFragmentGuard.EnsureTypeName(t), length) // SQLite/Oracle buraya gelmez, kendi eşlemeleri var
         };
     }
 
@@ -72,7 +72,7 @@ internal static class TypeSql
         // Bkz. TypeMappingTests.Mssql_maps_date_time_types_to_datetime2.
         "TIMESTAMP" or "DATETIME" => "DATETIME2",
 
-        _ => WithLength(t, length)
+        _ => WithLength(SqlFragmentGuard.EnsureTypeName(t), length)
     };
 
     // ── PostgreSQL ───────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ internal static class TypeSql
         "UNIQUEIDENTIFIER" or "UUID" => "uuid",
         "BLOB" or "BINARY" or "VARBINARY" or "IMAGE" => "bytea",
         "JSON" => "jsonb",                       // indekslenebilir, PostgreSQL'de idiomatik seçim
-        _ => WithLength(t.ToLowerInvariant(), length)
+        _ => WithLength(SqlFragmentGuard.EnsureTypeName(t).ToLowerInvariant(), length)
     };
 
     // ── MySQL / MariaDB ──────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ internal static class TypeSql
         "BIT" or "BOOLEAN" => "TINYINT(1)",            // MySQL boolean konvansiyonu
         "UNIQUEIDENTIFIER" or "UUID" => "CHAR(36)",
         "IMAGE" => "BLOB",
-        _ => WithLength(t, length)                     // INT/BIGINT/VARCHAR/CHAR/TEXT/DATE/TIME/
+        _ => WithLength(SqlFragmentGuard.EnsureTypeName(t), length) // INT/BIGINT/VARCHAR/CHAR/TEXT/DATE/TIME/
                                                         // TIMESTAMP/DECIMAL/FLOAT/BLOB/BINARY/
                                                         // VARBINARY/JSON zaten native
     };

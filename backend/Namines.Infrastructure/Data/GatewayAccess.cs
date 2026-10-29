@@ -101,6 +101,14 @@ public static class GatewayAccess
         // şey üretenin projeyle HÂLÂ bir ilişkisi olup olmadığı.
         if (!await context.CanViewAsync(match.ProjectId, match.CreatedByUserId, ct)) return null;
 
+        // HAM SQL / DIŞA AKTARIM anahtarları ÜRETENİN HÂLÂ OWNER olmasını ister.
+        // Bu yetkiler yalnızca Owner'a verilebiliyor (bkz. GatewayKeyController.Create);
+        // üretici sonradan Admin/Editor'a düşürülürse anahtar "Viewer yeter" kapısından
+        // geçip yetki yükseltmenin arka kapısı olarak çalışmaya devam ederdi.
+        if ((match.CanExecuteSql || match.CanExport)
+            && await context.GetRoleAsync(match.ProjectId, match.CreatedByUserId, ct) != OrgRole.Owner)
+            return null;
+
         return match;
     }
 

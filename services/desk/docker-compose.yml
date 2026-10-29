@@ -5,7 +5,13 @@
 # yalnizca ana Namines API'sine HTTP ile baglanir, adresi disaridan verilir.
 services:
   namines-desk:
-    build: .
+    build:
+      context: .
+      args:
+        # Imajin varsayilani /desk (ana yigindaki Caddy alt yolu). Tek basina calisan Desk
+        # kokte (/) sunulur; yoksa 3200 kokunde 404 doner. Calisma zamani DESK_BASE_PATH
+        # build zamaninda sabitlenen basePath ile ayni olmali.
+        DESK_BASE_PATH: ""
     ports:
       - "3200:3200"
     environment:

@@ -12,7 +12,7 @@ import type { DeskSession } from './api';
  * klasöründe öyle kalırdı.
  */
 
-const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+import { API_BASE as API } from './config';
 
 export type VaultBackupStatus = 'Running' | 'Succeeded' | 'Failed';
 export type VaultBackupKind = 'Manual' | 'PreRestore' | 'Scheduled';

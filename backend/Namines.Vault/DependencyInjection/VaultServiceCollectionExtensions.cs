@@ -44,7 +44,9 @@ public static class VaultServiceCollectionExtensions
         });
         // Motor başına bir sağlayıcı. Liste burada; VaultService desteklenen
         // motorları bu kayıtlardan TÜRETİYOR, ayrıca bir yerde yazmıyor.
-        services.AddSingleton<IBackupProvider, PostgresBackupProvider>();
+        services.AddSingleton<IBackupProvider>(sp => new PostgresBackupProvider(
+            sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<ILogger<PostgresBackupProvider>>())
+        { HostPolicy = sp.GetService<Namines.Core.Security.IDbHostAccessPolicy>() });
 
         // MySQL ve MariaDB aynı sınıfın iki kaydı: araçlar ve protokol aynı,
         // yalnızca imaj ve motor adı farklı. İmajların AYRI olması bilinçli —
@@ -54,14 +56,16 @@ public static class VaultServiceCollectionExtensions
             engine: "MySQL",
             image: sp.GetRequiredService<IConfiguration>()["Vault:MySqlImage"] ?? "mysql:8.0",
             hasColumnStatisticsFlag: true,
-            logger: sp.GetRequiredService<ILogger<MySqlFamilyBackupProvider>>()));
+            logger: sp.GetRequiredService<ILogger<MySqlFamilyBackupProvider>>())
+        { HostPolicy = sp.GetService<Namines.Core.Security.IDbHostAccessPolicy>() });
 
         services.AddSingleton<IBackupProvider>(sp => new MySqlFamilyBackupProvider(
             engine: "MariaDB",
             image: sp.GetRequiredService<IConfiguration>()["Vault:MariaDbImage"] ?? "mariadb:10.6",
             // MariaDB istemcisi --column-statistics bayrağını tanımıyor.
             hasColumnStatisticsFlag: false,
-            logger: sp.GetRequiredService<ILogger<MySqlFamilyBackupProvider>>()));
+            logger: sp.GetRequiredService<ILogger<MySqlFamilyBackupProvider>>())
+        { HostPolicy = sp.GetService<Namines.Core.Security.IDbHostAccessPolicy>() });
 
         services.AddSingleton<IVaultModule, VaultModule>();
 

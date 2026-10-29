@@ -12,6 +12,7 @@ public class MySqlDdlGenerator : IDdlGenerator
     public string Generate(DatabaseSchema schema)
     {
         var sb = new StringBuilder();
+        var names = new ObjectNameRegistry(DatabaseType.MySQL);
 
         foreach (var table in schema.Tables)
         {
@@ -57,7 +58,7 @@ public class MySqlDdlGenerator : IDdlGenerator
                 sb.AppendLine($"    , PRIMARY KEY ({string.Join(", ", pkColumns.Select(c => Quote(c.Name)))})");
             }
 
-            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MySQL, Quote, schema))
+            foreach (var constraint in ConstraintSql.InlineConstraints(table, DatabaseType.MySQL, Quote, schema, names))
             {
                 sb.AppendLine($"    , {constraint.TrimStart()}");
             }
@@ -65,7 +66,7 @@ public class MySqlDdlGenerator : IDdlGenerator
             sb.AppendLine(") ENGINE=InnoDB;");
             sb.AppendLine();
 
-            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.MySQL, Quote);
+            var indexes = ConstraintSql.CreateIndexes(table, DatabaseType.MySQL, Quote, names);
             if (!string.IsNullOrEmpty(indexes))
             {
                 sb.Append(indexes);
@@ -89,7 +90,7 @@ public class MySqlDdlGenerator : IDdlGenerator
 
                 var actions = ReferentialActionSql.Clauses(relation.OnDelete, relation.OnUpdate, DatabaseType.MySQL);
 
-                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} ADD CONSTRAINT {Quote($"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}")} FOREIGN KEY({Quote(sourceCol.Name)})");
+                sb.AppendLine($"ALTER TABLE {Quote(sourceTable.Name)} ADD CONSTRAINT {Quote(names.ClaimConstraint(sourceTable.Name, $"FK_{sourceTable.Name}_{targetTable.Name}_{sourceCol.Name}"))} FOREIGN KEY({Quote(sourceCol.Name)})");
                 sb.AppendLine($"REFERENCES {Quote(targetTable.Name)} ({Quote(targetCol.Name)}){actions};");
                 sb.AppendLine();
             }

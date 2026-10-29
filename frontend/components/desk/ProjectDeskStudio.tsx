@@ -36,11 +36,18 @@ import {
   Info,
   X,
   Code2,
+  Loader2,
 } from 'lucide-react';
 import type { DatabaseSchema, SchemaColumn, SchemaTable } from '../../types/schema';
 import type { CloudProjectDto } from '../../types/api';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useT } from '../../lib/i18n';
+import {
+  listRows, runSql, createRow, updateRow, deleteRow, bulkDeleteRows, DeskError,
+} from '../../services/deskService';
+import { resolveDeskMode } from './deskMode';
 import { ModuleSymbol, ModuleWordmark } from '../layout/ModuleLogo';
 import {
   PageShell,
@@ -154,7 +161,10 @@ function exportToCsv(tableName: string, columns: SchemaColumn[], rows: Record<st
         .map((c) => {
           const val = row[c.name];
           if (val === null || val === undefined) return '""';
-          return `"${String(val).replace(/"/g, '""')}"`;
+          // =, +, -, @ ile başlayan hücre Excel/Sheets'te formül olarak çalışır: başa ' koyarak etkisizleştir
+          const text = String(val);
+          const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+          return `"${safe.replace(/"/g, '""')}"`;
         })
         .join(','),
     )
@@ -168,6 +178,7 @@ function exportToCsv(tableName: string, columns: SchemaColumn[], rows: Record<st
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function exportToJson(tableName: string, rows: Record<string, unknown>[]) {
@@ -180,6 +191,7 @@ function exportToJson(tableName: string, rows: Record<string, unknown>[]) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function generateTableDdl(table: SchemaTable, dbEngine: string): string {
@@ -246,10 +258,16 @@ export function ProjectDeskStudio({
     const localSnap = useProjectHistoryStore.getState().projects.find((p) => p.id === projectId);
     if (localSnap?.schema?.tables?.length) return localSnap.schema;
 
+    // Canvas'taki canlı şema yalnızca ETKİN proje bu proje ise geçerli; aksi hâlde başka projenin tabloları görünürdü
     const liveSchema = useSchemaStore.getState().schema;
-    if (liveSchema?.tables?.length) return liveSchema;
+    if (
+      liveSchema?.tables?.length &&
+      useProjectHistoryStore.getState().activeProjectId === projectId
+    ) {
+      return liveSchema;
+    }
 
-    // Fallback schema if completely empty
+    // Proje şeması hiç yoksa: açıkça örnek şema (arayüzde "sample" olarak etiketleniyor)
     return {
       schemaId: projectId,
       name: projectName,
@@ -294,7 +312,10 @@ export function ProjectDeskStudio({
 
   const tables = schema.tables || [];
   const dbEngine = projectDto?.dbType || 'PostgreSQL 16';
-  const hasLiveConnection = Boolean(projectDto?.hasConnection);
+  const tr = useT();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const mode = resolveDeskMode(isAuthenticated, projectDto);
+  const isLive = mode.kind === 'live';
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<StudioTab>('records');
@@ -304,13 +325,42 @@ export function ProjectDeskStudio({
   const activeTable = tables.find((t) => t.id === activeTableId) || tables[0] || null;
 
   // Table Data Store (Record<tableId, rows[]>)
-  const [dataStore, setDataStore] = useState<Record<string, Record<string, unknown>[]>>(() => {
+  // Anahtar proje + şema imzası: şema sonradan geldiğinde/değiştiğinde örnek veri yeniden üretilir
+  // (eski kod yalnızca ilk render'daki tablolardan üretip bir daha dokunmuyordu).
+  const schemaKey = useMemo(
+    () =>
+      `${projectId}|${tables
+        .map((t) => `${t.id}:${t.columns.map((c) => `${c.name}/${c.type}`).join(',')}`)
+        .join(';')}`,
+    [projectId, tables],
+  );
+  const [dataState, setDataState] = useState<{ key: string; data: Record<string, Record<string, unknown>[]> }>({
+    key: '',
+    data: {},
+  });
+  const buildInitialData = useCallback(() => {
     const initial: Record<string, Record<string, unknown>[]> = {};
     tables.forEach((t) => {
       initial[t.id] = generateSampleDataForTable(t, 6);
     });
     return initial;
-  });
+  }, [tables]);
+  const dataStore = useMemo(
+    () => (dataState.key === schemaKey ? dataState.data : buildInitialData()),
+    [dataState, schemaKey, buildInitialData],
+  );
+  const setDataStore = useCallback(
+    (
+      update: (
+        prev: Record<string, Record<string, unknown>[]>,
+      ) => Record<string, Record<string, unknown>[]>,
+    ) =>
+      setDataState((prev) => ({
+        key: schemaKey,
+        data: update(prev.key === schemaKey ? prev.data : buildInitialData()),
+      })),
+    [schemaKey, buildInitialData],
+  );
 
   // Table Search & Sort & Pagination
   const [searchQuery, setSearchQuery] = useState('');
@@ -319,6 +369,16 @@ export function ProjectDeskStudio({
   const [selectedPks, setSelectedPks] = useState<Set<string>>(new Set());
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Canlı mod: sunucudan gelen tek sayfa. Örnek modda kullanılmaz.
+  const [liveRows, setLiveRows] = useState<Record<string, unknown>[]>([]);
+  const [liveTotal, setLiveTotal] = useState(0);
+  const [liveStable, setLiveStable] = useState(true);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [liveReload, setLiveReload] = useState(0);
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [liveWriteError, setLiveWriteError] = useState<string | null>(null);
 
   // Edit / Insert Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -332,7 +392,11 @@ export function ProjectDeskStudio({
     rows: Record<string, unknown>[];
     durationMs: number;
     error?: string;
+    errorKind?: string;
+    truncated?: boolean;
+    affectedRows?: number;
   } | null>(null);
+  const [sqlRunning, setSqlRunning] = useState(false);
   const [queryHistory, setQueryHistory] = useState<string[]>([
     `SELECT * FROM "${activeTable?.name || 'users'}" LIMIT 25;`,
   ]);
@@ -351,6 +415,10 @@ export function ProjectDeskStudio({
     setSearchQuery('');
     setSelectedPks(new Set());
     setCurrentPage(1);
+    // Önceki tablonun sıralama kolonu yeni tabloda olmayabilir (canlı modda sunucu hata verirdi)
+    setSortCol(null);
+    setSortDir('asc');
+    setLiveWriteError(null);
     const target = tables.find((t) => t.id === tblId);
     if (target) {
       setSqlQuery(`SELECT * FROM "${target.name}" LIMIT 25;`);
@@ -410,8 +478,15 @@ export function ProjectDeskStudio({
   };
 
   // Current active rows
-  const currentTableRows = (activeTable ? dataStore[activeTable.id] : []) || [];
+  const sampleRows = activeTable ? dataStore[activeTable.id] : undefined;
+  const currentTableRows = useMemo(
+    () => (isLive ? liveRows : sampleRows || []),
+    [isLive, liveRows, sampleRows],
+  );
   const pkCol = activeTable?.columns.find((c) => c.isPK) || activeTable?.columns[0];
+  // Canlı modda "ilk kolon" varsayımı yanlış satırı değiştirebilir: yalnızca gerçek PK ile yazılır
+  const livePkCol = activeTable?.columns.find((c) => c.isPK);
+  const writesBlocked = isLive && !livePkCol;
 
   // Filtered & Sorted rows
   const processedRows = useMemo(() => {
@@ -424,7 +499,8 @@ export function ProjectDeskStudio({
       );
     }
 
-    if (sortCol) {
+    // Canlı modda sıralamayı sunucu yapıyor (tüm tablo üzerinde); burada yeniden sıralamak sayfayı yanıltırdı
+    if (sortCol && !isLive) {
       result.sort((a, b) => {
         const valA = a[sortCol];
         const valB = b[sortCol];
@@ -441,17 +517,57 @@ export function ProjectDeskStudio({
     }
 
     return result;
-  }, [currentTableRows, searchQuery, sortCol, sortDir]);
+  }, [currentTableRows, searchQuery, sortCol, sortDir, isLive]);
 
   // Paginated Rows
-  const totalPages = Math.max(1, Math.ceil(processedRows.length / pageSize));
+  const totalRowCount = isLive ? liveTotal : processedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRowCount / pageSize));
   const paginatedRows = useMemo(() => {
+    if (isLive) return processedRows;
     const start = (currentPage - 1) * pageSize;
     return processedRows.slice(start, start + pageSize);
-  }, [processedRows, currentPage, pageSize]);
+  }, [processedRows, currentPage, pageSize, isLive]);
+
+  // Canlı satırları getir. Tablo/sayfa/sıralama değişince ya da elle yenilenince tekrar çalışır
+  const liveTableName = activeTable?.name;
+  useEffect(() => {
+    if (!isLive || !liveTableName) return;
+    let cancelled = false;
+    // Zaman uyumsuz çağrının içinde: effect gövdesinde senkron setState zincirleme render üretirdi
+    const load = async () => {
+      setLiveLoading(true);
+      setLiveError(null);
+      return listRows(projectId, liveTableName, {
+        page: currentPage,
+        pageSize,
+        orderByColumn: sortCol,
+        sortDirection: sortDir,
+      });
+    };
+    load()
+      .then((res) => {
+        if (cancelled) return;
+        setLiveRows(res.rows);
+        setLiveTotal(res.totalCount);
+        setLiveStable(res.stablePagination);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLiveRows([]);
+        setLiveTotal(0);
+        setLiveError(err instanceof Error ? err.message : tr('desk.loadFailed'));
+      })
+      .finally(() => {
+        if (!cancelled) setLiveLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLive, projectId, liveTableName, currentPage, pageSize, sortCol, sortDir, liveReload, tr]);
 
   // Handle Sort Toggle
   const toggleSort = (colName: string) => {
+    setCurrentPage(1);
     if (sortCol === colName) {
       if (sortDir === 'asc') setSortDir('desc');
       else {
@@ -484,7 +600,36 @@ export function ProjectDeskStudio({
   };
 
   // Row Deletion
+  // Canlı yazma: başarıda sayfayı yeniden çeker, başarısızlıkta sunucunun mesajını gösterir
+  const runLiveWrite = async (action: () => Promise<void>): Promise<boolean> => {
+    setLiveBusy(true);
+    setLiveWriteError(null);
+    try {
+      await action();
+      setLiveReload((n) => n + 1);
+      return true;
+    } catch (err) {
+      setLiveWriteError(err instanceof Error ? err.message : tr('desk.writeFailed'));
+      return false;
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
   const handleDeleteRow = (pkVal: string) => {
+    if (isLive) {
+      if (!activeTable || !livePkCol) return;
+      if (!window.confirm(tr('desk.confirmDelete', { count: 1 }))) return;
+      void runLiveWrite(async () => {
+        await deleteRow(projectId, activeTable.name, livePkCol.name, pkVal);
+        setSelectedPks((prev) => {
+          const next = new Set(prev);
+          next.delete(pkVal);
+          return next;
+        });
+      });
+      return;
+    }
     if (!activeTable || !pkCol) return;
     setDataStore((prev) => ({
       ...prev,
@@ -499,6 +644,15 @@ export function ProjectDeskStudio({
 
   // Bulk Deletion
   const handleBulkDelete = () => {
+    if (isLive) {
+      if (!activeTable || !livePkCol || selectedPks.size === 0) return;
+      if (!window.confirm(tr('desk.confirmDelete', { count: selectedPks.size }))) return;
+      void runLiveWrite(async () => {
+        await bulkDeleteRows(projectId, activeTable.name, livePkCol.name, [...selectedPks]);
+        setSelectedPks(new Set());
+      });
+      return;
+    }
     if (!activeTable || !pkCol || selectedPks.size === 0) return;
     setDataStore((prev) => ({
       ...prev,
@@ -521,6 +675,17 @@ export function ProjectDeskStudio({
   const handleOpenInsert = () => {
     if (!activeTable) return;
     const initialDraft: Record<string, string> = {};
+    if (isLive) {
+      // Boş bırakılan alan gönderilmez: PK/varsayılanı veritabanı üretir
+      activeTable.columns.forEach((c) => {
+        initialDraft[c.name] = '';
+      });
+      setLiveWriteError(null);
+      setEditingRow(null);
+      setRowDraft(initialDraft);
+      setEditModalOpen(true);
+      return;
+    }
     activeTable.columns.forEach((c) => {
       if (c.isPK) {
         initialDraft[c.name] = c.type.includes('int')
@@ -550,6 +715,45 @@ export function ProjectDeskStudio({
   // Save Record
   const handleSaveRecord = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLive) {
+      if (!activeTable) return;
+      const table = activeTable;
+      if (editingRow) {
+        if (!livePkCol) return;
+        const pkValue = String(editingRow[livePkCol.name]);
+        // Yalnızca değişen alanlar: dokunulmayan kolonu string olarak geri yazmak tip dönüşümü hatası üretebilir
+        const changed: Record<string, string | null> = {};
+        table.columns.forEach((c) => {
+          if (c.isPK) return;
+          const original = editingRow[c.name];
+          const originalText = original === null || original === undefined ? '' : String(original);
+          const draft = rowDraft[c.name] ?? '';
+          if (draft === originalText) return;
+          changed[c.name] = draft === '' && c.isNullable ? null : draft;
+        });
+        if (Object.keys(changed).length === 0) {
+          setEditModalOpen(false);
+          setEditingRow(null);
+          return;
+        }
+        void runLiveWrite(() => updateRow(projectId, table.name, livePkCol.name, pkValue, changed)).then((ok) => {
+          if (ok) {
+            setEditModalOpen(false);
+            setEditingRow(null);
+          }
+        });
+      } else {
+        const values: Record<string, string | null> = {};
+        table.columns.forEach((c) => {
+          const draft = rowDraft[c.name] ?? '';
+          if (draft !== '') values[c.name] = draft;
+        });
+        void runLiveWrite(() => createRow(projectId, table.name, values)).then((ok) => {
+          if (ok) setEditModalOpen(false);
+        });
+      }
+      return;
+    }
     if (!activeTable || !pkCol) return;
 
     const formattedRow: Record<string, unknown> = {};
@@ -558,7 +762,7 @@ export function ProjectDeskStudio({
       const cType = c.type.toLowerCase();
       if (raw === '' && c.isNullable && !c.isPK) {
         formattedRow[c.name] = null;
-      } else if (cType.includes('int') || cType.includes('serial')) {
+      } else if (/^(tiny|small|medium|big)?(integer|int|serial)(\d+|\b|\()/i.test(cType.trim())) {
         formattedRow[c.name] = parseInt(raw, 10) || 0;
       } else if (cType.includes('float') || cType.includes('numeric') || cType.includes('decimal')) {
         formattedRow[c.name] = parseFloat(raw) || 0;
@@ -592,6 +796,35 @@ export function ProjectDeskStudio({
 
   // Execute SQL Runner
   const handleRunQuery = () => {
+    if (isLive) {
+      if (!sqlQuery.trim() || sqlRunning) return;
+      setSqlRunning(true);
+      runSql(projectId, sqlQuery)
+        .then((res) => {
+          setSqlResult({
+            columns: res.columns,
+            rows: res.rows,
+            durationMs: res.durationMs,
+            truncated: res.truncated,
+            affectedRows: res.affectedRows,
+          });
+          if (!queryHistory.includes(sqlQuery.trim())) {
+            setQueryHistory((prev) => [sqlQuery.trim(), ...prev.slice(0, 4)]);
+          }
+        })
+        .catch((err) => {
+          const isDesk = err instanceof DeskError;
+          setSqlResult({
+            columns: ['error'],
+            rows: [],
+            durationMs: 0,
+            error: err instanceof Error ? err.message : tr('desk.sqlFailed'),
+            errorKind: isDesk ? err.kind : 'other',
+          });
+        })
+        .finally(() => setSqlRunning(false));
+      return;
+    }
     if (!activeTable) return;
     const start = performance.now();
     const trimmed = sqlQuery.trim().replace(/;$/, '');
@@ -609,13 +842,14 @@ export function ProjectDeskStudio({
         setSqlResult({ columns: cols, rows, durationMs });
       } else {
         const durationMs = Math.max(1, Math.round(performance.now() - start));
+        // Bu önizlemede gerçek bir veritabanı çalıştırıcısı YOK: SELECT dışı ifadeler hiçbir yere gönderilmez
         setSqlResult({
           columns: ['status', 'message', 'rows_affected'],
           rows: [
             {
-              status: 'OK',
-              message: 'Statement executed against database runner.',
-              rows_affected: 1,
+              status: 'NOT_EXECUTED',
+              message: 'Preview only: this statement was not run against any database.',
+              rows_affected: 0,
             },
           ],
           durationMs,
@@ -676,7 +910,7 @@ export function ProjectDeskStudio({
                   const count = (dataStore[t.id] || []).length;
                   return (
                     <option key={t.id} value={t.id} className="bg-surface-850 text-content-primary">
-                      {t.name} ({count} rows)
+                      {isLive ? t.name : `${t.name} (${count} rows)`}
                     </option>
                   );
                 })}
@@ -686,32 +920,63 @@ export function ProjectDeskStudio({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={RefreshCw}
-            onClick={() => {
-              if (activeTable) {
-                setDataStore((prev) => ({
-                  ...prev,
-                  [activeTable.id]: generateSampleDataForTable(activeTable, 6),
-                }));
-              }
-            }}
-          >
-            Reset Sample Data
-          </Button>
+          {isLive ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={RefreshCw}
+              onClick={() => setLiveReload((n) => n + 1)}
+              disabled={liveLoading}
+            >
+              Refresh
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={RefreshCw}
+              onClick={() => {
+                if (activeTable) {
+                  setDataStore((prev) => ({
+                    ...prev,
+                    [activeTable.id]: generateSampleDataForTable(activeTable, 6),
+                  }));
+                }
+              }}
+            >
+              Reset Sample Data
+            </Button>
+          )}
           <Button
             size="sm"
             variant="primary"
             icon={Plus}
             onClick={handleOpenInsert}
-            disabled={!activeTable}
+            disabled={!activeTable || writesBlocked}
+            title={writesBlocked ? tr('desk.noPkTooltip') : undefined}
           >
             Insert Record
           </Button>
         </div>
       </div>
+
+      {isLive ? (
+        <Callout tone="success" title={tr('desk.liveBannerTitle')}>
+          {tr('desk.liveBannerBody')}
+        </Callout>
+      ) : (
+        <Callout tone="info" title={tr('desk.sampleBannerTitle')}>
+          {tr('desk.sampleBannerBody')}{' '}
+          {mode.kind === 'sample' && mode.reason === 'signed-out'
+            ? tr('desk.sampleReasonSignedOut')
+            : tr('desk.sampleReasonNoConnection')}
+        </Callout>
+      )}
+      {isLive && liveWriteError && (
+        <Callout tone="danger" title={tr('desk.writeFailed')}>
+          {liveWriteError}
+        </Callout>
+      )}
 
       {/* ── Studio Navigation Tabs ───────────────────────────────────────── */}
       <Tabs<StudioTab>
@@ -719,7 +984,7 @@ export function ProjectDeskStudio({
         value={activeTab}
         onChange={setActiveTab}
         tabs={[
-          { value: 'records', label: 'Data Browser', icon: Table2, count: currentTableRows.length },
+          { value: 'records', label: 'Data Browser', icon: Table2, count: isLive ? liveTotal : currentTableRows.length },
           { value: 'schema', label: 'Schema & DDL', icon: Database, count: tables.length },
           { value: 'sql', label: 'SQL Console', icon: Terminal },
           { value: 'gateway', label: 'Gateway REST API', icon: Cable },
@@ -764,7 +1029,7 @@ export function ProjectDeskStudio({
                       const count = (dataStore[t.id] || []).length;
                       return (
                         <option key={t.id} value={t.id} className="bg-surface-850 text-content-primary">
-                          {t.name} ({count} rows)
+                          {isLive ? t.name : `${t.name} (${count} rows)`}
                         </option>
                       );
                     })}
@@ -775,11 +1040,13 @@ export function ProjectDeskStudio({
                     <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
                     <input
                       type="text"
-                      placeholder={`Search in ${activeTable?.name || 'table'}…`}
+                      placeholder={isLive ? tr('desk.searchLoadedPage') : `Search in ${activeTable?.name || 'table'}…`}
+                      title={isLive ? tr('desk.searchLoadedPageHint') : undefined}
                       value={searchQuery}
                       onChange={(e) => {
                         setSearchQuery(e.target.value);
-                        setCurrentPage(1);
+                        // Canlı modda arama yüklü sayfada; sayfa değiştirmek gereksiz yeniden çekim olurdu
+                        if (!isLive) setCurrentPage(1);
                       }}
                       className={`${inputClass} !pl-9`}
                     />
@@ -793,13 +1060,22 @@ export function ProjectDeskStudio({
 
                 <div className="flex items-center flex-wrap gap-2">
                   {selectedPks.size > 0 && (
-                    <Button size="sm" variant="danger" icon={Trash2} onClick={handleBulkDelete}>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      icon={Trash2}
+                      onClick={handleBulkDelete}
+                      disabled={writesBlocked || liveBusy}
+                      title={writesBlocked ? tr('desk.noPkTooltip') : undefined}
+                    >
                       Delete ({selectedPks.size})
                     </Button>
                   )}
-                  <Button size="sm" variant="secondary" icon={Sparkles} onClick={handleSeedRows}>
-                    Seed 5 Rows
-                  </Button>
+                  {!isLive && (
+                    <Button size="sm" variant="secondary" icon={Sparkles} onClick={handleSeedRows}>
+                      Seed 5 Rows
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="secondary"
@@ -824,15 +1100,35 @@ export function ProjectDeskStudio({
               </div>
 
               {/* Data Grid Card */}
+              {isLive && !liveStable && sortCol === null && (
+                <Callout tone="neutral">{tr('desk.unstablePagination')}</Callout>
+              )}
               <Card flush>
-                {paginatedRows.length === 0 ? (
+                {isLive && liveError ? (
+                  <EmptyState
+                    icon={Table2}
+                    title={tr('desk.loadFailed')}
+                    description={liveError}
+                    action={
+                      <Button variant="secondary" icon={RefreshCw} onClick={() => setLiveReload((n) => n + 1)}>
+                        {tr('desk.retry')}
+                      </Button>
+                    }
+                  />
+                ) : isLive && liveLoading && paginatedRows.length === 0 ? (
+                  <div className="flex items-center gap-2 px-5 py-8 text-xs text-content-muted" role="status">
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> {tr('desk.loadingRows')}
+                  </div>
+                ) : paginatedRows.length === 0 ? (
                   <EmptyState
                     icon={Table2}
                     title="No records found"
                     description={
                       searchQuery
                         ? 'No rows match your search criteria. Try a different query or clear filters.'
-                        : `The table "${activeTable?.name}" has no rows. Click "Insert Record" or "Seed 5 Rows" to populate.`
+                        : isLive
+                          ? `The table "${activeTable?.name}" has no rows.`
+                          : `The table "${activeTable?.name}" has no rows. Click "Insert Record" or "Seed 5 Rows" to populate.`
                     }
                     action={
                       <div className="flex items-center gap-2">
@@ -842,12 +1138,14 @@ export function ProjectDeskStudio({
                           </Button>
                         ) : (
                           <>
-                            <Button variant="primary" icon={Plus} onClick={handleOpenInsert}>
+                            <Button variant="primary" icon={Plus} onClick={handleOpenInsert} disabled={writesBlocked}>
                               Insert Record
                             </Button>
-                            <Button variant="secondary" icon={Sparkles} onClick={handleSeedRows}>
-                              Seed 5 Rows
-                            </Button>
+                            {!isLive && (
+                              <Button variant="secondary" icon={Sparkles} onClick={handleSeedRows}>
+                                Seed 5 Rows
+                              </Button>
+                            )}
                           </>
                         )}
                       </div>
@@ -988,8 +1286,9 @@ export function ProjectDeskStudio({
                                   <button
                                     type="button"
                                     onClick={() => handleOpenEdit(row)}
-                                    title="Edit Row"
-                                    className="p-1.5 rounded-[var(--radius-control)] hover:bg-surface-700 text-content-secondary hover:text-content-primary transition-colors cursor-pointer"
+                                    disabled={writesBlocked || liveBusy}
+                                    title={writesBlocked ? tr('desk.noPkTooltip') : 'Edit Row'}
+                                    className="p-1.5 rounded-[var(--radius-control)] hover:bg-surface-700 text-content-secondary hover:text-content-primary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                   >
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
@@ -1008,8 +1307,9 @@ export function ProjectDeskStudio({
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteRow(rowPkVal)}
-                                    title="Delete Row"
-                                    className="p-1.5 rounded-[var(--radius-control)] hover:bg-danger-subtle text-content-secondary hover:text-danger-text transition-colors cursor-pointer"
+                                    disabled={writesBlocked || liveBusy}
+                                    title={writesBlocked ? tr('desk.noPkTooltip') : 'Delete Row'}
+                                    className="p-1.5 rounded-[var(--radius-control)] hover:bg-danger-subtle text-content-secondary hover:text-danger-text transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1025,7 +1325,7 @@ export function ProjectDeskStudio({
                 )}
 
                 {/* Pagination Footer */}
-                {processedRows.length > 0 && (
+                {totalRowCount > 0 && paginatedRows.length > 0 && (
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3 border-t border-line bg-surface-800/40 text-xs text-content-muted">
                     <div className="flex items-center gap-3">
                       <span>
@@ -1035,10 +1335,12 @@ export function ProjectDeskStudio({
                         </strong>{' '}
                         to{' '}
                         <strong className="text-content-primary font-mono">
-                          {Math.min(currentPage * pageSize, processedRows.length)}
+                          {isLive
+                            ? (currentPage - 1) * pageSize + paginatedRows.length
+                            : Math.min(currentPage * pageSize, processedRows.length)}
                         </strong>{' '}
                         of{' '}
-                        <strong className="text-content-primary font-mono">{processedRows.length}</strong>{' '}
+                        <strong className="text-content-primary font-mono">{totalRowCount}</strong>{' '}
                         rows
                       </span>
 
@@ -1260,10 +1562,14 @@ export function ProjectDeskStudio({
         <div className="space-y-4">
           <Card
             title="Interactive SQL Query Runner"
-            description={`Run SQL queries directly against ${activeTable?.name || 'the project'} in ${dbEngine}.`}
+            description={
+              isLive
+                ? tr('desk.sqlLiveNote')
+                : `Run SQL queries directly against ${activeTable?.name || 'the project'} in ${dbEngine}.`
+            }
             actions={
-              <Button size="sm" variant="primary" icon={Play} onClick={handleRunQuery}>
-                Run Query (Ctrl+Enter)
+              <Button size="sm" variant="primary" icon={Play} onClick={handleRunQuery} disabled={sqlRunning}>
+                {sqlRunning ? tr('desk.sqlRunning') : 'Run Query (Ctrl+Enter)'}
               </Button>
             }
           >
@@ -1324,7 +1630,7 @@ export function ProjectDeskStudio({
                 <div className="flex items-center justify-between text-xs font-mono py-1 px-2 rounded-[var(--radius-control)] bg-surface-700/50 border border-line">
                   <div className="flex items-center gap-2">
                     {sqlResult.error ? (
-                      <span className="text-danger-text font-semibold">Query Failed</span>
+                      <span className="text-danger-text font-semibold">{tr('desk.sqlFailed')}</span>
                     ) : (
                       <span className="text-success-text font-semibold flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Query Succeeded
@@ -1332,8 +1638,18 @@ export function ProjectDeskStudio({
                     )}
                     <span className="text-content-muted">·</span>
                     <span className="text-content-secondary">{sqlResult.rows.length} rows returned</span>
+                    {sqlResult.affectedRows !== undefined && sqlResult.affectedRows > 0 && (
+                      <>
+                        <span className="text-content-muted">·</span>
+                        <span className="text-content-secondary">
+                          {tr('desk.sqlAffected', { count: sqlResult.affectedRows })}
+                        </span>
+                      </>
+                    )}
                   </div>
-                  <span className="text-content-muted">Execution time: {sqlResult.durationMs}ms</span>
+                  {sqlResult.durationMs > 0 && (
+                    <span className="text-content-muted">Execution time: {sqlResult.durationMs}ms</span>
+                  )}
                 </div>
               )}
             </div>
@@ -1343,13 +1659,18 @@ export function ProjectDeskStudio({
           {sqlResult && (
             <Card title="Query Results" description="Tabular results returned by the executor engine." flush>
               {sqlResult.error ? (
-                <div className="p-4 text-xs font-mono text-danger-text bg-danger-subtle/20 border-b border-line">
-                  {sqlResult.error}
+                <div className="p-4 text-xs font-mono text-danger-text bg-danger-subtle/20 border-b border-line space-y-1">
+                  <p>{sqlResult.errorKind === 'sql-disabled' ? tr('desk.sqlDisabledHint') : sqlResult.error}</p>
                 </div>
               ) : sqlResult.rows.length === 0 ? (
                 <div className="p-6 text-center text-xs text-content-muted">No rows returned by this query.</div>
               ) : (
                 <div className="overflow-x-auto">
+                  {sqlResult.truncated && (
+                    <p className="px-4 py-2 text-xs text-content-muted border-b border-line">
+                      {tr('desk.sqlTruncated', { count: sqlResult.rows.length })}
+                    </p>
+                  )}
                   <table className="w-full text-xs font-mono">
                     <thead>
                       <tr className="border-b border-line bg-surface-700/60">
@@ -1422,7 +1743,7 @@ export function ProjectDeskStudio({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Endpoint 1: List */}
               <Card
-                title={`GET /api/gateway/list (${activeTable.name})`}
+                title={`POST /api/gateway/list (${activeTable.name})`}
                 description="List and paginate records with server-side filtering and sorting."
                 actions={
                   <Button
@@ -1611,7 +1932,7 @@ export function ProjectDeskStudio({
                       onChange={(e) => setRowDraft({ ...rowDraft, [col.name]: e.target.value })}
                       placeholder={`Enter ${col.name}…`}
                       className={inputClass}
-                      required={!col.isNullable && !isPk}
+                      required={!col.isNullable && !isPk && !(isLive && col.defaultValue)}
                     />
                   </Field>
                 );
@@ -1621,7 +1942,7 @@ export function ProjectDeskStudio({
                 <Button variant="secondary" onClick={() => setEditModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" variant="primary">
+                <Button type="submit" variant="primary" disabled={liveBusy}>
                   {editingRow ? 'Save Changes' : 'Insert Record'}
                 </Button>
               </div>

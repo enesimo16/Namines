@@ -2,6 +2,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Interfaces;
 using Namines.Infrastructure.Generators.DdlGenerator;
+using Namines.Flow.Services;
+using Namines.Infrastructure.Generators.Eject;
 using Namines.Infrastructure.Generators.PrismaGenerator;
 using Namines.Infrastructure.Security;
 using Namines.Infrastructure.Services;
@@ -200,11 +202,18 @@ static NaminesTools BuildTools()
 
     var ddlFactory = new DdlGeneratorFactory();
 
+    // Eskiden 6 argümanlı kurucu gateway/executor/flow için null! geçiyordu; bu araçlardan
+    // birine ulaşan bir CLI komutu eklendiği gün NRE verirdi. Gerçek bağımlılıklar
+    // kuruluyor (hepsi hafif: yalnızca host politikası alıyorlar).
     return new NaminesTools(
         new DbIntrospectionService(NullLogger<DbIntrospectionService>.Instance, hostPolicy),
         new BranchTestRunnerService(ddlFactory),
         ddlFactory,
         new PrismaGeneratorService(),
+        new EjectGeneratorRegistry(ddlFactory),
+        new GatewayService(hostPolicy),
+        new DatabaseExecutorService(hostPolicy),
+        new FlowRuleMatcher(),
         new NaminesCloudClient(new HttpClient()),
         // Baglanti hedefini kaydeden kapi (docs/last-review M-16). CLI de ayni
         // yapilandirmayi okuyor: Security:McpAllowedDbHosts tanimliysa burada da

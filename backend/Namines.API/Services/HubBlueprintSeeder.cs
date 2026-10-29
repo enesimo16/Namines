@@ -33,11 +33,22 @@ public static class HubBlueprintSeeder
         CancellationToken ct = default)
     {
         // 1. Showcase kullanıcısını oluştur veya getir
-        var architect = await userManager.FindByNameAsync(ShowcaseUsername)
-                        ?? await userManager.FindByIdAsync(ShowcaseUserId);
+        // Sabit Id ile aranıyor: eskiden "namines" kullanıcı adıyla bulunan HERHANGİ bir
+        // kullanıcı showcase sahibi sayılıyordu — o adı önceden kapmış gerçek bir hesap,
+        // vitrin reposlarının sahibi olurdu. Ad başka bir Id'ye aitse tohumlama atlanır.
+        var architect = await userManager.FindByIdAsync(ShowcaseUserId);
 
         if (architect is null)
         {
+            var nameOwner = await userManager.FindByNameAsync(ShowcaseUsername);
+            if (nameOwner is not null)
+            {
+                logger.LogWarning(
+                    "Hub vitrin tohumlaması atlandı: '{Username}' kullanıcı adı başka bir hesaba ait.",
+                    ShowcaseUsername);
+                return;
+            }
+
             architect = new ApplicationUser
             {
                 Id = ShowcaseUserId,
@@ -47,7 +58,8 @@ public static class HubBlueprintSeeder
                 NormalizedEmail = ShowcaseEmail.ToUpperInvariant(),
                 EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow,
-                IsDev = true
+                // Vitrin hesabı yönetici DEĞİL: IsDev=true admin yetkisi veriyordu.
+                IsDev = false
             };
             var createRes = await userManager.CreateAsync(architect);
             if (!createRes.Succeeded)
@@ -56,6 +68,13 @@ public static class HubBlueprintSeeder
                     string.Join(", ", createRes.Errors.Select(e => e.Description)));
                 return;
             }
+        }
+
+        // Önceki sürümler vitrin hesabını IsDev=true (admin) ile oluşturmuştu; mevcut kayıt da düşürülüyor.
+        if (architect.IsDev)
+        {
+            architect.IsDev = false;
+            await userManager.UpdateAsync(architect);
         }
 
         var personalOrg = await context.GetOrCreatePersonalOrgAsync(architect.Id, ShowcaseUsername, ct);
@@ -86,8 +105,10 @@ public static class HubBlueprintSeeder
                 Tags = bp.Tags,
                 DbType = "PostgreSQL",
                 Visibility = ProjectVisibility.Public,
-                StarCount = bp.StarCount,
-                ForkCount = bp.ForkCount,
+                // Katalogdaki StarCount/ForkCount uydurma rakamlardı; Hub gerçek etkileşim
+                // göstermeli, tohumlanan repolar 0'dan başlar.
+                StarCount = 0,
+                ForkCount = 0,
                 UserId = architect.Id,
                 OrganizationId = personalOrg.Id,
                 SchemaJson = JsonSerializer.Serialize(bp.Schema, SchemaJsonOptions.Default),

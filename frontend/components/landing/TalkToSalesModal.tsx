@@ -88,9 +88,8 @@ Notes: ${note.trim() || 'None provided'}`,
       setIsSubmitted(true);
       showToast('Inquiry received! Our engineering leadership will contact you shortly.', 'success');
     } catch {
-      // Fallback graceful success simulation for demo/offline setups
-      setIsSubmitted(true);
-      showToast('Inquiry received! We will follow up shortly.', 'success');
+      // Başarısızlığı başarı gibi göstermek satış talebini sessizce kaybettiriyordu.
+      showToast('We could not send your inquiry. Please try again or email us directly.', 'error');
     } finally {
       setIsSubmitting(false);
     }

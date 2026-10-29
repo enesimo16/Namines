@@ -37,6 +37,8 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
   hasLoaded: false,
 
   fetchFeatures: async () => {
+    // Periyodik yenileme ile elle tetiklemenin üst üste binmesini engelle.
+    if (get().isLoading) return;
     set({ isLoading: true, error: null });
     try {
       const res = await fetch(`${API_BASE_URL}/features`, {

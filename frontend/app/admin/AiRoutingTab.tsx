@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   RefreshCw,
   Search,
@@ -16,6 +16,86 @@ import type { AdminAiToolRouteItem } from '../../services/adminService';
 
 interface AiRoutingTabProps {
   locale?: string;
+}
+
+/**
+ * Metin alanı: yazarken yerel taslak tutulur, sunucuya yalnızca blur / Enter'da
+ * gönderilir. Her tuş vuruşunda PUT atmak hem sunucuyu yoruyordu hem de yarım
+ * yazılmış model adını canlıya alıyordu.
+ */
+function CommitOnBlurInput({
+  value,
+  onCommit,
+  className,
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  // Dışarıdan (başarısız kayıt geri alma, sağlayıcı değişimi) gelen değeri taslağa yansıt.
+  useEffect(() => setDraft(value), [value]);
+
+  const commit = () => {
+    const next = draft.trim();
+    if (next === '') {
+      setDraft(value);
+      return;
+    }
+    if (next !== value) onCommit(next);
+  };
+
+  return (
+    <input
+      type="text"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        else if (e.key === 'Escape') setDraft(value);
+      }}
+      className={className}
+    />
+  );
+}
+
+/** Kaydırıcı: sürüklerken yalnızca yerel değer değişir; bırakınca/klavye bitince kaydedilir. */
+function CommitOnReleaseRange({
+  value,
+  onCommit,
+  className,
+  children,
+}: {
+  value: number;
+  onCommit: (next: number) => void;
+  className?: string;
+  children: (draft: number) => React.ReactNode;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+
+  const commit = () => {
+    if (draft !== value) onCommit(draft);
+  };
+
+  return (
+    <>
+      {children(draft)}
+      <input
+        type="range"
+        min="0.0"
+        max="1.0"
+        step="0.05"
+        value={draft}
+        onChange={(e) => setDraft(parseFloat(e.target.value))}
+        onPointerUp={commit}
+        onKeyUp={commit}
+        onBlur={commit}
+        className={className}
+      />
+    </>
+  );
 }
 
 const COMMON_MODELS: Record<string, string[]> = {
@@ -320,35 +400,31 @@ export default function AiRoutingTab({ locale = 'tr' }: AiRoutingTabProps) {
                         </div>
                       )}
                     </div>
-                    <input
-                      type="text"
+                    <CommitOnBlurInput
                       value={route.modelName}
-                      onChange={(e) => handleFieldChange(route.toolKey, 'modelName', e.target.value)}
+                      onCommit={(next) => handleFieldChange(route.toolKey, 'modelName', next)}
                       className="w-full px-2.5 py-1.5 rounded-[var(--radius-control)] bg-surface-700 border border-line-strong text-xs font-mono text-content-primary focus:outline-none"
                     />
                   </div>
 
                   {/* Temperature */}
                   <div className="space-y-1 pt-0.5">
-                    <div className="flex items-center justify-between text-micro">
-                      <span className="text-content-muted">
-                        {isEn ? 'Temperature' : 'Sıcaklık (Rastgelelik)'}
-                      </span>
-                      <span className="text-content-primary font-semibold">
-                        {route.temperature?.toFixed(2) ?? '0.20'}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.0"
-                      max="1.0"
-                      step="0.05"
+                    <CommitOnReleaseRange
                       value={route.temperature ?? 0.2}
-                      onChange={(e) =>
-                        handleFieldChange(route.toolKey, 'temperature', parseFloat(e.target.value))
-                      }
+                      onCommit={(next) => handleFieldChange(route.toolKey, 'temperature', next)}
                       className="w-full accent-content-primary bg-surface-700 h-1.5 rounded-[var(--radius-control)] appearance-none cursor-pointer"
-                    />
+                    >
+                      {(draft) => (
+                        <div className="flex items-center justify-between text-micro">
+                          <span className="text-content-muted">
+                            {isEn ? 'Temperature' : 'Sıcaklık (Rastgelelik)'}
+                          </span>
+                          <span className="text-content-primary font-semibold">
+                            {draft.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </CommitOnReleaseRange>
                   </div>
                 </div>
               </div>

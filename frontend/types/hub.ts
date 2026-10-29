@@ -87,9 +87,13 @@ export interface HubRepoDetail {
     name: string;
     isDefault: boolean;
     createdAt: string;
+    /** Yalnızca yerel taslak repolarda dolu: dalın istemcideki şema anlık görüntüsü. */
+    schema?: DatabaseSchema;
   }[];
   schema: DatabaseSchema;
   nodePositionsJson: string;
+  /** Yalnızca istemcide: Hub'da karşılığı olmayan, kullanıcının yerel projesinden türetilmiş taslak. */
+  isLocalDraft?: boolean;
 }
 
 export interface HubIssue {

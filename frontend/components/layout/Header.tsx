@@ -31,6 +31,7 @@ import KeyboardShortcutsModal from '../canvas/KeyboardShortcutsModal';
 import { useCommandPaletteStore } from '../../store/useCommandPaletteStore';
 import { isMac } from '../../lib/shortcuts';
 import { useKeyboardShortcut, useSequenceShortcut } from '../../hooks/useKeyboardShortcuts';
+import { useIsClient } from '../../hooks/useIsClient';
 import { openDeskHandoff, DESK_URL } from '../../lib/deskHandoff';
 import { authService } from '../../services/api';
 
@@ -117,18 +118,21 @@ export default function Header() {
   useKeyboardShortcut(['?'], () => setIsShortcutsOpen(v => !v), { ignoreInputs: true });
   useKeyboardShortcut(['mod', '/'], () => setIsShortcutsOpen(v => !v), { ignoreInputs: true });
 
+  // Landing ve /admin'de "g" sıralı kısayolları kapalı: bu sayfalarda gezinti kısayolu
+  // beklenmez ve "g" tuşu yanlışlıkla bir sonraki tuşu yutabilir.
+  const sequenceNavEnabled = pathname !== '/' && !pathname.startsWith('/admin');
   // Shopify Polaris-style sequence navigation: G then key
-  useSequenceShortcut('g', 'd', () => router.push(scopedProjectId ? `/canvas?project=${scopedProjectId}` : '/canvas'));
-  useSequenceShortcut('g', 'c', () => router.push(scopedProjectId ? `/compile?project=${scopedProjectId}` : '/compile'));
-  useSequenceShortcut('g', 'f', () => router.push(scopedProjectId ? `/flow?project=${scopedProjectId}` : '/flow'));
-  useSequenceShortcut('g', 'r', () => router.push('/review'));
-  useSequenceShortcut('g', 'g', () => router.push(scopedProjectId ? `/ground?project=${scopedProjectId}` : '/ground'));
-  useSequenceShortcut('g', 'v', () => router.push(scopedProjectId ? `/vault?project=${scopedProjectId}` : '/vault'));
-  useSequenceShortcut('g', 'h', () => router.push('/hub'));
+  useSequenceShortcut('g', 'd', () => router.push(scopedProjectId ? `/canvas?project=${scopedProjectId}` : '/canvas'), sequenceNavEnabled);
+  useSequenceShortcut('g', 'c', () => router.push(scopedProjectId ? `/compile?project=${scopedProjectId}` : '/compile'), sequenceNavEnabled);
+  useSequenceShortcut('g', 'f', () => router.push(scopedProjectId ? `/flow?project=${scopedProjectId}` : '/flow'), sequenceNavEnabled);
+  useSequenceShortcut('g', 'r', () => router.push('/review'), sequenceNavEnabled);
+  useSequenceShortcut('g', 'g', () => router.push(scopedProjectId ? `/ground?project=${scopedProjectId}` : '/ground'), sequenceNavEnabled);
+  useSequenceShortcut('g', 'v', () => router.push(scopedProjectId ? `/vault?project=${scopedProjectId}` : '/vault'), sequenceNavEnabled);
+  useSequenceShortcut('g', 'h', () => router.push('/hub'), sequenceNavEnabled);
   useSequenceShortcut('g', 'k', () => {
     const activeProjId = scopedProjectId || useProjectHistoryStore.getState().activeProjectId;
     router.push(activeProjId ? `/desk?project=${encodeURIComponent(activeProjId)}` : '/desk');
-  });
+  }, sequenceNavEnabled);
 
   // Scroll spy for homepage sections
   useEffect(() => {
@@ -186,11 +190,17 @@ export default function Header() {
     else if (pathname === '/ground') startGuide('ground', 0);
     else if (pathname === '/vault') startGuide('vault', 0);
     else if (pathname === '/review') startGuide('review', 0);
+    else if (pathname.startsWith('/hub')) startGuide('hub', 0);
+    else if (pathname.startsWith('/desk')) startGuide('desk', 0);
     else if (pathname === '/new' || pathname === '/') startGuide('new', 0);
     else startGuide('new', 0);
   };
 
-  const { isAuthenticated, user, logout } = useAuthStore();
+  // Oturum localStorage'dan gelir; sunucu HTML'iyle eşleşmesi için hidrasyondan önce "çıkış yapmış" say.
+  const isClient = useIsClient();
+  const { isAuthenticated: authStored, user: userStored, logout } = useAuthStore();
+  const isAuthenticated = isClient && authStored;
+  const user = isClient ? userStored : null;
   const isAdmin = isUserAdmin(user);
   const showToast = useToastStore(state => state.showToast);
   const syncWithCloud = useProjectHistoryStore(s => s.syncWithCloud);

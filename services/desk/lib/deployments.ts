@@ -11,7 +11,7 @@ import type { DeskSession } from './api';
  * ekranın gösterdiği alanlar burada ayrıca (bilinçli kopya) tanımlı.
  */
 
-const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+import { API_BASE as API } from './config';
 
 async function get<T>(path: string, session: DeskSession): Promise<T> {
   const res = await fetch(`${API}${path}`, {

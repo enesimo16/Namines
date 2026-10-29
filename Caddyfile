@@ -35,21 +35,26 @@
         }
     }
 
-    handle /health* {
+    # Yalnızca liveness herkese açık. /health ve /health/ready tam bağımlılık raporu
+    # (DB/Redis durumu, süreler) döndürür; ağ geçidinden dışarıya SIZDIRILMAZ.
+    handle /health/live {
         reverse_proxy namines-backend:8080
     }
 
     # ── 2. SignalR Canvas Hub (WebSocket Desteği) ────────────────────────────
     handle /hubs/* {
         reverse_proxy namines-backend:8080 {
-            header_up Upgrade {http.upgrade}
-            header_up Connection "Upgrade"
             header_up X-Forwarded-Proto {scheme}
             header_up X-Forwarded-Host {host}
         }
     }
 
     # ── 3. Namines Desk (services/desk Mikroservisi) ──────────────────────────
+    # /desk altındaki HER ŞEY (/desk/handoff, /desk/_next varlıkları, servisin kendi sayfaları)
+    # Desk servisine gider. Not: ana frontend'in kendi uygulama-içi /desk sayfası
+    # (frontend/app/desk) bu ağ geçidinin arkasında gölgelenir; Next'in tek başına
+    # çalıştığı kurulumda (Vercel) ise /desk sayfası kazanır ve yalnızca /desk/* alt
+    # yolları DESK_ORIGIN_URL'e yönlenir (bkz. frontend/next.config.ts).
     handle /desk* {
         reverse_proxy namines-desk:3200 {
             header_up X-Forwarded-Proto {scheme}

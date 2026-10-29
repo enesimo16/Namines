@@ -49,15 +49,20 @@ jobs:
         if: steps.check.outputs.head_exists == 'true' && steps.check.outputs.base_exists == 'true'
         run: |
           # Copy the diff script from HEAD so we always use the latest version
+          # Adım `bash -e` ile koşar: çıkış kodunu `||` ile yakalamazsak 1/2 dönen betik
+          # adımı burada keser ve exit_code hiç yazılmaz (yıkıcı değişiklik kapısı sessizce açılır).
+          EXIT_CODE=0
           node head/scripts/namines-diff.mjs base/namines-schema.json head/namines-schema.json \
-            > diff_output.md 2>&1
-          EXIT_CODE=$?
+            > diff_output.md 2>&1 || EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
           # Multiline output → GITHUB_OUTPUT heredoc
+          # Gövde şema/tablo adlarını içerebilir; sabit bir sınırlayıcı, çıktıya sahte
+          # anahtar enjekte etmeye izin verirdi — rastgele sınırlayıcı kullan.
+          DELIM="EOF_$(openssl rand -hex 16)"
           {
-            echo "body<<EOFBODY"
+            echo "body<<$DELIM"
             cat diff_output.md
-            echo "EOFBODY"
+            echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
 
       # ── 4. Handle new schema (no base) ────────────────────────────────────

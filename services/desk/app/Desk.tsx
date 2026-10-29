@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import EmptyState from './EmptyState';
 import {
   deskApi, DeskApiError, type DeskRow, type DeskSession,
@@ -308,14 +308,23 @@ export default function Desk({
     await loadRows(table.name, page);
   }
 
+  // Şema yüklenmeden de açılabilen görünümler. Ağaç, aşağıdaki asıl dönüşle
+  // (Fragment > div.desk-content > [afiş, görünüm]) AYNI biçimde olmalı; aksi halde
+  // şema gelince görünüm yeniden bağlanır ve yazılmış SQL/form durumu kaybolur.
+  const earlyView = (node: ReactNode) => (
+    <>
+      <div className="desk-content">{null}{node}</div>
+    </>
+  );
+
   if (view === 'ground') return <Ground session={session} isOwner={isOwner} />;
   if (!tables) {
-    if (view === 'deployments') return <div className="desk-content"><Deployments session={session} /></div>;
-    if (view === 'logs') return <div className="desk-content"><Logs session={session} /></div>;
-    if (view === 'apikeys') return <div className="desk-content"><ApiKeys session={session} isOwner={isOwner} /></div>;
-    if (view === 'vault') return <div className="desk-content"><Vault session={session} isOwner={isOwner} /></div>;
-    if (view === 'members') return <div className="desk-content"><Members session={session} /></div>;
-    if (view === 'sql') return <div className="desk-content"><SqlConsole session={session} isOwner={isOwner} allowDeskSql={allowDeskSql} onToggled={onDeskSqlToggled} /></div>;
+    if (view === 'deployments') return earlyView(<Deployments session={session} />);
+    if (view === 'logs') return earlyView(<Logs session={session} />);
+    if (view === 'apikeys') return earlyView(<ApiKeys session={session} isOwner={isOwner} />);
+    if (view === 'vault') return earlyView(<Vault session={session} isOwner={isOwner} />);
+    if (view === 'members') return earlyView(<Members session={session} />);
+    if (view === 'sql') return earlyView(<SqlConsole session={session} isOwner={isOwner} allowDeskSql={allowDeskSql} onToggled={onDeskSqlToggled} />);
   }
 
   if (error && !tables) {

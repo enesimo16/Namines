@@ -55,7 +55,8 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
   /** Veriyi ceker; yukleme bayragini cagirana birakir. */
   const fetchTeam = async () => {
     try {
-      await useProjectHistoryStore.getState().syncAllToCloud();
+      // Modül açılışında tüm projeleri buluta yazmak (syncAllToCloud) kaldırıldı: yalnızca
+      // paylaşım eyleminde gerekiyor (handleShareProject), burada sadece çekilir.
       await useProjectHistoryStore.getState().syncWithCloud();
       const [status, act] = await Promise.all([teamService.status(), teamService.activity()]);
       setTeam(status);
@@ -392,6 +393,11 @@ function TeamModalPanel({ onClose }: { onClose: () => void }) {
                         </div>
                       ))}
                   </div>
+                  {localProjects.filter(lp => !projects.some(sp => sp.id === lp.id)).length > 10 && (
+                    <p className="mt-1.5 text-[10px] text-content-muted">
+                      +{localProjects.filter(lp => !projects.some(sp => sp.id === lp.id)).length - 10} more
+                    </p>
+                  )}
                 </div>
               )}
             </div>

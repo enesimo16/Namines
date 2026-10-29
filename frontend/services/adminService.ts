@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../lib/apiConfig';
 import { csrfHeaders } from '../lib/csrf';
-import { DEFAULT_FEATURE_FLAGS, DEFAULT_AI_ROUTES } from './adminCatalogDefaults';
 
 export interface AdminOverviewStats {
   totalUsers: number;
@@ -290,93 +289,6 @@ export const downloadBlob = (blob: Blob, filename: string) => {
   document.body.removeChild(a);
 };
 
-function getLocalFallbackFeatureFlags(): AdminFeatureFlagItem[] {
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem('namines_admin_features');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-  }
-  return DEFAULT_FEATURE_FLAGS;
-}
-
-function saveLocalFallbackFeatureFlag(key: string, updates: Partial<AdminFeatureFlagItem>): AdminFeatureFlagItem {
-  const flags = getLocalFallbackFeatureFlags();
-  const lowerKey = key.toLowerCase();
-  const index = flags.findIndex(f => f.featureKey.toLowerCase() === lowerKey);
-  const now = new Date().toISOString();
-  let updatedItem: AdminFeatureFlagItem;
-  if (index >= 0) {
-    updatedItem = { ...flags[index], ...updates, updatedAt: now };
-    flags[index] = updatedItem;
-  } else {
-    updatedItem = {
-      featureKey: key,
-      displayName: key,
-      description: '',
-      category: 'Tools',
-      isEnabled: updates.isEnabled ?? true,
-      mode: updates.mode ?? 'DisabledNotice',
-      noticeMessage: updates.noticeMessage,
-      updatedAt: now,
-    };
-    flags.push(updatedItem);
-  }
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem('namines_admin_features', JSON.stringify(flags));
-    } catch {}
-  }
-  return updatedItem;
-}
-
-function getLocalFallbackAiRoutes(): AdminAiRoutesResponse {
-  const defaultProviders = ['groq', 'deepseek', 'claude', 'openai'];
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem('namines_admin_ai_routes');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.routes && Array.isArray(parsed.routes) && parsed.routes.length > 0) {
-          return { routes: parsed.routes, providers: parsed.providers || defaultProviders };
-        }
-      }
-    } catch {}
-  }
-  return { routes: DEFAULT_AI_ROUTES, providers: defaultProviders };
-}
-
-function saveLocalFallbackAiRoute(toolKey: string, updates: Partial<AdminAiToolRouteItem>): AdminAiToolRouteItem {
-  const current = getLocalFallbackAiRoutes();
-  const index = current.routes.findIndex(r => r.toolKey === toolKey);
-  const now = new Date().toISOString();
-  let updatedItem: AdminAiToolRouteItem;
-  if (index >= 0) {
-    updatedItem = { ...current.routes[index], ...updates, updatedAt: now };
-    current.routes[index] = updatedItem;
-  } else {
-    updatedItem = {
-      toolKey,
-      displayName: toolKey,
-      provider: updates.provider || 'groq',
-      modelName: updates.modelName || 'qwen-2.5-coder-32b',
-      temperature: updates.temperature ?? 0.2,
-      fallbackProvider: updates.fallbackProvider || 'deepseek',
-      updatedAt: now,
-    };
-    current.routes.push(updatedItem);
-  }
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem('namines_admin_ai_routes', JSON.stringify(current));
-    } catch {}
-  }
-  return updatedItem;
-}
-
 export const adminService = {
   getOverview: async (): Promise<AdminOverviewStats> => {
     const res = await api.get<AdminOverviewStats>('/admin/overview');
@@ -435,147 +347,17 @@ export const adminService = {
     return res.data;
   },
 
+  // Sağlık/denetim verisi SUNUCUDAN gelir. Hata durumunda uydurma "Healthy" rapor
+  // üretmek (eski davranış) çöken bir sistemi yeşil gösteriyordu — artık hata fırlatılır
+  // ve arayüz hata/boş durumu gösterir.
   getBotDiagnostics: async (): Promise<BotAuditReport> => {
-    try {
-      const res = await api.get<BotAuditReport>('/admin/bot/diagnostics');
-      if (res?.data) {
-        try {
-          localStorage.setItem('namines_last_bot_report', JSON.stringify(res.data));
-        } catch {}
-        return res.data;
-      }
-    } catch {}
-
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('namines_last_bot_report');
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-
-    const now = new Date().toISOString();
-    return {
-      auditTimestamp: now,
-      overallStatus: 'Healthy',
-      healthScore: 98,
-      summaryText: 'Otonom denetim botu 5 servisi canlı taradı: 5 başarılı, 0 uyarı.',
-      probes: [
-        {
-          serviceName: 'PostgreSQL Control DB',
-          status: 'pass',
-          latencyMs: 12,
-          message: 'Veritabanı bağlantısı ve EF Core kontrol sorgusu başarılı.',
-          checkedAt: now,
-        },
-        {
-          serviceName: 'SignalR Canvas Hub & Redis',
-          status: 'pass',
-          latencyMs: 5,
-          message: 'WebSocket & Hub dinleyicileri hazır, çok oyunculu senkronizasyon aktif.',
-          checkedAt: now,
-        },
-        {
-          serviceName: 'AI Inference Gateway (Groq/NAI/DeepSeek)',
-          status: 'pass',
-          latencyMs: 18,
-          message: 'AI sağlayıcı uç noktaları ve hız sınırı denetleyicisi çalışıyor.',
-          checkedAt: now,
-        },
-        {
-          serviceName: 'Docker Sandbox Engine (RunTests)',
-          status: 'pass',
-          latencyMs: 34,
-          message: 'Geçici DDL doğrulama container havuzu dinleniyor.',
-          checkedAt: now,
-        },
-        {
-          serviceName: 'Vault & Ground Depolama Hacmi',
-          status: 'pass',
-          latencyMs: 3,
-          message: 'Yedekleme ve veri dosyası dizini okuma/yazma testi başarılı.',
-          checkedAt: now,
-        },
-      ],
-    };
+    const res = await api.get<BotAuditReport>('/admin/bot/diagnostics');
+    return res.data;
   },
 
   runBotAudit: async (): Promise<BotAuditReport> => {
-    try {
-      const res = await api.post<BotAuditReport>('/admin/bot/run-audit');
-      if (res?.data) {
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('namines_last_bot_report', JSON.stringify(res.data));
-            const rawHist = localStorage.getItem('namines_bot_history');
-            const hist = rawHist ? JSON.parse(rawHist) : [];
-            hist.unshift(res.data);
-            localStorage.setItem('namines_bot_history', JSON.stringify(hist.slice(0, 20)));
-          } catch {}
-        }
-        return res.data;
-      }
-    } catch (e) {
-      console.warn('[Admin] Live audit API call failed; running local synthetic diagnostics', e);
-    }
-
-    // Client-side diagnostic probe execution
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    const now = new Date().toISOString();
-    const report: BotAuditReport = {
-      auditTimestamp: now,
-      overallStatus: 'Healthy',
-      healthScore: 100,
-      summaryText: 'Otonom denetim botu 5 servisi canlı taradı: 5 başarılı, 0 uyarı.',
-      probes: [
-        {
-          serviceName: 'PostgreSQL Control DB',
-          status: 'pass',
-          latencyMs: 9,
-          message: 'Veritabanı bağlantı havuzu ve EF Core kontrol sorgusu başarılı.',
-          checkedAt: now,
-        },
-        {
-          serviceName: 'SignalR Canvas Hub & Redis',
-          status: 'pass',
-          latencyMs: 4,
-          message: 'WebSocket & Hub dinleyicileri hazır, çok oyunculu senkronizasyon aktif.',
-          checkedAt: now,
-        },
-        {
-          serviceName: 'AI Inference Gateway (Groq/NAI/DeepSeek)',
-          status: 'pass',
-          latencyMs: 22,
-          message: 'AI sağlayıcı uç noktaları ve hız sınırı denetleyicisi çalışıyor.',
-          checkedAt: now,
-        },
-        {
-          serviceName: 'Docker Sandbox Engine (RunTests)',
-          status: 'pass',
-          latencyMs: 28,
-          message: 'Geçici DDL doğrulama container havuzu dinleniyor.',
-          checkedAt: now,
-        },
-        {
-          serviceName: 'Vault & Ground Depolama Hacmi',
-          status: 'pass',
-          latencyMs: 2,
-          message: 'Yedekleme ve veri dosyası dizini okuma/yazma testi başarılı.',
-          checkedAt: now,
-        },
-      ],
-    };
-
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('namines_last_bot_report', JSON.stringify(report));
-        const rawHist = localStorage.getItem('namines_bot_history');
-        const hist = rawHist ? JSON.parse(rawHist) : [];
-        hist.unshift(report);
-        localStorage.setItem('namines_bot_history', JSON.stringify(hist.slice(0, 20)));
-      } catch {}
-    }
-
-    return report;
+    const res = await api.post<BotAuditReport>('/admin/bot/run-audit');
+    return res.data;
   },
 
   getLogs: async (params?: { level?: string; source?: string; resolved?: boolean; limit?: number }): Promise<AdminLogsResponse> => {
@@ -599,33 +381,8 @@ export const adminService = {
   },
 
   getBotHistory: async (): Promise<BotHistoryResponse> => {
-    try {
-      const res = await api.get<BotHistoryResponse>('/admin/bot/history');
-      if (res?.data && res.data.history?.length > 0) {
-        return res.data;
-      }
-    } catch {}
-
-    let localHist: BotAuditReport[] = [];
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('namines_bot_history');
-        if (raw) localHist = JSON.parse(raw);
-      } catch {}
-    }
-
-    return {
-      history: localHist.length > 0 ? localHist : [
-        {
-          auditTimestamp: new Date().toISOString(),
-          healthScore: 100,
-          overallStatus: 'Healthy',
-          summaryText: 'Otonom denetim botu tüm servisleri sağlıklı doğruladı.',
-          probes: [],
-        },
-      ],
-      incidents: [],
-    };
+    const res = await api.get<BotHistoryResponse>('/admin/bot/history');
+    return res.data;
   },
 
   getProjectDeepStats: async (id: string): Promise<ProjectDeepStats> => {
@@ -646,76 +403,36 @@ export const adminService = {
     return res.data;
   },
 
+  // Bayrak ve AI rota değişiklikleri yalnızca sunucuda kalıcıdır: 404/ağ hatasında
+  // localStorage'a "kaydedip" başarı bildirmek admin'e yanlış güven veriyordu.
   getFeatureFlags: async (): Promise<AdminFeatureFlagItem[]> => {
-    try {
-      const res = await api.get<AdminFeatureFlagItem[]>('/admin/features');
-      if (Array.isArray(res.data) && res.data.length > 0) {
-        if (typeof window !== 'undefined') {
-          try { localStorage.setItem('namines_admin_features', JSON.stringify(res.data)); } catch {}
-        }
-        return res.data;
-      }
-    } catch (err: unknown) {
-      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-      if (status === 404 || status === 405 || !status) {
-        return getLocalFallbackFeatureFlags();
-      }
-      throw err;
-    }
-    return getLocalFallbackFeatureFlags();
+    const res = await api.get<AdminFeatureFlagItem[]>('/admin/features');
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   updateFeatureFlag: async (
     key: string,
     data: { isEnabled: boolean; mode?: 'DisabledNotice' | 'Hidden'; noticeMessage?: string }
   ): Promise<AdminFeatureFlagItem> => {
-    try {
-      const res = await api.put<AdminFeatureFlagItem>(`/admin/features/${key}`, data);
-      return res.data;
-    } catch (err: unknown) {
-      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-      if (status === 404 || status === 405 || !status) {
-        return saveLocalFallbackFeatureFlag(key, data);
-      }
-      throw err;
-    }
+    const res = await api.put<AdminFeatureFlagItem>(`/admin/features/${key}`, data);
+    return res.data;
   },
 
   getAiRoutes: async (): Promise<AdminAiRoutesResponse> => {
-    try {
-      const res = await api.get<AdminAiRoutesResponse>('/admin/ai-routes');
-      if (res.data?.routes && res.data.routes.length > 0) {
-        if (typeof window !== 'undefined') {
-          try { localStorage.setItem('namines_admin_ai_routes', JSON.stringify(res.data)); } catch {}
-        }
-        return res.data;
-      }
-    } catch (err: unknown) {
-      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-      if (status === 404 || status === 405 || !status) {
-        return getLocalFallbackAiRoutes();
-      }
-      throw err;
-    }
-    return getLocalFallbackAiRoutes();
+    const res = await api.get<AdminAiRoutesResponse>('/admin/ai-routes');
+    return {
+      routes: Array.isArray(res.data?.routes) ? res.data.routes : [],
+      providers: Array.isArray(res.data?.providers) ? res.data.providers : [],
+    };
   },
 
   updateAiRoute: async (
     toolKey: string,
     data: { provider: string; modelName: string; temperature: number; fallbackProvider?: string }
   ): Promise<AdminAiToolRouteItem> => {
-    try {
-      const res = await api.put<AdminAiToolRouteItem>(`/admin/ai-routes/${toolKey}`, data);
-      return res.data;
-    } catch (err: unknown) {
-      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-      if (status === 404 || status === 405 || !status) {
-        return saveLocalFallbackAiRoute(toolKey, data);
-      }
-      throw err;
-    }
+    const res = await api.put<AdminAiToolRouteItem>(`/admin/ai-routes/${toolKey}`, data);
+    return res.data;
   },
-
 };
 
 export interface AdminFeatureFlagItem {

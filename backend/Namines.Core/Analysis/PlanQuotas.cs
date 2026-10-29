@@ -23,8 +23,10 @@ public enum PlanTier
     /// Geliştirici/sahip hesabı — hiçbir sınır uygulanmaz.
     ///
     /// <b>Satılabilir bir plan DEĞİL.</b> Stripe'tan asla çıkmaz; yalnızca
-    /// <c>ApplicationUser.IsDev</c> bayrağıyla gelir ve o bayrağı da yalnızca
-    /// açılışta .env'den okunan tohumlama servisi set eder. Enum'un en sonunda
+    /// <c>ApplicationUser.IsDev</c> bayrağıyla gelir. O bayrak yalnızca yapılandırmadaki
+    /// <c>Dev:Email</c> hesabına verilir: açılıştaki <c>DevAccountSeeder</c> ve
+    /// aynı e-postayla giriş/admin doğrulaması set eder. Admin panelindeki plan
+    /// değişikliği ucu bu bayrağı DEĞİŞTİRMEZ. Enum'un en sonunda
     /// duruyor ki <c>ClampToPlan</c> gibi "daha büyük plan daha çok hak" varsayan
     /// karşılaştırmalar doğru çalışsın.
     /// </summary>

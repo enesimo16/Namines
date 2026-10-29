@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
@@ -54,7 +56,9 @@ public class CoderAIPackagerService : ICoderAIPackager
                     dbImage = "mcr.microsoft.com/mssql/server:2022-latest";
                     dbPort = "1433:1433";
                     dbEnv = "      - ACCEPT_EULA=Y\n      - MSSQL_SA_PASSWORD=${DB_PASSWORD}";
-                    dbUrl = $"mssql+pymssql://sa:{dbPassword}@db:1433/naminesdb";
+                    // requirements pyodbc kuruyor (ve compose msodbcsql17 yüklüyor); eski "mssql+pymssql"
+                    // şeması pymssql ister ve pakette yoktu, uygulama ilk bağlanışta ImportError ile düşüyordu.
+                    dbUrl = $"mssql+pyodbc://sa:{dbPassword}@db:1433/naminesdb?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes";
                     break;
                 default:
                     dbImage = "postgres:15";
@@ -143,12 +147,30 @@ services:
     /// </summary>
     private static string GeneratePassword()
     {
-        const string alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        var chars = new char[32];
+        // SQL Server SA parolasi buyuk/kucuk/rakam/simge siniflarindan EN AZ UCUNU ister;
+        // yalnizca rastgele harf+rakam secmek kucuk ama sifir olmayan bir olasilikla (ornegin
+        // hic rakam gelmemesi) bu kurali saglamiyor ve MSSQL container'i sessizce
+        // baslamiyordu. Her siniftan birini zorunlu tutup karistiriyoruz; simge KULLANILMIYOR
+        // cunku alfabe URL-guvenli kalmali (bkz. yukaridaki not).
+        const string upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const string lower = "abcdefghijklmnopqrstuvwxyz";
+        const string digits = "0123456789";
+        const string all = upper + lower + digits;
 
-        for (var i = 0; i < chars.Length; i++)
-            chars[i] = alphabet[System.Security.Cryptography.RandomNumberGenerator.GetInt32(alphabet.Length)];
+        var chars = new List<char>(32)
+        {
+            Pick(upper), Pick(lower), Pick(digits),
+        };
+        while (chars.Count < 32) chars.Add(Pick(all));
 
-        return new string(chars);
+        for (var i = chars.Count - 1; i > 0; i--)
+        {
+            var j = RandomNumberGenerator.GetInt32(i + 1);
+            (chars[i], chars[j]) = (chars[j], chars[i]);
+        }
+
+        return new string(chars.ToArray());
+
+        static char Pick(string set) => set[RandomNumberGenerator.GetInt32(set.Length)];
     }
 }

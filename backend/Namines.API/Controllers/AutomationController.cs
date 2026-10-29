@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -54,6 +55,7 @@ public class UpdateAutomationRuleRequest
 [ApiController]
 [Route("api/automation")]
 [Authorize]
+[FeatureGate("flow")]
 public class AutomationController : ControllerBase
 {
     /// <summary>Hız sınırı penceresi ve pencere başına izin verilen test sayısı.</summary>

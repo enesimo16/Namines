@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,6 +33,7 @@ public sealed record CreateCrossDatabaseRelationRequest(
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[FeatureGate("tool_virtual_relations")]
 public class CrossDatabaseController : ControllerBase
 {
     private readonly AuthDbContext _context;
