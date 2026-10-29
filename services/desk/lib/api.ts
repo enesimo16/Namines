@@ -13,7 +13,7 @@ import type { DeskTable } from './schema';
  * (01-KIMLIK-VE-OTURUM.md §3). v0.1'deki ham API anahtarının yerini bu aldı.
  */
 
-const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+import { API_BASE as API } from './config';
 
 export class DeskApiError extends Error {
   constructor(message: string, readonly status: number) {

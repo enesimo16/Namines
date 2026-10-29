@@ -5,7 +5,7 @@ import AppShell from './AppShell';
 import Desk from './Desk';
 import Projects from './Projects';
 import DeskLanding from './DeskLanding';
-import { fetchProjects, getToken, setToken, clearToken, AuthError, type DeskProject } from '../lib/auth';
+import { fetchProjects, getToken, clearToken, AuthError, type DeskProject } from '../lib/auth';
 import { type DeskView, PROJECT_VIEWS } from '../lib/nav';
 import type { DeskTable } from '../lib/schema';
 import { useT } from '../lib/i18n';
@@ -34,16 +34,20 @@ export default function Page() {
   const [tables, setTables] = useState<DeskTable[] | null>(null);
 
   useEffect(() => {
-    let currentTok = getToken();
+    const currentTok = getToken();
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const queryToken = urlParams.get('token');
       const queryProject = urlParams.get('project');
       const queryView = urlParams.get('view') as DeskView | null;
 
-      if (queryToken) {
-        setToken(queryToken);
-        currentTok = queryToken;
+      // Jeton URL'den ASLA kabul edilmez: `?token=` ile giriş, saldırganın
+      // kendi jetonunu kurbanın tarayıcısına yerleştirmesine (login-CSRF) ve
+      // jetonun geçmişe/loglara düşmesine yol açar. Tek yol POST /handoff.
+      // Eski bağlantılardan kalan hassas parametre adres çubuğundan da silinir.
+      if (urlParams.has('token')) {
+        urlParams.delete('token');
+        const qs = urlParams.toString();
+        window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
       }
       setTok(currentTok);
 

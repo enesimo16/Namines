@@ -10,7 +10,7 @@ import type { DeskSession } from './api';
  * "bir veritabanı var mı, durumu ne" bilgisini görür.
  */
 
-const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+import { API_BASE as API } from './config';
 
 export type GroundStatus = 'Provisioning' | 'Active' | 'PendingDelete' | 'Deleted' | 'Failed';
 

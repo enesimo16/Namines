@@ -65,3 +65,27 @@ describe('POST /handoff caller guard', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('POST /handoff backend URL', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('reads the backend address at runtime and never doubles /api', async () => {
+    vi.stubEnv('NAMINES_API_INTERNAL', 'http://namines-backend:8080/api/');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ token: 'jwt.value.here' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await POST(handoff({ 'sec-fetch-site': 'same-origin' }));
+    expect(res.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe('http://namines-backend:8080/api/auth/desk-handoff-exchange');
+  });
+
+  it('falls back to NAMINES_API when no internal address is set', async () => {
+    vi.stubEnv('NAMINES_API_INTERNAL', undefined);
+    vi.stubEnv('NAMINES_API', 'http://backend:9000');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ token: 'jwt.value.here' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    await POST(handoff({ 'sec-fetch-site': 'same-origin' }));
+    expect(fetchMock.mock.calls[0][0]).toBe('http://backend:9000/api/auth/desk-handoff-exchange');
+  });
+});

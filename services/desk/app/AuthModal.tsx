@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { login, register, setToken, AuthError } from '../lib/auth';
 import { useT } from '../lib/i18n';
+import { assetUrl } from '../lib/config';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -99,7 +100,7 @@ export default function AuthModal({
         {/* Header */}
         <div className="auth-header">
           <div className="auth-brand">
-            <img src="/brand/namines-symbol.svg" alt="Namines" className="auth-brand-logo" />
+            <img src={assetUrl('/brand/namines-symbol.svg')} alt="Namines" className="auth-brand-logo" />
             <span className="auth-brand-text">Namines Desk</span>
             <span className="brand-badge">auth</span>
           </div>

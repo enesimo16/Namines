@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { serverApiBase } from '../../lib/config';
 
 /**
  * Namines Desk v2 §E1.2 — SSO devrinin Desk tarafı, adım 2.
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     return htmlResponse(errorPage('Missing token.'), 400);
   }
 
-  const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+  const API = serverApiBase();
   let jwt: string | null = null;
 
   try {
