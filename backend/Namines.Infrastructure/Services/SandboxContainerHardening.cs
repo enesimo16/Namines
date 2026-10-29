@@ -14,6 +14,16 @@ internal static class SandboxContainerHardening
     public const long PidsLimit = 512;
 
     /// <summary>
+    /// SQL Server açılışta yüzlerce iş parçacığı açıyor ve pids sınırı thread'leri de
+    /// sayıyor: 512'de motor tempdb'den sonra sessizce takılıp hazırlık zaman aşımına
+    /// düşüyordu (CI, Namines.Tests.RunTests MSSQL testleri). Sınır kalkmıyor, yükseliyor.
+    /// </summary>
+    public const long MssqlPidsLimit = 4096;
+
+    public static long PidsLimitFor(Namines.Core.Enums.DatabaseType engine) =>
+        engine == Namines.Core.Enums.DatabaseType.MSSQL ? MssqlPidsLimit : PidsLimit;
+
+    /// <summary>
     /// Docker'ın VARSAYILAN kümesinde olup bu iş için GEREKSİZ yetkiler.
     ///
     /// Liste bilerek kısa: veritabanı imajları ilk açılışta dosya sahipliği değiştirip

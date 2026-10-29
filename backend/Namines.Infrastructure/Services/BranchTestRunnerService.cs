@@ -73,7 +73,7 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
     public BranchTestRunnerService(IDdlGeneratorFactory ddlGeneratorFactory)
     {
         _ddlGeneratorFactory = ddlGeneratorFactory;
-
+
     }
 
     public void Dispose()
@@ -139,7 +139,7 @@ public class BranchTestRunnerService : IBranchTestRunner, IDisposable
                     // arşiv API ile taşınıyor, hazırlık kontrolü ve istemci container İÇİNDE,
                     // loopback üzerinden çalışıyor). Sertleştirme DockerBackupService ile aynı.
                     NetworkMode = "none",
-                    PidsLimit = SandboxContainerHardening.PidsLimit,
+                    PidsLimit = SandboxContainerHardening.PidsLimitFor(dbType),
                     CapDrop = SandboxContainerHardening.CapDrop(),
                 }
             }, ct);

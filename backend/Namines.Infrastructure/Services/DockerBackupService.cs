@@ -47,7 +47,7 @@ public class DockerBackupService : IDockerService, IDisposable
     private DockerClient Docker => _clientLazy.Value;
 
     public DockerBackupService()
-    {
+    {
     }
 
     // Scoped servis: her request'te DockerClient (handler/socket) sızmasın diye dispose edilir.
@@ -113,7 +113,7 @@ public class DockerBackupService : IDockerService, IDisposable
 
                     // Fork bombasi ve kacak surec zinciri: bellek/CPU limiti bunlari
                     // durdurmuyor.
-                    PidsLimit = SandboxContainerHardening.PidsLimit,
+                    PidsLimit = SandboxContainerHardening.PidsLimitFor(dbType),
 
                     // Docker'in VARSAYILAN kume icinde olup bu is icin GEREKSIZ olanlar.
                     //
