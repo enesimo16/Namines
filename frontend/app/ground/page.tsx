@@ -144,8 +144,9 @@ function GroundPageContent() {
       const localMatch = localProjects.find((p) => p.id === projectParam);
       const resolvedName =
         cloudMatch?.name || localMatch?.name || scopedProjectName || scopedHubRepo?.name || 'Project Workspace';
+      // activeProjectId BİLEREK değiştirilmiyor: şema store'u başka projeye ait olabilir ve
+      // canvas autosave'i o şemayı bu projenin üzerine yazardı.
       setScopedProject(projectParam, resolvedName);
-      useProjectHistoryStore.getState().setActiveProjectId(projectParam);
     } else {
       clearProjectSession();
     }
