@@ -407,12 +407,18 @@ public class TeamController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
+        // "Kurucu" kısayolu YOK: org'dan çıkarılmış (ya da rolü düşürülmüş) kurucu,
+        // projeyi başka bir org'a taşıyarak ekibin erişimini koparamamalı. Yetki
+        // yalnızca projenin MEVCUT org'undaki rolden gelir (OrgAccess).
+        if (!await _context.CanManageMembersAsync(projectId, userId, ct))
+            return NotFound(new { error = "Project not found or you do not have permission to share it." });
+
         var org = await ActiveOrgAsync(userId, ct);
         var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId, ct);
+            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
 
         if (project is null)
-            return NotFound(new { error = "Project not found or you are not its owner." });
+            return NotFound(new { error = "Project not found or you do not have permission to share it." });
 
         project.OrganizationId = org.Id;
         project.UpdatedAt = DateTime.UtcNow;
@@ -430,12 +436,22 @@ public class TeamController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var personalOrg = await _context.GetOrCreatePersonalOrgAsync(userId, User.Identity?.Name ?? "Personal");
+        // Paylaşımı geri çekmek ekibin erişimini keser: yalnızca projenin mevcut
+        // org'undaki Owner yapabilir (Admin değil), kurucu olması tek başına yetmez.
+        if (await _context.GetRoleAsync(projectId, userId, ct) != OrgRole.Owner)
+            return NotFound(new { error = "Project not found or you do not have permission to unshare it." });
+
         var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId, ct);
+            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
 
         if (project is null)
-            return NotFound(new { error = "Project not found or you are not its owner." });
+            return NotFound(new { error = "Project not found or you do not have permission to unshare it." });
+
+        // Proje, çağıranın değil KURUCUNUN kişisel org'una döner; aksi hâlde ekip
+        // sahibi başkasının projesini kendi kişisel org'una çekmiş olurdu.
+        var founderName = await _context.Users.AsNoTracking()
+            .Where(u => u.Id == project.UserId).Select(u => u.UserName).FirstOrDefaultAsync(ct);
+        var personalOrg = await _context.GetOrCreatePersonalOrgAsync(project.UserId, founderName ?? "Personal", ct);
 
         project.OrganizationId = personalOrg.Id;
         project.UpdatedAt = DateTime.UtcNow;
