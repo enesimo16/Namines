@@ -66,22 +66,33 @@ internal static class UserDbConnection
         var requireTls = ShouldRequireTls(host);
 
         var conn = Create(connectionString, dbType, requireTls);
-        await conn.OpenAsync(ct);
+        try
+        {
+            await conn.OpenAsync(ct);
 
-        if (readOnly && AppliesReadOnlySession(dbType))
-        {
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = ReadOnlySql(dbType);
-            await cmd.ExecuteNonQueryAsync(ct);
-        }
+            if (readOnly && AppliesReadOnlySession(dbType))
+            {
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = ReadOnlySql(dbType);
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
 
-        if (sessionContext is not null)
-        {
-            await ApplySessionContextAsync(conn, dbType, sessionContext, ct);
+            if (sessionContext is not null)
+            {
+                await ApplySessionContextAsync(conn, dbType, sessionContext, ct);
+            }
+            else
+            {
+                await ResetSessionContextAsync(conn, dbType, ct);
+            }
         }
-        else
+        catch
         {
-            await ResetSessionContextAsync(conn, dbType, ct);
+            // Çağıran bağlantıyı hiç alamadığı için kapatma sorumluluğu bizde: aksi hâlde
+            // salt-okunur/oturum kurulumu patlayan her çağrı kullanıcının DB'sine
+            // açık bir bağlantı sızdırır.
+            await conn.DisposeAsync();
+            throw;
         }
 
         return conn;
