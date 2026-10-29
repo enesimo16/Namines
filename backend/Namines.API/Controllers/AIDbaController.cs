@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ namespace Namines.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[FeatureGate("ai_dba")]
 public class AIDbaController : ControllerBase
 {
     private readonly IAIDbaService _dbaService;

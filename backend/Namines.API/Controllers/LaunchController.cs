@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.IO;
 using System.IO.Compression;
@@ -32,6 +33,7 @@ public sealed record LaunchRequest(string ProjectId, string Provider, string Ddl
 [Authorize]
 [ApiController]
 [Route("api/launch")]
+[FeatureGate("compile_launch")]
 public class LaunchController : ControllerBase
 {
     private readonly AuthDbContext _context;

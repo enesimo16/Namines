@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Authorization;
@@ -42,6 +43,7 @@ public sealed record ExtractCodeSchemaRequest(
 // bedava olmasını gerektirmiyor — /clarify ve /plan saf ve ucuz fonksiyonlar
 // olduğu için anonim; bunlar öyle değil.
 [Authorize]
+[FeatureGate("tool_reverse_code")]
 public class CodeSchemaController : ControllerBase
 {
     /// <summary>

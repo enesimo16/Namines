@@ -1,3 +1,4 @@
+using Namines.API.Filters;
 using System;
 using System.Linq;
 using System.Security.Claims;
@@ -33,6 +34,7 @@ public sealed record DeleteDatabaseRequest(string ConfirmProjectName);
 [Authorize]
 [ApiController]
 [Route("api/ground")]
+[FeatureGate("ground")]
 public class GroundController : ControllerBase
 {
     private readonly AuthDbContext _context;
