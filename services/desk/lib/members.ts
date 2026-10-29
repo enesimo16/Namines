@@ -12,7 +12,7 @@ import type { DeskSession } from './api';
  * bunu deterministik CRUD paneli olarak taklit etmemeli).
  */
 
-const API = process.env.NAMINES_API ?? 'http://localhost:5000';
+import { API_BASE as API } from './config';
 
 export class MembersError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
