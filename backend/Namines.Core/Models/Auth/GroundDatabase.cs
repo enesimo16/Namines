@@ -108,6 +108,17 @@ public class GroundDatabase
     /// </summary>
     public DateTime? DeleteRequestedAt { get; set; }
 
+    /// <summary>
+    /// Kaydın <c>Provisioning</c>/<c>Deleting</c> durumuna SAHİPLENİLDİĞİ an; iş
+    /// bitince null'a döner.
+    ///
+    /// <b>Neden var:</b> süreç iş ortasında ölürse kayıt bu geçici durumlarda
+    /// sonsuza kadar kalıyordu — purge yalnızca <c>PendingDelete</c>'i seçiyor,
+    /// iptal de "zaten işleniyor" diyor. Bu zaman damgası, bir sahiplenmenin
+    /// "hâlâ çalışıyor" mu "terk edilmiş" mi olduğunu ayırt etmenin tek yolu.
+    /// </summary>
+    public DateTime? ClaimedAt { get; set; }
+
     /// <summary>Kaynağın sağlayıcıdan KALICI olarak silindiği an.</summary>
     public DateTime? DeletedAt { get; set; }
 
