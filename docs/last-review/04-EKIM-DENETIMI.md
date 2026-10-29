@@ -32,11 +32,11 @@ Ayrıntılı bulgu listesi her commit mesajının gövdesinde.
 ## Doğrulama (bu makinede, Docker yok)
 
 - Backend: build 0 hata; `dotnet list package --vulnerable` temiz;
-  **2517 test geçti**, 145 atlandı, 8 başarısız. 8'i Docker isteyen
+  **2536 test geçti** (ikinci tur sonrası), 145 atlandı, 8 başarısız. 8'i Docker isteyen
   integration testi (`ByodbHardeningTests`×2, `GatewayApiKeyTests`×6) ve
   **değişiklik öncesi koda karşı da aynı şekilde başarısız** — ortam kaynaklı.
 - CLI çıkış kodu duman testi (CI'daki): geçti.
-- Frontend: `tsc` 0, `eslint` 0 hata, design-rules temiz, vitest 264/264,
+- Frontend: `tsc` 0, `eslint` 0 hata, design-rules temiz, vitest 280/280,
   `next build` geçti, `npm audit --audit-level=high` temiz (next 16.4.3).
 - Desk: typecheck, 121/121 test, `next build`, `npm audit` 0.
 - **GitHub CI (push sonrası): dört job da YEŞİL** — Docker'lı integration
@@ -68,15 +68,30 @@ Ayrıntılı bulgu listesi her commit mesajının gövdesinde.
 10. `namines-backup` DB dökümü yoksa hata verir; `namines-update` başarısız
     build'i bir sonraki koşuda yeniden dener.
 
-## Açık kalanlar
+## İlk turda açık kalanlar — ikinci turda kapatıldı
 
-- **A-10:** Ground `Deleting/Provisioning` takılı claim'leri geri almak için
-  `ClaimedAt` kolonu + migration gerekiyor (eklenmedi).
-- **Hub `(UserId, Slug)` unique index** migration'ı eklenmedi; slug üretimi
-  artık kullanıcı başına benzersiz.
-- In-app `/desk` sayfası örnek veri gösteriyor (artık açıkça etiketli);
-  `/api/gateway/desk-sql`'e bağlanmadı. Caddy arkasında `/desk*` hâlâ Desk
-  servisine gidiyor.
-- Bot denetimindeki SignalR/AI Gateway/Docker probları hâlâ koşulsuz "pass".
-- `ExceptionMiddleware`'de `UnauthorizedAccessException → 401` eşlemesi duruyor.
-- Bir commit (`fcf8fc9`) tek başına derlenmez (bir sonraki commit'le tamamlanır).
+- **A-10 Ground takılı claim'ler:** `GroundDatabase.ClaimedAt` + migration
+  `AddGroundClaimedAt`. Purge döngüsü 30 dakikalık süreyi aşan `Deleting`
+  satırlarını `PendingDelete`'e, yarıda kalan ilk sağlamayı `Failed`'a geri alıyor.
+- **Hub `(UserId, Slug)` unique index:** migration `AddHubSlugUniqueIndex`.
+  Önce mevcut çiftler yeniden adlandırılıyor (en eskisi adını koruyor, diğerleri
+  `<slug>-<Id'nin ilk 6 hanesi>`; boş slug → NULL; hiçbir satır silinmiyor).
+  Ayar ucundaki yarış artık 500 yerine 409 dönüyor.
+- **In-app Desk:** oturum açık ve kayıtlı bağlantı varsa gerçek satırlar
+  `/api/gateway/list` ile sayfalanıyor, SQL konsolu `/api/gateway/desk-sql` ile
+  çalışıyor, düzenleme/ekleme/silme korumalı uçlardan geçiyor. Örnek veri
+  yalnızca bağlantı yokken (etiketli) gösteriliyor.
+- **Bot denetimi:** Redis/SignalR gerçek ping, AI Gateway anahtar kontrolü,
+  Docker dürüstçe "skipped"; skor atlananları saymıyor.
+- **`UnauthorizedAccessException`** artık 401 değil 403 (IO hatası kullanıcıyı
+  oturumdan atmıyor).
+- **`services/**` testleri** hiç koşmuyordu; vitest'e eklendi.
+
+## Bilinen notlar
+
+- Bir commit (`fcf8fc9`) tek başına derlenmez (bir sonraki commit'le
+  tamamlanır); geçmişi yeniden yazmamak için bırakıldı.
+- Caddy arkasında `/desk*` Desk servisine gidiyor; in-app `/desk` sayfası
+  Next tek başına (ör. Vercel) çalışırken erişilebilir. Bu bir yönlendirme
+  kararı, hata değil — Caddyfile'da yorumla belgelendi.
+- Hub slug migration'ı, aynı sahibin çift slug'lı repolarının URL'sini değiştirir.
