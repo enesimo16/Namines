@@ -146,6 +146,29 @@ const tr: Messages = {
   landing: {
     tryFree: 'Ücretsiz deneyin',
   },
+  desk: {
+    sampleBannerTitle: 'Örnek veri önizlemesi',
+    sampleBannerBody: 'Aşağıdaki satırlar, düzenlemeler ve SQL sonuçları tarayıcınızda projenin kolon tiplerinden üretilir. Veritabanınıza hiçbir zaman gönderilmez.',
+    sampleReasonSignedOut: 'Canlı veriyi görmek için giriş yapın ve bir veritabanı bağlayın.',
+    sampleReasonNoConnection: 'Bu projede kayıtlı bir veritabanı bağlantısı yok. Canlı veri için Vault’tan ekleyin.',
+    liveBannerTitle: 'Canlı veri',
+    liveBannerBody: 'Satırlar ve SQL sonuçları projenin bağlı veritabanından gelir. Düzenlemeler ona yazılır.',
+    loadingRows: 'Satırlar yükleniyor…',
+    loadFailed: 'Satırlar yüklenemedi',
+    retry: 'Yeniden dene',
+    searchLoadedPage: 'Yüklü sayfada ara…',
+    searchLoadedPageHint: 'Arama yalnızca bu sayfadaki satırları kapsar.',
+    unstablePagination: 'Bu tabloda sıralama kolonu yok; sayfalar arasında satırlar tekrar edebilir ya da atlanabilir. Sıralamak için bir kolon başlığına tıklayın.',
+    noPkTooltip: 'Düzenleme için birincil anahtar kolonu gerekir; bu tabloda yok.',
+    confirmDelete: 'Bağlı veritabanından {count} satır silinsin mi? Bu işlem geri alınamaz.',
+    writeFailed: 'Değişiklik kaydedilemedi',
+    sqlDisabledHint: 'Bu proje için ham SQL kapalı — bir Owner bunu proje ayarlarından açabilir.',
+    sqlFailed: 'Sorgu başarısız',
+    sqlRunning: 'Çalışıyor…',
+    sqlTruncated: 'Sonuç {count} satıra kısaltıldı.',
+    sqlAffected: '{count} satır etkilendi',
+    sqlLiveNote: 'Tek bir salt-okunur ifade, bağlı veritabanında çalıştırılır.',
+  },
 };
 
 export default tr;

@@ -97,6 +97,19 @@ function DeskPageContent() {
   // MODE A: PROJECT-SCOPED DESK STUDIO (/desk?project=<id>)
   // ─────────────────────────────────────────────────────────────────────────
   if (targetProjectId) {
+    // Proje DTO'su (şema + bağlantı durumu) gelmeden açılırsa Studio önce örnek modda
+    // çizilip sonra canlıya geçerdi; açık oturumda DTO'yu bekle
+    if (isAuthenticated && projects === null) {
+      return (
+        <PageShell width="max-w-6xl">
+          <Card>
+            <div className="flex items-center gap-2 px-5 py-8 text-xs text-content-muted" role="status">
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> Loading Desk Data Studio…
+            </div>
+          </Card>
+        </PageShell>
+      );
+    }
     const cloudMatch = projects?.find((p) => p.id === targetProjectId);
     const localMatch = localProjects.find((p) => p.id === targetProjectId);
     const projectName =

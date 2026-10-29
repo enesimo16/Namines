@@ -152,6 +152,29 @@ const en = {
   landing: {
     tryFree: 'Try for free',
   },
+  desk: {
+    sampleBannerTitle: 'Sample data preview',
+    sampleBannerBody: "Rows, edits and SQL results below are generated in your browser from this project's column types. They are never sent to your database.",
+    sampleReasonSignedOut: 'Sign in and connect a database to see live data.',
+    sampleReasonNoConnection: 'This project has no stored database connection. Add one in Vault to see live data.',
+    liveBannerTitle: 'Live data',
+    liveBannerBody: "Rows and SQL results come from this project's connected database. Edits are written to it.",
+    loadingRows: 'Loading rows…',
+    loadFailed: 'Could not load rows',
+    retry: 'Retry',
+    searchLoadedPage: 'Search in loaded page…',
+    searchLoadedPageHint: 'Search covers the rows on this page only.',
+    unstablePagination: 'This table has no sort column, so rows may repeat or be skipped between pages. Click a column header to sort.',
+    noPkTooltip: 'Editing needs a primary key column; this table has none.',
+    confirmDelete: 'Delete {count} row(s) from the connected database? This cannot be undone.',
+    writeFailed: 'The change was not saved',
+    sqlDisabledHint: 'Raw SQL is disabled for this project — an Owner can enable it in project settings.',
+    sqlFailed: 'Query Failed',
+    sqlRunning: 'Running…',
+    sqlTruncated: 'Result truncated to {count} rows.',
+    sqlAffected: '{count} row(s) affected',
+    sqlLiveNote: 'Single read-only statement, executed against the connected database.',
+  },
 } as const;
 
 export default en;
