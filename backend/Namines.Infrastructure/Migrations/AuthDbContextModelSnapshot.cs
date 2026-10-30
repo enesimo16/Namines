@@ -619,7 +619,12 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("Slug");
 
-                    b.HasIndex("Visibility");
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("StarCount", "CreatedAt")
+                        .IsDescending()
+                        .HasDatabaseName("IX_CloudProjects_Explore_Public")
+                        .HasFilter("\"Visibility\" = 2");
 
                     b.HasIndex("UserId", "Slug")
                         .IsUnique()
@@ -814,6 +819,9 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAt")
+                        .IsDescending(false, true);
 
                     b.ToTable("GatewayAuditEntries");
                 });
@@ -1303,6 +1311,8 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Resource", "OccurredAt");
+
                     b.HasIndex("UserId", "BillingPeriod", "Resource");
 
                     b.ToTable("UsageEvents");
@@ -1645,7 +1655,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("RuleId");
+                    b.HasIndex("TriggeredAt");
+
+                    b.HasIndex("RuleId", "TriggeredAt")
+                        .IsDescending(false, true);
 
                     b.ToTable("automation_run_logs", "flow");
                 });

@@ -395,6 +395,16 @@ namespace Namines.Infrastructure.Data
             builder.Entity<SqlExecutionAudit>()
                 .HasIndex(a => a.ProjectId);
 
+            // Gateway denetimi: "bu projenin son kayıtları" + analitik aralık sorguları (DB-12).
+            // Tablonun en hızlı büyüyen parçası; indeks migration'da CONCURRENTLY kurulur.
+            builder.Entity<GatewayAuditEntry>()
+                .HasIndex(a => new { a.ProjectId, a.CreatedAt })
+                .IsDescending(false, true);
+
+            // Admin kullanım sorguları (Resource == X && OccurredAt aralığı) — DB-16.
+            builder.Entity<UsageEvent>()
+                .HasIndex(e => new { e.Resource, e.OccurredAt });
+
             // Stripe olay kimliği BIRINCIL ANAHTAR: ikinci ekleme denemesi
             // veritabanı seviyesinde çakışır, yani iki webhook isteği aynı anda
             // gelse bile yalnızca biri işleyebiliyor. Uygulama içi bir "var mı?"
@@ -472,7 +482,17 @@ namespace Namines.Infrastructure.Data
                 entity.HasIndex(p => new { p.UserId, p.Slug })
                     .IsUnique()
                     .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
-                entity.HasIndex(p => p.Visibility);
+                // "Projelerim", CanView/GetRole ve kullanıcı silme cascade'i UserId ile arıyor.
+                // Filtreli (UserId, Slug) indeksi bunu KARŞILAMAZ (planlayıcı filtreli indeksi
+                // filtresiz sorguda kullanamaz) — DB-13.
+                entity.HasIndex(p => p.UserId);
+                // Explore (anonim): yalnızca Public projeler, StarCount/CreatedAt sıralı. Düşük
+                // seçicilikteki tek kolonlu Visibility indeksinin yerini alır — DB-15.
+                // Filtredeki 2 = ProjectVisibility.Public; enum değeri değişirse migration gerekir.
+                entity.HasIndex(p => new { p.StarCount, p.CreatedAt })
+                    .IsDescending(true, true)
+                    .HasDatabaseName("IX_CloudProjects_Explore_Public")
+                    .HasFilter("\"Visibility\" = 2");
             });
 
             builder.Entity<RepoIssue>(entity =>
