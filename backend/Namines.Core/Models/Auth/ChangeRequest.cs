@@ -43,8 +43,8 @@ namespace Namines.Core.Models.Auth
         /// deterministik olduğu için tekrar hesaplamaya gerek yok, ama drift'e karşı saklanır.</summary>
         public string ImpactReportJson { get; set; } = null!;
 
-        public string CreatedByUserId { get; set; } = null!;
-        public ApplicationUser CreatedByUser { get; set; } = null!;
+        public string? CreatedByUserId { get; set; }
+        public ApplicationUser? CreatedByUser { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? ResolvedAt { get; set; }
@@ -115,8 +115,8 @@ namespace Namines.Core.Models.Auth
         public string ChangeRequestId { get; set; } = null!;
         public ChangeRequest ChangeRequest { get; set; } = null!;
 
-        public string UserId { get; set; } = null!;
-        public ApplicationUser User { get; set; } = null!;
+        public string? UserId { get; set; }
+        public ApplicationUser? User { get; set; }
 
         public ApprovalDecision Decision { get; set; }
         public string? Comment { get; set; }

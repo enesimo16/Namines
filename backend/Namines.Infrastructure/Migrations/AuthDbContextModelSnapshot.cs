@@ -339,7 +339,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int?>("ForkedFromVersion")
@@ -394,7 +393,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("HeadVersionId")
@@ -479,7 +477,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("UserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -507,10 +504,17 @@ namespace Namines.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ChangeRequestTitle")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Details")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProjectId")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -518,6 +522,8 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ActorUserId");
 
                     b.HasIndex("ChangeRequestId", "CreatedAt");
+
+                    b.HasIndex("ProjectId", "CreatedAt");
 
                     b.ToTable("ChangeRequestAuditLogs");
                 });
@@ -631,7 +637,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Note")
@@ -728,7 +733,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("ExpiresAt")
@@ -965,7 +969,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsPersonal")
@@ -1296,7 +1299,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("UserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -1696,7 +1698,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsClosed")
@@ -1744,7 +1745,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("AuthorUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Body")
@@ -1841,8 +1841,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Namines.Core.Models.Auth.Branch", "ParentBranch")
                         .WithMany()
@@ -1867,7 +1866,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.SchemaVersion", "BaseVersion")
                         .WithMany()
                         .HasForeignKey("BaseVersionId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Namines.Core.Models.Auth.Branch", "Branch")
                         .WithMany()
@@ -1878,13 +1877,12 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Namines.Core.Models.Auth.SchemaVersion", "HeadVersion")
                         .WithMany()
                         .HasForeignKey("HeadVersionId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", "Project")
@@ -1915,8 +1913,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ChangeRequest");
 
@@ -1928,17 +1925,9 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "ActorUser")
                         .WithMany()
                         .HasForeignKey("ActorUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Namines.Core.Models.Auth.ChangeRequest", "ChangeRequest")
-                        .WithMany()
-                        .HasForeignKey("ChangeRequestId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ActorUser");
-
-                    b.Navigation("ChangeRequest");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.CloudProject", b =>
@@ -1969,8 +1958,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", "SourceProject")
                         .WithMany()
@@ -2005,8 +1993,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", "Project")
                         .WithMany()
@@ -2063,8 +2050,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("CreatedByUser");
                 });
@@ -2170,8 +2156,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("User");
                 });
@@ -2311,8 +2296,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", "Project")
                         .WithMany()
@@ -2330,8 +2314,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "AuthorUser")
                         .WithMany()
                         .HasForeignKey("AuthorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Namines.Core.Models.Hub.RepoIssue", "Issue")
                         .WithMany()

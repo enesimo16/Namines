@@ -30,7 +30,7 @@ public class CrossDatabaseRelation
     /// <summary>Kullanıcının bu ilişkiye eklediği serbest açıklama, ör. "aynı kullanıcı kimliği".</summary>
     public string? Note { get; set; }
 
-    public string CreatedByUserId { get; set; } = null!;
-    public ApplicationUser CreatedByUser { get; set; } = null!;
+    public string? CreatedByUserId { get; set; }
+    public ApplicationUser? CreatedByUser { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

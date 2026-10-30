@@ -194,7 +194,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
     }
 
     [RequiresDockerFact]
-    public async Task Audit_log_cascades_when_change_request_is_deleted_via_branch_removal()
+    public async Task Audit_log_SURVIVES_when_change_request_is_deleted_via_branch_removal()
     {
         var cr = NewChangeRequest();
         await _context!.ChangeRequests.AddAsync(cr);
@@ -202,7 +202,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
 
         await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
-            ChangeRequestId = cr.Id, Action = ChangeRequestAuditAction.Created, ActorUserId = _userId
+            ChangeRequestId = cr.Id, ProjectId = cr.ProjectId,
+            Action = ChangeRequestAuditAction.Created, ActorUserId = _userId
         });
         await _context.SaveChangesAsync();
 
@@ -210,7 +211,10 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         _context.Branches.Remove(branch!);
         await _context.SaveChangesAsync();
 
-        Assert.False(await _context.ChangeRequestAuditLogs.AnyAsync(a => a.ChangeRequestId == cr.Id));
+        Assert.True(await _context.ChangeRequestAuditLogs.AnyAsync(a => a.ChangeRequestId == cr.Id));
+        // DB-10: denetim izi CR'nin gitmesiyle SILINMEZ (FK yok, anlik kopya kalir).
+        var kept = await _context.ChangeRequestAuditLogs.SingleAsync(a => a.ChangeRequestId == cr.Id);
+        Assert.Equal(cr.ProjectId, kept.ProjectId);
     }
 
     [RequiresDockerFact]

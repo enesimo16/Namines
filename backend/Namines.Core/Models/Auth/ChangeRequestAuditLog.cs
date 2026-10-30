@@ -26,8 +26,18 @@ namespace Namines.Core.Models.Auth
         [Key]
         public string Id { get; set; } = Guid.NewGuid().ToString();
 
+        /// <summary>
+        /// Tarihsel referans — bilinçli olarak FK DEĞİL: CR silinse (proje/branch silme)
+        /// denetim kaydı yaşamalı. Silinmiş CR için <see cref="ProjectId"/> ve
+        /// <see cref="ChangeRequestTitle"/> anlık kopyaları okunur.
+        /// </summary>
         public string ChangeRequestId { get; set; } = null!;
-        public ChangeRequest ChangeRequest { get; set; } = null!;
+
+        /// <summary>Olay anındaki proje (anlık kopya; FK yok).</summary>
+        public string ProjectId { get; set; } = string.Empty;
+
+        /// <summary>Olay anındaki CR başlığı (anlık kopya).</summary>
+        public string? ChangeRequestTitle { get; set; }
 
         public ChangeRequestAuditAction Action { get; set; }
 

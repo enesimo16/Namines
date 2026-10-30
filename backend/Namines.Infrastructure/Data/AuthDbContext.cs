@@ -134,7 +134,7 @@ namespace Namines.Infrastructure.Data
                 .HasOne(b => b.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(b => b.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Proje içinde branch adı benzersiz olmalı — aynı projede iki "main" olamaz.
             builder.Entity<Branch>()
@@ -192,19 +192,19 @@ namespace Namines.Infrastructure.Data
                 .HasOne(c => c.HeadVersion)
                 .WithMany()
                 .HasForeignKey(c => c.HeadVersionId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.NoAction);
 
             builder.Entity<ChangeRequest>()
                 .HasOne(c => c.BaseVersion)
                 .WithMany()
                 .HasForeignKey(c => c.BaseVersionId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.NoAction);
 
             builder.Entity<ChangeRequest>()
                 .HasOne(c => c.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(c => c.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             builder.Entity<ChangeRequest>()
                 .HasIndex(c => new { c.ProjectId, c.CreatedAt });
@@ -219,24 +219,25 @@ namespace Namines.Infrastructure.Data
                 .HasOne(a => a.User)
                 .WithMany()
                 .HasForeignKey(a => a.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Bir kullanıcı aynı CR'a yalnızca bir kez oy verebilir.
             builder.Entity<ChangeRequestApproval>()
                 .HasIndex(a => new { a.ChangeRequestId, a.UserId })
                 .IsUnique();
 
+            // DENETİM İZİ YAŞAMALI (DB-10): ChangeRequestId'ye bilinçli olarak FK YOK.
+            // Eskiden CR → audit log CASCADE'iydi; proje/branch silinince "migration'ı
+            // kim onayladı" kanıtı da sessizce giderdi. Artık CR kimliği tarihsel
+            // referans olarak kalır; ProjectId / ChangeRequestTitle anlık kopyadır.
             builder.Entity<ChangeRequestAuditLog>()
-                .HasOne(a => a.ChangeRequest)
-                .WithMany()
-                .HasForeignKey(a => a.ChangeRequestId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .HasIndex(a => new { a.ProjectId, a.CreatedAt });
 
             builder.Entity<ChangeRequestAuditLog>()
                 .HasOne(a => a.ActorUser)
                 .WithMany()
                 .HasForeignKey(a => a.ActorUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             builder.Entity<ChangeRequestAuditLog>()
                 .HasIndex(a => new { a.ChangeRequestId, a.CreatedAt });
@@ -252,7 +253,9 @@ namespace Namines.Infrastructure.Data
                 .HasOne(e => e.User)
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                // Faturalama kaydı kullanıcıdan uzun yaşamalı (vergi/mutabakat saklama
+                // süresi): hesap silinince anonimleşir (UserId NULL), satır gitmez.
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Parasal alan: double kullanmak kuruş kayıplarına yol açar.
             builder.Entity<UsageEvent>()
@@ -284,7 +287,7 @@ namespace Namines.Infrastructure.Data
                 .HasOne(k => k.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(k => k.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Proje başına tablo adı tekil: aynı tabloya iki çelişen izin satırı
             // olsaydı hangisinin geçerli olduğu kayda bağlı hale gelirdi.
@@ -302,7 +305,7 @@ namespace Namines.Infrastructure.Data
                 .HasOne(o => o.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(o => o.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Bileşik PK — 18-CONTROL-PLANE-DDL.md'deki org_members ile aynı.
             builder.Entity<OrganizationMember>()
@@ -371,7 +374,7 @@ namespace Namines.Infrastructure.Data
                 .HasOne(r => r.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(r => r.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             builder.Entity<CrossDatabaseRelation>()
                 .HasIndex(r => r.SourceProjectId);
@@ -488,7 +491,7 @@ namespace Namines.Infrastructure.Data
                 entity.HasOne(i => i.CreatedByUser)
                     .WithMany()
                     .HasForeignKey(i => i.CreatedByUserId)
-                    .OnDelete(DeleteBehavior.Restrict);
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<RepoIssueComment>(entity =>
@@ -502,7 +505,7 @@ namespace Namines.Infrastructure.Data
                 entity.HasOne(c => c.AuthorUser)
                     .WithMany()
                     .HasForeignKey(c => c.AuthorUserId)
-                    .OnDelete(DeleteBehavior.Restrict);
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<RepoStar>(entity =>

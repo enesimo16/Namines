@@ -39,8 +39,8 @@ namespace Namines.Core.Models.Auth
         /// <summary>Projenin ana branch'i. Her projede en fazla bir tane olabilir (kısmi unique index).</summary>
         public bool IsDefault { get; set; }
 
-        public string CreatedByUserId { get; set; } = null!;
-        public ApplicationUser CreatedByUser { get; set; } = null!;
+        public string? CreatedByUserId { get; set; }
+        public ApplicationUser? CreatedByUser { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
