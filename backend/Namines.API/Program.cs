@@ -146,8 +146,11 @@ try
     // NOT: Bu, kullanıcının HEDEF motor olarak SQLite seçme özelliğini etkilemez —
     // DatabaseExecutorService/ScaffolderService'teki Microsoft.Data.Sqlite kullanımı
     // ayrı bir şey (BYODB/execute özelliği), buradan kaldırılmadı.
-    var controlDbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
+    var controlDbConnectionString = Namines.Infrastructure.Data.ControlDbConnection.ApplyPoolDefaults(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+            ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres",
+        builder.Configuration);
+    var controlDbCommandTimeout = new Npgsql.NpgsqlConnectionStringBuilder(controlDbConnectionString).CommandTimeout;
     builder.Services.AddDbContext<AuthDbContext>(options =>
         options.UseNpgsql(controlDbConnectionString, npgsql =>
             // Gecici ag hatalari bulut ortamlarinda olagan; bunlarda istegi
@@ -158,10 +161,14 @@ try
             // yarim uygulanmis bir DDL'i yeniden denemek, "zaten var"
             // hatalarina ya da daha kotusune yol acar. O yollar EF Core
             // kullanmadigi icin bu ayar oralara sizmiyor.
-            npgsql.EnableRetryOnFailure(
-                maxRetryCount: 3,
-                maxRetryDelay: TimeSpan.FromSeconds(5),
-                errorCodesToAdd: null)));
+            {
+                npgsql.CommandTimeout(controlDbCommandTimeout);
+                npgsql.EnableRetryOnFailure(
+                    maxRetryCount: 3,
+                    maxRetryDelay: TimeSpan.FromSeconds(5),
+                    errorCodesToAdd: null);
+            }));
+    builder.Services.AddHostedService<Namines.Infrastructure.Services.DataRetentionService>();
 
     // Configure Identity Core
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -649,8 +656,23 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         using var scope = app.Services.CreateScope();
         try
         {
-            var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-            dbContext.Database.Migrate();
+            // ConnectionStrings:Migrations tanımlıysa şema değişikliği ayrı (sahip) rolle yapılır;
+            // uygulama rolü yalnızca DML yetkisiyle kalır. Tanımsızsa davranış değişmez.
+            var migrationsConnection = app.Configuration.GetConnectionString("Migrations");
+            if (!string.IsNullOrWhiteSpace(migrationsConnection))
+            {
+                var migOptions = new DbContextOptionsBuilder<AuthDbContext>()
+                    .UseNpgsql(migrationsConnection)
+                    .Options;
+                using var migDb = new AuthDbContext(migOptions);
+                migDb.Database.Migrate();
+                Log.Information("Migration ConnectionStrings:Migrations ile uygulandı.");
+            }
+            else
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+                dbContext.Database.Migrate();
+            }
             Log.Information("Veritabanı migration başarıyla tamamlandı.");
         }
         catch (Exception ex)

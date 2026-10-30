@@ -29,7 +29,7 @@ App__SupportEmail=destek@namines.com
 ConnectionStrings__Control=Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=dev
 ConnectionStrings__ControlReadReplica=
 Database__CommandTimeoutSeconds=30
-Database__MaxPoolSize=100
+Database__MaxPoolSize=50
 Database__EnableSensitiveDataLogging=false
 
 # ═══════════════════════════════════════════════════════════════
@@ -368,3 +368,24 @@ Uygulama başlangıcında `EnvironmentValidator` çalışır ve **eksik/hatalı 
 dotnet run --project src/Namines.Api -- --validate-config
 npx namines doctor
 ```
+
+---
+
+## Veri saklama, havuz ve DB rolleri (DB denetimi)
+
+| Değişken | Varsayılan | Açıklama |
+|---|---|---|
+| `Retention__Enabled` | `true` | `DataRetentionService` (günlük, 5000 satırlık partiler, tablo başına log). |
+| `Retention__GatewayAuditDays` | `365` | `GatewayAuditEntries`. `0` = kapalı. |
+| `Retention__SqlExecutionAuditDays` | `365` | `SqlExecutionAudits`. |
+| `Retention__UsageEventDays` | `2557` (~7 yıl) | `UsageEvents`; faturalama/vergi. 400 günün altı otomatik 400'e yükseltilir. |
+| `Retention__ChangeRequestAuditDays` | `730` | `ChangeRequestAuditLogs`. |
+| `Retention__StripeWebhookDays` | `180` | `StripeWebhookEvents`. |
+| `Retention__FeedbackDays` | `0` (sakla) | `Feedbacks`. |
+| — | 7 gün tolerans | Süresi dolmuş `desk_handoff_tokens` ve kabul edilmemiş `TeamInvites` her zaman temizlenir. |
+| `NaminesFlow__RunLogRetentionDays` / `NaminesFlow__RunLogMaxPerRule` | `30` / `200` | `AutomationRunLogs`; ayrı servis, çift çalışmaz. |
+| `Database__MaxPoolSize` | `50` | Npgsql `Maximum Pool Size` (bağlantı dizesinde yazılıysa o kazanır). |
+| `Database__CommandTimeoutSeconds` | `30` | Komut zaman aşımı. |
+| `Database__ConnectTimeoutSeconds` | `15` | Npgsql `Timeout`. |
+| `Database__KeepaliveSeconds` | `30` | Npgsql `Keepalive`. |
+| `ConnectionStrings__Migrations` | boş | Doluysa yalnızca migration adımı bu (sahip rolü) bağlantıyla çalışır; boşsa `DefaultConnection`. Bkz. `deploy/sql/roles.sql`. |
