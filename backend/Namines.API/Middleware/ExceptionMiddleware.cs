@@ -1,4 +1,5 @@
 using System;
+using System.Data.Common;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -7,6 +8,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Exceptions;
@@ -227,6 +229,57 @@ public class ExceptionMiddleware
                 isDevelopment || (!arg.Message.Contains('\\') && !arg.Message.Contains('/') && !arg.Message.Contains("Parameter '"))
                     ? arg.Message
                     : "Invalid request argument.",
+                null
+            ),
+
+            // [RequestSizeLimit] aşımı Kestrel'de BadHttpRequestException(413) olarak gövde okunurken
+            // fırlar; yakalanmazsa 500 görünürdü. Diğer istemci kaynaklı HTTP ihlalleri de 4xx kalır.
+            BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } => (
+                StatusCodes.Status413PayloadTooLarge,
+                "https://namines.dev/errors/payload-too-large",
+                "Payload Too Large",
+                "PAYLOAD_TOO_LARGE",
+                "The request body is too large.",
+                null
+            ),
+
+            // Veritabanı kısıt hataları: istemciye kısıt/tablo adı SIZDIRILMAZ (şema bilgisi),
+            // yalnızca çakışmanın türü söylenir. Denetleyicide özel ele alınmamış her yol için
+            // son güvenlik ağı; eskiden hepsi 500 oluyordu.
+            DbUpdateConcurrencyException => (
+                StatusCodes.Status409Conflict,
+                "https://namines.dev/errors/conflict",
+                "Conflict",
+                "CONCURRENCY_CONFLICT",
+                "The resource was changed by someone else. Reload it and try again.",
+                null
+            ),
+
+            DbUpdateException { InnerException: DbException { SqlState: "23503" } } => (
+                StatusCodes.Status409Conflict,
+                "https://namines.dev/errors/conflict",
+                "Conflict",
+                "REFERENCE_CONFLICT",
+                "The operation conflicts with related data. Remove or update the related items and try again.",
+                null
+            ),
+
+            DbUpdateException { InnerException: DbException { SqlState: "23505" } } => (
+                StatusCodes.Status409Conflict,
+                "https://namines.dev/errors/conflict",
+                "Conflict",
+                "UNIQUE_CONFLICT",
+                "A record with the same unique value already exists.",
+                null
+            ),
+
+            // CHECK ihlali (ör. SchemaJson 10M karakter sınırı): istemci girdisi geçersiz, sunucu hatası değil.
+            DbUpdateException { InnerException: DbException { SqlState: "23514" } } => (
+                StatusCodes.Status400BadRequest,
+                "https://namines.dev/errors/bad-request",
+                "Bad Request",
+                "VALIDATION_FAILED",
+                "The submitted data violates a validation rule (for example, it is too large).",
                 null
             ),
 

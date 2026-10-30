@@ -96,10 +96,9 @@ namespace Namines.Core.Models.Auth
         /// Yazarken <see cref="ShareTokenHash"/> da güncellenir; anonim aramalar özetle yapılır
         /// (indeksli, düz metin token sorguya/loga girmez).
         ///
-        /// TODO(DB-34): düz metin sütun şimdilik DURUYOR çünkü (1) CreateShareLink tekrar
-        /// çağrılınca mevcut token'ı geri döndürüyor (arayüz bağlantıyı yeniden gösteriyor),
-        /// (2) sitemap.xml paylaşılan bağlantıları listeliyor. Bağlantı yalnızca oluşturulurken
-        /// gösterilir ve sitemap'ten çıkarılırsa bu sütun düşürülmeli (yalnızca hash kalır).
+        /// TODO(DB-34): düz metin sütun şimdilik DURUYOR çünkü CreateShareLink tekrar çağrılınca
+        /// mevcut token'ı geri döndürüyor (arayüz bağlantıyı yeniden gösteriyor). Sitemap ucu
+        /// kaldırıldı; bağlantı yalnızca oluşturulurken gösterilirse bu sütun düşürülebilir (yalnızca hash kalır).
         /// </summary>
         public string? ShareToken
         {

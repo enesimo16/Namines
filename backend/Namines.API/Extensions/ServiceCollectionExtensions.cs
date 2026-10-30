@@ -230,6 +230,9 @@ public static class ServiceCollectionExtensions
         // Namines Ground -- yonetilen veritabani.
         services.AddNaminesGround();
         services.AddScoped<GroundService>();
+        services.AddScoped<ProjectDeletionService>();
+        services.AddScoped<AccountDeletionService>();
+        services.AddScoped<ISubscriptionCanceller, Namines.API.Services.StripeSubscriptionCanceller>();
 
         // Bekleme penceresi dolan yonetilen veritabanlarini kalici olarak siler.
         services.AddHostedService<GroundPurgeBackgroundService>();

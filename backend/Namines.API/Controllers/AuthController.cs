@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
@@ -48,6 +49,7 @@ namespace Namines.API.Controllers
         private readonly ILogger<AuthController> _logger;
         private readonly IWebHostEnvironment? _environment;
         private readonly IHttpClientFactory? _httpClientFactory;
+        private readonly AccountDeletionService? _accountDeletion;
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
@@ -57,7 +59,8 @@ namespace Namines.API.Controllers
             IAutomationJobQueue automationQueue,
             ILogger<AuthController> logger,
             IWebHostEnvironment? environment = null,
-            IHttpClientFactory? httpClientFactory = null)
+            IHttpClientFactory? httpClientFactory = null,
+            AccountDeletionService? accountDeletion = null)
         {
             _userManager = userManager;
             _context = context;
@@ -67,6 +70,7 @@ namespace Namines.API.Controllers
             _logger = logger;
             _environment = environment;
             _httpClientFactory = httpClientFactory;
+            _accountDeletion = accountDeletion;
         }
 
         [HttpPost("register")]
@@ -383,6 +387,7 @@ namespace Namines.API.Controllers
 
         [Authorize]
         [HttpPost("sync")]
+        [RequestSizeLimit(SchemaRequestLimits.BulkSyncBytes)]
         public async Task<IActionResult> SyncProjects([FromBody] List<SyncProjectDto> projects)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -812,6 +817,85 @@ namespace Namines.API.Controllers
             return Ok(new { Message = "All sessions revoked. Sign in again on every device." });
         }
 
+        /// <summary>
+        /// Taze oturum penceresi: parolası olmayan (yalnız OAuth) hesaplar için "yeniden doğrulama",
+        /// jetonun <c>iat</c> değerinin bu süreden yeni olması (yani yakın zamanda giriş yapılmış olması).
+        /// </summary>
+        private static readonly TimeSpan FreshLoginWindow = TimeSpan.FromMinutes(10);
+
+        /// <summary>
+        /// Hesabı KALICI olarak siler (KVKK/GDPR silme hakkı).
+        ///
+        /// <b>Yeniden doğrulama zorunlu:</b> yalnızca oturum yetmez, çalınmış bir jeton hesabı
+        /// yok edebilirdi (MFA kapatmayla aynı mantık). Parolası olan hesap parolayı (MFA açıksa
+        /// ayrıca kodu) gönderir; yalnız OAuth ile giren hesap son <see cref="FreshLoginWindow"/>
+        /// içinde giriş yapmış olmalıdır. Ayrıca e-posta adresi yazılarak onay istenir.
+        /// Desk devir teslim jetonu bu işi YAPAMAZ.
+        /// </summary>
+        [Authorize]
+        [HttpDelete("me")]
+        [EnableRateLimiting("sensitive")]
+        public async Task<IActionResult> DeleteAccount([FromBody] DeleteAccountRequest request, CancellationToken ct)
+        {
+            if (IsDeskHandoffSession()) return DeskHandoffForbidden();
+            if (_accountDeletion is null) return StatusCode(500, new { Message = "Account deletion is not available." });
+
+            var user = await GetCurrentUserAsync();
+            if (user is null) return Unauthorized();
+
+            if (!string.Equals(request?.Confirmation?.Trim(), user.Email, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { Message = "Type your account e-mail address exactly to confirm.", code = "CONFIRMATION_MISMATCH" });
+
+            if (await _userManager.IsLockedOutAsync(user))
+                return StatusCode(StatusCodes.Status429TooManyRequests, new { Message = "This account is temporarily locked. Try again later." });
+
+            if (await _userManager.HasPasswordAsync(user))
+            {
+                if (string.IsNullOrEmpty(request?.Password) || !await _userManager.CheckPasswordAsync(user, request.Password))
+                {
+                    await _userManager.AccessFailedAsync(user);
+                    return StatusCode(StatusCodes.Status403Forbidden, new { Message = "Password is incorrect.", code = "REAUTH_FAILED" });
+                }
+
+                if (user.TwoFactorEnabled && !await VerifyTwoFactorAsync(user, request.TwoFactorCode))
+                {
+                    await _userManager.AccessFailedAsync(user);
+                    return StatusCode(StatusCodes.Status403Forbidden, new { Message = "That code is not valid.", code = "REAUTH_FAILED" });
+                }
+            }
+            else if (!HasFreshLogin())
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    Message = "Sign in again, then retry within a few minutes to confirm it is you.",
+                    code = "REAUTH_REQUIRED",
+                });
+            }
+
+            var result = await _accountDeletion.DeleteAsync(user, ct);
+            if (!result.Ok)
+                return StatusCode(result.StatusCode, new
+                {
+                    Message = result.Error,
+                    code = result.Code,
+                    organizations = result.Organizations?.Select(o => new { o.Id, o.Name }),
+                });
+
+            Response.Cookies.Delete(AuthCookieName, BuildAuthCookieOptions(forExpiry: true));
+            if (HttpContext?.RequestServices?.GetService(typeof(IMemoryCache)) is IMemoryCache cache)
+                SecurityStampValidation.ForgetStamp(cache, user.Id);
+
+            return Ok(new { Message = "Your account has been deleted." });
+        }
+
+        /// <summary>Jetonun verilme anı (<c>iat</c>) taze pencerede mi? Eski jetonlarda claim yoksa taze SAYILMAZ.</summary>
+        private bool HasFreshLogin()
+        {
+            var iat = User.FindFirstValue(JwtRegisteredClaimNames.Iat);
+            return long.TryParse(iat, out var seconds)
+                   && DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(seconds) <= FreshLoginWindow;
+        }
+
         // -- Cok faktorlu dogrulama (TOTP) -------------------------------------
         //
         // Saglayici ASP.NET Identity'nin kendi authenticator'i
@@ -1078,6 +1162,11 @@ namespace Namines.API.Controllers
                 // Bu olmadan calinmis bir jetonu iptal etmenin tek yolu imzalama
                 // anahtarini degistirmekti -- yani HERKESI cikisa zorlamak.
                 new Claim(SecurityStampClaimType, user.SecurityStamp ?? string.Empty),
+
+                // Verilme anı: hesap silme gibi hassas işlemlerde "yakın zamanda giriş yapıldı mı" kanıtı.
+                new Claim(JwtRegisteredClaimNames.Iat,
+                    DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ClaimValueTypes.Integer64),
             };
 
             if (!string.IsNullOrEmpty(user.CompanyName))
@@ -1513,6 +1602,11 @@ namespace Namines.API.Controllers
 
     /// <param name="Code">6 haneli TOTP kodu ya da bir kurtarma kodu.</param>
     public sealed record MfaCodeRequest(string? Code);
+
+    /// <param name="Password">Parolası olan hesaplar için zorunlu.</param>
+    /// <param name="TwoFactorCode">MFA açıksa zorunlu.</param>
+    /// <param name="Confirmation">Hesabın e-posta adresi, yazılarak onay.</param>
+    public sealed record DeleteAccountRequest(string? Password, string? TwoFactorCode, string? Confirmation);
 
     public class SyncProjectDto
     {

@@ -57,7 +57,7 @@ public sealed class HubControllerTests : IAsyncLifetime
     private static HubController CreateController(AuthDbContext db, string? userId = null, string? username = null)
     {
         var userManager = NewUserManager(db);
-        var controller = new HubController(db, userManager);
+        var controller = new HubController(db, userManager, Namines.Tests.Services.ProjectDeletionTestKit.Create(db));
 
         var httpContext = new DefaultHttpContext();
         if (!string.IsNullOrEmpty(userId))

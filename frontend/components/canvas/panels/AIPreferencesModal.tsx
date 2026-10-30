@@ -70,6 +70,12 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
 
   if (!isOpen) return null;
 
+  const handleAccountDeleted = () => {
+    logout();
+    onClose();
+    if (typeof window !== 'undefined') window.location.assign('/');
+  };
+
   const handleLogout = () => {
     logout();
     showToast(t('header.loggedOut'), 'info');
@@ -181,10 +187,12 @@ export default function AIPreferencesModal({ isOpen, onClose }: AIPreferencesMod
               <AccountTab
                 isAuthenticated={isAuthenticated}
                 username={user?.username}
+                email={user?.email}
                 userType={user?.type}
                 planTier={plans.planTier}
                 mfa={mfa}
                 onLogout={handleLogout}
+                onAccountDeleted={handleAccountDeleted}
               />
             )}
             {activeTab === 'ai' && <AiTab ai={ai} />}
