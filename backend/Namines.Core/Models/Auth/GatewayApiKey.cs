@@ -97,8 +97,8 @@ public class GatewayApiKey
     /// </summary>
     public int? RateLimitPerMinute { get; set; }
 
-    public string CreatedByUserId { get; set; } = null!;
-    public ApplicationUser CreatedByUser { get; set; } = null!;
+    public string? CreatedByUserId { get; set; }
+    public ApplicationUser? CreatedByUser { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

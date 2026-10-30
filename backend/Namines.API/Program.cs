@@ -188,6 +188,10 @@ try
         options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+
+        // E-posta tekilliği veritabanında da UNIQUE (EmailIndex); Identity de CreateAsync'te
+        // yinelenen e-postayı DuplicateEmail olarak reddetsin ki istemci 500 yerine net hata alsın.
+        options.User.RequireUniqueEmail = true;
     })
     .AddEntityFrameworkStores<AuthDbContext>()
     // TOTP anahtarı + kurtarma kodları AspNetUserTokens'ta şifreli saklansın (DB-35).

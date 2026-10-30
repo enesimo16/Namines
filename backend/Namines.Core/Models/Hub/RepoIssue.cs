@@ -29,8 +29,8 @@ namespace Namines.Core.Models.Hub
         /// <summary>Virgülle ayrılmış etiketler (ör: "dba-risk,performance")</summary>
         public string? Labels { get; set; }
 
-        public string CreatedByUserId { get; set; } = null!;
-        public ApplicationUser CreatedByUser { get; set; } = null!;
+        public string? CreatedByUserId { get; set; }
+        public ApplicationUser? CreatedByUser { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? ClosedAt { get; set; }

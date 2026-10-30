@@ -225,6 +225,8 @@ public class ChangeRequestController : ControllerBase
         await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = changeRequest.Id,
+            ProjectId = changeRequest.ProjectId,
+            ChangeRequestTitle = changeRequest.Title,
             Action = ChangeRequestAuditAction.Created,
             ActorUserId = userId,
             Details = $"Risk={impact.OverallRisk}",
@@ -236,6 +238,8 @@ public class ChangeRequestController : ControllerBase
             await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
             {
                 ChangeRequestId = changeRequest.Id,
+                ProjectId = changeRequest.ProjectId,
+                ChangeRequestTitle = changeRequest.Title,
                 Action = ChangeRequestAuditAction.AutoApproved,
                 ActorUserId = null, // sistem-güdümlü — hiçbir insan onaylamadı
                 Details = "Safe risk + project.AutoApproveSafeChanges enabled",
@@ -602,6 +606,8 @@ public class ChangeRequestController : ControllerBase
         await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = cr.Id,
+            ProjectId = cr.ProjectId,
+            ChangeRequestTitle = cr.Title,
             Action = request.Decision == ApprovalDecision.Approved
                 ? ChangeRequestAuditAction.Approved
                 : ChangeRequestAuditAction.Rejected,
@@ -668,6 +674,8 @@ public class ChangeRequestController : ControllerBase
                     await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
                     {
                         ChangeRequestId = cr.Id,
+                        ProjectId = cr.ProjectId,
+                        ChangeRequestTitle = cr.Title,
                         Action = ChangeRequestAuditAction.Approved,
                         ActorUserId = userId,
                         Details = $"Quorum reached ({approvedNow}/{required}).",

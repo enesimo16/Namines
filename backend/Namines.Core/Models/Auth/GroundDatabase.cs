@@ -98,7 +98,7 @@ public class GroundDatabase
 
     public GroundStatus Status { get; set; } = GroundStatus.Provisioning;
 
-    public string CreatedByUserId { get; set; } = null!;
+    public string? CreatedByUserId { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
