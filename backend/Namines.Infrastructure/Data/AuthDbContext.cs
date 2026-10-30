@@ -517,6 +517,39 @@ namespace Namines.Infrastructure.Data
                     .HasForeignKey(s => s.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
+
+            // ── Referans bütünlüğü (docs/last-review/05 DB-05/06) ──
+            // Fork işaretçisi: kaynak proje silinince fork'un kendisi kalır, işaretçi boşalır.
+            builder.Entity<CloudProject>()
+                .HasOne<CloudProject>()
+                .WithMany()
+                .HasForeignKey(p => p.ForkedFromProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<OrgAiUsage>()
+                .HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(o => o.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Davet atıfları: kullanıcı silinince davet kaydı kalır, atıf boşalır.
+            builder.Entity<TeamInvite>()
+                .HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(i => i.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<TeamInvite>()
+                .HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(i => i.AcceptedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<Feedback>()
+                .HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(f => f.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

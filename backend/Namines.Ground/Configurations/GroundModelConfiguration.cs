@@ -22,6 +22,19 @@ namespace Namines.Ground.Configurations
 
                 // Proje başına EN FAZLA bir yönetilen veritabanı.
                 entity.HasIndex(g => g.ProjectId).IsUnique();
+
+                // Referans bütünlüğü (DB-02). Sağlayıcıda açılmış gerçek bir veritabanı
+                // faturalanır: projeyi silmek onu SESSİZCE yetim bırakmamalı → RESTRICT.
+                // Silme akışı önce sağlayıcı DB'yi kapatıp kaydı işaretlemek zorunda.
+                entity.HasOne<CloudProject>().WithMany()
+                      .HasForeignKey(g => g.ProjectId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Organization>().WithMany()
+                      .HasForeignKey(g => g.OrganizationId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<ApplicationUser>().WithMany()
+                      .HasForeignKey(g => g.CreatedByUserId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
         }
     }

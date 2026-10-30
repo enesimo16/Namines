@@ -607,6 +607,8 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ForkedFromProjectId");
+
                     b.HasIndex("OrganizationId");
 
                     b.HasIndex("Slug");
@@ -696,6 +698,8 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("TokenHash")
                         .IsUnique();
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("desk_handoff_tokens", "desk");
                 });
@@ -880,7 +884,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("DeleteRequestedAt")
@@ -916,6 +919,10 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("OrganizationId");
 
                     b.HasIndex("ProjectId")
                         .IsUnique();
@@ -1025,6 +1032,8 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
 
                     b.HasIndex("UserId", "ProjectId", "Name")
                         .IsUnique();
@@ -1179,6 +1188,8 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ProjectId");
+
                     b.HasIndex("UserId", "ProjectId", "CreatedAt");
 
                     b.ToTable("sql_query_history", "desk");
@@ -1227,7 +1238,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime>("ExpiresAt")
@@ -1248,6 +1258,10 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AcceptedByUserId");
+
+                    b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("OrganizationId");
 
@@ -1386,7 +1400,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CreatedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("DatabaseName")
@@ -1432,6 +1445,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("OrganizationId");
+
                     b.HasIndex("ProjectId", "CreatedAt");
 
                     b.ToTable("vault_backups", "namines_vault");
@@ -1443,7 +1460,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("BackupId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("CompletedAt")
@@ -1456,7 +1472,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("PerformedByUserId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("PreRestoreBackupId")
@@ -1473,6 +1488,14 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BackupId");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("PerformedByUserId");
+
+                    b.HasIndex("PreRestoreBackupId");
 
                     b.HasIndex("ProjectId", "StartedAt");
 
@@ -1516,6 +1539,8 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
 
                     b.HasIndex("ProjectId")
                         .IsUnique();
@@ -1649,6 +1674,8 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Feedbacks");
                 });
@@ -1916,6 +1943,11 @@ namespace Namines.Infrastructure.Migrations
 
             modelBuilder.Entity("Namines.Core.Models.Auth.CloudProject", b =>
                 {
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ForkedFromProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Namines.Core.Models.Auth.Organization", "Organization")
                         .WithMany()
                         .HasForeignKey("OrganizationId")
@@ -1959,6 +1991,15 @@ namespace Namines.Infrastructure.Migrations
                     b.Navigation("TargetProject");
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.DeskHandoffToken", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKey", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
@@ -1987,6 +2028,34 @@ namespace Namines.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.GroundDatabase", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.OrgAiUsage", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.Organization", b =>
@@ -2019,6 +2088,21 @@ namespace Namines.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.SavedQuery", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.SchemaVersion", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "AuthorUser")
@@ -2045,8 +2129,33 @@ namespace Namines.Infrastructure.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.SqlQueryHistoryEntry", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
                 {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("AcceptedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Namines.Core.Models.Auth.Organization", "Organization")
                         .WithMany()
                         .HasForeignKey("OrganizationId")
@@ -2100,6 +2209,68 @@ namespace Namines.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.VaultBackup", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.VaultBackup", null)
+                        .WithMany()
+                        .HasForeignKey("BackupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("PerformedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.VaultBackup", null)
+                        .WithMany()
+                        .HasForeignKey("PreRestoreBackupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Namines.Core.Models.AutomationAction", b =>
                 {
                     b.HasOne("Namines.Core.Models.AutomationRule", null)
@@ -2125,6 +2296,14 @@ namespace Namines.Infrastructure.Migrations
                         .HasForeignKey("RuleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Feedback", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssue", b =>

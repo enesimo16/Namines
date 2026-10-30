@@ -41,6 +41,18 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
 
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
+
+        // desk.* tablolari artik gercek FK ile bagli (DB-03): once sahipleri ekle.
+        db.Users.AddRange(
+            new ApplicationUser { Id = UserA, UserName = UserA },
+            new ApplicationUser { Id = UserB, UserName = UserB });
+        foreach (var pid in new[] { Project, OtherProject })
+            db.CloudProjects.Add(new CloudProject
+            {
+                Id = pid, Name = pid, DbType = "PostgreSQL", SchemaJson = "{}",
+                NodePositionsJson = "{}", UserId = UserA,
+            });
+        await db.SaveChangesAsync();
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();

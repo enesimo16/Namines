@@ -58,8 +58,8 @@ public class VaultBackup
     /// <summary>Yetki sınırı — okuma/silme yetkisi org üyeliğinden gelir.</summary>
     public string? OrganizationId { get; set; }
 
-    /// <summary>Yedeği başlatan kullanıcı. Kullanıcı silinse bile kayıt kalsın diye düz metin.</summary>
-    public string CreatedByUserId { get; set; } = null!;
+    /// <summary>Yedeği başlatan kullanıcı. Kullanıcı silinirse FK `SET NULL` ile boşalır; yedek kaydı (ve blob) kalır.</summary>
+    public string? CreatedByUserId { get; set; }
 
     /// <summary>Yedeklenen veritabanının adı — yalnızca gösterim için.</summary>
     public string DatabaseName { get; set; } = null!;

@@ -22,6 +22,13 @@ namespace Namines.Desk.Configurations
                     entity.ToTable("desk_handoff_tokens");
 
                 entity.HasIndex(t => t.TokenHash).IsUnique();
+
+                // Referans bütünlüğü (DB-03): kullanıcıya ait kısa ömürlü jeton,
+                // kullanıcı ile birlikte gider. FK indeksi süresi dolan jeton
+                // temizliğini de karşılar (DB-18).
+                entity.HasOne<ApplicationUser>().WithMany()
+                      .HasForeignKey(t => t.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── SqlQueryHistoryEntry (Desk SQL konsolunun sorgu geçmişi) ──
@@ -33,6 +40,15 @@ namespace Namines.Desk.Configurations
                     entity.ToTable("sql_query_history");
 
                 entity.HasIndex(h => new { h.UserId, h.ProjectId, h.CreatedAt });
+
+                // Kullanıcıya özel veri (SQL metni PII içerebilir): proje ya da kullanıcı
+                // gidince kalması hata olur → CASCADE.
+                entity.HasOne<CloudProject>().WithMany()
+                      .HasForeignKey(h => h.ProjectId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne<ApplicationUser>().WithMany()
+                      .HasForeignKey(h => h.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── SavedQuery (Kullanıcının ada kaydettiği sorgular) ──
@@ -44,6 +60,13 @@ namespace Namines.Desk.Configurations
                     entity.ToTable("saved_queries");
 
                 entity.HasIndex(q => new { q.UserId, q.ProjectId, q.Name }).IsUnique();
+
+                entity.HasOne<CloudProject>().WithMany()
+                      .HasForeignKey(q => q.ProjectId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne<ApplicationUser>().WithMany()
+                      .HasForeignKey(q => q.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }
