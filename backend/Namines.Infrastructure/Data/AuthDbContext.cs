@@ -575,6 +575,35 @@ namespace Namines.Infrastructure.Data
                 .HasForeignKey(f => f.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+
+            // ── Benzersizlik (DB-26/27/28/29) ──
+            // E-posta: yalnızca uygulamada (FindByEmail sonra Create) korunuyordu; yarışta iki aynı
+            // e-postalı hesap oluşup FindByEmailAsync'i kilitleyebiliyordu. Identity'nin varsayılan
+            // adıyla ("EmailIndex") UNIQUE yapılıyor; NULL e-postalar PG'de çakışmaz.
+            builder.Entity<ApplicationUser>()
+                .HasIndex(u => u.NormalizedEmail)
+                .HasDatabaseName("EmailIndex")
+                .IsUnique();
+
+            // Kullanıcı başına EN FAZLA bir kişisel organizasyon. GetOrCreatePersonalOrgAsync'in
+            // "yarış-güvenli" catch'i ancak bu kısıtla gerçekten tetiklenir.
+            builder.Entity<Organization>()
+                .HasIndex(o => o.CreatedByUserId)
+                .IsUnique()
+                .HasDatabaseName("UX_Organizations_PersonalOwner")
+                .HasFilter("\"IsPersonal\" = true");
+
+            // Filtreli unique indeks FK indeksinin yerini tutmaz (kişisel olmayan org'lar için
+            // SET NULL / sorgu aramaları): düz indeks ayrıca duruyor.
+            builder.Entity<Organization>()
+                .HasIndex(o => o.CreatedByUserId, "IX_Organizations_CreatedByUserId");
+
+            // API anahtarı özeti tekil: doğrulama özetle doğrudan arayabilsin, çakışma tek
+            // anahtarın iki hesaba ait olması demek olurdu.
+            builder.Entity<GatewayApiKey>()
+                .HasIndex(k => k.KeyHash)
+                .IsUnique();
+
             ConfigureCheckConstraints(builder, isPostgres);
             if (isPostgres) ConfigureGuidKeyDefaults(builder);
         }

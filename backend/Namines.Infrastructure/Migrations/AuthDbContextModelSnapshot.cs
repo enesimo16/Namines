@@ -316,6 +316,7 @@ namespace Namines.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("NormalizedEmail")
+                        .IsUnique()
                         .HasDatabaseName("EmailIndex");
 
                     b.HasIndex("NormalizedUserName")
@@ -813,6 +814,9 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("KeyHash")
+                        .IsUnique();
+
                     b.HasIndex("Prefix");
 
                     b.HasIndex("ProjectId");
@@ -988,6 +992,10 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ProjectId")
                         .IsUnique();
 
+                    b.HasIndex("Provider", "ProviderProjectId")
+                        .IsUnique()
+                        .HasFilter("\"ProviderProjectId\" IS NOT NULL AND \"Status\" NOT IN (3, 4)");
+
                     b.ToTable("ground_databases", "ground", t =>
                         {
                             t.HasCheckConstraint("CK_ground_databases_Status", "\"Status\" IN (0, 1, 2, 3, 4, 5)");
@@ -1041,7 +1049,12 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedByUserId");
+                    b.HasIndex("CreatedByUserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Organizations_PersonalOwner")
+                        .HasFilter("\"IsPersonal\" = true");
+
+                    b.HasIndex(new[] { "CreatedByUserId" }, "IX_Organizations_CreatedByUserId");
 
                     b.ToTable("Organizations");
                 });

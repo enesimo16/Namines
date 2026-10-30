@@ -23,6 +23,13 @@ namespace Namines.Ground.Configurations
                 entity.ToTable(t =>
                     t.HasCheckConstraint(CheckConstraintSql.Name("ground_databases", "Status"), CheckConstraintSql.EnumIn<GroundStatus>("Status")));
 
+                // Aynı sağlayıcı projesi iki kayda bağlanamaz (DB-29). Silinmiş (3) ve başarısız (4)
+                // kayıtlar tarihçedir ve kimliği yeniden kullanabilir → kapsam dışı. GroundStatus
+                // değerleri değişirse bu filtre için migration gerekir.
+                entity.HasIndex(g => new { g.Provider, g.ProviderProjectId })
+                      .IsUnique()
+                      .HasFilter("\"ProviderProjectId\" IS NOT NULL AND \"Status\" NOT IN (3, 4)");
+
                 // Proje başına EN FAZLA bir yönetilen veritabanı.
                 entity.HasIndex(g => g.ProjectId).IsUnique();
 

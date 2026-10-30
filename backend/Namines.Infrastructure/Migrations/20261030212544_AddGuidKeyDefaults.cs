@@ -1,470 +1,68 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Namines.Infrastructure.Migrations
 {
-    /// <inheritdoc />
+    /// <summary>
+    /// DB-24: Guid-dizgesi birincil anahtarlara <c>DEFAULT gen_random_uuid()::text</c>.
+    /// Uygulama anahtarı hâlâ kendi üretir; varsayılan elle SQL / migration INSERT'leri içindir.
+    ///
+    /// EF bunu <c>AlterColumn</c> olarak üretir ama sonuç yalnızca <c>SET DEFAULT</c> (tip/NULL
+    /// değişmez, tablo yeniden yazılmaz); "ileriye uyumluluk" testi AlterColumn+nullable:false
+    /// desenine takıldığı için aynı SQL doğrudan yazıldı.
+    /// </summary>
     public partial class AddGuidKeyDefaults : Migration
     {
+        private static readonly (string Schema, string Table)[] Tables =
+        {
+            ("namines_vault", "vault_schedules"),
+            ("namines_vault", "vault_restores"),
+            ("namines_vault", "vault_backups"),
+            (null, "TeamInvites"),
+            (null, "SqlExecutionAudits"),
+            ("desk", "sql_query_history"),
+            (null, "SchemaVersions"),
+            ("desk", "saved_queries"),
+            (null, "RepoIssues"),
+            (null, "RepoIssueComments"),
+            (null, "Organizations"),
+            ("ground", "ground_databases"),
+            (null, "GatewayTablePermissions"),
+            (null, "GatewayApiKeys"),
+            ("desk", "desk_handoff_tokens"),
+            (null, "CrossDatabaseRelations"),
+            (null, "CloudProjects"),
+            (null, "ChangeRequests"),
+            (null, "ChangeRequestAuditLogs"),
+            (null, "ChangeRequestApprovals"),
+            (null, "Branches"),
+            ("flow", "automation_run_logs"),
+            ("flow", "automation_rules"),
+            ("flow", "automation_actions"),
+        };
+
+        private static string Qualified(string schema, string table) =>
+            schema is null ? $"\"{table}\"" : $"{schema}.\"{table}\"";
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "namines_vault",
-                table: "vault_schedules",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "namines_vault",
-                table: "vault_restores",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "namines_vault",
-                table: "vault_backups",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "TeamInvites",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "SqlExecutionAudits",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "desk",
-                table: "sql_query_history",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "SchemaVersions",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "desk",
-                table: "saved_queries",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "RepoIssues",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "RepoIssueComments",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "Organizations",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "ground",
-                table: "ground_databases",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "GatewayTablePermissions",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "GatewayApiKeys",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "desk",
-                table: "desk_handoff_tokens",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "CrossDatabaseRelations",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "CloudProjects",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "ChangeRequests",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "ChangeRequestAuditLogs",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "ChangeRequestApprovals",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "Branches",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "flow",
-                table: "automation_run_logs",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "flow",
-                table: "automation_rules",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "flow",
-                table: "automation_actions",
-                type: "text",
-                nullable: false,
-                defaultValueSql: "gen_random_uuid()::text",
-                oldClrType: typeof(string),
-                oldType: "text");
+            foreach (var (schema, table) in Tables)
+            {
+                migrationBuilder.Sql(
+                    $"ALTER TABLE {Qualified(schema, table)} ALTER COLUMN \"Id\" SET DEFAULT (gen_random_uuid()::text);");
+            }
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "namines_vault",
-                table: "vault_schedules",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "namines_vault",
-                table: "vault_restores",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "namines_vault",
-                table: "vault_backups",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "TeamInvites",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "SqlExecutionAudits",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "desk",
-                table: "sql_query_history",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "SchemaVersions",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "desk",
-                table: "saved_queries",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "RepoIssues",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "RepoIssueComments",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "Organizations",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "ground",
-                table: "ground_databases",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "GatewayTablePermissions",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "GatewayApiKeys",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "desk",
-                table: "desk_handoff_tokens",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "CrossDatabaseRelations",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "CloudProjects",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "ChangeRequests",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "ChangeRequestAuditLogs",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "ChangeRequestApprovals",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                table: "Branches",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "flow",
-                table: "automation_run_logs",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "flow",
-                table: "automation_rules",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Id",
-                schema: "flow",
-                table: "automation_actions",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValueSql: "gen_random_uuid()::text");
+            foreach (var (schema, table) in Tables)
+            {
+                migrationBuilder.Sql(
+                    $"ALTER TABLE {Qualified(schema, table)} ALTER COLUMN \"Id\" DROP DEFAULT;");
+            }
         }
     }
 }
