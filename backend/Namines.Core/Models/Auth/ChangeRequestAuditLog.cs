@@ -18,7 +18,19 @@ namespace Namines.Core.Models.Auth
         Created,
         AutoApproved,
         Approved,
-        Rejected
+        Rejected,
+
+        // Silme olayları: bu tablo CR'ın dışında, kalıcı silmelerin DAYANAĞI olarak da kullanılıyor
+        // (yeni tablo açmamak için). Bu satırlarda ChangeRequestId = silinen proje/kullanıcı kimliği,
+        // Details = yalnızca sayaçlar içeren JSON (kişisel veri yok).
+        /// <summary>Proje silme başladı (dış kaynaklar temizlenmeden ÖNCE yazılır).</summary>
+        ProjectDeletionRequested,
+        /// <summary>Proje ve bağlı her şey silindi.</summary>
+        ProjectDeleted,
+        /// <summary>Proje silme dış kaynak adımında durdu; proje yerinde.</summary>
+        ProjectDeletionFailed,
+        /// <summary>Kullanıcı hesabı silindi (KVKK/GDPR silme hakkı).</summary>
+        AccountDeleted
     }
 
     public class ChangeRequestAuditLog

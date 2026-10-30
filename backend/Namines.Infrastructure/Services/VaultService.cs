@@ -359,6 +359,56 @@ public class VaultService
     }
 
     /// <summary>
+    /// Bir projenin TÜM yedeklerini depodan ve tablodan siler (proje silme adımı).
+    ///
+    /// <b>Neden <see cref="DeleteAsync"/> değil:</b> o, dosya silinemese bile kaydı
+    /// siler (<c>TryDeleteAsync</c> hatayı yutar) — kayıt gidince dosyaya giden son
+    /// iz de gider ve yetim bir şifreli dump kalıcı olur. Burada blob silinemezse
+    /// o kayıt YERİNDE bırakılır ve hata döner; çağıran projeyi silmez.
+    /// Başarıyla silinen yedeklerin kayıtları gider (tutarlı kısmi durum).
+    ///
+    /// Alınmakta olan yedek/geri yükleme (taze <c>Running</c>) varsa hiçbir şeye
+    /// dokunulmaz: işçi bitince az önce silinmiş bir kaydın dosyasını yetim bırakırdı.
+    /// </summary>
+    public async Task<VaultResult> PurgeProjectBackupsAsync(string projectId, CancellationToken ct)
+    {
+        var freshCutoff = DateTime.UtcNow - RunningJobStaleAfter;
+
+        var runningBackup = await _context.VaultBackups.AnyAsync(b =>
+            b.ProjectId == projectId && b.Status == VaultBackupStatus.Running && b.CreatedAt > freshCutoff, ct);
+        var runningRestore = await _context.VaultRestores.AnyAsync(r =>
+            r.ProjectId == projectId && r.Status == VaultBackupStatus.Running && r.StartedAt > freshCutoff, ct);
+        if (runningBackup || runningRestore)
+            return new VaultResult(false, "A backup or restore is still running for this project. Wait for it to finish, then try again.");
+
+        var backups = await _context.VaultBackups.Where(b => b.ProjectId == projectId).ToListAsync(ct);
+
+        string? firstFailure = null;
+        foreach (var backup in backups)
+        {
+            try
+            {
+                await _store.DeleteAsync(backup.StorageKey, ct);
+                _context.VaultBackups.Remove(backup);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Vault: {Key} proje silinirken depodan silinemedi.", backup.StorageKey);
+                firstFailure ??= "A backup file could not be deleted from storage.";
+            }
+        }
+
+        if (_context.ChangeTracker.HasChanges()) await _context.SaveChangesAsync(ct);
+
+        return firstFailure is null
+            ? new VaultResult(true)
+            : new VaultResult(false, firstFailure + " Nothing else was deleted; try again later.");
+    }
+
+    /// <summary>Bir <c>Running</c> kaydın "çökmüş" sayılması için geçen süre (bu süreden eskisi silmeyi engellemez).</summary>
+    public static readonly TimeSpan RunningJobStaleAfter = TimeSpan.FromHours(2);
+
+    /// <summary>
     /// Yedeğin gerçekten geri yüklenebildiğini kanıtlar (V5).
     ///
     /// Kullanıcının veritabanına dokunmaz; sağlayıcı bunu geçici, boş bir

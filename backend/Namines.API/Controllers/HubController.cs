@@ -57,11 +57,14 @@ public class HubController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ProjectDeletionService _projectDeletion;
 
-    public HubController(AuthDbContext context, UserManager<ApplicationUser> userManager)
+    public HubController(
+        AuthDbContext context, UserManager<ApplicationUser> userManager, ProjectDeletionService projectDeletion)
     {
         _context = context;
         _userManager = userManager;
+        _projectDeletion = projectDeletion;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -542,17 +545,12 @@ public class HubController : ControllerBase
         if (role != OrgRole.Owner)
             return Forbid();
 
-        // Varsa çapraz veritabanı kısıtlarını temizle
-        var crossRels = await _context.CrossDatabaseRelations
-            .Where(r => r.SourceProjectId == projectId || r.TargetProjectId == projectId)
-            .ToListAsync(ct);
-        if (crossRels.Count > 0)
-        {
-            _context.CrossDatabaseRelations.RemoveRange(crossRels);
-        }
+        // Vault yedekleri + Ground sağlayıcı kaynağı + denetim kaydı + cascade, tek serviste
+        // (yedek/Ground FK'leri Restrict; elle temizlenmeden proje silinemez).
+        var result = await _projectDeletion.DeleteAsync(project, userId, ct);
+        if (!result.Ok)
+            return StatusCode(result.StatusCode, new { error = result.Error, code = result.Code });
 
-        _context.CloudProjects.Remove(project);
-        await _context.SaveChangesAsync(ct);
         return NoContent();
     }
 

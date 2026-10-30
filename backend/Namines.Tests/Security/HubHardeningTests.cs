@@ -60,7 +60,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
 
     private static HubController Controller(AuthDbContext db, string? userId = null)
     {
-        var controller = new HubController(db, NewUserManager(db));
+        var controller = new HubController(db, NewUserManager(db), Namines.Tests.Services.ProjectDeletionTestKit.Create(db));
         var http = new DefaultHttpContext();
         if (!string.IsNullOrEmpty(userId))
         {

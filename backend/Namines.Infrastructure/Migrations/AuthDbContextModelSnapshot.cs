@@ -543,7 +543,7 @@ namespace Namines.Infrastructure.Migrations
 
                     b.ToTable("ChangeRequestAuditLogs", t =>
                         {
-                            t.HasCheckConstraint("CK_ChangeRequestAuditLogs_Action", "\"Action\" IN (0, 1, 2, 3)");
+                            t.HasCheckConstraint("CK_ChangeRequestAuditLogs_Action", "\"Action\" IN (0, 1, 2, 3, 4, 5, 6, 7)");
                         });
                 });
 
