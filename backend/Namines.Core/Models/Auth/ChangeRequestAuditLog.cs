@@ -18,7 +18,19 @@ namespace Namines.Core.Models.Auth
         Created,
         AutoApproved,
         Approved,
-        Rejected
+        Rejected,
+
+        // Silme olayları: bu tablo CR'ın dışında, kalıcı silmelerin DAYANAĞI olarak da kullanılıyor
+        // (yeni tablo açmamak için). Bu satırlarda ChangeRequestId = silinen proje/kullanıcı kimliği,
+        // Details = yalnızca sayaçlar içeren JSON (kişisel veri yok).
+        /// <summary>Proje silme başladı (dış kaynaklar temizlenmeden ÖNCE yazılır).</summary>
+        ProjectDeletionRequested,
+        /// <summary>Proje ve bağlı her şey silindi.</summary>
+        ProjectDeleted,
+        /// <summary>Proje silme dış kaynak adımında durdu; proje yerinde.</summary>
+        ProjectDeletionFailed,
+        /// <summary>Kullanıcı hesabı silindi (KVKK/GDPR silme hakkı).</summary>
+        AccountDeleted
     }
 
     public class ChangeRequestAuditLog
@@ -26,8 +38,18 @@ namespace Namines.Core.Models.Auth
         [Key]
         public string Id { get; set; } = Guid.NewGuid().ToString();
 
+        /// <summary>
+        /// Tarihsel referans — bilinçli olarak FK DEĞİL: CR silinse (proje/branch silme)
+        /// denetim kaydı yaşamalı. Silinmiş CR için <see cref="ProjectId"/> ve
+        /// <see cref="ChangeRequestTitle"/> anlık kopyaları okunur.
+        /// </summary>
         public string ChangeRequestId { get; set; } = null!;
-        public ChangeRequest ChangeRequest { get; set; } = null!;
+
+        /// <summary>Olay anındaki proje (anlık kopya; FK yok).</summary>
+        public string ProjectId { get; set; } = string.Empty;
+
+        /// <summary>Olay anındaki CR başlığı (anlık kopya).</summary>
+        public string? ChangeRequestTitle { get; set; }
 
         public ChangeRequestAuditAction Action { get; set; }
 

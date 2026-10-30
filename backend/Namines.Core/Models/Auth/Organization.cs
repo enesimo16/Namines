@@ -78,8 +78,8 @@ namespace Namines.Core.Models.Auth
         /// onu işaretler (UI "organizasyonu sil" gibi seçenekleri gizleyebilsin diye).</summary>
         public bool IsPersonal { get; set; }
 
-        public string CreatedByUserId { get; set; } = null!;
-        public ApplicationUser CreatedByUser { get; set; } = null!;
+        public string? CreatedByUserId { get; set; }
+        public ApplicationUser? CreatedByUser { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

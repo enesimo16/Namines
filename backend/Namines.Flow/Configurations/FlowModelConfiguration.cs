@@ -60,7 +60,12 @@ namespace Namines.Flow.Configurations
                       .HasForeignKey(l => l.RuleId)
                       .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasIndex(l => l.RuleId);
+                // Kural bazında "son çalıştırmalar" (RuleId, TriggeredAt DESC) ve saklama temizliği
+                // (WHERE TriggeredAt < cutoff) için (TriggeredAt) — DB-17. Tek başına RuleId
+                // indeksi bileşiğin öneki olduğundan kaldırıldı.
+                entity.HasIndex(l => new { l.RuleId, l.TriggeredAt })
+                      .IsDescending(false, true);
+                entity.HasIndex(l => l.TriggeredAt);
             });
         }
     }

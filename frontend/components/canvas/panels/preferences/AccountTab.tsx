@@ -2,19 +2,22 @@ import React from 'react';
 import { Key, Lock, LogOut, Shield } from 'lucide-react';
 import { useQuotaStore } from '../../../../store/useQuotaStore';
 import MfaQrCode from '../MfaQrCode';
+import DeleteAccountSection from './DeleteAccountSection';
 import { NotLoggedIn, cardClass, inputClass, primaryBtnClass } from './ui';
 import type { MfaSettings } from './useMfaSettings';
 
 interface AccountTabProps {
   isAuthenticated: boolean;
   username?: string;
+  email?: string;
   userType?: string;
   planTier: string | null;
   mfa: MfaSettings;
   onLogout: () => void;
+  onAccountDeleted: () => void;
 }
 
-export default function AccountTab({ isAuthenticated, username, userType, planTier, mfa, onLogout }: AccountTabProps) {
+export default function AccountTab({ isAuthenticated, username, email, userType, planTier, mfa, onLogout, onAccountDeleted }: AccountTabProps) {
   const { dailyLimit, remaining, resetAt } = useQuotaStore();
 
   if (!isAuthenticated) {
@@ -247,6 +250,8 @@ export default function AccountTab({ isAuthenticated, username, userType, planTi
             create, scope, or revoke a key.
           </p>
         </div>
+
+        <DeleteAccountSection email={email} mfaEnabled={mfa.enabled} onDeleted={onAccountDeleted} />
 
         <button
           onClick={onLogout}

@@ -169,6 +169,20 @@ const tr: Messages = {
     sqlAffected: '{count} satır etkilendi',
     sqlLiveNote: 'Tek bir salt-okunur ifade, bağlı veritabanında çalıştırılır.',
   },
+  deleteAccount: {
+    title: 'Hesabı sil',
+    warning: 'Hesabınızı, kişisel projelerinizi ve bunların yedeklerini ile yönetilen veritabanlarını kalıcı olarak siler. Oluşturduğunuz ekip projeleri bir ekip sahibine devredilir. Bu işlem geri alınamaz.',
+    confirmLabel: 'Onaylamak için e-posta adresinizi ({email}) yazın',
+    passwordLabel: 'Mevcut parola',
+    codeLabel: 'Doğrulama kodu',
+    reauthNote: 'Google veya GitHub ile giriş yapıyor ve parolanız yok mu? Yeniden giriş yapın, sonra 10 dakika içinde tekrar deneyin.',
+    button: 'Hesabımı sil',
+    working: 'Siliniyor…',
+    done: 'Hesabınız silindi.',
+    failed: 'Hesap silinemedi.',
+    transferOwnership: 'Önce sahipliği devredin. Şu organizasyonların tek sahibisiniz: {orgs}.',
+    reauthRequired: 'Kimliğinizi doğrulamak için yeniden giriş yapın, sonra 10 dakika içinde tekrar deneyin.',
+  },
 };
 
 export default tr;

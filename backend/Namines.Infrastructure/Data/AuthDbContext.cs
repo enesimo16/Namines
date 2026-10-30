@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Models.Hub;
@@ -134,7 +135,7 @@ namespace Namines.Infrastructure.Data
                 .HasOne(b => b.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(b => b.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Proje içinde branch adı benzersiz olmalı — aynı projede iki "main" olamaz.
             builder.Entity<Branch>()
@@ -192,19 +193,19 @@ namespace Namines.Infrastructure.Data
                 .HasOne(c => c.HeadVersion)
                 .WithMany()
                 .HasForeignKey(c => c.HeadVersionId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.NoAction);
 
             builder.Entity<ChangeRequest>()
                 .HasOne(c => c.BaseVersion)
                 .WithMany()
                 .HasForeignKey(c => c.BaseVersionId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.NoAction);
 
             builder.Entity<ChangeRequest>()
                 .HasOne(c => c.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(c => c.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             builder.Entity<ChangeRequest>()
                 .HasIndex(c => new { c.ProjectId, c.CreatedAt });
@@ -219,24 +220,25 @@ namespace Namines.Infrastructure.Data
                 .HasOne(a => a.User)
                 .WithMany()
                 .HasForeignKey(a => a.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Bir kullanıcı aynı CR'a yalnızca bir kez oy verebilir.
             builder.Entity<ChangeRequestApproval>()
                 .HasIndex(a => new { a.ChangeRequestId, a.UserId })
                 .IsUnique();
 
+            // DENETİM İZİ YAŞAMALI (DB-10): ChangeRequestId'ye bilinçli olarak FK YOK.
+            // Eskiden CR → audit log CASCADE'iydi; proje/branch silinince "migration'ı
+            // kim onayladı" kanıtı da sessizce giderdi. Artık CR kimliği tarihsel
+            // referans olarak kalır; ProjectId / ChangeRequestTitle anlık kopyadır.
             builder.Entity<ChangeRequestAuditLog>()
-                .HasOne(a => a.ChangeRequest)
-                .WithMany()
-                .HasForeignKey(a => a.ChangeRequestId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .HasIndex(a => new { a.ProjectId, a.CreatedAt });
 
             builder.Entity<ChangeRequestAuditLog>()
                 .HasOne(a => a.ActorUser)
                 .WithMany()
                 .HasForeignKey(a => a.ActorUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             builder.Entity<ChangeRequestAuditLog>()
                 .HasIndex(a => new { a.ChangeRequestId, a.CreatedAt });
@@ -252,7 +254,9 @@ namespace Namines.Infrastructure.Data
                 .HasOne(e => e.User)
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                // Faturalama kaydı kullanıcıdan uzun yaşamalı (vergi/mutabakat saklama
+                // süresi): hesap silinince anonimleşir (UserId NULL), satır gitmez.
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Parasal alan: double kullanmak kuruş kayıplarına yol açar.
             builder.Entity<UsageEvent>()
@@ -284,7 +288,7 @@ namespace Namines.Infrastructure.Data
                 .HasOne(k => k.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(k => k.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Proje başına tablo adı tekil: aynı tabloya iki çelişen izin satırı
             // olsaydı hangisinin geçerli olduğu kayda bağlı hale gelirdi.
@@ -302,7 +306,7 @@ namespace Namines.Infrastructure.Data
                 .HasOne(o => o.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(o => o.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Bileşik PK — 18-CONTROL-PLANE-DDL.md'deki org_members ile aynı.
             builder.Entity<OrganizationMember>()
@@ -371,7 +375,7 @@ namespace Namines.Infrastructure.Data
                 .HasOne(r => r.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(r => r.CreatedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             builder.Entity<CrossDatabaseRelation>()
                 .HasIndex(r => r.SourceProjectId);
@@ -391,6 +395,16 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<SqlExecutionAudit>()
                 .HasIndex(a => a.ProjectId);
+
+            // Gateway denetimi: "bu projenin son kayıtları" + analitik aralık sorguları (DB-12).
+            // Tablonun en hızlı büyüyen parçası; indeks migration'da CONCURRENTLY kurulur.
+            builder.Entity<GatewayAuditEntry>()
+                .HasIndex(a => new { a.ProjectId, a.CreatedAt })
+                .IsDescending(false, true);
+
+            // Admin kullanım sorguları (Resource == X && OccurredAt aralığı) — DB-16.
+            builder.Entity<UsageEvent>()
+                .HasIndex(e => new { e.Resource, e.OccurredAt });
 
             // Stripe olay kimliği BIRINCIL ANAHTAR: ikinci ekleme denemesi
             // veritabanı seviyesinde çakışır, yani iki webhook isteği aynı anda
@@ -469,7 +483,17 @@ namespace Namines.Infrastructure.Data
                 entity.HasIndex(p => new { p.UserId, p.Slug })
                     .IsUnique()
                     .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
-                entity.HasIndex(p => p.Visibility);
+                // "Projelerim", CanView/GetRole ve kullanıcı silme cascade'i UserId ile arıyor.
+                // Filtreli (UserId, Slug) indeksi bunu KARŞILAMAZ (planlayıcı filtreli indeksi
+                // filtresiz sorguda kullanamaz) — DB-13.
+                entity.HasIndex(p => p.UserId);
+                // Explore (anonim): yalnızca Public projeler, StarCount/CreatedAt sıralı. Düşük
+                // seçicilikteki tek kolonlu Visibility indeksinin yerini alır — DB-15.
+                // Filtredeki 2 = ProjectVisibility.Public; enum değeri değişirse migration gerekir.
+                entity.HasIndex(p => new { p.StarCount, p.CreatedAt })
+                    .IsDescending(true, true)
+                    .HasDatabaseName("IX_CloudProjects_Explore_Public")
+                    .HasFilter("\"Visibility\" = 2");
             });
 
             builder.Entity<RepoIssue>(entity =>
@@ -488,7 +512,7 @@ namespace Namines.Infrastructure.Data
                 entity.HasOne(i => i.CreatedByUser)
                     .WithMany()
                     .HasForeignKey(i => i.CreatedByUserId)
-                    .OnDelete(DeleteBehavior.Restrict);
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<RepoIssueComment>(entity =>
@@ -502,7 +526,7 @@ namespace Namines.Infrastructure.Data
                 entity.HasOne(c => c.AuthorUser)
                     .WithMany()
                     .HasForeignKey(c => c.AuthorUserId)
-                    .OnDelete(DeleteBehavior.Restrict);
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<RepoStar>(entity =>
@@ -517,6 +541,206 @@ namespace Namines.Infrastructure.Data
                     .HasForeignKey(s => s.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
+
+            // ── Referans bütünlüğü (docs/last-review/05 DB-05/06) ──
+            // Fork işaretçisi: kaynak proje silinince fork'un kendisi kalır, işaretçi boşalır.
+            builder.Entity<CloudProject>()
+                .HasOne<CloudProject>()
+                .WithMany()
+                .HasForeignKey(p => p.ForkedFromProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<OrgAiUsage>()
+                .HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(o => o.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Davet atıfları: kullanıcı silinince davet kaydı kalır, atıf boşalır.
+            builder.Entity<TeamInvite>()
+                .HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(i => i.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<TeamInvite>()
+                .HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(i => i.AcceptedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<Feedback>()
+                .HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(f => f.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+
+            // ── Benzersizlik (DB-26/27/28/29) ──
+            // E-posta: yalnızca uygulamada (FindByEmail sonra Create) korunuyordu; yarışta iki aynı
+            // e-postalı hesap oluşup FindByEmailAsync'i kilitleyebiliyordu. Identity'nin varsayılan
+            // adıyla ("EmailIndex") UNIQUE yapılıyor; NULL e-postalar PG'de çakışmaz.
+            builder.Entity<ApplicationUser>()
+                .HasIndex(u => u.NormalizedEmail)
+                .HasDatabaseName("EmailIndex")
+                .IsUnique();
+
+            // Kullanıcı başına EN FAZLA bir kişisel organizasyon. GetOrCreatePersonalOrgAsync'in
+            // "yarış-güvenli" catch'i ancak bu kısıtla gerçekten tetiklenir.
+            builder.Entity<Organization>()
+                .HasIndex(o => o.CreatedByUserId)
+                .IsUnique()
+                .HasDatabaseName("UX_Organizations_PersonalOwner")
+                .HasFilter("\"IsPersonal\" = true");
+
+            // Filtreli unique indeks FK indeksinin yerini tutmaz (kişisel olmayan org'lar için
+            // SET NULL / sorgu aramaları): düz indeks ayrıca duruyor.
+            builder.Entity<Organization>()
+                .HasIndex(o => o.CreatedByUserId, "IX_Organizations_CreatedByUserId");
+
+            // API anahtarı özeti tekil: doğrulama özetle doğrudan arayabilsin, çakışma tek
+            // anahtarın iki hesaba ait olması demek olurdu.
+            builder.Entity<GatewayApiKey>()
+                .HasIndex(k => k.KeyHash)
+                .IsUnique();
+
+            // Anonim paylaşım uçları ShareToken özetiyle arıyor (DB-14): UNIQUE + kısmi indeks.
+            builder.Entity<CloudProject>()
+                .HasIndex(p => p.ShareTokenHash)
+                .IsUnique()
+                .HasFilter("\"ShareTokenHash\" IS NOT NULL");
+
+            ConfigureCheckConstraints(builder, isPostgres);
+            if (isPostgres) ConfigureGuidKeyDefaults(builder);
+        }
+
+        /// <summary>
+        /// Guid-dizgesi birincil anahtarlar (DB-24): uygulama anahtarı hâlâ KENDİ üretir
+        /// (<c>Guid.NewGuid().ToString()</c>); DB varsayılanı yalnızca elle SQL / migration ile
+        /// eklenen satırlar içindir (<c>gen_random_uuid()::text</c>, PG13+ çekirdek).
+        ///
+        /// <c>ValueGeneratedNever</c> BİLİNÇLİ: <c>HasDefaultValueSql</c> tek başına anahtarı
+        /// "store-generated" yapar ve EF, navigasyon üzerinden bulunan değeri-dolu yeni bir
+        /// varlığı INSERT yerine UPDATE sanabilir; Never ile EF davranışı bugünküyle aynı kalır
+        /// (Id her zaman INSERT'e dahil), sadece DDL'e DEFAULT yazılır.
+        /// Stripe olay kimliği gibi doğal anahtarlar ve Identity tabloları listede YOK.
+        /// </summary>
+        private static void ConfigureGuidKeyDefaults(ModelBuilder builder)
+        {
+            var guidKeyed = new[]
+            {
+                typeof(CloudProject), typeof(Branch), typeof(SchemaVersion), typeof(ChangeRequest),
+                typeof(ChangeRequestApproval), typeof(ChangeRequestAuditLog), typeof(Organization),
+                typeof(TeamInvite), typeof(GatewayApiKey), typeof(GatewayTablePermission),
+                typeof(CrossDatabaseRelation), typeof(SqlExecutionAudit), typeof(RepoIssue),
+                typeof(RepoIssueComment), typeof(DeskHandoffToken), typeof(SqlQueryHistoryEntry),
+                typeof(SavedQuery), typeof(VaultBackup), typeof(VaultRestore), typeof(VaultSchedule),
+                typeof(GroundDatabase), typeof(AutomationRule), typeof(AutomationAction),
+                typeof(AutomationRunLog),
+            };
+
+            foreach (var type in guidKeyed)
+            {
+                builder.Entity(type).Property("Id")
+                    .HasDefaultValueSql("gen_random_uuid()::text")
+                    .ValueGeneratedNever();
+            }
+        }
+
+        /// <summary>
+        /// SchemaJson satır başına tavanı (karakter). İstek gövdesi için ayrı bir sınır yok
+        /// (Kestrel varsayılanı ~30 MB); bu CHECK tek bir kullanıcının sınırsız şema yazmasını
+        /// veritabanı düzeyinde keser. NOT VALID: yeni yazımlar için geçerli, eski satırlar dokunulmaz.
+        /// </summary>
+        public const int MaxSchemaJsonLength = 10_000_000;
+
+        /// <summary>
+        /// CHECK kısıtları (docs/last-review/05 DB-21/22). İfadeler <see cref="CheckConstraintSql"/>'den
+        /// gelir: enum'a yeni üye eklemek migration gerektirir. Migration'larda bu kısıtlar
+        /// <c>NOT VALID</c> eklenir (yeni yazımlar zorunlu, eski satırlar bozulmaz) ve yalnızca
+        /// ihlal eden satır yoksa VALIDATE edilir.
+        ///
+        /// Metin enum'lar (automation_run_logs.Status/TriggerType, DbType, Provider, Engine) bilinçli
+        /// olarak DIŞARIDA: C#'ta bir enum'a değil serbest dizgelere bağlılar, kapalı bir küme yok.
+        /// </summary>
+        private static void ConfigureCheckConstraints(ModelBuilder builder, bool isPostgres)
+        {
+            static string N(string table, string col, string? suffix = null) => CheckConstraintSql.Name(table, col, suffix);
+
+            builder.Entity<ApplicationUser>().ToTable(t =>
+                t.HasCheckConstraint(N("AspNetUsers", "Type"), CheckConstraintSql.EnumIn<UserType>("Type")));
+
+            builder.Entity<GatewayAuditEntry>().ToTable(t =>
+                t.HasCheckConstraint(N("GatewayAuditEntries", "Kind"), CheckConstraintSql.EnumIn<GatewayWriteKind>("Kind")));
+
+            builder.Entity<OrganizationMember>().ToTable(t =>
+                t.HasCheckConstraint(N("OrganizationMembers", "Role"), CheckConstraintSql.EnumIn<OrgRole>("Role")));
+
+            builder.Entity<TeamInvite>().ToTable(t =>
+                t.HasCheckConstraint(N("TeamInvites", "Role"), CheckConstraintSql.EnumIn<OrgRole>("Role")));
+
+            builder.Entity<UsageEvent>().ToTable(t =>
+            {
+                t.HasCheckConstraint(N("UsageEvents", "Resource"), CheckConstraintSql.EnumIn<UsageResource>("Resource"));
+                t.HasCheckConstraint(N("UsageEvents", "Quantity"), CheckConstraintSql.AtLeast("Quantity", 0));
+            });
+
+            builder.Entity<ChangeRequest>().ToTable(t =>
+            {
+                t.HasCheckConstraint(N("ChangeRequests", "Status"), CheckConstraintSql.EnumIn<ChangeRequestStatus>("Status"));
+                t.HasCheckConstraint(N("ChangeRequests", "RiskLevel"), CheckConstraintSql.EnumIn<RiskLevel>("RiskLevel"));
+            });
+
+            builder.Entity<ChangeRequestApproval>().ToTable(t =>
+                t.HasCheckConstraint(N("ChangeRequestApprovals", "Decision"), CheckConstraintSql.EnumIn<ApprovalDecision>("Decision")));
+
+            builder.Entity<ChangeRequestAuditLog>().ToTable(t =>
+                t.HasCheckConstraint(N("ChangeRequestAuditLogs", "Action"), CheckConstraintSql.EnumIn<ChangeRequestAuditAction>("Action")));
+
+            builder.Entity<GatewayApiKey>().ToTable(t =>
+                t.HasCheckConstraint(N("GatewayApiKeys", "RateLimitPerMinute"), CheckConstraintSql.AtLeast("RateLimitPerMinute", 1)));
+
+            builder.Entity<CloudProject>().ToTable(t =>
+            {
+                t.HasCheckConstraint(N("CloudProjects", "Visibility"), CheckConstraintSql.EnumIn<ProjectVisibility>("Visibility"));
+                t.HasCheckConstraint(N("CloudProjects", "StarCount"), CheckConstraintSql.AtLeast("StarCount", 0));
+                t.HasCheckConstraint(N("CloudProjects", "ForkCount"), CheckConstraintSql.AtLeast("ForkCount", 0));
+            });
+
+            builder.Entity<UserAIPolicy>().ToTable(t =>
+            {
+                foreach (var col in new[] { "SmartSeed", "Documentation", "Scaffolding", "SchemaGeneration", "SchemaRevision", "DbaAnalysis", "Migration", "Voice" })
+                    t.HasCheckConstraint(N("UserAIPolicies", col), CheckConstraintSql.EnumIn<AIMode>(col));
+            });
+
+            // Uzunluk tavanları: char_length yalnızca PostgreSQL'de var. Değerler uygulamanın
+            // zaten uyguladığı sınırlarla aynı (HubController, FeedbackController); uygulamanın
+            // doğrulamadığı kolonlar (Feedbacks.Email, ChangeRequests.Title…) bilinçli olarak yok —
+            // CHECK orada kullanıcıya 500 olarak dönerdi.
+            if (!isPostgres) return;
+
+            builder.Entity<CloudProject>().ToTable(t =>
+            {
+                // Name: Hub PATCH 128 sınırlıyor ama kaydetme yolu (AuthController) doğrulamıyor → cömert tavan.
+                t.HasCheckConstraint(N("CloudProjects", "Name", "Length"), CheckConstraintSql.MaxLength("Name", 512));
+                t.HasCheckConstraint(N("CloudProjects", "Description", "Length"), CheckConstraintSql.MaxLength("Description", 1000));
+                t.HasCheckConstraint(N("CloudProjects", "Category", "Length"), CheckConstraintSql.MaxLength("Category", 64));
+                t.HasCheckConstraint(N("CloudProjects", "Tags", "Length"), CheckConstraintSql.MaxLength("Tags", 256));
+                t.HasCheckConstraint(N("CloudProjects", "LinkedGithubRepo", "Length"), CheckConstraintSql.MaxLength("LinkedGithubRepo", 140));
+                t.HasCheckConstraint(N("CloudProjects", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength));
+            });
+
+            builder.Entity<SchemaVersion>().ToTable(t =>
+                t.HasCheckConstraint(N("SchemaVersions", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength)));
+
+            builder.Entity<Feedback>().ToTable(t =>
+                t.HasCheckConstraint(N("Feedbacks", "Message", "Length"), CheckConstraintSql.MaxLength("Message", 4000)));
+
+            builder.Entity<RepoIssue>().ToTable(t =>
+                t.HasCheckConstraint(N("RepoIssues", "Body", "Length"), CheckConstraintSql.MaxLength("Body", 20_000)));
+
+            builder.Entity<RepoIssueComment>().ToTable(t =>
+                t.HasCheckConstraint(N("RepoIssueComments", "Body", "Length"), CheckConstraintSql.MaxLength("Body", 10_000)));
         }
     }
 }

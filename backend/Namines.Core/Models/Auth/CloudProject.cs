@@ -92,8 +92,29 @@ namespace Namines.Core.Models.Auth
 
         /// <summary>
         /// Null ise proje özel, dolu ise bu token aracılığıyla herkese salt-okunur paylaşılmış.
+        ///
+        /// Yazarken <see cref="ShareTokenHash"/> da güncellenir; anonim aramalar özetle yapılır
+        /// (indeksli, düz metin token sorguya/loga girmez).
+        ///
+        /// TODO(DB-34): düz metin sütun şimdilik DURUYOR çünkü CreateShareLink tekrar çağrılınca
+        /// mevcut token'ı geri döndürüyor (arayüz bağlantıyı yeniden gösteriyor). Sitemap ucu
+        /// kaldırıldı; bağlantı yalnızca oluşturulurken gösterilirse bu sütun düşürülebilir (yalnızca hash kalır).
         /// </summary>
-        public string? ShareToken { get; set; }
+        public string? ShareToken
+        {
+            get => _shareToken;
+            set
+            {
+                _shareToken = value;
+                ShareTokenHash = value is null ? null : ShareTokenHasher.Hash(value);
+            }
+        }
+
+        private string? _shareToken;
+
+        /// <summary>SHA-256 (hex) özeti — anonim paylaşım uçlarının arama anahtarı; UNIQUE.</summary>
+        [JsonIgnore]
+        public string? ShareTokenHash { get; set; }
 
         /// <summary>
         /// G16 — new-phase/29-DATABASE-CHANGE-REVIEW.md §3: "Safe | Otomatik onaylanabilir

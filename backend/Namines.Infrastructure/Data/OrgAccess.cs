@@ -126,8 +126,10 @@ public static class OrgAccess
             await context.SaveChangesAsync(ct);
             return org;
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
         {
+            // UX_Organizations_PersonalOwner (kullanıcı başına tek kişisel org) eşzamanlı ikinci
+            // insert'i düşürdü: kazananı oku. Bağlantı kopması gibi başka hatalar yutulmaz.
             context.Entry(org).State = EntityState.Detached;
             var winner = await context.Organizations
                 .FirstOrDefaultAsync(o => o.IsPersonal && o.CreatedByUserId == userId, ct);
@@ -135,4 +137,15 @@ public static class OrgAccess
             return winner;
         }
     }
+
+    /// <summary>
+    /// Benzersizlik ihlali mi? PostgreSQL SQLSTATE 23505; SQLite (yalnızca testler) SQLITE_CONSTRAINT=19.
+    /// API katmanındaki DbUniqueViolation ile aynı mantık (Infrastructure API'ye referans veremez).
+    /// </summary>
+    private static bool IsUniqueViolation(DbUpdateException ex) => ex.InnerException switch
+    {
+        System.Data.Common.DbException { SqlState: "23505" } => true,
+        Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 19 } => true,
+        _ => false,
+    };
 }

@@ -37,7 +37,7 @@ public class TeamInvite
     public Organization Organization { get; set; } = null!;
 
     /// <summary>Daveti oluşturan (Admin/Owner).</summary>
-    public string CreatedByUserId { get; set; } = null!;
+    public string? CreatedByUserId { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

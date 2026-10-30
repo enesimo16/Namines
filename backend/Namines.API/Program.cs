@@ -146,8 +146,11 @@ try
     // NOT: Bu, kullanıcının HEDEF motor olarak SQLite seçme özelliğini etkilemez —
     // DatabaseExecutorService/ScaffolderService'teki Microsoft.Data.Sqlite kullanımı
     // ayrı bir şey (BYODB/execute özelliği), buradan kaldırılmadı.
-    var controlDbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
+    var controlDbConnectionString = Namines.Infrastructure.Data.ControlDbConnection.ApplyPoolDefaults(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+            ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres",
+        builder.Configuration);
+    var controlDbCommandTimeout = new Npgsql.NpgsqlConnectionStringBuilder(controlDbConnectionString).CommandTimeout;
     builder.Services.AddDbContext<AuthDbContext>(options =>
         options.UseNpgsql(controlDbConnectionString, npgsql =>
             // Gecici ag hatalari bulut ortamlarinda olagan; bunlarda istegi
@@ -158,10 +161,14 @@ try
             // yarim uygulanmis bir DDL'i yeniden denemek, "zaten var"
             // hatalarina ya da daha kotusune yol acar. O yollar EF Core
             // kullanmadigi icin bu ayar oralara sizmiyor.
-            npgsql.EnableRetryOnFailure(
-                maxRetryCount: 3,
-                maxRetryDelay: TimeSpan.FromSeconds(5),
-                errorCodesToAdd: null)));
+            {
+                npgsql.CommandTimeout(controlDbCommandTimeout);
+                npgsql.EnableRetryOnFailure(
+                    maxRetryCount: 3,
+                    maxRetryDelay: TimeSpan.FromSeconds(5),
+                    errorCodesToAdd: null);
+            }));
+    builder.Services.AddHostedService<Namines.Infrastructure.Services.DataRetentionService>();
 
     // Configure Identity Core
     builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -181,8 +188,14 @@ try
         options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+
+        // E-posta tekilliği veritabanında da UNIQUE (EmailIndex); Identity de CreateAsync'te
+        // yinelenen e-postayı DuplicateEmail olarak reddetsin ki istemci 500 yerine net hata alsın.
+        options.User.RequireUniqueEmail = true;
     })
     .AddEntityFrameworkStores<AuthDbContext>()
+    // TOTP anahtarı + kurtarma kodları AspNetUserTokens'ta şifreli saklansın (DB-35).
+    .AddUserStore<Namines.Infrastructure.Security.EncryptedUserStore>()
     .AddDefaultTokenProviders()
     // Sizdirilmis parola kontrolu. IPasswordValidator olarak kayitli oldugu
     // icin Identity'nin BUTUN parola yollarinda (kayit, parola degistirme,
@@ -649,8 +662,23 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         using var scope = app.Services.CreateScope();
         try
         {
-            var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-            dbContext.Database.Migrate();
+            // ConnectionStrings:Migrations tanımlıysa şema değişikliği ayrı (sahip) rolle yapılır;
+            // uygulama rolü yalnızca DML yetkisiyle kalır. Tanımsızsa davranış değişmez.
+            var migrationsConnection = app.Configuration.GetConnectionString("Migrations");
+            if (!string.IsNullOrWhiteSpace(migrationsConnection))
+            {
+                var migOptions = new DbContextOptionsBuilder<AuthDbContext>()
+                    .UseNpgsql(migrationsConnection)
+                    .Options;
+                using var migDb = new AuthDbContext(migOptions);
+                migDb.Database.Migrate();
+                Log.Information("Migration ConnectionStrings:Migrations ile uygulandı.");
+            }
+            else
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+                dbContext.Database.Migrate();
+            }
             Log.Information("Veritabanı migration başarıyla tamamlandı.");
         }
         catch (Exception ex)
@@ -692,6 +720,22 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
                 $"{pending.Count} migration uygulanmamış ({string.Join(", ", pending)}). " +
                 "Uygulama eski bir şemaya karşı açılmayacak — deploy hattında `--migrate` adımını çalıştırın.");
         }
+    }
+
+    // `dotnet run -- --reencrypt-secrets`: saklanan bağlantı dizelerini güncel şifreleme
+    // anahtarıyla yeniden yazar (anahtar rotasyonu, DB-36) ve çıkar.
+    if (args.Contains("--reencrypt-secrets", StringComparer.OrdinalIgnoreCase))
+    {
+        using var rotScope = app.Services.CreateScope();
+        var rotDb = rotScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var rotProtector = rotScope.ServiceProvider.GetRequiredService<Namines.Core.Security.IConnectionSecretProtector>()
+            as Namines.Core.Security.IRotatableSecretProtector
+            ?? throw new InvalidOperationException("Yapılandırılan koruyucu anahtar rotasyonunu desteklemiyor.");
+        var rotResult = Namines.Infrastructure.Security.ConnectionSecretReencryptor
+            .ReencryptAsync(rotDb, rotProtector, null).GetAwaiter().GetResult();
+        Log.Information("--reencrypt-secrets: {Scanned} tarandı, {Done} yeniden şifrelendi, {Failed} başarısız.",
+            rotResult.Scanned, rotResult.Reencrypted, rotResult.Failed);
+        return rotResult.Failed == 0 ? 0 : 1;
     }
 
     if (migrateOnly)

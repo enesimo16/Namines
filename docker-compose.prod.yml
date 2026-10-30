@@ -33,8 +33,19 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD zorunludur}
       POSTGRES_USER: ${POSTGRES_USER:-namines}
       POSTGRES_DB: ${POSTGRES_DB:-namines_control}
+    # DB-46: yavaş sorgu günlüğü + pg_stat_statements. Eşik PG_LOG_MIN_DURATION_MS (ms, -1 = kapalı).
+    # Extension'ı mevcut kurulumda bir kez oluşturun (bkz. docs/deploy/URETIM-CALISTIRMA.md).
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - log_min_duration_statement=${PG_LOG_MIN_DURATION_MS:-500}
     volumes:
       - namines-control-db-data:/var/lib/postgresql/data
+      - ./deploy/sql/01-pg-stat-statements.sql:/docker-entrypoint-initdb.d/01-pg-stat-statements.sql:ro
     expose:
       - "5432"
     healthcheck:

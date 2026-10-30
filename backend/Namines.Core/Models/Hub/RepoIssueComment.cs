@@ -14,8 +14,8 @@ namespace Namines.Core.Models.Hub
 
         public string Body { get; set; } = null!;
 
-        public string AuthorUserId { get; set; } = null!;
-        public ApplicationUser AuthorUser { get; set; } = null!;
+        public string? AuthorUserId { get; set; }
+        public ApplicationUser? AuthorUser { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }

@@ -57,11 +57,14 @@ public class HubController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ProjectDeletionService _projectDeletion;
 
-    public HubController(AuthDbContext context, UserManager<ApplicationUser> userManager)
+    public HubController(
+        AuthDbContext context, UserManager<ApplicationUser> userManager, ProjectDeletionService projectDeletion)
     {
         _context = context;
         _userManager = userManager;
+        _projectDeletion = projectDeletion;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -492,6 +495,10 @@ public class HubController : ControllerBase
         {
             await _context.SaveChangesAsync(ct);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ConcurrencyConflict.Result();
+        }
         catch (DbUpdateException ex) when (DbUniqueViolation.IsUniqueViolation(ex))
         {
             // Ön kontrol ile kayıt arasında aynı sahibin başka bir isteği slug'ı aldıysa
@@ -538,17 +545,12 @@ public class HubController : ControllerBase
         if (role != OrgRole.Owner)
             return Forbid();
 
-        // Varsa çapraz veritabanı kısıtlarını temizle
-        var crossRels = await _context.CrossDatabaseRelations
-            .Where(r => r.SourceProjectId == projectId || r.TargetProjectId == projectId)
-            .ToListAsync(ct);
-        if (crossRels.Count > 0)
-        {
-            _context.CrossDatabaseRelations.RemoveRange(crossRels);
-        }
+        // Vault yedekleri + Ground sağlayıcı kaynağı + denetim kaydı + cascade, tek serviste
+        // (yedek/Ground FK'leri Restrict; elle temizlenmeden proje silinemez).
+        var result = await _projectDeletion.DeleteAsync(project, userId, ct);
+        if (!result.Ok)
+            return StatusCode(result.StatusCode, new { error = result.Error, code = result.Code });
 
-        _context.CloudProjects.Remove(project);
-        await _context.SaveChangesAsync(ct);
         return NoContent();
     }
 
@@ -573,23 +575,34 @@ public class HubController : ControllerBase
         if (visibility != ProjectVisibility.Public && !await _context.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Repository not found." });
 
-        var existing = await _context.RepoStars.FirstOrDefaultAsync(s => s.ProjectId == projectId && s.UserId == userId, ct);
+        // Yıldız satırı + sayaç TEK işlemde: biri başarısız olursa diğeri de geri alınır
+        // (önceden satır eklenip sayaç güncellenmezse sayaç kalıcı olarak sapıyordu).
+        // EnableRetryOnFailure açık olduğundan elle açılan işlem yürütme stratejisinin
+        // içinde olmak ZORUNDA; strateji temsilciyi baştan çalıştırabilir.
         bool isStarred;
-        if (existing != null)
+        try
         {
-            // Silmeyi ve sayacı SQL'de yapıyoruz: yüklenmiş varlık üzerinde `StarCount - 1`
-            // okuma-değiştirme-yazma idi ve eşzamanlı iki yıldız birbirinin sayısını ezerdi.
-            var removed = await _context.RepoStars
-                .Where(s => s.ProjectId == projectId && s.UserId == userId)
-                .ExecuteDeleteAsync(ct);
-            if (removed > 0)
-                await AdjustStarCountAsync(projectId, -1, ct);
-            isStarred = false;
-        }
-        else
-        {
-            try
+            var strategy = _context.Database.CreateExecutionStrategy();
+            isStarred = await strategy.ExecuteAsync(async () =>
             {
+                _context.ChangeTracker.Clear();
+                await using var tx = await _context.Database.BeginTransactionAsync(ct);
+
+                var existing = await _context.RepoStars
+                    .AnyAsync(s => s.ProjectId == projectId && s.UserId == userId, ct);
+                if (existing)
+                {
+                    // Silmeyi ve sayacı SQL'de yapıyoruz: yüklenmiş varlık üzerinde `StarCount - 1`
+                    // okuma-değiştirme-yazma idi ve eşzamanlı iki yıldız birbirinin sayısını ezerdi.
+                    var removed = await _context.RepoStars
+                        .Where(s => s.ProjectId == projectId && s.UserId == userId)
+                        .ExecuteDeleteAsync(ct);
+                    if (removed > 0)
+                        await AdjustStarCountAsync(projectId, -1, ct);
+                    await tx.CommitAsync(ct);
+                    return false;
+                }
+
                 await _context.RepoStars.AddAsync(new RepoStar
                 {
                     ProjectId = projectId,
@@ -598,16 +611,18 @@ public class HubController : ControllerBase
                 }, ct);
                 await _context.SaveChangesAsync(ct);
                 await AdjustStarCountAsync(projectId, +1, ct);
-            }
-            catch (DbUpdateException)
-            {
-                // Aynı kullanıcının eşzamanlı ikinci isteği (çift tıklama): (ProjectId, UserId)
-                // birincil anahtarı ikinci eklemeyi reddetti — zaten yıldızlı. 500 yerine
-                // olması gereken durumu döndür, sayacı ARTIRMA.
-                _context.ChangeTracker.Clear();
-                if (!await _context.RepoStars.AnyAsync(s => s.ProjectId == projectId && s.UserId == userId, ct))
-                    throw;
-            }
+                await tx.CommitAsync(ct);
+                return true;
+            });
+        }
+        catch (DbUpdateException)
+        {
+            // Aynı kullanıcının eşzamanlı ikinci isteği (çift tıklama): (ProjectId, UserId)
+            // birincil anahtarı ikinci eklemeyi reddetti — işlem geri alındı, sayaç ARTMADI.
+            // Zaten yıldızlıysa 500 yerine olması gereken durumu döndür.
+            _context.ChangeTracker.Clear();
+            if (!await _context.RepoStars.AnyAsync(s => s.ProjectId == projectId && s.UserId == userId, ct))
+                throw;
             isStarred = true;
         }
 
@@ -782,8 +797,9 @@ public class HubController : ControllerBase
                 i.ClosedAt,
                 CreatedBy = new
                 {
-                    Id = i.CreatedByUser.Id,
-                    Username = i.CreatedByUser.UserName ?? "unknown"
+                    // Hesabı silinen yazar: nav null (FK SET NULL) -> "Deleted user".
+                    Id = i.CreatedByUser != null ? i.CreatedByUser.Id : string.Empty,
+                    Username = i.CreatedByUser != null ? (i.CreatedByUser.UserName ?? "unknown") : "Deleted user"
                 },
                 CommentsCount = _context.RepoIssueComments.Count(c => c.IssueId == i.Id)
             })
@@ -977,8 +993,8 @@ public class HubController : ControllerBase
                 c.CreatedAt,
                 Author = new
                 {
-                    Id = c.AuthorUser.Id,
-                    Username = c.AuthorUser.UserName ?? "unknown"
+                    Id = c.AuthorUser != null ? c.AuthorUser.Id : string.Empty,
+                    Username = c.AuthorUser != null ? (c.AuthorUser.UserName ?? "unknown") : "Deleted user"
                 }
             })
             .ToListAsync(ct);

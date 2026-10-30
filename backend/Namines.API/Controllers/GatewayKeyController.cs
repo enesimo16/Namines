@@ -470,7 +470,14 @@ public class GatewayKeyController : ControllerBase
         project.EncryptedConnectionString = _protector.Protect(request.ConnectionString);
         project.ConnectionDbType = request.DbType;
         project.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ConcurrencyConflict.Result();
+        }
 
         // Bağlantı dizesi ASLA geri döndürülmez — maskelenmiş hâli bile değil.
         return Ok(new { projectId, dbType = request.DbType, connected = true });
@@ -516,7 +523,14 @@ public class GatewayKeyController : ControllerBase
         project.EncryptedConnectionString = null;
         project.ConnectionDbType = null;
         project.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ConcurrencyConflict.Result();
+        }
         return Ok(new { projectId, connected = false });
     }
 
@@ -546,7 +560,14 @@ public class GatewayKeyController : ControllerBase
 
         project.AllowDeskSql = request.Enabled;
         project.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ConcurrencyConflict.Result();
+        }
 
         return Ok(new { projectId, allowDeskSql = project.AllowDeskSql });
     }

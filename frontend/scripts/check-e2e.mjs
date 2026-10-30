@@ -266,9 +266,9 @@ await feature('Paylaşım', 'Meta etiket verisi', async () => {
   return r.status === 200 && typeof r.body?.tables === 'number' ? true : `HTTP ${r.status}`;
 }, { needsAuth: true });
 
-await feature('Paylaşım', 'Sitemap', async () => {
+await feature('Paylaşım', 'Sitemap paylaşım jetonu SIZDIRMIYOR (uç kaldırıldı)', async () => {
   const r = await call('GET', '/api/share/sitemap.xml', undefined, { raw: true });
-  return r.status === 200 && r.text.includes('<urlset') ? true : `HTTP ${r.status}`;
+  return r.status === 404 ? true : `HTTP ${r.status}`;
 });
 
 // ── Koddan şema ──────────────────────────────────────────────────────────

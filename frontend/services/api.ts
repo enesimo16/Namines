@@ -832,6 +832,19 @@ export const authService = {
   },
 
   /**
+   * Hesabi KALICI siler (KVKK/GDPR). Parola (MFA aciksa kod) ya da -parolasiz OAuth hesaplarda-
+   * taze giris gerekir; sunucu 409 TRANSFER_OWNERSHIP_REQUIRED ile org listesini dondurebilir.
+   */
+  deleteAccount: async (body: {
+    password?: string;
+    twoFactorCode?: string;
+    confirmation: string;
+  }): Promise<{ message: string }> => {
+    const response = await api.delete('/auth/me', { data: body });
+    return response.data;
+  },
+
+  /**
    * Cok faktorlu dogrulama (TOTP).
    *
    * Merkezi istemci uzerinden gidiyor (ham `fetch` DEGIL): 401 yonlendirmesi,

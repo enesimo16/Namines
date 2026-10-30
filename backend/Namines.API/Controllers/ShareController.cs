@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -40,7 +41,7 @@ public class ShareController : ControllerBase
     /// <b>Bulunan açık (docs/last-review H-4b):</b> yetki `p.UserId == CurrentUserId`
     /// eşitliğiyle kuruluyordu — org kapsamlı DEĞİL. İki sonucu vardı: (1) ekipten
     /// ÇIKARILMIŞ kurucu hâlâ paylasım linki üretebiliyordu (şema ANONİM yayınlanıyor
-    /// ve `sitemap.xml`'de listeleniyor), (2) projenin GERÇEK Owner'ı kurucu değilse
+    /// ve eskiden `sitemap.xml`te listeleniyordu), (2) projenin GERÇEK Owner'ı kurucu değilse
     /// linki iptal edemiyordu — yani yayınlanmış bir şemayı geri çekme yetkisi
     /// kimsede yoktu.
     ///
@@ -104,10 +105,11 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> GetSharedSchema(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+        var tokenHash = ShareTokenHasher.Hash(token);
 
         var project = await _context.CloudProjects
             .AsNoTracking()
-            .Where(p => p.ShareToken == token)
+            .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => new
             {
                 p.Name,
@@ -131,10 +133,11 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> GetDbaBadge(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+        var tokenHash = ShareTokenHasher.Hash(token);
 
         var schemaJson = await _context.CloudProjects
             .AsNoTracking()
-            .Where(p => p.ShareToken == token)
+            .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => p.SchemaJson)
             .FirstOrDefaultAsync();
 
@@ -204,10 +207,11 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> OgImage(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+        var tokenHash = ShareTokenHasher.Hash(token);
 
         var project = await _context.CloudProjects
             .AsNoTracking()
-            .Where(p => p.ShareToken == token)
+            .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => new { p.Name, p.DbType, p.SchemaJson })
             .FirstOrDefaultAsync();
 
@@ -238,43 +242,9 @@ public class ShareController : ControllerBase
         return Content(svg, "image/svg+xml");
     }
 
-    /// <summary>
-    /// Paylaşılan şemaların sitemap'i (23 §3).
-    ///
-    /// Yalnızca AÇIKÇA paylaşılanlar listeleniyor — paylaşım jetonu olan proje,
-    /// sahibinin bilerek herkese açtığı projedir. Tüm projeleri listelemek, özel
-    /// şemaları arama motorlarına vermek olurdu.
-    /// </summary>
-    [AllowAnonymous]
-    [HttpGet("sitemap.xml")]
-    public async Task<IActionResult> Sitemap()
-    {
-        var baseUrl = (_configuration["PublicSite:BaseUrl"] ?? "https://namines.com").TrimEnd('/');
-
-        var tokens = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.ShareToken != null)
-            .OrderByDescending(p => p.Id)
-            // Sitemap'te üst sınır: arama motorları 50.000 URL'den fazlasını tek
-            // dosyada kabul etmiyor ve sınırsız sorgu, tablo büyüdükçe yavaşlar.
-            .Take(5000)
-            .Select(p => p.ShareToken!)
-            .ToListAsync();
-
-        var sb = new StringBuilder();
-        sb.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-        sb.AppendLine("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">");
-        foreach (var token in tokens)
-        {
-            sb.AppendLine("  <url>");
-            sb.AppendLine($"    <loc>{baseUrl}/share/{WebUtility.UrlEncode(token)}</loc>");
-            sb.AppendLine("    <changefreq>weekly</changefreq>");
-            sb.AppendLine("  </url>");
-        }
-        sb.AppendLine("</urlset>");
-
-        return Content(sb.ToString(), "application/xml");
-    }
+    // `sitemap.xml` ucu KALDIRILDI: paylaşım jetonu bir taşıyıcı sırdır (bilen herkes şemayı
+    // okur) ve sitemap bunların ham hâlini herkese açık listeliyordu. Kamuya açık sayfalar
+    // yalnızca frontend/app/sitemap.ts içindeki sabit rotalardır; /share/ robots.txt ile de kapalı.
 
     /// <summary>
     /// Sayfanın meta etiketleri için özet — şemanın tamamını indirmeden.
@@ -287,10 +257,11 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> Meta(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+        var tokenHash = ShareTokenHasher.Hash(token);
 
         var project = await _context.CloudProjects
             .AsNoTracking()
-            .Where(p => p.ShareToken == token)
+            .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => new { p.Name, p.DbType, p.SchemaJson })
             .FirstOrDefaultAsync();
 

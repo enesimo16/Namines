@@ -241,6 +241,7 @@ public class BranchController : ControllerBase
     }
 
     [HttpPost("{branchId}/versions")]
+    [RequestSizeLimit(SchemaRequestLimits.SingleSchemaBytes)]
     public async Task<IActionResult> CommitSchemaVersion(string branchId, [FromBody] CommitSchemaVersionRequest request)
     {
         var userId = CurrentUserId;

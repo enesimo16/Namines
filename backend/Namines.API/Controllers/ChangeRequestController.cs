@@ -106,6 +106,7 @@ public class ChangeRequestController : ControllerBase
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     [HttpPost("quick")]
+    [RequestSizeLimit(SchemaRequestLimits.SingleSchemaBytes)]
     public async Task<IActionResult> CreateQuick([FromBody] QuickChangeRequestRequest request)
     {
         var userId = CurrentUserId;
@@ -225,6 +226,8 @@ public class ChangeRequestController : ControllerBase
         await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = changeRequest.Id,
+            ProjectId = changeRequest.ProjectId,
+            ChangeRequestTitle = changeRequest.Title,
             Action = ChangeRequestAuditAction.Created,
             ActorUserId = userId,
             Details = $"Risk={impact.OverallRisk}",
@@ -236,6 +239,8 @@ public class ChangeRequestController : ControllerBase
             await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
             {
                 ChangeRequestId = changeRequest.Id,
+                ProjectId = changeRequest.ProjectId,
+                ChangeRequestTitle = changeRequest.Title,
                 Action = ChangeRequestAuditAction.AutoApproved,
                 ActorUserId = null, // sistem-güdümlü — hiçbir insan onaylamadı
                 Details = "Safe risk + project.AutoApproveSafeChanges enabled",
@@ -267,7 +272,14 @@ public class ChangeRequestController : ControllerBase
         var project = await _context.CloudProjects.FirstAsync(p => p.Id == projectId);
 
         project.AutoApproveSafeChanges = request.Enabled;
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ConcurrencyConflict.Result();
+        }
 
         return Ok(new { project.Id, project.AutoApproveSafeChanges });
     }
@@ -465,7 +477,8 @@ public class ChangeRequestController : ControllerBase
             {
                 a.Id,
                 a.UserId,
-                Username = a.User.UserName,
+                // Hesabı silinen onaylayıcı (UserId/User null): çökmesin, "Deleted user" göster.
+                Username = a.User != null ? a.User.UserName : "Deleted user",
                 a.Decision,
                 a.Comment,
                 a.CreatedAt
@@ -595,6 +608,8 @@ public class ChangeRequestController : ControllerBase
         await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = cr.Id,
+            ProjectId = cr.ProjectId,
+            ChangeRequestTitle = cr.Title,
             Action = request.Decision == ApprovalDecision.Approved
                 ? ChangeRequestAuditAction.Approved
                 : ChangeRequestAuditAction.Rejected,
@@ -661,6 +676,8 @@ public class ChangeRequestController : ControllerBase
                     await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
                     {
                         ChangeRequestId = cr.Id,
+                        ProjectId = cr.ProjectId,
+                        ChangeRequestTitle = cr.Title,
                         Action = ChangeRequestAuditAction.Approved,
                         ActorUserId = userId,
                         Details = $"Quorum reached ({approvedNow}/{required}).",

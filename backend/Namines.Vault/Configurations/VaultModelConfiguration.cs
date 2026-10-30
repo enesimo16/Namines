@@ -20,7 +20,28 @@ namespace Namines.Vault.Configurations
                 else
                     entity.ToTable("vault_backups");
 
+                // Enum'a bağlı kolonlar (DB-21). Yeni enum üyesi = migration (bkz. CheckConstraintSql).
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_backups", "Status"), CheckConstraintSql.EnumIn<VaultBackupStatus>("Status"));
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_backups", "Kind"), CheckConstraintSql.EnumIn<VaultBackupKind>("Kind"));
+                });
+
                 entity.HasIndex(b => new { b.ProjectId, b.CreatedAt });
+
+                // Referans bütünlüğü (DB-01). Yedek = şifreli blob'a işaret eden veri:
+                // projeyi SESSİZCE silip blob'u yetim bırakmak yerine RESTRICT — silme
+                // akışı önce yedekleri (blob dahil) açıkça temizlemek zorunda.
+                entity.HasOne<CloudProject>().WithMany()
+                      .HasForeignKey(b => b.ProjectId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Organization>().WithMany()
+                      .HasForeignKey(b => b.OrganizationId)
+                      .OnDelete(DeleteBehavior.Restrict);
+                // Atıf kolonu: kullanıcı silinince boşalır, yedek kalır.
+                entity.HasOne<ApplicationUser>().WithMany()
+                      .HasForeignKey(b => b.CreatedByUserId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<VaultRestore>(entity =>
@@ -30,7 +51,30 @@ namespace Namines.Vault.Configurations
                 else
                     entity.ToTable("vault_restores");
 
+                entity.ToTable(t =>
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_restores", "Status"), CheckConstraintSql.EnumIn<VaultBackupStatus>("Status")));
+
                 entity.HasIndex(r => new { r.ProjectId, r.StartedAt });
+
+                // Geri yükleme geçmişi: proje gidince geçmişi de gider (yedekler RESTRICT
+                // ile zaten önce temizlenmiş olmak zorunda). Yedek tek tek silinebildiği
+                // için (elle / saklama) yedek FK'ları SET NULL: RESTRICT olsaydı bir kez
+                // geri yüklenmiş her yedek silinemezdi.
+                entity.HasOne<CloudProject>().WithMany()
+                      .HasForeignKey(r => r.ProjectId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne<Organization>().WithMany()
+                      .HasForeignKey(r => r.OrganizationId)
+                      .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne<VaultBackup>().WithMany()
+                      .HasForeignKey(r => r.BackupId)
+                      .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne<VaultBackup>().WithMany()
+                      .HasForeignKey(r => r.PreRestoreBackupId)
+                      .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne<ApplicationUser>().WithMany()
+                      .HasForeignKey(r => r.PerformedByUserId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<VaultSchedule>(entity =>
@@ -40,7 +84,23 @@ namespace Namines.Vault.Configurations
                 else
                     entity.ToTable("vault_schedules");
 
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_schedules", "Cadence"), CheckConstraintSql.EnumIn<VaultCadence>("Cadence"));
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_schedules", "HourUtc"), CheckConstraintSql.Between("HourUtc", 0, 23));
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_schedules", "DayOfWeek"), CheckConstraintSql.Between("DayOfWeek", 0, 6));
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_schedules", "RetainCount"), CheckConstraintSql.AtLeast("RetainCount", 1));
+                });
+
                 entity.HasIndex(s => s.ProjectId).IsUnique();
+
+                // Zamanlayıcı yapılandırmadır, veri değil: proje ile birlikte gider.
+                entity.HasOne<CloudProject>().WithMany()
+                      .HasForeignKey(s => s.ProjectId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne<Organization>().WithMany()
+                      .HasForeignKey(s => s.OrganizationId)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
         }
     }

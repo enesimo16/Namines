@@ -362,6 +362,86 @@ public class GroundService
     }
 
     /// <summary>
+    /// Proje silinirken sağlayıcıdaki kaynağı BEKLEME PENCERESİ OLMADAN kaldırır.
+    ///
+    /// Proje gidince kaydı da gider (FK <c>Restrict</c>: çağıran satırı kaldırmak
+    /// zorunda) ve geriye "silinecek bir kayıt" kalmaz; bekleme penceresi bu yüzden
+    /// anlamsız ve kaynak kimsenin bilmediği, faturalanan bir veritabanı olarak kalırdı.
+    ///
+    /// Purge ile AYNI sahiplenme kapısı kullanılıyor: kayıt yalnızca hâlâ sahiplenilebilir
+    /// durumdaysa <c>Deleting</c>'e alınıyor; taze bir <c>Deleting</c>/<c>Provisioning</c>
+    /// başka bir işlem demek → "meşgul" döner. Sağlayıcı çağrısı başarısızsa kayıt
+    /// <c>PendingDelete</c> + geçmiş tarihle işaretlenir ki arka plan purge'ü yeniden
+    /// denesin; çağıran projeyi SİLMEMELİ.
+    /// </summary>
+    public async Task<GroundResult> DeprovisionNowAsync(GroundDatabase record, CancellationToken ct)
+    {
+        if (record.Status == GroundStatus.Deleted)
+            return new GroundResult(true, Database: record);
+
+        var leaseCutoff = DateTime.UtcNow - StaleClaimLease;
+        var busy = (record.Status == GroundStatus.Deleting || record.Status == GroundStatus.Provisioning)
+                   && record.ClaimedAt != null && record.ClaimedAt >= leaseCutoff;
+        if (busy)
+            return new GroundResult(false, "The managed database is being created or deleted right now. Try again in a few minutes.");
+
+        // Dış kaynak yoksa (provizyon sağlayıcıya hiç ulaşmadı) temizlenecek bir şey de yok.
+        if (string.IsNullOrWhiteSpace(record.ProviderProjectId))
+            return new GroundResult(true, Database: record);
+
+        var provider = FindProvider(record.Provider);
+        if (provider is null)
+        {
+            _logger.LogError("Ground: {Provider} saglayicisi kayitli degil, {ProjectId} silinemedi.",
+                record.Provider, record.ProjectId);
+            return new GroundResult(false, "The managed database provider is not available, so the database could not be removed.");
+        }
+
+        var previousStatus = record.Status;
+        var claimed = await _context.GroundDatabases
+            .Where(g => g.Id == record.Id && g.Status == previousStatus)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(g => g.Status, GroundStatus.Deleting)
+                .SetProperty(g => g.ClaimedAt, (DateTime?)DateTime.UtcNow), ct);
+        if (claimed == 0)
+            return new GroundResult(false, "The managed database changed while it was being removed. Try again.");
+
+        // ExecuteUpdate izlenen varlığı güncellemez; purge'daki gibi yeniden yükle ki
+        // sonraki durum atamaları (özellikle PendingDelete -> PendingDelete) kaydedilsin.
+        await _context.Entry(record).ReloadAsync(ct);
+
+        try
+        {
+            await provider.DeleteAsync(
+                new ProvisionedDatabase(
+                    record.ProviderProjectId,
+                    record.ProviderBranchId,
+                    record.Region ?? string.Empty,
+                    ConnectionString: string.Empty),
+                ct);
+
+            record.Status = GroundStatus.Deleted;
+            record.ClaimedAt = null;
+            record.DeletedAt = DateTime.UtcNow;
+            record.Error = null;
+            await _context.SaveChangesAsync(CancellationToken.None);
+            return new GroundResult(true, Database: record);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ground: {ProjectId} proje silinirken saglayicidan kaldirilamadi.", record.ProjectId);
+
+            // Geçmiş tarih: purge bekleme penceresini beklemeden bir sonraki turda yeniden dener.
+            record.Status = GroundStatus.PendingDelete;
+            record.ClaimedAt = null;
+            record.DeleteRequestedAt = DateTime.UtcNow.AddDays(-(GroundDefaults.DeleteGraceDays + 1));
+            record.Error = "Deletion failed and will be retried automatically.";
+            await _context.SaveChangesAsync(CancellationToken.None);
+            return new GroundResult(false, "The managed database could not be removed from its provider. The project was not deleted; it will be retried automatically, try again shortly.");
+        }
+    }
+
+    /// <summary>
     /// Bekleme penceresi dolmuş kayıtları KALICI olarak siler.
     ///
     /// Arka plan işinden çağrılıyor ve tek tek hata yakalıyor: bir kaydın
