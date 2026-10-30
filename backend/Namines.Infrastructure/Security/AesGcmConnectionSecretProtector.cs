@@ -23,25 +23,30 @@ namespace Namines.Infrastructure.Security;
 /// <see cref="IConnectionSecretProtector"/>'ın ikinci bir uygulamasını yazmak
 /// yeterli — çağıran kod değişmez.
 ///
-/// <b>Anahtar rotasyonu:</b> çıktı <c>v1:</c> ön ekiyle sürümlenmiş. Algoritma
-/// ya da anahtar değişirse <c>v2</c> yazılır ve <see cref="Unprotect"/> eski
-/// sürümü okumaya devam edebilir. Bugün tek sürüm var; rotasyon gerçekten
-/// gerektiğinde eklenecek — kullanılmayan bir kod yolunu şimdiden yazmak,
-/// test edilmemiş bir güvenlik yolu bırakmak olurdu.
+/// <b>Anahtar rotasyonu (DB-36):</b> <c>Security:ConnectionEncryptionKeys</c> listesi
+/// (<c>{ Id, Key }</c> öğeleri) tanımlıysa YENİ yazımlar listenin SON anahtarıyla
+/// <c>k.&lt;id&gt;:…</c> biçiminde yapılır; çözümde ön ekteki kimlik anahtarı seçer.
+/// Eski <c>v1:…</c> çıktıları <c>Security:ConnectionEncryptionKey</c> (tekil) ile
+/// okunmaya devam eder. Eski anahtarlar, <see cref="ConnectionSecretReencryptor"/>
+/// ile tüm kayıtlar yeniden şifrelenene kadar yapılandırmada KALMALIDIR.
 /// </summary>
-public sealed class AesGcmConnectionSecretProtector : IConnectionSecretProtector
+public sealed class AesGcmConnectionSecretProtector : IRotatableSecretProtector
 {
-    private const string Version = "v1";
+    private const string LegacyVersion = "v1";
+    private const string KeyedPrefix = "k.";
     private const int NonceSize = 12;   // AES-GCM standardı
     private const int TagSize   = 16;
 
-    private readonly byte[] _key;
+    private readonly byte[]? _legacyKey;
+    private readonly Dictionary<string, byte[]> _keys = new(StringComparer.Ordinal);
+    private readonly string? _activeId;
 
     public AesGcmConnectionSecretProtector(IConfiguration configuration)
     {
         var secret = configuration["Security:ConnectionEncryptionKey"];
+        var keyed = configuration.GetSection("Security:ConnectionEncryptionKeys").GetChildren().ToList();
 
-        if (string.IsNullOrWhiteSpace(secret))
+        if (string.IsNullOrWhiteSpace(secret) && keyed.Count == 0)
         {
             throw new InvalidOperationException(
                 "Security:ConnectionEncryptionKey is not configured. Storing connection strings " +
@@ -50,10 +55,28 @@ public sealed class AesGcmConnectionSecretProtector : IConnectionSecretProtector
                 "least 32 characters (e.g. `openssl rand -base64 32`).");
         }
 
-        if (secret.Length < 32)
+        if (!string.IsNullOrWhiteSpace(secret))
+            _legacyKey = DeriveKey(secret, "Security:ConnectionEncryptionKey");
+
+        foreach (var entry in keyed)
+        {
+            var id = entry["Id"];
+            if (string.IsNullOrWhiteSpace(id) || id.Contains(':') || id.Contains('.') || id == LegacyVersion)
+                throw new InvalidOperationException(
+                    "Security:ConnectionEncryptionKeys: each entry needs a non-empty Id without ':' or '.' (and not 'v1').");
+            if (_keys.ContainsKey(id))
+                throw new InvalidOperationException($"Security:ConnectionEncryptionKeys: duplicate key id '{id}'.");
+            _keys[id] = DeriveKey(entry["Key"], $"Security:ConnectionEncryptionKeys[{id}]");
+            _activeId = id; // SON girdi = en yeni
+        }
+    }
+
+    private static byte[] DeriveKey(string? secret, string name)
+    {
+        if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32)
         {
             throw new InvalidOperationException(
-                "Security:ConnectionEncryptionKey must be at least 32 characters. A short or weak " +
+                $"{name} must be at least 32 characters. A short or weak " +
                 "secret makes the encryption exist on paper while remaining breakable in practice.");
         }
 
@@ -64,7 +87,7 @@ public sealed class AesGcmConnectionSecretProtector : IConnectionSecretProtector
         // Sabit salt bilinçli: anahtarın DETERMİNİSTİK olması gerekiyor, yoksa
         // yeniden başlatmadan sonra eski kayıtlar çözülemezdi. Salt'ın amacı burada
         // gökkuşağı tablolarını bu uygulamaya özgü kılmak, benzersizlik değil.
-        _key = Rfc2898DeriveBytes.Pbkdf2(
+        return Rfc2898DeriveBytes.Pbkdf2(
             password: Encoding.UTF8.GetBytes(secret),
             salt: Encoding.UTF8.GetBytes("namines.connection.protector.v1"),
             iterations: 100_000,
@@ -76,19 +99,29 @@ public sealed class AesGcmConnectionSecretProtector : IConnectionSecretProtector
     {
         ArgumentNullException.ThrowIfNull(plaintext);
 
+        // Anahtarlı liste yoksa davranış eskisiyle birebir aynı (v1 + tekil anahtar).
+        var label = _activeId is null ? LegacyVersion : KeyedPrefix + _activeId;
+        var key   = _activeId is null ? _legacyKey! : _keys[_activeId];
+
         var nonce      = RandomNumberGenerator.GetBytes(NonceSize);
         var plainBytes = Encoding.UTF8.GetBytes(plaintext);
         var cipher     = new byte[plainBytes.Length];
         var tag        = new byte[TagSize];
 
-        using var aes = new AesGcm(_key, TagSize);
+        using var aes = new AesGcm(key, TagSize);
         aes.Encrypt(nonce, plainBytes, cipher, tag);
 
         return string.Join(':',
-            Version,
+            label,
             Convert.ToBase64String(nonce),
             Convert.ToBase64String(tag),
             Convert.ToBase64String(cipher));
+    }
+
+    public bool IsEncryptedWithCurrentKey(string ciphertext)
+    {
+        var label = ciphertext.Split(':', 2)[0];
+        return _activeId is null ? label == LegacyVersion : label == KeyedPrefix + _activeId;
     }
 
     public string Unprotect(string ciphertext)
@@ -96,7 +129,16 @@ public sealed class AesGcmConnectionSecretProtector : IConnectionSecretProtector
         ArgumentException.ThrowIfNullOrWhiteSpace(ciphertext);
 
         var parts = ciphertext.Split(':', 4);
-        if (parts.Length != 4 || parts[0] != Version)
+        if (parts.Length != 4)
+            throw new CryptographicException("The format of the encrypted connection string is not recognized.");
+
+        byte[]? key = null;
+        if (parts[0] == LegacyVersion)
+            key = _legacyKey;
+        else if (parts[0].StartsWith(KeyedPrefix, StringComparison.Ordinal))
+            _keys.TryGetValue(parts[0][KeyedPrefix.Length..], out key);
+
+        if (key is null)
             throw new CryptographicException("The format of the encrypted connection string is not recognized.");
 
         var nonce  = Convert.FromBase64String(parts[1]);
@@ -106,7 +148,7 @@ public sealed class AesGcmConnectionSecretProtector : IConnectionSecretProtector
 
         // Anahtar değişmiş ya da veri kurcalanmışsa AesGcm burada
         // CryptographicException fırlatır — bilinçli olarak yakalanmıyor.
-        using var aes = new AesGcm(_key, TagSize);
+        using var aes = new AesGcm(key, TagSize);
         aes.Decrypt(nonce, cipher, tag, plain);
 
         return Encoding.UTF8.GetString(plain);

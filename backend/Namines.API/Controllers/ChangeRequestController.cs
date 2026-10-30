@@ -267,7 +267,14 @@ public class ChangeRequestController : ControllerBase
         var project = await _context.CloudProjects.FirstAsync(p => p.Id == projectId);
 
         project.AutoApproveSafeChanges = request.Enabled;
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ConcurrencyConflict.Result();
+        }
 
         return Ok(new { project.Id, project.AutoApproveSafeChanges });
     }
