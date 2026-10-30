@@ -389,3 +389,4 @@ npx namines doctor
 | `Database__ConnectTimeoutSeconds` | `15` | Npgsql `Timeout`. |
 | `Database__KeepaliveSeconds` | `30` | Npgsql `Keepalive`. |
 | `ConnectionStrings__Migrations` | boş | Doluysa yalnızca migration adımı bu (sahip rolü) bağlantıyla çalışır; boşsa `DefaultConnection`. Bkz. `deploy/sql/roles.sql`. |
+| `Security__ConnectionEncryptionKeys__N__Id` / `__Key` | boş | Çok anahtarlı liste; SON girdi yazımda kullanılır, çözümde `k.<id>:` ön eki seçer. Tekil `Security__ConnectionEncryptionKey` eski `v1:` kayıtlar için okunur. Rotasyon sonrası `--reencrypt-secrets` ile tüm kayıtlar yeniden şifrelenir. |

@@ -718,6 +718,22 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         }
     }
 
+    // `dotnet run -- --reencrypt-secrets`: saklanan bağlantı dizelerini güncel şifreleme
+    // anahtarıyla yeniden yazar (anahtar rotasyonu, DB-36) ve çıkar.
+    if (args.Contains("--reencrypt-secrets", StringComparer.OrdinalIgnoreCase))
+    {
+        using var rotScope = app.Services.CreateScope();
+        var rotDb = rotScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var rotProtector = rotScope.ServiceProvider.GetRequiredService<Namines.Core.Security.IConnectionSecretProtector>()
+            as Namines.Core.Security.IRotatableSecretProtector
+            ?? throw new InvalidOperationException("Yapılandırılan koruyucu anahtar rotasyonunu desteklemiyor.");
+        var rotResult = Namines.Infrastructure.Security.ConnectionSecretReencryptor
+            .ReencryptAsync(rotDb, rotProtector, null).GetAwaiter().GetResult();
+        Log.Information("--reencrypt-secrets: {Scanned} tarandı, {Done} yeniden şifrelendi, {Failed} başarısız.",
+            rotResult.Scanned, rotResult.Reencrypted, rotResult.Failed);
+        return rotResult.Failed == 0 ? 0 : 1;
+    }
+
     if (migrateOnly)
     {
         Log.Information("--migrate modu: migration tamamlandı, uygulama başlatılmadan çıkılıyor.");

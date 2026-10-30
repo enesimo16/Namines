@@ -32,3 +32,13 @@ public interface IConnectionSecretProtector
     /// </summary>
     string Unprotect(string ciphertext);
 }
+
+/// <summary>
+/// Anahtar rotasyonunu destekleyen koruyucu (DB-36): bir şifreli değerin
+/// GÜNCEL anahtarla yazılıp yazılmadığını söyler, böylece yeniden şifreleme
+/// yalnızca gerekli kayıtlara dokunur.
+/// </summary>
+public interface IRotatableSecretProtector : IConnectionSecretProtector
+{
+    bool IsEncryptedWithCurrentKey(string ciphertext);
+}
