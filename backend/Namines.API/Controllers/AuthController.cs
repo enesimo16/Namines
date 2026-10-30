@@ -473,7 +473,16 @@ namespace Namines.API.Controllers
                 savedCount++;
             }
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // İstemcinin RowVersion'ı yoksa/eskiyse yukarıdaki kontrol yakalamaz; xmin
+                // jetonu okuma-yazma arasındaki yarışı burada yakalar → 500 değil 409.
+                return ConcurrencyConflict.Result();
+            }
 
             // Kaydetme başarılı OLDUKTAN SONRA — sunucu, istemcinin "şunu değiştirdim"
             // iddiasına değil, KENDİ hesapladığı diff'e güveniyor (bkz. spec "Kritik
