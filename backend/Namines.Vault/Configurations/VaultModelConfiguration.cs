@@ -20,6 +20,13 @@ namespace Namines.Vault.Configurations
                 else
                     entity.ToTable("vault_backups");
 
+                // Enum'a bağlı kolonlar (DB-21). Yeni enum üyesi = migration (bkz. CheckConstraintSql).
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_backups", "Status"), CheckConstraintSql.EnumIn<VaultBackupStatus>("Status"));
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_backups", "Kind"), CheckConstraintSql.EnumIn<VaultBackupKind>("Kind"));
+                });
+
                 entity.HasIndex(b => new { b.ProjectId, b.CreatedAt });
 
                 // Referans bütünlüğü (DB-01). Yedek = şifreli blob'a işaret eden veri:
@@ -43,6 +50,9 @@ namespace Namines.Vault.Configurations
                     entity.ToTable("vault_restores", schema: schema);
                 else
                     entity.ToTable("vault_restores");
+
+                entity.ToTable(t =>
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_restores", "Status"), CheckConstraintSql.EnumIn<VaultBackupStatus>("Status")));
 
                 entity.HasIndex(r => new { r.ProjectId, r.StartedAt });
 
@@ -73,6 +83,14 @@ namespace Namines.Vault.Configurations
                     entity.ToTable("vault_schedules", schema: schema);
                 else
                     entity.ToTable("vault_schedules");
+
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_schedules", "Cadence"), CheckConstraintSql.EnumIn<VaultCadence>("Cadence"));
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_schedules", "HourUtc"), CheckConstraintSql.Between("HourUtc", 0, 23));
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_schedules", "DayOfWeek"), CheckConstraintSql.Between("DayOfWeek", 0, 6));
+                    t.HasCheckConstraint(CheckConstraintSql.Name("vault_schedules", "RetainCount"), CheckConstraintSql.AtLeast("RetainCount", 1));
+                });
 
                 entity.HasIndex(s => s.ProjectId).IsUnique();
 

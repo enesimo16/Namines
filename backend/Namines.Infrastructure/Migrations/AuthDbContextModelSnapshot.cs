@@ -324,7 +324,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("StripeCustomerId");
 
-                    b.ToTable("AspNetUsers", (string)null);
+                    b.ToTable("AspNetUsers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AspNetUsers_Type", "\"Type\" IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.Branch", b =>
@@ -455,7 +458,12 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "CreatedAt");
 
-                    b.ToTable("ChangeRequests");
+                    b.ToTable("ChangeRequests", t =>
+                        {
+                            t.HasCheckConstraint("CK_ChangeRequests_RiskLevel", "\"RiskLevel\" IN (0, 1, 2, 3)");
+
+                            t.HasCheckConstraint("CK_ChangeRequests_Status", "\"Status\" IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequestApproval", b =>
@@ -486,7 +494,10 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ChangeRequestId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("ChangeRequestApprovals");
+                    b.ToTable("ChangeRequestApprovals", t =>
+                        {
+                            t.HasCheckConstraint("CK_ChangeRequestApprovals_Decision", "\"Decision\" IN (0, 1)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequestAuditLog", b =>
@@ -525,7 +536,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "CreatedAt");
 
-                    b.ToTable("ChangeRequestAuditLogs");
+                    b.ToTable("ChangeRequestAuditLogs", t =>
+                        {
+                            t.HasCheckConstraint("CK_ChangeRequestAuditLogs_Action", "\"Action\" IN (0, 1, 2, 3)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.CloudProject", b =>
@@ -630,7 +644,26 @@ namespace Namines.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
 
-                    b.ToTable("CloudProjects");
+                    b.ToTable("CloudProjects", t =>
+                        {
+                            t.HasCheckConstraint("CK_CloudProjects_Category_Length", "char_length(\"Category\") <= 64");
+
+                            t.HasCheckConstraint("CK_CloudProjects_Description_Length", "char_length(\"Description\") <= 1000");
+
+                            t.HasCheckConstraint("CK_CloudProjects_ForkCount", "\"ForkCount\" >= 0");
+
+                            t.HasCheckConstraint("CK_CloudProjects_LinkedGithubRepo_Length", "char_length(\"LinkedGithubRepo\") <= 140");
+
+                            t.HasCheckConstraint("CK_CloudProjects_Name_Length", "char_length(\"Name\") <= 512");
+
+                            t.HasCheckConstraint("CK_CloudProjects_SchemaJson_Length", "char_length(\"SchemaJson\") <= 10000000");
+
+                            t.HasCheckConstraint("CK_CloudProjects_StarCount", "\"StarCount\" >= 0");
+
+                            t.HasCheckConstraint("CK_CloudProjects_Tags_Length", "char_length(\"Tags\") <= 256");
+
+                            t.HasCheckConstraint("CK_CloudProjects_Visibility", "\"Visibility\" IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.CrossDatabaseRelation", b =>
@@ -776,7 +809,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("GatewayApiKeys");
+                    b.ToTable("GatewayApiKeys", t =>
+                        {
+                            t.HasCheckConstraint("CK_GatewayApiKeys_RateLimitPerMinute", "\"RateLimitPerMinute\" >= 1");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.GatewayAuditEntry", b =>
@@ -823,7 +859,10 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ProjectId", "CreatedAt")
                         .IsDescending(false, true);
 
-                    b.ToTable("GatewayAuditEntries");
+                    b.ToTable("GatewayAuditEntries", t =>
+                        {
+                            t.HasCheckConstraint("CK_GatewayAuditEntries_Kind", "\"Kind\" IN (0, 1, 2, 3, 4, 5, 6)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTablePermission", b =>
@@ -939,7 +978,10 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ProjectId")
                         .IsUnique();
 
-                    b.ToTable("ground_databases", "ground");
+                    b.ToTable("ground_databases", "ground", t =>
+                        {
+                            t.HasCheckConstraint("CK_ground_databases_Status", "\"Status\" IN (0, 1, 2, 3, 4, 5)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.OrgAiUsage", b =>
@@ -1011,7 +1053,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("OrganizationMembers");
+                    b.ToTable("OrganizationMembers", t =>
+                        {
+                            t.HasCheckConstraint("CK_OrganizationMembers_Role", "\"Role\" IN (0, 1, 2, 3, 4)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.SavedQuery", b =>
@@ -1049,7 +1094,10 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("UserId", "ProjectId", "Name")
                         .IsUnique();
 
-                    b.ToTable("saved_queries", "desk");
+                    b.ToTable("saved_queries", "desk", t =>
+                        {
+                            t.HasCheckConstraint("CK_saved_queries_Sql_Length", "char_length(\"Sql\") <= 20000");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.SchemaVersion", b =>
@@ -1097,7 +1145,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "CreatedAt");
 
-                    b.ToTable("SchemaVersions");
+                    b.ToTable("SchemaVersions", t =>
+                        {
+                            t.HasCheckConstraint("CK_SchemaVersions_SchemaJson_Length", "char_length(\"SchemaJson\") <= 10000000");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.SqlExecutionAudit", b =>
@@ -1203,7 +1254,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "ProjectId", "CreatedAt");
 
-                    b.ToTable("sql_query_history", "desk");
+                    b.ToTable("sql_query_history", "desk", t =>
+                        {
+                            t.HasCheckConstraint("CK_sql_query_history_Sql_Length", "char_length(\"Sql\") <= 8000");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.StripeWebhookEvent", b =>
@@ -1279,7 +1333,10 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
-                    b.ToTable("TeamInvites");
+                    b.ToTable("TeamInvites", t =>
+                        {
+                            t.HasCheckConstraint("CK_TeamInvites_Role", "\"Role\" IN (0, 1, 2, 3, 4)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.UsageEvent", b =>
@@ -1315,7 +1372,12 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "BillingPeriod", "Resource");
 
-                    b.ToTable("UsageEvents");
+                    b.ToTable("UsageEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_UsageEvents_Quantity", "\"Quantity\" >= 0");
+
+                            t.HasCheckConstraint("CK_UsageEvents_Resource", "\"Resource\" IN (0, 1, 2, 3, 4, 5)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.UserAIPolicy", b =>
@@ -1355,7 +1417,24 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasKey("UserId");
 
-                    b.ToTable("UserAIPolicies");
+                    b.ToTable("UserAIPolicies", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserAIPolicies_DbaAnalysis", "\"DbaAnalysis\" IN (0, 1, 2, 3, 4, 6, 7, 8)");
+
+                            t.HasCheckConstraint("CK_UserAIPolicies_Documentation", "\"Documentation\" IN (0, 1, 2, 3, 4, 6, 7, 8)");
+
+                            t.HasCheckConstraint("CK_UserAIPolicies_Migration", "\"Migration\" IN (0, 1, 2, 3, 4, 6, 7, 8)");
+
+                            t.HasCheckConstraint("CK_UserAIPolicies_Scaffolding", "\"Scaffolding\" IN (0, 1, 2, 3, 4, 6, 7, 8)");
+
+                            t.HasCheckConstraint("CK_UserAIPolicies_SchemaGeneration", "\"SchemaGeneration\" IN (0, 1, 2, 3, 4, 6, 7, 8)");
+
+                            t.HasCheckConstraint("CK_UserAIPolicies_SchemaRevision", "\"SchemaRevision\" IN (0, 1, 2, 3, 4, 6, 7, 8)");
+
+                            t.HasCheckConstraint("CK_UserAIPolicies_SmartSeed", "\"SmartSeed\" IN (0, 1, 2, 3, 4, 6, 7, 8)");
+
+                            t.HasCheckConstraint("CK_UserAIPolicies_Voice", "\"Voice\" IN (0, 1, 2, 3, 4, 6, 7, 8)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.UserAIQuota", b =>
@@ -1463,7 +1542,12 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "CreatedAt");
 
-                    b.ToTable("vault_backups", "namines_vault");
+                    b.ToTable("vault_backups", "namines_vault", t =>
+                        {
+                            t.HasCheckConstraint("CK_vault_backups_Kind", "\"Kind\" IN (0, 1, 2)");
+
+                            t.HasCheckConstraint("CK_vault_backups_Status", "\"Status\" IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
@@ -1511,7 +1595,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "StartedAt");
 
-                    b.ToTable("vault_restores", "namines_vault");
+                    b.ToTable("vault_restores", "namines_vault", t =>
+                        {
+                            t.HasCheckConstraint("CK_vault_restores_Status", "\"Status\" IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
@@ -1557,7 +1644,16 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ProjectId")
                         .IsUnique();
 
-                    b.ToTable("vault_schedules", "namines_vault");
+                    b.ToTable("vault_schedules", "namines_vault", t =>
+                        {
+                            t.HasCheckConstraint("CK_vault_schedules_Cadence", "\"Cadence\" IN (0, 1)");
+
+                            t.HasCheckConstraint("CK_vault_schedules_DayOfWeek", "\"DayOfWeek\" BETWEEN 0 AND 6");
+
+                            t.HasCheckConstraint("CK_vault_schedules_HourUtc", "\"HourUtc\" BETWEEN 0 AND 23");
+
+                            t.HasCheckConstraint("CK_vault_schedules_RetainCount", "\"RetainCount\" >= 1");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.AutomationAction", b =>
@@ -1692,7 +1788,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Feedbacks");
+                    b.ToTable("Feedbacks", t =>
+                        {
+                            t.HasCheckConstraint("CK_Feedbacks_Message_Length", "char_length(\"Message\") <= 4000");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssue", b =>
@@ -1749,7 +1848,10 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ProjectId", "IssueNumber")
                         .IsUnique();
 
-                    b.ToTable("RepoIssues");
+                    b.ToTable("RepoIssues", t =>
+                        {
+                            t.HasCheckConstraint("CK_RepoIssues_Body_Length", "char_length(\"Body\") <= 20000");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssueComment", b =>
@@ -1777,7 +1879,10 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("IssueId");
 
-                    b.ToTable("RepoIssueComments");
+                    b.ToTable("RepoIssueComments", t =>
+                        {
+                            t.HasCheckConstraint("CK_RepoIssueComments_Body_Length", "char_length(\"Body\") <= 10000");
+                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoStar", b =>

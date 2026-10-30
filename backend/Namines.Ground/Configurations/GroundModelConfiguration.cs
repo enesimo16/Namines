@@ -20,6 +20,9 @@ namespace Namines.Ground.Configurations
                 else
                     entity.ToTable("ground_databases");
 
+                entity.ToTable(t =>
+                    t.HasCheckConstraint(CheckConstraintSql.Name("ground_databases", "Status"), CheckConstraintSql.EnumIn<GroundStatus>("Status")));
+
                 // Proje başına EN FAZLA bir yönetilen veritabanı.
                 entity.HasIndex(g => g.ProjectId).IsUnique();
 

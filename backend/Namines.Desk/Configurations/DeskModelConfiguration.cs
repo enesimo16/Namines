@@ -39,6 +39,13 @@ namespace Namines.Desk.Configurations
                 else
                     entity.ToTable("sql_query_history");
 
+                // Uzunluk tavanı yalnızca PostgreSQL modelinde (char_length SQLite'ta yok) ve
+                // uygulamanın zaten kırptığı değerle aynı (SqlQueryHistoryEntry.MaxSqlLength).
+                if (!string.IsNullOrEmpty(schema))
+                    entity.ToTable(t => t.HasCheckConstraint(
+                        CheckConstraintSql.Name("sql_query_history", "Sql", "Length"),
+                        CheckConstraintSql.MaxLength("Sql", SqlQueryHistoryEntry.MaxSqlLength)));
+
                 entity.HasIndex(h => new { h.UserId, h.ProjectId, h.CreatedAt });
 
                 // Kullanıcıya özel veri (SQL metni PII içerebilir): proje ya da kullanıcı
@@ -58,6 +65,11 @@ namespace Namines.Desk.Configurations
                     entity.ToTable("saved_queries", schema: schema);
                 else
                     entity.ToTable("saved_queries");
+
+                if (!string.IsNullOrEmpty(schema))
+                    entity.ToTable(t => t.HasCheckConstraint(
+                        CheckConstraintSql.Name("saved_queries", "Sql", "Length"),
+                        CheckConstraintSql.MaxLength("Sql", SavedQuery.MaxSqlLength)));
 
                 entity.HasIndex(q => new { q.UserId, q.ProjectId, q.Name }).IsUnique();
 

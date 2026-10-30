@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Models.Hub;
@@ -573,6 +574,104 @@ namespace Namines.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(f => f.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            ConfigureCheckConstraints(builder, isPostgres);
+        }
+
+        /// <summary>
+        /// SchemaJson satır başına tavanı (karakter). İstek gövdesi için ayrı bir sınır yok
+        /// (Kestrel varsayılanı ~30 MB); bu CHECK tek bir kullanıcının sınırsız şema yazmasını
+        /// veritabanı düzeyinde keser. NOT VALID: yeni yazımlar için geçerli, eski satırlar dokunulmaz.
+        /// </summary>
+        public const int MaxSchemaJsonLength = 10_000_000;
+
+        /// <summary>
+        /// CHECK kısıtları (docs/last-review/05 DB-21/22). İfadeler <see cref="CheckConstraintSql"/>'den
+        /// gelir: enum'a yeni üye eklemek migration gerektirir. Migration'larda bu kısıtlar
+        /// <c>NOT VALID</c> eklenir (yeni yazımlar zorunlu, eski satırlar bozulmaz) ve yalnızca
+        /// ihlal eden satır yoksa VALIDATE edilir.
+        ///
+        /// Metin enum'lar (automation_run_logs.Status/TriggerType, DbType, Provider, Engine) bilinçli
+        /// olarak DIŞARIDA: C#'ta bir enum'a değil serbest dizgelere bağlılar, kapalı bir küme yok.
+        /// </summary>
+        private static void ConfigureCheckConstraints(ModelBuilder builder, bool isPostgres)
+        {
+            static string N(string table, string col, string? suffix = null) => CheckConstraintSql.Name(table, col, suffix);
+
+            builder.Entity<ApplicationUser>().ToTable(t =>
+                t.HasCheckConstraint(N("AspNetUsers", "Type"), CheckConstraintSql.EnumIn<UserType>("Type")));
+
+            builder.Entity<GatewayAuditEntry>().ToTable(t =>
+                t.HasCheckConstraint(N("GatewayAuditEntries", "Kind"), CheckConstraintSql.EnumIn<GatewayWriteKind>("Kind")));
+
+            builder.Entity<OrganizationMember>().ToTable(t =>
+                t.HasCheckConstraint(N("OrganizationMembers", "Role"), CheckConstraintSql.EnumIn<OrgRole>("Role")));
+
+            builder.Entity<TeamInvite>().ToTable(t =>
+                t.HasCheckConstraint(N("TeamInvites", "Role"), CheckConstraintSql.EnumIn<OrgRole>("Role")));
+
+            builder.Entity<UsageEvent>().ToTable(t =>
+            {
+                t.HasCheckConstraint(N("UsageEvents", "Resource"), CheckConstraintSql.EnumIn<UsageResource>("Resource"));
+                t.HasCheckConstraint(N("UsageEvents", "Quantity"), CheckConstraintSql.AtLeast("Quantity", 0));
+            });
+
+            builder.Entity<ChangeRequest>().ToTable(t =>
+            {
+                t.HasCheckConstraint(N("ChangeRequests", "Status"), CheckConstraintSql.EnumIn<ChangeRequestStatus>("Status"));
+                t.HasCheckConstraint(N("ChangeRequests", "RiskLevel"), CheckConstraintSql.EnumIn<RiskLevel>("RiskLevel"));
+            });
+
+            builder.Entity<ChangeRequestApproval>().ToTable(t =>
+                t.HasCheckConstraint(N("ChangeRequestApprovals", "Decision"), CheckConstraintSql.EnumIn<ApprovalDecision>("Decision")));
+
+            builder.Entity<ChangeRequestAuditLog>().ToTable(t =>
+                t.HasCheckConstraint(N("ChangeRequestAuditLogs", "Action"), CheckConstraintSql.EnumIn<ChangeRequestAuditAction>("Action")));
+
+            builder.Entity<GatewayApiKey>().ToTable(t =>
+                t.HasCheckConstraint(N("GatewayApiKeys", "RateLimitPerMinute"), CheckConstraintSql.AtLeast("RateLimitPerMinute", 1)));
+
+            builder.Entity<CloudProject>().ToTable(t =>
+            {
+                t.HasCheckConstraint(N("CloudProjects", "Visibility"), CheckConstraintSql.EnumIn<ProjectVisibility>("Visibility"));
+                t.HasCheckConstraint(N("CloudProjects", "StarCount"), CheckConstraintSql.AtLeast("StarCount", 0));
+                t.HasCheckConstraint(N("CloudProjects", "ForkCount"), CheckConstraintSql.AtLeast("ForkCount", 0));
+            });
+
+            builder.Entity<UserAIPolicy>().ToTable(t =>
+            {
+                foreach (var col in new[] { "SmartSeed", "Documentation", "Scaffolding", "SchemaGeneration", "SchemaRevision", "DbaAnalysis", "Migration", "Voice" })
+                    t.HasCheckConstraint(N("UserAIPolicies", col), CheckConstraintSql.EnumIn<AIMode>(col));
+            });
+
+            // Uzunluk tavanları: char_length yalnızca PostgreSQL'de var. Değerler uygulamanın
+            // zaten uyguladığı sınırlarla aynı (HubController, FeedbackController); uygulamanın
+            // doğrulamadığı kolonlar (Feedbacks.Email, ChangeRequests.Title…) bilinçli olarak yok —
+            // CHECK orada kullanıcıya 500 olarak dönerdi.
+            if (!isPostgres) return;
+
+            builder.Entity<CloudProject>().ToTable(t =>
+            {
+                // Name: Hub PATCH 128 sınırlıyor ama kaydetme yolu (AuthController) doğrulamıyor → cömert tavan.
+                t.HasCheckConstraint(N("CloudProjects", "Name", "Length"), CheckConstraintSql.MaxLength("Name", 512));
+                t.HasCheckConstraint(N("CloudProjects", "Description", "Length"), CheckConstraintSql.MaxLength("Description", 1000));
+                t.HasCheckConstraint(N("CloudProjects", "Category", "Length"), CheckConstraintSql.MaxLength("Category", 64));
+                t.HasCheckConstraint(N("CloudProjects", "Tags", "Length"), CheckConstraintSql.MaxLength("Tags", 256));
+                t.HasCheckConstraint(N("CloudProjects", "LinkedGithubRepo", "Length"), CheckConstraintSql.MaxLength("LinkedGithubRepo", 140));
+                t.HasCheckConstraint(N("CloudProjects", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength));
+            });
+
+            builder.Entity<SchemaVersion>().ToTable(t =>
+                t.HasCheckConstraint(N("SchemaVersions", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength)));
+
+            builder.Entity<Feedback>().ToTable(t =>
+                t.HasCheckConstraint(N("Feedbacks", "Message", "Length"), CheckConstraintSql.MaxLength("Message", 4000)));
+
+            builder.Entity<RepoIssue>().ToTable(t =>
+                t.HasCheckConstraint(N("RepoIssues", "Body", "Length"), CheckConstraintSql.MaxLength("Body", 20_000)));
+
+            builder.Entity<RepoIssueComment>().ToTable(t =>
+                t.HasCheckConstraint(N("RepoIssueComments", "Body", "Length"), CheckConstraintSql.MaxLength("Body", 10_000)));
         }
     }
 }
