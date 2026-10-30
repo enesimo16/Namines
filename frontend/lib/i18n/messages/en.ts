@@ -175,6 +175,20 @@ const en = {
     sqlAffected: '{count} row(s) affected',
     sqlLiveNote: 'Single read-only statement, executed against the connected database.',
   },
+  deleteAccount: {
+    title: 'Delete account',
+    warning: 'Permanently deletes your account, your personal projects and their backups and managed databases. Team projects you created are handed over to a team owner. This cannot be undone.',
+    confirmLabel: 'Type your e-mail address ({email}) to confirm',
+    passwordLabel: 'Current password',
+    codeLabel: 'Authentication code',
+    reauthNote: 'Signed in with Google or GitHub and no password? Sign in again, then retry within 10 minutes.',
+    button: 'Delete my account',
+    working: 'Deleting…',
+    done: 'Your account has been deleted.',
+    failed: 'The account could not be deleted.',
+    transferOwnership: 'Transfer ownership first. You are the only owner of: {orgs}.',
+    reauthRequired: 'Sign in again, then retry within 10 minutes to confirm it is you.',
+  },
 } as const;
 
 export default en;
