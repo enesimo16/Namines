@@ -797,8 +797,9 @@ public class HubController : ControllerBase
                 i.ClosedAt,
                 CreatedBy = new
                 {
-                    Id = i.CreatedByUser.Id,
-                    Username = i.CreatedByUser.UserName ?? "unknown"
+                    // Hesabı silinen yazar: nav null (FK SET NULL) -> "Deleted user".
+                    Id = i.CreatedByUser != null ? i.CreatedByUser.Id : string.Empty,
+                    Username = i.CreatedByUser != null ? (i.CreatedByUser.UserName ?? "unknown") : "Deleted user"
                 },
                 CommentsCount = _context.RepoIssueComments.Count(c => c.IssueId == i.Id)
             })
@@ -992,8 +993,8 @@ public class HubController : ControllerBase
                 c.CreatedAt,
                 Author = new
                 {
-                    Id = c.AuthorUser.Id,
-                    Username = c.AuthorUser.UserName ?? "unknown"
+                    Id = c.AuthorUser != null ? c.AuthorUser.Id : string.Empty,
+                    Username = c.AuthorUser != null ? (c.AuthorUser.UserName ?? "unknown") : "Deleted user"
                 }
             })
             .ToListAsync(ct);

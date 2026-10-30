@@ -176,6 +176,9 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         var store = new FakeStore();
         await using var db = NewContext();
         await SeedAsync(db, store);
+        // Kurucu kaydı silinen kullanıcıdaysa Owner'a devredilmeli (ekip planı kurucunun hesabından okunuyor).
+        await db.Organizations.Where(o => o.Id == "T").ExecuteUpdateAsync(s => s.SetProperty(o => o.CreatedByUserId, "u1"));
+        db.ChangeTracker.Clear();
 
         var result = await NewService(db, store, new FakeProvider())
             .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
@@ -186,6 +189,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.Equal("u2", team.UserId);
         Assert.False(await verify.OrganizationMembers.AnyAsync(m => m.UserId == "u1"));
         Assert.True(await verify.Organizations.AnyAsync(o => o.Id == "T"));
+        Assert.Equal("u2", (await verify.Organizations.SingleAsync(o => o.Id == "T")).CreatedByUserId);
     }
 
     [Fact]
@@ -292,6 +296,42 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await using var verify = NewContext();
         Assert.True(await verify.Users.AnyAsync(u => u.Id == "u1"));
         Assert.True(await verify.CloudProjects.AnyAsync(p => p.Id == "pp"));
+    }
+
+    [Fact]
+    public async Task Hesabi_silinen_yazarin_issue_ve_yorumu_Deleted_user_olarak_listelenir()
+    {
+        var store = new FakeStore();
+        await using var db = NewContext();
+        await SeedAsync(db, store);
+        var team = await db.CloudProjects.SingleAsync(p => p.Id == "tp");
+        team.Visibility = ProjectVisibility.Public;
+        db.RepoIssues.Add(new Namines.Core.Models.Hub.RepoIssue
+        {
+            Id = "i1", ProjectId = "tp", IssueNumber = 1, Title = "t", CreatedByUserId = "u1",
+        });
+        db.RepoIssueComments.Add(new Namines.Core.Models.Hub.RepoIssueComment
+        {
+            Id = "c1", IssueId = "i1", Body = "b", AuthorUserId = "u1",
+        });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var result = await NewService(db, store, new FakeProvider())
+            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+        Assert.True(result.Ok, result.Code + " " + result.Error);
+
+        await using var read = NewContext();
+        var hub = new HubController(read, NewUserManager(read), Create(read))
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+        };
+
+        var issues = Assert.IsType<OkObjectResult>(await hub.ListIssues("tp", status: "all"));
+        Assert.Contains("Deleted user", System.Text.Json.JsonSerializer.Serialize(issues.Value));
+
+        var comments = Assert.IsType<OkObjectResult>(await hub.ListComments("i1", CancellationToken.None));
+        Assert.Contains("Deleted user", System.Text.Json.JsonSerializer.Serialize(comments.Value));
     }
 
     // ── Uç nokta: yeniden doğrulama ──────────────────────────────────────────

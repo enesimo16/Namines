@@ -477,7 +477,8 @@ public class ChangeRequestController : ControllerBase
             {
                 a.Id,
                 a.UserId,
-                Username = a.User.UserName,
+                // Hesabı silinen onaylayıcı (UserId/User null): çökmesin, "Deleted user" göster.
+                Username = a.User != null ? a.User.UserName : "Deleted user",
                 a.Decision,
                 a.Comment,
                 a.CreatedAt

@@ -99,6 +99,8 @@ public static class GatewayAccess
         // <b>En az Viewer yetiyor, Editor değil:</b> anahtarın kendi yetkileri
         // (CanWrite/CanExecuteSql/CanExport) ayrıca uygulanıyor; burada sorulan tek
         // şey üretenin projeyle HÂLÂ bir ilişkisi olup olmadığı.
+        // Üreticisinin hesabı silinmişse (FK SET NULL) anahtar sahipsiz: kimseye faturalanamaz, kullanılamaz.
+        if (match.CreatedByUserId is null) return null;
         if (!await context.CanViewAsync(match.ProjectId, match.CreatedByUserId, ct)) return null;
 
         // HAM SQL / DIŞA AKTARIM anahtarları ÜRETENİN HÂLÂ OWNER olmasını ister.

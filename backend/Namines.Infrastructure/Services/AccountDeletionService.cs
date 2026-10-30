@@ -165,6 +165,28 @@ public class AccountDeletionService
             foreach (var id in orgProjectIds) deleteIds.Add(id);
         }
 
+        // Kullanıcının KURDUĞU ve kalan org'larda "kurucu" kaydı bir Owner'a devredilir: ekip planı
+        // kurucunun hesabından okunuyor (TeamController.OrgTierAsync); FK SET NULL ile boşalsaydı
+        // org sessizce Free'ye düşerdi.
+        var orgHeirs = new List<(string OrgId, string NewCreator)>();
+        var createdOrgIds = await _context.Organizations
+            .Where(o => o.CreatedByUserId == userId && !orgsToDelete.Contains(o.Id))
+            .Select(o => o.Id)
+            .ToListAsync(ct);
+        foreach (var orgId in createdOrgIds)
+        {
+            if (!heirByOrg.TryGetValue(orgId, out var heirId))
+            {
+                heirId = await _context.OrganizationMembers
+                    .Where(x => x.OrganizationId == orgId && x.UserId != userId)
+                    .OrderByDescending(x => x.Role == OrgRole.Owner)
+                    .ThenBy(x => x.JoinedAt)
+                    .Select(x => x.UserId)
+                    .FirstOrDefaultAsync(ct);
+            }
+            if (heirId is not null) orgHeirs.Add((orgId, heirId));
+        }
+
         // ── 2. Projeler (dış kaynaklar dahil) ────────────────────────────────
         foreach (var projectId in deleteIds)
         {
@@ -211,6 +233,12 @@ public class AccountDeletionService
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(p => p.UserId, newOwner)
                         .SetProperty(p => p.UpdatedAt, DateTime.UtcNow), ct);
+            }
+
+            foreach (var (orgId, newCreator) in orgHeirs)
+            {
+                await _context.Organizations.Where(o => o.Id == orgId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(o => o.CreatedByUserId, newCreator), ct);
             }
 
             if (orgsToDelete.Count > 0)
