@@ -576,6 +576,40 @@ namespace Namines.Infrastructure.Data
                 .OnDelete(DeleteBehavior.SetNull);
 
             ConfigureCheckConstraints(builder, isPostgres);
+            if (isPostgres) ConfigureGuidKeyDefaults(builder);
+        }
+
+        /// <summary>
+        /// Guid-dizgesi birincil anahtarlar (DB-24): uygulama anahtarı hâlâ KENDİ üretir
+        /// (<c>Guid.NewGuid().ToString()</c>); DB varsayılanı yalnızca elle SQL / migration ile
+        /// eklenen satırlar içindir (<c>gen_random_uuid()::text</c>, PG13+ çekirdek).
+        ///
+        /// <c>ValueGeneratedNever</c> BİLİNÇLİ: <c>HasDefaultValueSql</c> tek başına anahtarı
+        /// "store-generated" yapar ve EF, navigasyon üzerinden bulunan değeri-dolu yeni bir
+        /// varlığı INSERT yerine UPDATE sanabilir; Never ile EF davranışı bugünküyle aynı kalır
+        /// (Id her zaman INSERT'e dahil), sadece DDL'e DEFAULT yazılır.
+        /// Stripe olay kimliği gibi doğal anahtarlar ve Identity tabloları listede YOK.
+        /// </summary>
+        private static void ConfigureGuidKeyDefaults(ModelBuilder builder)
+        {
+            var guidKeyed = new[]
+            {
+                typeof(CloudProject), typeof(Branch), typeof(SchemaVersion), typeof(ChangeRequest),
+                typeof(ChangeRequestApproval), typeof(ChangeRequestAuditLog), typeof(Organization),
+                typeof(TeamInvite), typeof(GatewayApiKey), typeof(GatewayTablePermission),
+                typeof(CrossDatabaseRelation), typeof(SqlExecutionAudit), typeof(RepoIssue),
+                typeof(RepoIssueComment), typeof(DeskHandoffToken), typeof(SqlQueryHistoryEntry),
+                typeof(SavedQuery), typeof(VaultBackup), typeof(VaultRestore), typeof(VaultSchedule),
+                typeof(GroundDatabase), typeof(AutomationRule), typeof(AutomationAction),
+                typeof(AutomationRunLog),
+            };
+
+            foreach (var type in guidKeyed)
+            {
+                builder.Entity(type).Property("Id")
+                    .HasDefaultValueSql("gen_random_uuid()::text")
+                    .ValueGeneratedNever();
+            }
         }
 
         /// <summary>

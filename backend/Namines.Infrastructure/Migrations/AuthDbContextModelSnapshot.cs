@@ -333,7 +333,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.Branch", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<DateTime?>("ClosedAt")
                         .HasColumnType("timestamp with time zone");
@@ -380,7 +381,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequest", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("AiExplanation")
                         .HasColumnType("text");
@@ -469,7 +471,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequestApproval", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("ChangeRequestId")
                         .IsRequired()
@@ -503,7 +506,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequestAuditLog", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<int>("Action")
                         .HasColumnType("integer");
@@ -545,7 +549,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.CloudProject", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<bool>("AllowDeskSql")
                         .HasColumnType("boolean");
@@ -669,7 +674,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.CrossDatabaseRelation", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -718,7 +724,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.DeskHandoffToken", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -750,7 +757,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKey", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("AllowedIps")
                         .HasColumnType("text");
@@ -868,7 +876,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTablePermission", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<bool>("CanExport")
                         .HasColumnType("boolean");
@@ -926,7 +935,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.GroundDatabase", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<DateTime?>("ClaimedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1013,7 +1023,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.Organization", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1062,7 +1073,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.SavedQuery", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1103,7 +1115,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.SchemaVersion", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("AuthorUserId")
                         .HasColumnType("text");
@@ -1154,7 +1167,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.SqlExecutionAudit", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<bool>("ContainsDestructiveKeyword")
                         .HasColumnType("boolean");
@@ -1216,7 +1230,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.SqlQueryHistoryEntry", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1291,7 +1306,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<DateTime?>("AcceptedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1479,7 +1495,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultBackup", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("CipherTextSha256")
                         .HasColumnType("text");
@@ -1553,7 +1570,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("BackupId")
                         .HasColumnType("text");
@@ -1604,7 +1622,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<int>("Cadence")
                         .HasColumnType("integer");
@@ -1659,7 +1678,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.AutomationAction", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("ActionConfigJson")
                         .IsRequired()
@@ -1686,7 +1706,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.AutomationRule", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("ConditionsJson")
                         .IsRequired()
@@ -1723,7 +1744,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.AutomationRunLog", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("ActionType")
                         .IsRequired()
@@ -1797,7 +1819,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssue", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("Body")
                         .IsRequired()
@@ -1857,7 +1880,8 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssueComment", b =>
                 {
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
 
                     b.Property<string>("AuthorUserId")
                         .HasColumnType("text");
