@@ -190,6 +190,8 @@ try
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddEntityFrameworkStores<AuthDbContext>()
+    // TOTP anahtarı + kurtarma kodları AspNetUserTokens'ta şifreli saklansın (DB-35).
+    .AddUserStore<Namines.Infrastructure.Security.EncryptedUserStore>()
     .AddDefaultTokenProviders()
     // Sizdirilmis parola kontrolu. IPasswordValidator olarak kayitli oldugu
     // icin Identity'nin BUTUN parola yollarinda (kayit, parola degistirme,
