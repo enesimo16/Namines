@@ -604,6 +604,12 @@ namespace Namines.Infrastructure.Data
                 .HasIndex(k => k.KeyHash)
                 .IsUnique();
 
+            // Anonim paylaşım uçları ShareToken özetiyle arıyor (DB-14): UNIQUE + kısmi indeks.
+            builder.Entity<CloudProject>()
+                .HasIndex(p => p.ShareTokenHash)
+                .IsUnique()
+                .HasFilter("\"ShareTokenHash\" IS NOT NULL");
+
             ConfigureCheckConstraints(builder, isPostgres);
             if (isPostgres) ConfigureGuidKeyDefaults(builder);
         }

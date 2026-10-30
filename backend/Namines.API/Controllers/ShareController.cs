@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -104,10 +105,11 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> GetSharedSchema(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+        var tokenHash = ShareTokenHasher.Hash(token);
 
         var project = await _context.CloudProjects
             .AsNoTracking()
-            .Where(p => p.ShareToken == token)
+            .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => new
             {
                 p.Name,
@@ -131,10 +133,11 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> GetDbaBadge(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+        var tokenHash = ShareTokenHasher.Hash(token);
 
         var schemaJson = await _context.CloudProjects
             .AsNoTracking()
-            .Where(p => p.ShareToken == token)
+            .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => p.SchemaJson)
             .FirstOrDefaultAsync();
 
@@ -204,10 +207,11 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> OgImage(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+        var tokenHash = ShareTokenHasher.Hash(token);
 
         var project = await _context.CloudProjects
             .AsNoTracking()
-            .Where(p => p.ShareToken == token)
+            .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => new { p.Name, p.DbType, p.SchemaJson })
             .FirstOrDefaultAsync();
 
@@ -287,10 +291,11 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> Meta(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+        var tokenHash = ShareTokenHasher.Hash(token);
 
         var project = await _context.CloudProjects
             .AsNoTracking()
-            .Where(p => p.ShareToken == token)
+            .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => new { p.Name, p.DbType, p.SchemaJson })
             .FirstOrDefaultAsync();
 

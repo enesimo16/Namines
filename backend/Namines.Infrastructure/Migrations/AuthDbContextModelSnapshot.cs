@@ -612,6 +612,9 @@ namespace Namines.Infrastructure.Migrations
                     b.Property<string>("ShareToken")
                         .HasColumnType("text");
 
+                    b.Property<string>("ShareTokenHash")
+                        .HasColumnType("text");
+
                     b.Property<string>("Slug")
                         .HasColumnType("text");
 
@@ -636,6 +639,10 @@ namespace Namines.Infrastructure.Migrations
                     b.HasIndex("ForkedFromProjectId");
 
                     b.HasIndex("OrganizationId");
+
+                    b.HasIndex("ShareTokenHash")
+                        .IsUnique()
+                        .HasFilter("\"ShareTokenHash\" IS NOT NULL");
 
                     b.HasIndex("Slug");
 
