@@ -383,6 +383,7 @@ namespace Namines.API.Controllers
 
         [Authorize]
         [HttpPost("sync")]
+        [RequestSizeLimit(SchemaRequestLimits.BulkSyncBytes)]
         public async Task<IActionResult> SyncProjects([FromBody] List<SyncProjectDto> projects)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

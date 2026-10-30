@@ -232,6 +232,17 @@ public class ExceptionMiddleware
                 null
             ),
 
+            // [RequestSizeLimit] aşımı Kestrel'de BadHttpRequestException(413) olarak gövde okunurken
+            // fırlar; yakalanmazsa 500 görünürdü. Diğer istemci kaynaklı HTTP ihlalleri de 4xx kalır.
+            BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } => (
+                StatusCodes.Status413PayloadTooLarge,
+                "https://namines.dev/errors/payload-too-large",
+                "Payload Too Large",
+                "PAYLOAD_TOO_LARGE",
+                "The request body is too large.",
+                null
+            ),
+
             // Veritabanı kısıt hataları: istemciye kısıt/tablo adı SIZDIRILMAZ (şema bilgisi),
             // yalnızca çakışmanın türü söylenir. Denetleyicide özel ele alınmamış her yol için
             // son güvenlik ağı; eskiden hepsi 500 oluyordu.

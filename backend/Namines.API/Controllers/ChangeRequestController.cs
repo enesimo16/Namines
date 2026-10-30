@@ -106,6 +106,7 @@ public class ChangeRequestController : ControllerBase
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     [HttpPost("quick")]
+    [RequestSizeLimit(SchemaRequestLimits.SingleSchemaBytes)]
     public async Task<IActionResult> CreateQuick([FromBody] QuickChangeRequestRequest request)
     {
         var userId = CurrentUserId;

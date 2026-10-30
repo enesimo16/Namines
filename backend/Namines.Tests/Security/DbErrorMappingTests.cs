@@ -67,6 +67,25 @@ public sealed class DbErrorMappingTests
     }
 
     [Fact]
+    public async Task Govde_siniri_asimi_413_PAYLOAD_TOO_LARGE()
+    {
+        var (status, body, _) = await RunAsync(new BadHttpRequestException("Request body too large.", StatusCodes.Status413PayloadTooLarge));
+        Assert.Equal(413, status);
+        Assert.Equal("PAYLOAD_TOO_LARGE", body.GetProperty("code").GetString());
+    }
+
+    [Theory]
+    [InlineData(typeof(Namines.API.Controllers.BranchController), "CommitSchemaVersion")]
+    [InlineData(typeof(Namines.API.Controllers.ChangeRequestController), "CreateQuick")]
+    [InlineData(typeof(Namines.API.Controllers.AuthController), "SyncProjects")]
+    public void Tam_SchemaJson_kabul_eden_uclarda_RequestSizeLimit_var(Type controller, string action)
+    {
+        var method = controller.GetMethod(action)!;
+        var attr = method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute), false);
+        Assert.Single(attr);
+    }
+
+    [Fact]
     public async Task Taninmayan_DbUpdateException_500_kalir()
     {
         var (status, _, _) = await RunAsync(new DbUpdateException("x", new FakeDbException("08006", "conn")));
