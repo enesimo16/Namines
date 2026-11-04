@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
@@ -14,6 +14,11 @@ using Microsoft.EntityFrameworkCore;
 using Namines.API.Controllers;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
+using Namines.Core.Security;
+using Namines.Flow.Abstractions;
+using Namines.Flow.Application;
+using Namines.Flow.Infrastructure.Persistence;
+using Namines.Flow.Services;
 using Namines.Infrastructure.Data;
 using Xunit;
 
@@ -42,6 +47,9 @@ public sealed class AutomationControllerTests : IAsyncLifetime
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
     private AuthDbContext NewContext() => new(_options);
+    private FlowDbContext NewFlowContext() => new(new DbContextOptionsBuilder<FlowDbContext>().UseSqlite(_connection).Options);
+    private static FlowDbContext FlowDb(AuthDbContext db) => new(new DbContextOptionsBuilder<FlowDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
+    private static async Task AddRuleAsync(AuthDbContext db, AutomationRule rule) { await using var f = FlowDb(db); f.AutomationRules.Add(rule); await f.SaveChangesAsync(); }
 
     private async Task<CloudProject> SeedProjectAsync(AuthDbContext db, string ownerId, string projectId = "proj-1")
     {
@@ -61,7 +69,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
     /// hangi kuralın çalıştırıldığını kaydediyor ve gerçek bir webhook/AI
     /// çağrısı yapmıyor.
     /// </summary>
-    private sealed class RecordingExecutor : IAutomationExecutor
+    private sealed class RecordingExecutor
     {
         public List<(string RuleId, bool IsTest)> Runs { get; } = new();
 
@@ -77,9 +85,111 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         }
     }
 
-    private static AutomationController NewController(AuthDbContext db, string userId, IAutomationExecutor? executor = null)
+    private sealed class DelegatingTestFlowApplicationService : IFlowApplicationService
     {
-        var controller = new AutomationController(db, executor ?? new RecordingExecutor())
+        private readonly FlowApplicationService _inner;
+        private readonly RecordingExecutor _executor;
+
+        public DelegatingTestFlowApplicationService(FlowApplicationService inner, RecordingExecutor executor)
+        {
+            _inner = inner;
+            _executor = executor;
+        }
+
+        public Task<IReadOnlyList<FlowRuleListItem>> GetRulesWithLastRunAsync(string projectId, CancellationToken ct = default) =>
+            _inner.GetRulesWithLastRunAsync(projectId, ct);
+
+        public Task<AutomationRule?> GetRuleAsync(string ruleId, bool includeActions = false, CancellationToken ct = default) =>
+            _inner.GetRuleAsync(ruleId, includeActions, ct);
+
+        public Task<AutomationRule> CreateRuleAsync(AutomationRule rule, CancellationToken ct = default) =>
+            _inner.CreateRuleAsync(rule, ct);
+
+        public Task<AutomationRule?> UpdateRuleAsync(string ruleId, string name, string? scopeTableId, string triggerType, string conditionsJson, bool enabled, List<AutomationAction> actions, CancellationToken ct = default) =>
+            _inner.UpdateRuleAsync(ruleId, name, scopeTableId, triggerType, conditionsJson, enabled, actions, ct);
+
+        public Task<bool> DeleteRuleAsync(string ruleId, CancellationToken ct = default) =>
+            _inner.DeleteRuleAsync(ruleId, ct);
+
+        public Task<IReadOnlyList<AutomationRunLog>> GetRunsAsync(string ruleId, int take, CancellationToken ct = default) =>
+            _inner.GetRunsAsync(ruleId, take, ct);
+
+        public Task<int> CountRecentTestRunsAsync(string ruleId, DateTime since, CancellationToken ct = default) =>
+            _inner.CountRecentTestRunsAsync(ruleId, since, ct);
+
+        public Task<IReadOnlyList<AutomationRunLog>> GetTestRunLogsSinceAsync(string ruleId, DateTime runStartedAt, CancellationToken ct = default) =>
+            _inner.GetTestRunLogsSinceAsync(ruleId, runStartedAt, ct);
+
+        public Task<IReadOnlySet<string>> GetProjectIdsWithEnabledRulesAsync(IReadOnlyCollection<string> projectIds, CancellationToken ct = default) =>
+            _inner.GetProjectIdsWithEnabledRulesAsync(projectIds, ct);
+
+        public Task<(int RulesCount, int TotalExecutions, DateTime? LastTriggeredAt, string[] ActiveTriggers)> GetProjectFlowSummaryAsync(string projectId, CancellationToken ct = default) =>
+            _inner.GetProjectFlowSummaryAsync(projectId, ct);
+
+        public Task RunAsync(string projectId, SchemaDiffResult diff, DatabaseSchema oldSchema, DatabaseSchema newSchema, CancellationToken ct = default) =>
+            _executor.RunAsync(projectId, diff, oldSchema, newSchema, ct);
+
+        public Task RunRuleAsync(AutomationRule rule, string userId, DatabaseSchema schema, DatabaseType engine, AutomationTriggerContext context, string projectName, bool isTest, CancellationToken ct = default) =>
+            _executor.RunRuleAsync(rule, userId, schema, engine, context, projectName, isTest, ct);
+
+        public Task<int> PurgeRunLogsAsync(int retentionDays, int maxPerRule, CancellationToken ct = default) =>
+            _inner.PurgeRunLogsAsync(retentionDays, maxPerRule, ct);
+    }
+
+    private sealed class PassthroughProtector : IConnectionSecretProtector
+    {
+        public string Protect(string plaintext) => plaintext;
+        public string Unprotect(string protectedPayload) => protectedPayload;
+    }
+
+    private sealed class NoopQuota : IFlowAiQuotaGate
+    {
+        public Task<bool> TryReserveAsync(string userId, int tokens, CancellationToken ct = default) =>
+            Task.FromResult(true);
+    }
+    // LegacyNoopQuota temizlendi.
+
+    private sealed class NoopDbaAnalyzer : Namines.Core.Interfaces.IDbaSchemaAnalyzer
+    {
+        public Task<List<DbaIssue>> AnalyzeSchemaDbaAsync(DatabaseSchema schema, DatabaseType dbType) =>
+            Task.FromResult(new List<DbaIssue>());
+    }
+
+    private sealed class NoopAiService : Namines.Core.Interfaces.IAIService
+    {
+        public Task<DatabaseSchema> GenerateSchemaAsync(GenerateRequest request) => Task.FromResult(new DatabaseSchema());
+        public Task<DatabaseSchema> ReviseSchemaAsync(ReviseRequest request) => Task.FromResult(new DatabaseSchema());
+        public Task<string> GenerateMockDataAsync(DatabaseSchema schema) => Task.FromResult(string.Empty);
+        public Task<string> GenerateProjectSummaryAsync(DatabaseSchema schema, string projectName) => Task.FromResult(string.Empty);
+        public Task<string> GenerateStreamlitAppAsync(DatabaseSchema schema, DatabaseType dbType) => Task.FromResult(string.Empty);
+        public Task<DatabaseSchema> AnalyzeImageAsync(byte[] imageBytes, string mimeType) => Task.FromResult(new DatabaseSchema());
+        public Task<string> ExplainImpactAsync(ImpactReport impact) => Task.FromResult(string.Empty);
+    }
+
+    private sealed class NoopHttpClientFactory : System.Net.Http.IHttpClientFactory
+    {
+        public System.Net.Http.HttpClient CreateClient(string name) => new();
+    }
+
+    private static AutomationController NewController(AuthDbContext db, string userId, RecordingExecutor? executor = null)
+    {
+        var flowOptions = new DbContextOptionsBuilder<FlowDbContext>()
+            .UseSqlite(db.Database.GetDbConnection())
+            .Options;
+        var flowDb = new FlowDbContext(flowOptions);
+        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var innerFlowApp = new FlowApplicationService(
+            flowDb,
+            authority,
+            new NoopQuota(),
+            new NoopDbaAnalyzer(),
+            new NoopAiService(),
+            new NoopHttpClientFactory(),
+            new Namines.Infrastructure.LinterService(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<FlowApplicationService>.Instance);
+        var flowApp = new DelegatingTestFlowApplicationService(innerFlowApp, executor ?? new RecordingExecutor());
+        var flowModule = new FlowModule(new FlowRuleMatcher(), flowApp, new FlowJobQueue());
+        var controller = new AutomationController(authority, flowModule)
         {
             ControllerContext = new ControllerContext
             {
@@ -123,14 +233,14 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         // varken bile saldırgan hiçbirini görmemeli.
         await using var db = NewContext();
         await SeedProjectAsync(db, ownerId: "owner-1");
-        db.AutomationRules.Add(new Namines.Core.Models.AutomationRule
+        await AddRuleAsync(db, new Namines.Core.Models.AutomationRule
         {
             ProjectId = "proj-1",
             ScopeTableId = "t_users",
             TriggerType = "TableAdded",
             Actions = { new Namines.Core.Models.AutomationAction { ActionType = "Toast" } },
         });
-        await db.SaveChangesAsync();
+// rule added via FlowDb
 
         var controller = NewController(db, userId: "intruder-1");
 
@@ -164,7 +274,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         var created = Assert.IsType<AutomationRule>(ok.Value);
         Assert.Equal("proj-1", created.ProjectId);
 
-        await using var verifyDb = NewContext();
+        await using var verifyDb = NewFlowContext();
         var persisted = await verifyDb.AutomationRules.SingleOrDefaultAsync(r => r.Id == created.Id);
         Assert.NotNull(persisted);
         Assert.Equal("TableAdded", persisted!.TriggerType);
@@ -178,8 +288,8 @@ public sealed class AutomationControllerTests : IAsyncLifetime
             TriggerType = "TableDeleted",
             Actions = { new AutomationAction { SortOrder = 0, ActionType = "Toast" } },
         };
-        db.AutomationRules.Add(rule);
-        await db.SaveChangesAsync();
+        await AddRuleAsync(db, rule);
+        // rule saved via FlowDb
         return rule;
     }
 
@@ -209,7 +319,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
         var returned = Assert.IsType<AutomationRule>(ok.Value);
         Assert.Equal(2, returned.Actions.Count);
 
-        await using var verifyDb = NewContext();
+        await using var verifyDb = NewFlowContext();
         var persisted = await verifyDb.AutomationRules.Include(r => r.Actions).SingleAsync(r => r.Id == rule.Id);
         Assert.Equal("ColumnAdded", persisted.TriggerType);
         Assert.Contains("endsWith", persisted.ConditionsJson);
@@ -244,7 +354,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
 
         Assert.IsType<NotFoundResult>(result);
 
-        await using var verifyDb = NewContext();
+        await using var verifyDb = NewFlowContext();
         var persisted = await verifyDb.AutomationRules.Include(r => r.Actions).SingleAsync(r => r.Id == rule.Id);
         Assert.Equal("Toast", Assert.Single(persisted.Actions).ActionType);
         Assert.Equal("TableDeleted", persisted.TriggerType);
@@ -273,8 +383,8 @@ public sealed class AutomationControllerTests : IAsyncLifetime
             TriggerType = "TableAdded",
             Actions = { new AutomationAction { SortOrder = 0, ActionType = "Toast" } },
         };
-        db.AutomationRules.Add(rule);
-        await db.SaveChangesAsync();
+        await AddRuleAsync(db, rule);
+        // rule saved via FlowDb
 
         var controller = NewController(db, userId: "owner-1");
 
@@ -282,7 +392,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
 
         Assert.IsType<OkObjectResult>(result);
 
-        await using var verifyDb = NewContext();
+        await using var verifyDb = NewFlowContext();
         var persisted = await verifyDb.AutomationRules.SingleOrDefaultAsync(r => r.Id == rule.Id);
         Assert.Null(persisted);
     }
@@ -291,11 +401,12 @@ public sealed class AutomationControllerTests : IAsyncLifetime
 
     private async Task SeedRunAsync(AuthDbContext db, string ruleId, string status, DateTime at, bool isTest = false)
     {
-        db.AutomationRunLogs.Add(new AutomationRunLog
+        await using var flowDb = FlowDb(db);
+        flowDb.AutomationRunLogs.Add(new AutomationRunLog
         {
             RuleId = ruleId, ActionType = "Webhook", Status = status, TriggeredAt = at, IsTest = isTest,
         });
-        await db.SaveChangesAsync();
+        await flowDb.SaveChangesAsync();
     }
 
     [Fact]
@@ -432,8 +543,8 @@ public sealed class AutomationControllerTests : IAsyncLifetime
             ProjectId = project.Id, TriggerType = "TableDeleted",
             Actions = { new AutomationAction { SortOrder = 0, ActionType = "Webhook" } },
         };
-        db.AutomationRules.Add(rule);
-        await db.SaveChangesAsync();
+        await AddRuleAsync(db, rule);
+        // rule saved via FlowDb
 
         // Pencere içinde sınır kadar test çalışması zaten var.
         for (var i = 0; i < 5; i++)
@@ -465,8 +576,8 @@ public sealed class AutomationControllerTests : IAsyncLifetime
                 new AutomationAction { SortOrder = 4, ActionType = "Webhook" },
             },
         };
-        db.AutomationRules.Add(rule);
-        await db.SaveChangesAsync();
+        await AddRuleAsync(db, rule);
+        // rule saved via FlowDb
 
         // Tek bir test çalıştırmasının ürettiği kadar satır (5 adım × 1 tur).
         for (var i = 0; i < 5; i++)

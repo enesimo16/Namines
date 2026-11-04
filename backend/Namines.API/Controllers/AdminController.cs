@@ -17,6 +17,10 @@ using Namines.Core.Interfaces;
 using Namines.Infrastructure.Data;
 
 using Namines.API.Services;
+using Namines.Desk.Abstractions;
+using Namines.Flow.Abstractions;
+using Namines.Ground.Abstractions;
+using Namines.Vault.Abstractions;
 
 namespace Namines.API.Controllers;
 
@@ -32,6 +36,10 @@ public class AdminController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly IFeatureFlagService? _featureFlags;
     private readonly IAiToolRouter? _aiRouter;
+    private readonly IVaultModule? _vault;
+    private readonly IGroundModule? _ground;
+    private readonly IFlowModule? _flow;
+    private readonly IDeskModule? _desk;
 
     public AdminController(
         UserManager<ApplicationUser> userManager,
@@ -40,7 +48,11 @@ public class AdminController : ControllerBase
         AdminTelemetryService telemetry,
         IConfiguration configuration,
         IFeatureFlagService? featureFlags = null,
-        IAiToolRouter? aiRouter = null)
+        IAiToolRouter? aiRouter = null,
+        IVaultModule? vault = null,
+        IGroundModule? ground = null,
+        IFlowModule? flow = null,
+        IDeskModule? desk = null)
     {
         _userManager = userManager;
         _context = context;
@@ -49,6 +61,10 @@ public class AdminController : ControllerBase
         _configuration = configuration;
         _featureFlags = featureFlags;
         _aiRouter = aiRouter;
+        _vault = vault;
+        _ground = ground;
+        _flow = flow;
+        _desk = desk;
     }
 
     private async Task<ApplicationUser?> EnsureAdminAsync()
@@ -156,7 +172,7 @@ public class AdminController : ControllerBase
         var totalUsers = await _userManager.Users.CountAsync();
         var totalProjects = await _context.CloudProjects.CountAsync();
         var totalFeedbacks = await _context.Feedbacks.CountAsync();
-        var activeDatabases = await _context.GroundDatabases.CountAsync();
+        var activeDatabases = _ground != null ? await _ground.Databases.CountTotalDatabasesAsync() : 0;
 
         var freeUsers = await _userManager.Users.CountAsync(u => !u.IsDev && (u.PlanCode == null || u.PlanCode == "" || u.PlanCode == "free"));
         var proUsers = await _userManager.Users.CountAsync(u => !u.IsDev && u.PlanCode == "pro");
@@ -765,25 +781,20 @@ public class AdminController : ControllerBase
             .ToListAsync();
 
         var projectIds = projectsRaw.Select(p => p.Id).ToList();
-        var vaultBackupCounts = await _context.VaultBackups
-            .AsNoTracking()
-            .Where(b => projectIds.Contains(b.ProjectId))
-            .GroupBy(b => b.ProjectId)
-            .Select(g => new { ProjectId = g.Key, Count = g.Count(), TotalBytes = g.Sum(x => x.SizeBytes) })
-            .ToDictionaryAsync(x => x.ProjectId, x => new { x.Count, x.TotalBytes });
+        var vaultBackupCounts = _vault != null
+            ? await _vault.Backups.GetProjectBackupStatsAsync(projectIds)
+            : (IReadOnlyDictionary<string, (int Count, long TotalBytes)>)new Dictionary<string, (int Count, long TotalBytes)>();
 
-        var groundDbStatuses = (await _context.GroundDatabases
-            .AsNoTracking()
-            .Where(g => projectIds.Contains(g.ProjectId))
-            .Select(g => g.ProjectId)
-            .ToListAsync()).ToHashSet();
+        var groundDbStatuses = _ground != null
+            ? await _ground.Databases.GetProjectIdsWithDatabaseAsync(projectIds)
+            : (IReadOnlySet<string>)new HashSet<string>();
 
         var items = projectsRaw.Select(p =>
         {
             var tableCount = CountTables(p.SchemaJson);
 
-            vaultBackupCounts.TryGetValue(p.Id, out var vb);
-            long backupBytes = vb?.TotalBytes ?? 0;
+            var hasVb = vaultBackupCounts.TryGetValue(p.Id, out var vb);
+            long backupBytes = hasVb ? vb.TotalBytes : 0;
             // Ölçülen depolama: şema JSON'unun bayt boyutu + gerçek Vault yedekleri.
             // Eski formül (tablo*0.45 + 1.2 MB) uydurma bir "tahmin"di.
             long schemaBytes = string.IsNullOrEmpty(p.SchemaJson) ? 0 : System.Text.Encoding.UTF8.GetByteCount(p.SchemaJson);
@@ -799,7 +810,7 @@ public class AdminController : ControllerBase
                 dbType = string.IsNullOrWhiteSpace(p.DbType) ? "PostgreSQL" : p.DbType,
                 tableCount,
                 estimatedMb,
-                vaultBackupsCount = vb?.Count ?? 0,
+                vaultBackupsCount = hasVb ? vb.Count : 0,
                 hasGroundDatabase = groundDbStatuses.Contains(p.Id),
                 createdAt = p.CreatedAt,
                 updatedAt = p.UpdatedAt
@@ -813,7 +824,7 @@ public class AdminController : ControllerBase
         {
             totalTablesCount += CountTables(schemaJson);
         }
-        var totalBackupBytes = await _context.VaultBackups.AsNoTracking().SumAsync(b => (long?)b.SizeBytes) ?? 0L;
+        var totalBackupBytes = _vault != null ? await _vault.Backups.GetTotalBackupBytesAsync() : 0L;
         var totalSchemaChars = await _context.CloudProjects.AsNoTracking()
             .SumAsync(p => (long?)(p.SchemaJson == null ? 0 : p.SchemaJson.Length)) ?? 0L;
 
@@ -1000,44 +1011,29 @@ public class AdminController : ControllerBase
         var tableCount = CountTables(project.SchemaJson);
         var baseMb = Math.Round((string.IsNullOrEmpty(project.SchemaJson) ? 0 : System.Text.Encoding.UTF8.GetByteCount(project.SchemaJson)) / BytesPerMb, 2);
 
-        // Vault: Bu projeye ait gerçek yedekler
-        var backups = await _context.VaultBackups.AsNoTracking()
-            .Where(b => b.ProjectId == id)
-            .OrderByDescending(b => b.CreatedAt)
-            .ToListAsync();
+        // Vault: Bu projeye ait gerçek yedekler (IVaultModule sözleşmesi üzerinden)
+        var backups = _vault != null
+            ? await _vault.Backups.ListBackupsAsync(id)
+            : Array.Empty<VaultBackup>();
         var vaultBackups = backups.Count;
         var vaultTotalMb = Math.Round(backups.Sum(b => b.SizeBytes) / (1024.0 * 1024.0), 2);
         var lastBackup = backups.FirstOrDefault();
 
-        // Flow: Bu projeye ait gerçek otomasyon kuralları ve çalışma logları
-        var flowRules = await _context.AutomationRules.AsNoTracking()
-            .Where(r => r.ProjectId == id)
-            .ToListAsync();
-        var flowRulesCount = flowRules.Count;
-        var ruleIds = flowRules.Select(r => r.Id).ToList();
-        var flowExecs = ruleIds.Count > 0
-            ? await _context.AutomationRunLogs.AsNoTracking().CountAsync(l => ruleIds.Contains(l.RuleId))
-            : 0;
-        var lastTriggeredAt = ruleIds.Count > 0
-            ? await _context.AutomationRunLogs.AsNoTracking()
-                .Where(l => ruleIds.Contains(l.RuleId))
-                .OrderByDescending(l => l.TriggeredAt)
-                .Select(l => (DateTime?)l.TriggeredAt)
-                .FirstOrDefaultAsync()
-            : null;
+        // Flow: Bu projeye ait gerçek otomasyon kuralları ve çalışma logları (IFlowModule sözleşmesi üzerinden)
+        var (flowRulesCount, flowExecs, lastTriggeredAt, activeTriggers) = _flow != null
+            ? await _flow.Application.GetProjectFlowSummaryAsync(id)
+            : (0, 0, (DateTime?)null, Array.Empty<string>());
 
-        // Ground: Yönetilen DB kaydı
-        var groundDb = await _context.GroundDatabases.AsNoTracking()
-            .FirstOrDefaultAsync(g => g.ProjectId == id);
+        // Ground: Yönetilen DB kaydı (IGroundModule sözleşmesi üzerinden)
+        var groundDb = _ground != null
+            ? await _ground.Databases.GetByProjectIdAsync(id)
+            : null;
         var hasGround = groundDb != null;
 
-        // Desk: Bu projenin SQL geçmişi
-        var deskQueries = await _context.SqlQueryHistory.AsNoTracking()
-            .CountAsync(q => q.ProjectId == id);
-        var lastDeskQuery = await _context.SqlQueryHistory.AsNoTracking()
-            .Where(q => q.ProjectId == id)
-            .OrderByDescending(q => q.CreatedAt)
-            .FirstOrDefaultAsync();
+        // Desk: Bu projenin SQL geçmişi (IDeskModule sözleşmesi üzerinden)
+        var (deskQueries, lastDeskQueryAt) = _desk != null
+            ? await _desk.Application.GetProjectQuerySummaryAsync(id)
+            : (0, (DateTime?)null);
 
         // Compile: Change request sayısı
         var ddlGenerated = await _context.ChangeRequests.AsNoTracking()
@@ -1065,7 +1061,7 @@ public class AdminController : ControllerBase
                 rulesCount = flowRulesCount,
                 totalExecutions = flowExecs,
                 lastTriggeredAt = lastTriggeredAt,
-                activeTriggers = flowRules.Select(r => r.TriggerType).Distinct().ToArray()
+                activeTriggers = activeTriggers
             },
             ground = new
             {
@@ -1078,7 +1074,7 @@ public class AdminController : ControllerBase
             desk = new
             {
                 totalQueriesExecuted = deskQueries,
-                lastQueryAt = lastDeskQuery?.CreatedAt,
+                lastQueryAt = lastDeskQueryAt,
                 exportCount = 0
             },
             compile = new
@@ -1135,15 +1131,13 @@ public class AdminController : ControllerBase
             sb.AppendLine("ID,Name,OwnerEmail,Engine,TableCount,StorageMb,CreatedAt");
             var projs = await _context.CloudProjects.AsNoTracking().Include(p => p.User).Take(500).ToListAsync();
             var projIds = projs.Select(p => p.Id).ToList();
-            var backupBytes = await _context.VaultBackups.AsNoTracking()
-                .Where(b => projIds.Contains(b.ProjectId))
-                .GroupBy(b => b.ProjectId)
-                .Select(g => new { ProjectId = g.Key, Bytes = g.Sum(x => x.SizeBytes) })
-                .ToDictionaryAsync(x => x.ProjectId, x => x.Bytes);
+            var backupStats = _vault != null
+                ? await _vault.Backups.GetProjectBackupStatsAsync(projIds)
+                : (IReadOnlyDictionary<string, (int Count, long TotalBytes)>)new Dictionary<string, (int Count, long TotalBytes)>();
             foreach (var p in projs)
             {
                 var schemaBytes = string.IsNullOrEmpty(p.SchemaJson) ? 0 : System.Text.Encoding.UTF8.GetByteCount(p.SchemaJson);
-                var storageMb = Math.Round((schemaBytes + backupBytes.GetValueOrDefault(p.Id, 0L)) / BytesPerMb, 2);
+                var storageMb = Math.Round((schemaBytes + (backupStats.TryGetValue(p.Id, out var bs) ? bs.TotalBytes : 0L)) / BytesPerMb, 2);
                 sb.AppendLine(AdminCsv.Row(p.Id, p.Name ?? "Unnamed", p.User?.Email, p.DbType, CountTables(p.SchemaJson), storageMb, p.CreatedAt));
             }
         }

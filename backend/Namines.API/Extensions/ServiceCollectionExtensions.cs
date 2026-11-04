@@ -1,5 +1,7 @@
 using System;
 using Namines.Infrastructure.Data;
+using Namines.BuildingBlocks.DependencyInjection;
+using Namines.BuildingBlocks.Security;
 using Namines.Core.Github;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,6 +80,7 @@ public static class ServiceCollectionExtensions
         
         // Default IAIService = Groq (for backward compat with other controllers)
         services.AddScoped<IAIService>(sp => sp.GetRequiredService<GroqAIService>());
+        services.AddScoped<IDbaSchemaAnalyzer>(sp => sp.GetRequiredService<GroqAIService>());
 
         services.AddScoped<ILinterService, LinterService>();
         // Singleton: tamamen durumsuz bir fabrika. Scoped kalsaydı, onu tüketen
@@ -164,12 +167,15 @@ public static class ServiceCollectionExtensions
 
         // Modular Monolith (Faz 2) — Modüller arası asenkron in-process olay veri yolu
         services.AddSingleton<IModuleEventBus, ModuleEventBus>();
+        services.AddNaminesBuildingBlocks();
+        services.AddScoped<TenantProjectAuthorityService>();
+        services.AddScoped<ITenantProjectAuthority>(sp => sp.GetRequiredService<TenantProjectAuthorityService>());
+        services.AddScoped<IProjectConnectionSecretProvider>(sp => sp.GetRequiredService<TenantProjectAuthorityService>());
 
         // Namines Vault — yedekleme/geri yükleme. Modülün kendi kayıtları
         // (sağlayıcı, depo, şifreleme) tek bir uzantıda; VaultService ise
         // veritabanına dokunduğu için scoped.
         services.AddNaminesVault();
-        services.AddScoped<VaultService>();
 
         // Yedekleme arka planda calisiyor (PERF-003 / B-35).
         //
@@ -180,17 +186,15 @@ public static class ServiceCollectionExtensions
         // dondugunde atiliyor ve ona arka planda dokunmak
         // ObjectDisposedException demek -- ve bu yalnizca YAVAS yedeklerde,
         // yani uretimde gorunur.
-        services.AddSingleton<IVaultJobQueue, VaultJobQueue>();
-        services.AddHostedService<VaultBackupWorker>();
+        // VaultBackupWorker artik AddNaminesVault() icinde kaydediliyor.
 
         // Namines Flow — otomasyon tetikleme kuyruğu ve modül kaydı (Bölüm 3).
         services.AddFlowModule();
         services.AddSingleton<IAutomationJobQueue, AutomationJobQueue>();
-        services.AddScoped<IAutomationExecutor, AutomationExecutor>();
-        services.AddHostedService<AutomationExecutorWorker>();
+        // FlowExecutorWorker artik AddFlowModule() icinde kaydediliyor.
         // Çalışma kayıtları hiçbir şey tarafından silinmiyordu; sık tetiklenen
         // bir kural tabloyu süresiz büyütür.
-        services.AddHostedService<AutomationRunLogRetentionService>();
+        // FlowRunLogRetentionService artik AddFlowModule() icinde kaydediliyor.
 
         // Namines Desk — Modular Monolith backend modülü
         services.AddDeskModule();
@@ -204,6 +208,8 @@ public static class ServiceCollectionExtensions
         // paylaşılsın diye yeni bir nesne kurulmuyor, kayıtlı somut servis
         // çözümleniyor.
         services.AddScoped<IAiQuotaReserver>(sp => sp.GetRequiredService<AiQuotaService>());
+        services.AddScoped<Namines.Flow.Application.IFlowAiQuotaGate>(sp =>
+            new FlowAiQuotaGateAdapter(sp.GetRequiredService<IAiQuotaReserver>()));
 
         // Webhook aksiyonu için adlandırılmış istemci — kısa timeout: kullanıcının
         // üçüncü taraf ucu yavaşsa/düşükse bu, işçiyi TIKAMAMALI.
@@ -229,17 +235,16 @@ public static class ServiceCollectionExtensions
 
         // Namines Ground -- yonetilen veritabani.
         services.AddNaminesGround();
-        services.AddScoped<GroundService>();
         services.AddScoped<ProjectDeletionService>();
         services.AddScoped<AccountDeletionService>();
         services.AddScoped<ISubscriptionCanceller, Namines.API.Services.StripeSubscriptionCanceller>();
 
         // Bekleme penceresi dolan yonetilen veritabanlarini kalici olarak siler.
-        services.AddHostedService<GroundPurgeBackgroundService>();
+        // GroundPurgeBackgroundService artik AddNaminesGround() icinde kaydediliyor.
 
         // Zamanlanmis yedekler (V4). Kapali bir zamanlamasi olan proje icin
         // hicbir sey yapmaz; acilista tek bir sorgudan ibaret.
-        services.AddHostedService<VaultScheduleBackgroundService>();
+        // VaultScheduleBackgroundService artik AddNaminesVault() icinde kaydediliyor.
 
         // Arka Plan Docker Sweeper (Sunucu Kilitlenmesi Önleyici)
         services.AddHostedService<DockerSweeperBackgroundService>();
@@ -261,7 +266,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IScaffolderService, ScaffolderService>();
 
         // Semantic Cache Service registration
-        services.AddScoped<SemanticCacheService>();
+        services.AddSingleton<SemanticCacheService>();
 
         // Canlı DB tersine mühendislik (INFORMATION_SCHEMA)
         services.AddScoped<IDbIntrospectionService, DbIntrospectionService>();
@@ -294,4 +299,18 @@ public static class ServiceCollectionExtensions
 
     private static int ReadInt(IConfiguration configuration, string key, int fallback)
         => int.TryParse(configuration[key], out var value) ? value : fallback;
+
+    private sealed class FlowAiQuotaGateAdapter : Namines.Flow.Application.IFlowAiQuotaGate
+    {
+        private readonly IAiQuotaReserver _reserver;
+
+        public FlowAiQuotaGateAdapter(IAiQuotaReserver reserver) => _reserver = reserver;
+
+        public async System.Threading.Tasks.Task<bool> TryReserveAsync(
+            string userId, int estimatedTokens, System.Threading.CancellationToken ct = default)
+        {
+            var decision = await _reserver.TryReserveAsync(userId, estimatedTokens, ct);
+            return decision == AiQuotaDecision.Allowed;
+        }
+    }
 }

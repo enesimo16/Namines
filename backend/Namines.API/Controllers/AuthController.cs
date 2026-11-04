@@ -13,7 +13,11 @@ using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+
+
 using Namines.API.Extensions;
+using Namines.Desk.Abstractions;
+using Namines.Flow.Abstractions;
 using Namines.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
@@ -50,6 +54,8 @@ namespace Namines.API.Controllers
         private readonly IWebHostEnvironment? _environment;
         private readonly IHttpClientFactory? _httpClientFactory;
         private readonly AccountDeletionService? _accountDeletion;
+        private readonly IFlowModule? _flowModule;
+        private readonly IDeskModule? _deskModule;
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
@@ -60,7 +66,11 @@ namespace Namines.API.Controllers
             ILogger<AuthController> logger,
             IWebHostEnvironment? environment = null,
             IHttpClientFactory? httpClientFactory = null,
-            AccountDeletionService? accountDeletion = null)
+
+
+            AccountDeletionService? accountDeletion = null,
+            IFlowModule? flowModule = null,
+            IDeskModule? deskModule = null)
         {
             _userManager = userManager;
             _context = context;
@@ -70,7 +80,10 @@ namespace Namines.API.Controllers
             _logger = logger;
             _environment = environment;
             _httpClientFactory = httpClientFactory;
+            _httpClientFactory = httpClientFactory;
             _accountDeletion = accountDeletion;
+            _flowModule = flowModule;
+            _deskModule = deskModule;
         }
 
         [HttpPost("register")]
@@ -318,7 +331,8 @@ namespace Namines.API.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-            var raw = await _context.CreateDeskHandoffTokenAsync(userId, ct);
+            if (_deskModule is null) throw new InvalidOperationException("IDeskModule is required for Desk handoff token operations.");
+            var raw = await _deskModule.Application.CreateHandoffTokenAsync(userId, ct);
             return Ok(new { token = raw, expiresInSeconds = 30 });
         }
 
@@ -334,7 +348,8 @@ namespace Namines.API.Controllers
             if (string.IsNullOrWhiteSpace(request.Token))
                 return BadRequest(new { Message = "A token is required." });
 
-            var userId = await _context.ExchangeDeskHandoffTokenAsync(request.Token, ct);
+            if (_deskModule is null) throw new InvalidOperationException("IDeskModule is required for Desk handoff token operations.");
+            var userId = await _deskModule.Application.ExchangeHandoffTokenAsync(request.Token, ct);
             if (userId is null)
                 return Unauthorized(new { Message = "The token is invalid, expired, or already used." });
 
@@ -499,14 +514,17 @@ namespace Namines.API.Controllers
             // sync'te, her proje için). Tek sorgu + HashSet: Task 1'in
             // (ProjectId, Enabled) indeksi bunu zaten karşılıyor.
             var diffProjectIds = pendingDiffs.Select(d => d.ProjectId).Distinct().ToList();
-            var projectIdsWithRules = diffProjectIds.Count == 0
+            IReadOnlySet<string> projectIdsWithRules = diffProjectIds.Count == 0 || _flowModule is null
+
                 ? new HashSet<string>()
-                : (await _context.AutomationRules.AsNoTracking()
-                        .Where(r => diffProjectIds.Contains(r.ProjectId) && r.Enabled)
-                        .Select(r => r.ProjectId)
-                        .Distinct()
-                        .ToListAsync())
-                    .ToHashSet();
+                : await _flowModule.Application.GetProjectIdsWithEnabledRulesAsync(diffProjectIds);
+
+            // Flow modulu uzerinden sorgulaniyor (dogrudan AutomationRules erisimi yok).
+            // projectIdsWithRules yukarida Flow modulu ile cozuldu.
+            // .Select(r => r.ProjectId)
+            // .Distinct()
+            // .ToListAsync())
+            // .ToHashSet();
 
             foreach (var (pid, dbType, oldJson, newJson) in pendingDiffs)
             {

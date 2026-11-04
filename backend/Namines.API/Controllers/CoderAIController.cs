@@ -115,7 +115,7 @@ public class CoderAIController : ControllerBase
                 {
                     try
                     {
-                        var cached = await cacheService.TryGetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString(), promptVersion = StreamlitPromptVersion });
+                        var cached = await cacheService.TryGetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString(), promptVersion = StreamlitPromptVersion }, userId);
                         if (cached != null)
                         {
                             _jobManager.AddLog(jobId, "CoderAI: Cache HIT. Reusing cached Streamlit app code.");
@@ -138,7 +138,7 @@ public class CoderAIController : ControllerBase
                             
                             try
                             {
-                                await cacheService.SetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString(), promptVersion = StreamlitPromptVersion }, appPyContent, TimeSpan.FromHours(2));
+                                await cacheService.SetAsync("coderai", request.Schema, new { dbType = request.DbType.ToString(), promptVersion = StreamlitPromptVersion }, appPyContent, TimeSpan.FromHours(2), userId);
                             }
                             catch (Exception cacheEx)
                             {

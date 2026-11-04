@@ -18,6 +18,7 @@ using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Models.Hub;
 using Namines.Core.Nsl;
+using Namines.BuildingBlocks.Application;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 
@@ -58,13 +59,17 @@ public class HubController : ControllerBase
     private readonly AuthDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ProjectDeletionService _projectDeletion;
+    private readonly IHubApplicationService? _hub;
+    private readonly IStudioApplicationService? _studio;
 
     public HubController(
-        AuthDbContext context, UserManager<ApplicationUser> userManager, ProjectDeletionService projectDeletion)
+        AuthDbContext context, UserManager<ApplicationUser> userManager, ProjectDeletionService projectDeletion, IHubApplicationService? hub = null, IStudioApplicationService? studio = null)
     {
         _context = context;
         _userManager = userManager;
         _projectDeletion = projectDeletion;
+        _hub = hub;
+        _studio = studio;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -506,6 +511,31 @@ public class HubController : ControllerBase
             return Conflict(new { error = "This slug is already taken." });
         }
 
+        if (_hub != null)
+        {
+            var repo = new ProjectRepository
+            {
+                ProjectId = projectId,
+                Slug = project.Slug ?? projectId,
+                Description = project.Description,
+                Visibility = project.Visibility,
+                Category = project.Category,
+                StarCount = project.StarCount,
+                ForkCount = project.ForkCount,
+                ForkedFromProjectId = project.ForkedFromProjectId,
+                LinkedGithubRepo = project.LinkedGithubRepo,
+                UpdatedAt = DateTime.UtcNow
+            };
+            var tagsList = string.IsNullOrWhiteSpace(project.Tags)
+                ? Array.Empty<string>()
+                : project.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            await _hub.UpsertRepositoryAsync(repo, tagsList, ct);
+        }
+        if (_studio != null)
+        {
+            await _studio.CreateOrUpdateProjectAsync(project, ct);
+        }
+
         return Ok(new
         {
             project.Id,
@@ -719,6 +749,32 @@ public class HubController : ControllerBase
         await _context.CloudProjects
             .Where(p => p.Id == projectId)
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.ForkCount, p => p.ForkCount + 1), ct);
+
+        if (_hub != null)
+        {
+            var repo = new ProjectRepository
+            {
+                ProjectId = forkedProject.Id,
+                Slug = forkedProject.Slug,
+                Description = forkedProject.Description,
+                Visibility = forkedProject.Visibility,
+                Category = forkedProject.Category,
+                StarCount = 0,
+                ForkCount = 0,
+                ForkedFromProjectId = project.Id,
+                PublishedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            var tags = string.IsNullOrWhiteSpace(forkedProject.Tags)
+                ? Array.Empty<string>()
+                : forkedProject.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            await _hub.UpsertRepositoryAsync(repo, tags, ct);
+            await _hub.ForkRepositoryAsync(project.Id, forkedProject.Id, ct);
+        }
+        if (_studio != null)
+        {
+            await _studio.CreateOrUpdateProjectAsync(forkedProject, ct);
+        }
 
         return CreatedAtAction(nameof(GetRepo), new { owner = callerName, slugOrId = forkedProject.Slug }, new
         {

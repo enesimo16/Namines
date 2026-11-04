@@ -95,7 +95,9 @@ public sealed class AesGcmConnectionSecretProtector : IRotatableSecretProtector
             outputLength: 32);
     }
 
-    public string Protect(string plaintext)
+    public string Protect(string plaintext) => Protect(plaintext, associatedData: null);
+
+    public string Protect(string plaintext, string? associatedData)
     {
         ArgumentNullException.ThrowIfNull(plaintext);
 
@@ -107,9 +109,13 @@ public sealed class AesGcmConnectionSecretProtector : IRotatableSecretProtector
         var plainBytes = Encoding.UTF8.GetBytes(plaintext);
         var cipher     = new byte[plainBytes.Length];
         var tag        = new byte[TagSize];
+        var aad        = string.IsNullOrEmpty(associatedData) ? null : Encoding.UTF8.GetBytes(associatedData);
 
         using var aes = new AesGcm(key, TagSize);
-        aes.Encrypt(nonce, plainBytes, cipher, tag);
+        if (aad is not null)
+            aes.Encrypt(nonce, plainBytes, cipher, tag, aad);
+        else
+            aes.Encrypt(nonce, plainBytes, cipher, tag);
 
         return string.Join(':',
             label,
@@ -124,7 +130,9 @@ public sealed class AesGcmConnectionSecretProtector : IRotatableSecretProtector
         return _activeId is null ? label == LegacyVersion : label == KeyedPrefix + _activeId;
     }
 
-    public string Unprotect(string ciphertext)
+    public string Unprotect(string ciphertext) => Unprotect(ciphertext, associatedData: null);
+
+    public string Unprotect(string ciphertext, string? associatedData)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ciphertext);
 
@@ -146,11 +154,34 @@ public sealed class AesGcmConnectionSecretProtector : IRotatableSecretProtector
         var cipher = Convert.FromBase64String(parts[3]);
         var plain  = new byte[cipher.Length];
 
+        using var aes = new AesGcm(key, TagSize);
+
+        if (!string.IsNullOrEmpty(associatedData))
+        {
+            var aad = Encoding.UTF8.GetBytes(associatedData);
+            try
+            {
+                aes.Decrypt(nonce, cipher, tag, plain, aad);
+                return Encoding.UTF8.GetString(plain);
+            }
+            catch (CryptographicException)
+            {
+                // Fallback: AAD olmadan kaydedilmiş eski veriyi dene
+                try
+                {
+                    aes.Decrypt(nonce, cipher, tag, plain);
+                    return Encoding.UTF8.GetString(plain);
+                }
+                catch
+                {
+                    throw; // Hem AAD'li hem AAD'siz başarısız olduysa hata fırlat
+                }
+            }
+        }
+
         // Anahtar değişmiş ya da veri kurcalanmışsa AesGcm burada
         // CryptographicException fırlatır — bilinçli olarak yakalanmıyor.
-        using var aes = new AesGcm(key, TagSize);
         aes.Decrypt(nonce, cipher, tag, plain);
-
         return Encoding.UTF8.GetString(plain);
     }
 }

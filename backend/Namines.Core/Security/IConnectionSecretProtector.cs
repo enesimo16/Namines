@@ -31,6 +31,12 @@ public interface IConnectionSecretProtector
     /// hata vermekten çok daha kötüdür.
     /// </summary>
     string Unprotect(string ciphertext);
+
+    /// <summary>Düz metni, isteğe bağlı bağlamsal kimlik (AAD - Associated Authenticated Data, örn. ProjectId) ile bağlayarak şifreler.</summary>
+    string Protect(string plaintext, string? associatedData) => Protect(plaintext);
+
+    /// <summary>Şifreli metni AAD bağlamı ile çözer. Veri başka bir projeye taşınmışsa CryptographicException fırlatır.</summary>
+    string Unprotect(string ciphertext, string? associatedData) => Unprotect(ciphertext);
 }
 
 /// <summary>

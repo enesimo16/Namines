@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Namines.Core.Models.Auth
 {
@@ -100,6 +101,7 @@ namespace Namines.Core.Models.Auth
         /// mevcut token'ı geri döndürüyor (arayüz bağlantıyı yeniden gösteriyor). Sitemap ucu
         /// kaldırıldı; bağlantı yalnızca oluşturulurken gösterilirse bu sütun düşürülebilir (yalnızca hash kalır).
         /// </summary>
+        [NotMapped]
         public string? ShareToken
         {
             get => _shareToken;

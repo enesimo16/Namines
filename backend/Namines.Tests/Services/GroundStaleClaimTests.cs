@@ -4,8 +4,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Ground.Abstractions;
+using Namines.Ground.Application;
+using Namines.Ground.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
-using Namines.Infrastructure.Services;
 using Xunit;
 
 namespace Namines.Tests.Services;
@@ -18,12 +19,14 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
 {
     private SqliteConnection _connection = null!;
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<GroundDbContext> _groundOptions = null!;
 
     public async Task InitializeAsync()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
+        _groundOptions = new DbContextOptionsBuilder<GroundDbContext>().UseSqlite(_connection).Options;
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
     }
@@ -31,6 +34,7 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
     private AuthDbContext NewContext() => new(_options);
+    private GroundDbContext NewGroundContext() => new(_groundOptions);
 
     private sealed class PassthroughProtector : IConnectionSecretProtector
     {
@@ -66,29 +70,39 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
         DateTime? deleteRequestedAt = null, DateTime? createdAt = null)
     {
         await using var db = NewContext();
+        await using var groundDb = NewGroundContext();
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
         db.CloudProjects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
         });
-        db.GroundDatabases.Add(new GroundDatabase
+        await db.SaveChangesAsync();
+
+        groundDb.GroundDatabases.Add(new GroundDatabase
         {
             ProjectId = "proj-1", Provider = "FakeRemote", CreatedByUserId = "u1",
             Status = status, ClaimedAt = claimedAt, ProviderProjectId = providerProjectId,
             DeleteRequestedAt = deleteRequestedAt,
             CreatedAt = createdAt ?? DateTime.UtcNow.AddDays(-1),
         });
-        await db.SaveChangesAsync();
+        await groundDb.SaveChangesAsync();
     }
 
-    private GroundService NewService(AuthDbContext db, OkProvider provider) =>
-        new(db, new PassthroughProtector(), new[] { (IDatabaseProvider)provider },
-            NullLogger<GroundService>.Instance);
+    private GroundApplicationService NewService(AuthDbContext db, GroundDbContext groundDb, OkProvider provider)
+    {
+        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        return new GroundApplicationService(
+            groundDb,
+            authority,
+            authority,
+            new[] { (IDatabaseProvider)provider },
+            NullLogger<GroundApplicationService>.Instance);
+    }
 
     private async Task<GroundDatabase> LoadAsync()
     {
-        await using var verify = NewContext();
+        await using var verify = NewGroundContext();
         return await verify.GroundDatabases.SingleAsync();
     }
 
@@ -99,8 +113,9 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
             deleteRequestedAt: DateTime.UtcNow.AddDays(-30));
         var provider = new OkProvider();
         await using var db = NewContext();
+        await using var groundDb = NewGroundContext();
 
-        var purged = await NewService(db, provider).PurgeExpiredAsync(7, CancellationToken.None);
+        var purged = await NewService(db, groundDb, provider).PurgeExpiredAsync(7, CancellationToken.None);
 
         Assert.Equal(1, purged);
         Assert.Equal(1, provider.DeleteCallCount);
@@ -115,8 +130,9 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
         await SeedAsync(GroundStatus.Deleting, DateTime.UtcNow.AddMinutes(-5), "remote-1",
             deleteRequestedAt: DateTime.UtcNow.AddDays(-30));
         await using var db = NewContext();
+        await using var groundDb = NewGroundContext();
 
-        var reclaimed = await NewService(db, new OkProvider())
+        var reclaimed = await NewService(db, groundDb, new OkProvider())
             .ReclaimStaleClaimsAsync(TimeSpan.FromMinutes(30), CancellationToken.None);
 
         Assert.Equal(0, reclaimed);
@@ -128,8 +144,9 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
     {
         await SeedAsync(GroundStatus.Provisioning, DateTime.UtcNow.AddHours(-2), "remote-1");
         await using var db = NewContext();
+        await using var groundDb = NewGroundContext();
 
-        var reclaimed = await NewService(db, new OkProvider())
+        var reclaimed = await NewService(db, groundDb, new OkProvider())
             .ReclaimStaleClaimsAsync(TimeSpan.FromMinutes(30), CancellationToken.None);
 
         Assert.Equal(1, reclaimed);
@@ -145,8 +162,9 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
     {
         await SeedAsync(GroundStatus.Provisioning, DateTime.UtcNow.AddHours(-2), providerProjectId: null);
         await using var db = NewContext();
+        await using var groundDb = NewGroundContext();
 
-        await NewService(db, new OkProvider())
+        await NewService(db, groundDb, new OkProvider())
             .ReclaimStaleClaimsAsync(TimeSpan.FromMinutes(30), CancellationToken.None);
 
         var row = await LoadAsync();
@@ -161,8 +179,9 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
         await SeedAsync(GroundStatus.Deleting, claimedAt: null, providerProjectId: "remote-1",
             deleteRequestedAt: DateTime.UtcNow.AddDays(-30), createdAt: DateTime.UtcNow.AddDays(-40));
         await using var db = NewContext();
+        await using var groundDb = NewGroundContext();
 
-        var reclaimed = await NewService(db, new OkProvider())
+        var reclaimed = await NewService(db, groundDb, new OkProvider())
             .ReclaimStaleClaimsAsync(TimeSpan.FromMinutes(30), CancellationToken.None);
 
         Assert.Equal(0, reclaimed);
@@ -175,8 +194,9 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
         await SeedAsync(GroundStatus.PendingDelete, null, "remote-1",
             deleteRequestedAt: DateTime.UtcNow.AddDays(-30));
         await using var db = NewContext();
+        await using var groundDb = NewGroundContext();
 
-        await NewService(db, new OkProvider()).PurgeExpiredAsync(7, CancellationToken.None);
+        await NewService(db, groundDb, new OkProvider()).PurgeExpiredAsync(7, CancellationToken.None);
 
         var row = await LoadAsync();
         Assert.Equal(GroundStatus.Deleted, row.Status);

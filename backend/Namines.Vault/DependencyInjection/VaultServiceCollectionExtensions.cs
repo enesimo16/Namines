@@ -1,40 +1,66 @@
+using System;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Namines.BuildingBlocks.Persistence;
 using Namines.Vault.Abstractions;
+using Namines.Vault.Application;
+using Namines.Vault.Infrastructure.Persistence;
+using Namines.Vault.Infrastructure.Workers;
 using Namines.Vault.Providers;
 using Namines.Vault.Storage;
 
 namespace Namines.Vault.DependencyInjection;
 
 /// <summary>
-/// Vault'un kayıt noktası.
-///
-/// <b>Tek giriş:</b> API katmanı Vault'un iç tiplerini tek tek tanımak zorunda
-/// kalmasın; sağlayıcı ya da depo değiştiğinde değişen tek yer burası olsun.
+/// Vault modülünün DI kayıt noktası (Domain + Application + Infrastructure + Workers + DbContext).
 /// </summary>
 public static class VaultServiceCollectionExtensions
 {
-    /// <summary>
-    /// Vault modülünü Modular Monolith mimarisinde bağımsız bir bileşen olarak DI konteynerine kaydeder.
-    /// </summary>
-    public static IServiceCollection AddVaultModule(this IServiceCollection services)
-        => services.AddNaminesVault();
+    private const string FallbackConnectionString =
+        "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
 
-    public static IServiceCollection AddNaminesVault(this IServiceCollection services)
+    public static IServiceCollection AddVaultModule(
+        this IServiceCollection services,
+        Action<DbContextOptionsBuilder>? configureDbContext = null,
+        bool registerWorkers = true)
+        => services.AddNaminesVault(configureDbContext, registerWorkers);
+
+    public static IServiceCollection AddNaminesVault(
+        this IServiceCollection services,
+        Action<DbContextOptionsBuilder>? configureDbContext = null,
+        bool registerWorkers = true)
     {
-        // Singleton: DockerClient ve türetilmiş şifreleme anahtarı istek başına
-        // yeniden kurulmaya değmez; ikisi de durumsuz ve iş parçacığı güvenli.
-        services.AddSingleton<BackupCipher>();
+        if (configureDbContext is not null)
+        {
+            services.AddDbContext<VaultDbContext>(configureDbContext);
+        }
+        else
+        {
+            services.AddDbContext<VaultDbContext>((sp, options) =>
+            {
+                var config = sp.GetService<IConfiguration>();
+                var connStr = config?.GetConnectionString("DefaultConnection") ?? FallbackConnectionString;
+                options.UseNpgsql(
+                    connStr,
+                    npgsql => npgsql.MigrationsHistoryTable(
+                        VaultDbContext.MigrationsHistoryTableName,
+                        VaultDbContext.SchemaName));
+            });
+        }
 
-        // Depo seçimi YAPILANDIRMADAN, koddan değil: nesne deposu tanımlıysa o
-        // kullanılıyor, yoksa sunucu diski.
-        //
-        // <b>Sessiz bir varsayılana düşmüyor:</b> hangisinin kullanıldığı
-        // Description üzerinden arayüzde yazıyor (Vault ekranı "Yedekler burada
-        // saklanıyor: …" diyor). v1'in disk seçeneği kabul edilebilir ama
-        // kullanıcı bunu bilmeden yedeğe güvenmemeli.
-        services.AddSingleton<IBackupStore>(sp =>
+        services.AddSingleton<IModuleDbContextMigrator>(sp =>
+            new ModuleDbContextMigrator<VaultDbContext>(
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                order: 60,
+                moduleName: "Vault",
+                schemaName: VaultDbContext.SchemaName));
+
+        services.TryAddSingleton<BackupCipher>();
+
+        services.TryAddSingleton<IBackupStore>(sp =>
         {
             var configuration = sp.GetRequiredService<IConfiguration>();
 
@@ -42,16 +68,11 @@ public static class VaultServiceCollectionExtensions
                 ? new FileSystemBackupStore(configuration)
                 : new S3BackupStore(configuration);
         });
-        // Motor başına bir sağlayıcı. Liste burada; VaultService desteklenen
-        // motorları bu kayıtlardan TÜRETİYOR, ayrıca bir yerde yazmıyor.
+
         services.AddSingleton<IBackupProvider>(sp => new PostgresBackupProvider(
             sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<ILogger<PostgresBackupProvider>>())
         { HostPolicy = sp.GetService<Namines.Core.Security.IDbHostAccessPolicy>() });
 
-        // MySQL ve MariaDB aynı sınıfın iki kaydı: araçlar ve protokol aynı,
-        // yalnızca imaj ve motor adı farklı. İmajların AYRI olması bilinçli —
-        // MySQL 8 istemcisiyle MariaDB'ye dump almak kimlik doğrulama ve
-        // sürüm-özel deyimler yüzünden sessizce bozuk çıktı verebiliyor.
         services.AddSingleton<IBackupProvider>(sp => new MySqlFamilyBackupProvider(
             engine: "MySQL",
             image: sp.GetRequiredService<IConfiguration>()["Vault:MySqlImage"] ?? "mysql:8.0",
@@ -62,12 +83,24 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<IBackupProvider>(sp => new MySqlFamilyBackupProvider(
             engine: "MariaDB",
             image: sp.GetRequiredService<IConfiguration>()["Vault:MariaDbImage"] ?? "mariadb:10.6",
-            // MariaDB istemcisi --column-statistics bayrağını tanımıyor.
             hasColumnStatisticsFlag: false,
             logger: sp.GetRequiredService<ILogger<MySqlFamilyBackupProvider>>())
         { HostPolicy = sp.GetService<Namines.Core.Security.IDbHostAccessPolicy>() });
 
-        services.AddSingleton<IVaultModule, VaultModule>();
+        services.TryAddSingleton<IVaultJobQueue, VaultJobQueue>();
+        services.TryAddScoped<IVaultApplicationService, VaultApplicationService>();
+        services.TryAddScoped<IVaultModule>(sp => new VaultModule(
+            sp.GetRequiredService<IBackupStore>(),
+            sp.GetRequiredService<BackupCipher>(),
+            sp.GetServices<IBackupProvider>(),
+            sp.GetRequiredService<IVaultJobQueue>(),
+            sp));
+
+        if (registerWorkers)
+        {
+            services.AddHostedService<VaultBackupWorker>();
+            services.AddHostedService<VaultScheduleBackgroundService>();
+        }
 
         return services;
     }

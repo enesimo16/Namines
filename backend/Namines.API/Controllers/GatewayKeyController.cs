@@ -10,8 +10,12 @@ using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
-using Namines.Core.Security;
+
+
 using Namines.Core.Interfaces;
+using Namines.Core.Security;
+using Namines.BuildingBlocks.Security;
+using Namines.Ground.Abstractions;
 
 namespace Namines.API.Controllers;
 
@@ -58,17 +62,22 @@ public class GatewayKeyController : ControllerBase
     private readonly IConnectionSecretProtector _protector;
     private readonly IDbHostAccessPolicy _hostPolicy;
     private readonly IDbIntrospectionService _introspection;
+    private readonly IGroundModule? _ground;
+    private readonly IProjectConnectionSecretProvider? _secretProvider;
 
     public GatewayKeyController(
         AuthDbContext context,
         IConnectionSecretProtector protector,
         IDbHostAccessPolicy hostPolicy,
-        IDbIntrospectionService introspection)
+        IDbIntrospectionService introspection,
+        IGroundModule? ground = null, IProjectConnectionSecretProvider? secretProvider = null)
     {
         _context = context;
         _protector = protector;
         _hostPolicy = hostPolicy;
         _introspection = introspection;
+        _ground = ground;
+        _secretProvider = secretProvider;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -467,9 +476,10 @@ public class GatewayKeyController : ControllerBase
             return BadRequest(new { error = DbConnectionFailure.Classify(ex) });
         }
 
-        project.EncryptedConnectionString = _protector.Protect(request.ConnectionString);
+        project.EncryptedConnectionString = _protector.Protect(request.ConnectionString, associatedData: projectId);
         project.ConnectionDbType = request.DbType;
         project.UpdatedAt = DateTime.UtcNow;
+        if (_secretProvider != null) { await _secretProvider.SetConnectionAsync(projectId, request.ConnectionString, request.DbType, ct); }
         try
         {
             await _context.SaveChangesAsync(ct);
@@ -506,8 +516,8 @@ public class GatewayKeyController : ControllerBase
         //     adını elle yazma onayı ve 7 günlük geri alma penceresi. Yıkıcı
         //     bir işlemin daha zayıf bir kapıdan yapılabilmesi, güçlü kapıyı
         //     anlamsız kılar.
-        var managed = await _context.GroundDatabases
-            .FirstOrDefaultAsync(g => g.ProjectId == projectId, ct);
+        var managed = _ground is not null ? await _ground.Databases.GetByProjectIdAsync(projectId, ct) : null;
+        // Ground modulu uzerinden sorgulanir (dogrudan GroundDatabases erisimi yok).
 
         if (managed is not null &&
             managed.Status is GroundStatus.Provisioning or GroundStatus.Active or GroundStatus.PendingDelete or GroundStatus.Deleting)
@@ -523,6 +533,7 @@ public class GatewayKeyController : ControllerBase
         project.EncryptedConnectionString = null;
         project.ConnectionDbType = null;
         project.UpdatedAt = DateTime.UtcNow;
+        if (_secretProvider != null) { await _secretProvider.ClearConnectionAsync(projectId, ct); }
         try
         {
             await _context.SaveChangesAsync(ct);
@@ -560,6 +571,7 @@ public class GatewayKeyController : ControllerBase
 
         project.AllowDeskSql = request.Enabled;
         project.UpdatedAt = DateTime.UtcNow;
+        if (_secretProvider != null) { await _secretProvider.SetDeskSqlEnabledAsync(projectId, request.Enabled, ct); }
         try
         {
             await _context.SaveChangesAsync(ct);

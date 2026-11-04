@@ -13,6 +13,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.API.Controllers;
 using Namines.Core.Models.Auth;
+using Namines.Core.Security;
+using Namines.Flow.Application;
+using Namines.Flow.Infrastructure.Persistence;
+using Namines.Flow.Services;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
@@ -44,6 +48,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
     private AuthDbContext NewContext() => new(_options);
+    private Namines.Flow.Infrastructure.Persistence.FlowDbContext NewFlowContext() => new(new DbContextOptionsBuilder<Namines.Flow.Infrastructure.Persistence.FlowDbContext>().UseSqlite(_connection).Options);
 
     private static UserManager<ApplicationUser> NewUserManager(AuthDbContext db)
     {
@@ -60,6 +65,39 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
             logger: NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 
+    private sealed class PassthroughProtector : IConnectionSecretProtector
+    {
+        public string Protect(string plaintext) => plaintext;
+        public string Unprotect(string protectedPayload) => protectedPayload;
+    }
+
+    private sealed class NoopQuota : IFlowAiQuotaGate
+    {
+        public Task<bool> TryReserveAsync(string userId, int estimatedTokens, CancellationToken ct = default) => Task.FromResult(true);
+    }
+
+    private sealed class NoopDba : Namines.Core.Interfaces.IDbaSchemaAnalyzer
+    {
+        public Task<List<Namines.Core.Models.DbaIssue>> AnalyzeSchemaDbaAsync(Namines.Core.Models.DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType) =>
+            Task.FromResult(new List<Namines.Core.Models.DbaIssue>());
+    }
+
+    private sealed class NoopAi : Namines.Core.Interfaces.IAIService
+    {
+        public Task<Namines.Core.Models.DatabaseSchema> GenerateSchemaAsync(Namines.Core.Models.GenerateRequest request) => Task.FromResult(new Namines.Core.Models.DatabaseSchema());
+        public Task<Namines.Core.Models.DatabaseSchema> ReviseSchemaAsync(Namines.Core.Models.ReviseRequest request) => Task.FromResult(new Namines.Core.Models.DatabaseSchema());
+        public Task<string> GenerateMockDataAsync(Namines.Core.Models.DatabaseSchema schema) => Task.FromResult(string.Empty);
+        public Task<string> GenerateProjectSummaryAsync(Namines.Core.Models.DatabaseSchema schema, string projectName) => Task.FromResult(string.Empty);
+        public Task<string> GenerateStreamlitAppAsync(Namines.Core.Models.DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType) => Task.FromResult(string.Empty);
+        public Task<Namines.Core.Models.DatabaseSchema> AnalyzeImageAsync(byte[] imageBytes, string mimeType) => Task.FromResult(new Namines.Core.Models.DatabaseSchema());
+        public Task<string> ExplainImpactAsync(Namines.Core.Models.ImpactReport impact) => Task.FromResult(string.Empty);
+    }
+
+    private sealed class NoopHttpFactory : System.Net.Http.IHttpClientFactory
+    {
+        public System.Net.Http.HttpClient CreateClient(string name) => new();
+    }
+
     private static AuthController NewController(
         AuthDbContext db, UserManager<ApplicationUser> userManager, IAutomationJobQueue queue, string userId)
     {
@@ -72,7 +110,19 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
             // MigrationService.CalculateDiffAsync).
             new MigrationService(null!),
             queue,
-            NullLogger<AuthController>.Instance);
+            NullLogger<AuthController>.Instance,
+            flowModule: new FlowModule(
+                new FlowRuleMatcher(),
+                new FlowApplicationService(
+                    new FlowDbContext(new DbContextOptionsBuilder<FlowDbContext>().UseSqlite(db.Database.GetDbConnection()).Options),
+                    new TenantProjectAuthorityService(db, new PassthroughProtector()),
+                    new NoopQuota(),
+                    new NoopDba(),
+                    new NoopAi(),
+                    new NoopHttpFactory(),
+                    new Namines.Infrastructure.LinterService(),
+                    NullLogger<FlowApplicationService>.Instance),
+                new FlowJobQueue()));
 
         controller.ControllerContext = new ControllerContext
         {
@@ -158,7 +208,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
         // İlk sync projeyi oluşturur (diff dalı yalnızca GÜNCELLEMEDE çalışır).
         Assert.IsType<OkObjectResult>(await controller.SyncProjects(SyncPayload(EmptySchema)));
 
-        await using (var ruleDb = NewContext())
+        await using (var ruleDb = NewFlowContext())
         {
             ruleDb.AutomationRules.Add(new Namines.Core.Models.AutomationRule
             {
@@ -190,7 +240,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
 
         Assert.IsType<OkObjectResult>(await controller.SyncProjects(SyncPayload(EmptySchema)));
 
-        await using (var ruleDb = NewContext())
+        await using (var ruleDb = NewFlowContext())
         {
             ruleDb.AutomationRules.Add(new Namines.Core.Models.AutomationRule
             {
@@ -244,7 +294,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
         // hesaplanıyor, bu yüzden bu test "dolu kuyruk" dalına girebilmek için
         // artık bir kural SEEDLEMEK ZORUNDA — yoksa sessizce hiçbir şeyi
         // sınamayan bir teste dönüşürdü.
-        await using (var ruleDb = NewContext())
+        await using (var ruleDb = NewFlowContext())
         {
             ruleDb.AutomationRules.Add(new Namines.Core.Models.AutomationRule
             {

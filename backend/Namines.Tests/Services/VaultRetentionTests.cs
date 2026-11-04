@@ -10,15 +10,16 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Infrastructure.Data;
-using Namines.Infrastructure.Services;
 using Namines.Vault.Abstractions;
+using Namines.Vault.Application;
+using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 using Xunit;
 
 namespace Namines.Tests.Services;
 
 /// <summary>
-/// <see cref="VaultService.ApplyRetentionAsync"/> — "en yeni N OTOMATİK yedek
+/// <see cref="VaultApplicationService.ApplyRetentionAsync"/> — "en yeni N OTOMATİK yedek
 /// kalır" politikası.
 ///
 /// <b>Bulunan açık:</b> sorgu <c>Kind == Scheduled</c> dışında bir durum
@@ -31,12 +32,14 @@ public sealed class VaultRetentionTests : IAsyncLifetime
 {
     private SqliteConnection _connection = null!;
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<VaultDbContext> _vaultOptions = null!;
 
     public async Task InitializeAsync()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
+        _vaultOptions = new DbContextOptionsBuilder<VaultDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
@@ -45,6 +48,7 @@ public sealed class VaultRetentionTests : IAsyncLifetime
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
     private AuthDbContext NewContext() => new(_options);
+    private VaultDbContext NewVaultContext() => new(_vaultOptions);
 
     private sealed class PassthroughProtector : IConnectionSecretProtector
     {
@@ -86,9 +90,18 @@ public sealed class VaultRetentionTests : IAsyncLifetime
         return new BackupCipher(configuration);
     }
 
-    private VaultService NewService(AuthDbContext db, FakeBackupStore store) => new(
-        db, new PassthroughProtector(), new AllowAllHostPolicy(),
-        Array.Empty<IBackupProvider>(), store, NewCipher(), NullLogger<VaultService>.Instance);
+    private VaultApplicationService NewService(AuthDbContext db, VaultDbContext vaultDb, FakeBackupStore store)
+    {
+        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector(), new AllowAllHostPolicy());
+        return new VaultApplicationService(
+            vaultDb,
+            authority,
+            authority,
+            Array.Empty<IBackupProvider>(),
+            store,
+            NewCipher(),
+            NullLogger<VaultApplicationService>.Instance);
+    }
 
     private static VaultBackup NewBackup(
         string projectId, VaultBackupStatus status, DateTime createdAt, string suffix) => new()
@@ -107,12 +120,8 @@ public sealed class VaultRetentionTests : IAsyncLifetime
     [Fact]
     public async Task Basarisiz_yedekler_saklanan_N_sayisina_DAHIL_EDILMIYOR()
     {
-        // 5 BAŞARILI yedek + 3 ardışık BAŞARISIZ deneme (en yeniler).
-        // retainCount=3: eski davranışta en yeni 3 kayıt (hepsi Failed) tutulur
-        // ve 5 başarılı yedeğin ikisi (en eski ikisi) silinirdi — doğrusu,
-        // 3 BAŞARILI yedeğin tutulup geri kalan 2 başarılının silinmesi ve
-        // Failed kayıtların hiç etkilenmemesi.
         await using var db = NewContext();
+        await using var vaultDb = NewVaultContext();
 
         db.Users.Add(new Namines.Core.Models.Auth.ApplicationUser { Id = "u1", UserName = "u1" });
         db.CloudProjects.Add(new CloudProject
@@ -120,6 +129,7 @@ public sealed class VaultRetentionTests : IAsyncLifetime
             Id = "p1", Name = "proj", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
         });
+        await db.SaveChangesAsync();
 
         var baseline = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var succeeded = Enumerable.Range(0, 5)
@@ -129,19 +139,19 @@ public sealed class VaultRetentionTests : IAsyncLifetime
             .Select(i => NewBackup("p1", VaultBackupStatus.Failed, baseline.AddHours(10 + i), $"fail-{i}"))
             .ToList();
 
-        db.VaultBackups.AddRange(succeeded);
-        db.VaultBackups.AddRange(failed);
-        await db.SaveChangesAsync();
+        vaultDb.VaultBackups.AddRange(succeeded);
+        vaultDb.VaultBackups.AddRange(failed);
+        await vaultDb.SaveChangesAsync();
 
         var store = new FakeBackupStore();
-        var service = NewService(db, store);
+        var service = NewService(db, vaultDb, store);
 
         var removed = await service.ApplyRetentionAsync("p1", retainCount: 3, CancellationToken.None);
 
         // Yalnızca en eski 2 BAŞARILI yedek silinmeli.
         Assert.Equal(2, removed);
 
-        await using var verify = NewContext();
+        await using var verify = NewVaultContext();
         var remaining = await verify.VaultBackups.Where(b => b.ProjectId == "p1").ToListAsync();
 
         // Tüm Failed kayıtlar hâlâ duruyor — saklama politikası onlara hiç dokunmadı.
@@ -161,10 +171,8 @@ public sealed class VaultRetentionTests : IAsyncLifetime
     [Fact]
     public async Task Basarili_yedek_sayisi_retainCount_ALTINDAYSA_hicbir_sey_silinmez()
     {
-        // Yalnızca başarısız denemeler var, hiç başarılı yedek yok: eski
-        // davranışta bunlardan retainCount kadarı "tutuluyor" sayılıp
-        // fazlası silinirdi — oysa silinecek gerçek bir yedek yok.
         await using var db = NewContext();
+        await using var vaultDb = NewVaultContext();
 
         db.Users.Add(new Namines.Core.Models.Auth.ApplicationUser { Id = "u1", UserName = "u1" });
         db.CloudProjects.Add(new CloudProject
@@ -172,21 +180,22 @@ public sealed class VaultRetentionTests : IAsyncLifetime
             Id = "p1", Name = "proj", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
         });
+        await db.SaveChangesAsync();
 
         var baseline = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var failed = Enumerable.Range(0, 5)
             .Select(i => NewBackup("p1", VaultBackupStatus.Failed, baseline.AddHours(i), $"fail-{i}"))
             .ToList();
-        db.VaultBackups.AddRange(failed);
-        await db.SaveChangesAsync();
+        vaultDb.VaultBackups.AddRange(failed);
+        await vaultDb.SaveChangesAsync();
 
         var store = new FakeBackupStore();
-        var service = NewService(db, store);
+        var service = NewService(db, vaultDb, store);
 
         var removed = await service.ApplyRetentionAsync("p1", retainCount: 2, CancellationToken.None);
 
         Assert.Equal(0, removed);
-        await using var verify = NewContext();
+        await using var verify = NewVaultContext();
         Assert.Equal(5, await verify.VaultBackups.CountAsync(b => b.ProjectId == "p1"));
     }
 }

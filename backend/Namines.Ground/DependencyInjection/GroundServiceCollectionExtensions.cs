@@ -1,6 +1,14 @@
+using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Namines.BuildingBlocks.Persistence;
 using Namines.Ground.Abstractions;
+using Namines.Ground.Application;
+using Namines.Ground.Infrastructure.Persistence;
+using Namines.Ground.Infrastructure.Workers;
 using Namines.Ground.Neon;
 using Namines.Ground.Providers;
 using Namines.Ground.Supabase;
@@ -8,56 +16,69 @@ using Namines.Ground.Supabase;
 namespace Namines.Ground.DependencyInjection;
 
 /// <summary>
-/// Ground'un kayıt noktası.
-///
-/// <b>Sağlayıcılar bir KOLEKSİYON olarak kaydediliyor</b> (tek bir
-/// <see cref="IDatabaseProvider"/> değil): birden çok sağlayıcı aynı anda
-/// kullanılabilir olmalı ve kullanıcı hangisini istediğini seçebilmeli.
-/// Tek kayıt olsaydı sağlayıcı değiştirmek yeniden dağıtım gerektirirdi.
+/// Ground modülünün DI kayıt noktası (Domain + Application + Infrastructure + Workers + DbContext).
 /// </summary>
 public static class GroundServiceCollectionExtensions
 {
-    /// <summary>
-    /// Ground modülünü Modular Monolith mimarisinde bağımsız bir bileşen olarak DI konteynerine kaydeder.
-    /// </summary>
-    public static IServiceCollection AddGroundModule(this IServiceCollection services)
-        => services.AddNaminesGround();
+    private const string FallbackConnectionString =
+        "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
 
-    public static IServiceCollection AddNaminesGround(this IServiceCollection services)
+    public static IServiceCollection AddGroundModule(
+        this IServiceCollection services,
+        Action<DbContextOptionsBuilder>? configureDbContext = null,
+        bool registerWorkers = true)
+        => services.AddNaminesGround(configureDbContext, registerWorkers);
+
+    public static IServiceCollection AddNaminesGround(
+        this IServiceCollection services,
+        Action<DbContextOptionsBuilder>? configureDbContext = null,
+        bool registerWorkers = true)
     {
-        // Singleton: sağlayıcılar durumsuz — yapılandırmayı okuyup her çağrıda
-        // kendi bağlantısını açıyorlar.
+        if (configureDbContext is not null)
+        {
+            services.AddDbContext<GroundDbContext>(configureDbContext);
+        }
+        else
+        {
+            services.AddDbContext<GroundDbContext>((sp, options) =>
+            {
+                var config = sp.GetService<IConfiguration>();
+                var connStr = config?.GetConnectionString("DefaultConnection") ?? FallbackConnectionString;
+                options.UseNpgsql(
+                    connStr,
+                    npgsql => npgsql.MigrationsHistoryTable(
+                        GroundDbContext.MigrationsHistoryTableName,
+                        GroundDbContext.SchemaName));
+            });
+        }
+
+        services.AddSingleton<IModuleDbContextMigrator>(sp =>
+            new ModuleDbContextMigrator<GroundDbContext>(
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                order: 50,
+                moduleName: "Ground",
+                schemaName: GroundDbContext.SchemaName));
+
         services.AddSingleton<IDatabaseProvider, LocalPostgresProvider>();
-
-        // HttpClient fabrikadan: her çağrıda yeni bir HttpClient soket
-        // tükenmesine, tek bir statik örnek ise DNS değişikliklerini
-        // görmemeye yol açar.
         services.AddHttpClient<INeonClient, NeonClient>();
-
-        // NeonProvider, INeonClient'ı fabrikadan alınan istemciyle çözüyor.
-        // Anahtar tanımlı olmasa da KAYDEDILIYOR: sağlayıcı listesinde
-        // görünüp "yapılandırılmamış" diyebilmesi, hiç görünmemesinden iyi —
-        // kullanıcı seçeneğin var olduğunu ve neyin eksik olduğunu görsün.
         services.AddSingleton<IDatabaseProvider>(sp => new NeonProvider(
             sp.GetRequiredService<INeonClient>(),
-            sp.GetRequiredService<ILogger<NeonProvider>>()));
-
-        // Supabase (F-10 / B-45). Neon ile AYNI desen.
-        //
-        // Stratejik gerekce: rakip analizi (16-competitor-analysis.md)
-        // Supabase'in Free planinin bile Ground'un v1 limitlerinin ustunde
-        // oldugunu olctu. Dogru hamle onunla yarismak degil, ona BAGLANMAK --
-        // "platformunuzu degistirmeyin, ustune yonetisim koyun".
-        //
-        // Anahtar tanimli olmasa da kaydediliyor: listede gorunup
-        // "yapilandirilmamis" diyebilmesi, hic gorunmemesinden iyi.
-        services.AddHttpClient<ISupabaseClient, SupabaseClient>();
+            sp.GetRequiredService<ILogger<NeonProvider>>()));
 
+        services.AddHttpClient<ISupabaseClient, SupabaseClient>();
         services.AddSingleton<IDatabaseProvider>(sp => new SupabaseProvider(
             sp.GetRequiredService<ISupabaseClient>(),
             sp.GetRequiredService<ILogger<SupabaseProvider>>()));
 
-        services.AddSingleton<IGroundModule, GroundModule>();
+        services.TryAddScoped<IGroundApplicationService, GroundApplicationService>();
+        services.TryAddScoped<IGroundModule>(sp => new GroundModule(
+            sp.GetServices<IDatabaseProvider>(),
+            sp));
+
+        if (registerWorkers)
+        {
+            services.AddHostedService<GroundPurgeBackgroundService>();
+        }
 
         return services;
     }

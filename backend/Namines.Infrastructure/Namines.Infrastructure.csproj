@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+    <ProjectReference Include="..\Namines.BuildingBlocks\Namines.BuildingBlocks.csproj" />
     <!-- Tek yonlu: Vault, Infrastructure'i GORMEZ. Yedekleme modulunun
          veritabanina/kimlige bagimli hale gelmesini derleyici engelliyor. -->
     <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
@@ -38,7 +39,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
     <PackageReference Include="MySqlConnector" Version="2.6.1" />
     <!-- Geçişli CVE alt sınırları (bkz. backend/Directory.Build.props): SQLitePCLRaw (Microsoft.Data.Sqlite), Pkcs (SqlClient/Oracle). -->

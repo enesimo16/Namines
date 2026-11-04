@@ -8,6 +8,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Models.Auth;
+using Namines.Desk.Application;
+using Namines.Desk.Infrastructure.Persistence;
+using Namines.Desk.Services;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
@@ -18,6 +21,7 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
 {
     private SqliteConnection _connection = null!;
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<DeskDbContext> _deskOptions = null!;
     private static readonly DateTime Now = new(2026, 10, 30, 0, 0, 0, DateTimeKind.Utc);
 
     public async Task InitializeAsync()
@@ -31,6 +35,7 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
             await cmd.ExecuteNonQueryAsync();
         }
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
+        _deskOptions = new DbContextOptionsBuilder<DeskDbContext>().UseSqlite(_connection).Options;
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
     }
@@ -44,21 +49,26 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
     public async Task Purge_deletes_only_expired_rows_per_table()
     {
         await using (var db = new AuthDbContext(_options))
+        await using (var deskDb = new DeskDbContext(_deskOptions))
         {
             db.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-400) });
             db.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-10) });
             db.StripeWebhookEvents.Add(new StripeWebhookEvent { Id = "evt_old", EventType = "x", ProcessedAt = Now.AddDays(-200) });
             db.StripeWebhookEvents.Add(new StripeWebhookEvent { Id = "evt_new", EventType = "x", ProcessedAt = Now.AddDays(-1) });
-            db.DeskHandoffTokens.Add(new DeskHandoffToken { TokenHash = "a", UserId = "u", ExpiresAt = Now.AddDays(-30) });
-            db.DeskHandoffTokens.Add(new DeskHandoffToken { TokenHash = "b", UserId = "u", ExpiresAt = Now.AddMinutes(5) });
+            deskDb.DeskHandoffTokens.Add(new DeskHandoffToken { TokenHash = "a", UserId = "u", ExpiresAt = Now.AddDays(-30) });
+            deskDb.DeskHandoffTokens.Add(new DeskHandoffToken { TokenHash = "b", UserId = "u", ExpiresAt = Now.AddMinutes(5) });
             db.TeamInvites.Add(new TeamInvite { TokenHash = "i1", OrganizationId = "o", CreatedByUserId = "u", ExpiresAt = Now.AddDays(-30) });
             db.TeamInvites.Add(new TeamInvite { TokenHash = "i2", OrganizationId = "o", CreatedByUserId = "u", ExpiresAt = Now.AddDays(-30), AcceptedAt = Now.AddDays(-31) });
             await db.SaveChangesAsync();
+            await deskDb.SaveChangesAsync();
         }
 
         await using (var db = new AuthDbContext(_options))
+        await using (var deskDb = new DeskDbContext(_deskOptions))
         {
-            var r = await DataRetentionService.PurgeAsync(db, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None);
+            var deskApp = new DeskApplicationService(deskDb, new DeskHandoffTokenValidator());
+            var r = await DataRetentionService.PurgeAsync(
+                db, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, deskApp);
             Assert.Equal(1, r["GatewayAuditEntries"]);
             Assert.Equal(1, r["StripeWebhookEvents"]);
             Assert.Equal(1, r["desk_handoff_tokens"]);
@@ -66,9 +76,10 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         }
 
         await using var check = new AuthDbContext(_options);
+        await using var checkDesk = new DeskDbContext(_deskOptions);
         Assert.Equal(1, await check.GatewayAuditEntries.CountAsync());
         Assert.Equal("evt_new", (await check.StripeWebhookEvents.SingleAsync()).Id);
-        Assert.Equal("b", (await check.DeskHandoffTokens.SingleAsync()).TokenHash);
+        Assert.Equal("b", (await checkDesk.DeskHandoffTokens.SingleAsync()).TokenHash);
         Assert.Equal("i2", (await check.TeamInvites.SingleAsync()).TokenHash);
     }
 
@@ -82,7 +93,10 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
             await db.SaveChangesAsync();
         }
         await using var db2 = new AuthDbContext(_options);
-        var r = await DataRetentionService.PurgeAsync(db2, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None);
+        await using var deskDb2 = new DeskDbContext(_deskOptions);
+        var deskApp = new DeskApplicationService(deskDb2, new DeskHandoffTokenValidator());
+        var r = await DataRetentionService.PurgeAsync(
+            db2, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, deskApp);
         Assert.Equal(DataRetentionService.BatchSize + 50, r["GatewayAuditEntries"]);
         Assert.Equal(0, await db2.GatewayAuditEntries.CountAsync());
     }

@@ -9,6 +9,8 @@ using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Interfaces;
 using Namines.Core.Security;
+using Namines.Ground.Application;
+using Namines.Ground.Infrastructure.Persistence;
 using Namines.Ground.Providers;
 using Namines.Infrastructure.AI;
 using Namines.Infrastructure.Data;
@@ -16,6 +18,8 @@ using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Infrastructure.Security;
 using Namines.Infrastructure.Services;
 using Namines.Vault.Abstractions;
+using Namines.Vault.Application;
+using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Providers;
 using Namines.Vault.Storage;
 using Npgsql;
@@ -57,6 +61,8 @@ public class LaunchServiceTests : IAsyncLifetime
     private string _adminConnectionString = null!;
 
     private AuthDbContext? _context;
+    private GroundDbContext? _groundDb;
+    private VaultDbContext? _vaultDb;
     private LaunchService? _launch;
     private string _userId = null!;
     private IConfiguration _config = null!;
@@ -82,6 +88,16 @@ public class LaunchServiceTests : IAsyncLifetime
         _context = new AuthDbContext(options);
         await _context.Database.MigrateAsync();
 
+        var groundOptions = new DbContextOptionsBuilder<GroundDbContext>()
+            .UseNpgsql(_adminConnectionString)
+            .Options;
+        _groundDb = new GroundDbContext(groundOptions);
+
+        var vaultOptions = new DbContextOptionsBuilder<VaultDbContext>()
+            .UseNpgsql(_adminConnectionString)
+            .Options;
+        _vaultDb = new VaultDbContext(vaultOptions);
+
         _userId = Guid.NewGuid().ToString();
         await _context.Users.AddAsync(new ApplicationUser { Id = _userId, UserName = "launch-test" });
         await _context.SaveChangesAsync();
@@ -98,18 +114,23 @@ public class LaunchServiceTests : IAsyncLifetime
         var protector = new AesGcmConnectionSecretProtector(_config);
         var hostPolicy = new DbHostAccessPolicy(
             new FakeEnv(), _config, NullLogger<DbHostAccessPolicy>.Instance);
+        var authority = new TenantProjectAuthorityService(_context, protector, hostPolicy);
 
-        var ground = new GroundService(
-            _context, protector,
+        var ground = new GroundApplicationService(
+            _groundDb,
+            authority,
+            authority,
             new[] { new LocalPostgresProvider(_config, NullLogger<LocalPostgresProvider>.Instance) },
-            NullLogger<GroundService>.Instance);
+            NullLogger<GroundApplicationService>.Instance);
 
-        var vault = new VaultService(
-            _context, protector, hostPolicy,
+        var vault = new VaultApplicationService(
+            _vaultDb,
+            authority,
+            authority,
             new IBackupProvider[] { new PostgresBackupProvider(_config, NullLogger<PostgresBackupProvider>.Instance) },
             new FileSystemBackupStore(_config),
             new BackupCipher(_config),
-            NullLogger<VaultService>.Instance);
+            NullLogger<VaultApplicationService>.Instance);
 
         _launch = new LaunchService(
             ground,
@@ -124,6 +145,8 @@ public class LaunchServiceTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         if (!DockerAvailable.Value) return;
+        if (_vaultDb is not null) await _vaultDb.DisposeAsync();
+        if (_groundDb is not null) await _groundDb.DisposeAsync();
         if (_context is not null) await _context.DisposeAsync();
         if (_provisioner is not null) await _provisioner.DestroyAsync(_branchId);
     }
@@ -182,7 +205,10 @@ public class LaunchServiceTests : IAsyncLifetime
             .FirstAsync(p => p.Id == project.Id);
         Assert.NotNull(refreshed.EncryptedConnectionString);
 
-        var backupCount = await reloaded.VaultBackups.CountAsync(b => b.ProjectId == project.Id);
+        var reloadVaultOptions = new DbContextOptionsBuilder<VaultDbContext>()
+            .UseNpgsql(_adminConnectionString).Options;
+        await using var reloadedVault = new VaultDbContext(reloadVaultOptions);
+        var backupCount = await reloadedVault.VaultBackups.CountAsync(b => b.ProjectId == project.Id);
         Assert.Equal(1, backupCount);
 
         // Launch'ın uyguladığı DDL de denetim kaydına düşmeli.
@@ -217,7 +243,7 @@ public class LaunchServiceTests : IAsyncLifetime
         await using var reloaded = new AuthDbContext(reloadOptions);
         var refreshed = await reloaded.CloudProjects.AsNoTracking().FirstAsync(p => p.Id == project.Id);
         var connectionString = new AesGcmConnectionSecretProtector(_config)
-            .Unprotect(refreshed.EncryptedConnectionString!);
+            .Unprotect(refreshed.EncryptedConnectionString!, associatedData: project.Id);
 
         await using var direct = new NpgsqlConnection(connectionString);
         await direct.OpenAsync();

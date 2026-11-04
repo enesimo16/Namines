@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Namines.Ground.Application;
 
 namespace Namines.Ground.Abstractions
 {
@@ -9,5 +10,6 @@ namespace Namines.Ground.Abstractions
     {
         IEnumerable<IDatabaseProvider> Providers { get; }
         IDatabaseProvider? GetProvider(string providerName);
+        IGroundApplicationService Databases { get; }
     }
 }

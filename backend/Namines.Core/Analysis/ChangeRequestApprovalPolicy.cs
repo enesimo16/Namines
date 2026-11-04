@@ -86,7 +86,7 @@ public static class ChangeRequestApprovalPolicy
     public static VoteEvaluation EvaluateVote(
         RiskLevel risk,
         ChangeRequestStatus currentStatus,
-        string createdByUserId,
+        string? createdByUserId,
         string voterUserId,
         ApprovalDecision decision,
         int approvedCountBeforeThisVote,

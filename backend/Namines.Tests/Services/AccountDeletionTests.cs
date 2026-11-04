@@ -96,26 +96,39 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await db.SaveChangesAsync();
 
         store.Blobs["pp/b0"] = new byte[] { 1 };
-        db.VaultBackups.Add(new VaultBackup
+        await using (var vaultDb = NewVaultDb(db))
         {
-            ProjectId = "pp", OrganizationId = "P", CreatedByUserId = "u1", DatabaseName = "d", Engine = "PostgreSQL",
-            StorageKey = "pp/b0", StoreDescription = "fake", Status = VaultBackupStatus.Succeeded,
-        });
-        db.GroundDatabases.Add(new GroundDatabase
+            vaultDb.VaultBackups.Add(new VaultBackup
+            {
+                ProjectId = "pp", OrganizationId = "P", CreatedByUserId = "u1", DatabaseName = "d", Engine = "PostgreSQL",
+                StorageKey = "pp/b0", StoreDescription = "fake", Status = VaultBackupStatus.Succeeded,
+            });
+            await vaultDb.SaveChangesAsync();
+        }
+        await using (var groundDb = NewGroundDb(db))
         {
-            ProjectId = "pp", OrganizationId = "P", Provider = "FakeRemote", CreatedByUserId = "u1",
-            Status = GroundStatus.Active, ProviderProjectId = "remote-pp",
-        });
+            groundDb.GroundDatabases.Add(new GroundDatabase
+            {
+                ProjectId = "pp", OrganizationId = "P", Provider = "FakeRemote", CreatedByUserId = "u1",
+                Status = GroundStatus.Active, ProviderProjectId = "remote-pp",
+            });
+            await groundDb.SaveChangesAsync();
+        }
         db.GatewayApiKeys.Add(new GatewayApiKey
         {
             ProjectId = "tp", Name = "k", Prefix = "nk_", KeyHash = "h", CreatedByUserId = "u1",
         });
         db.Feedbacks.Add(new Feedback { UserId = "u1", Email = "alice@example.com", Message = "great" });
-        db.SqlQueryHistory.Add(new SqlQueryHistoryEntry
-        {
-            UserId = "u1", ProjectId = "tp", Sql = "select secret from t",
-        });
         await db.SaveChangesAsync();
+
+        await using (var deskDb = NewDeskDb(db))
+        {
+            deskDb.SqlQueryHistory.Add(new SqlQueryHistoryEntry
+            {
+                UserId = "u1", ProjectId = "tp", Sql = "select secret from t",
+            });
+            await deskDb.SaveChangesAsync();
+        }
         db.ChangeTracker.Clear();
     }
 
@@ -163,10 +176,12 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.Equal(new[] { "remote-pp" }, provider.Deleted);
 
         await using var verify = NewContext();
+        await using var verifyVault = NewVaultDb(verify);
+        await using var verifyGround = NewGroundDb(verify);
         Assert.False(await verify.CloudProjects.AnyAsync(p => p.Id == "pp"));
         Assert.False(await verify.Organizations.AnyAsync(o => o.Id == "P"));
-        Assert.False(await verify.VaultBackups.AnyAsync());
-        Assert.False(await verify.GroundDatabases.AnyAsync());
+        Assert.False(await verifyVault.VaultBackups.AnyAsync());
+        Assert.False(await verifyGround.GroundDatabases.AnyAsync());
         Assert.False(await verify.Users.AnyAsync(u => u.Id == "u1"));
     }
 
@@ -255,6 +270,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
+        await using var verifyDesk = NewDeskDb(verify);
 
         var key = await verify.GatewayApiKeys.SingleAsync();
         Assert.NotNull(key.RevokedAt);
@@ -265,7 +281,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.Null(feedback.UserId);
         Assert.Equal("great", feedback.Message);
 
-        Assert.False(await verify.SqlQueryHistory.AnyAsync());
+        Assert.False(await verifyDesk.SqlQueryHistory.AnyAsync());
 
         var audit = await verify.ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
         Assert.Equal("u1", audit.ChangeRequestId);

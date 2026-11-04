@@ -38,25 +38,31 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
             Id = "proj-1", Name = "Secret CRM", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
         });
+        await db.SaveChangesAsync();
+
+        await using var vaultDb = NewVaultDb(db);
         for (var i = 0; i < 2; i++)
         {
             var key = $"proj-1/backup-{i}.bin";
             store.Blobs[key] = new byte[] { 1, 2, 3 };
-            db.VaultBackups.Add(new VaultBackup
+            vaultDb.VaultBackups.Add(new VaultBackup
             {
                 ProjectId = "proj-1", CreatedByUserId = "u1", DatabaseName = "crm", Engine = "PostgreSQL",
                 StorageKey = key, StoreDescription = "fake", Status = backupStatus,
             });
         }
+        await vaultDb.SaveChangesAsync();
+
         if (withGround)
         {
-            db.GroundDatabases.Add(new GroundDatabase
+            await using var groundDb = NewGroundDb(db);
+            groundDb.GroundDatabases.Add(new GroundDatabase
             {
                 ProjectId = "proj-1", Provider = "FakeRemote", CreatedByUserId = "u1",
                 Status = GroundStatus.Active, ProviderProjectId = "remote-1",
             });
+            await groundDb.SaveChangesAsync();
         }
-        await db.SaveChangesAsync();
     }
 
     [Fact]
@@ -75,9 +81,11 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         Assert.Equal(new[] { "remote-1" }, provider.Deleted);
 
         await using var verify = NewContext();
+        await using var verifyVault = NewVaultDb(verify);
+        await using var verifyGround = NewGroundDb(verify);
         Assert.False(await verify.CloudProjects.AnyAsync());
-        Assert.False(await verify.VaultBackups.AnyAsync());
-        Assert.False(await verify.GroundDatabases.AnyAsync());
+        Assert.False(await verifyVault.VaultBackups.AnyAsync());
+        Assert.False(await verifyGround.GroundDatabases.AnyAsync());
 
         var audit = await verify.ChangeRequestAuditLogs.Where(a => a.ProjectId == "proj-1").ToListAsync();
         Assert.Contains(audit, a => a.Action == ChangeRequestAuditAction.ProjectDeletionRequested);
@@ -105,8 +113,9 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         Assert.DoesNotContain("admin-db.internal", result.Error);
 
         await using var verify = NewContext();
+        await using var verifyGround = NewGroundDb(verify);
         Assert.True(await verify.CloudProjects.AnyAsync(p => p.Id == "proj-1"));
-        var ground = await verify.GroundDatabases.SingleAsync();
+        var ground = await verifyGround.GroundDatabases.SingleAsync();
         Assert.Equal(GroundStatus.PendingDelete, ground.Status);
         Assert.Null(ground.ClaimedAt);
         Assert.True(ground.DeleteRequestedAt < DateTime.UtcNow.AddDays(-7));
@@ -132,8 +141,9 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         Assert.Empty(provider.Deleted); // Ground'a hiç geçilmedi
 
         await using var verify = NewContext();
+        await using var verifyVault = NewVaultDb(verify);
         Assert.True(await verify.CloudProjects.AnyAsync());
-        Assert.Equal(2, await verify.VaultBackups.CountAsync());
+        Assert.Equal(2, await verifyVault.VaultBackups.CountAsync());
         Assert.Equal(2, store.Blobs.Count);
     }
 

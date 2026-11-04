@@ -1,5 +1,6 @@
 using System;
 using Namines.Desk.Abstractions;
+using Namines.Desk.Application;
 
 namespace Namines.Desk.Services
 {
@@ -9,10 +10,14 @@ namespace Namines.Desk.Services
     public sealed class DeskModule : IDeskModule
     {
         public IDeskHandoffTokenValidator TokenValidator { get; }
+        public IDeskApplicationService Application { get; }
 
-        public DeskModule(IDeskHandoffTokenValidator tokenValidator)
+        public DeskModule(
+            IDeskHandoffTokenValidator tokenValidator,
+            IDeskApplicationService application)
         {
             TokenValidator = tokenValidator ?? throw new ArgumentNullException(nameof(tokenValidator));
+            Application = application ?? throw new ArgumentNullException(nameof(application));
         }
     }
 }

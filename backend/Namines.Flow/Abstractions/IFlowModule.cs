@@ -1,3 +1,5 @@
+using Namines.Flow.Application;
+
 namespace Namines.Flow.Abstractions
 {
     /// <summary>
@@ -6,5 +8,7 @@ namespace Namines.Flow.Abstractions
     public interface IFlowModule
     {
         IFlowRuleMatcher RuleMatcher { get; }
+        IFlowApplicationService Application { get; }
+        IFlowJobQueue JobQueue { get; }
     }
 }

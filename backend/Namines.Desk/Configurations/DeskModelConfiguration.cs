@@ -11,7 +11,10 @@ namespace Namines.Desk.Configurations
     {
         public const string DefaultSchema = "desk";
 
-        public static void Configure(ModelBuilder builder, string? schema = DefaultSchema)
+        public static void Configure(
+            ModelBuilder builder,
+            string? schema = DefaultSchema,
+            bool configureCrossModuleForeignKeys = true)
         {
             // ── DeskHandoffToken (Desk v2 SSO devir jetonları) ──
             builder.Entity<DeskHandoffToken>(entity =>
@@ -26,9 +29,12 @@ namespace Namines.Desk.Configurations
                 // Referans bütünlüğü (DB-03): kullanıcıya ait kısa ömürlü jeton,
                 // kullanıcı ile birlikte gider. FK indeksi süresi dolan jeton
                 // temizliğini de karşılar (DB-18).
-                entity.HasOne<ApplicationUser>().WithMany()
-                      .HasForeignKey(t => t.UserId)
-                      .OnDelete(DeleteBehavior.Cascade);
+                if (configureCrossModuleForeignKeys)
+                {
+                    entity.HasOne<ApplicationUser>().WithMany()
+                          .HasForeignKey(t => t.UserId)
+                          .OnDelete(DeleteBehavior.Cascade);
+                }
             });
 
             // ── SqlQueryHistoryEntry (Desk SQL konsolunun sorgu geçmişi) ──
@@ -50,12 +56,15 @@ namespace Namines.Desk.Configurations
 
                 // Kullanıcıya özel veri (SQL metni PII içerebilir): proje ya da kullanıcı
                 // gidince kalması hata olur → CASCADE.
-                entity.HasOne<CloudProject>().WithMany()
-                      .HasForeignKey(h => h.ProjectId)
-                      .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne<ApplicationUser>().WithMany()
-                      .HasForeignKey(h => h.UserId)
-                      .OnDelete(DeleteBehavior.Cascade);
+                if (configureCrossModuleForeignKeys)
+                {
+                    entity.HasOne<CloudProject>().WithMany()
+                          .HasForeignKey(h => h.ProjectId)
+                          .OnDelete(DeleteBehavior.Cascade);
+                    entity.HasOne<ApplicationUser>().WithMany()
+                          .HasForeignKey(h => h.UserId)
+                          .OnDelete(DeleteBehavior.Cascade);
+                }
             });
 
             // ── SavedQuery (Kullanıcının ada kaydettiği sorgular) ──
@@ -73,12 +82,15 @@ namespace Namines.Desk.Configurations
 
                 entity.HasIndex(q => new { q.UserId, q.ProjectId, q.Name }).IsUnique();
 
-                entity.HasOne<CloudProject>().WithMany()
-                      .HasForeignKey(q => q.ProjectId)
-                      .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne<ApplicationUser>().WithMany()
-                      .HasForeignKey(q => q.UserId)
-                      .OnDelete(DeleteBehavior.Cascade);
+                if (configureCrossModuleForeignKeys)
+                {
+                    entity.HasOne<CloudProject>().WithMany()
+                          .HasForeignKey(q => q.ProjectId)
+                          .OnDelete(DeleteBehavior.Cascade);
+                    entity.HasOne<ApplicationUser>().WithMany()
+                          .HasForeignKey(q => q.UserId)
+                          .OnDelete(DeleteBehavior.Cascade);
+                }
             });
         }
     }

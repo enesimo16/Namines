@@ -14,6 +14,7 @@ using Namines.Core.Analysis;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
+using Namines.Desk.Abstractions;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 
@@ -38,11 +39,13 @@ public class LaunchController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly LaunchService _launch;
+    private readonly IDeskModule _deskModule;
 
-    public LaunchController(AuthDbContext context, LaunchService launch)
+    public LaunchController(AuthDbContext context, LaunchService launch, IDeskModule deskModule)
     {
         _context = context;
         _launch = launch;
+        _deskModule = deskModule;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -78,9 +81,9 @@ public class LaunchController : ControllerBase
                 return Ok(new { status = "NeedsReview" });
 
             case LaunchStatus.Ready:
-                // Desk handoff jetonu BURADA, aynı istekte üretiliyor: kullanıcı
-                // zaten Owner olarak doğrulandı, ikinci bir tıklama/istek gerekmiyor.
-                var deskHandoffToken = await _context.CreateDeskHandoffTokenAsync(userId, ct);
+                // Desk handoff jetonu BURADA, aynı istekte IDeskModule üzerinden üretiliyor:
+                // kullanıcı zaten Owner olarak doğrulandı, ikinci bir tıklama/istek gerekmiyor.
+                var deskHandoffToken = await _deskModule.Application.CreateHandoffTokenAsync(userId, ct);
                 return Ok(new
                 {
                     status = "Ready",

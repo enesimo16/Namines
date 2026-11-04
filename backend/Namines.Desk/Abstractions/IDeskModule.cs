@@ -1,3 +1,5 @@
+using Namines.Desk.Application;
+
 namespace Namines.Desk.Abstractions
 {
     /// <summary>
@@ -6,5 +8,6 @@ namespace Namines.Desk.Abstractions
     public interface IDeskModule
     {
         IDeskHandoffTokenValidator TokenValidator { get; }
+        IDeskApplicationService Application { get; }
     }
 }

@@ -10,9 +10,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.API.Controllers;
+using Namines.Core.Security;
 using Namines.Infrastructure.Data;
-using Namines.Infrastructure.Services;
+using Namines.Vault;
 using Namines.Vault.Abstractions;
+using Namines.Vault.Application;
+using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 using Xunit;
 
@@ -20,13 +23,6 @@ namespace Namines.Tests.Controllers;
 
 /// <summary>
 /// <c>GET /api/vault/health</c> — anonim çağırana ne söylendiği. docs/last-review M-9.
-///
-/// <b>Bulunan açık:</b> uç <c>[AllowAnonymous]</c> ve ayrıntıları HERKESE dönüyordu.
-/// <c>store</c> alanı <c>FileSystemBackupStore.Description</c>'dan geliyor ve içinde
-/// yedeğin durduğu <b>mutlak sunucu dosya yolu</b> var; <c>problem</c> ise
-/// sağlayıcının ham hata metnini taşıyabiliyor (Docker socket yolu, iç host adları).
-/// İkisi de kimliği doğrulanmamış bir çağıranın işine yaramaz, saldırganın keşif
-/// işine yarar.
 /// </summary>
 public sealed class VaultHealthDisclosureTests : IAsyncLifetime
 {
@@ -35,12 +31,14 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
 
     private SqliteConnection _connection = null!;
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<VaultDbContext> _vaultOptions = null!;
 
     public async Task InitializeAsync()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
+        _vaultOptions = new DbContextOptionsBuilder<VaultDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
@@ -48,7 +46,6 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
-    /// <summary>Açıklamasında sunucu yolu taşıyan sahte depo — asıl sızıntı alanı.</summary>
     private sealed class PathLeakingStore : IBackupStore
     {
         public string Description => $"Local disk ({SecretPath})";
@@ -57,7 +54,6 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
         public Task DeleteAsync(string key, CancellationToken ct) => Task.CompletedTask;
     }
 
-    /// <summary>Probe'unda ham altyapı metni dönen sahte sağlayıcı.</summary>
     private sealed class FailingProvider : IBackupProvider
     {
         public string Engine => "PostgreSQL";
@@ -67,9 +63,16 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
         public Task<string?> ProbeAsync(CancellationToken ct) => Task.FromResult<string?>(ProbeProblem);
     }
 
+    private sealed class PassthroughProtector : IConnectionSecretProtector
+    {
+        public string Protect(string plaintext) => plaintext;
+        public string Unprotect(string ciphertext) => ciphertext;
+    }
+
     private VaultController NewController(bool authenticated)
     {
         var db = new AuthDbContext(_options);
+        var vaultDb = new VaultDbContext(_vaultOptions);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -77,20 +80,27 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
             })
             .Build();
 
-        var vault = new VaultService(
-            db,
-            protector: null!,
-            hostPolicy: null!,
-            providers: new IBackupProvider[] { new FailingProvider() },
-            store: new PathLeakingStore(),
-            cipher: new BackupCipher(config),
-            logger: NullLogger<VaultService>.Instance);
+        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var store = new PathLeakingStore();
+        var cipher = new BackupCipher(config);
+        var providers = new IBackupProvider[] { new FailingProvider() };
+
+        var vaultService = new VaultApplicationService(
+            vaultDb,
+            authority,
+            authority,
+            providers,
+            store,
+            cipher,
+            NullLogger<VaultApplicationService>.Instance);
+
+        var vaultModule = new VaultModule(store, cipher, providers, vaultService, new VaultJobQueue());
 
         var identity = authenticated
             ? new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "u1") }, "TestAuth")
             : new ClaimsIdentity();
 
-        return new VaultController(db, vault, jobs: null!)
+        return new VaultController(authority, vaultModule)
         {
             ControllerContext = new ControllerContext
             {
@@ -99,7 +109,6 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
         };
     }
 
-    /// <summary>Anonim yanıt JSON'a çevrilerek aranıyor — alan adına değil İÇERİĞE bakıyoruz.</summary>
     private static string Serialize(IActionResult result) =>
         System.Text.Json.JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(result).Value);
 
@@ -124,8 +133,6 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
     [Fact]
     public async Task Anonim_cagiran_YINE_DE_calisiyor_mu_sorusunu_alabiliyor()
     {
-        // Uç anonim KALIYOR: bir sağlık kontrolü oturum istememeli. Cevabı
-        // tamamen kesmek, düzeltmeyi bir kırılmaya çevirirdi.
         var body = Serialize(await NewController(authenticated: false).Health(default));
 
         Assert.Contains("\"ok\":false", body);
@@ -134,8 +141,6 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
     [Fact]
     public async Task Kimligi_dogrulanmis_cagiran_AYRINTIYI_aliyor()
     {
-        // Uçun kendi gerekçesi hâlâ geçerli: kullanıcı yedeğinin nerede
-        // durduğunu bilmeden ona güvenmemeli.
         var body = Serialize(await NewController(authenticated: true).Health(default));
 
         Assert.Contains("vault-backups", body);

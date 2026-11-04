@@ -117,6 +117,7 @@ internal static class DockerHostMemory
             });
 
             if (process is null) return 0;
+            if (!process.WaitForExit(10_000)) { process.Kill(true); return 0; }
             var output = process.StandardOutput.ReadToEnd();
             if (!process.WaitForExit(10_000)) { process.Kill(true); return 0; }
             if (process.ExitCode != 0) return 0;

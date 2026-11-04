@@ -10,15 +10,16 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Infrastructure.Data;
-using Namines.Infrastructure.Services;
 using Namines.Vault.Abstractions;
+using Namines.Vault.Application;
+using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 using Xunit;
 
 namespace Namines.Tests.Services;
 
 /// <summary>
-/// <see cref="VaultService"/> — sürücü/araç hatalarının istemciye nasıl
+/// <see cref="VaultApplicationService"/> — sürücü/araç hatalarının istemciye nasıl
 /// yansıdığı.
 ///
 /// <b>Bulunan açık:</b> yedekleme/geri yükleme/doğrulama sırasında oluşan
@@ -28,13 +29,14 @@ namespace Namines.Tests.Services;
 /// Restores/Verify uçlarından AYNEN istemciye dönüyor. Npgsql/MySqlConnector
 /// gibi sürücüler bağlantı hatalarında hedef host/port'u mesaja gömdüğü için
 /// bu, Gateway'in "ham sürücü metni asla istemciye" kuralını Vault'ta ihlal
-/// ediyordu. Düzeltme: <see cref="DbConnectionFailure.Classify"/> ile aynı
+/// ediyordu. Düzeltme: <c>VaultConnectionFailure.Classify</c> ile aynı
 /// güvenli kategoriler kullanılıyor; ham metin yalnızca loga gidiyor.
 /// </summary>
 public sealed class VaultErrorSanitizationTests : IAsyncLifetime
 {
     private SqliteConnection _connection = null!;
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<VaultDbContext> _vaultOptions = null!;
 
     private const string SensitiveHost = "internal-db-07.corp.example:5432";
 
@@ -43,6 +45,7 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
         _connection = new SqliteConnection("DataSource=:memory:");
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
+        _vaultOptions = new DbContextOptionsBuilder<VaultDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
@@ -51,6 +54,7 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
     private AuthDbContext NewContext() => new(_options);
+    private VaultDbContext NewVaultContext() => new(_vaultOptions);
 
     private sealed class PassthroughProtector : IConnectionSecretProtector
     {
@@ -109,10 +113,18 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
         return new BackupCipher(configuration);
     }
 
-    private VaultService NewService(AuthDbContext db, IBackupStore store) => new(
-        db, new PassthroughProtector(), new AllowAllHostPolicy(),
-        new IBackupProvider[] { new FailingBackupProvider() }, store, NewCipher(),
-        NullLogger<VaultService>.Instance);
+    private VaultApplicationService NewService(AuthDbContext db, VaultDbContext vaultDb, IBackupStore store)
+    {
+        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector(), new AllowAllHostPolicy());
+        return new VaultApplicationService(
+            vaultDb,
+            authority,
+            authority,
+            new IBackupProvider[] { new FailingBackupProvider() },
+            store,
+            NewCipher(),
+            NullLogger<VaultApplicationService>.Instance);
+    }
 
     private async Task<CloudProject> SeedProjectAsync(AuthDbContext db)
     {
@@ -133,17 +145,18 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
     public async Task Basarisiz_yedekte_ham_surucu_metni_ErrorMessage_a_YAZILMAZ()
     {
         await using var db = NewContext();
+        await using var vaultDb = NewVaultContext();
         var project = await SeedProjectAsync(db);
-        var service = NewService(db, new InertBackupStore());
+        var service = NewService(db, vaultDb, new InertBackupStore());
 
-        var result = await service.BackupAsync(project, "u1", VaultBackupKind.Manual, CancellationToken.None);
+        var result = await service.BackupProjectAsync(project.Id, "u1", VaultBackupKind.Manual, CancellationToken.None);
 
         Assert.False(result.Ok);
         Assert.NotNull(result.Error);
         Assert.DoesNotContain(SensitiveHost, result.Error);
         Assert.DoesNotContain("internal-db-07", result.Error);
 
-        await using var verify = NewContext();
+        await using var verify = NewVaultContext();
         var record = await verify.VaultBackups.SingleAsync(b => b.ProjectId == "p1");
         Assert.Equal(VaultBackupStatus.Failed, record.Status);
         Assert.DoesNotContain(SensitiveHost, record.ErrorMessage);
@@ -153,6 +166,7 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
     public async Task Dogrulama_basarisizliginda_ham_surucu_metni_VerifyError_a_YAZILMAZ()
     {
         await using var db = NewContext();
+        await using var vaultDb = NewVaultContext();
         await SeedProjectAsync(db);
 
         var backup = new VaultBackup
@@ -166,8 +180,8 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
             StoreDescription = "fake",
             StorageKey = "p1/existing.nvlt",
         };
-        db.VaultBackups.Add(backup);
-        await db.SaveChangesAsync();
+        vaultDb.VaultBackups.Add(backup);
+        await vaultDb.SaveChangesAsync();
 
         // Doğrulama sağlayıcıya (FailingBackupProvider.VerifyAsync) ULAŞSIN
         // diye depo GEÇERLİ şekilde şifrelenmiş bir içerik döndürüyor —
@@ -176,7 +190,7 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
         // hiç denenmemiş olurdu.
         await using var encrypted = new MemoryStream();
         await NewCipher().EncryptAsync(new MemoryStream(new byte[] { 9, 9, 9 }), encrypted, CancellationToken.None);
-        var service = NewService(db, new InertBackupStore(encrypted.ToArray()));
+        var service = NewService(db, vaultDb, new InertBackupStore(encrypted.ToArray()));
 
         var result = await service.VerifyAsync(backup, CancellationToken.None);
 

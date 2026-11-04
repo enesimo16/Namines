@@ -79,7 +79,7 @@ internal static class GroqResponseReader
     }
 }
 
-public class GroqAIService : IAIService, IAgentChatClient
+public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
 {
     private readonly HttpClient _httpClient;
     /// <summary>

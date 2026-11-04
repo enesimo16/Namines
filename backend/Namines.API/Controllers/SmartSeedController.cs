@@ -52,6 +52,7 @@ public class SmartSeedController : ControllerBase
         _logger.LogInformation("SmartSeed: Test data generation request received. Schema: {Name}, DbType: {DbType}, RowCount: {RowCount}",
             request.Schema.Name, request.DbType, request.RowCount);
 
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         bool forceDeterministic = !request.EnhanceWithAI;
         if (HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true)
         {
@@ -59,7 +60,6 @@ public class SmartSeedController : ControllerBase
         }
         else
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!string.IsNullOrEmpty(userId))
             {
                 var policy = await _context.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
@@ -84,7 +84,7 @@ public class SmartSeedController : ControllerBase
             // Cache lookup for AI-powered path
             try
             {
-                var cached = await _cacheService.TryGetAsync("smartseed", request.Schema, new { dbType = request.DbType.ToString(), request.DomainHint, request.RowCount });
+                var cached = await _cacheService.TryGetAsync("smartseed", request.Schema, new { dbType = request.DbType.ToString(), request.DomainHint, request.RowCount }, userId);
                 if (cached != null)
                 {
                     _logger.LogInformation("SmartSeed: Cache HIT.");
@@ -115,7 +115,7 @@ public class SmartSeedController : ControllerBase
             {
                 try
                 {
-                    await _cacheService.SetAsync("smartseed", request.Schema, new { dbType = request.DbType.ToString(), request.DomainHint, request.RowCount }, JsonSerializer.Serialize(result), TimeSpan.FromHours(1));
+                    await _cacheService.SetAsync("smartseed", request.Schema, new { dbType = request.DbType.ToString(), request.DomainHint, request.RowCount }, JsonSerializer.Serialize(result), TimeSpan.FromHours(1), userId);
                 }
                 catch (Exception cacheEx)
                 {
@@ -128,7 +128,7 @@ public class SmartSeedController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "SmartSeed: Error occurred during test data generation");
-            return StatusCode(500, new { error = $"Data generation error: {ex.Message}" });
+            return StatusCode(500, new { error = "Data generation failed due to an internal error." });
         }
     }
 }

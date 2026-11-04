@@ -4,14 +4,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Ground.Abstractions;
+using Namines.Ground.Application;
+using Namines.Ground.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
-using Namines.Infrastructure.Services;
 using Xunit;
 
 namespace Namines.Tests.Services;
 
 /// <summary>
-/// <see cref="GroundService.CancelDeleteAsync"/> — bekleme penceresi içindeki
+/// <see cref="GroundApplicationService.CancelDeleteAsync"/> — bekleme penceresi içindeki
 /// bir silmeyi geri almak.
 ///
 /// <b>Bulunan açık:</b> bu metot "CreateAsync idempotan" varsayımıyla
@@ -26,12 +27,14 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
 {
     private SqliteConnection _connection = null!;
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<GroundDbContext> _groundOptions = null!;
 
     public async Task InitializeAsync()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
+        _groundOptions = new DbContextOptionsBuilder<GroundDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
@@ -40,6 +43,7 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
     private AuthDbContext NewContext() => new(_options);
+    private GroundDbContext NewGroundContext() => new(_groundOptions);
 
     /// <summary>Düz metni olduğu gibi taşıyan sahte koruyucu — testte gerçek şifreleme gerekmiyor.</summary>
     private sealed class PassthroughProtector : IConnectionSecretProtector
@@ -86,7 +90,20 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
         public Task<string?> ProbeAsync(CancellationToken ct) => Task.FromResult<string?>(null);
     }
 
-    private async Task<(CloudProject Project, GroundDatabase Record)> SeedPendingDeleteAsync(AuthDbContext db)
+    private GroundApplicationService NewService(AuthDbContext db, GroundDbContext groundDb, IDatabaseProvider provider)
+    {
+        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        return new GroundApplicationService(
+            groundDb,
+            authority,
+            authority,
+            new[] { provider },
+            NullLogger<GroundApplicationService>.Instance);
+    }
+
+    private async Task<(CloudProject Project, GroundDatabase Record)> SeedPendingDeleteAsync(
+        AuthDbContext db,
+        GroundDbContext groundDb)
     {
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
         var project = new CloudProject
@@ -97,6 +114,7 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
             EncryptedConnectionString = null, ConnectionDbType = null,
         };
         db.CloudProjects.Add(project);
+        await db.SaveChangesAsync();
 
         var record = new GroundDatabase
         {
@@ -104,9 +122,8 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
             Status = GroundStatus.PendingDelete, DeleteRequestedAt = DateTime.UtcNow,
             ProviderProjectId = "remote-original",
         };
-        db.GroundDatabases.Add(record);
-
-        await db.SaveChangesAsync();
+        groundDb.GroundDatabases.Add(record);
+        await groundDb.SaveChangesAsync();
         return (project, record);
     }
 
@@ -114,10 +131,10 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
     public async Task Idempotent_OLMAYAN_saglayicida_ikinci_kaynak_ACILMIYOR()
     {
         await using var db = NewContext();
-        var (_, record) = await SeedPendingDeleteAsync(db);
+        await using var groundDb = NewGroundContext();
+        var (_, record) = await SeedPendingDeleteAsync(db, groundDb);
         var provider = new FakeRemoteProvider(idempotent: false);
-        var service = new GroundService(db, new PassthroughProtector(),
-            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+        var service = NewService(db, groundDb, provider);
 
         var result = await service.CancelDeleteAsync(record, provider, CancellationToken.None);
 
@@ -128,17 +145,15 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
     [Fact]
     public async Task Idempotent_OLMAYAN_saglayicida_ORIJINAL_ProviderProjectId_KORUNUYOR()
     {
-        // Reddedilen bir istek kaydı DEĞİŞTİRMEMELİ — aksi hâlde ileride
-        // tetiklenecek gerçek silme yine de yanlış kaynağı hedef alabilirdi.
         await using var db = NewContext();
-        var (_, record) = await SeedPendingDeleteAsync(db);
+        await using var groundDb = NewGroundContext();
+        var (_, record) = await SeedPendingDeleteAsync(db, groundDb);
         var provider = new FakeRemoteProvider(idempotent: false);
-        var service = new GroundService(db, new PassthroughProtector(),
-            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+        var service = NewService(db, groundDb, provider);
 
         await service.CancelDeleteAsync(record, provider, CancellationToken.None);
 
-        await using var verify = NewContext();
+        await using var verify = NewGroundContext();
         var reloaded = await verify.GroundDatabases.SingleAsync(g => g.ProjectId == "proj-1");
         Assert.Equal("remote-original", reloaded.ProviderProjectId);
         Assert.Equal(GroundStatus.PendingDelete, reloaded.Status);
@@ -147,13 +162,11 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
     [Fact]
     public async Task Idempotent_OLMAYAN_saglayicida_proje_baglantisi_BOS_KALIYOR()
     {
-        // Reddedilen bir iptal, kullanıcıyı "iptal oldu ama bağlantı bozuk"
-        // durumunda YARIM bırakmamalı — bağlantı zaten null'du, öyle kalıyor.
         await using var db = NewContext();
-        var (_, record) = await SeedPendingDeleteAsync(db);
+        await using var groundDb = NewGroundContext();
+        var (_, record) = await SeedPendingDeleteAsync(db, groundDb);
         var provider = new FakeRemoteProvider(idempotent: false);
-        var service = new GroundService(db, new PassthroughProtector(),
-            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+        var service = NewService(db, groundDb, provider);
 
         await service.CancelDeleteAsync(record, provider, CancellationToken.None);
 
@@ -165,13 +178,11 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
     [Fact]
     public async Task Idempotent_saglayicida_ESKI_DAVRANIS_korunuyor()
     {
-        // LocalPostgresProvider gibi GERÇEKTEN idempotan bir sağlayıcı için
-        // hiçbir şey değişmemeli: CreateAsync çağrılır, bağlantı geri gelir.
         await using var db = NewContext();
-        var (_, record) = await SeedPendingDeleteAsync(db);
+        await using var groundDb = NewGroundContext();
+        var (_, record) = await SeedPendingDeleteAsync(db, groundDb);
         var provider = new FakeRemoteProvider(idempotent: true);
-        var service = new GroundService(db, new PassthroughProtector(),
-            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+        var service = NewService(db, groundDb, provider);
 
         var result = await service.CancelDeleteAsync(record, provider, CancellationToken.None);
 
@@ -184,32 +195,18 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
         Assert.NotNull(reloadedProject.EncryptedConnectionString);
     }
 
-    /// <summary>
-    /// Idempotan sağlayıcıda kurtarma, adı YENİDEN TÜRETMEK yerine kayıttaki
-    /// sağlayıcı kimliğini geri veriyor.
-    ///
-    /// <b>Bu turun kendi regresyonu (docs/last-review H-7):</b>
-    /// <c>LocalPostgresProvider.BuildIdentifier</c>'a çakışma önlemek için özet
-    /// soneki eklenmişti. Kurtarma yolu ise <c>CreateIsIdempotentByProjectId</c>
-    /// yeteneğine güvenip <c>CreateAsync</c>'i yalnızca proje kimliğiyle
-    /// çağırıyordu — türetme kuralı değiştiği için aynı kimlik artık FARKLI bir
-    /// ad veriyor. Sonuç: kurtarma ikinci ve BOŞ bir veritabanı açar, kayıttaki
-    /// eski ad veriyi taşıyan veritabanını gösterdiği için <c>PurgeExpiredAsync</c>
-    /// onu bekleme penceresi sonunda düşürür. Kullanıcı silmeyi geri aldığı hâlde
-    /// verisini kaybeder — yani "idempotan" varsayımı türetmeye bağlıydı.
-    /// </summary>
     [Fact]
     public async Task Idempotan_saglayicida_kurtarma_SAKLANAN_kimligi_geri_veriyor()
     {
         await using var db = NewContext();
-        var (_, record) = await SeedPendingDeleteAsync(db);
+        await using var groundDb = NewGroundContext();
+        var (_, record) = await SeedPendingDeleteAsync(db, groundDb);
         record.ProviderBranchId = "role-original";
         record.Region = "eu-central-1";
-        await db.SaveChangesAsync();
+        await groundDb.SaveChangesAsync();
 
         var provider = new FakeRemoteProvider(idempotent: true);
-        var service = new GroundService(db, new PassthroughProtector(),
-            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+        var service = NewService(db, groundDb, provider);
 
         var result = await service.CancelDeleteAsync(record, provider, CancellationToken.None);
 
@@ -217,8 +214,6 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
         Assert.NotNull(provider.LastSpec);
         Assert.Equal("remote-original", provider.LastSpec!.ExistingProviderProjectId);
         Assert.Equal("role-original", provider.LastSpec.ExistingProviderBranchId);
-        // Bölge de kayıttan geliyor: sağlayıcı varsayılanına düşmek, kurtarmayı
-        // kaynağın gerçekte açıldığı bölgeden başka bir yere taşıyabilirdi.
         Assert.Equal("eu-central-1", provider.LastSpec.Region);
     }
 }

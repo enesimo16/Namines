@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Namines.Core;
 using Namines.Core.Enums;
@@ -11,7 +12,9 @@ using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
+using Namines.Ground.Application;
 using Namines.Infrastructure.Data;
+using Namines.Vault.Application;
 
 namespace Namines.Infrastructure.Services;
 
@@ -52,19 +55,19 @@ public class LaunchService
     private static readonly string[] DestructiveKeywords =
         { "DROP ", "TRUNCATE ", "DELETE ", "ALTER ", "REVOKE ", "GRANT " };
 
-    private readonly GroundService _ground;
+    private readonly IGroundApplicationService _ground;
     private readonly IDbIntrospectionService _introspection;
     private readonly IDatabaseExecutor _executor;
-    private readonly VaultService _vault;
+    private readonly IVaultApplicationService _vault;
     private readonly IConnectionSecretProtector _protector;
     private readonly AuthDbContext _context;
     private readonly ILogger<LaunchService> _logger;
 
     public LaunchService(
-        GroundService ground,
+        IGroundApplicationService ground,
         IDbIntrospectionService introspection,
         IDatabaseExecutor executor,
-        VaultService vault,
+        IVaultApplicationService vault,
         IConnectionSecretProtector protector,
         AuthDbContext context,
         ILogger<LaunchService> logger)
@@ -88,18 +91,25 @@ public class LaunchService
         if (await provider.ProbeAsync(ct) is { } probeProblem)
             return new LaunchResult(LaunchStatus.ProvisionFailed, Error: probeProblem);
 
-        var provisionResult = await _ground.ProvisionAsync(project, userId, provider, ct);
+        var provisionResult = await _ground.ProvisionAsync(project.Id, userId, provider, ct);
         if (!provisionResult.Ok)
             return new LaunchResult(LaunchStatus.ProvisionFailed, Error: provisionResult.Error);
 
-        // ProvisionAsync, CloudProject.EncryptedConnectionString'i BAŞARILI olduğunda
-        // günceller (bkz. GroundService.ProvisionAsync) — 'project' aynı EF izlenen
-        // örnek olduğu için burada zaten güncel.
+        if (string.IsNullOrWhiteSpace(project.EncryptedConnectionString))
+        {
+            var latestEncrypted = await _context.CloudProjects
+                .AsNoTracking()
+                .Where(p => p.Id == project.Id)
+                .Select(p => p.EncryptedConnectionString)
+                .FirstOrDefaultAsync(ct);
+            project.EncryptedConnectionString = latestEncrypted;
+        }
+
         if (string.IsNullOrWhiteSpace(project.EncryptedConnectionString))
             return new LaunchResult(LaunchStatus.ProvisionFailed,
                 Error: "Provisioning reported success but left no connection string.");
 
-        var connectionString = _protector.Unprotect(project.EncryptedConnectionString);
+        var connectionString = _protector.Unprotect(project.EncryptedConnectionString, associatedData: project.Id);
 
         DatabaseSchema liveSchema;
         try
@@ -134,7 +144,7 @@ public class LaunchService
         string? backupWarning = null;
         try
         {
-            var backup = await _vault.BackupAsync(project, userId, VaultBackupKind.Manual, ct);
+            var backup = await _vault.BackupProjectAsync(project.Id, userId, VaultBackupKind.Manual, ct);
             if (!backup.Ok)
                 backupWarning = $"Initial backup failed: {backup.Error}. Back it up manually from the Vault tab.";
         }

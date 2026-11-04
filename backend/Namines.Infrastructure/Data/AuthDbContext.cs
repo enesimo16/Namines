@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Enums;
 using Namines.Core.Models;
@@ -16,9 +16,6 @@ namespace Namines.Infrastructure.Data
         public DbSet<GlobalAiUsage> GlobalAiUsages { get; set; } = null!;
         public DbSet<OrgAiUsage> OrgAiUsages { get; set; } = null!;
         public DbSet<Branch> Branches { get; set; } = null!;
-        public DbSet<Namines.Core.Models.AutomationRule> AutomationRules { get; set; } = null!;
-        public DbSet<Namines.Core.Models.AutomationAction> AutomationActions { get; set; } = null!;
-        public DbSet<Namines.Core.Models.AutomationRunLog> AutomationRunLogs { get; set; } = null!;
         public DbSet<SchemaVersion> SchemaVersions { get; set; } = null!;
         public DbSet<ChangeRequest> ChangeRequests { get; set; } = null!;
         public DbSet<ChangeRequestApproval> ChangeRequestApprovals { get; set; } = null!;
@@ -31,12 +28,7 @@ namespace Namines.Infrastructure.Data
         public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
         public DbSet<UserBillingSettings> UserBillingSettings { get; set; } = null!;
         public DbSet<TeamInvite> TeamInvites { get; set; } = null!;
-        public DbSet<DeskHandoffToken> DeskHandoffTokens { get; set; } = null!;
         public DbSet<CrossDatabaseRelation> CrossDatabaseRelations { get; set; } = null!;
-        public DbSet<VaultBackup> VaultBackups { get; set; } = null!;
-        public DbSet<VaultRestore> VaultRestores { get; set; } = null!;
-        public DbSet<VaultSchedule> VaultSchedules { get; set; } = null!;
-        public DbSet<GroundDatabase> GroundDatabases { get; set; } = null!;
 
         /// <summary>
         /// `/api/executor/execute` uzerinden calistirilan her SQL betiginin kaydi.
@@ -53,10 +45,8 @@ namespace Namines.Infrastructure.Data
         /// verebilirlik icin SQL metnini saklamiyor, bu ise tam olarak onu
         /// saklamak zorunda.
         /// </summary>
-        public DbSet<SqlQueryHistoryEntry> SqlQueryHistory { get; set; } = null!;
 
         /// <summary>Kullanicinin ada kaydettigi sorgular (F-02).</summary>
-        public DbSet<SavedQuery> SavedQueries { get; set; } = null!;
 
         /// <summary>Sistem araçları ve özellik bayrakları (Kill-Switch).</summary>
         public DbSet<AdminFeatureFlag> FeatureFlags { get; set; } = null!;

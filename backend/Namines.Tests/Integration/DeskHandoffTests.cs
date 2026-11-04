@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 using Namines.Core.Models.Auth;
+using Namines.Desk.Application;
+using Namines.Desk.Infrastructure.Persistence;
+using Namines.Desk.Services;
 using Namines.Infrastructure.Data;
 
 namespace Namines.Tests.Integration;
@@ -19,14 +22,18 @@ public class DeskHandoffTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine").Build();
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<DeskDbContext> _deskOptions = null!;
 
     public async Task InitializeAsync()
     {
         if (!DockerAvailable.Value) return;
         await _container.StartAsync();
 
+        var connStr = _container.GetConnectionString();
         _options = new DbContextOptionsBuilder<AuthDbContext>()
-            .UseNpgsql(_container.GetConnectionString()).Options;
+            .UseNpgsql(connStr).Options;
+        _deskOptions = new DbContextOptionsBuilder<DeskDbContext>()
+            .UseNpgsql(connStr).Options;
 
         await using var context = new AuthDbContext(_options);
         await context.Database.MigrateAsync();
@@ -36,16 +43,19 @@ public class DeskHandoffTests : IAsyncLifetime
 
     public Task DisposeAsync() => DockerAvailable.Value ? _container.DisposeAsync().AsTask() : Task.CompletedTask;
 
-    private AuthDbContext Context() => new(_options);
+    private DeskDbContext DeskContext() => new(_deskOptions);
+
+    private DeskApplicationService DeskApp(DeskDbContext db) =>
+        new(db, new DeskHandoffTokenValidator());
 
     [RequiresDockerFact]
     public async Task A_freshly_created_token_exchanges_for_its_owner()
     {
-        await using var context = Context();
-        var raw = await context.CreateDeskHandoffTokenAsync("u1");
+        await using var context = DeskContext();
+        var raw = await DeskApp(context).CreateHandoffTokenAsync("u1");
 
-        await using var exchangeContext = Context();
-        var userId = await exchangeContext.ExchangeDeskHandoffTokenAsync(raw);
+        await using var exchangeContext = DeskContext();
+        var userId = await DeskApp(exchangeContext).ExchangeHandoffTokenAsync(raw);
 
         Assert.Equal("u1", userId);
     }
@@ -53,10 +63,8 @@ public class DeskHandoffTests : IAsyncLifetime
     [RequiresDockerFact]
     public async Task The_raw_token_is_never_stored()
     {
-        // TeamInvite ile aynı gerekçe: ham saklansaydı veritabanı yedeğine
-        // erişen herkes birinin oturumunu Desk'te açabilirdi.
-        await using var context = Context();
-        var raw = await context.CreateDeskHandoffTokenAsync("u1");
+        await using var context = DeskContext();
+        var raw = await DeskApp(context).CreateHandoffTokenAsync("u1");
 
         var stored = await context.DeskHandoffTokens.AsNoTracking().FirstAsync();
         Assert.DoesNotContain(raw, stored.TokenHash);
@@ -66,14 +74,14 @@ public class DeskHandoffTests : IAsyncLifetime
     [RequiresDockerFact]
     public async Task Using_the_same_token_twice_only_works_once()
     {
-        await using var context = Context();
-        var raw = await context.CreateDeskHandoffTokenAsync("u1");
+        await using var context = DeskContext();
+        var raw = await DeskApp(context).CreateHandoffTokenAsync("u1");
 
-        await using var first = Context();
-        var firstResult = await first.ExchangeDeskHandoffTokenAsync(raw);
+        await using var first = DeskContext();
+        var firstResult = await DeskApp(first).ExchangeHandoffTokenAsync(raw);
 
-        await using var second = Context();
-        var secondResult = await second.ExchangeDeskHandoffTokenAsync(raw);
+        await using var second = DeskContext();
+        var secondResult = await DeskApp(second).ExchangeHandoffTokenAsync(raw);
 
         Assert.Equal("u1", firstResult);
         Assert.Null(secondResult);
@@ -82,52 +90,45 @@ public class DeskHandoffTests : IAsyncLifetime
     [RequiresDockerFact]
     public async Task An_unknown_token_exchanges_for_nothing()
     {
-        await using var context = Context();
-        var userId = await context.ExchangeDeskHandoffTokenAsync("this-was-never-issued");
+        await using var context = DeskContext();
+        var userId = await DeskApp(context).ExchangeHandoffTokenAsync("this-was-never-issued");
         Assert.Null(userId);
     }
 
     [RequiresDockerFact]
     public async Task An_expired_token_no_longer_works()
     {
-        await using var context = Context();
-        var raw = await context.CreateDeskHandoffTokenAsync("u1");
+        await using var context = DeskContext();
+        var raw = await DeskApp(context).CreateHandoffTokenAsync("u1");
 
-        // 30 saniyelik ömrü elle geçmişe çekiyoruz — gerçekten 30 sn beklemek
-        // yerine, ama AYNI IsUsable kontrolünü tetikliyor.
         var entity = await context.DeskHandoffTokens.FirstAsync();
         entity.ExpiresAt = DateTime.UtcNow.AddSeconds(-1);
         await context.SaveChangesAsync();
 
-        await using var exchangeContext = Context();
-        var userId = await exchangeContext.ExchangeDeskHandoffTokenAsync(raw);
+        await using var exchangeContext = DeskContext();
+        var userId = await DeskApp(exchangeContext).ExchangeHandoffTokenAsync(raw);
         Assert.Null(userId);
     }
 
     [RequiresDockerFact]
     public async Task Concurrent_exchanges_of_the_same_token_only_let_one_through()
     {
-        // ASIL kanıt: iki istek TAM OLARAK AYNI ANDA aynı jetonu kullanmayı
-        // dener. Yarış koruması olmasaydı ikisi de "kullanılmamış" okuyup
-        // ikisi de başarılı dönerdi — bir jeton çalınıp yeniden oynatılabilir
-        // (replay) olurdu.
-        await using var context = Context();
-        var raw = await context.CreateDeskHandoffTokenAsync("u1");
+        await using var context = DeskContext();
+        var raw = await DeskApp(context).CreateHandoffTokenAsync("u1");
 
         var task1 = Task.Run(async () =>
         {
-            await using var c = Context();
-            return await c.ExchangeDeskHandoffTokenAsync(raw);
+            await using var c = DeskContext();
+            return await DeskApp(c).ExchangeHandoffTokenAsync(raw);
         });
         var task2 = Task.Run(async () =>
         {
-            await using var c = Context();
-            return await c.ExchangeDeskHandoffTokenAsync(raw);
+            await using var c = DeskContext();
+            return await DeskApp(c).ExchangeHandoffTokenAsync(raw);
         });
 
         var results = await Task.WhenAll(task1, task2);
 
-        // Tam olarak biri kazanmalı, sıfırı ya da ikisi değil.
         Assert.Single(results, r => r == "u1");
         Assert.Single(results, r => r is null);
     }

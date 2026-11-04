@@ -3,10 +3,15 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
+using Namines.Desk.Infrastructure.Persistence;
 using Namines.Ground.Abstractions;
+using Namines.Ground.Application;
+using Namines.Ground.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Namines.Vault.Abstractions;
+using Namines.Vault.Application;
+using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 
 namespace Namines.Tests.Services;
@@ -70,6 +75,15 @@ internal static class ProjectDeletionTestKit
         public string Unprotect(string ciphertext) => ciphertext.Replace("enc:", "");
     }
 
+    public static VaultDbContext NewVaultDb(AuthDbContext db) =>
+        new(new DbContextOptionsBuilder<VaultDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
+
+    public static GroundDbContext NewGroundDb(AuthDbContext db) =>
+        new(new DbContextOptionsBuilder<GroundDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
+
+    public static DeskDbContext NewDeskDb(AuthDbContext db) =>
+        new(new DbContextOptionsBuilder<DeskDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
+
     public static ProjectDeletionService Create(AuthDbContext db, FakeStore store, FakeProvider provider)
     {
         var config = new ConfigurationBuilder()
@@ -78,11 +92,21 @@ internal static class ProjectDeletionTestKit
                 ["Vault:BackupEncryptionKey"] = "test-key-at-least-32-characters-long!!",
             }).Build();
 
-        var vault = new VaultService(db, new PassthroughProtector(), hostPolicy: null!,
-            providers: Array.Empty<IBackupProvider>(), store, new BackupCipher(config),
-            NullLogger<VaultService>.Instance);
-        var ground = new GroundService(db, new PassthroughProtector(),
-            new IDatabaseProvider[] { provider }, NullLogger<GroundService>.Instance);
+        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var vault = new VaultApplicationService(
+            NewVaultDb(db),
+            authority,
+            authority,
+            providers: Array.Empty<IBackupProvider>(),
+            store,
+            new BackupCipher(config),
+            NullLogger<VaultApplicationService>.Instance);
+        var ground = new GroundApplicationService(
+            NewGroundDb(db),
+            authority,
+            authority,
+            new IDatabaseProvider[] { provider },
+            NullLogger<GroundApplicationService>.Instance);
         return new ProjectDeletionService(db, vault, ground, NullLogger<ProjectDeletionService>.Instance);
     }
 

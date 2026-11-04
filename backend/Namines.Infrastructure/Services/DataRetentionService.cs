@@ -5,6 +5,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Linq.Expressions;
 using Namines.Core.Models.Auth;
+using Namines.Desk.Abstractions;
+using Namines.Desk.Application;
 using Namines.Infrastructure.Data;
 
 namespace Namines.Infrastructure.Services;
@@ -17,7 +19,7 @@ namespace Namines.Infrastructure.Services;
 /// Yapılandırma <c>Retention:*</c> altında; 0 veya negatif değer o tablonun
 /// temizliğini KAPATIR (veri kaybına doğru varsayılan yok). Faturalama/vergi
 /// kaydı olan UsageEvents için <see cref="MinUsageEventDays"/> altına inilmez.
-/// AutomationRunLogs ayrı serviste (<see cref="AutomationRunLogRetentionService"/>) kalır,
+/// AutomationRunLogs ayrı serviste (<c>FlowRunLogRetentionService</c>) kalır,
 /// çift çalışma olmasın diye burada ele alınmaz.
 /// </summary>
 public class DataRetentionService : BackgroundService
@@ -69,8 +71,10 @@ public class DataRetentionService : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+                var deskApp = scope.ServiceProvider.GetService<IDeskApplicationService>()
+                              ?? scope.ServiceProvider.GetService<IDeskModule>()?.Application;
                 await PurgeAsync(db, RetentionOptions.From(_configuration), _logger, DateTime.UtcNow,
-                    TimeSpan.FromMilliseconds(200), stoppingToken);
+                    TimeSpan.FromMilliseconds(200), stoppingToken, deskApp);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -109,7 +113,7 @@ public class DataRetentionService : BackgroundService
     /// <summary>Test edilebilir temizlik adımı; tablo başına silinen satır sayısını döndürür.</summary>
     public static async Task<IReadOnlyDictionary<string, int>> PurgeAsync(
         AuthDbContext db, RetentionOptions o, ILogger logger, DateTime nowUtc,
-        TimeSpan pause, CancellationToken ct)
+        TimeSpan pause, CancellationToken ct, IDeskApplicationService? deskApp = null)
     {
         var result = new Dictionary<string, int>();
 
@@ -131,10 +135,11 @@ public class DataRetentionService : BackgroundService
         await Run<StripeWebhookEvent>("StripeWebhookEvents", o.StripeWebhookDays, c => e => e.ProcessedAt < c, e => e.Id);
         await Run<Namines.Core.Models.Feedback>("Feedbacks", o.FeedbackDays, c => e => e.CreatedAt < c, e => e.Id);
 
-        // Süresi dolmuş tek kullanımlık jetonlar: gün ayarı yok, kısa sabit tolerans.
+        // Süresi dolmuş tek kullanımlık jetonlar: Desk modülü üzerinden temizlenir.
         var tokenCutoff = nowUtc.AddDays(-ExpiredTokenGraceDays);
-        var handoff = await DeleteInBatchesAsync(
-            db.DeskHandoffTokens.Where(t => t.ExpiresAt < tokenCutoff), t => t.Id, pause, ct);
+        var handoff = deskApp is not null
+            ? await deskApp.PurgeExpiredHandoffTokensAsync(tokenCutoff, ct, BatchSize, pause)
+            : 0;
         result["desk_handoff_tokens"] = handoff;
         // Kabul edilmiş davetler üyelik geçmişi olarak kalır; yalnızca kabul EDİLMEMİŞ ve süresi dolanlar silinir.
         var invites = await DeleteInBatchesAsync(

@@ -11,7 +11,10 @@ namespace Namines.Ground.Configurations
     {
         public const string DefaultSchema = "ground";
 
-        public static void Configure(ModelBuilder builder, string? schema = DefaultSchema)
+        public static void Configure(
+            ModelBuilder builder,
+            string? schema = DefaultSchema,
+            bool configureCrossModuleForeignKeys = true)
         {
             builder.Entity<GroundDatabase>(entity =>
             {
@@ -36,15 +39,15 @@ namespace Namines.Ground.Configurations
                 // Referans bütünlüğü (DB-02). Sağlayıcıda açılmış gerçek bir veritabanı
                 // faturalanır: projeyi silmek onu SESSİZCE yetim bırakmamalı → RESTRICT.
                 // Silme akışı önce sağlayıcı DB'yi kapatıp kaydı işaretlemek zorunda.
-                entity.HasOne<CloudProject>().WithMany()
-                      .HasForeignKey(g => g.ProjectId)
-                      .OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne<Organization>().WithMany()
-                      .HasForeignKey(g => g.OrganizationId)
-                      .OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne<ApplicationUser>().WithMany()
-                      .HasForeignKey(g => g.CreatedByUserId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                if (configureCrossModuleForeignKeys)
+                {
+                    entity.HasOne<CloudProject>().WithMany()
+                          .HasForeignKey(g => g.ProjectId)
+                          .OnDelete(DeleteBehavior.Restrict);
+                    entity.HasOne<ApplicationUser>().WithMany()
+                          .HasForeignKey(g => g.CreatedByUserId)
+                          .OnDelete(DeleteBehavior.SetNull);
+                }
             });
         }
     }

@@ -42,10 +42,12 @@ public class AIDbaController : ControllerBase
 
         try
         {
+            var userId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
             // Cache lookup
             try
             {
-                var cached = await _cacheService.TryGetAsync("dba", request.Schema, new { dbType = request.DbType.ToString() });
+                var cached = await _cacheService.TryGetAsync("dba", request.Schema, new { dbType = request.DbType.ToString() }, userId);
                 if (cached != null)
                 {
                     _logger.LogInformation("AIDba: Cache HIT.");
@@ -67,7 +69,7 @@ public class AIDbaController : ControllerBase
             {
                 try
                 {
-                    await _cacheService.SetAsync("dba", request.Schema, new { dbType = request.DbType.ToString() }, JsonSerializer.Serialize(result), TimeSpan.FromHours(2));
+                    await _cacheService.SetAsync("dba", request.Schema, new { dbType = request.DbType.ToString() }, JsonSerializer.Serialize(result), TimeSpan.FromHours(2), userId);
                 }
                 catch (Exception cacheEx)
                 {
@@ -80,7 +82,7 @@ public class AIDbaController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "AIDba: Analiz sırasında bir hata oluştu");
-            return StatusCode(500, new { error = $"Analysis failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Schema analysis failed due to an internal error." });
         }
     }
 }

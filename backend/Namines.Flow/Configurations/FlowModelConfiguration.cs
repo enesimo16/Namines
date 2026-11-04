@@ -12,7 +12,10 @@ namespace Namines.Flow.Configurations
     {
         public const string DefaultSchema = "flow";
 
-        public static void Configure(ModelBuilder builder, string? schema = DefaultSchema)
+        public static void Configure(
+            ModelBuilder builder,
+            string? schema = DefaultSchema,
+            bool configureCrossModuleForeignKeys = true)
         {
             // ── AutomationRule (Tetikleyici kural tanımları) ──
             builder.Entity<AutomationRule>(entity =>
@@ -22,10 +25,13 @@ namespace Namines.Flow.Configurations
                 else
                     entity.ToTable("automation_rules");
 
-                entity.HasOne<CloudProject>()
-                      .WithMany()
-                      .HasForeignKey(r => r.ProjectId)
-                      .OnDelete(DeleteBehavior.Cascade);
+                if (configureCrossModuleForeignKeys)
+                {
+                    entity.HasOne<CloudProject>()
+                          .WithMany()
+                          .HasForeignKey(r => r.ProjectId)
+                          .OnDelete(DeleteBehavior.Cascade);
+                }
 
                 entity.HasIndex(r => new { r.ProjectId, r.Enabled });
 

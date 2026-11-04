@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Namines.Infrastructure.Services;
+using Namines.Vault.Application;
 
 namespace Namines.Tests.Services;
 

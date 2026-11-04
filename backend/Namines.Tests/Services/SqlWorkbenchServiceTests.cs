@@ -5,6 +5,9 @@ using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
+using Namines.Desk.Application;
+using Namines.Desk.Infrastructure.Persistence;
+using Namines.Desk.Services;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 
@@ -32,12 +35,14 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
 
     private SqliteConnection _connection = null!;
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<DeskDbContext> _deskOptions = null!;
 
     public async Task InitializeAsync()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
+        _deskOptions = new DbContextOptionsBuilder<DeskDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
@@ -57,8 +62,9 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
-    /// <summary>Her çağrı KENDİ context'iyle: gerçek istekler de öyle.</summary>
-    private SqlWorkbenchService NewService() => new(new AuthDbContext(_options));
+    /// <summary>Her çağrı KENDİ DeskDbContext'iyle: gerçek istekler de öyle.</summary>
+    private SqlWorkbenchService NewService() =>
+        new(new DeskApplicationService(new DeskDbContext(_deskOptions), new DeskHandoffTokenValidator()));
 
     private static CancellationToken Ct => CancellationToken.None;
 
@@ -78,10 +84,6 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
         Assert.Equal(12, item.DurationMs);
     }
 
-    /// <summary>
-    /// Başarısız sorgu da kaydedilmeli — kullanıcının aradığı çoğu zaman tam
-    /// odur ("hata veren sorguyu düzeltip tekrar deneyeceğim").
-    /// </summary>
     [Fact]
     public async Task Basarisiz_sorgu_da_hata_mesajiyla_kaydedilir()
     {
@@ -124,10 +126,6 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
         Assert.Equal("ikinci", history[0].Sql);
     }
 
-    /// <summary>
-    /// Saklama sınırı. Sınırsız büyüyen bir tablo, sonsuza kadar biriken hassas
-    /// metin demek — ve kimse 500 sorgu öncesine bakmıyor.
-    /// </summary>
     [Fact]
     public async Task Gecmis_100_kayitta_budaniyor()
     {
@@ -135,17 +133,13 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
         for (var i = 0; i < SqlQueryHistoryEntry.RetentionPerUserPerProject + 15; i++)
             await service.RecordAsync(Project, UserA, $"SELECT {i}", true, 0, null, 1, Ct);
 
-        await using var db = new AuthDbContext(_options);
-        var stored = await db.SqlQueryHistory
+        await using var deskDb = new DeskDbContext(_deskOptions);
+        var stored = await deskDb.SqlQueryHistory
             .CountAsync(h => h.UserId == UserA && h.ProjectId == Project, Ct);
 
         Assert.Equal(SqlQueryHistoryEntry.RetentionPerUserPerProject, stored);
     }
 
-    /// <summary>
-    /// Budama BAŞKA kullanıcının kaydına dokunmamalı. `Skip` sorgusundan
-    /// `UserId` filtresi düşerse test buradan kırılır.
-    /// </summary>
     [Fact]
     public async Task Budama_baskasinin_kaydini_silmez()
     {
@@ -194,10 +188,6 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
         Assert.Equal("Aylık rapor", item.Name);
     }
 
-    /// <summary>
-    /// Aynı ad = GÜNCELLEME, ikinci kayıt DEĞİL. Hata dönmek kullanıcıyı önce
-    /// silmeye zorlardı; "kaydet"e ikinci kez basmak en doğal düzeltme hareketi.
-    /// </summary>
     [Fact]
     public async Task Ayni_ad_ikinci_kayit_degil_GUNCELLEME()
     {
@@ -209,7 +199,6 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
         Assert.Equal("SELECT 2", item.Sql);
     }
 
-    /// <summary>Ad boşlukla farklılaştırılarak ikinci kayıt yapılamaz.</summary>
     [Fact]
     public async Task Ad_bosluklari_kirpilarak_karsilastirilir()
     {
@@ -237,10 +226,6 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
         Assert.Empty(await NewService().GetSavedAsync(Project, UserA, Ct));
     }
 
-    /// <summary>
-    /// Id'yi bilmek yetmiyor. Silme koşulunda <c>UserId</c> olmasaydı, listeden
-    /// hiç göremeyeceğiniz bir kaydı silebilirdiniz.
-    /// </summary>
     [Fact]
     public async Task Baskasinin_kaydi_id_bilinse_bile_SILINEMEZ()
     {
@@ -261,11 +246,6 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
         Assert.Empty(await NewService().GetSavedAsync(Project, UserA, Ct));
     }
 
-    /// <summary>
-    /// Mesaj kullaniciya AYNEN gosteriliyor, o yuzden icinde kodun degisken adi
-    /// OLMAMALI. `ArgumentException`'a `paramName` verilirse .NET mesajin sonuna
-    /// " (Parameter 'name')" ekliyor ve kullanici bunu okuyordu.
-    /// </summary>
     [Fact]
     public async Task Bos_ad_reddedilir_ve_mesaj_parametre_adi_SIZDIRMAZ()
     {

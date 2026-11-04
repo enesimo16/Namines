@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Namines.Vault.Application;
 using Namines.Vault.Storage;
 
 namespace Namines.Vault.Abstractions
@@ -11,5 +12,7 @@ namespace Namines.Vault.Abstractions
         IBackupStore Store { get; }
         BackupCipher Cipher { get; }
         IEnumerable<IBackupProvider> Providers { get; }
+        IVaultApplicationService Backups { get; }
+        IVaultJobQueue JobQueue { get; }
     }
 }

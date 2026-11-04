@@ -6,23 +6,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Models.Auth;
+using Namines.Ground.Application;
 
-namespace Namines.Infrastructure.Services;
+namespace Namines.Ground.Infrastructure.Workers;
 
 /// <summary>
-/// Bekleme penceresi dolmuş yönetilen veritabanlarını KALICI olarak siler (G3).
-///
-/// <b>Neden gecikmeli silme:</b> bir veritabanının yanlışlıkla silindiği çoğu
-/// zaman ancak birileri onu kullanmayı denediğinde anlaşılır — bu da hafta
-/// sonunu kapsayabilir. Anında silme, tek bir yanlış tıklamayı geri dönüşü
-/// olmayan veri kaybına çevirirdi.
+/// Bekleme penceresi dolmuş yönetilen veritabanlarını kalıcı olarak silen Ground modülü arka plan işçisi
+/// (Kritik Kontrol #6: Background Worker Ownership).
 /// </summary>
-public class GroundPurgeBackgroundService : BackgroundService
+public sealed class GroundPurgeBackgroundService : BackgroundService
 {
-    /// <summary>
-    /// Kontrol aralığı. Gecikme gün cinsinden ölçüldüğü için saatte bir
-    /// kontrol fazlasıyla yeterli — daha sık uyanmak boşa sorgu demek.
-    /// </summary>
     private static readonly TimeSpan PollInterval = TimeSpan.FromHours(1);
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -34,16 +27,15 @@ public class GroundPurgeBackgroundService : BackgroundService
         IConfiguration configuration,
         ILogger<GroundPurgeBackgroundService> logger)
     {
-        // BackgroundService singleton, GroundService scoped: doğrudan enjekte
-        // etmek tutsak bağımlılık olurdu.
-        _scopeFactory = scopeFactory;
-        _configuration = configuration;
-        _logger = logger;
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var graceDays = _configuration.GetValue("Ground:DeleteGraceDays", GroundDefaults.DeleteGraceDays);
+        var graceDaysRaw = _configuration["Ground:DeleteGraceDays"];
+        var graceDays = int.TryParse(graceDaysRaw, out var parsed) ? parsed : GroundDefaults.DeleteGraceDays;
         _logger.LogInformation(
             "Ground silme isi basladi (bekleme penceresi: {Days} gun).", graceDays);
 
@@ -52,7 +44,7 @@ public class GroundPurgeBackgroundService : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var ground = scope.ServiceProvider.GetRequiredService<GroundService>();
+                var ground = scope.ServiceProvider.GetRequiredService<IGroundApplicationService>();
 
                 var purged = await ground.PurgeExpiredAsync(graceDays, stoppingToken);
                 if (purged > 0)
@@ -66,9 +58,6 @@ public class GroundPurgeBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
-                // Tek bir turun hatası döngüyü öldürmemeli: ölen bir silme işi,
-                // silinmiş sayılan kaynakların sessizce faturalanmaya devam
-                // etmesi demektir.
                 _logger.LogError(ex, "Ground silme turu basarisiz oldu; dongu suruyor.");
             }
 

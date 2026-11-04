@@ -4,14 +4,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Ground.Abstractions;
+using Namines.Ground.Application;
+using Namines.Ground.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
-using Namines.Infrastructure.Services;
 using Xunit;
 
 namespace Namines.Tests.Services;
 
 /// <summary>
-/// <see cref="GroundService.PurgeExpiredAsync"/> — bekleme penceresi dolmuş
+/// <see cref="GroundApplicationService.PurgeExpiredAsync"/> — bekleme penceresi dolmuş
 /// kayıtların kalıcı silinmesi.
 ///
 /// <b>Bulunan açık:</b> <c>ProviderProjectId</c> null/boşken (provizyon hiç
@@ -27,12 +28,14 @@ public sealed class GroundPurgeTests : IAsyncLifetime
 {
     private SqliteConnection _connection = null!;
     private DbContextOptions<AuthDbContext> _options = null!;
+    private DbContextOptions<GroundDbContext> _groundOptions = null!;
 
     public async Task InitializeAsync()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
+        _groundOptions = new DbContextOptionsBuilder<GroundDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
         await db.Database.EnsureCreatedAsync();
@@ -41,6 +44,7 @@ public sealed class GroundPurgeTests : IAsyncLifetime
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
     private AuthDbContext NewContext() => new(_options);
+    private GroundDbContext NewGroundContext() => new(_groundOptions);
 
     private sealed class PassthroughProtector : IConnectionSecretProtector
     {
@@ -78,7 +82,18 @@ public sealed class GroundPurgeTests : IAsyncLifetime
         public Task<string?> ProbeAsync(CancellationToken ct) => Task.FromResult<string?>(null);
     }
 
-    private async Task<GroundDatabase> SeedAsync(AuthDbContext db, string? providerProjectId)
+    private GroundApplicationService NewService(AuthDbContext db, GroundDbContext groundDb, IDatabaseProvider provider)
+    {
+        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        return new GroundApplicationService(
+            groundDb,
+            authority,
+            authority,
+            new[] { provider },
+            NullLogger<GroundApplicationService>.Instance);
+    }
+
+    private async Task<GroundDatabase> SeedAsync(AuthDbContext db, GroundDbContext groundDb, string? providerProjectId)
     {
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
         db.CloudProjects.Add(new CloudProject
@@ -86,6 +101,7 @@ public sealed class GroundPurgeTests : IAsyncLifetime
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
         });
+        await db.SaveChangesAsync();
 
         var record = new GroundDatabase
         {
@@ -96,8 +112,8 @@ public sealed class GroundPurgeTests : IAsyncLifetime
             DeleteRequestedAt = DateTime.UtcNow.AddDays(-30),
             ProviderProjectId = providerProjectId,
         };
-        db.GroundDatabases.Add(record);
-        await db.SaveChangesAsync();
+        groundDb.GroundDatabases.Add(record);
+        await groundDb.SaveChangesAsync();
         return record;
     }
 
@@ -105,17 +121,17 @@ public sealed class GroundPurgeTests : IAsyncLifetime
     public async Task ProviderProjectId_null_ise_DeleteAsync_HIC_CAGRILMAZ_ve_kayit_dogrudan_silinir()
     {
         await using var db = NewContext();
-        await SeedAsync(db, providerProjectId: null);
+        await using var groundDb = NewGroundContext();
+        await SeedAsync(db, groundDb, providerProjectId: null);
         var provider = new ExplodingProvider();
-        var service = new GroundService(db, new PassthroughProtector(),
-            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+        var service = NewService(db, groundDb, provider);
 
         var purged = await service.PurgeExpiredAsync(graceDays: 7, CancellationToken.None);
 
         Assert.Equal(1, purged);
         Assert.Equal(0, provider.DeleteCallCount);
 
-        await using var verify = NewContext();
+        await using var verify = NewGroundContext();
         var reloaded = await verify.GroundDatabases.SingleAsync(g => g.ProjectId == "proj-1");
         Assert.Equal(GroundStatus.Deleted, reloaded.Status);
         Assert.NotNull(reloaded.DeletedAt);
@@ -126,10 +142,10 @@ public sealed class GroundPurgeTests : IAsyncLifetime
     public async Task ProviderProjectId_bos_dize_ise_de_DeleteAsync_CAGRILMAZ()
     {
         await using var db = NewContext();
-        await SeedAsync(db, providerProjectId: "   ");
+        await using var groundDb = NewGroundContext();
+        await SeedAsync(db, groundDb, providerProjectId: "   ");
         var provider = new ExplodingProvider();
-        var service = new GroundService(db, new PassthroughProtector(),
-            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+        var service = NewService(db, groundDb, provider);
 
         var purged = await service.PurgeExpiredAsync(graceDays: 7, CancellationToken.None);
 
@@ -140,29 +156,22 @@ public sealed class GroundPurgeTests : IAsyncLifetime
     [Fact]
     public async Task ProviderProjectId_DOLUYSA_DeleteAsync_cagrilir_ve_basarisizlikta_TEKRAR_DENENIR()
     {
-        // Gerçek bir dış kaynak varken davranış DEĞİŞMEMELİ: silme denenir,
-        // başarısız olursa kayıt PendingDelete'te kalıp bir sonraki turda
-        // tekrar denenir — "Deleted" işaretlemek duran bir kaynağı kaybetmek
-        // olurdu.
         await using var db = NewContext();
-        await SeedAsync(db, providerProjectId: "remote-123");
+        await using var groundDb = NewGroundContext();
+        await SeedAsync(db, groundDb, providerProjectId: "remote-123");
         var provider = new ExplodingProvider();
-        var service = new GroundService(db, new PassthroughProtector(),
-            new[] { (IDatabaseProvider)provider }, NullLogger<GroundService>.Instance);
+        var service = NewService(db, groundDb, provider);
 
         var purged = await service.PurgeExpiredAsync(graceDays: 7, CancellationToken.None);
 
         Assert.Equal(0, purged);
         Assert.Equal(1, provider.DeleteCallCount);
 
-        await using var verify = NewContext();
+        await using var verify = NewGroundContext();
         var reloaded = await verify.GroundDatabases.SingleAsync(g => g.ProjectId == "proj-1");
         Assert.Equal(GroundStatus.PendingDelete, reloaded.Status);
         Assert.Null(reloaded.DeletedAt);
 
-        // Sağlayıcının/sürücünün HAM istisna metni ("admin-db.internal.example:5432",
-        // "role \"ghost\"") kayda yazılıp buradan GroundController.Describe
-        // üzerinden istemciye GİTMEMELİ.
         Assert.NotNull(reloaded.Error);
         Assert.DoesNotContain("admin-db.internal.example", reloaded.Error);
         Assert.DoesNotContain("ghost", reloaded.Error);

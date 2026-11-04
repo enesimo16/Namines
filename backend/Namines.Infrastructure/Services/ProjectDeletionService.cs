@@ -5,8 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Namines.BuildingBlocks.Application;
 using Namines.Core.Models.Auth;
+using Namines.Ground.Application;
 using Namines.Infrastructure.Data;
+using Namines.Vault.Application;
 
 namespace Namines.Infrastructure.Services;
 
@@ -34,17 +37,26 @@ public sealed record ProjectDeletionResult(bool Ok, int StatusCode, string? Code
 public class ProjectDeletionService
 {
     private readonly AuthDbContext _context;
-    private readonly VaultService _vault;
-    private readonly GroundService _ground;
+    private readonly IVaultApplicationService _vault;
+    private readonly IGroundApplicationService _ground;
+    private readonly IStudioApplicationService? _studio;
+    private readonly IHubApplicationService? _hub;
     private readonly ILogger<ProjectDeletionService> _logger;
 
     public ProjectDeletionService(
-        AuthDbContext context, VaultService vault, GroundService ground, ILogger<ProjectDeletionService> logger)
+        AuthDbContext context,
+        IVaultApplicationService vault,
+        IGroundApplicationService ground,
+        ILogger<ProjectDeletionService> logger,
+        IStudioApplicationService? studio = null,
+        IHubApplicationService? hub = null)
     {
         _context = context;
         _vault = vault;
         _ground = ground;
         _logger = logger;
+        _studio = studio;
+        _hub = hub;
     }
 
     public async Task<ProjectDeletionResult> DeleteAsync(
@@ -54,8 +66,8 @@ public class ProjectDeletionService
 
         var counts = new
         {
-            backups = await _context.VaultBackups.CountAsync(b => b.ProjectId == projectId, ct),
-            groundDatabases = await _context.GroundDatabases.CountAsync(g => g.ProjectId == projectId && g.Status != GroundStatus.Deleted, ct),
+            backups = await _vault.CountProjectBackupsAsync(projectId, ct),
+            groundDatabases = await _ground.CountActiveProjectDatabasesAsync(projectId, ct),
             branches = await _context.Branches.CountAsync(b => b.ProjectId == projectId, ct),
             schemaVersions = await _context.SchemaVersions.CountAsync(v => v.ProjectId == projectId, ct),
             changeRequests = await _context.ChangeRequests.CountAsync(c => c.ProjectId == projectId, ct),
@@ -77,28 +89,32 @@ public class ProjectDeletionService
                 : new ProjectDeletionResult(false, 503, "BACKUP_STORAGE_FAILED", vault.Error);
         }
 
-        // (d) Ground
-        var ground = await _context.GroundDatabases.Where(g => g.ProjectId == projectId).ToListAsync(ct);
-        foreach (var record in ground)
+        // (d) Ground (sağlayıcı kaynaklarını siler ve Restrict FK'li ground_databases kayıtlarını kaldırır)
+        var groundResult = await _ground.DeprovisionAndRemoveProjectRecordsAsync(projectId, ct);
+        if (!groundResult.Ok)
         {
-            var result = await _ground.DeprovisionNowAsync(record, ct);
-            if (!result.Ok)
-            {
-                await WriteAuditAsync(ChangeRequestAuditAction.ProjectDeletionFailed, project, actorUserId, counts, "ground", recordName, ct);
-                var busy = result.Error!.Contains("right now", StringComparison.Ordinal)
-                           || result.Error.Contains("changed while", StringComparison.Ordinal);
-                return new ProjectDeletionResult(false, busy ? 409 : 503,
-                    busy ? "GROUND_BUSY" : "GROUND_DEPROVISION_FAILED", result.Error);
-            }
+            await WriteAuditAsync(ChangeRequestAuditAction.ProjectDeletionFailed, project, actorUserId, counts, "ground", recordName, ct);
+            var busy = groundResult.Error!.Contains("right now", StringComparison.Ordinal)
+                       || groundResult.Error.Contains("changed while", StringComparison.Ordinal);
+            return new ProjectDeletionResult(false, busy ? 409 : 503,
+                busy ? "GROUND_BUSY" : "GROUND_DEPROVISION_FAILED", groundResult.Error);
         }
 
-        // (e) Satırlar: Restrict FK'li kayıtlar elle, geri kalanı cascade.
-        _context.GroundDatabases.RemoveRange(ground);
-
+        // (e) Satırlar: Restrict FK'li kalan kayıtlar elle, geri kalanı cascade.
         var crossRels = await _context.CrossDatabaseRelations
             .Where(r => r.SourceProjectId == projectId || r.TargetProjectId == projectId)
             .ToListAsync(ct);
         _context.CrossDatabaseRelations.RemoveRange(crossRels);
+
+        // Phase 14.2B: Studio ve Hub Bounded Context'lerindeki normalize verileri temizle
+        if (_studio != null)
+        {
+            await _studio.DeleteProjectAsync(projectId, ct);
+        }
+        if (_hub != null)
+        {
+            await _hub.DeleteRepositoryAsync(projectId, ct);
+        }
 
         // "Silindi" denetim satırı silmeyle AYNI işlemde: biri olmadan diğeri olmaz.
         _context.CloudProjects.Remove(project);

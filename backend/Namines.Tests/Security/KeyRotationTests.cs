@@ -76,7 +76,8 @@ public class KeyRotationTests
 
         var raw = await db.CloudProjects.AsNoTracking().Where(p => p.Id == "p1").Select(p => p.EncryptedConnectionString).SingleAsync();
         Assert.StartsWith("k.k2:", raw);
-        Assert.Equal("conn-1", Make(null, ("k2", K2)).Unprotect(raw!)); // artık eski anahtar gerekmiyor
+        Assert.Equal("conn-1", Make(null, ("k2", K2)).Unprotect(raw!, associatedData: "p1"));
+        Assert.ThrowsAny<CryptographicException>(() => Make(null, ("k2", K2)).Unprotect(raw!, associatedData: "p2"));
 
         var again = await ConnectionSecretReencryptor.ReencryptAsync(db, rotated);
         Assert.Equal(0, again.Reencrypted);

@@ -4,22 +4,23 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Namines.Flow.Application;
 
-namespace Namines.Infrastructure.Services;
+namespace Namines.Flow.Infrastructure.Workers;
 
 /// <summary>
-/// Kuyruğa alınmış Namines Flow tetiklemelerini çalıştırır (Bölüm 3).
-///
-/// KENDİ DI kapsamını açıyor — <see cref="VaultBackupWorker"/> ile aynı
-/// gerekçe: HTTP isteğinin DbContext'i yanıt döndüğünde atılıyor.
+/// Kuyruğa alınmış Namines Flow tetiklemelerini çalıştırır (Kritik Kontrol #6: Background Worker Ownership).
 /// </summary>
-public sealed class AutomationExecutorWorker : BackgroundService
+public sealed class FlowExecutorWorker : BackgroundService
 {
-    private readonly IAutomationJobQueue _queue;
+    private readonly IFlowJobQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<AutomationExecutorWorker> _logger;
+    private readonly ILogger<FlowExecutorWorker> _logger;
 
-    public AutomationExecutorWorker(IAutomationJobQueue queue, IServiceScopeFactory scopeFactory, ILogger<AutomationExecutorWorker> logger)
+    public FlowExecutorWorker(
+        IFlowJobQueue queue,
+        IServiceScopeFactory scopeFactory,
+        ILogger<FlowExecutorWorker> logger)
     {
         _queue = queue;
         _scopeFactory = scopeFactory;
@@ -30,7 +31,7 @@ public sealed class AutomationExecutorWorker : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            AutomationJob job;
+            FlowAutomationJob job;
             try
             {
                 job = await _queue.DequeueAsync(stoppingToken);
@@ -43,8 +44,8 @@ public sealed class AutomationExecutorWorker : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var executor = scope.ServiceProvider.GetRequiredService<IAutomationExecutor>();
-                await executor.RunAsync(job.ProjectId, job.Diff, job.OldSchema, job.NewSchema, stoppingToken);
+                var appService = scope.ServiceProvider.GetRequiredService<IFlowApplicationService>();
+                await appService.RunAsync(job.ProjectId, job.Diff, job.OldSchema, job.NewSchema, stoppingToken);
             }
             catch (Exception ex)
             {

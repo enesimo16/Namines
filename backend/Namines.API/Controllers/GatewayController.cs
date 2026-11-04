@@ -258,7 +258,7 @@ public class GatewayController : ControllerBase
         // API isteği ölçümü (22 §5). Anahtarı ÜRETEN kullanıcıya yazılıyor:
         // isteği yapan taraf anonim bir uygulama, faturayı ödeyen ise hesap sahibi.
         await _context.RecordAsync(
-            key.CreatedByUserId, UsageResource.ApiRequest, 1, tableName, ct);
+            key.CreatedByUserId!, UsageResource.ApiRequest, 1, tableName, ct);
 
         return (true, null, key);
     }
@@ -520,7 +520,7 @@ public class GatewayController : ControllerBase
             ? project.ConnectionDbType
             : (requestedDbType ?? string.Empty);
 
-        return (_protector.Unprotect(project.EncryptedConnectionString), dbType, null);
+        return (_protector.Unprotect(project.EncryptedConnectionString, associatedData: projectId), dbType, null);
     }
 
     [HttpPost("list")]
@@ -843,7 +843,7 @@ public class GatewayController : ControllerBase
         if (!project.AllowDeskSql)
             return StatusCode(403, new { message = "The SQL console is not enabled for this project yet." });
 
-        var connectionString = _protector.Unprotect(project.EncryptedConnectionString);
+        var connectionString = _protector.Unprotect(project.EncryptedConnectionString, associatedData: request.ProjectId);
         var dbType = project.ConnectionDbType ?? "PostgreSQL";
         var maxRows = Math.Clamp(request.MaxRows, 1, 2000);
 
@@ -1508,7 +1508,7 @@ public class GatewayController : ControllerBase
         //
         // Kontrol + sonradan düşme DEĞİL, atomik rezervasyon: Check→Consume arasındaki
         // pencerede eşzamanlı N istek aynı bütçeyi birlikte harcayabiliyordu.
-        var decision = await _quota.TryReserveAsync(key.CreatedByUserId, NlQueryTokenEstimate, cancellationToken);
+        var decision = await _quota.TryReserveAsync(key.CreatedByUserId!, NlQueryTokenEstimate, cancellationToken);
         if (decision != AiQuotaDecision.Allowed)
         {
             return StatusCode(429, new
@@ -1539,7 +1539,7 @@ public class GatewayController : ControllerBase
             // Sağlayıcı arızasını kullanıcının günlük hakkından kesmek yanlış olurdu.
             // İade, istemci bağlantıyı kopardıysa da yapılsın diye iptal belirteci
             // GEÇİRİLMİYOR.
-            await _quota.RefundAsync(key.CreatedByUserId, NlQueryTokenEstimate);
+            await _quota.RefundAsync(key.CreatedByUserId!, NlQueryTokenEstimate);
 
             // Upstream'in hata GÖVDESİ geçirilmiyor: sağlayıcı mesajları uç adresi,
             // model adı ve kota ayrıntısı taşıyabiliyor ve bunlar çağıranın işine
@@ -1549,7 +1549,7 @@ public class GatewayController : ControllerBase
         }
 
         // Model gerçekten cevap verdi: bütçe zaten rezerve edildi, faturalama ölçümü işleniyor.
-        await _context.RecordAsync(key.CreatedByUserId, UsageResource.AiCall, 1, "query/nl", cancellationToken);
+        await _context.RecordAsync(key.CreatedByUserId!, UsageResource.AiCall, 1, "query/nl", cancellationToken);
 
         // Model "cevaplayamıyorum" diyebilmeli: uyduran bir sorgu, boş dönenden
         // çok daha kötüdür çünkü kullanıcı sonucun doğru olduğunu sanır.
@@ -1698,7 +1698,7 @@ public class GatewayController : ControllerBase
         }
 
         NaminesMetrics.GatewayRequest("sql", "ok");
-        await _context.RecordAsync(key.CreatedByUserId, UsageResource.ApiRequest, 1, "sql", ct);
+        await _context.RecordAsync(key.CreatedByUserId!, UsageResource.ApiRequest, 1, "sql", ct);
 
         return (true, null, key);
     }
@@ -1769,7 +1769,7 @@ public class GatewayController : ControllerBase
 
         try
         {
-            var connectionString = _protector.Unprotect(project.EncryptedConnectionString);
+            var connectionString = _protector.Unprotect(project.EncryptedConnectionString, associatedData: resolvedProjectId);
             var schema = await _introspection.IntrospectAsync(
                 connectionString, project.ConnectionDbType ?? "PostgreSQL", cancellationToken);
 

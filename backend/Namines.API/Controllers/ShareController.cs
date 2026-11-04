@@ -6,6 +6,7 @@ using Namines.Core.Analysis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Namines.BuildingBlocks.Application;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
@@ -22,13 +23,18 @@ public class ShareController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly ILinterService _linter;
+    private readonly IStudioApplicationService? _studio;
+    private readonly IConfiguration? _configuration;
 
-    private readonly IConfiguration _configuration;
-
-    public ShareController(AuthDbContext context, ILinterService linter, IConfiguration configuration)
+    public ShareController(
+        AuthDbContext context,
+        ILinterService linter,
+        IStudioApplicationService? studio = null,
+        IConfiguration? configuration = null)
     {
         _context = context;
         _linter  = linter;
+        _studio = studio;
         _configuration = configuration;
     }
 
@@ -37,18 +43,6 @@ public class ShareController : ControllerBase
 
     /// <summary>
     /// Token üretir (veya mevcut token'ı döndürür).
-    ///
-    /// <b>Bulunan açık (docs/last-review H-4b):</b> yetki `p.UserId == CurrentUserId`
-    /// eşitliğiyle kuruluyordu — org kapsamlı DEĞİL. İki sonucu vardı: (1) ekipten
-    /// ÇIKARILMIŞ kurucu hâlâ paylasım linki üretebiliyordu (şema ANONİM yayınlanıyor
-    /// ve eskiden `sitemap.xml`te listeleniyordu), (2) projenin GERÇEK Owner'ı kurucu değilse
-    /// linki iptal edemiyordu — yani yayınlanmış bir şemayı geri çekme yetkisi
-    /// kimsede yoktu.
-    ///
-    /// Yetki artık <c>OrgAccess</c>'in tek kopyasından: şemayı İNTERNETE açmak bir
-    /// yönetim işi, o yüzden `CanManageMembersAsync` (Admin|Owner) —
-    /// `GatewayKeyController`'ın "bir tabloyu Gateway'e açmak" eşiğiyle aynı mantık.
-    /// Editor şema yazabilir ama onu yayınlamak ayrı bir karar.
     /// </summary>
     [Authorize]
     [HttpPost("{projectId}")]
@@ -58,26 +52,35 @@ public class ShareController : ControllerBase
         if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
             return NotFound();
 
-        var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId);
-
-        if (project is null) return NotFound();
-
-        if (string.IsNullOrEmpty(project.ShareToken))
+        string rawToken;
+        if (_studio != null)
         {
-            project.ShareToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))
-                .Replace('+', '-').Replace('/', '_').TrimEnd('='); // URL-safe base64
+            try
+            {
+                rawToken = await _studio.CreateShareLinkAsync(projectId);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+        }
+        else
+        {
+            var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId);
+            if (project is null) return NotFound();
+
+            rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))
+                .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+            project.ShareTokenHash = ShareTokenHasher.Hash(rawToken);
             project.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
 
-        return Ok(new { token = project.ShareToken });
+        return Ok(new { token = rawToken });
     }
 
     /// <summary>
-    /// Paylaşım token'ını iptal eder. <see cref="CreateShareLink"/> ile aynı eşik —
-    /// yayınlanmış bir şemayı geri çekebilmek, onu yayınlayabilmekten daha zor
-    /// OLMAMALI.
+    /// Paylaşım token'ını iptal eder.
     /// </summary>
     [Authorize]
     [HttpDelete("{projectId}")]
@@ -87,14 +90,19 @@ public class ShareController : ControllerBase
         if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
             return NotFound();
 
-        var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId);
-
-        if (project is null) return NotFound();
-
-        project.ShareToken = null;
-        project.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        if (_studio != null)
+        {
+            await _studio.RevokeShareLinkAsync(projectId);
+        }
+        else
+        {
+            var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId);
+            if (project is null) return NotFound();
+            project.ShareToken = null;
+            project.ShareTokenHash = null;
+            project.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
 
         return NoContent();
     }
@@ -107,7 +115,21 @@ public class ShareController : ControllerBase
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
         var tokenHash = ShareTokenHasher.Hash(token);
 
-        var project = await _context.CloudProjects
+        if (_studio != null)
+        {
+            var project = await _studio.GetSharedProjectByTokenHashAsync(tokenHash);
+            if (project is null) return NotFound();
+
+            return Ok(new
+            {
+                project.Name,
+                project.DbType,
+                project.SchemaJson,
+                project.NodePositionsJson,
+            });
+        }
+
+        var legacyProject = await _context.CloudProjects
             .AsNoTracking()
             .Where(p => p.ShareTokenHash == tokenHash)
             .Select(p => new
@@ -119,9 +141,8 @@ public class ShareController : ControllerBase
             })
             .FirstOrDefaultAsync();
 
-        if (project is null) return NotFound();
-
-        return Ok(project);
+        if (legacyProject is null) return NotFound();
+        return Ok(legacyProject);
     }
 
     /// <summary>
@@ -135,11 +156,20 @@ public class ShareController : ControllerBase
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
         var tokenHash = ShareTokenHasher.Hash(token);
 
-        var schemaJson = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.ShareTokenHash == tokenHash)
-            .Select(p => p.SchemaJson)
-            .FirstOrDefaultAsync();
+        string? schemaJson = null;
+        if (_studio != null)
+        {
+            var project = await _studio.GetSharedProjectByTokenHashAsync(tokenHash);
+            schemaJson = project?.SchemaJson;
+        }
+        else
+        {
+            schemaJson = await _context.CloudProjects
+                .AsNoTracking()
+                .Where(p => p.ShareTokenHash == tokenHash)
+                .Select(p => p.SchemaJson)
+                .FirstOrDefaultAsync();
+        }
 
         if (schemaJson is null) return NotFound();
 
@@ -198,9 +228,6 @@ public class ShareController : ControllerBase
 
     /// <summary>
     /// Paylaşılan şema için sosyal önizleme görseli (SVG).
-    ///
-    /// Önizlemesiz bir bağlantı akışta düz bir URL olarak görünür ve tıklanmaz;
-    /// döngünün tamamı bu görselin dikkat çekmesine bağlı.
     /// </summary>
     [AllowAnonymous]
     [HttpGet("og/{token}.svg")]
@@ -209,18 +236,41 @@ public class ShareController : ControllerBase
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
         var tokenHash = ShareTokenHasher.Hash(token);
 
-        var project = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.ShareTokenHash == tokenHash)
-            .Select(p => new { p.Name, p.DbType, p.SchemaJson })
-            .FirstOrDefaultAsync();
+        string? name = null;
+        string? dbType = null;
+        string? schemaJson = null;
 
-        if (project is null) return NotFound();
+        if (_studio != null)
+        {
+            var project = await _studio.GetSharedProjectByTokenHashAsync(tokenHash);
+            if (project is not null)
+            {
+                name = project.Name;
+                dbType = project.DbType;
+                schemaJson = project.SchemaJson;
+            }
+        }
+        else
+        {
+            var legacy = await _context.CloudProjects
+                .AsNoTracking()
+                .Where(p => p.ShareTokenHash == tokenHash)
+                .Select(p => new { p.Name, p.DbType, p.SchemaJson })
+                .FirstOrDefaultAsync();
+            if (legacy is not null)
+            {
+                name = legacy.Name;
+                dbType = legacy.DbType;
+                schemaJson = legacy.SchemaJson;
+            }
+        }
+
+        if (name is null || dbType is null || schemaJson is null) return NotFound();
 
         DatabaseSchema schema;
         try
         {
-            schema = JsonSerializer.Deserialize<DatabaseSchema>(project.SchemaJson,
+            schema = JsonSerializer.Deserialize<DatabaseSchema>(schemaJson,
                 new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
@@ -232,25 +282,15 @@ public class ShareController : ControllerBase
             return NotFound();
         }
 
-        schema.Name = project.Name;
-        var svg = OgImageGenerator.Generate(schema, project.DbType);
+        schema.Name = name;
+        var svg = OgImageGenerator.Generate(schema, dbType);
 
-        // Uzun önbellek: görsel yalnızca şema değişince değişir ve sosyal ağ
-        // tarayıcıları aynı URL'yi tekrar tekrar çeker. Önbelleksiz bırakmak,
-        // bir bağlantı yayıldığında her paylaşımda yeniden üretim demek.
         Response.Headers.CacheControl = "public, max-age=3600";
         return Content(svg, "image/svg+xml");
     }
 
-    // `sitemap.xml` ucu KALDIRILDI: paylaşım jetonu bir taşıyıcı sırdır (bilen herkes şemayı
-    // okur) ve sitemap bunların ham hâlini herkese açık listeliyordu. Kamuya açık sayfalar
-    // yalnızca frontend/app/sitemap.ts içindeki sabit rotalardır; /share/ robots.txt ile de kapalı.
-
     /// <summary>
     /// Sayfanın meta etiketleri için özet — şemanın tamamını indirmeden.
-    ///
-    /// Ayrı bir uç, çünkü meta etiketler SUNUCUDA render edilmeli: sosyal ağ
-    /// tarayıcıları JavaScript çalıştırmaz, istemcide eklenen etiketleri görmez.
     /// </summary>
     [AllowAnonymous]
     [HttpGet("meta/{token}")]
@@ -259,19 +299,42 @@ public class ShareController : ControllerBase
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
         var tokenHash = ShareTokenHasher.Hash(token);
 
-        var project = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.ShareTokenHash == tokenHash)
-            .Select(p => new { p.Name, p.DbType, p.SchemaJson })
-            .FirstOrDefaultAsync();
+        string? name = null;
+        string? dbType = null;
+        string? schemaJson = null;
 
-        if (project is null) return NotFound();
+        if (_studio != null)
+        {
+            var project = await _studio.GetSharedProjectByTokenHashAsync(tokenHash);
+            if (project is not null)
+            {
+                name = project.Name;
+                dbType = project.DbType;
+                schemaJson = project.SchemaJson;
+            }
+        }
+        else
+        {
+            var legacy = await _context.CloudProjects
+                .AsNoTracking()
+                .Where(p => p.ShareTokenHash == tokenHash)
+                .Select(p => new { p.Name, p.DbType, p.SchemaJson })
+                .FirstOrDefaultAsync();
+            if (legacy is not null)
+            {
+                name = legacy.Name;
+                dbType = legacy.DbType;
+                schemaJson = legacy.SchemaJson;
+            }
+        }
+
+        if (name is null || dbType is null || schemaJson is null) return NotFound();
 
         var tables = 0;
         var relations = 0;
         try
         {
-            var schema = JsonSerializer.Deserialize<DatabaseSchema>(project.SchemaJson,
+            var schema = JsonSerializer.Deserialize<DatabaseSchema>(schemaJson,
                 new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
@@ -287,12 +350,12 @@ public class ShareController : ControllerBase
 
         return Ok(new
         {
-            name = project.Name,
-            engine = project.DbType,
+            name,
+            engine = dbType,
             tables,
             relations,
             description =
-                $"{project.Name} — a {project.DbType} schema with {tables} tables and " +
+                $"{name} — a {dbType} schema with {tables} tables and " +
                 $"{relations} relationships, designed in Namines.",
         });
     }

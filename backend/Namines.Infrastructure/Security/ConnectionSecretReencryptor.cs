@@ -32,7 +32,7 @@ public static class ConnectionSecretReencryptor
             if (protector.IsEncryptedWithCurrentKey(current)) continue;
             try
             {
-                var fresh = protector.Protect(protector.Unprotect(current));
+                var fresh = protector.Protect(protector.Unprotect(current, associatedData: row.Id), associatedData: row.Id);
                 // Koşullu güncelleme: arada başka biri değeri değiştirdiyse ezmez.
                 var n = await db.CloudProjects
                     .Where(p => p.Id == row.Id && p.EncryptedConnectionString == current)

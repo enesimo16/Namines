@@ -43,7 +43,7 @@ public class TeamController : ControllerBase
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
 
     /// <summary>Kullanıcının planı — koltuk sayısı buradan geliyor.</summary>
-    private async Task<PlanTier> TierAsync(string userId, CancellationToken ct)
+    private async Task<PlanTier> TierAsync(string? userId, CancellationToken ct)
     {
         var account = await _context.Users.AsNoTracking()
             .Where(u => u.Id == userId)
