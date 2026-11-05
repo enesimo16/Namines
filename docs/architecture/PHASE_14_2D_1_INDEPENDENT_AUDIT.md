@@ -1,9 +1,13 @@
 # Faz 14.2D-1 Bağımsız Denetim
 
-> Kapsam: `arch/phase-14-2`, `f5fcd96..a00861c`. Denetçi kodu yazmadı, kod değiştirmedi; yalnızca bu belge eklendi.
-> Ortam: Windows 11, .NET 8 SDK, Docker. Test harness `postgres:17-alpine` (Testcontainers); senaryolar `namines-verify` (`postgres:16-alpine`). `namines_*` MCP araçları `CONNECT_TIMEOUT`, yerine gerçek PostgreSQL kullanıldı.
+> Kapsam: `arch/phase-14-2`, `f5fcd96..a00861c` (1. tur) ve `c736d90..ca19825` (2. tur, §8). Denetçi kodu yazmadı, kod değiştirmedi; yalnızca bu belge eklendi.
 
-## Karar: CONDITIONALLY ACCEPTED
+## Son karar (2. tur): CONDITIONALLY ACCEPTED
+
+1. turun bütün bulguları kapandı ve çalıştırılarak doğrulandı (§8). Ama 2. turda gelen `Hub_02` yeni bir Major açtı (R2-M1): belgeli "mevcut kurulum sonradan rollere geçer" yolunda `--migrate` `42501` ile düşüyor. Düzeltme küçük; aynı fazda yapılıp yalnız bu madde yeniden doğrulanınca faz ACCEPTED olabilir. Aşağıdaki 1. tur metni tarihsel kayıttır.
+
+## 1. tur kararı: CONDITIONALLY ACCEPTED
+> Ortam: Windows 11, .NET 8 SDK, Docker. Test harness `postgres:17-alpine` (Testcontainers); senaryolar `namines-verify` (`postgres:16-alpine`). `namines_*` MCP araçları `CONNECT_TIMEOUT`, yerine gerçek PostgreSQL kullanıldı.
 
 Migration, veri koruma, atomiklik, API uyumu ve yetki matrisi çalıştırılarak doğrulandı; ciddi sorun bulunmadı. Ama yeni bir veri kaybı regresyonu (B-1) ve D-1 kabul maddesine değen iki boşluk (M-1, M-2) var. Bunlar aynı fazda düzeltilip yeniden denetlenmeli. Minor maddeler düzeltilmeli ya da sahibi ve fazı yazılarak açıkça atanmalı: spesifikasyon "boşluk bir sonraki faza taşınmaz" diyor.
 
@@ -131,3 +135,129 @@ Gateway servisleri, Hub ve Studio servisleri, Ops servisleri, `SharedTransaction
 ## 7. Yeniden denetimde bakılacaklar
 
 B-1 için gerçek PG yarış testi ve aynı probun 0 kayıp vermesi; M-1 için tek modül kapısı ve onu çağırmayan veri düzlemi ucunun testte düşmesi; M-2 için aktörlü Studio servisi ve yetkisiz testleri; m-1 için SQL metni ve model tablo sahipliği taraması.
+
+## 8. 2. tur (`c736d90..ca19825`)
+
+Yöntem 1. turla aynı: `ca19825` için ayrı worktree, temiz derleme, aynı problar hem `f5fcd96` hem yeni ikiliyle. Uygulayıcının sayılarına değil kendi koşumlarıma dayanıyor.
+
+### 8.1 Faz sonu tablosu (2. tur)
+
+| Alan | Sonuç | Kanıt |
+|---|---|---|
+| Build | PASS | `--no-incremental` Release: 0 uyarı, 0 hata, 34,5 sn |
+| Unit | PASS | Tam süit içinde; B-1 ve org taşıma için yeni testler mutasyonla düştü (§8.4) |
+| Integration | PASS | `Namines.Tests` 3166/3166; gerçek PG yarış testi `Phase14_2D1LostUpdateTests` |
+| Architecture | PASS, dar boşlukla | 5 mutasyonun 5'i düştü, 1 kaçtı (R2-m2) |
+| Migration | **FAIL** (R2-M1) | Boş DB, süper kullanıcı yükseltmesi, Down/Up temiz; rollere sonradan geçen yükseltme `Hub_02`'de düşüyor |
+| Data integrity | PASS | B-1 probu 0/203 kayıp; Up, `Hub_02` Down, yeniden Up, tam Down ve Up: veri birebir |
+| Security | PASS | 829 karşılaştırma 0 fark; Gateway kapısı tüm veri düzlemi uçlarında |
+| API compatibility | PASS | 829 durum/şekil 0 fark; sync 409 gövdesi tabanla aynı; frontend `tsc` 0 hata |
+| Documentation | PASS | 1. tur doküman bulguları düzeltildi; m-9 D-2'ye atandı |
+| Independent audit | **CONDITIONALLY ACCEPTED** | R2-M1 aynı fazda |
+
+### 8.2 Test sayıları (2. tur, çalıştırıldı)
+
+| Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Inconclusive | Süre | Ortam |
+|---|---|---|---|---|---|---|---|---|
+| `dotnet test -c Release --no-build` (paralel kapalı, `ca19825` temiz ağaç) | `Namines.Tests` | 3166 | 3166 | 0 | 0 | 0 | 23 dk 38 sn | Docker, PG17. Süre benim problarımla aynı anda koştuğu için uzun |
+| Aynı | `Namines.Tests.RunTests` | 19 | 19 | 0 | 0 | 0 | 1 dk 37 sn | Aynı |
+| `npx tsc --noEmit` | `frontend` | | | 0 hata | | | | `ca19825` kaynağı |
+| `npx vitest run lib/shareLinkMessage.test.ts` | `frontend` | 2 | 2 | 0 | 0 | | | Tam frontend süiti koşulmadı |
+| `smoke-d1.js` | `namines_app`, 14.2C'den yükseltme, fonksiyon sahibi elle düzeltildikten sonra | 95 | 95 | 0 | | | | PG16 |
+
+### 8.3 1. tur bulgularının doğrulaması
+
+| ID | Sonuç | Kanıt |
+|---|---|---|
+| B-1 | Kapandı | `probes.js lost` yeni ikiliyle üç koşum: ikisi 200 dönen 64, 69, 70 durumda **0** kayıp (toplam 0/203). Ayar artık `RenameAsync` ile yalnız ad ve motor yazıyor; `SaveAsync` sürümsüz güncellemeyi reddediyor. Round-1 davranışını geri getiren mutasyon 3 test düşürdü |
+| M-1 | Kapandı | `GatewayController` 1920'den 1505 satıra indi. Anahtar, köken, IP, hız sınırı, tablo, expand, dışa aktarım, ham SQL ve maske `IGatewayRequestGate`'te; controller'da üç kopya yok. Matris 0 fark. Kalan: R2-m1 |
+| M-2 | Kapandı | `IProjectLifecycleService` aktörlü. Sync, paylaşım, paylaşımı geri alma, tembel org taşıma, otomatik onay oradan. Tabanla aynı probda 9 satırın 9'u aynı (§8.5) |
+| m-1 | Kapandı, dar boşlukla | Benim kaçan üç mutasyonumun SQL biçimleri artık düşüyor (§8.4). Kalan: R2-m2 |
+| m-2 | Kapandı (tablo/dizi) | Rollere sonradan geçişte `ops` tablo ve dizileri `namines_migrator`'a geçti. Fonksiyon sahipliği eksik: R2-M1 |
+| m-3 | Kapandı | Döndürme tek işlemde (okudum); uygulayıcının tetikleyiciyle testi süitte geçti |
+| m-4 | Kapandı | `ToolbarPanel` `closedOldestLinks` için `warning` gösteriyor; `tsc` 0, test 2/2 |
+| m-5 | Kapandı | Ölü metotlar silindi |
+| m-6 | Kapandı | Rapor envanteri 3 ham SQL yeri diyor |
+| m-7 | Kapandı (okudum) | `SecretPair` ve `SessionSet` desenleri ile `Error` maskesi eklendi; testler süitte |
+| m-8 | Kapandı | §8.6 |
+| m-9 | Kapandı | Sahibi Faz 14.2D-2 (rapor §10, `IMPLEMENTATION_STATUS`) |
+
+### 8.4 Mutasyonlar (her biri tek başına, derle, filtreli test, geri al)
+
+| Mutasyon | Sonuç |
+|---|---|
+| Ops'ta dize birleştirerek `hub."RepoStars"` ham SQL | Düştü: `Sql_text_never_names_another_modules_table(Namines.Ops)` |
+| Gateway'de interpolasyonla `studio.project_connections` okuma | Düştü: aynı test (Gateway) |
+| Yeni controller, anahtarı `IGatewayAccess` ile kapısız doğruluyor | Düştü, ama yalnız API sözleşme anlık görüntüsüyle (yeni rota) |
+| B-1'i geri getir: `SaveAsync` sürümsüz kabul, ayar tam `SaveAsync` | Düştü: 3 test (gerçek PG yarış testi dahil) |
+| Hedef org üyeliği kontrolünü kaldır | Düştü: `Sharing_into_an_organization_the_actor_is_not_in_is_refused` |
+| Var olan bir eylemde (`FeedbackController.Submit`) kapısız `IGatewayAccess.AuthenticateAsync` | **Kaçtı**: `Architecture` 153/153 geçti (R2-m2) |
+
+Her mutasyondan sonra `git checkout`; temiz derleme 0 uyarı, 0 hata.
+
+### 8.5 Regresyon taraması (çalıştırıldı)
+
+- **Yetki matrisi.** Taban ve yeni ikili, 212 eylem, 829 karşılaştırma: 0 fark. Gateway oturum yolları ve ham SQL hakları dahil (yabancı ve viewer durumları aynı).
+- **Sync ve lifecycle probu (`aud/r2.js`), taban ve yeni ikili, çıktı birebir aynı:**
+  - eski sürümle sync: 409, gövde anahtarları `changedAt,currentVersion,message,projectId,projectName,yourVersion`;
+  - aynı yeni kimlikle 4 eşzamanlı sync: `[200,409,409,409]`, 1 satır;
+  - sürümsüz istemci sync'i: 200;
+  - yabancının başkasının kimliğiyle sync'i: kopya oluşur, sahibin projesi değişmez;
+  - ekipsiz kullanıcının ekip paylaşımı: 200 (kişisel org);
+  - üye olunan ekibe paylaşım: 200, taşındı;
+  - ekip sahibinin geri alması: 200, kurucunun org'una döndü;
+  - otomatik onay: sahip 200, yabancı 404;
+  - ayarda ad ve motor değişikliği: şema korunur, Hub okuma modeli güncel.
+- **Hedef org sıkılaştırması.** Tek üretim çağıranı `TeamController.ShareProject`; hedef org `ActiveOrgAsync` ile çağıranın üyeliklerinden (yoksa kişisel org) seçiliyor. Gerçek frontend akışı bu kontrole takılamaz; probda iki durum da 200.
+- **Atomiklik, silme yarışı, hesap silme devri.** 1. turun problarıyla yeniden koştu, sonuçlar aynı: 5 enjeksiyon geri alındı, 10 turda 5xx yok, kalan satır 0, deadlock 0, devir doğru.
+
+### 8.6 Hub_02 (deyim düzeyi GC)
+
+- **Gerçek veriyle Down ve Up** (karışık 14.2C tohumu):
+  - Up: veri birebir, tetikleyici `STATEMENT`;
+  - `Hub_01`'e Down: veri birebir, tetikleyici `ROW`, satır düzeyi GC çalışıyor;
+  - yeniden Up: veri birebir, deyim düzeyi GC çalışıyor;
+  - tam Down: katalog başlangıçla aynı (yalnız fonksiyon gövdesindeki yorumlar düşüyor), sonra tekrar Up;
+  - boş DB ile yükseltilmiş DB: katalog 0 fark.
+- **Eşzamanlılık ve projeler arası durumlar** (`aud/gc2.sh`, iki psql oturumu):
+  - tek deyimde iki projenin bağları silindi: yalnız artık bağı kalmayan etiketler gitti;
+  - issue cascade ve proje cascade: doğru;
+  - iki işlem aynı etiketin iki bağını eşzamanlı sildi: etiket gitti;
+  - commit edilmemiş yeni bağ varken son eski bağ silindi: etiket kaldı, bağ korundu;
+  - GC'si süren etikete bağ ekleme: FK hatası (satır düzeyiyle aynı, sessiz kayıp yok);
+  - ters sırada çakışan çok etiketli silmeler: deadlock 0.
+
+### 8.7 Yeni bulgular
+
+**R2-M1 (Major): rollere sonradan geçen kurulumda yükseltme `Hub_02`'de düşüyor.**
+`backend/Namines.Hub/Infrastructure/Persistence/Migrations/20261105192348_Hub_02_StatementLevelLabelGc.cs` (`CREATE OR REPLACE FUNCTION hub.issue_label_gc`), `deploy/sql/roles.sql` (sahiplik devri yalnız tablo ve dizi).
+- **Neden:** `hub.issue_label_gc` fonksiyonunu 14.2C migration'ı oluşturuyor; sahibi o migration'ı çalıştıran rol. `roles.sql` tabloların ve dizilerin sahipliğini devrediyor, fonksiyonlarınkini değil. Belgeli geçiş sırası şu: `roles.sql`, sonra `ConnectionStrings__Migrations` (`namines_migrator`) ile migrate. Bu sırayla `Hub_02` `42501: must be owner of function issue_label_gc` alıyor.
+- **Sonuç:** Hub `Hub_01`'de kalıyor, Gateway ve Ops çalışmıyor, Production açılışı bekleyen migration yüzünden reddediliyor. Fail-closed, veri kaybı yok, ama kesinti var. 1. turda aynı yol 95/95 geçiyordu; regresyon `Hub_02` ile geldi. Uygulayıcının m-2 testi bu yolu kapsamıyor.
+- **Yeniden üretim:**
+  1. 14.2C tohumunu süper kullanıcıyla geri yükle (fonksiyon sahibi `postgres`).
+  2. Yeni `roles.sql`'i çalıştır.
+  3. `namines_migrator` ile `--migrate`: rc≠0, `42501`; geçmiş tabloları studio 1, hub 1 (`Hub_01`), gateway ve ops yok.
+  4. `ALTER FUNCTION hub.issue_label_gc() OWNER TO namines_migrator` sonrası `--migrate` rc=0 ve `namines_app` ile duman 95/95.
+  5. Boş DB'de önce `roles.sql`, sonra migrator: sorun yok.
+- **Düzeltme önerisi:** `roles.sql` modül şemalarındaki fonksiyonların sahipliğini de devretsin (ve bu yolu sınayan test); ya da `Hub_02` sahipliği ele alsın.
+
+**R2-m1 (Minor): Desk SQL oturum yolunda Owner kontrolü controller'da kaldı.**
+`GatewayController.cs:599` (`DeskSql`) ve `:787` (`RequireDeskSqlOwnerAsync`). Aynı kural kapıda da var (`GatewayRequestGate.AuthorizeStoredConnectionSqlAsync`, satır 255-265). Davranış aynı (matris 0 fark), ama kural iki yerde.
+
+**R2-m2 (Minor): kapı taraması yalnız `GatewayController`'a bakıyor.**
+`Phase14_2D1BoundaryScanTests.cs` (~139-150). Başka bir controller'ın var olan bir eyleminde `IGatewayAccess.AuthenticateAsync` ile kapısız anahtar doğrulama yakalanmadı. Koddaki gerçek ihlal değil. Öneri: `IGatewayAccess` dışarıya `internal` olsun ya da tarama tüm API derlemesini kapsasın.
+
+**R2-m3 (Minor, faz dışı): `POST api/migration/generate` yabancı ve viewer için 500.**
+- **Sınıflandırma:** yetki hatası değil. Anon 401 alıyor. Oturumlu her kullanıcı servise ulaşıyor ve AI sağlayıcısı yapılandırılmadığında `AiNotConfiguredException` atılıyor.
+- **Neden 500:** `MigrationController.GenerateMigration` bunu kendi `catch`'inde `500` ve `ex.Message` olarak döndürüyor. Merkezi `ExceptionMiddleware` aynı istisnayı 503'e eşliyor, controller'ın `catch`'i bunu öne geçiriyor. Bu bir hata işleme kusuru.
+- **Kapsam:** `f5fcd96`'da da aynı (matris 0 fark). `MigrationController` D-1'de değişmedi ve dört modülden birine ait değil.
+- **Blokluyor mu:** hayır. Faz dışı backlog; sahibi AI/araçlar alanı.
+
+### 8.8 2. turda doğrulanamayanlar
+
+- Tam frontend süiti, ESLint, `next build`.
+- CLI ve MCP.
+- m-3 ve m-7 testlerini ayrı mutasyonla sınamadım; kodu okudum, testleri süitte geçti.
+- Kilit süresi yük altında yeniden ölçülmedi.
+- Üretim veritabanı.
+- 1. turdaki diğer sınırlar geçerli (§6).
