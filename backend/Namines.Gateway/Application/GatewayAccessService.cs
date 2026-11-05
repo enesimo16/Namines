@@ -8,8 +8,9 @@ using Namines.Gateway.Domain;
 namespace Namines.Gateway.Application;
 
 /// <summary>
-/// İstek yolu: ham anahtarı doğrular, tablo iznine ve maskeye karar verir. Karar burada; controller
-/// yalnızca sonucu HTTP'ye çevirir. Proje rolü Studio sözleşmesinden, anahtar kaydı kendi tablosundan.
+/// Anahtar ve izin kayıtlarının okuma yüzü: doğrulama, tablo izni, maske kolonları. İsteğin bütün kararı
+/// (köken, IP, hız sınırı, kullanım, maskeleme dahil) <see cref="IGatewayRequestGate"/>'te; controller bu
+/// arayüzü değil kapıyı çağırır. Proje rolü Studio sözleşmesinden, anahtar kaydı kendi tablosundan.
 /// </summary>
 public interface IGatewayAccess
 {

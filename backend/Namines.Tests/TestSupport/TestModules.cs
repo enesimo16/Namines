@@ -108,6 +108,8 @@ public sealed class ModuleKit
     internal GatewayDbContext Gateway { get; }
     public IGatewayAccess GatewayAccess => new GatewayAccessService(Gateway, DefaultAuthority);
     public IGatewayAuditLog GatewayAudit => new GatewayAuditLog(Gateway, DefaultAuthority, Branches);
+    public IGatewayRequestGate GatewayGate(Microsoft.Extensions.Configuration.IConfiguration configuration) =>
+        new GatewayRequestGate(GatewayAccess, GatewayAudit, Usage, DefaultAuthority, StudioService, new NoGatewayMetrics(), configuration);
     public IGatewayKeyService GatewayKeys => new GatewayKeyService(Gateway, DefaultAuthority, Identity);
     public IGatewayMaintenance GatewayMaintenance => new GatewayKeyService(Gateway, DefaultAuthority, Identity);
     public IUsageMeter Usage => new UsageMeterBridge(Db);

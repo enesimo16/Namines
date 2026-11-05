@@ -17,7 +17,7 @@ namespace Namines.Gateway.Domain;
 /// navigasyonu yüklenmemiş bir anahtarda liste boş görünür ve bu asla "serbest" anlamına gelmemeli.
 /// İki taraf da kapalıya düşer: bayrak VEYA satır varsa kısıt uygulanır, satır yoksa reddedilir.
 /// </summary>
-public static class GatewayKeyRestrictions
+internal static class GatewayKeyRestrictions
 {
     /// <summary>
     /// Origin kontrolü. Tarayıcıdan gelmeyen isteklerde <c>Origin</c> başlığı

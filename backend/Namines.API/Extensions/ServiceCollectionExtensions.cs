@@ -185,6 +185,7 @@ public static class ServiceCollectionExtensions
         services.AddStudioModule(controlDb);
         services.AddHubModule(controlDb);
         services.AddGatewayModule(controlDb);
+        services.AddSingleton<Namines.Gateway.Application.IGatewayMetrics, Namines.Infrastructure.Observability.GatewayMetricsAdapter>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IUsageMeter, Namines.Infrastructure.Data.UsageMeterBridge>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IIdentityDirectory, Namines.Infrastructure.Data.IdentityDirectoryService>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IConnectionHostInspector, Namines.Infrastructure.Data.ConnectionHostInspector>();

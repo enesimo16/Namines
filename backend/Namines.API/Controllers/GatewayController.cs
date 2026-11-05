@@ -128,7 +128,7 @@ public sealed record GatewayNlQueryRequest(
 public class GatewayController : ControllerBase
 {
     private readonly IGatewayService _gateway;
-    private readonly IGatewayAccess _access;
+    private readonly IGatewayRequestGate _gate;
     private readonly IGatewayAuditLog _audit;
     private readonly IUsageMeter _usage;
     private readonly IConfiguration _configuration;
@@ -154,7 +154,7 @@ public class GatewayController : ControllerBase
     private readonly IStudioBranches _branches;
 
     public GatewayController(
-        IGatewayService gateway, IGatewayAccess access, IGatewayAuditLog audit, IUsageMeter usage, IConfiguration configuration,
+        IGatewayService gateway, IGatewayRequestGate gate, IGatewayAuditLog audit, IUsageMeter usage, IConfiguration configuration,
         GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota,
         IProjectConnectionSecretProvider secrets, IStudioApplicationService studio, IDbIntrospectionService introspection,
         ISqlWorkbenchService workbench,
@@ -167,7 +167,7 @@ public class GatewayController : ControllerBase
         _branches = branches;
         _workbench = workbench;
         _gateway = gateway;
-        _access = access;
+        _gate = gate;
         _audit = audit;
         _usage = usage;
         _configuration = configuration;
@@ -205,267 +205,55 @@ public class GatewayController : ControllerBase
     };
 
     /// <summary>
-    /// İki kimlik yolu var ve YETKİLERİ FARKLI:
-    ///
-    /// - <b>Oturum (JWT):</b> Studio'nun kendi kullanımı. Kullanıcı zaten bağlantı
-    ///   dizesini kendisi giriyor, yani erişebileceği her tabloya zaten erişebilir;
-    ///   burada tablo izinleri uygulanmaz.
-    /// - <b>API anahtarı:</b> müşterinin uygulaması. Burada 08 §1'in kuralı geçerli:
-    ///   <b>hiçbir tablo varsayılan olarak açık değildir</b>, her tablo açıkça
-    ///   izinlendirilmelidir ve yazma ayrı bir yetkidir.
-    ///
-    /// Anahtarın kendi yetkisini genişletememesi için anahtar yönetimi uçları
-    /// (GatewayKeyController) yalnızca oturumla korunur.
+    /// İki kimlik yolu var ve yetkileri farklı: oturum (Studio, tablo izni yok) ve API anahtarı (hiçbir tablo
+    /// varsayılan açık değil). Karar Gateway modülünde (<see cref="IGatewayRequestGate"/>); burada yalnızca istek
+    /// bilgisi toplanır ve karar HTTP'ye çevrilir.
     /// </summary>
+    private GatewayCaller Caller()
+    {
+        var hasHeader = Request.Headers.TryGetValue(ApiKeyHeader, out var header);
+        return new GatewayCaller(
+            hasHeader ? header.ToString() : null,
+            User?.Identity?.IsAuthenticated == true,
+            User?.FindFirstValue(ClaimTypes.NameIdentifier),
+            Request.Headers.Origin.ToString(),
+            HttpContext.Connection.RemoteIpAddress,
+            ClientAddressIsTrustworthy);
+    }
+
+    private IActionResult Deny(GatewayDecision decision) => decision.Denial switch
+    {
+        GatewayDenial.Unauthenticated => Unauthorized(),
+        GatewayDenial.InvalidCredentials => Unauthorized(new { message = decision.Message }),
+        GatewayDenial.NotFound => NotFound(new { message = decision.Message }),
+        GatewayDenial.RateLimited => StatusCode(429, new { message = decision.Message }),
+        GatewayDenial.BadRequest => BadRequest(new { message = decision.Message }),
+        _ => StatusCode(403, new { message = decision.Message }),
+    };
+
     private async Task<(bool Allowed, IActionResult? Failure, GatewayApiKey? Key)> AuthorizeAsync(
-        string tableName, bool forWrite, CancellationToken ct)
+        string tableName, bool forWrite, CancellationToken ct, IReadOnlyList<GatewayExpand>? expands = null, bool export = false)
     {
-        if (!Request.Headers.TryGetValue(ApiKeyHeader, out var header) ||
-            string.IsNullOrWhiteSpace(header.ToString()))
-        {
-            // Anahtar yok → oturum yolundayız. [Authorize] zaten kimliği doğruladı.
-            return User?.Identity?.IsAuthenticated == true
-                ? (true, null, null)
-                : (false, Unauthorized(), null);
-        }
-
-        var key = await _access.AuthenticateAsync(header.ToString(), ct);
-        if (key is null)
-            return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }), null);
-
-        // Kaynak kısıtları tablo izninden ÖNCE: kısıtı geçemeyen bir çağrının hangi
-        // tabloya erişmeye çalıştığı bilgisini geri vermeye gerek yok.
-        if (!GatewayKeyRestrictions.IsOriginAllowed(key, Request.Headers.Origin.ToString()))
-            return (false, StatusCode(403, new { message = "This key is not allowed from this origin." }), null);
-
-        if (!GatewayKeyRestrictions.IsIpAllowed(
-                key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
-            return (false, StatusCode(403, new { message = ipReason }), null);
-
-        if (!await GatewayRateLimiter.TryAcquireAsync(key))
-            return (false, StatusCode(429, new
-            {
-                message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
-            }), null);
-
-        if (!await _access.IsTableAllowedAsync(key, tableName, forWrite, ct))
-            // 403 ve 404 arasında bilinçli tercih: anahtar geçerli, tablo yok demek
-            // hangi tabloların var olduğunu sızdırırdı; erişim reddi doğru mesaj.
-        {
-            // Reddedilenler hatadan AYRI sayılıyor: birleştirilseydi, izin
-            // yapılandırması eksik olan bir kurulum "sistem bozuk" gibi görünürdü.
-            NaminesMetrics.GatewayRequest(forWrite ? "write" : "read", "denied");
-            return (false, StatusCode(403, new
-            {
-                message = forWrite
-                    ? $"This API key is not allowed to write to '{tableName}'."
-                    : $"This API key is not allowed to read '{tableName}'.",
-            }), null);
-        }
-
-        // Kullanılmayan anahtarları fark edip kapatabilmek için. Her istekte yazmak
-        // gereksiz yük olurdu; dakikada birden sık güncellenmez.
-        await _access.TouchLastUsedAsync(key, ct);
-
-        NaminesMetrics.GatewayRequest(forWrite ? "write" : "read", "ok");
-
-        // API isteği ölçümü (22 §5). Anahtarı ÜRETEN kullanıcıya yazılıyor:
-        // isteği yapan taraf anonim bir uygulama, faturayı ödeyen ise hesap sahibi.
-        await _usage.RecordAsync(
-            key.CreatedByUserId!, UsageResource.ApiRequest, 1, tableName, ct);
-
-        return (true, null, key);
+        var decision = await _gate.AuthorizeTableAsync(Caller(), tableName, forWrite, expands, export, ct);
+        return decision.Allowed ? (true, null, decision.Key) : (false, Deny(decision), null);
     }
 
-    /// <summary>
-    /// PII maskeleme (06 §4). Yalnızca API-ANAHTARI yolunda uygulanır.
-    ///
-    /// Oturum yolunda uygulanmıyor, çünkü orada kullanıcı bağlantı dizesini kendisi
-    /// giriyor — istediği anda psql açıp aynı veriyi ham hâliyle görebilir. Orada
-    /// maskelemek güvenlik sağlamaz, yalnızca kendi ekranını işe yaramaz kılar.
-    /// Anahtar yolunda ise çağıran veritabanına doğrudan erişemez; maskeleme orada
-    /// gerçek bir sınır.
-    ///
-    /// Maskeleme gizli anahtarı PROJE BAŞINA türetiliyor: iki farklı projede aynı
-    /// e-posta farklı maskelenir, yani bir projenin çıktısı diğeriyle eşleştirilerek
-    /// kimlik çözülemez.
-    /// </summary>
-    private async Task<IReadOnlyList<GatewayRow>> MaskAsync(
-        GatewayApiKey? key, string tableName, IReadOnlyList<GatewayRow> rows, CancellationToken ct)
-    {
-        if (key is null || rows.Count == 0) return rows;
+    private Task<IReadOnlyList<GatewayRow>> MaskAsync(
+        GatewayApiKey? key, string tableName, IReadOnlyList<GatewayRow> rows, CancellationToken ct) =>
+        _gate.MaskAsync(key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value, tableName, rows, ct);
 
-        var masked = await _access.MaskedColumnsAsync(key.ProjectId, tableName, ct);
-        if (masked.Count == 0) return rows;
 
-        // Hassas kolon okundu — kaydet. Denetim kaydı ÖNCEDEN yalnızca yazmaları
-        // tutuyordu: maskeli e-postaları kimin çektiği hiçbir yerde görünmüyordu,
-        // oysa maskelemeyi koymanın sebebi tam olarak o kolonun hassas olması.
-        await _audit.RecordAsync(
-            key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-            GatewayWriteKind.Read, tableName, rowKey: null, columns: masked,
-            affectedRows: rows.Count, succeeded: true, ct);
+    private Task<IReadOnlyList<GatewayRow>> MaskExpandedAsync(
+        GatewayApiKey? key, IReadOnlyList<GatewayExpand>? expands, IReadOnlyList<GatewayRow> rows, CancellationToken ct) =>
+        _gate.MaskExpandedAsync(key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value, expands, rows, ct);
 
-        var secret = MaskingSecret(key.ProjectId);
-        var lookup = new HashSet<string>(masked, StringComparer.OrdinalIgnoreCase);
 
-        return rows.Select(row => new GatewayRow(MaskValues(row.Values, lookup, secret))).ToList();
-    }
-
-    /// <summary>
-    /// Tek bir satırın hassas kolonlarını maskeler.
-    ///
-    /// <b>Neden ayrı bir yardımcı:</b> aynı dönüşüm hem ana satırlara hem de
-    /// <c>expand</c> ile gömülen ilişkili satırlara uygulanmak zorunda. İki yerde
-    /// ayrı ayrı yazılsaydı, yeni bir tip (ör. <c>short</c>) yalnızca birine
-    /// eklenir ve gömülü satırlar sessizce maskesiz kalırdı — bkz. docs/last-review H-2.
-    /// </summary>
-    private static Dictionary<string, object?> MaskValues(
-        IReadOnlyDictionary<string, object?> source, HashSet<string> lookup, string secret)
-    {
-        var values = new Dictionary<string, object?>(source);
-        foreach (var column in values.Keys.ToList())
-        {
-            if (!lookup.Contains(column)) continue;
-
-            values[column] = values[column] switch
-            {
-                null => null,
-                long l => PiiMasker.MaskNumber(l, secret),
-                int i => PiiMasker.MaskNumber(i, secret),
-                // Diğer her tip metne çevrilip maskeleniyor: maskelenmemiş bir
-                // tipi "tanımadım" diye geçirmek, tek bir kolon tipiyle tüm
-                // korumayı sessizce delerdi.
-                var other => PiiMasker.Mask(other.ToString(), secret),
-            };
-        }
-        return values;
-    }
-
-    /// <summary>
-    /// <c>expand</c> ile gömülen ilişkili satırları KENDİ tablolarının maskeleme
-    /// kurallarıyla maskeler.
-    ///
-    /// <b>Bulunan açık (docs/last-review H-2):</b> maskeleme yalnızca
-    /// <c>request.TableName</c> için çözülüyordu. <c>orders</c> üzerinde maskeleme
-    /// kuralı olmayan bir anahtar, <c>expand</c> ile <c>customers</c>'ı gömüp
-    /// e-postaları <b>ham hâliyle</b> okuyabiliyordu — yani maskeleme, ilişkinin
-    /// diğer ucundan tamamen aşılabiliyordu.
-    /// </summary>
-    private async Task<IReadOnlyList<GatewayRow>> MaskExpandedAsync(
-        GatewayApiKey? key, IReadOnlyList<GatewayExpand>? expands,
-        IReadOnlyList<GatewayRow> rows, CancellationToken ct)
-    {
-        if (key is null || expands is null || expands.Count == 0 || rows.Count == 0) return rows;
-
-        var secret = MaskingSecret(key.ProjectId);
-        var result = rows;
-
-        foreach (var expand in expands)
-        {
-            var masked = await _access.MaskedColumnsAsync(key.ProjectId, expand.Table, ct);
-            if (masked.Count == 0) continue;
-
-            var alias = string.IsNullOrWhiteSpace(expand.As) ? expand.Table : expand.As!;
-            var lookup = new HashSet<string>(masked, StringComparer.OrdinalIgnoreCase);
-
-            // Hassas kolon okundu — ana tabloyla aynı gerekçeyle kaydediliyor
-            // (MaskAsync'teki nota bakın): maskelemenin sebebi kolonun hassas olması.
-            await _audit.RecordAsync(
-                key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                GatewayWriteKind.Read, expand.Table, rowKey: null, columns: masked,
-                affectedRows: result.Count, succeeded: true, ct);
-
-            result = result.Select(row =>
-            {
-                if (!row.Values.TryGetValue(alias, out var nested) ||
-                    nested is not IReadOnlyDictionary<string, object?> embedded)
-                    return row;
-
-                var values = new Dictionary<string, object?>(row.Values)
-                {
-                    [alias] = MaskValues(embedded, lookup, secret),
-                };
-                return new GatewayRow(values);
-            }).ToList();
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Proje başına maskeleme anahtarı. Sunucu gizli anahtarından türetiliyor —
-    /// ayrı bir sır yönetimi gerektirmesin, ama projeler arasında da ortak olmasın.
-    /// </summary>
-    private string MaskingSecret(string projectId) =>
-        (_configuration["Jwt:Key"] ?? "namines-masking-fallback") + ":mask:" + projectId;
-
-    /// <summary>
-    /// İstekte bağlantı YOKSA, projede saklanan şifreli bağlantıyı çözer.
-    ///
-    /// İki çağıran senaryosu var:
-    /// - <b>API anahtarı</b> (dış uygulama): proje, anahtarın bağlı olduğu
-    ///   projedir; tablo izinleri zaten <see cref="AuthorizeAsync"/> içinde
-    ///   uygulandı.
-    /// - <b>Oturum (JWT) + <paramref name="requestedProjectId"/></b> — Namines
-    ///   Desk. Anahtar taşımıyor, bunun yerine hangi projeyi istediğini
-    ///   açıkça bildiriyor. <b>Bu dal, JWT kullanıcısının O PROJEYE erişimi
-    ///   olduğunu DOĞRULAMADAN asla bağlantıyı çözmez</b> — aksi hâlde
-    ///   giriş yapmış herhangi bir kullanıcı başkasının `projectId`'sini
-    ///   yazıp o veritabanına bağlanabilirdi. Kontrol <c>OrgAccess</c>'teki
-    ///   tek kopyadan yapılır (<c>CanViewAsync</c> /
-    ///   <c>CanEditAsync</c>) — <c>GatewayKeyController</c>'ın
-    ///   kullandığı <c>CanManageMembersAsync</c> kasıtlı olarak KULLANILMADI:
-    ///   o Admin/Owner'a kilitli ve anahtar YÖNETİMİ için doğru, ama Desk'te
-    ///   kendi projesinin verisine bakan bir Viewer/Editor'ı dışlardı.
-    ///
-    /// <b>Mevcut davranış korunuyor:</b> istek bağlantı taşıyorsa o kullanılır —
-    /// tasarım düzlemindeki (canvas) çağrılar hiç değişmiyor.
-    /// </summary>
-    /// <returns>
-    /// Bağlantı dizesi, motor türü ve (yetkisizse) doğrudan döndürülecek
-    /// <see cref="IActionResult"/>. Bağlantı ile motor türü birlikte dönüyor
-    /// çünkü ayrı ayrı çözmek, saklanan bağlantıyla istekteki motorun
-    /// ayrışmasına izin verirdi — PostgreSQL'e MSSQL sürücüsüyle bağlanmaya
-    /// çalışmak gibi.
-    /// </returns>
-    /// <summary>
-    /// Oturum (JWT) kullanıcısının <paramref name="projectId"/>'ye erişimi var mı —
-    /// <see cref="ResolveConnectionAsync"/> VE <see cref="Schema"/> tarafından
-    /// paylaşılan TEK kopya. Önceden ikisi bu kontrolü bağımsız yazıyordu; bu,
-    /// tam olarak <c>OrgAccess.cs</c>'in kendi kuruluş gerekçesinin uyardığı
-    /// kopyalanma riskiydi ("aynı mantığın kopyalanması ... hata olarak geri
-    /// dönmüştü") — burada erken kapatıldı.
-    ///
-    /// <see cref="GatewayKeyController"/>'ın kullandığı <c>CanManageMembersAsync</c>
-    /// kasıtlı olarak KULLANILMIYOR: o Admin/Owner'a kilitli ve anahtar YÖNETİMİ
-    /// için doğru, ama burada kendi projesinin verisine bakan bir Viewer/Editor'ı
-    /// dışlardı.
-    /// </summary>
-    /// <returns>
-    /// Erişim varsa <c>(true, userId, null)</c>. Yoksa <c>(false, null, Failure)</c> —
-    /// 401 (kimlik yok) ya da 403 (erişim yok). 403 ile "proje yok" arasında ayrım
-    /// yapılmıyor — bilinçli: hangi projectId'lerin var olduğunu sızdırmamak, key
-    /// yolundaki 403/404 tercihiyle aynı gerekçe (yukarıda AuthorizeAsync'te açıklandı).
-    /// </returns>
     private async Task<(bool Allowed, string? UserId, IActionResult? Failure)> ResolveSessionAccessAsync(
         string projectId, bool forWrite, CancellationToken ct)
     {
-        // [AllowAnonymous] anahtarsız istekleri de kabul eder, bu yüzden kimliği
-        // burada netleştiriyoruz (AuthorizeAsync zaten IsAuthenticated'ı doğruladı,
-        // ama userId claim'i burada ayrıca lazım).
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return (false, null, Unauthorized());
-
-        var hasAccess = forWrite
-            ? await _authority.CanEditAsync(projectId, userId, ct)
-            : await _authority.CanViewAsync(projectId, userId, ct);
-
-        if (!hasAccess)
-            return (false, null, StatusCode(403, new { message = "You do not have access to this project." }));
-
-        return (true, userId, null);
+        var caller = Caller();
+        var decision = await _gate.AuthorizeSessionProjectAsync(caller, projectId, forWrite, ct);
+        return decision.Allowed ? (true, caller.SessionUserId, null) : (false, null, Deny(decision));
     }
 
     /// <summary>
@@ -539,34 +327,9 @@ public class GatewayController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.TableName))
             return BadRequest(new { message = "Table name is required." });
 
-        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
+        // expand ayrı tablo okur, ayrı izin ister (docs/last-review H-2): karar kapıda, ana tabloyla birlikte.
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken, expands: request.Expand);
         if (!allowed) return failure!;
-
-        // expand AYRI bir tablo okuyor, bu yüzden AYRI bir izin istiyor.
-        //
-        // Bulunan açık (docs/last-review H-2): AuthorizeAsync yalnızca
-        // request.TableName'i kontrol ediyordu; ApplyExpandsAsync ise expand.Table'ın
-        // yalnızca SÖZ DİZİMİNİ doğruluyordu. Yani `orders` okuma izni olan bir
-        // anahtar, izni OLMAYAN `users` tablosunu expand ile satır satır okuyabiliyordu.
-        foreach (var expand in request.Expand ?? Array.Empty<GatewayExpand>())
-        {
-            if (string.IsNullOrWhiteSpace(expand.Table))
-                return BadRequest(new { message = "Each expand needs a table name." });
-
-            // AuthorizeAsync'in TAMAMI çağrılmıyor, yalnızca tablo izni: o metot
-            // hız limitinden bir jeton düşüyor ve bir API isteği faturalandırıyor.
-            // Tek bir HTTP isteğini expand sayısı kadar çarpmak, güvenlik düzeltmesini
-            // sessiz bir fiyat artışına çevirirdi.
-            if (apiKey is not null &&
-                !await _access.IsTableAllowedAsync(apiKey, expand.Table, forWrite: false, cancellationToken))
-            {
-                NaminesMetrics.GatewayRequest("read", "denied");
-                return StatusCode(403, new
-                {
-                    message = $"This API key is not allowed to read '{expand.Table}'.",
-                });
-            }
-        }
 
         var (connectionString, effectiveDbType, connectionFailure) = await ResolveConnectionAsync(
             request.ConnectionString, request.DbType, request.ProjectId, apiKey, forWrite: false, cancellationToken);
@@ -1156,32 +919,9 @@ public class GatewayController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.TableName))
             return BadRequest(new { message = "Table name is required." });
 
-        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken);
+        // Dışa aktarım ayrı izin (F-08), okuma yetmez; karar kapıda.
+        var (allowed, failure, apiKey) = await AuthorizeAsync(request.TableName, forWrite: false, cancellationToken, export: true);
         if (!allowed) return failure!;
-
-        // DIŞA AKTARIM AYRI BİR İZİN (F-08). Okuma izni YETMEZ.
-        //
-        // Önceden bu uç yalnızca `forWrite: false` ile korunuyordu, yani okuma
-        // yetkisi olan her anahtar tablonun TAMAMINI tek istekte indirebiliyordu.
-        // Nicelik burada bir nitelik farkı: "ekranda sayfa sayfa göster" ile
-        // "hepsini dosya olarak al" aynı yetki değil ve F-08'in güvenlik notu
-        // bunu "veri sızıntısının en sessiz yolu" diye tanımlıyor.
-        //
-        // Oturum yolu (JWT) bu kapıdan GEÇMİYOR: `apiKey` null olduğunda çağıran
-        // projenin kendi sahibi/üyesi ve zaten tüm veriye erişimi var; ona ayrı
-        // bir indirme izni koymak, kendi verisini indirmesini engellemek olurdu.
-        // Kapı, verdiğimiz ANAHTARLAR için var.
-        if (apiKey is not null &&
-            !await _access.IsTableExportAllowedAsync(apiKey, request.TableName, cancellationToken))
-        {
-            NaminesMetrics.GatewayRequest("export", "denied");
-            return StatusCode(403, new
-            {
-                message = $"This API key is not allowed to export '{request.TableName}'. " +
-                          "Bulk export is a separate grant from read access: reading a table " +
-                          "page by page and downloading all of it are different permissions.",
-            });
-        }
 
         // Namines Desk (D4, 04-DATA-CRUD.md §2.3): bağlantı istekte yoksa API
         // anahtarından ya da oturum + ProjectId'den çözülür — diğer beş uçla
@@ -1341,31 +1081,13 @@ public class GatewayController : ControllerBase
         // Yetki kontrolü bağlantı kontrolünden ÖNCE: ham SQL hakkı olmayan bir
         // anahtar, "bağlantı dizesi eksik" (400) cevabı alıyordu. Yanlış cevap —
         // bağlantıyı düzeltmek yetkiyi vermez ve arayan yanlış yeri arar.
-        var (allowed, failure, key) = await AuthorizeForSqlAsync(cancellationToken);
+        var (allowed, failure, key) = await AuthorizeForSqlAsync(cancellationToken, readOnly: request.ReadOnly);
         if (!allowed) return failure!;
 
-        // Salt-okunur olmayan bir sorgu, yazma yetkisi de ister: ham SQL yetkisi
-        // "her şeyi oku" demek, "her şeyi değiştir" demek değil.
-        if (!request.ReadOnly && key is not null && !key.CanWrite)
-            return StatusCode(403, new { message = "This API key may run read-only SQL only." });
-
-        // Oturum yolu (anahtarsız) ve PROJEYE KAYITLI bağlantı (gövdede kendi
-        // dizesini vermemiş): "kullanıcının zaten DB erişimi var" öncülü burada
-        // GEÇERSİZ — erişimi tam olarak bu istek veriyor. Desk SQL konsoluyla
-        // AYNI eşik uygulanıyor: yalnızca Owner, yalnızca proje açıkça izin
-        // verdiyse. Kendi dizesini gönderen bir çağrı bu kapıdan GEÇMİYOR —
-        // o zaten kendi bağlantısıyla DB'ye erişebiliyor, bu uç ona ekstra
-        // bir şey vermiyor.
-        if (key is null && string.IsNullOrWhiteSpace(request.ConnectionString)
-            && !string.IsNullOrWhiteSpace(request.ProjectId))
-        {
-            var sessionDenied = await AuthorizeSessionRawSqlAsync(request.ProjectId, cancellationToken);
-            if (sessionDenied is not null) return sessionDenied;
-        }
-
-        // Anahtar yolunun aynı kapısı — bkz. AuthorizeKeyRawSqlAsync.
-        var keyDenied = await AuthorizeKeyRawSqlAsync(key, request.ConnectionString, cancellationToken);
-        if (keyDenied is not null) return keyDenied;
+        // Projeye kayıtlı bağlantıda ham SQL: oturumda Owner ve proje izni, anahtarda proje izni. Kendi dizesini
+        // gönderen çağrı kapıdan geçmez, zaten kendi veritabanına erişiyor. Karar kapıda.
+        var stored = await _gate.AuthorizeStoredConnectionSqlAsync(Caller(), key, request.ConnectionString, request.ProjectId, cancellationToken);
+        if (!stored.Allowed) return Deny(stored);
 
         // list/detail gibi projeye kayıtlı şifreli bağlantıyı da çözer. Önceden
         // yalnızca gövdedeki dizeyi kabul ediyordu: bağlantısını Namines'e emanet
@@ -1410,42 +1132,6 @@ public class GatewayController : ControllerBase
     /// <summary>Desk SQL konsoluyla aynı sayfa boyutu tavanı — bkz. <see cref="DeskSql"/>.</summary>
     private const int MaxReadOnlyQueryRows = 2000;
 
-    /// <summary>
-    /// Oturum yoluyla PROJEYE KAYITLI bağlantı üzerinden ham SQL çalıştırmak
-    /// için Desk SQL konsoluyla AYNI eşik: yalnızca Owner, yalnızca proje
-    /// açıkça <c>AllowDeskSql</c> ile izin verdiyse.
-    ///
-    /// <b>Neden <see cref="ResolveSessionAccessAsync"/>'in Editor eşiği
-    /// yetmiyor:</b> o eşik "bu projenin verisini CRUD uçlarıyla düzenleyebilir
-    /// mi" sorusuna cevap veriyor — satır/kolon seviyesinde, her zaman
-    /// parametreli sorgularla. Ham SQL kategorik olarak farklı bir yetki:
-    /// keyfi DDL çalıştırabiliyor, değişiklik incelemesini (Change Review)
-    /// tamamen atlıyor ve geri alınamaz. Editor rolünün belgelenen anlamı
-    /// (05 §6: "şema düzenler ve PR açabilir") bunu kapsamıyor.
-    /// </summary>
-    private async Task<IActionResult?> AuthorizeSessionRawSqlAsync(string projectId, CancellationToken ct)
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-        var role = await _authority.GetRoleAsync(projectId, userId, ct);
-        // 404 ile "Owner değilsin" ayrımı DeskSql ucuyla AYNI gerekçeyle:
-        // proje hiç görünmüyorsa (Viewer bile değilsen) 404, görüyorsan ama
-        // Owner değilsen 403 + açık sebep.
-        if (role is null) return NotFound(new { message = "Project not found." });
-        if (role != OrgRole.Owner)
-            return StatusCode(403, new
-            {
-                message = "Only the project Owner can run raw SQL against the stored connection. " +
-                          "Send your own connection string, or use the Desk SQL console.",
-            });
-
-        var allowDeskSql = (await _studio.GetConnectionMetadataAsync(projectId, ct)).AllowDeskSql;
-        if (!allowDeskSql)
-            return StatusCode(403, new { message = "The SQL console is not enabled for this project yet." });
-
-        return null;
-    }
 
     /// <summary>
     /// Doğal dil sorgusu (08 §2 <c>/query/nl</c>).
@@ -1476,8 +1162,8 @@ public class GatewayController : ControllerBase
         // Saklanan bağlantıda ham SQL çalışacaksa projenin anahtarı açık olmalı —
         // /query ile aynı kapı. Model ürettiği için daha gevşek olması için bir
         // sebep yok; tersine, metni insan bile yazmıyor.
-        var keyDenied = await AuthorizeKeyRawSqlAsync(key, request.ConnectionString, cancellationToken);
-        if (keyDenied is not null) return keyDenied;
+        var stored = await _gate.AuthorizeStoredConnectionSqlAsync(Caller(), key, request.ConnectionString, requestProjectId: null, cancellationToken);
+        if (!stored.Allowed) return Deny(stored);
 
         var project = (await _projects.GetAsync(key.ProjectId, cancellationToken))?.SchemaJson;
 
@@ -1616,87 +1302,12 @@ public class GatewayController : ControllerBase
             });
     }
 
-    /// <summary>
-    /// <c>/query</c> için kimlik doğrulama — tablo kontrolü OLMADAN.
-    ///
-    /// <see cref="AuthorizeAsync"/> bir tablo adı ister ve ham SQL'in tek bir
-    /// tablosu yoktur. Uydurma bir tablo adı vermek, izin kontrolünü anlamsız bir
-    /// kayda bağlamak olurdu; bunun yerine anahtarın kendi yetkisi kontrol ediliyor.
-    /// Kaynak/IP/rate limit kısıtları aynen uygulanır.
-    /// </summary>
-    /// <summary>
-    /// Ham SQL projeye SAKLI bağlantıda çalışacaksa, projenin ham-SQL anahtarı
-    /// (<c>ProjectConnection.AllowDeskSql</c>) açık olmak zorunda. İzin varsa <c>null</c>.
-    ///
-    /// <b>Bulunan açık (docs/last-review H-3):</b> bu kontrol yalnızca oturum
-    /// yolunda vardı (<see cref="AuthorizeSessionRawSqlAsync"/>, `key is null`
-    /// dalı). API anahtarı yolunda <c>AllowDeskSql</c> HİÇ okunmuyordu: Owner
-    /// konsolu kapatıyor, ama `CanExecuteSql` taşıyan bir anahtar aynı saklanmış
-    /// bağlantıda ham SQL çalıştırmaya devam ediyordu — yani anahtar, projenin
-    /// kendi anahtarını anlamsız kılıyordu.
-    ///
-    /// Çağıran KENDİ bağlantı dizesini gönderdiyse bu kapı çalışmıyor: o zaten
-    /// kendi veritabanına erişebiliyor ve Namines ona ekstra bir şey vermiyor.
-    /// </summary>
-    private async Task<IActionResult?> AuthorizeKeyRawSqlAsync(
-        GatewayApiKey? key, string? requestConnectionString, CancellationToken ct)
-    {
-        if (key is null || !string.IsNullOrWhiteSpace(requestConnectionString)) return null;
-
-        // Proje ya da bağlantı satırı yoksa da REDDEDİLİYOR: "kayıt yok" durumunu izin saymak,
-        // fail-open olurdu.
-        if ((await _studio.GetConnectionMetadataAsync(key.ProjectId, ct)).AllowDeskSql) return null;
-
-        NaminesMetrics.GatewayRequest("sql", "denied");
-        return StatusCode(403, new
-        {
-            message = "Raw SQL against this project's stored connection is turned off. " +
-                      "The project Owner can enable it in the project settings.",
-        });
-    }
 
     private async Task<(bool Allowed, IActionResult? Failure, GatewayApiKey? Key)> AuthorizeForSqlAsync(
-        CancellationToken ct)
+        CancellationToken ct, bool? readOnly = null)
     {
-        if (!Request.Headers.TryGetValue(ApiKeyHeader, out var header) ||
-            string.IsNullOrWhiteSpace(header.ToString()))
-        {
-            return User?.Identity?.IsAuthenticated == true
-                ? (true, null, null)
-                : (false, Unauthorized(), null);
-        }
-
-        var key = await _access.AuthenticateAsync(header.ToString(), ct);
-        if (key is null)
-            return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }), null);
-
-        if (!GatewayKeyRestrictions.IsOriginAllowed(key, Request.Headers.Origin.ToString()))
-            return (false, StatusCode(403, new { message = "This key is not allowed from this origin." }), null);
-
-        if (!GatewayKeyRestrictions.IsIpAllowed(
-                key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
-            return (false, StatusCode(403, new { message = ipReason }), null);
-
-        if (!await GatewayRateLimiter.TryAcquireAsync(key))
-            return (false, StatusCode(429, new
-            {
-                message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
-            }), null);
-
-        if (!key.CanExecuteSql)
-        {
-            NaminesMetrics.GatewayRequest("sql", "denied");
-            return (false, StatusCode(403, new
-            {
-                message = "This API key is not allowed to run raw SQL. Raw SQL bypasses table " +
-                          "permissions, so it is a separate grant from write access.",
-            }), null);
-        }
-
-        NaminesMetrics.GatewayRequest("sql", "ok");
-        await _usage.RecordAsync(key.CreatedByUserId!, UsageResource.ApiRequest, 1, "sql", ct);
-
-        return (true, null, key);
+        var decision = await _gate.AuthorizeSqlAsync(Caller(), readOnly, ct);
+        return decision.Allowed ? (true, null, decision.Key) : (false, Deny(decision), null);
     }
 
     /// <summary>
@@ -1732,10 +1343,10 @@ public class GatewayController : ControllerBase
         {
             resolvedProjectId = key.ProjectId;
 
-            var permissions = await _access.ReadableTablesAsync(key.ProjectId, cancellationToken);
-            keyPermissions = permissions
-                .Where(p => p.CanRead)
-                .ToDictionary(p => p.TableName, p => p.CanWrite && key.CanWrite, StringComparer.OrdinalIgnoreCase);
+            var grants = await _gate.TableGrantsAsync(key, readableOnly: true, cancellationToken);
+            keyPermissions = grants
+                .Where(g => g.CanRead)
+                .ToDictionary(g => g.TableName, g => g.CanWrite, StringComparer.OrdinalIgnoreCase);
 
             if (keyPermissions.Count == 0)
                 return Ok(new { tables = Array.Empty<object>() });
@@ -1831,7 +1442,7 @@ public class GatewayController : ControllerBase
         if (keyFailure is not null) return keyFailure;
         if (key is null) return Unauthorized(new { message = "A valid API key is required." });
 
-        var permissions = await _access.ReadableTablesAsync(key.ProjectId, cancellationToken);
+        var permissions = await _gate.TableGrantsAsync(key, readableOnly: true, cancellationToken);
 
         return Ok(permissions.Select(p => new
         {
@@ -1840,7 +1451,7 @@ public class GatewayController : ControllerBase
             // Tablo okunabilir ama anahtarın yazma yetkisi yoksa, yazma bu anahtar
             // için fiilen kapalıdır; iki koşulun birleşimi gösterilir ki istemci
             // "izinli görünüp 403 alan" bir uca gitmesin.
-            canWrite = p.CanWrite && key.CanWrite,
+            canWrite = p.CanWrite,
         }));
     }
 
@@ -1876,45 +1487,19 @@ public class GatewayController : ControllerBase
             return StatusCode(500, new { message = "The stored schema could not be read." });
         }
 
-        var permissions = await _access.ListPermissionsAsync(key.ProjectId, cancellationToken);
+        var permissions = await _gate.TableGrantsAsync(key, readableOnly: false, cancellationToken);
 
         var allowed = permissions.ToDictionary(
             p => p.TableName,
-            p => (CanRead: p.CanRead, CanWrite: p.CanWrite && key.CanWrite),
+            p => (CanRead: p.CanRead, CanWrite: p.CanWrite),
             StringComparer.Ordinal);
 
         return Ok(GatewayOpenApiGenerator.Generate(schema, allowed));
     }
 
-    /// <summary>
-    /// `schema`, `tables` ve `openapi.json` için anahtar çözümü.
-    ///
-    /// <b>Yalnızca kimlik doğrulamak YETMEZ:</b> anahtarın bildirdiği `AllowedOrigins`,
-    /// `AllowedIps` ve dakikalık sınır, `AuthorizeAsync`/`AuthorizeForSqlAsync` ile AYNI
-    /// şekilde burada da uygulanır. Aksi hâlde IP'ye kilitlenmiş bir anahtar sızdığında
-    /// saldırgan herhangi bir adresten canlı üretim şemasını (`/schema` introspection
-    /// yapıyor) okuyabilirdi. Anahtar yoksa (oturum yolu) `Key` ve `Failure` ikisi de null.
-    /// </summary>
     private async Task<(GatewayApiKey? Key, IActionResult? Failure)> ResolveKeyAsync(CancellationToken ct)
     {
-        if (!Request.Headers.TryGetValue(ApiKeyHeader, out var header)) return (null, null);
-
-        var key = await _access.AuthenticateAsync(header.ToString(), ct);
-        if (key is null) return (null, null);
-
-        if (!GatewayKeyRestrictions.IsOriginAllowed(key, Request.Headers.Origin.ToString()))
-            return (null, StatusCode(403, new { message = "This key is not allowed from this origin." }));
-
-        if (!GatewayKeyRestrictions.IsIpAllowed(
-                key, HttpContext.Connection.RemoteIpAddress, ClientAddressIsTrustworthy, out var ipReason))
-            return (null, StatusCode(403, new { message = ipReason }));
-
-        if (!await GatewayRateLimiter.TryAcquireAsync(key))
-            return (null, StatusCode(429, new
-            {
-                message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
-            }));
-
-        return (key, null);
+        var decision = await _gate.ResolveMetadataKeyAsync(Caller(), ct);
+        return decision.Allowed ? (decision.Key, null) : (null, Deny(decision));
     }
 }

@@ -88,7 +88,7 @@ public sealed class GatewayKeyStoredConnectionSqlTests : IAsyncLifetime
         httpContext.Request.Headers["X-Namines-Key"] = rawApiKey;
 
         return new GatewayController(
-            gateway: null!, access: TestModules.For(db).GatewayAccess, audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: new ConfigurationBuilder().Build(),
+            gateway: null!, gate: TestModules.For(db).GatewayGate(new ConfigurationBuilder().Build()), audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: new ConfigurationBuilder().Build(),
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
             secrets: TestModules.For(db).Authority(new PassthroughProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {

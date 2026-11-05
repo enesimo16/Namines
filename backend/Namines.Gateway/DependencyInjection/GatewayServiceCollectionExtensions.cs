@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Gateway.Application;
 using Namines.Gateway.Infrastructure.Persistence;
@@ -32,6 +33,8 @@ public static class GatewayServiceCollectionExtensions
 
         services.AddScoped<IGatewayAccess, GatewayAccessService>();
         services.AddScoped<IGatewayAuditLog, GatewayAuditLog>();
+        services.AddScoped<IGatewayRequestGate, GatewayRequestGate>();
+        services.TryAddSingleton<IGatewayMetrics, NoGatewayMetrics>();
         services.AddScoped<GatewayKeyService>();
         services.AddScoped<IGatewayKeyService>(sp => sp.GetRequiredService<GatewayKeyService>());
         services.AddScoped<IGatewayMaintenance>(sp => sp.GetRequiredService<GatewayKeyService>());

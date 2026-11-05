@@ -58,7 +58,7 @@ public static class GatewayRateLimiter
     /// Anahtarın kendi sınırı yoksa sınır uygulanmaz — sunucunun genel
     /// rate-limit politikası zaten devrede (Program.cs "sensitive" politikası).
     /// </summary>
-    public static async Task<bool> TryAcquireAsync(GatewayApiKey key) =>
+    internal static async Task<bool> TryAcquireAsync(GatewayApiKey key) =>
         key.RateLimitPerMinute is not > 0 || await TryAcquireAsync(key.Id, key.RateLimitPerMinute.Value, DateTime.UtcNow);
 
     internal static async Task<bool> TryAcquireAsync(string keyId, int limitPerMinute, DateTime now)

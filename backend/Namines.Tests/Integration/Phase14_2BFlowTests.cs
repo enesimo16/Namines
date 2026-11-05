@@ -1007,7 +1007,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             if (apiKey != null) http.Request.Headers["X-Namines-Key"] = apiKey;
             var groq = new Namines.Infrastructure.AI.GroqAIService(new HttpClient(), _config, new HttpContextAccessor { HttpContext = http }, new MemoryCache(new MemoryCacheOptions()));
             return new GatewayController(
-                gateway: null!, access: TestModules.For(s.Db).GatewayAccess, audit: TestModules.For(s.Db).GatewayAudit, usage: TestModules.For(s.Db).Usage, configuration: _config, groq: groq,
+                gateway: null!, gate: TestModules.For(s.Db).GatewayGate(_config), audit: TestModules.For(s.Db).GatewayAudit, usage: TestModules.For(s.Db).Usage, configuration: _config, groq: groq,
                 logger: NullLogger<GatewayController>.Instance, quota: new AiQuotaService(s.Db, _config),
                 secrets: authority, studio: s.Kit.StudioService,
                 introspection: new DbIntrospectionService(NullLogger<DbIntrospectionService>.Instance, policy),
