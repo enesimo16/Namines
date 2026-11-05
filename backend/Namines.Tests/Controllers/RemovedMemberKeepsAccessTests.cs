@@ -10,6 +10,7 @@ using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -156,7 +157,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
     // ── (b) paylaşım linkleri ────────────────────────────────────────────────
 
     private static ShareController NewShareController(AuthDbContext db, string userId) =>
-        new(db, linter: null!, configuration: null!)
+        new(db, linter: null!, studio: TestModules.For(db).StudioService)
         {
             ControllerContext = new ControllerContext
             {
@@ -187,8 +188,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         Assert.IsType<NotFoundResult>(result);
 
         await using var verify = NewContext();
-        var project = await verify.CloudProjects.SingleAsync();
-        Assert.Null(project.ShareToken);
+        Assert.False(await TestModules.For(verify).Studio.ProjectShares.AnyAsync());
     }
 
     [Fact]
@@ -199,13 +199,11 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         await using var db = NewContext();
         await SeedAsync(db);
 
-        var project = await db.CloudProjects.SingleAsync();
-        project.ShareToken = "already-published";
-
         db.Users.Add(new ApplicationUser { Id = "new-owner", UserName = "new-owner" });
         db.OrganizationMembers.Add(new OrganizationMember
         { OrganizationId = "org-1", UserId = "new-owner", Role = OrgRole.Owner });
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedShareAsync("proj-1", "already-published");
 
         await using var fresh = NewContext();
         var controller = NewShareController(fresh, "new-owner");
@@ -214,7 +212,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         Assert.IsType<NoContentResult>(result);
 
         await using var verify = NewContext();
-        Assert.Null((await verify.CloudProjects.SingleAsync()).ShareToken);
+        Assert.Null(await TestModules.For(verify).StudioService.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash("already-published")));
     }
 
     [Fact]

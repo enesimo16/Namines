@@ -8,6 +8,7 @@ using Namines.Ground.Application;
 using Namines.Ground.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -92,7 +93,7 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
 
     private GroundApplicationService NewService(AuthDbContext db, GroundDbContext groundDb, IDatabaseProvider provider)
     {
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var authority = TestModules.For(db).Authority(new PassthroughProtector());
         return new GroundApplicationService(
             groundDb,
             authority,
@@ -110,8 +111,6 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
-            // RequestDeleteAsync'in daha önce yaptığı şey: bağlantı temizlendi.
-            EncryptedConnectionString = null, ConnectionDbType = null,
         };
         db.CloudProjects.Add(project);
         await db.SaveChangesAsync();
@@ -171,8 +170,7 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
         await service.CancelDeleteAsync(record, provider, CancellationToken.None);
 
         await using var verify = NewContext();
-        var reloadedProject = await verify.CloudProjects.SingleAsync(p => p.Id == "proj-1");
-        Assert.Null(reloadedProject.EncryptedConnectionString);
+        Assert.False((await TestModules.For(verify).StudioService.GetConnectionMetadataAsync("proj-1")).HasConnection);
     }
 
     [Fact]
@@ -191,8 +189,7 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
         Assert.Equal(GroundStatus.Active, result.Database!.Status);
 
         await using var verify = NewContext();
-        var reloadedProject = await verify.CloudProjects.SingleAsync(p => p.Id == "proj-1");
-        Assert.NotNull(reloadedProject.EncryptedConnectionString);
+        Assert.True((await TestModules.For(verify).StudioService.GetConnectionMetadataAsync("proj-1")).HasConnection);
     }
 
     [Fact]

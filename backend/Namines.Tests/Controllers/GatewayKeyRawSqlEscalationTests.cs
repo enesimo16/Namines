@@ -68,7 +68,7 @@ public sealed class GatewayKeyRawSqlEscalationTests : IAsyncLifetime
     }
 
     private static GatewayKeyController NewController(AuthDbContext db, string userId) =>
-        new(context: db, protector: null!, hostPolicy: null!, introspection: null!)
+        new(context: db, hostPolicy: null!, introspection: null!, secretProvider: null!)
         {
             ControllerContext = new ControllerContext
             {

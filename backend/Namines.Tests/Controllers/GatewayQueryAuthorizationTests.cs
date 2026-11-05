@@ -14,6 +14,7 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.AI;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -78,12 +79,10 @@ public sealed class GatewayQueryAuthorizationTests : IAsyncLifetime
         {
             Id = projectId, Name = "p", DbType = "PostgreSQL", OrganizationId = org.Id,
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = ownerId,
-            AllowDeskSql = allowDeskSql,
-            EncryptedConnectionString = "irrelevant-for-this-test",
-            ConnectionDbType = "PostgreSQL",
         };
         db.CloudProjects.Add(project);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedConnectionAsync(projectId, "irrelevant-for-this-test", "PostgreSQL", allowDeskSql);
         return project;
     }
 
@@ -103,7 +102,7 @@ public sealed class GatewayQueryAuthorizationTests : IAsyncLifetime
         var controller = new GatewayController(
             gateway: null!, context: db, configuration: new ConfigurationBuilder().Build(),
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
-            protector: null!, introspection: null!, workbench: null!)
+            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!)
         {
             ControllerContext = new ControllerContext
             {

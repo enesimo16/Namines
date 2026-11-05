@@ -19,6 +19,7 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Security;
 
@@ -83,7 +84,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
 
         return new AuthController(
             NewUserManager(db), db, config, new MigrationService(null!), new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance, new FakeEnv(envName))
+            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, new FakeEnv(envName))
         {
             ControllerContext = new ControllerContext
             {
@@ -254,7 +255,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         }));
 
         await using var verify = NewContext();
-        var slugs = await verify.CloudProjects.Select(p => p.Slug).ToListAsync();
+        var slugs = await TestModules.For(verify).Hub.Repositories.Select(r => r.Slug).ToListAsync();
         Assert.Equal(4, slugs.Count);
         Assert.All(slugs, s => Assert.False(string.IsNullOrWhiteSpace(s)));
         Assert.Equal(4, slugs.Distinct().Count());

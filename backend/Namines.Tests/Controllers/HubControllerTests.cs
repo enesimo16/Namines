@@ -19,6 +19,7 @@ using Namines.Core.Models.Hub;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -57,7 +58,7 @@ public sealed class HubControllerTests : IAsyncLifetime
     private static HubController CreateController(AuthDbContext db, string? userId = null, string? username = null)
     {
         var userManager = NewUserManager(db);
-        var controller = new HubController(db, userManager, Namines.Tests.Services.ProjectDeletionTestKit.Create(db));
+        var controller = new HubController(db, userManager, Namines.Tests.Services.ProjectDeletionTestKit.Create(db), TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction);
 
         var httpContext = new DefaultHttpContext();
         if (!string.IsNullOrEmpty(userId))
@@ -134,11 +135,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-quality",
             Name = "Quality E-Commerce",
-            Slug = "quality-ecommerce",
             DbType = "PostgreSQL",
-            Category = "E-Commerce",
-            Description = "Production-grade e-commerce schema in 3NF.",
-            Visibility = ProjectVisibility.Public,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = owner.Id,
@@ -150,11 +147,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-simple",
             Name = "Simple Notes",
-            Slug = "simple-notes",
             DbType = "PostgreSQL",
-            Category = "General",
-            Description = "Simple notes database.",
-            Visibility = ProjectVisibility.Public,
             SchemaJson = JsonSerializer.Serialize(new DatabaseSchema
             {
                 Name = "Simple",
@@ -170,11 +163,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-private",
             Name = "Secret Enterprise",
-            Slug = "secret-enterprise",
             DbType = "PostgreSQL",
-            Category = "Enterprise",
-            Description = "Secret internal database.",
-            Visibility = ProjectVisibility.Private,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = owner.Id,
@@ -183,6 +172,9 @@ public sealed class HubControllerTests : IAsyncLifetime
 
         db.CloudProjects.AddRange(qualityRepo, simpleRepo, privateRepo);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedRepositoryAsync("p-quality", owner.Id, slug: "quality-ecommerce", category: "E-Commerce", description: "Production-grade e-commerce schema in 3NF.", visibility: ProjectVisibility.Public);
+        await TestModules.For(db).SeedRepositoryAsync("p-simple", owner.Id, slug: "simple-notes", category: "General", description: "Simple notes database.", visibility: ProjectVisibility.Public);
+        await TestModules.For(db).SeedRepositoryAsync("p-private", owner.Id, slug: "secret-enterprise", category: "Enterprise", description: "Secret internal database.", visibility: ProjectVisibility.Private);
 
         var controller = CreateController(db);
         var actionResult = await controller.Explore(q: null, category: null, dbType: null);
@@ -207,9 +199,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-pub",
             Name = "Public Repo",
-            Slug = "public-repo",
             DbType = "PostgreSQL",
-            Visibility = ProjectVisibility.Public,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = owner.Id,
@@ -220,9 +210,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-priv",
             Name = "Private Repo",
-            Slug = "private-repo",
             DbType = "PostgreSQL",
-            Visibility = ProjectVisibility.Private,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = owner.Id,
@@ -231,6 +219,8 @@ public sealed class HubControllerTests : IAsyncLifetime
 
         db.CloudProjects.AddRange(pubRepo, privRepo);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedRepositoryAsync("p-pub", owner.Id, slug: "public-repo", visibility: ProjectVisibility.Public);
+        await TestModules.For(db).SeedRepositoryAsync("p-priv", owner.Id, slug: "private-repo", visibility: ProjectVisibility.Private);
 
         var anonController = CreateController(db);
 
@@ -257,17 +247,15 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-star",
             Name = "Star Repo",
-            Slug = "star-repo",
             DbType = "PostgreSQL",
-            Visibility = ProjectVisibility.Public,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = owner.Id,
-            StarCount = 0,
             CreatedAt = DateTime.UtcNow
         };
         db.CloudProjects.Add(repo);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedRepositoryAsync("p-star", owner.Id, slug: "star-repo", visibility: ProjectVisibility.Public, starCount: 0);
 
         var controller = CreateController(db, userId: starrer.Id, username: starrer.UserName);
 
@@ -298,19 +286,15 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-original",
             Name = "Original Architecture",
-            Slug = "original-arch",
             DbType = "PostgreSQL",
-            Category = "FinTech",
-            Tags = "finance,ledger",
-            Visibility = ProjectVisibility.Public,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = owner.Id,
-            ForkCount = 0,
             CreatedAt = DateTime.UtcNow
         };
         db.CloudProjects.Add(repo);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedRepositoryAsync("p-original", owner.Id, slug: "original-arch", category: "FinTech", visibility: ProjectVisibility.Public, tags: "finance,ledger", forkCount: 0);
 
         var controller = CreateController(db, userId: forker.Id, username: forker.UserName);
 
@@ -324,7 +308,7 @@ public sealed class HubControllerTests : IAsyncLifetime
 
         // Sayaç SQL'de artırılıyor (ExecuteUpdate) — izlenen varlık bayat kalır, taze bağlamla oku.
         await using var verifyDb = new AuthDbContext(_options);
-        var updatedParent = await verifyDb.CloudProjects.FindAsync("p-original");
+        var updatedParent = await TestModules.For(verifyDb).HubService.GetRepositoryAsync("p-original");
         Assert.NotNull(updatedParent);
         Assert.Equal(1, updatedParent.ForkCount);
 
@@ -347,9 +331,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-issue",
             Name = "Issue Repo",
-            Slug = "issue-repo",
             DbType = "PostgreSQL",
-            Visibility = ProjectVisibility.Public,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = user.Id,
@@ -357,6 +339,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         };
         db.CloudProjects.Add(repo);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedRepositoryAsync("p-issue", user.Id, slug: "issue-repo", visibility: ProjectVisibility.Public);
 
         var controller = CreateController(db, userId: user.Id, username: user.UserName);
 
@@ -405,9 +388,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-comm",
             Name = "Comment Repo",
-            Slug = "comment-repo",
             DbType = "PostgreSQL",
-            Visibility = ProjectVisibility.Public,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = user.Id,
@@ -426,6 +407,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         };
         db.RepoIssues.Add(issue);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedRepositoryAsync("p-comm", user.Id, slug: "comment-repo", visibility: ProjectVisibility.Public);
 
         var controller = CreateController(db, userId: user.Id, username: user.UserName);
 
@@ -455,9 +437,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         {
             Id = "p-badge",
             Name = "Verified Repo",
-            Slug = "verified-repo",
             DbType = "PostgreSQL",
-            Visibility = ProjectVisibility.Public,
             SchemaJson = BuildValidQualitySchemaJson(),
             NodePositionsJson = "{}",
             UserId = owner.Id,
@@ -465,6 +445,7 @@ public sealed class HubControllerTests : IAsyncLifetime
         };
         db.CloudProjects.Add(repo);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedRepositoryAsync("p-badge", owner.Id, slug: "verified-repo", visibility: ProjectVisibility.Public);
 
         var controller = CreateController(db);
         var badgeResult = await controller.Badge("ivan", "verified-repo", CancellationToken.None);

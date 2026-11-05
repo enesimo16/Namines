@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Namines.API.Controllers;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Security;
 
@@ -31,9 +32,10 @@ public sealed class ShareTokenHashTests : IAsyncLifetime
         db.CloudProjects.Add(new CloudProject
         {
             Id = "p1", Name = "Shared", DbType = "PostgreSQL", SchemaJson = "{\"tables\":[]}",
-            NodePositionsJson = "{}", UserId = "u1", ShareToken = "tok-123",
+            NodePositionsJson = "{}", UserId = "u1",
         });
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedShareAsync("p1", "tok-123");
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
@@ -48,28 +50,41 @@ public sealed class ShareTokenHashTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ShareToken_yazilinca_ozet_da_kaydedilir_ve_silinince_temizlenir()
+    public async Task Iptal_edilen_token_artik_bulunmuyor_ama_kayit_izi_kaliyor()
     {
         await using (var db = new AuthDbContext(_options))
         {
-            var p = await db.CloudProjects.SingleAsync();
-            Assert.Equal(ShareTokenHasher.Hash("tok-123"), p.ShareTokenHash);
-
-            p.ShareToken = null;
-            await db.SaveChangesAsync();
+            Assert.Equal(1, await TestModules.For(db).StudioService.RevokeShareLinksAsync("p1"));
         }
 
         await using var verify = new AuthDbContext(_options);
-        var after = await verify.CloudProjects.SingleAsync();
-        Assert.Null(after.ShareToken);
-        Assert.Null(after.ShareTokenHash);
+        var share = await TestModules.For(verify).Studio.ProjectShares.SingleAsync();
+        Assert.Equal(ShareTokenHasher.Hash("tok-123"), share.ShareTokenHash);
+        Assert.NotNull(share.RevokedAt);
+        Assert.Null(await TestModules.For(verify).StudioService.GetSharedProjectByTokenHashAsync(share.ShareTokenHash));
+    }
+
+    [Fact]
+    public async Task Ikinci_paylasim_yeni_token_uretir_eski_url_calismaya_devam_eder()
+    {
+        await using var db = new AuthDbContext(_options);
+        var studio = TestModules.For(db).StudioService;
+
+        var second = await studio.CreateShareLinkAsync("p1");
+
+        Assert.NotEqual("tok-123", second);
+        Assert.NotNull(await studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash("tok-123")));
+        Assert.NotNull(await studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(second)));
+
+        Assert.Equal(2, await studio.RevokeShareLinksAsync("p1"));
+        Assert.Null(await studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(second)));
     }
 
     [Fact]
     public async Task Anonim_uclar_token_ile_ozet_uzerinden_buluyor()
     {
         await using var db = new AuthDbContext(_options);
-        var controller = new ShareController(db, linter: null!, configuration: null!)
+        var controller = new ShareController(db, linter: null!, studio: TestModules.For(db).StudioService)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };

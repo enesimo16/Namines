@@ -22,6 +22,7 @@ using Namines.Core.Models.Hub;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Security;
 
@@ -60,7 +61,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
 
     private static HubController Controller(AuthDbContext db, string? userId = null)
     {
-        var controller = new HubController(db, NewUserManager(db), Namines.Tests.Services.ProjectDeletionTestKit.Create(db));
+        var controller = new HubController(db, NewUserManager(db), Namines.Tests.Services.ProjectDeletionTestKit.Create(db), TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction);
         var http = new DefaultHttpContext();
         if (!string.IsNullOrEmpty(userId))
         {
@@ -86,21 +87,34 @@ public sealed class HubHardeningTests : IAsyncLifetime
         },
     }, SchemaJsonOptions.Default);
 
-    private static CloudProject Project(
+    // Proje ile Hub satırı artık iki tablo: Project(...) satırı sıraya alır, SaveSeedAsync ikisini yazar.
+    private readonly List<(string Id, string Slug, string OwnerId, ProjectVisibility Visibility)> _pendingRepositories = new();
+
+    private async Task SaveSeedAsync(AuthDbContext db)
+    {
+        await SaveSeedAsync(db);
+        foreach (var (id, slug, ownerId, visibility) in _pendingRepositories)
+            await TestModules.For(db).SeedRepositoryAsync(id, ownerId, slug: slug, visibility: visibility);
+        _pendingRepositories.Clear();
+    }
+
+    private CloudProject Project(
         string id, string slug, string ownerId, string? orgId = null,
-        ProjectVisibility visibility = ProjectVisibility.Public) => new()
+        ProjectVisibility visibility = ProjectVisibility.Public)
+    {
+        _pendingRepositories.Add((id, slug, ownerId, visibility));
+        return new()
         {
             Id = id,
             Name = "Project " + id,
-            Slug = slug,
             DbType = "PostgreSQL",
-            Visibility = visibility,
             SchemaJson = SchemaJson(),
             NodePositionsJson = "{}",
             UserId = ownerId,
             OrganizationId = orgId,
             CreatedAt = DateTime.UtcNow,
         };
+    }
 
     /// <summary>Org + üyeler (owner/admin/editor/viewer) ve org'a bağlı bir proje.</summary>
     private async Task SeedOrgProjectAsync()
@@ -114,7 +128,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
             new OrganizationMember { OrganizationId = "org1", UserId = "editor", Role = OrgRole.Editor },
             new OrganizationMember { OrganizationId = "org1", UserId = "viewer", Role = OrgRole.Viewer });
         db.CloudProjects.Add(Project("proj", "acme-db", "owner", "org1", ProjectVisibility.Private));
-        await db.SaveChangesAsync();
+        await SaveSeedAsync(db);
     }
 
     // ── UpdateSettings: Editor ↔ Admin ────────────────────────────────────────
@@ -144,9 +158,10 @@ public sealed class HubHardeningTests : IAsyncLifetime
 
         await using var verify = new AuthDbContext(_options);
         var stored = await verify.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "proj");
-        Assert.Equal(ProjectVisibility.Private, stored.Visibility);
+        var storedRepository = (await TestModules.For(verify).HubService.GetRepositoryAsync("proj"))!;
+        Assert.Equal(ProjectVisibility.Private, storedRepository.Visibility);
         Assert.False(stored.AutoApproveSafeChanges);
-        Assert.Equal("acme-db", stored.Slug);
+        Assert.Equal("acme-db", storedRepository.Slug);
     }
 
     [Fact]
@@ -180,9 +195,10 @@ public sealed class HubHardeningTests : IAsyncLifetime
 
         await using var verify = new AuthDbContext(_options);
         var stored = await verify.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "proj");
-        Assert.Equal(ProjectVisibility.Public, stored.Visibility);
-        Assert.Equal("acme-public", stored.Slug);
-        Assert.Equal("acme/repo", stored.LinkedGithubRepo);
+        var storedRepository = (await TestModules.For(verify).HubService.GetRepositoryAsync("proj"))!;
+        Assert.Equal(ProjectVisibility.Public, storedRepository.Visibility);
+        Assert.Equal("acme-public", storedRepository.Slug);
+        Assert.Equal("acme/repo", storedRepository.LinkedGithubRepo);
         Assert.True(stored.AutoApproveSafeChanges);
         Assert.Equal("PostgreSQL", stored.DbType);
 
@@ -249,7 +265,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
         await using var db = new AuthDbContext(_options);
         db.Users.AddRange(User("a", "alice", "alice@secret.example"), User("b", "bob", "bob@secret.example"));
         db.CloudProjects.Add(Project("bobs", "fintech", "b"));
-        await db.SaveChangesAsync();
+        await SaveSeedAsync(db);
     }
 
     [Fact]
@@ -299,7 +315,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
         {
             seed.Users.AddRange(User("a", "alice"), User("b", "bob"), User("c", "carl"));
             seed.CloudProjects.Add(Project("priv", "gizli", "b", visibility: ProjectVisibility.Private));
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         await using var db = new AuthDbContext(_options);
@@ -335,7 +351,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
                 new OrganizationMember { OrganizationId = "org2", UserId = "creator", Role = OrgRole.Viewer },
                 new OrganizationMember { OrganizationId = "org2", UserId = "boss", Role = OrgRole.Owner });
             seed.CloudProjects.Add(Project("p2", "acme2", "creator", "org2"));
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         await using var db = new AuthDbContext(_options);
@@ -355,7 +371,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
         {
             seed.Users.Add(User("u", "uma"));
             seed.CloudProjects.Add(Project("pi", "issue-repo", "u"));
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         await using var db = new AuthDbContext(_options);
@@ -381,7 +397,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
             seed.Users.Add(User("u", "uma"));
             seed.CloudProjects.Add(Project("pc", "comment-repo", "u"));
             seed.RepoIssues.Add(new RepoIssue { Id = "i1", ProjectId = "pc", IssueNumber = 1, Title = "t", CreatedByUserId = "u" });
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         await using var db = new AuthDbContext(_options);
@@ -400,7 +416,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
         {
             seed.Users.Add(User("u", "uma"));
             seed.CloudProjects.Add(Project("pn", "num-repo", "u"));
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         // Her çağrı kendi bağlamında (kendi isteği gibi): numara MAX+1.
@@ -429,7 +445,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
             seed.CloudProjects.Add(Project("p3", "private3", "o", "org3", ProjectVisibility.Private));
             // xena issue'yu yazmış ama org üyeliği yok (çıkarılmış).
             seed.RepoIssues.Add(new RepoIssue { Id = "iss", ProjectId = "p3", IssueNumber = 1, Title = "t", CreatedByUserId = "x" });
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         await using var db = new AuthDbContext(_options);
@@ -449,7 +465,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
         {
             seed.Users.AddRange(User("o", "olga"), User("s1", "sam"), User("s2", "sue"));
             seed.CloudProjects.Add(Project("ps", "star-repo", "o"));
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         await using (var db1 = new AuthDbContext(_options))
@@ -458,7 +474,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
             Assert.IsType<OkObjectResult>(await Controller(db2, "s2").ToggleStar("ps", CancellationToken.None));
 
         await using var verify = new AuthDbContext(_options);
-        Assert.Equal(2, (await verify.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "ps")).StarCount);
+        Assert.Equal(2, (await TestModules.For(verify).HubService.GetRepositoryAsync("ps"))!.StarCount);
         Assert.Equal(2, await verify.RepoStars.CountAsync(s => s.ProjectId == "ps"));
     }
 
@@ -487,7 +503,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
     public async Task Seeder_vitrin_kullanicisi_admin_degil_ve_sayaclar_sifir()
     {
         await using var db = new AuthDbContext(_options);
-        await HubBlueprintSeeder.SeedAsync(db, NewUserManager(db), NullLogger.Instance);
+        await HubBlueprintSeeder.SeedAsync(db, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
 
         await using var verify = new AuthDbContext(_options);
         var architect = await verify.Users.AsNoTracking().SingleAsync(u => u.Id == "namines-architect");
@@ -495,10 +511,12 @@ public sealed class HubHardeningTests : IAsyncLifetime
 
         var projects = await verify.CloudProjects.AsNoTracking().Where(p => p.UserId == "namines-architect").ToListAsync();
         Assert.NotEmpty(projects);
-        Assert.All(projects, p =>
+        var repositories = await TestModules.For(verify).HubService.GetRepositoriesAsync(projects.Select(p => p.Id).ToList());
+        Assert.Equal(projects.Count, repositories.Count);
+        Assert.All(repositories.Values, r =>
         {
-            Assert.Equal(0, p.StarCount);
-            Assert.Equal(0, p.ForkCount);
+            Assert.Equal(0, r.StarCount);
+            Assert.Equal(0, r.ForkCount);
         });
     }
 
@@ -508,11 +526,11 @@ public sealed class HubHardeningTests : IAsyncLifetime
         await using (var seed = new AuthDbContext(_options))
         {
             seed.Users.Add(User("real-user", "namines", "real@example.com"));
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         await using var db = new AuthDbContext(_options);
-        await HubBlueprintSeeder.SeedAsync(db, NewUserManager(db), NullLogger.Instance);
+        await HubBlueprintSeeder.SeedAsync(db, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
 
         await using var verify = new AuthDbContext(_options);
         Assert.False(await verify.CloudProjects.AnyAsync());
@@ -527,11 +545,11 @@ public sealed class HubHardeningTests : IAsyncLifetime
             var legacy = User("namines-architect", "namines");
             legacy.IsDev = true;
             seed.Users.Add(legacy);
-            await seed.SaveChangesAsync();
+            await SaveSeedAsync(seed);
         }
 
         await using var db = new AuthDbContext(_options);
-        await HubBlueprintSeeder.SeedAsync(db, NewUserManager(db), NullLogger.Instance);
+        await HubBlueprintSeeder.SeedAsync(db, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
 
         await using var verify = new AuthDbContext(_options);
         Assert.False((await verify.Users.AsNoTracking().SingleAsync(u => u.Id == "namines-architect")).IsDev);

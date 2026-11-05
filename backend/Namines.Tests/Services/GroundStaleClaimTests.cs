@@ -8,6 +8,7 @@ using Namines.Ground.Application;
 using Namines.Ground.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -91,7 +92,7 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
 
     private GroundApplicationService NewService(AuthDbContext db, GroundDbContext groundDb, OkProvider provider)
     {
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var authority = TestModules.For(db).Authority(new PassthroughProtector());
         return new GroundApplicationService(
             groundDb,
             authority,
@@ -205,10 +206,10 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
 
     // ── Hub slug benzersizliği ──────────────────────────────────────────
 
-    private static CloudProject Project(string id, string userId, string? slug) => new()
+    private static CloudProject Project(string id, string userId) => new()
     {
         Id = id, Name = id, DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}",
-        UserId = userId, Slug = slug,
+        UserId = userId,
     };
 
     [Fact]
@@ -216,11 +217,13 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
     {
         await using var db = NewContext();
         db.Users.AddRange(new ApplicationUser { Id = "a", UserName = "a" }, new ApplicationUser { Id = "b", UserName = "b" });
-        db.CloudProjects.AddRange(Project("p1", "a", "shop"), Project("p3", "b", "shop"));
-        await db.SaveChangesAsync(); // farklı sahipler aynı slug'ı kullanabilir
+        db.CloudProjects.AddRange(Project("p1", "a"), Project("p2", "a"), Project("p3", "b"));
+        await db.SaveChangesAsync();
+        var kit = TestModules.For(db);
+        await kit.SeedRepositoryAsync("p1", "a", slug: "shop");
+        await kit.SeedRepositoryAsync("p3", "b", slug: "shop"); // farklı sahipler aynı slug'ı kullanabilir
 
-        db.CloudProjects.Add(Project("p2", "a", "shop"));
-        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        await Assert.ThrowsAsync<DbUpdateException>(() => kit.SeedRepositoryAsync("p2", "a", slug: "shop"));
     }
 
     [Fact]
@@ -228,10 +231,13 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
     {
         await using var db = NewContext();
         db.Users.Add(new ApplicationUser { Id = "a", UserName = "a" });
-        db.CloudProjects.AddRange(
-            Project("p1", "a", null), Project("p2", "a", null),
-            Project("p3", "a", ""), Project("p4", "a", ""));
-
+        db.CloudProjects.AddRange(Project("p1", "a"), Project("p2", "a"), Project("p3", "a"), Project("p4", "a"));
         await db.SaveChangesAsync();
+
+        var kit = TestModules.For(db);
+        await kit.SeedRepositoryAsync("p1", "a", slug: null);
+        await kit.SeedRepositoryAsync("p2", "a", slug: null);
+        await kit.SeedRepositoryAsync("p3", "a", slug: "");
+        await kit.SeedRepositoryAsync("p4", "a", slug: "");
     }
 }

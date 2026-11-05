@@ -15,6 +15,7 @@ using Namines.Flow.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -53,7 +54,7 @@ public sealed class AutomationExecutorTests : IAsyncLifetime
         out StubHttpClientFactory http)
     {
         http = new StubHttpClientFactory(status);
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var authority = TestModules.For(db).Authority(new PassthroughProtector());
         return new FlowApplicationService(
             flowDb,
             authority,

@@ -23,6 +23,8 @@
     yüzden bilinçli olarak küçük, bağımsız yardımcı şemalar bu dosyada yeniden tanımlanır.
   -->
   <ItemGroup>
+    <Compile Include="..\Namines.Tests\TestSupport\TestModules.cs" Link="TestSupport\TestModules.cs" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.8" />
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
     <!--

@@ -23,6 +23,7 @@ using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Providers;
 using Namines.Vault.Storage;
 using Npgsql;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.RunTests;
 
@@ -114,7 +115,7 @@ public class LaunchServiceTests : IAsyncLifetime
         var protector = new AesGcmConnectionSecretProtector(_config);
         var hostPolicy = new DbHostAccessPolicy(
             new FakeEnv(), _config, NullLogger<DbHostAccessPolicy>.Instance);
-        var authority = new TenantProjectAuthorityService(_context, protector, hostPolicy);
+        var authority = TestModules.For(_context).Authority(protector, hostPolicy);
 
         var ground = new GroundApplicationService(
             _groundDb,
@@ -137,7 +138,7 @@ public class LaunchServiceTests : IAsyncLifetime
             new DbIntrospectionService(NullLogger<DbIntrospectionService>.Instance, hostPolicy),
             new DatabaseExecutorService(hostPolicy),
             vault,
-            protector,
+            authority,
             _context,
             NullLogger<LaunchService>.Instance);
     }
@@ -201,8 +202,8 @@ public class LaunchServiceTests : IAsyncLifetime
         var reloadOptions = new DbContextOptionsBuilder<AuthDbContext>()
             .UseNpgsql(_adminConnectionString).Options;
         await using var reloaded = new AuthDbContext(reloadOptions);
-        var refreshed = await reloaded.CloudProjects.AsNoTracking()
-            .FirstAsync(p => p.Id == project.Id);
+        var refreshed = await TestModules.For(reloaded).Studio.ProjectConnections.AsNoTracking()
+            .FirstAsync(c => c.ProjectId == project.Id);
         Assert.NotNull(refreshed.EncryptedConnectionString);
 
         var reloadVaultOptions = new DbContextOptionsBuilder<VaultDbContext>()
@@ -241,7 +242,7 @@ public class LaunchServiceTests : IAsyncLifetime
         var reloadOptions = new DbContextOptionsBuilder<AuthDbContext>()
             .UseNpgsql(_adminConnectionString).Options;
         await using var reloaded = new AuthDbContext(reloadOptions);
-        var refreshed = await reloaded.CloudProjects.AsNoTracking().FirstAsync(p => p.Id == project.Id);
+        var refreshed = await TestModules.For(reloaded).Studio.ProjectConnections.AsNoTracking().FirstAsync(c => c.ProjectId == project.Id);
         var connectionString = new AesGcmConnectionSecretProtector(_config)
             .Unprotect(refreshed.EncryptedConnectionString!, associatedData: project.Id);
 

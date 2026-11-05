@@ -20,6 +20,7 @@ using Namines.Flow.Services;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -110,12 +111,12 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
             // MigrationService.CalculateDiffAsync).
             new MigrationService(null!),
             queue,
-            NullLogger<AuthController>.Instance,
+            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction,
             flowModule: new FlowModule(
                 new FlowRuleMatcher(),
                 new FlowApplicationService(
                     new FlowDbContext(new DbContextOptionsBuilder<FlowDbContext>().UseSqlite(db.Database.GetDbConnection()).Options),
-                    new TenantProjectAuthorityService(db, new PassthroughProtector()),
+                    TestModules.For(db).Authority(new PassthroughProtector()),
                     new NoopQuota(),
                     new NoopDba(),
                     new NoopAi(),

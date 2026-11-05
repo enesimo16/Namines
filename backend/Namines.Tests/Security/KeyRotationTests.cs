@@ -9,6 +9,7 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Security;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Security;
 
@@ -66,20 +67,21 @@ public class KeyRotationTests
         await using (var pragma = conn.CreateCommand()) { pragma.CommandText = "PRAGMA foreign_keys=OFF;"; await pragma.ExecuteNonQueryAsync(); }
 
         var legacy = Make(K1);
-        db.CloudProjects.Add(new CloudProject { Id = "p1", Name = "a", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u", EncryptedConnectionString = legacy.Protect("conn-1") });
+        db.CloudProjects.Add(new CloudProject { Id = "p1", Name = "a", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u",});
         db.CloudProjects.Add(new CloudProject { Id = "p2", Name = "b", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u" });
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedConnectionAsync("p1", legacy.Protect("conn-1"), "PostgreSQL", false);
 
         var rotated = Make(K1, ("k2", K2));
-        var r = await ConnectionSecretReencryptor.ReencryptAsync(db, rotated);
+        var r = await ConnectionSecretReencryptor.ReencryptAsync(TestModules.For(db).Studio, rotated);
         Assert.Equal(new ConnectionSecretReencryptor.Result(1, 1, 0), r);
 
-        var raw = await db.CloudProjects.AsNoTracking().Where(p => p.Id == "p1").Select(p => p.EncryptedConnectionString).SingleAsync();
+        var raw = await TestModules.For(db).Studio.ProjectConnections.AsNoTracking().Where(c => c.ProjectId == "p1").Select(c => c.EncryptedConnectionString).SingleAsync();
         Assert.StartsWith("k.k2:", raw);
         Assert.Equal("conn-1", Make(null, ("k2", K2)).Unprotect(raw!, associatedData: "p1"));
         Assert.ThrowsAny<CryptographicException>(() => Make(null, ("k2", K2)).Unprotect(raw!, associatedData: "p2"));
 
-        var again = await ConnectionSecretReencryptor.ReencryptAsync(db, rotated);
+        var again = await ConnectionSecretReencryptor.ReencryptAsync(TestModules.For(db).Studio, rotated);
         Assert.Equal(0, again.Reencrypted);
     }
 }

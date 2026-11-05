@@ -196,7 +196,7 @@ INSERT INTO ""Feedbacks"" (""UserId"",""Category"",""Message"",""CreatedAt"") VA
 
         // Diğer atıf kolonları: fork işaretçisi ve feedback kullanıcısı NULL.
         Assert.Equal(1, await CountAsync(ctx,
-            "SELECT count(*) FROM \"CloudProjects\" WHERE \"Id\" = 'p1' AND \"ForkedFromProjectId\" IS NULL"));
+            "SELECT count(*) FROM hub.repositories WHERE \"ProjectId\" = 'p1' AND \"ForkedFromProjectId\" IS NULL"));
         Assert.Equal(1, await CountAsync(ctx, "SELECT count(*) FROM \"Feedbacks\" WHERE \"UserId\" IS NULL"));
 
         // Kişisel org tekilliği: fazlalık normal org'a çevrildi, hiçbiri silinmedi.
@@ -209,17 +209,17 @@ INSERT INTO ""Feedbacks"" (""UserId"",""Category"",""Message"",""CreatedAt"") VA
             "SELECT count(*) FROM \"ChangeRequestAuditLogs\" WHERE \"ProjectId\" = 'p1' AND \"ChangeRequestTitle\" = 'My CR'"));
         var hash = Sha256Hex("share-token-1");
         Assert.Equal(1, await CountAsync(ctx,
-            $"SELECT count(*) FROM \"CloudProjects\" WHERE \"Id\" = 'p1' AND \"ShareTokenHash\" = '{hash}'"));
+            $"SELECT count(*) FROM studio.project_shares WHERE \"ProjectId\" = 'p1' AND \"ShareTokenHash\" = '{hash}'"));
 
         // CHECK'ler: temiz olanlar doğrulandı; p2'nin Visibility=99 satırı olan NOT VALID kaldı
         // (ama yeni yazımlar için zorunlu).
         Assert.Equal(1, await CountAsync(ctx,
-            "SELECT count(*) FROM pg_constraint WHERE conname = 'CK_CloudProjects_Visibility' AND NOT convalidated"));
+            "SELECT count(*) FROM pg_constraint WHERE conname = 'CK_repositories_Visibility' AND NOT convalidated"));
         Assert.Equal(1, await CountAsync(ctx,
             "SELECT count(*) FROM pg_constraint WHERE conname = 'CK_ChangeRequests_Status' AND convalidated"));
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => ExecAsync(ctx,
-            "UPDATE \"CloudProjects\" SET \"Visibility\" = 98 WHERE \"Id\" = 'p1'"));
-        Assert.Contains("CK_CloudProjects_Visibility", ex.ToString());
+            "UPDATE hub.repositories SET \"Visibility\" = 98 WHERE \"ProjectId\" = 'p1'"));
+        Assert.Contains("CK_repositories_Visibility", ex.ToString());
     }
 
     // ── 4) Yinelenen e-posta: migration net hatayla durur, çözülünce geçer ───
@@ -259,9 +259,9 @@ VALUES ('d1',1,now(),false,true,false,false,true,0,'DUP@EXAMPLE.COM'),
         await ExecAsync(ctx, @"
 INSERT INTO ""AspNetUsers"" (""Id"",""Type"",""CreatedAt"",""IsDev"",""EmailConfirmed"",""PhoneNumberConfirmed"",""TwoFactorEnabled"",""LockoutEnabled"",""AccessFailedCount"")
 VALUES ('u1',1,now(),false,true,false,false,true,0), ('u2',1,now(),false,true,false,false,true,0);
-INSERT INTO ""CloudProjects"" (""Id"",""Name"",""DbType"",""SchemaJson"",""NodePositionsJson"",""UserId"",""CreatedAt"",""UpdatedAt"",""AutoApproveSafeChanges"",""AllowDeskSql"",""Visibility"",""Category"",""StarCount"",""ForkCount"")
-VALUES ('p1','P1','PostgreSQL','{}','{}','u1',now(),now(),false,false,0,'General',0,0),
-       ('p2','P2','PostgreSQL','{}','{}','u1',now(),now(),false,false,0,'General',0,0);
+INSERT INTO studio.projects (""Id"",""Name"",""DbType"",""SchemaJson"",""NodePositionsJson"",""UserId"",""CreatedAt"",""UpdatedAt"",""AutoApproveSafeChanges"")
+VALUES ('p1','P1','PostgreSQL','{}','{}','u1',now(),now(),false),
+       ('p2','P2','PostgreSQL','{}','{}','u1',now(),now(),false);
 INSERT INTO ""Branches"" (""Id"",""ProjectId"",""Name"",""IsDefault"",""CreatedByUserId"",""CreatedAt"") VALUES ('br1','p1','main',true,'u2',now());
 INSERT INTO ""SchemaVersions"" (""Id"",""ProjectId"",""BranchId"",""Version"",""Checksum"",""SchemaJson"",""TableCount"",""CreatedAt"") VALUES ('sv1','p1','br1',1,'c','{}',0,now());
 INSERT INTO ""ChangeRequests"" (""Id"",""ProjectId"",""BranchId"",""HeadVersionId"",""BaseVersionId"",""Title"",""Status"",""RiskLevel"",""ImpactReportJson"",""CreatedByUserId"",""CreatedAt"",""VotingMembersAtCreation"")
@@ -273,12 +273,12 @@ VALUES ('vb1','p2','u1','db','postgres','blob/1','s3',10,1,0,now());");
 
         // Yedeği olan proje SESSİZCE silinemez (RESTRICT).
         var restricted = await Assert.ThrowsAnyAsync<Exception>(() =>
-            ExecAsync(ctx, "DELETE FROM \"CloudProjects\" WHERE \"Id\" = 'p2'"));
+            ExecAsync(ctx, "DELETE FROM studio.projects WHERE \"Id\" = 'p2'"));
         Assert.Contains("23503", restricted.ToString());
 
         // Sürümlü + CR'li proje tek DELETE ile silinebilir (DB-11: RESTRICT/CASCADE yarışı yok)
         // ve denetim izi YAŞAR (DB-10).
-        await ExecAsync(ctx, "DELETE FROM \"CloudProjects\" WHERE \"Id\" = 'p1'");
+        await ExecAsync(ctx, "DELETE FROM studio.projects WHERE \"Id\" = 'p1'");
         Assert.Equal(0, await CountAsync(ctx, "SELECT count(*) FROM \"ChangeRequests\""));
         Assert.Equal(1, await CountAsync(ctx,
             "SELECT count(*) FROM \"ChangeRequestAuditLogs\" WHERE \"ProjectId\" = 'p1' AND \"ChangeRequestTitle\" = 'CR'"));

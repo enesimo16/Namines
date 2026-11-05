@@ -15,6 +15,7 @@ using Namines.Vault.Application;
 using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -115,7 +116,7 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
 
     private VaultApplicationService NewService(AuthDbContext db, VaultDbContext vaultDb, IBackupStore store)
     {
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector(), new AllowAllHostPolicy());
+        var authority = TestModules.For(db).Authority(new PassthroughProtector(), new AllowAllHostPolicy());
         return new VaultApplicationService(
             vaultDb,
             authority,
@@ -133,11 +134,10 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
         {
             Id = "p1", Name = "proj", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
-            EncryptedConnectionString = "enc:Host=db.example.com;Database=x;Username=u;Password=p",
-            ConnectionDbType = "PostgreSQL",
         };
         db.CloudProjects.Add(project);
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedConnectionAsync("p1", "enc:Host=db.example.com;Database=x;Username=u;Password=p", "PostgreSQL", false);
         return project;
     }
 

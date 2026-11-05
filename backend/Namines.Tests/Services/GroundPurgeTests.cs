@@ -8,6 +8,7 @@ using Namines.Ground.Application;
 using Namines.Ground.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -84,7 +85,7 @@ public sealed class GroundPurgeTests : IAsyncLifetime
 
     private GroundApplicationService NewService(AuthDbContext db, GroundDbContext groundDb, IDatabaseProvider provider)
     {
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var authority = TestModules.For(db).Authority(new PassthroughProtector());
         return new GroundApplicationService(
             groundDb,
             authority,

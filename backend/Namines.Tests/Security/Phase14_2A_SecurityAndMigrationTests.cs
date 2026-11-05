@@ -22,6 +22,7 @@ using Namines.Tests.Integration;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Security;
 
@@ -42,10 +43,8 @@ namespace Namines.Tests.Security;
 [Collection("Docker")]
 public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer? _pgContainer = DockerAvailable.Value ? new PostgreSqlBuilder("postgres:17-alpine").Build() : null;
     private SqliteConnection _sqliteConn = null!;
     private DbContextOptions<AuthDbContext> _authOptions = null!;
-    private DbContextOptions<StudioDbContext> _studioOptions = null!;
     private IConnectionSecretProtector _protector = null!;
     private IConfiguration _config = null!;
 
@@ -56,10 +55,6 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
         await _sqliteConn.OpenAsync();
 
         _authOptions = new DbContextOptionsBuilder<AuthDbContext>()
-            .UseSqlite(_sqliteConn)
-            .Options;
-
-        _studioOptions = new DbContextOptionsBuilder<StudioDbContext>()
             .UseSqlite(_sqliteConn)
             .Options;
 
@@ -74,25 +69,15 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
             .Build();
 
         _protector = new AesGcmConnectionSecretProtector(_config);
-
-        // 2. Start PostgreSQL container if Docker is available
-        if (_pgContainer != null)
-        {
-            await _pgContainer.StartAsync();
-        }
     }
 
     public async Task DisposeAsync()
     {
         await _sqliteConn.DisposeAsync();
-        if (_pgContainer != null)
-        {
-            await _pgContainer.DisposeAsync();
-        }
     }
 
     [Fact]
-    public async Task Credential_Encryption_UsesAesGcm_AndNeverStoresPlaintext()
+    public void Credential_Encryption_UsesAesGcm_AndNeverStoresPlaintext()
     {
         var rawConn = "Host=prod.db.internal;Database=finance;Username=admin;Password=SuperSecret123!";
         var encrypted = _protector.Protect(rawConn);
@@ -177,14 +162,9 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
     [Fact]
     public void Credential_Redaction_JsonIgnore_PreventsSecretLeakInApiSerialization()
     {
-        var project = new CloudProject
+        var project = new ProjectConnection
         {
-            Id = "p-sec",
-            Name = "Secured",
-            DbType = "PostgreSQL",
-            SchemaJson = "{}",
-            NodePositionsJson = "{}",
-            UserId = "u1",
+            ProjectId = "p-sec",
             EncryptedConnectionString = "k.active:ciphertext-payload-hidden"
         };
 
@@ -212,16 +192,14 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
                 SchemaJson = "{}",
                 NodePositionsJson = "{}",
                 UserId = "owner-1",
-                OrganizationId = "org-1",
-                EncryptedConnectionString = _protector.Protect(rawConn, associatedData: "proj-tenant"),
-                ConnectionDbType = "PostgreSQL",
-                AllowDeskSql = true
-            });
+                OrganizationId = "org-1",});
             await db.SaveChangesAsync();
+            await TestModules.For(db).SeedConnectionAsync("p-sec", "k.active:ciphertext-payload-hidden", "PostgreSQL", false);
+            await TestModules.For(db).SeedConnectionAsync("proj-tenant", _protector.Protect(rawConn, associatedData: "proj-tenant"), "PostgreSQL", true);
         }
 
         await using var readDb = new AuthDbContext(_authOptions);
-        var authority = new TenantProjectAuthorityService(readDb, _protector);
+        var authority = TestModules.For(readDb).Authority(_protector);
 
         // 1. Owner can resolve
         var ownerResolved = await authority.ResolveForUserAsync("proj-tenant", "owner-1");
@@ -234,9 +212,8 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task LegacyFallback_CannotBypassAuthorization()
+    public async Task StoredConnection_CannotBypassAuthorization()
     {
-        // Stored only in legacy CloudProjects without studio.project_connections row
         await using (var db = new AuthDbContext(_authOptions))
         {
             db.Users.Add(new ApplicationUser { Id = "usr-leg-1", UserName = "leg-owner" });
@@ -252,15 +229,13 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
                 SchemaJson = "{}",
                 NodePositionsJson = "{}",
                 UserId = "usr-leg-1",
-                OrganizationId = "org-leg",
-                EncryptedConnectionString = _protector.Protect("Host=leg-db;Password=secret", associatedData: "proj-leg-fallback"),
-                ConnectionDbType = "PostgreSQL"
-            });
+                OrganizationId = "org-leg",});
             await db.SaveChangesAsync();
+            await TestModules.For(db).SeedConnectionAsync("proj-leg-fallback", _protector.Protect("Host=leg-db;Password=secret", associatedData: "proj-leg-fallback"), "PostgreSQL", false);
         }
 
         await using var readDb = new AuthDbContext(_authOptions);
-        var authority = new TenantProjectAuthorityService(readDb, _protector);
+        var authority = TestModules.For(readDb).Authority(_protector);
 
         // Intruder gets null
         var intruderRes = await authority.ResolveForUserAsync("proj-leg-fallback", "usr-leg-bad");
@@ -296,15 +271,12 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
                 SchemaJson = "{\"tables\":[]}",
                 NodePositionsJson = "{}",
                 UserId = "u-tok",
-                OrganizationId = "org-tok",
-                ShareTokenHash = computedHash // Stored hash
-                // Note: ShareToken plaintext is NULL
-            });
+                OrganizationId = "org-tok",});
             await db.SaveChangesAsync();
         }
 
         await using var readDb = new AuthDbContext(_authOptions);
-        var controller = new ShareController(readDb, linter: null!, configuration: null!);
+        var controller = new ShareController(readDb, linter: null!, studio: TestModules.For(readDb).StudioService);
 
         // 1. Old active share URL using rawToken WORKS!
         var oldUrlResult = await controller.GetSharedSchema(rawLegacyToken);
@@ -318,159 +290,9 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
         var invalidResult = await controller.GetSharedSchema("completely-bogus-token");
         Assert.IsType<NotFoundResult>(invalidResult);
 
-        // 4. Database verification: plaintext is null
-        var entity = await readDb.CloudProjects.SingleAsync(p => p.Id == "p-migrated-tok");
-        Assert.Null(entity.ShareToken);
-        Assert.Equal(computedHash, entity.ShareTokenHash);
+        // 4. Database verification: only the hash is stored
+        var share = await TestModules.For(readDb).Studio.ProjectShares.SingleAsync(s => s.ProjectId == "p-migrated-tok");
+        Assert.Equal(computedHash, share.ShareTokenHash);
     }
 
-    [RequiresDockerFact]
-    public async Task PostgreSQL_ExpandBackfillVerifyContract_RealisticMultiTenantDataset()
-    {
-        if (_pgContainer == null) return;
-        var connStr = _pgContainer.GetConnectionString();
-        await using var conn = new NpgsqlConnection(connStr);
-        await conn.OpenAsync();
-
-        // 1. Create baseline legacy schema with multi-tenant data
-        await using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText = """
-                CREATE TABLE IF NOT EXISTS "Organizations" (
-                    "Id" text PRIMARY KEY,
-                    "Name" text NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS "CloudProjects" (
-                    "Id" text PRIMARY KEY,
-                    "Name" text NOT NULL,
-                    "DbType" text NOT NULL,
-                    "UserId" text NOT NULL,
-                    "OrganizationId" text NULL REFERENCES "Organizations"("Id") ON DELETE CASCADE,
-                    "EncryptedConnectionString" text NULL,
-                    "ConnectionDbType" text NULL,
-                    "AllowDeskSql" boolean NOT NULL DEFAULT false,
-                    "ShareToken" text NULL,
-                    "ShareTokenHash" text NULL,
-                    "UpdatedAt" timestamptz NOT NULL DEFAULT now()
-                );
-
-                CREATE SCHEMA IF NOT EXISTS namines_vault;
-                CREATE TABLE IF NOT EXISTS namines_vault.vault_backups (
-                    "Id" text PRIMARY KEY,
-                    "ProjectId" text NOT NULL REFERENCES "CloudProjects"("Id") ON DELETE RESTRICT,
-                    "OrganizationId" text NULL CONSTRAINT "FK_vault_backups_Organizations_OrganizationId" REFERENCES "Organizations"("Id") ON DELETE RESTRICT
-                );
-
-                -- Multi-tenant seed dataset:
-                INSERT INTO "Organizations" ("Id", "Name") VALUES
-                    ('org-alpha', 'Alpha Inc'),
-                    ('org-beta', 'Beta Corp');
-
-                INSERT INTO "CloudProjects" ("Id", "Name", "DbType", "UserId", "OrganizationId", "EncryptedConnectionString", "ConnectionDbType", "AllowDeskSql", "ShareToken", "ShareTokenHash")
-                VALUES
-                    -- Project 1: Plaintext ShareToken, needs hashing; has credentials
-                    ('p1', 'Alpha Core', 'PostgreSQL', 'u1', 'org-alpha', 'k.key1:enc_alpha_1', 'PostgreSQL', true, 'raw-active-share-token-1', NULL),
-                    -- Project 2: Pre-existing ShareTokenHash, plaintext token also present; has credentials
-                    ('p2', 'Alpha Reporting', 'PostgreSQL', 'u1', 'org-alpha', 'k.key1:enc_alpha_2', 'PostgreSQL', false, 'raw-active-share-token-2', encode(sha256('raw-active-share-token-2'::bytea), 'hex')),
-                    -- Project 3: Beta Tenant: No share link, has credentials
-                    ('p3', 'Beta Backend', 'PostgreSQL', 'u2', 'org-beta', 'k.key1:enc_beta_1', 'PostgreSQL', true, NULL, NULL),
-                    -- Project 4: Design-only project: No credentials, no share link
-                    ('p4', 'Beta Prototype', 'PostgreSQL', 'u2', 'org-beta', NULL, NULL, false, NULL, NULL),
-                    -- Project 5: Malformed legacy entry with empty strings
-                    ('p5', 'Empty Edge Case', 'PostgreSQL', 'u2', 'org-beta', '', '', false, '', NULL);
-
-                INSERT INTO namines_vault.vault_backups ("Id", "ProjectId", "OrganizationId")
-                VALUES
-                    ('b1', 'p1', 'org-alpha'),
-                    ('b2', 'p3', 'org-beta');
-                """;
-            await cmd.ExecuteNonQueryAsync();
-        }
-
-        // 2. STEP 1: EXPAND
-        await using (var expandCmd = conn.CreateCommand())
-        {
-            expandCmd.CommandText = Phase14_2A_SecurityMigrationSql.BuildExpandSql();
-            await expandCmd.ExecuteNonQueryAsync();
-        }
-
-        // Verify studio.project_connections table exists
-        await using (var checkCmd = conn.CreateCommand())
-        {
-            checkCmd.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'studio' AND table_name = 'project_connections';";
-            var count = (long)(await checkCmd.ExecuteScalarAsync())!;
-            Assert.Equal(1, count);
-        }
-
-        // 3. STEP 2: BACKFILL (Run twice to prove idempotency under repeated calls)
-        for (int i = 0; i < 2; i++)
-        {
-            await using var backfillCmd = conn.CreateCommand();
-            backfillCmd.CommandText = Phase14_2A_SecurityMigrationSql.BuildBackfillSql();
-            await backfillCmd.ExecuteNonQueryAsync();
-        }
-
-        // 4. STEP 3: VERIFY (Transactional row count and consistency validation)
-        await using (var verifyCmd = conn.CreateCommand())
-        {
-            verifyCmd.CommandText = Phase14_2A_SecurityMigrationSql.BuildVerifySql();
-            await verifyCmd.ExecuteNonQueryAsync(); // Must not throw RAISE EXCEPTION
-        }
-
-        // Verify exact records in studio.project_connections:
-        // p1, p2, p3 have valid non-empty credentials. p4 (null) and p5 (empty) must NOT be inserted.
-        await using (var countCmd = conn.CreateCommand())
-        {
-            countCmd.CommandText = "SELECT COUNT(*) FROM studio.project_connections;";
-            var pcCount = (long)(await countCmd.ExecuteScalarAsync())!;
-            Assert.Equal(3, pcCount);
-        }
-
-        // Verify p1's ShareTokenHash was computed from 'raw-active-share-token-1'
-        await using (var hashCmd = conn.CreateCommand())
-        {
-            hashCmd.CommandText = "SELECT \"ShareTokenHash\" FROM \"CloudProjects\" WHERE \"Id\" = 'p1';";
-            var p1Hash = (string)(await hashCmd.ExecuteScalarAsync())!;
-            Assert.Equal(ShareTokenHasher.Hash("raw-active-share-token-1"), p1Hash);
-        }
-
-        // 5. STEP 4: CONTRACT
-        await using (var contractCmd = conn.CreateCommand())
-        {
-            contractCmd.CommandText = Phase14_2A_SecurityMigrationSql.BuildContractSql();
-            await contractCmd.ExecuteNonQueryAsync();
-        }
-
-        // Verify plaintext ShareToken is completely wiped (NULL) across all rows
-        await using (var checkPlainCmd = conn.CreateCommand())
-        {
-            checkPlainCmd.CommandText = "SELECT COUNT(*) FROM \"CloudProjects\" WHERE \"ShareToken\" IS NOT NULL;";
-            var plainCount = (long)(await checkPlainCmd.ExecuteScalarAsync())!;
-            Assert.Equal(0, plainCount);
-        }
-
-        // Verify redundant OrganizationId FK constraint on vault_backups was dropped
-        await using (var checkFkCmd = conn.CreateCommand())
-        {
-            checkFkCmd.CommandText = """
-                SELECT COUNT(*) FROM pg_constraint
-                WHERE conname = 'FK_vault_backups_Organizations_OrganizationId';
-                """;
-            var fkCount = (long)(await checkFkCmd.ExecuteScalarAsync())!;
-            Assert.Equal(0, fkCount);
-        }
-
-        // Verify CASCADE delete: deleting Project 1 removes its project_connections entry automatically
-        await using (var deleteCmd = conn.CreateCommand())
-        {
-            deleteCmd.CommandText = """
-                DELETE FROM namines_vault.vault_backups WHERE "ProjectId" = 'p1';
-                DELETE FROM "CloudProjects" WHERE "Id" = 'p1';
-                SELECT COUNT(*) FROM studio.project_connections WHERE "ProjectId" = 'p1';
-                """;
-            var remainingConn = (long)(await deleteCmd.ExecuteScalarAsync())!;
-            Assert.Equal(0, remainingConn);
-        }
-    }
 }

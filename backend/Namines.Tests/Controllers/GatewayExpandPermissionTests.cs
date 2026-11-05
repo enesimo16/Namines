@@ -15,6 +15,7 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.AI;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -68,11 +69,6 @@ public sealed class GatewayExpandPermissionTests : IAsyncLifetime
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner-1",
-            // storeConnection false: izin kapisini GECEN cagri baglantiyi cozmeye
-            // gitmesin. Saklanan sifreli dize gercek bir koruyucu ister; bu testin
-            // konusu izin, sifre cozme degil.
-            EncryptedConnectionString = storeConnection ? "irrelevant-for-this-test" : null,
-            ConnectionDbType = "PostgreSQL",
         });
 
         var (key, raw) = GatewayAccess.CreateKey(
@@ -86,6 +82,7 @@ public sealed class GatewayExpandPermissionTests : IAsyncLifetime
             });
 
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedConnectionAsync("proj-1", storeConnection ? "irrelevant-for-this-test" : null, "PostgreSQL", false);
         return raw;
     }
 
@@ -103,7 +100,7 @@ public sealed class GatewayExpandPermissionTests : IAsyncLifetime
         return new GatewayController(
             gateway: null!, context: db, configuration: new ConfigurationBuilder().Build(),
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
-            protector: null!, introspection: null!, workbench: null!)
+            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };

@@ -13,6 +13,7 @@ using Namines.Vault.Abstractions;
 using Namines.Vault.Application;
 using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -76,15 +77,25 @@ internal static class ProjectDeletionTestKit
     }
 
     public static VaultDbContext NewVaultDb(AuthDbContext db) =>
-        new(new DbContextOptionsBuilder<VaultDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
+        db.Database.IsNpgsql()
+            ? new(new DbContextOptionsBuilder<VaultDbContext>().UseNpgsql(db.Database.GetConnectionString()).Options)
+            : new(new DbContextOptionsBuilder<VaultDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
 
     public static GroundDbContext NewGroundDb(AuthDbContext db) =>
-        new(new DbContextOptionsBuilder<GroundDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
+        db.Database.IsNpgsql()
+            ? new(new DbContextOptionsBuilder<GroundDbContext>().UseNpgsql(db.Database.GetConnectionString()).Options)
+            : new(new DbContextOptionsBuilder<GroundDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
 
     public static DeskDbContext NewDeskDb(AuthDbContext db) =>
         new(new DbContextOptionsBuilder<DeskDbContext>().UseSqlite(db.Database.GetDbConnection()).Options);
 
-    public static ProjectDeletionService Create(AuthDbContext db, FakeStore store, FakeProvider provider)
+    public static ProjectDeletionService Create(AuthDbContext db, ModuleKit kit) =>
+        Create(db, new FakeStore(), new FakeProvider(), kit);
+
+    public static ProjectDeletionService Create(AuthDbContext db, FakeStore store, FakeProvider provider) =>
+        Create(db, store, provider, TestModules.For(db));
+
+    private static ProjectDeletionService Create(AuthDbContext db, FakeStore store, FakeProvider provider, ModuleKit kit)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -92,7 +103,7 @@ internal static class ProjectDeletionTestKit
                 ["Vault:BackupEncryptionKey"] = "test-key-at-least-32-characters-long!!",
             }).Build();
 
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var authority = kit.Authority(new PassthroughProtector());
         var vault = new VaultApplicationService(
             NewVaultDb(db),
             authority,
@@ -107,7 +118,7 @@ internal static class ProjectDeletionTestKit
             authority,
             new IDatabaseProvider[] { provider },
             NullLogger<GroundApplicationService>.Instance);
-        return new ProjectDeletionService(db, vault, ground, NullLogger<ProjectDeletionService>.Instance);
+        return new ProjectDeletionService(db, vault, ground, NullLogger<ProjectDeletionService>.Instance, kit.HubService, kit.Transaction);
     }
 
     public static ProjectDeletionService Create(AuthDbContext db) => Create(db, new FakeStore(), new FakeProvider());

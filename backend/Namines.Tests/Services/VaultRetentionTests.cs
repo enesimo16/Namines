@@ -15,6 +15,7 @@ using Namines.Vault.Application;
 using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -92,7 +93,7 @@ public sealed class VaultRetentionTests : IAsyncLifetime
 
     private VaultApplicationService NewService(AuthDbContext db, VaultDbContext vaultDb, FakeBackupStore store)
     {
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector(), new AllowAllHostPolicy());
+        var authority = TestModules.For(db).Authority(new PassthroughProtector(), new AllowAllHostPolicy());
         return new VaultApplicationService(
             vaultDb,
             authority,

@@ -12,6 +12,7 @@ using Namines.Infrastructure.AI;
 using Namines.Core.Security;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -53,11 +54,6 @@ public sealed class GatewayKeyStoredConnectionSqlTests : IAsyncLifetime
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner-1",
-            AllowDeskSql = allowDeskSql,
-            // Saklı bağlantı VAR: testin konusu tam olarak bu bağlantının
-            // anahtar yolundan kullanılabilmesi.
-            EncryptedConnectionString = "irrelevant-for-this-test",
-            ConnectionDbType = "PostgreSQL",
         });
 
         var (key, raw) = GatewayAccess.CreateKey(
@@ -66,6 +62,7 @@ public sealed class GatewayKeyStoredConnectionSqlTests : IAsyncLifetime
         db.GatewayApiKeys.Add(key);
 
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedConnectionAsync("proj-1", "irrelevant-for-this-test", "PostgreSQL", allowDeskSql);
         return raw;
     }
 
@@ -93,7 +90,7 @@ public sealed class GatewayKeyStoredConnectionSqlTests : IAsyncLifetime
         return new GatewayController(
             gateway: null!, context: db, configuration: new ConfigurationBuilder().Build(),
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
-            protector: new PassthroughProtector(), introspection: null!, workbench: null!)
+            secrets: TestModules.For(db).Authority(new PassthroughProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };

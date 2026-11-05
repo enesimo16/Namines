@@ -21,6 +21,7 @@ using Namines.Flow.Infrastructure.Persistence;
 using Namines.Flow.Services;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -177,7 +178,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
             .UseSqlite(db.Database.GetDbConnection())
             .Options;
         var flowDb = new FlowDbContext(flowOptions);
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var authority = TestModules.For(db).Authority(new PassthroughProtector());
         var innerFlowApp = new FlowApplicationService(
             flowDb,
             authority,

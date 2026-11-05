@@ -18,6 +18,7 @@ using Namines.Vault.Application;
 using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -80,7 +81,7 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
             })
             .Build();
 
-        var authority = new TenantProjectAuthorityService(db, new PassthroughProtector());
+        var authority = TestModules.For(db).Authority(new PassthroughProtector());
         var store = new PathLeakingStore();
         var cipher = new BackupCipher(config);
         var providers = new IBackupProvider[] { new FailingProvider() };

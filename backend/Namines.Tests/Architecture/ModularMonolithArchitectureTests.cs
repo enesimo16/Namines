@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,7 @@ using Namines.Infrastructure.Services;
 using Namines.Vault.Abstractions;
 using Namines.Vault.DependencyInjection;
 using Namines.Vault.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Architecture;
 
@@ -376,7 +378,7 @@ public sealed class ModularMonolithArchitectureTests
         context.CloudProjects.Add(project);
         await context.SaveChangesAsync();
 
-        var authority = new TenantProjectAuthorityService(context, protector);
+        var authority = TestModules.For(context).Authority(protector);
 
         // Outsider erişemez
         Assert.False(await authority.CanViewAsync(project.Id, outsider.Id));
@@ -488,73 +490,166 @@ public sealed class ModularMonolithArchitectureTests
         Assert.NotNull(desk);
     }
 
+    // ── Faz 14.2B ────────────────────────────────────────────────────────────
+
     [Fact]
-    public void ThreeNf_Entities_And_Migration_Scripts_Enforce_Transactional_Verification_And_TokenHashing()
+    public void CloudProject_YalnizcaCekirdekAlanlariTasir()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddNaminesBuildingBlocks();
-
-        using var sp = services.BuildServiceProvider();
-        using var scope = sp.CreateScope();
-
-        var studioDb = scope.ServiceProvider.GetRequiredService<StudioDbContext>();
-        var hubDb = scope.ServiceProvider.GetRequiredService<HubDbContext>();
-
-        var connEntity = studioDb.Model.FindEntityType(typeof(ProjectConnection));
-        var gitEntity = studioDb.Model.FindEntityType(typeof(ProjectGitRepository));
-        var shareEntity = studioDb.Model.FindEntityType(typeof(SchemaShareLink));
-        var pubEntity = hubDb.Model.FindEntityType(typeof(ProjectPublication));
-
-        Assert.NotNull(connEntity);
-        Assert.Equal("project_connections", connEntity!.GetTableName());
-        Assert.Equal("studio", connEntity.GetSchema());
-
-        Assert.NotNull(gitEntity);
-        Assert.Equal("project_git_repositories", gitEntity!.GetTableName());
-        Assert.Equal("studio", gitEntity.GetSchema());
-
-        Assert.NotNull(shareEntity);
-        Assert.Equal("schema_share_links", shareEntity!.GetTableName());
-        Assert.Equal("studio", shareEntity.GetSchema());
-
-        Assert.NotNull(pubEntity);
-        Assert.Equal("project_publications", pubEntity!.GetTableName());
-        Assert.Equal("hub", pubEntity.GetSchema());
-
-        var hash = SchemaShareLink.ComputeTokenHash("secret-share-token-xyz");
-        Assert.Equal(64, hash.Length);
-        Assert.DoesNotContain("secret-share-token-xyz", hash, StringComparison.OrdinalIgnoreCase);
-
-        var activeLink = new SchemaShareLink
+        // Yansımayla izin listesi: taşınan bir alanın geri eklenmesi burada patlar.
+        var allowed = new HashSet<string>
         {
-            BranchId = "b1",
-            TokenHash = hash,
-            IsActive = true,
-            ExpiresAt = DateTime.UtcNow.AddHours(1)
+            "Id", "Name", "DbType", "SchemaJson", "NodePositionsJson", "UserId", "User",
+            "OrganizationId", "Organization", "RowVersion", "CreatedAt", "UpdatedAt", "AutoApproveSafeChanges",
         };
-        Assert.True(activeLink.IsUsable(DateTime.UtcNow));
+        var actual = typeof(CloudProject).GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(p => p.Name).ToHashSet();
+        Assert.Equal(allowed, actual);
+    }
 
-        activeLink.RevokedAt = DateTime.UtcNow;
-        Assert.False(activeLink.IsUsable(DateTime.UtcNow));
+    [Fact]
+    public void AuthDbContext_TasinanTablolariDbSetOlarakAcmaz_VeModelSadeceStudioHubSemasinaEsler()
+    {
+        var movedTypes = new[] { typeof(ProjectConnection), typeof(ProjectShare), typeof(ProjectRepository), typeof(ProjectTag) };
+        var dbSetTypes = typeof(AuthDbContext).GetProperties()
+            .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
+            .Select(p => p.PropertyType.GetGenericArguments()[0])
+            .ToHashSet();
+        Assert.Empty(dbSetTypes.Intersect(movedTypes));
 
-        var expandSql = ThreeNfAndSchemaNormalizationSql.BuildExpandSchemasAndTablesSql();
-        foreach (var schema in ThreeNfAndSchemaNormalizationSql.AllModuleSchemas)
+        var options = new DbContextOptionsBuilder<AuthDbContext>()
+            .UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused").Options;
+        using var db = new AuthDbContext(options);
+        Assert.Equal("studio", db.Model.FindEntityType(typeof(CloudProject))!.GetSchema());
+        Assert.Equal("projects", db.Model.FindEntityType(typeof(CloudProject))!.GetTableName());
+        Assert.Equal("studio", db.Model.FindEntityType(typeof(ProjectConnection))!.GetSchema());
+        Assert.Equal("studio", db.Model.FindEntityType(typeof(ProjectShare))!.GetSchema());
+        Assert.Equal("hub", db.Model.FindEntityType(typeof(ProjectRepository))!.GetSchema());
+        Assert.Equal("hub", db.Model.FindEntityType(typeof(ProjectTag))!.GetSchema());
+    }
+
+    private static string BackendRoot()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !dir.GetFiles("Namines.sln").Any()) dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("Namines.sln bulunamadı.");
+    }
+
+    private static IEnumerable<(string Path, string Text)> ProductionSources()
+    {
+        foreach (var project in new[] { "Namines.API", "Namines.Infrastructure", "Namines.BuildingBlocks", "Namines.Core", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk", "Namines.Mcp", "Namines.Cli" })
         {
-            Assert.Contains($"CREATE SCHEMA IF NOT EXISTS {schema};", expandSql);
+            var root = System.IO.Path.Combine(BackendRoot(), project);
+            foreach (var file in System.IO.Directory.EnumerateFiles(root, "*.cs", System.IO.SearchOption.AllDirectories))
+            {
+                if (file.Contains(System.IO.Path.DirectorySeparatorChar + "obj" + System.IO.Path.DirectorySeparatorChar) ||
+                    file.Contains(System.IO.Path.DirectorySeparatorChar + "bin" + System.IO.Path.DirectorySeparatorChar) ||
+                    file.Contains(System.IO.Path.DirectorySeparatorChar + "Migrations" + System.IO.Path.DirectorySeparatorChar))
+                    continue;
+                yield return (file, System.IO.File.ReadAllText(file));
+            }
         }
-        Assert.Contains("studio.project_connections", expandSql);
-        Assert.Contains("studio.project_git_repositories", expandSql);
-        Assert.Contains("hub.project_publications", expandSql);
-        Assert.Contains("studio.schema_share_links", expandSql);
+    }
 
-        var backfillSql = ThreeNfAndSchemaNormalizationSql.BuildBackfillAndVerify3NfSql();
-        Assert.Contains("sha256", backfillSql);
-        Assert.Contains("DO $$", backfillSql);
-        Assert.Contains("RAISE EXCEPTION '3NF Migration verification failed for studio.project_connections", backfillSql);
-        Assert.Contains("RAISE EXCEPTION '3NF Migration verification failed for studio.project_git_repositories", backfillSql);
-        Assert.Contains("RAISE EXCEPTION '3NF Migration verification failed for hub.project_publications", backfillSql);
-        Assert.Contains("RAISE EXCEPTION '3NF Migration verification failed for studio.schema_share_links", backfillSql);
+    [Fact]
+    public void BaglantiSirriTekKapidanCozulur_VeTasinanTablolaraModulDisindanDokunulmaz()
+    {
+        // Proje bağlantısını çözen yalnızca secret provider; rotasyon aracı bilinçli istisna (anahtar
+        // değiştirmek için çözmek zorunda, sonucu kimseye vermez). Protector'ın kendisi ve kullanıcı
+        // sırları (EncryptedUserStore) proje bağlantısı değil.
+        var allowedUnprotect = new[]
+        {
+            "TenantProjectAuthorityService.cs", "ConnectionSecretReencryptor.cs",
+            "AesGcmConnectionSecretProtector.cs", "IConnectionSecretProtector.cs", "EncryptedUserStore.cs",
+        };
+        var allowedModuleTables = new[]
+        {
+            "StudioModule.cs", "HubModule.cs", "StudioApplicationService.cs", "HubApplicationService.cs",
+            "TenantProjectAuthorityService.cs", "ConnectionSecretReencryptor.cs", "AuthDbContext.cs",
+        };
+
+        var violations = new List<string>();
+        foreach (var (path, text) in ProductionSources())
+        {
+            var name = System.IO.Path.GetFileName(path);
+            if (!allowedUnprotect.Contains(name) && text.Contains(".Unprotect("))
+                violations.Add("Unprotect: " + name);
+
+            if (!allowedModuleTables.Contains(name) &&
+                (text.Contains(".ProjectConnections") || text.Contains(".ProjectShares") || text.Contains("Set<ProjectConnection>") ||
+                 text.Contains("Set<ProjectShare>") || text.Contains("Set<ProjectRepository>") || text.Contains("Set<ProjectTag>") ||
+                 text.Contains("Hub.Repositories") || text.Contains(".ProjectTags")))
+                violations.Add("Tablo erişimi: " + name);
+
+            // Eski tablo adı SQL metni olarak yaşamamalı.
+            if (text.Contains("\"CloudProjects\"") || text.Contains("FROM CloudProjects"))
+                violations.Add("Eski tablo adı: " + name);
+        }
+
+        Assert.Empty(violations);
+    }
+
+    [Fact]
+    public void TaslananServisler_ZorunluBagimlilik_LegacyDalYok()
+    {
+        // İsteğe bağlı parametre, "null ise eski yola düş" dalını canlı tutuyordu.
+        foreach (var type in new[] { typeof(HubController), typeof(ShareController), typeof(GatewayKeyController), typeof(GatewayController), typeof(AuthController), typeof(ProjectDeletionService), typeof(AccountDeletionService), typeof(TenantProjectAuthorityService) })
+        {
+            foreach (var ctor in type.GetConstructors())
+            {
+                foreach (var parameter in ctor.GetParameters())
+                {
+                    if (parameter.ParameterType == typeof(Namines.BuildingBlocks.Application.IStudioApplicationService) ||
+                        parameter.ParameterType == typeof(Namines.BuildingBlocks.Application.IHubApplicationService) ||
+                        parameter.ParameterType == typeof(IProjectConnectionSecretProvider) ||
+                        parameter.ParameterType == typeof(StudioDbContext))
+                    {
+                        Assert.False(parameter.HasDefaultValue, $"{type.Name}.{parameter.Name} zorunlu olmalı");
+                    }
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void StudioHubBaglamlari_MigrationUretmez_DdlTekZincirde()
+    {
+        // İki bağlam aynı DDL'i üretirse sıra ve kayma sorunu çıkar: şema AuthDbContext zincirinde.
+        using var studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>()
+            .UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused").Options);
+        using var hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>()
+            .UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused").Options);
+
+        foreach (DbContext context in new DbContext[] { studio, hub })
+        {
+            var differ = context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsModelDiffer>();
+            var model = context.GetService<Microsoft.EntityFrameworkCore.Metadata.IDesignTimeModel>().Model;
+            Assert.False(differ.HasDifferences(null, model.GetRelationalModel()),
+                context.GetType().Name + " migration üretmemeli");
+        }
+    }
+
+    [Fact]
+    public void Istek_govdeleri_sayac_sahip_ve_sir_alani_tasimaz()
+    {
+        // Mass assignment: istemci yıldız/fork sayacını, sahibi, fork kaynağını ya da şifreli metni
+        // gövdeyle yazamaz; bu alanlar yalnızca sunucu tarafından değişir.
+        var forbidden = new[] { "StarCount", "ForkCount", "OwnerUserId", "UserId", "ForkedFromProjectId", "EncryptedConnectionString", "ShareToken", "ShareTokenHash", "AllowDeskSql" };
+        foreach (var type in new[] { typeof(UpdateRepoSettingsRequest), typeof(ForkRepoRequest), typeof(SyncProjectDto) })
+        {
+            var names = type.GetProperties().Select(p => p.Name).ToList();
+            Assert.Empty(names.Intersect(forbidden));
+        }
+    }
+
+    [Fact]
+    public void Share_anonim_uclari_hiz_sinirina_bagli()
+    {
+        foreach (var action in new[] { nameof(ShareController.GetSharedSchema), nameof(ShareController.GetDbaBadge), nameof(ShareController.OgImage), nameof(ShareController.Meta) })
+        {
+            var attribute = typeof(ShareController).GetMethod(action)!
+                .GetCustomAttribute<Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute>();
+            Assert.NotNull(attribute);
+            Assert.Equal("share-public", attribute!.PolicyName);
+        }
     }
 
     [Fact]

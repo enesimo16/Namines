@@ -1,0 +1,659 @@
+using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
+using Namines.API.Controllers;
+using Namines.Core.Enums;
+using Namines.Core.Models;
+using Namines.Core.Models.Auth;
+using Namines.Core.Security;
+using Namines.Infrastructure;
+using Namines.Infrastructure.Data;
+using Namines.Infrastructure.Security;
+using Namines.Infrastructure.Services;
+using Namines.Tests.Services;
+using Namines.Tests.TestSupport;
+using Npgsql;
+
+namespace Namines.Tests.Integration;
+
+/// <summary>
+/// Faz 14.2B akışları GERÇEK PostgreSQL'de, üretimle aynı bağlantı düzeniyle: AuthDbContext retry
+/// stratejili, Studio/Hub ayrı bağlantılı, ortak işlem SharedTransactionManager ile. SQLite testleri
+/// xmin'i, ayrı bağlantıya işlem paylaşımını ve gerçek FK cascade'ini sınamaz.
+/// </summary>
+[Collection("Docker")]
+public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixture>
+{
+    private readonly Phase14_2BPostgresFixture _pg;
+    private readonly IConfiguration _config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Security:ConnectionEncryptionKey"] = "phase-14-2b-flow-test-key-at-least-32-characters",
+        ["Jwt:Key"] = "SuperSecretDevJwtKeyThatIsLongEnough12345!",
+    }).Build();
+    private readonly IConnectionSecretProtector _protector;
+
+    public Phase14_2BFlowTests(Phase14_2BPostgresFixture pg)
+    {
+        _pg = pg;
+        _protector = new AesGcmConnectionSecretProtector(_config);
+    }
+
+    private sealed class Scope : IAsyncDisposable
+    {
+        public required AuthDbContext Db { get; init; }
+        public required ModuleKit Kit { get; init; }
+        public required string ConnectionString { get; init; }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Kit.Studio.DisposeAsync();
+            await Kit.Hub.DisposeAsync();
+            await Db.DisposeAsync();
+        }
+    }
+
+    private static Scope Open(string cs)
+    {
+        var db = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>()
+            .UseNpgsql(cs, o => { o.CommandTimeout(120); o.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null); }).Options);
+        return new Scope { Db = db, Kit = new ModuleKit(db, cs), ConnectionString = cs };
+    }
+
+    private async Task<string> NewDatabaseAsync(string name)
+    {
+        var cs = await _pg.CreateDatabaseAsync(name);
+        await using var scope = Open(cs);
+        await scope.Db.Database.MigrateAsync();
+
+        scope.Db.Users.AddRange(
+            User("owner"), User("member"), User("stranger"), User("fan1"), User("fan2"));
+        scope.Db.Organizations.AddRange(
+            new Organization { Id = "org-a", Name = "A", CreatedByUserId = "owner" },
+            new Organization { Id = "org-b", Name = "B", CreatedByUserId = "stranger" });
+        scope.Db.OrganizationMembers.AddRange(
+            new OrganizationMember { OrganizationId = "org-a", UserId = "owner", Role = OrgRole.Owner },
+            new OrganizationMember { OrganizationId = "org-a", UserId = "member", Role = OrgRole.Editor },
+            new OrganizationMember { OrganizationId = "org-b", UserId = "stranger", Role = OrgRole.Owner });
+        await scope.Db.SaveChangesAsync();
+        return cs;
+    }
+
+    private static ApplicationUser User(string id) =>
+        new() { Id = id, UserName = id, NormalizedUserName = id.ToUpperInvariant(), Email = id + "@x.io", NormalizedEmail = id.ToUpperInvariant() + "@X.IO" };
+
+    private static UserManager<ApplicationUser> Users(AuthDbContext db) => new(
+        new Microsoft.AspNetCore.Identity.EntityFrameworkCore.UserStore<ApplicationUser>(db),
+        null!, new PasswordHasher<ApplicationUser>(), new List<IUserValidator<ApplicationUser>>(),
+        new List<IPasswordValidator<ApplicationUser>>(), new UpperInvariantLookupNormalizer(),
+        new IdentityErrorDescriber(), null!, NullLogger<UserManager<ApplicationUser>>.Instance);
+
+    private static DefaultHttpContext Http(string? userId)
+    {
+        var http = new DefaultHttpContext();
+        if (userId != null)
+            http.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, userId) }, "TestAuth"));
+        return http;
+    }
+
+    private static HubController Hub(Scope s, string? userId = null) =>
+        new(s.Db, Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), s.Kit.HubService, s.Kit.StudioService, s.Kit.Transaction)
+        {
+            ControllerContext = new ControllerContext { HttpContext = Http(userId) },
+        };
+
+    private static ShareController Share(Scope s, string? userId = null) =>
+        new(s.Db, new LinterService(), s.Kit.StudioService)
+        {
+            ControllerContext = new ControllerContext { HttpContext = Http(userId) },
+        };
+
+    private AuthController Auth(Scope s, string userId) =>
+        new(Users(s.Db), s.Db, _config, new MigrationService(null!), new AutomationJobQueue(),
+            NullLogger<AuthController>.Instance, s.Kit.HubService, s.Kit.StudioService, s.Kit.Transaction)
+        {
+            ControllerContext = new ControllerContext { HttpContext = Http(userId) },
+        };
+
+    private static string QualitySchema() => JsonSerializer.Serialize(new DatabaseSchema
+    {
+        Name = "S",
+        Tables = Enumerable.Range(1, 4).Select(i => new SchemaTable
+        {
+            Id = "t" + i,
+            Name = "table" + i,
+            Columns = new List<SchemaColumn>
+            {
+                new() { Id = "c" + i, Name = "id", Type = "uuid", IsPK = true },
+                new() { Id = "f" + i, Name = "next_id", Type = "uuid", IsFK = true },
+            },
+        }).ToList(),
+        Relations = new List<SchemaRelation>
+        {
+            new() { Id = "r1", SourceTableId = "t1", SourceColumnId = "f1", TargetTableId = "t2", TargetColumnId = "c2" },
+            new() { Id = "r2", SourceTableId = "t2", SourceColumnId = "f2", TargetTableId = "t3", TargetColumnId = "c3" },
+        },
+    }, SchemaJsonOptions.Default);
+
+    private static async Task SeedProjectAsync(Scope s, string id, string owner = "owner", string? org = "org-a", string? name = null,
+        string? slug = null, ProjectVisibility visibility = ProjectVisibility.Private, string? description = null,
+        string category = "General", string? tags = null, int stars = 0, string dbType = "PostgreSQL", DateTime? createdAt = null)
+    {
+        var at = createdAt ?? DateTime.UtcNow;
+        s.Db.CloudProjects.Add(new CloudProject
+        {
+            Id = id, Name = name ?? id, DbType = dbType, SchemaJson = QualitySchema(), NodePositionsJson = "{}",
+            UserId = owner, OrganizationId = org, CreatedAt = at, UpdatedAt = at,
+        });
+        await s.Db.SaveChangesAsync();
+        await s.Kit.SeedRepositoryAsync(id, owner, slug: slug, visibility: visibility, description: description,
+            category: category, tags: tags, starCount: stars, createdAt: at);
+    }
+
+    private static JsonElement Json(IActionResult result)
+    {
+        var value = result switch
+        {
+            OkObjectResult ok => ok.Value,
+            CreatedAtActionResult created => created.Value,
+            _ => throw new Xunit.Sdk.XunitException("Unexpected result: " + result.GetType().Name),
+        };
+        return JsonSerializer.SerializeToElement(value);
+    }
+
+    private static SyncProjectDto Dto(string id, string name, uint? rowVersion = null) => new()
+    {
+        Id = id, Name = name, DbType = "PostgreSQL", SchemaJson = QualitySchema(), NodePositionsJson = "{}", RowVersion = rowVersion,
+    };
+
+    // ── Oluşturma / şema güncelleme ──────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Sync_proje_ve_repo_satirini_birlikte_olusturuyor_cakisan_surumu_reddediyor()
+    {
+        var cs = await NewDatabaseAsync("f_sync");
+        await using var s = Open(cs);
+
+        Assert.IsType<OkObjectResult>(await Auth(s, "owner").SyncProjects(new() { Dto("p-a", "Orders"), Dto("p-b", "Orders") }));
+
+        await using var v1 = Open(cs);
+        var repos = await v1.Kit.HubService.GetRepositoriesAsync(new[] { "p-a", "p-b" });
+        Assert.Equal(2, repos.Count);
+        Assert.Equal(new[] { "orders", "orders-2" }, repos.Values.Select(r => r.Slug).OrderBy(x => x).ToArray());
+        Assert.All(repos.Values, r => Assert.Equal("owner", r.OwnerUserId));
+        Assert.All(repos.Values, r => Assert.Equal(ProjectVisibility.Private, r.Visibility));
+
+        var current = await v1.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "p-a");
+
+        // Doğru sürüm kabul, eski sürüm 409 (xmin gerçek motorda).
+        await using (var s2 = Open(cs))
+            Assert.IsType<OkObjectResult>(await Auth(s2, "owner").SyncProjects(new() { Dto("p-a", "Orders v2", current.RowVersion) }));
+        await using (var s3 = Open(cs))
+            Assert.IsType<ConflictObjectResult>(await Auth(s3, "owner").SyncProjects(new() { Dto("p-a", "Orders v3", current.RowVersion) }));
+
+        await using var v2 = Open(cs);
+        Assert.Equal("Orders v2", (await v2.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "p-a")).Name);
+    }
+
+    [RequiresDockerFact]
+    public async Task Repo_yazimi_patlarsa_proje_de_geri_aliniyor()
+    {
+        var cs = await NewDatabaseAsync("f_atomic");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "p1", slug: "taken");
+        await SeedProjectAsync(s, "p2", slug: "free");
+
+        await using var w = Open(cs);
+        var project = await w.Db.CloudProjects.SingleAsync(p => p.Id == "p2");
+        project.Name = "Should roll back";
+
+        // (sahip, slug) UNIQUE ihlali Hub tarafında, proje yazımından SONRA.
+        await Assert.ThrowsAsync<DbUpdateException>(() => w.Kit.Transaction.ExecuteAsync(async c =>
+        {
+            await w.Db.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+            await w.Kit.HubService.ApplySettingsAsync("p2", "owner", new(Slug: "taken"), c);
+        }));
+
+        await using var v = Open(cs);
+        Assert.Equal("p2", (await v.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "p2")).Name);
+        Assert.Equal("free", (await v.Kit.HubService.GetRepositoryAsync("p2"))!.Slug);
+    }
+
+    // ── Repo ayarları / görünürlük / IDOR ────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Ayarlar_etiketleri_normallestiriyor_ve_yetkisiz_goremiyor()
+    {
+        var cs = await NewDatabaseAsync("f_settings");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "p1", slug: "alpha");
+
+        var json = Json(await Hub(s, "owner").UpdateSettings("p1", new UpdateRepoSettingsRequest(
+            "Yeni", "alpha-2", "Açıklama", ProjectVisibility.Public, "SaaS", " Foo, foo ,,BAR", "acme/repo", null, null), default));
+        Assert.Equal("alpha-2", json.GetProperty("Slug").GetString());
+        Assert.Equal("Foo,BAR", json.GetProperty("Tags").GetString());
+        Assert.Equal("acme/repo", json.GetProperty("LinkedGithubRepo").GetString());
+
+        await using var v = Open(cs);
+        Assert.Equal(2, await v.Kit.Hub.ProjectTags.CountAsync(t => t.ProjectId == "p1"));
+        var get = Json(await Hub(v).GetRepo("owner", "alpha-2", default));
+        Assert.Equal("Yeni", get.GetProperty("Name").GetString());
+        Assert.Equal((int)ProjectVisibility.Public, get.GetProperty("Visibility").GetInt32());
+
+        // Başka sahibin altından aynı slug çözülmez; özel repo yabancıya 404.
+        await using var x = Open(cs);
+        Assert.IsType<NotFoundObjectResult>(await Hub(x).GetRepo("stranger", "alpha-2", default));
+        await SeedProjectAsync(x, "p-private", slug: "secret");
+        Assert.IsType<NotFoundObjectResult>(await Hub(x, "stranger").GetRepo("owner", "secret", default));
+        Assert.IsType<ForbidResult>(await Hub(x, "stranger").UpdateSettings("p-private", new UpdateRepoSettingsRequest(
+            null, null, "ele geçir", null, null, null, null, null, null), default));
+        Assert.IsType<NotFoundObjectResult>(await Hub(x, "stranger").ToggleStar("p-private", default));
+        Assert.IsType<NotFoundObjectResult>(await Hub(x, "stranger").Fork("p-private", null, default));
+    }
+
+    // ── Paylaşım ─────────────────────────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Paylasim_yalniz_ozet_saklar_iki_link_de_calisir_iptal_hepsini_kapatir()
+    {
+        var cs = await NewDatabaseAsync("f_share");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "p1");
+
+        var first = Json(await Share(s, "owner").CreateShareLink("p1")).GetProperty("token").GetString()!;
+        var second = Json(await Share(s, "owner").CreateShareLink("p1")).GetProperty("token").GetString()!;
+        Assert.NotEqual(first, second);
+
+        // Yetkisiz: yabancı ve Editor üretemez/iptal edemez.
+        Assert.IsType<NotFoundResult>(await Share(s, "stranger").CreateShareLink("p1"));
+        Assert.IsType<NotFoundResult>(await Share(s, "member").CreateShareLink("p1"));
+        Assert.IsType<NotFoundResult>(await Share(s, "stranger").RevokeShareLink("p1"));
+
+        // Düz metin hiçbir kolonda yok.
+        await using (var conn = new NpgsqlConnection(cs))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT string_agg(row_to_json(s)::text, '|') FROM studio.project_shares s", conn);
+            var text = (string)(await cmd.ExecuteScalarAsync())!;
+            Assert.DoesNotContain(first, text);
+            Assert.DoesNotContain(second, text);
+            Assert.Contains(ShareTokenHasher.Hash(first), text);
+        }
+
+        // Anonim uçlar ham token ile.
+        await using var anon = Open(cs);
+        foreach (var token in new[] { first, second })
+        {
+            var view = Json(await Share(anon).GetSharedSchema(token));
+            Assert.Equal("p1", view.GetProperty("Name").GetString());
+            Assert.Equal(4, Json(await Share(anon).Meta(token)).GetProperty("tables").GetInt32());
+            Assert.IsType<ContentResult>(await Share(anon).GetDbaBadge(token));
+            Assert.IsType<ContentResult>(await Share(anon).OgImage(token));
+        }
+        // Özet token değildir.
+        Assert.IsType<NotFoundResult>(await Share(anon).GetSharedSchema(ShareTokenHasher.Hash(first)));
+
+        Assert.IsType<NoContentResult>(await Share(s, "owner").RevokeShareLink("p1"));
+        await using var after = Open(cs);
+        Assert.IsType<NotFoundResult>(await Share(after).GetSharedSchema(first));
+        Assert.IsType<NotFoundResult>(await Share(after).GetSharedSchema(second));
+        Assert.IsType<NotFoundResult>(await Share(after).GetDbaBadge(second));
+
+        // İptalden sonra yeniden paylaşım çalışır, iptal edilen dirilmez.
+        var third = Json(await Share(s, "owner").CreateShareLink("p1")).GetProperty("token").GetString()!;
+        Assert.IsType<OkObjectResult>(await Share(after).GetSharedSchema(third));
+        Assert.IsType<NotFoundResult>(await Share(after).GetSharedSchema(first));
+    }
+
+    [RequiresDockerFact]
+    public async Task Etkin_baglanti_tavani_asilinca_en_eskisi_kapanir()
+    {
+        var cs = await NewDatabaseAsync("f_sharecap");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "p1");
+
+        var firstToken = await s.Kit.StudioService.CreateShareLinkAsync("p1");
+        await Task.Delay(5);
+        for (var i = 0; i < Namines.BuildingBlocks.Application.StudioApplicationService.MaxActiveSharesPerProject; i++)
+            await s.Kit.StudioService.CreateShareLinkAsync("p1");
+
+        Assert.Equal(Namines.BuildingBlocks.Application.StudioApplicationService.MaxActiveSharesPerProject,
+            await s.Kit.Studio.ProjectShares.CountAsync(x => x.ProjectId == "p1" && x.RevokedAt == null));
+        Assert.Null(await s.Kit.StudioService.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(firstToken)));
+    }
+
+    // ── Yıldız ───────────────────────────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Eszamanli_yildizlarda_sayac_satir_sayisina_esit_cift_tiklama_sisirmiyor()
+    {
+        var cs = await NewDatabaseAsync("f_star");
+        await using (var s = Open(cs)) await SeedProjectAsync(s, "p1", slug: "star", visibility: ProjectVisibility.Public);
+
+        // Beş kullanıcı aynı anda, her biri kendi bağlantısıyla.
+        await Task.WhenAll(new[] { "owner", "member", "stranger", "fan1", "fan2" }.Select(async user =>
+        {
+            await using var s = Open(cs);
+            Assert.IsType<OkObjectResult>(await Hub(s, user).ToggleStar("p1", default));
+        }));
+
+        async Task AssertCounterMatchesAsync(int expected)
+        {
+            await using var v = Open(cs);
+            var repo = await v.Kit.HubService.GetRepositoryAsync("p1");
+            Assert.Equal(expected, repo!.StarCount);
+            Assert.Equal(expected, await v.Db.RepoStars.CountAsync(x => x.ProjectId == "p1"));
+        }
+        await AssertCounterMatchesAsync(5);
+
+        // Çift tıklama: aynı kullanıcı aynı anda iki kez. Son durum ne olursa olsun sayaç = satır.
+        await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ =>
+        {
+            await using var s = Open(cs);
+            await Hub(s, "fan1").ToggleStar("p1", default);
+        }));
+        await using (var v = Open(cs))
+        {
+            var rows = await v.Db.RepoStars.CountAsync(x => x.ProjectId == "p1");
+            Assert.Equal(rows, (await v.Kit.HubService.GetRepositoryAsync("p1"))!.StarCount);
+            Assert.True(await v.Db.RepoStars.CountAsync(x => x.ProjectId == "p1" && x.UserId == "fan1") <= 1);
+        }
+
+        // Yinelenen yıldız veritabanı düzeyinde imkânsız.
+        await using (var conn = new NpgsqlConnection(cs))
+        {
+            await conn.OpenAsync();
+            await using var dup = new NpgsqlCommand("""
+                INSERT INTO "RepoStars" ("ProjectId","UserId","CreatedAt") VALUES ('p1','dup-user',now());
+                """, conn);
+            await Assert.ThrowsAsync<PostgresException>(() => dup.ExecuteNonQueryAsync()); // FK: yok olan kullanıcı
+            await using var pk = new NpgsqlCommand("""
+                INSERT INTO "RepoStars" ("ProjectId","UserId","CreatedAt") VALUES ('p1','owner',now());
+                """, conn);
+            var ex = await Assert.ThrowsAsync<PostgresException>(() => pk.ExecuteNonQueryAsync());
+            Assert.Equal("23505", ex.SqlState);
+        }
+    }
+
+    // ── Fork + silme ─────────────────────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Fork_sayaci_ve_silme_tutarli()
+    {
+        var cs = await NewDatabaseAsync("f_fork");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "src", slug: "source", visibility: ProjectVisibility.Public, description: "Kaynak",
+            category: "FinTech", tags: "ledger,Finance");
+
+        var fork = Json(await Hub(s, "stranger").Fork("src", new ForkRepoRequest("Çatal"), default));
+        var forkId = fork.GetProperty("Id").GetString()!;
+        Assert.Equal("src", fork.GetProperty("ForkedFromProjectId").GetString());
+        Assert.Equal((int)ProjectVisibility.Private, fork.GetProperty("Visibility").GetInt32());
+
+        await using (var v = Open(cs))
+        {
+            Assert.Equal(1, (await v.Kit.HubService.GetRepositoryAsync("src"))!.ForkCount);
+            var forked = (await v.Kit.HubService.GetRepositoryAsync(forkId))!;
+            Assert.Equal("src", forked.ForkedFromProjectId);
+            Assert.Equal("stranger", forked.OwnerUserId);
+            Assert.Equal("FinTech", forked.Category);
+            Assert.Equal("ledger,Finance", await v.Kit.HubService.GetTagsCsvAsync(forkId));
+            Assert.True(await v.Db.Branches.AnyAsync(b => b.ProjectId == forkId && b.IsDefault));
+        }
+
+        // Fork silinince kaynağın sayacı düşer.
+        await using (var d = Open(cs))
+            Assert.IsType<NoContentResult>(await Hub(d, "stranger").DeleteRepo(forkId, default));
+        await using (var v = Open(cs))
+        {
+            Assert.Equal(0, (await v.Kit.HubService.GetRepositoryAsync("src"))!.ForkCount);
+            Assert.Null(await v.Kit.HubService.GetRepositoryAsync(forkId));
+            Assert.False(await v.Kit.Hub.ProjectTags.AnyAsync(t => t.ProjectId == forkId));
+        }
+
+        // Kaynak silinince fork kalır, işaretçi boşalır.
+        await using (var f = Open(cs))
+        {
+            var second = Json(await Hub(f, "stranger").Fork("src", null, default)).GetProperty("Id").GetString()!;
+            await using var d = Open(cs);
+            Assert.IsType<NoContentResult>(await Hub(d, "owner").DeleteRepo("src", default));
+            await using var v = Open(cs);
+            Assert.Null((await v.Kit.HubService.GetRepositoryAsync(second))!.ForkedFromProjectId);
+            Assert.True(await v.Db.CloudProjects.AnyAsync(p => p.Id == second));
+        }
+    }
+
+    [RequiresDockerFact]
+    public async Task Proje_silme_baglanti_paylasim_repo_etiket_yildizi_goturur_yetkisiz_silemez()
+    {
+        var cs = await NewDatabaseAsync("f_delete");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "p1", slug: "gone", visibility: ProjectVisibility.Public, tags: "a,b");
+        await s.Kit.Authority(_protector).SetConnectionAsync("p1", "Host=x.example.com;Password=p", "PostgreSQL");
+        await s.Kit.StudioService.CreateShareLinkAsync("p1");
+        await Hub(s, "fan1").ToggleStar("p1", default);
+
+        Assert.IsType<ForbidResult>(await Hub(s, "stranger").DeleteRepo("p1", default));
+        Assert.IsType<ForbidResult>(await Hub(s, "member").DeleteRepo("p1", default));
+
+        await using (var d = Open(cs))
+            Assert.IsType<NoContentResult>(await Hub(d, "owner").DeleteRepo("p1", default));
+
+        await using var conn = new NpgsqlConnection(cs);
+        await conn.OpenAsync();
+        foreach (var table in new[] { "studio.projects WHERE \"Id\"", "studio.project_connections WHERE \"ProjectId\"", "studio.project_shares WHERE \"ProjectId\"",
+                     "hub.repositories WHERE \"ProjectId\"", "hub.project_tags WHERE \"ProjectId\"", "\"RepoStars\" WHERE \"ProjectId\"" })
+        {
+            await using var cmd = new NpgsqlCommand($"SELECT count(*) FROM {table} = 'p1'", conn);
+            Assert.Equal(0L, await cmd.ExecuteScalarAsync());
+        }
+    }
+
+    [RequiresDockerFact]
+    public async Task Hesap_silme_sayaci_dusurur_ve_devredilen_reponun_sahibini_gunceller()
+    {
+        var cs = await NewDatabaseAsync("f_account");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "starred", slug: "starred", visibility: ProjectVisibility.Public);
+        await SeedProjectAsync(s, "team", owner: "member", slug: "teamrepo");
+        await s.Db.Users.Where(u => u.Id == "owner").ExecuteUpdateAsync(x => x.SetProperty(u => u.IsDev, false));
+        Assert.IsType<OkObjectResult>(await Hub(s, "member").ToggleStar("starred", default));
+        Assert.Equal(1, (await s.Kit.HubService.GetRepositoryAsync("starred"))!.StarCount);
+
+        await using var d = Open(cs);
+        var um = Users(d.Db);
+        var service = new AccountDeletionService(d.Db, um, ProjectDeletionTestKit.Create(d.Db, d.Kit),
+            d.Kit.HubService, d.Kit.Transaction, NullLogger<AccountDeletionService>.Instance);
+        var result = await service.DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
+        Assert.True(result.Ok, result.Code + " " + result.Error);
+
+        await using var v = Open(cs);
+        Assert.Equal(0, (await v.Kit.HubService.GetRepositoryAsync("starred"))!.StarCount);
+        var team = (await v.Kit.HubService.GetRepositoryAsync("team"))!;
+        Assert.Equal("owner", team.OwnerUserId);
+        Assert.Equal("owner", (await v.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "team")).UserId);
+        Assert.Equal("team", await v.Kit.HubService.ResolveProjectIdAsync("owner", "teamrepo"));
+    }
+
+    // ── Explore ──────────────────────────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Explore_filtreleri_siralama_ve_etiket_tam_eslesme()
+    {
+        var cs = await NewDatabaseAsync("f_explore");
+        await using var s = Open(cs);
+        var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await SeedProjectAsync(s, "a", name: "Ledger Core", slug: "a", visibility: ProjectVisibility.Public, description: "double entry",
+            category: "FinTech", tags: "PostgreSQL,Ledger", stars: 5, createdAt: t0);
+        await SeedProjectAsync(s, "b", name: "Shop", slug: "b", visibility: ProjectVisibility.Public, description: "orders",
+            category: "SaaS", tags: "postgresql-extra", stars: 9, createdAt: t0.AddDays(1), dbType: "MySQL");
+        await SeedProjectAsync(s, "c", name: "Hidden", slug: "c", visibility: ProjectVisibility.Private, description: "private",
+            tags: "PostgreSQL", stars: 100, createdAt: t0.AddDays(2));
+        await SeedProjectAsync(s, "d", name: "No description", slug: "d", visibility: ProjectVisibility.Public, description: "",
+            tags: "PostgreSQL", stars: 100, createdAt: t0.AddDays(3));
+
+        async Task<string[]> Ids(string? q = null, string? category = null, string? dbType = null, string? sort = "popular", string? tag = null)
+        {
+            await using var e = Open(cs);
+            var json = Json(await Hub(e).Explore(q, category, dbType, sort, 1, 12, tag, default));
+            return json.GetProperty("Items").EnumerateArray().Select(i => i.GetProperty("Id").GetString()!).ToArray();
+        }
+
+        Assert.Equal(new[] { "b", "a" }, await Ids());
+        Assert.Equal(new[] { "b", "a" }, await Ids(sort: "recent"));
+        Assert.Equal(new[] { "a" }, await Ids(category: "fintech"));
+        Assert.Equal(new[] { "b" }, await Ids(dbType: "mysql"));
+        Assert.Equal(new[] { "a" }, await Ids(q: "ledger"));   // ad + etiket
+        Assert.Equal(new[] { "b" }, await Ids(q: "ORDERS"));   // açıklama, büyük/küçük duyarsız
+
+        // Etiket filtresi TAM eşleşme: alt dizge ("postgresql-extra") ve özel/açıklamasız repo gelmez.
+        Assert.Equal(new[] { "a" }, await Ids(tag: "postgresql"));
+        Assert.Equal(new[] { "a" }, await Ids(tag: "POSTGRESQL"));
+        Assert.Empty(await Ids(tag: "postgre"));
+
+        // Yanıtın alanları ve sahip adı.
+        await using var one = Open(cs);
+        var item = Json(await Hub(one).Explore("ledger", null, null, "popular", 1, 12, null, default))
+            .GetProperty("Items").EnumerateArray().Single();
+        Assert.Equal("PostgreSQL,Ledger", item.GetProperty("Tags").GetString());
+        Assert.Equal(5, item.GetProperty("StarCount").GetInt32());
+        Assert.Equal("owner", item.GetProperty("Owner").GetProperty("Username").GetString());
+        Assert.Equal(4, item.GetProperty("Stats").GetProperty("TableCount").GetInt32());
+    }
+
+    // ── Sırlar ───────────────────────────────────────────────────────────────
+
+    [RequiresDockerFact]
+    public async Task Baglanti_sirri_kiraci_disina_cikmiyor_listede_yok_rotasyon_yeni_tabloda()
+    {
+        var cs = await NewDatabaseAsync("f_secret");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "p1");
+        await SeedProjectAsync(s, "p2", owner: "stranger", org: "org-b");
+        var authority = s.Kit.Authority(_protector);
+
+        const string conn = "Host=db.example.com;Database=d;Username=u;Password=very-secret-value";
+        Assert.True(await authority.SetConnectionAsync("p1", conn, "PostgreSQL"));
+
+        // Şifreli saklanıyor; kiracı dışına çözülmüyor.
+        var stored = await s.Kit.Studio.ProjectConnections.AsNoTracking().SingleAsync(c => c.ProjectId == "p1");
+        Assert.DoesNotContain("very-secret-value", stored.EncryptedConnectionString);
+        Assert.Equal(conn, (await authority.ResolveForUserAsync("p1", "owner"))!.ConnectionString);
+        Assert.Equal(conn, (await authority.ResolveForUserAsync("p1", "member"))!.ConnectionString);
+        Assert.Null(await authority.ResolveForUserAsync("p1", "stranger"));
+        Assert.Null(await authority.ResolveForUserAsync("p2", "owner"));
+
+        // AAD: şifreli metni başka projeye kopyalamak çözülmez.
+        await s.Kit.SeedConnectionAsync("p2", stored.EncryptedConnectionString);
+        await Assert.ThrowsAnyAsync<System.Security.Cryptography.CryptographicException>(() => authority.ResolveAsync("p2"));
+
+        // API yanıtları: bağlantı dizesi ve şifreli metin hiçbir biçimde dönmüyor.
+        var list = JsonSerializer.Serialize(((OkObjectResult)await Auth(s, "owner").GetProjects()).Value);
+        Assert.DoesNotContain(stored.EncryptedConnectionString!, list);
+        Assert.DoesNotContain("very-secret-value", list);
+        Assert.Contains("\"hasConnection\":true", list);
+        Assert.DoesNotContain("\"EncryptedConnectionString\"", JsonSerializer.Serialize(stored));
+
+        // Rotasyon yeni tabloyu yeniden yazar; eski çözülür, yeni anahtar başa geçer.
+        var rotatingConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Security:ConnectionEncryptionKey"] = "phase-14-2b-flow-test-key-at-least-32-characters",
+            ["Security:ConnectionEncryptionKeys:0:Id"] = "k2",
+            ["Security:ConnectionEncryptionKeys:0:Key"] = "phase-14-2b-second-key-at-least-32-characters-long",
+        }).Build();
+        var rotating = new AesGcmConnectionSecretProtector(rotatingConfig);
+        await s.Kit.Studio.ProjectConnections.Where(c => c.ProjectId == "p2").ExecuteDeleteAsync();
+        var r = await ConnectionSecretReencryptor.ReencryptAsync(s.Kit.Studio, rotating);
+        Assert.Equal(1, r.Reencrypted);
+        var rotated = await s.Kit.Studio.ProjectConnections.AsNoTracking().SingleAsync(c => c.ProjectId == "p1");
+        Assert.NotEqual(stored.EncryptedConnectionString, rotated.EncryptedConnectionString);
+        Assert.Equal(conn, rotating.Unprotect(rotated.EncryptedConnectionString!, associatedData: "p1"));
+        Assert.Equal(0, (await ConnectionSecretReencryptor.ReencryptAsync(s.Kit.Studio, rotating)).Reencrypted);
+
+        // Temizleme: onay korunur, bağlantı gider.
+        await authority.SetDeskSqlEnabledAsync("p1", true);
+        await authority.ClearConnectionAsync("p1");
+        var meta = await s.Kit.StudioService.GetConnectionMetadataAsync("p1");
+        Assert.False(meta.HasConnection);
+        Assert.True(meta.AllowDeskSql);
+    }
+
+    [RequiresDockerFact]
+    public async Task Gateway_sakli_baglantiyi_anahtarla_ve_oturumla_cozuyor_SSRF_yine_kapali()
+    {
+        var cs = await NewDatabaseAsync("f_gateway");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "p1");
+
+        // Hedef: aynı container (Development + AllowPrivateDbHosts ile izinli).
+        var devPolicy = new DbHostAccessPolicy(new DevEnv(), new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Security:AllowPrivateDbHosts"] = "true",
+        }).Build(), NullLogger<DbHostAccessPolicy>.Instance);
+        var authority = s.Kit.Authority(_protector, devPolicy);
+        await authority.SetConnectionAsync("p1", cs, "PostgreSQL");
+
+        var (key, raw) = GatewayAccess.CreateKey("p1", "key", "owner", canWrite: false, expiresAt: null);
+        s.Db.GatewayApiKeys.Add(key);
+        await s.Db.SaveChangesAsync();
+
+        GatewayController Gateway(IDbHostAccessPolicy policy, string? user, string? apiKey)
+        {
+            var http = Http(user);
+            if (apiKey != null) http.Request.Headers["X-Namines-Key"] = apiKey;
+            var groq = new Namines.Infrastructure.AI.GroqAIService(new HttpClient(), _config, new HttpContextAccessor { HttpContext = http }, new MemoryCache(new MemoryCacheOptions()));
+            return new GatewayController(
+                gateway: null!, context: s.Db, configuration: _config, groq: groq,
+                logger: NullLogger<GatewayController>.Instance, quota: new AiQuotaService(s.Db, _config),
+                secrets: authority, studio: s.Kit.StudioService,
+                introspection: new DbIntrospectionService(NullLogger<DbIntrospectionService>.Instance, policy),
+                workbench: null!)
+            {
+                ControllerContext = new ControllerContext { HttpContext = http },
+            };
+        }
+
+        // Oturum yolu: üye şemayı görüyor, yabancı görmüyor. Hiçbir yanıtta bağlantı dizesi yok.
+        var ok = Assert.IsType<OkObjectResult>(await Gateway(devPolicy, "owner", null).Schema("p1", default));
+        var body = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("AspNetUsers", body);
+        Assert.DoesNotContain(new NpgsqlConnectionStringBuilder(cs).Password!, body);
+        Assert.DoesNotContain("Password=", body);
+        Assert.IsNotType<OkObjectResult>(await Gateway(devPolicy, "stranger", null).Schema("p1", default));
+
+        // Anahtar yolu: projeye bağlı anahtar saklı bağlantıyı kullanır.
+        Assert.IsType<OkObjectResult>(await Gateway(devPolicy, null, raw).Schema(null, default));
+
+        // SSRF: sıkı politikada aynı saklı bağlantı (127.0.0.1) reddedilir, 200 dönmez, host sızmaz.
+        var strict = new DbHostAccessPolicy(new ProdEnv(), new ConfigurationBuilder().Build(), NullLogger<DbHostAccessPolicy>.Instance);
+        var denied = await Gateway(strict, "owner", null).Schema("p1", default);
+        Assert.IsNotType<OkObjectResult>(denied);
+        Assert.DoesNotContain(new NpgsqlConnectionStringBuilder(cs).Password!, JsonSerializer.Serialize((denied as ObjectResult)?.Value));
+        Assert.NotNull((await s.Kit.Authority(_protector, strict).ResolveAsync("p1"))!.HostPolicyDenyReason);
+
+        // SQL konsolu kapısı: bayrak kapalıyken anahtarla ham SQL reddi metadata'dan okunur.
+        Assert.False((await s.Kit.StudioService.GetConnectionMetadataAsync("p1")).AllowDeskSql);
+    }
+
+    private sealed class DevEnv : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Development";
+        public string ApplicationName { get; set; } = "t";
+        public string ContentRootPath { get; set; } = ".";
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+
+    private sealed class ProdEnv : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Production";
+        public string ApplicationName { get; set; } = "t";
+        public string ContentRootPath { get; set; } = ".";
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+}

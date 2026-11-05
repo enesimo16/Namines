@@ -16,6 +16,7 @@ using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
 using static Namines.Tests.Services.ProjectDeletionTestKit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -64,7 +65,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
     private static AccountDeletionService NewService(
         AuthDbContext db, FakeStore store, FakeProvider provider, ISubscriptionCanceller? canceller = null) =>
-        new(db, NewUserManager(db), Create(db, store, provider), NullLogger<AccountDeletionService>.Instance, canceller);
+        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, canceller);
 
     private static CloudProject Project(string id, string userId, string? orgId) => new()
     {
@@ -321,7 +322,6 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await using var db = NewContext();
         await SeedAsync(db, store);
         var team = await db.CloudProjects.SingleAsync(p => p.Id == "tp");
-        team.Visibility = ProjectVisibility.Public;
         db.RepoIssues.Add(new Namines.Core.Models.Hub.RepoIssue
         {
             Id = "i1", ProjectId = "tp", IssueNumber = 1, Title = "t", CreatedByUserId = "u1",
@@ -331,6 +331,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
             Id = "c1", IssueId = "i1", Body = "b", AuthorUserId = "u1",
         });
         await db.SaveChangesAsync();
+        await TestModules.For(db).SeedRepositoryAsync("tp", team.UserId, visibility: ProjectVisibility.Public);
         db.ChangeTracker.Clear();
 
         var result = await NewService(db, store, new FakeProvider())
@@ -338,7 +339,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
         await using var read = NewContext();
-        var hub = new HubController(read, NewUserManager(read), Create(read))
+        var hub = new HubController(read, NewUserManager(read), Create(read), TestModules.For(read).HubService, TestModules.For(read).StudioService, TestModules.For(read).Transaction)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -371,8 +372,8 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         var all = new List<Claim>(claims) { new(ClaimTypes.NameIdentifier, "u1") };
         var um = NewUserManager(db);
         return new AuthController(um, db, config, new MigrationService(null!), new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance, new FakeEnv(), null,
-            new AccountDeletionService(db, um, Create(db), NullLogger<AccountDeletionService>.Instance))
+            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, new FakeEnv(), null,
+            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance))
         {
             ControllerContext = new ControllerContext
             {

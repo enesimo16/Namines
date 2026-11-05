@@ -14,6 +14,7 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -77,7 +78,7 @@ public sealed class OAuthTests : IAsyncLifetime
             config,
             new MigrationService(null!),
             new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance,
+            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction,
             new FakeEnv(environment))
         {
             ControllerContext = new ControllerContext

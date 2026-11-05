@@ -13,6 +13,7 @@ using Namines.Flow.Application;
 using Namines.Flow.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Services;
 
@@ -51,7 +52,7 @@ public sealed class AutomationRunLogRetentionTests : IAsyncLifetime
     private FlowApplicationService NewService(AuthDbContext db, FlowDbContext flowDb) =>
         new(
             flowDb,
-            new TenantProjectAuthorityService(db, new PassthroughProtector()),
+            TestModules.For(db).Authority(new PassthroughProtector()),
             new StubQuota(allowed: true),
             dbaAnalyzer: null,
             aiService: null,

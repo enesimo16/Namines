@@ -21,6 +21,7 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -81,7 +82,7 @@ public sealed class MfaSessionTests : IAsyncLifetime
         var cache = new MemoryCache(new MemoryCacheOptions());
         var controller = new AuthController(
             userManager, db, new ConfigurationBuilder().Build(), new MigrationService(null!),
-            new AutomationJobQueue(), NullLogger<AuthController>.Instance);
+            new AutomationJobQueue(), NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext

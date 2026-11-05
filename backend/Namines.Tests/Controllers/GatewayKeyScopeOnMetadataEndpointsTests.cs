@@ -13,6 +13,7 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.AI;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Controllers;
 
@@ -78,7 +79,7 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
         return new GatewayController(
             gateway: null!, context: db, configuration: configuration,
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
-            protector: null!, introspection: null!, workbench: null!)
+            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!)
         {
             ControllerContext = new ControllerContext { HttpContext = http },
         };

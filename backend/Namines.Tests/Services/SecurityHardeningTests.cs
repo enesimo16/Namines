@@ -171,10 +171,9 @@ public class SecurityHardeningTests
     [Fact]
     public void Sifreli_baglanti_dizesi_json_a_yazilmaz()
     {
-        var project = new CloudProject
+        var project = new ProjectConnection
         {
-            Id = "p1",
-            Name = "Proje",
+            ProjectId = "p1",
             EncryptedConnectionString = "COK-GIZLI-SIFRELI-DEGER",
         };
 
