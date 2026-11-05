@@ -191,7 +191,12 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         await ctx.Database.MigrateAsync();
 
         Assert.Empty(await ctx.Database.GetPendingMigrationsAsync());
-        foreach (var table in new[] { "studio.projects", "studio.project_connections", "studio.project_shares", "hub.repositories", "hub.project_tags" })
+        foreach (var table in new[]
+            {
+                "studio.projects", "studio.project_connections", "studio.project_shares", "hub.repositories", "hub.project_tags",
+                "hub.issue_labels", "hub.repo_issue_labels",
+                "gateway.api_key_allowed_origins", "gateway.api_key_allowed_ips", "gateway.table_masked_columns",
+            })
             Assert.Equal(1, await CountAsync(cs, $"SELECT count(*) FROM (SELECT to_regclass('{table}') r) x WHERE r IS NOT NULL"));
         await AssertLegacyShapeGoneAsync(cs);
 
