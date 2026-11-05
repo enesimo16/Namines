@@ -293,6 +293,16 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         foreach (var probe in GatewayAllowlistCases.IpProbes)
             Assert.False(GatewayKeyRestrictions.IsIpAllowed(badIp, IPAddress.Parse(probe), true, out _), probe);
 
+        // PostgreSQL inet'in kabul ettiği, .NET'in reddettiği biçimler: kural olmaz, liste kapalıya düşer.
+        foreach (var truncated in new[] { "::ffff:1.2.3", "::ffff:1.23", "::.2.3.4/0", "::ffff:62:.253.88.177/46", "::ffff:1.2.3.07" })
+        {
+            var row = keys[KeyId(Array.IndexOf(GatewayAllowlistCases.IpLists, truncated))];
+            Assert.True(row.RestrictIps, truncated);
+            Assert.Empty(row.IpRules);
+            foreach (var probe in GatewayAllowlistCases.IpProbes.Append("1.2.3.0").Append("2600:1f18::77"))
+                Assert.False(GatewayKeyRestrictions.IsIpAllowed(row, IPAddress.Parse(probe), true, out _), $"{truncated} allowed {probe}");
+        }
+
         // Yalnızca virgül: eski kodda da kısıt yok, korunur ve iz bırakır.
         var blank = keys[KeyId(Array.IndexOf(GatewayAllowlistCases.OriginLists, " , ,"))];
         Assert.False(blank.RestrictOrigins);
@@ -453,6 +463,187 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
 
         foreach (var (corrupt, expected) in cases)
             await AssertVerifyRaisesAsync(cs, prepare, corrupt, verify, expected);
+    }
+
+    [RequiresDockerFact]
+    public async Task Dogrulama_doldurma_fonksiyonunun_hatasini_gorebiliyor()
+    {
+        // Gömülü IPv4 korumasını sökünce doldurma açığı yeniden üretir. Doğrulama aynı fonksiyonu paylaşsaydı
+        // geçerdi (denetim B-1 tam böyle kaçtı); kendi ayrıştırıcısıyla patlamalı.
+        var cs = await _pg.CreateDatabaseAsync("c_verify_independent");
+        await SeedLegacyAsync(cs);
+
+        var buggy = Phase14_2CNormalizationScripts.UpPrepare.Replace(Phase14_2CNormalizationScripts.DottedTailGuardSql, "");
+        Assert.NotEqual(Phase14_2CNormalizationScripts.UpPrepare, buggy);
+
+        await AssertVerifyRaisesAsync(cs, buggy, "SELECT 1", Phase14_2CNormalizationScripts.UpVerify, "verify ips");
+    }
+
+    /// <summary>Sabit tohumlu üreteç: geçerli örneklerin bozulmuş hâlleri, ayrıştırıcıların sınırına yakın girdiler.</summary>
+    private static List<string> Fuzz(int seed, int count, string[] valid, string alphabet)
+    {
+        var random = new Random(seed);
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        while (result.Count < count)
+        {
+            var text = valid[random.Next(valid.Length)];
+            for (var edits = random.Next(0, 4); edits > 0 && text.Length > 0; edits--)
+            {
+                var at = random.Next(text.Length);
+                text = random.Next(3) switch
+                {
+                    0 => text.Remove(at, 1),
+                    1 => text.Insert(at, alphabet[random.Next(alphabet.Length)].ToString()),
+                    _ => text[..at] + alphabet[random.Next(alphabet.Length)] + text[(at + 1)..],
+                };
+            }
+
+            // Virgül ve boşluk CSV ayrıştırmasının işi; burada tek girdi sınanıyor. NUL PostgreSQL metni olamaz.
+            text = text.Trim();
+            if (text.Length > 0 && !text.Contains(',') && !text.Contains('\0')) result.Add(text);
+        }
+        return result.ToList();
+    }
+
+    /// <summary>C# kanonik CIDR'ını doğrulama ayrıştırıcısının biçimine çevirir: baytlar + önek.</summary>
+    private static string? BytesForm(string? cidr)
+    {
+        if (cidr is null) return null;
+        var slash = cidr.IndexOf('/');
+        return Convert.ToHexString(IPAddress.Parse(cidr[..slash]).GetAddressBytes()).ToLowerInvariant() + cidr[slash..];
+    }
+
+    private static async Task<List<(string Input, string? A, string? B)>> EvalAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string sql, List<string> inputs)
+    {
+        await using var cmd = new NpgsqlCommand(sql, conn, tx) { CommandTimeout = 300 };
+        cmd.Parameters.AddWithValue("inputs", inputs.ToArray());
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var rows = new List<(string, string?, string?)>();
+        while (await reader.ReadAsync())
+            rows.Add((reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
+        return rows;
+    }
+
+    [RequiresDockerFact]
+    public async Task Sql_ve_csharp_ayristiricilari_fuzz_ile_ayni()
+    {
+        var cs = await _pg.CreateDatabaseAsync("c_fuzz");
+        await MigrateAsync(cs, Before);
+
+        await using var conn = new NpgsqlConnection(cs);
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        await using (var prepare = new NpgsqlCommand(Phase14_2CNormalizationScripts.UpPrepare, conn, tx) { CommandTimeout = 120 })
+            await prepare.ExecuteNonQueryAsync();
+
+        var ips = Fuzz(20261105, 30_000, new[]
+        {
+            "1.2.3.4", "10.0.0.0/8", "192.168.1.77/24", "0.0.0.0/0", "255.255.255.255/32", "::1", "::", "::/0", "2001:db8::1", "2001:db8::/32",
+            "2001:0db8:0:0:0:0:0:1/128", "1:2:3:4:5:6:7:8", "1:2:3:4:5:6:7::", "::2:3:4:5:6:7:8", "::ffff:1.2.3.4", "::ffff:102:304", "::1.2.3.4",
+            "1:2:3:4:5:6:1.2.3.4", "fe80::1", "fe80::1%3", "::ffff:1.2.3.4/128", "[::1]", "1.2", "0x7f.0.0.1", "010.0.0.1", "::ffff:1.2.3", "::.2.3.4/0",
+        }, "0123456789abcdefABCDEFgx:./%[]- +");
+        var ipRows = await EvalAsync(conn, tx,
+            "SELECT x, pg_temp.namines_2c_ip(x), pg_temp.namines_2c_check_ip(x) FROM unnest(@inputs) AS x", ips);
+
+        var accepted = 0;
+        var ipDiffs = new List<string>();
+        foreach (var (input, filled, check) in ipRows)
+        {
+            var expected = BytesForm(GatewayAllowlistRules.NormalizeIp(input));
+            if (expected is not null) accepted++;
+            // Doldurma, doğrulama ve C# aynı ağı vermeli; metin biçimi motora göre değişebilir.
+            if (BytesForm(filled) != expected || check != expected)
+                ipDiffs.Add($"'{input}': csharp={expected}, fill={BytesForm(filled)}, check={check}");
+        }
+        Assert.True(ipDiffs.Count == 0, $"{ipDiffs.Count} IP differences:\n" + string.Join("\n", ipDiffs.Take(40)));
+        // Üreteç gerçekten iki tarafı da denemeli, yoksa eşitlik boş bir iddia olur.
+        Assert.InRange(accepted, 1000, ips.Count - 1000);
+
+        var origins = Fuzz(20261106, 30_000, new[]
+        {
+            "https://app.example.com", "HTTPS://App.Example.COM", "http://localhost:3000", "https://a.com:443", "https://a.com:65535", "capacitor://localhost",
+            "chrome-extension://abc", "https://foo_bar.example.com", "https://[::1]:8443", "https://[2001:db8::1]", "https://[::ffff:1.2.3.4]:1", "https://[::ffff:1.2.3]",
+            "https://[1.2.3.4]", "*", "https://*.example.com", "https://a.com/", "https://a.com/path", "null", "https://user@a.com", "https://a.com:99999", "https://a.com:080",
+        }, "abcxyzABC0189:/.[]-_+*@?#% ü");
+        var originRows = await EvalAsync(conn, tx,
+            "SELECT x, pg_temp.namines_2c_origin(x), pg_temp.namines_2c_check_origin(x) FROM unnest(@inputs) AS x", origins);
+
+        accepted = 0;
+        var originDiffs = new List<string>();
+        foreach (var (input, filled, check) in originRows)
+        {
+            var expected = GatewayAllowlistRules.NormalizeOrigin(input);
+            if (expected is not null) accepted++;
+            if (filled != expected || check != expected)
+                originDiffs.Add($"'{input}': csharp={expected}, fill={filled}, check={check}");
+        }
+        Assert.True(originDiffs.Count == 0, $"{originDiffs.Count} origin differences:\n" + string.Join("\n", originDiffs.Take(40)));
+        Assert.InRange(accepted, 1000, origins.Count - 1000);
+
+        await tx.RollbackAsync();
+    }
+
+    [RequiresDockerFact]
+    public async Task Etiket_temizligi_eszamanli_baglanan_issue_i_silmiyor()
+    {
+        var cs = await _pg.CreateDatabaseAsync("c_gc_race");
+        await MigrateAsync(cs);
+        await SeedOwnedKeyAsync(cs, null, null);
+        await ExecAsync(cs, """
+            INSERT INTO "RepoIssues" ("Id","ProjectId","IssueNumber","Title","Body","IsClosed","CreatedAt")
+            VALUES ('gc-a','proj',1,'a','',false,now()), ('gc-b','proj',2,'b','',false,now());
+            INSERT INTO hub.issue_labels ("Id","ProjectId","Name","NormalizedName") VALUES ('gc-l','proj','x','x');
+            INSERT INTO hub.repo_issue_labels ("RepoIssueId","IssueLabelId","DisplayName","Position") VALUES ('gc-a','gc-l','x',0);
+            """);
+
+        // T1 var olan etikete yeni bağ ekler, henüz commit etmez.
+        await using var t1 = new NpgsqlConnection(cs);
+        await t1.OpenAsync();
+        await using var tx1 = await t1.BeginTransactionAsync();
+        await using (var link = new NpgsqlCommand(
+            """INSERT INTO hub.repo_issue_labels ("RepoIssueId","IssueLabelId","DisplayName","Position") VALUES ('gc-b','gc-l','x',0)""", t1, tx1))
+            await link.ExecuteNonQueryAsync();
+
+        // T2 etiketin son görünen issue'sunu siler: tetikleyici T1'i beklemeli.
+        var deleting = ExecAsync(cs, """DELETE FROM "RepoIssues" WHERE "Id" = 'gc-a'""");
+        await Task.Delay(1000);
+        Assert.False(deleting.IsCompleted, "the trigger should wait for the concurrent link");
+
+        await tx1.CommitAsync();
+        await deleting;
+
+        Assert.Equal(1, await CountAsync(cs, """SELECT count(*) FROM hub.issue_labels WHERE "Id" = 'gc-l'"""));
+        Assert.Equal(1, await CountAsync(cs, """SELECT count(*) FROM hub.repo_issue_labels WHERE "RepoIssueId" = 'gc-b'"""));
+
+        // Son bağ gerçekten gidince katalog da gider.
+        await ExecAsync(cs, """DELETE FROM "RepoIssues" WHERE "Id" = 'gc-b'""");
+        Assert.Equal(0, await CountAsync(cs, """SELECT count(*) FROM hub.issue_labels WHERE "Id" = 'gc-l'"""));
+    }
+
+    [RequiresDockerFact]
+    public async Task Migration_acik_kilit_karsisinda_sonsuza_dek_beklemiyor()
+    {
+        Assert.Contains("SET LOCAL lock_timeout", Phase14_2CNormalizationScripts.UpPrepare);
+        Assert.Contains("SET LOCAL lock_timeout", Phase14_2CNormalizationScripts.DownRestore);
+
+        var cs = await _pg.CreateDatabaseAsync("c_lock");
+        await MigrateAsync(cs, Before);
+
+        await using var holder = new NpgsqlConnection(cs);
+        await holder.OpenAsync();
+        await using var holderTx = await holder.BeginTransactionAsync();
+        await using (var hold = new NpgsqlCommand("""SELECT * FROM "GatewayApiKeys" LIMIT 1""", holder, holderTx))
+        await using (var r = await hold.ExecuteReaderAsync()) { }
+
+        await using var conn = new NpgsqlConnection(cs);
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        await using var cmd = new NpgsqlCommand("""
+            SET LOCAL lock_timeout = '500ms';
+            LOCK TABLE "RepoIssues", "GatewayApiKeys", "GatewayTablePermissions" IN ACCESS EXCLUSIVE MODE;
+            """, conn, tx);
+        var ex = await Assert.ThrowsAsync<PostgresException>(() => cmd.ExecuteNonQueryAsync());
+        Assert.Equal("55P03", ex.SqlState);
     }
 
     [RequiresDockerFact]
@@ -701,6 +892,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         Assert.Contains(GatewayAllowlistRules.Ipv4Pattern, up);
         Assert.Contains(GatewayAllowlistRules.Ipv6CharsPattern, up);
         Assert.Contains(GatewayAllowlistRules.PrefixPattern, up);
+        Assert.Contains(GatewayAllowlistRules.EmbeddedIpv4Pattern, up);
         Assert.Contains(Target.Split('_', 2)[1], typeof(Phase14_2C_NormalizeCollections).Name);
     }
 }

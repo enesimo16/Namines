@@ -22,7 +22,9 @@ public sealed class Phase14_2BPostgresFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        if (DockerAvailable.Value) await _container.StartAsync();
+        if (!DockerAvailable.Value) return;
+        await _container.StartAsync();
+        PostgresTestPools.Reset();
     }
 
     public async Task DisposeAsync()

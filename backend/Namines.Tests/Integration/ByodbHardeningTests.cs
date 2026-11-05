@@ -17,7 +17,11 @@ public class ByodbHardeningTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine").Build();
 
-    public Task InitializeAsync() => _container.StartAsync();
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();
+        PostgresTestPools.Reset();
+    }
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
     private string ConnectionString => _container.GetConnectionString();

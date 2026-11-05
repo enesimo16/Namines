@@ -51,8 +51,12 @@ public class DdlExecutionTests
         private readonly PostgreSqlContainer _container =
             new PostgreSqlBuilder("postgres:17-alpine").Build();
 
-        public Task InitializeAsync() =>
-            EngineAvailable.For(DatabaseType.PostgreSQL) ? _container.StartAsync() : Task.CompletedTask;
+        public async Task InitializeAsync()
+        {
+            if (!EngineAvailable.For(DatabaseType.PostgreSQL)) return;
+            await _container.StartAsync();
+            PostgresTestPools.Reset();
+        }
 
         public Task DisposeAsync() =>
             EngineAvailable.For(DatabaseType.PostgreSQL) ? _container.DisposeAsync().AsTask() : Task.CompletedTask;

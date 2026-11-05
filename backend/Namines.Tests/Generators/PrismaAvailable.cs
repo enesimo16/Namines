@@ -109,6 +109,9 @@ internal static class PrismaAvailable
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
+            // Süreç geneli çalışma dizinini değiştiren bir test onu silebilir; cmd.exe de "current directory
+            // is invalid" ile düşer. Devralmak yerine her zaman var olan bir dizin.
+            WorkingDirectory = Path.GetTempPath(),
         };
 
         if (isWindows)

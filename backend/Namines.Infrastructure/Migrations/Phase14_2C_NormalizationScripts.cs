@@ -8,8 +8,7 @@ namespace Namines.Infrastructure.Migrations;
 /// Hepsi EF'in açtığı tek işlemde ve ACCESS EXCLUSIVE kilit altında: eski kolon okunurken kimse
 /// yazamaz, doğrulama patlarsa hiçbir şey değişmemiş olur, maskesiz bir an oluşmaz.
 ///
-/// <b>Kapalıya düşme kuralı:</b> geçersiz allowlist girdisi karantinaya gider ve asla erişimi
-/// genişletmez. Geçerli girdisi kalmayan liste "kısıt yok" OLMAZ: bayrak açık kalır, her istek
+/// <b>Kapalıya düşme kuralı:</b> geçersiz allowlist girdisi karantinaya gider. Geçerli girdisi kalmayan liste "kısıt yok" OLMAZ: bayrak açık kalır, her istek
 /// reddedilir. Maskeleme girdisi ise hiçbir koşulda atılmaz (tek istisna, gerçek bir kolon adı
 /// olamayacak uzunluktaki metin), çünkü bir maskeyi atmak veri sızdırır.
 /// </summary>
@@ -27,6 +26,16 @@ public static class Phase14_2CNormalizationScripts
     private const string Ipv6CharsPattern = @"^[0-9a-fA-F:.]*:[0-9a-fA-F:.]*$";
 
     private const string PrefixPattern = @"^(0|[1-9][0-9]{0,2})$";
+
+    private const string EmbeddedIpv4Pattern =
+        @"^[0-9a-fA-F:]*:(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$";
+
+    /// <summary>
+    /// PostgreSQL inet, IPv6 içindeki gömülü IPv4'te eksik oktet kabul ediyor (<c>::ffff:1.2.3</c>,
+    /// <c>::.2.3.4/0</c> = tüm IPv6), .NET reddediyordu. Eski kodda hiç eşleşmeyen kural böylece
+    /// çalışan kurala dönüşürdü. Test bu satırı söküp doğrulamanın yakaladığını sınar.
+    /// </summary>
+    public const string DottedTailGuardSql = "IF NOT pg_temp.namines_2c_strict_dots(addr_text) THEN RETURN NULL; END IF;";
 
     private const int MaxMaskedColumnLength = 512;
 
@@ -47,19 +56,26 @@ public static class Phase14_2CNormalizationScripts
             WHERE pg_temp.namines_2c_trim(p) <> ''
         $b$;
 
+        CREATE OR REPLACE FUNCTION pg_temp.namines_2c_strict_dots(a text) RETURNS boolean LANGUAGE sql IMMUTABLE AS $b$
+            SELECT position('.' in a) = 0 OR a ~ '{{Ipv4Pattern}}' OR a ~ '{{EmbeddedIpv4Pattern}}'
+        $b$;
+
         CREATE OR REPLACE FUNCTION pg_temp.namines_2c_origin(item text) RETURNS text LANGUAGE plpgsql IMMUTABLE AS $b$
         DECLARE
             v text;
             m text[];
             addr inet;
+            addr_text text;
         BEGIN
             IF char_length(item) > 512 OR item !~ '^[!-~]+$' THEN RETURN NULL; END IF;
             v := lower(item COLLATE "C");
             m := regexp_match(v, '{{OriginPattern}}');
             IF m IS NULL THEN RETURN NULL; END IF;
             IF left(m[1], 1) = '[' THEN
+                addr_text := substr(m[1], 2, char_length(m[1]) - 2);
+                {{DottedTailGuardSql}}
                 BEGIN
-                    addr := substr(m[1], 2, char_length(m[1]) - 2)::inet;
+                    addr := addr_text::inet;
                 EXCEPTION WHEN invalid_text_representation THEN RETURN NULL;
                 END;
                 IF family(addr) <> 6 THEN RETURN NULL; END IF;
@@ -88,6 +104,7 @@ public static class Phase14_2CNormalizationScripts
         BEGIN
             IF addr_text !~ '{{Ipv4Pattern}}' AND addr_text !~ '{{Ipv6CharsPattern}}' THEN RETURN NULL; END IF;
             IF slash > 0 AND prefix_text !~ '{{PrefixPattern}}' THEN RETURN NULL; END IF;
+            {{DottedTailGuardSql}}
             BEGIN
                 addr := addr_text::inet;
             EXCEPTION WHEN invalid_text_representation THEN RETURN NULL;
@@ -103,6 +120,163 @@ public static class Phase14_2CNormalizationScripts
             bits := COALESCE(prefix_text::int, max_bits);
             IF bits > max_bits THEN RETURN NULL; END IF;
             RETURN network(set_masklen(addr, bits))::text;
+        END $b$;
+
+        -- ── Doğrulamanın kendi ayrıştırıcıları ─────────────────────────────────────
+        -- Doldurma fonksiyonlarını KULLANMAZ, inet'e de dönüştürmez: el ile, parça parça. Aynı fonksiyonu
+        -- paylaşan doğrulama o fonksiyonun hatasını göremez (gömülü IPv4 açığı tam böyle kaçmıştı).
+        CREATE OR REPLACE FUNCTION pg_temp.namines_2c_check_v4(t text) RETURNS int[] LANGUAGE plpgsql IMMUTABLE AS $b$
+        DECLARE
+            parts text[] := string_to_array(t, '.');
+            p text;
+            result int[] := ARRAY[]::int[];
+        BEGIN
+            IF parts IS NULL OR array_length(parts, 1) IS DISTINCT FROM 4 THEN RETURN NULL; END IF;
+            FOREACH p IN ARRAY parts LOOP
+                IF char_length(p) NOT BETWEEN 1 AND 3 OR p !~ '^[0-9]+$' COLLATE "C" OR (char_length(p) > 1 AND left(p, 1) = '0') OR p::int > 255 THEN
+                    RETURN NULL;
+                END IF;
+                result := result || p::int;
+            END LOOP;
+            RETURN result;
+        END $b$;
+
+        -- Yanıt: "<onaltılık baytlar, host bitleri sıfır>/<önek>" ya da geçersizse NULL.
+        CREATE OR REPLACE FUNCTION pg_temp.namines_2c_check_ip(item text) RETURNS text LANGUAGE plpgsql IMMUTABLE AS $b$
+        DECLARE
+            pieces text[] := string_to_array(item, '/');
+            addr text;
+            bits int;
+            sides text[];
+            left_groups text[];
+            right_groups text[];
+            g text;
+            words int[] := ARRAY[]::int[];
+            right_words int[] := ARRAY[]::int[];
+            tail int[];
+            bytes int[] := ARRAY[]::int[];
+            i int;
+            keep int;
+            hex text := '';
+        BEGIN
+            IF item IS NULL OR item = '' OR array_length(pieces, 1) > 2 THEN RETURN NULL; END IF;
+            addr := pieces[1];
+            IF array_length(pieces, 1) = 2 THEN
+                IF pieces[2] = '' OR char_length(pieces[2]) > 3 OR pieces[2] !~ '^[0-9]+$' COLLATE "C"
+                   OR (char_length(pieces[2]) > 1 AND left(pieces[2], 1) = '0') THEN
+                    RETURN NULL;
+                END IF;
+                bits := pieces[2]::int;
+            END IF;
+
+            IF position(':' in addr) = 0 THEN
+                bytes := pg_temp.namines_2c_check_v4(addr);
+                IF bytes IS NULL THEN RETURN NULL; END IF;
+            ELSE
+                IF position(':::' in addr) > 0 THEN RETURN NULL; END IF;
+                sides := string_to_array(addr, '::');
+                IF array_length(sides, 1) > 2 THEN RETURN NULL; END IF;
+                left_groups := CASE WHEN sides[1] = '' THEN ARRAY[]::text[] ELSE string_to_array(sides[1], ':') END;
+                right_groups := CASE WHEN array_length(sides, 1) = 2 AND sides[2] <> '' THEN string_to_array(sides[2], ':') ELSE ARRAY[]::text[] END;
+
+                -- Noktalı kuyruk yalnızca en sonda ve tam dört oktet: iki 16 bitlik grup sayılır.
+                FOR i IN 1 .. COALESCE(array_length(left_groups, 1), 0) LOOP
+                    g := left_groups[i];
+                    IF array_length(sides, 1) = 1 AND i = array_length(left_groups, 1) AND position('.' in g) > 0 THEN
+                        tail := pg_temp.namines_2c_check_v4(g);
+                        IF tail IS NULL THEN RETURN NULL; END IF;
+                        words := words || (tail[1] * 256 + tail[2]) || (tail[3] * 256 + tail[4]);
+                    ELSE
+                        IF char_length(g) NOT BETWEEN 1 AND 4 OR g !~ '^[0-9a-fA-F]+$' COLLATE "C" THEN RETURN NULL; END IF;
+                        words := words || ('x' || lpad(g, 8, '0'))::bit(32)::int;
+                    END IF;
+                END LOOP;
+                FOR i IN 1 .. COALESCE(array_length(right_groups, 1), 0) LOOP
+                    g := right_groups[i];
+                    IF i = array_length(right_groups, 1) AND position('.' in g) > 0 THEN
+                        tail := pg_temp.namines_2c_check_v4(g);
+                        IF tail IS NULL THEN RETURN NULL; END IF;
+                        right_words := right_words || (tail[1] * 256 + tail[2]) || (tail[3] * 256 + tail[4]);
+                    ELSE
+                        IF char_length(g) NOT BETWEEN 1 AND 4 OR g !~ '^[0-9a-fA-F]+$' COLLATE "C" THEN RETURN NULL; END IF;
+                        right_words := right_words || ('x' || lpad(g, 8, '0'))::bit(32)::int;
+                    END IF;
+                END LOOP;
+
+                IF array_length(sides, 1) = 2 THEN
+                    IF COALESCE(array_length(words, 1), 0) + COALESCE(array_length(right_words, 1), 0) > 7 THEN RETURN NULL; END IF;
+                    FOR i IN 1 .. 8 - COALESCE(array_length(words, 1), 0) - COALESCE(array_length(right_words, 1), 0) LOOP
+                        words := words || 0;
+                    END LOOP;
+                    words := words || right_words;
+                ELSIF COALESCE(array_length(words, 1), 0) <> 8 THEN
+                    RETURN NULL;
+                END IF;
+
+                -- IPv4-eşlenmiş: v4 kuralı; önekli hâli kabul edilmez.
+                IF words[1:5] = ARRAY[0,0,0,0,0] AND words[6] = 65535 THEN
+                    IF bits IS NOT NULL THEN RETURN NULL; END IF;
+                    bytes := ARRAY[words[7] / 256, words[7] % 256, words[8] / 256, words[8] % 256];
+                ELSE
+                    FOR i IN 1 .. 8 LOOP
+                        bytes := bytes || (words[i] / 256) || (words[i] % 256);
+                    END LOOP;
+                END IF;
+            END IF;
+
+            bits := COALESCE(bits, array_length(bytes, 1) * 8);
+            IF bits > array_length(bytes, 1) * 8 THEN RETURN NULL; END IF;
+            FOR i IN 1 .. array_length(bytes, 1) LOOP
+                keep := greatest(least(bits - (i - 1) * 8, 8), 0);
+                hex := hex || lpad(to_hex(bytes[i] & ((255 << (8 - keep)) & 255)), 2, '0');
+            END LOOP;
+            RETURN hex || '/' || bits;
+        END $b$;
+
+        CREATE OR REPLACE FUNCTION pg_temp.namines_2c_check_origin(item text) RETURNS text LANGUAGE plpgsql IMMUTABLE AS $b$
+        DECLARE
+            v text;
+            sep int;
+            scheme text;
+            authority text;
+            host text;
+            port text;
+            close_at int;
+            colon int;
+            label text;
+        BEGIN
+            IF item IS NULL OR item = '' OR char_length(item) > 512 OR item ~ '[^!-~]' COLLATE "C" THEN RETURN NULL; END IF;
+            v := lower(item COLLATE "C");
+            sep := position('://' in v);
+            IF sep < 2 THEN RETURN NULL; END IF;
+            scheme := left(v, sep - 1);
+            authority := substr(v, sep + 3);
+            IF scheme !~ '^[a-z]' COLLATE "C" OR scheme ~ '[^a-z0-9+.-]' COLLATE "C" OR authority = '' THEN RETURN NULL; END IF;
+
+            IF left(authority, 1) = '[' THEN
+                close_at := position(']' in authority);
+                IF close_at = 0 THEN RETURN NULL; END IF;
+                host := substr(authority, 2, close_at - 2);
+                IF position(':' in host) = 0 OR position('/' in host) > 0 OR pg_temp.namines_2c_check_ip(host) IS NULL THEN RETURN NULL; END IF;
+                port := substr(authority, close_at + 1);
+                IF port = ':' THEN RETURN NULL; END IF;
+                IF port <> '' AND left(port, 1) <> ':' THEN RETURN NULL; END IF;
+                port := substr(port, 2);
+            ELSE
+                colon := position(':' in authority);
+                host := CASE WHEN colon = 0 THEN authority ELSE left(authority, colon - 1) END;
+                port := CASE WHEN colon = 0 THEN '' ELSE substr(authority, colon + 1) END;
+                IF colon > 0 AND port = '' THEN RETURN NULL; END IF;
+                IF host = '' THEN RETURN NULL; END IF;
+                FOREACH label IN ARRAY string_to_array(host, '.') LOOP
+                    IF label = '' OR label ~ '[^a-z0-9_-]' COLLATE "C" OR left(label, 1) = '-' OR right(label, 1) = '-' THEN RETURN NULL; END IF;
+                END LOOP;
+            END IF;
+
+            IF port <> '' THEN
+                IF char_length(port) > 5 OR port ~ '[^0-9]' COLLATE "C" OR left(port, 1) = '0' OR port::int > 65535 THEN RETURN NULL; END IF;
+            END IF;
+            RETURN v;
         END $b$;
 
         -- NOT VALID CHECK'ler UPDATE'te yeniden denetlenir: tavanı aşan eski bir satır (RateLimit=0
@@ -151,6 +325,8 @@ public static class Phase14_2CNormalizationScripts
     public static string Down => string.Join("\n", DownRestore, DownVerify, DownContract);
 
     public static string UpPrepare => $$"""
+        -- Açık kalmış bir işlem varsa süresiz kuyrukta beklemek yerine düş: kuyruktaki kilit her okumayı da bekletir.
+        SET LOCAL lock_timeout = '30s';
         LOCK TABLE "RepoIssues", "GatewayApiKeys", "GatewayTablePermissions" IN ACCESS EXCLUSIVE MODE;
 
         DO $guard$
@@ -281,14 +457,14 @@ public static class Phase14_2CNormalizationScripts
         SELECT '{{OriginsSource}}', 'blank_list_means_no_restriction',
                jsonb_build_object('key_id', k."Id", 'project_id', k."ProjectId", 'raw', k."AllowedOrigins")
         FROM "GatewayApiKeys" k
-        WHERE k."AllowedOrigins" IS NOT NULL AND k."AllowedOrigins" <> ''
+        WHERE k."AllowedOrigins" IS NOT NULL AND pg_temp.namines_2c_trim(k."AllowedOrigins") <> ''
           AND NOT EXISTS (SELECT 1 FROM pg_temp.namines_2c_items(k."AllowedOrigins"));
 
         INSERT INTO migration_quarantine.orphaned_rows (source_table, reason, row_data)
         SELECT '{{IpsSource}}', 'blank_list_means_no_restriction',
                jsonb_build_object('key_id', k."Id", 'project_id', k."ProjectId", 'raw', k."AllowedIps")
         FROM "GatewayApiKeys" k
-        WHERE k."AllowedIps" IS NOT NULL AND k."AllowedIps" <> ''
+        WHERE k."AllowedIps" IS NOT NULL AND pg_temp.namines_2c_trim(k."AllowedIps") <> ''
           AND NOT EXISTS (SELECT 1 FROM pg_temp.namines_2c_items(k."AllowedIps"));
 
         -- Bayrak GEÇERLİ girdiye değil HERHANGİ bir girdiye bakar: kapalıya düşmenin tamamı bu satır.
@@ -342,6 +518,9 @@ public static class Phase14_2CNormalizationScripts
         -- ama FK ile giden her yol buradan geçer ve etiket metni sahipsiz kalmaz.
         CREATE FUNCTION hub.issue_label_gc() RETURNS trigger LANGUAGE plpgsql AS $gc$
         BEGIN
+            -- Önce satırı kilitle: başka işlem bu etikete bağ ekliyorsa onu bekle ki aşağıdaki NOT EXISTS
+            -- bağı görsün. Kilitsiz DELETE onu görmeden bekler ve commit edilmiş bağı CASCADE ile silerdi.
+            PERFORM 1 FROM hub.issue_labels WHERE "Id" = OLD."IssueLabelId" FOR UPDATE;
             DELETE FROM hub.issue_labels l
             WHERE l."Id" = OLD."IssueLabelId"
               AND NOT EXISTS (SELECT 1 FROM hub.repo_issue_labels r WHERE r."IssueLabelId" = OLD."IssueLabelId");
@@ -376,10 +555,10 @@ public static class Phase14_2CNormalizationScripts
         BEGIN
             -- ── Origin: beklenen küme ekleme sorgusundan bağımsız, ham metinden yeniden ayrıştırılır.
             WITH expected AS (
-                SELECT DISTINCT k."Id" AS key_id, pg_temp.namines_2c_origin(pg_temp.namines_2c_trim(p)) AS v
+                SELECT DISTINCT k."Id" AS key_id, pg_temp.namines_2c_check_origin(pg_temp.namines_2c_trim(p)) AS v
                 FROM "GatewayApiKeys" k
                 CROSS JOIN LATERAL regexp_split_to_table(k."AllowedOrigins", ',') AS p
-                WHERE pg_temp.namines_2c_trim(p) <> '' AND pg_temp.namines_2c_origin(pg_temp.namines_2c_trim(p)) IS NOT NULL
+                WHERE pg_temp.namines_2c_trim(p) <> '' AND pg_temp.namines_2c_check_origin(pg_temp.namines_2c_trim(p)) IS NOT NULL
             ), actual AS (SELECT "ApiKeyId" AS key_id, "Origin"::text AS v FROM gateway.api_key_allowed_origins)
             SELECT count(*) FILTER (WHERE a.key_id IS NULL), count(*) FILTER (WHERE e.key_id IS NULL) INTO missing, extra
             FROM expected e FULL JOIN actual a ON a.key_id = e.key_id AND a.v = e.v;
@@ -393,7 +572,7 @@ public static class Phase14_2CNormalizationScripts
             SELECT count(*) INTO canon FROM gateway.api_key_allowed_origins WHERE pg_temp.namines_2c_origin("Origin") IS DISTINCT FROM "Origin";
             SELECT count(*) INTO quarantine FROM "GatewayApiKeys" k
             CROSS JOIN LATERAL pg_temp.namines_2c_items(k."AllowedOrigins") i
-            WHERE pg_temp.namines_2c_origin(i.item) IS NULL AND NOT EXISTS (
+            WHERE pg_temp.namines_2c_check_origin(i.item) IS NULL AND NOT EXISTS (
                 SELECT 1 FROM migration_quarantine.orphaned_rows q
                 WHERE q.source_table = '{{OriginsSource}}' AND q.row_data->>'key_id' = k."Id" AND q.row_data->>'entry' = i.item);
             IF missing + extra + dup + orphan + flags + pos + canon + quarantine > 0 THEN
@@ -403,11 +582,11 @@ public static class Phase14_2CNormalizationScripts
 
             -- ── IP ────────────────────────────────────────────────────────────────
             WITH expected AS (
-                SELECT DISTINCT k."Id" AS key_id, pg_temp.namines_2c_ip(pg_temp.namines_2c_trim(p)) AS v
+                SELECT DISTINCT k."Id" AS key_id, pg_temp.namines_2c_check_ip(pg_temp.namines_2c_trim(p)) AS v
                 FROM "GatewayApiKeys" k
                 CROSS JOIN LATERAL regexp_split_to_table(k."AllowedIps", ',') AS p
-                WHERE pg_temp.namines_2c_trim(p) <> '' AND pg_temp.namines_2c_ip(pg_temp.namines_2c_trim(p)) IS NOT NULL
-            ), actual AS (SELECT "ApiKeyId" AS key_id, "Cidr"::text AS v FROM gateway.api_key_allowed_ips)
+                WHERE pg_temp.namines_2c_trim(p) <> '' AND pg_temp.namines_2c_check_ip(pg_temp.namines_2c_trim(p)) IS NOT NULL
+            ), actual AS (SELECT "ApiKeyId" AS key_id, pg_temp.namines_2c_check_ip("Cidr"::text) AS v FROM gateway.api_key_allowed_ips)
             SELECT count(*) FILTER (WHERE a.key_id IS NULL), count(*) FILTER (WHERE e.key_id IS NULL) INTO missing, extra
             FROM expected e FULL JOIN actual a ON a.key_id = e.key_id AND a.v = e.v;
             SELECT count(*) INTO dup FROM (SELECT 1 FROM gateway.api_key_allowed_ips GROUP BY "ApiKeyId", "Cidr" HAVING count(*) > 1) d;
@@ -420,7 +599,7 @@ public static class Phase14_2CNormalizationScripts
             SELECT count(*) INTO canon FROM gateway.api_key_allowed_ips WHERE pg_temp.namines_2c_ip("Cidr") IS DISTINCT FROM "Cidr";
             SELECT count(*) INTO quarantine FROM "GatewayApiKeys" k
             CROSS JOIN LATERAL pg_temp.namines_2c_items(k."AllowedIps") i
-            WHERE pg_temp.namines_2c_ip(i.item) IS NULL AND NOT EXISTS (
+            WHERE pg_temp.namines_2c_check_ip(i.item) IS NULL AND NOT EXISTS (
                 SELECT 1 FROM migration_quarantine.orphaned_rows q
                 WHERE q.source_table = '{{IpsSource}}' AND q.row_data->>'key_id' = k."Id" AND q.row_data->>'entry' = i.item);
             IF missing + extra + dup + orphan + flags + pos + canon + quarantine > 0 THEN
@@ -488,6 +667,7 @@ public static class Phase14_2CNormalizationScripts
         """;
 
     public static string DownRestore => $$"""
+        SET LOCAL lock_timeout = '30s';
         LOCK TABLE "RepoIssues", "GatewayApiKeys", "GatewayTablePermissions",
             gateway.api_key_allowed_origins, gateway.api_key_allowed_ips, gateway.table_masked_columns,
             hub.issue_labels, hub.repo_issue_labels IN ACCESS EXCLUSIVE MODE;
@@ -498,6 +678,19 @@ public static class Phase14_2CNormalizationScripts
         ALTER TABLE "GatewayApiKeys" ADD COLUMN "AllowedOrigins" text NULL, ADD COLUMN "AllowedIps" text NULL;
         ALTER TABLE "GatewayTablePermissions" ADD COLUMN "MaskedColumns" text NULL;
         ALTER TABLE "RepoIssues" ADD COLUMN "Labels" character varying(256) NULL;
+
+        -- Karantina jsonb, indekssiz: anahtar başına aramak karesel büyürdü.
+        CREATE TEMP TABLE namines_2c_raw ON COMMIT DROP AS
+            SELECT DISTINCT ON (q.source_table, q.row_data->>'key_id') q.source_table, q.row_data->>'key_id' AS key_id, q.row_data->>'raw' AS raw
+            FROM migration_quarantine.orphaned_rows q
+            WHERE q.source_table IN ('{{OriginsSource}}', '{{IpsSource}}');
+        CREATE INDEX ON namines_2c_raw (source_table, key_id);
+        CREATE TEMP TABLE namines_2c_long_masks ON COMMIT DROP AS
+            SELECT q.row_data->>'permission_id' AS permission_id, string_agg(q.row_data->>'entry', ',' ORDER BY (q.row_data->>'ord')::bigint) AS entries
+            FROM migration_quarantine.orphaned_rows q
+            WHERE q.source_table = '{{MaskedSource}}'
+            GROUP BY 1;
+        CREATE INDEX ON namines_2c_long_masks (permission_id);
 
         DO $restore$
         DECLARE
@@ -511,13 +704,11 @@ public static class Phase14_2CNormalizationScripts
             -- açıksa, hiçbir şeyle eşleşmeyen bir girdi aynı sonucu verir: boş liste eski kodda "serbest".
             UPDATE "GatewayApiKeys" k SET
                 "AllowedOrigins" = COALESCE(
-                    (SELECT q.row_data->>'raw' FROM migration_quarantine.orphaned_rows q
-                     WHERE q.source_table = '{{OriginsSource}}' AND q.row_data->>'key_id' = k."Id" LIMIT 1),
+                    (SELECT r.raw FROM namines_2c_raw r WHERE r.source_table = '{{OriginsSource}}' AND r.key_id = k."Id"),
                     (SELECT string_agg(o."Origin", ',' ORDER BY o."Position") FROM gateway.api_key_allowed_origins o WHERE o."ApiKeyId" = k."Id"),
                     CASE WHEN k."RestrictOrigins" THEN 'invalid:deny-all' END),
                 "AllowedIps" = COALESCE(
-                    (SELECT q.row_data->>'raw' FROM migration_quarantine.orphaned_rows q
-                     WHERE q.source_table = '{{IpsSource}}' AND q.row_data->>'key_id' = k."Id" LIMIT 1),
+                    (SELECT r.raw FROM namines_2c_raw r WHERE r.source_table = '{{IpsSource}}' AND r.key_id = k."Id"),
                     (SELECT string_agg(regexp_replace(i."Cidr", CASE WHEN position(':' in i."Cidr") > 0 THEN '/128$' ELSE '/32$' END, ''), ',' ORDER BY i."Position")
                      FROM gateway.api_key_allowed_ips i WHERE i."ApiKeyId" = k."Id"),
                     CASE WHEN k."RestrictIps" THEN 'invalid' END);
@@ -525,8 +716,7 @@ public static class Phase14_2CNormalizationScripts
             -- Çok uzun adlar da geri gelir: bir maske listesini kısaltarak geri dönmek olmaz.
             UPDATE "GatewayTablePermissions" p SET "MaskedColumns" = NULLIF(concat_ws(',',
                 (SELECT string_agg(m."ColumnName", ',' ORDER BY m."Position") FROM gateway.table_masked_columns m WHERE m."TablePermissionId" = p."Id"),
-                (SELECT string_agg(q.row_data->>'entry', ',' ORDER BY (q.row_data->>'ord')::bigint) FROM migration_quarantine.orphaned_rows q
-                 WHERE q.source_table = '{{MaskedSource}}' AND q.row_data->>'permission_id' = p."Id")), '');
+                (SELECT l.entries FROM namines_2c_long_masks l WHERE l.permission_id = p."Id")), '');
 
             UPDATE "RepoIssues" r SET "Labels" = (
                 SELECT string_agg(l."DisplayName", ',' ORDER BY l."Position") FROM hub.repo_issue_labels l WHERE l."RepoIssueId" = r."Id");
@@ -546,7 +736,7 @@ public static class Phase14_2CNormalizationScripts
             -- Her alt tablo satırı geri dönen metnin içinde olmalı.
             SELECT count(*) INTO lost FROM gateway.api_key_allowed_origins o
             JOIN "GatewayApiKeys" k ON k."Id" = o."ApiKeyId"
-            WHERE NOT EXISTS (SELECT 1 FROM pg_temp.namines_2c_items(k."AllowedOrigins") i WHERE pg_temp.namines_2c_origin(i.item) = o."Origin");
+            WHERE NOT EXISTS (SELECT 1 FROM pg_temp.namines_2c_items(k."AllowedOrigins") i WHERE pg_temp.namines_2c_check_origin(i.item) = o."Origin");
             -- Kısıtlı anahtarın metni eski kodda da kısıtlı okunmalı: boş liste = serbest.
             SELECT count(*) INTO widened FROM "GatewayApiKeys" k
             WHERE k."RestrictOrigins" AND NOT EXISTS (SELECT 1 FROM pg_temp.namines_2c_items(k."AllowedOrigins"));
@@ -556,7 +746,7 @@ public static class Phase14_2CNormalizationScripts
 
             SELECT count(*) INTO lost FROM gateway.api_key_allowed_ips o
             JOIN "GatewayApiKeys" k ON k."Id" = o."ApiKeyId"
-            WHERE NOT EXISTS (SELECT 1 FROM pg_temp.namines_2c_items(k."AllowedIps") i WHERE pg_temp.namines_2c_ip(i.item) = o."Cidr");
+            WHERE NOT EXISTS (SELECT 1 FROM pg_temp.namines_2c_items(k."AllowedIps") i WHERE pg_temp.namines_2c_check_ip(i.item) = pg_temp.namines_2c_check_ip(o."Cidr"));
             SELECT count(*) INTO widened FROM "GatewayApiKeys" k
             WHERE k."RestrictIps" AND NOT EXISTS (SELECT 1 FROM pg_temp.namines_2c_items(k."AllowedIps"));
             IF lost + widened > 0 THEN

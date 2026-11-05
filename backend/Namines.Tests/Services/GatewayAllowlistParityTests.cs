@@ -104,6 +104,8 @@ public static class GatewayAllowlistCases
         // Geçersizler
         "not-an-ip", "10.0.0.0/99", "10.0.0.0/x", "10.0.0.0/", "10.0.0.0/08", "10.0.0.0/+8", "1.2", "0x7f.0.0.1", "010.0.0.1",
         "[::1]", "fe80::1%3", "1.2.3.4:80", "::ffff:1.2.3.4/128", "::ffff:10.0.0.0/8", "256.1.1.1", "2001:db8::/129", "1:2:3:4:5:6:7:8:9",
+        // PostgreSQL inet kabul eder, .NET etmez: eski kodda kimseyle eşleşmiyordu (denetim B-1)
+        "::ffff:1.2.3", "::ffff:1.23", "::.2.3.4/0", "::ffff:62:.253.88.177/46", "::ffff:1.2.3.07",
         // Karışık
         "1.2.3.4,bad", "bad,2001:db8::1",
     };
@@ -132,42 +134,66 @@ public static class GatewayAllowlistCases
 /// <summary>Yeni davranış, eski metin eşleşmesiyle tablo üzerinde karşılaştırılır.</summary>
 public class GatewayAllowlistParityTests
 {
-    private static IEnumerable<object?[]> Cross(IEnumerable<string?> lists, IEnumerable<string?> probes) =>
-        from l in lists from p in probes select new object?[] { l, p };
-
-    public static IEnumerable<object?[]> OriginMatrix() => Cross(GatewayAllowlistCases.OriginLists, GatewayAllowlistCases.OriginProbes);
-
-    public static IEnumerable<object?[]> IpMatrix() => Cross(GatewayAllowlistCases.IpLists, GatewayAllowlistCases.IpProbes);
-
-    [Theory]
-    [MemberData(nameof(OriginMatrix))]
-    public void Origin_matches_legacy_when_valid_and_never_widens(string? list, string? probe)
+    [Fact]
+    public void Origin_table_matches_legacy_when_valid_and_never_widens()
     {
-        var parsed = GatewayAllowlistRules.ParseOrigins(list);
-        var legacy = LegacyGatewayMatching.IsOriginAllowed(list, probe);
-        var current = GatewayKeyRestrictions.IsOriginAllowed(GatewayAllowlistCases.Key(list, null), probe);
-
-        if (parsed.Invalid.Count == 0) Assert.Equal(legacy, current);
-        else if (current) Assert.True(legacy, $"'{list}' widened access for '{probe}'");
-    }
-
-    [Theory]
-    [MemberData(nameof(IpMatrix))]
-    public void Ip_matches_legacy_when_valid_and_never_widens(string? list, string probe)
-    {
-        var address = IPAddress.Parse(probe);
-        var parsed = GatewayAllowlistRules.ParseIps(list);
-        var key = GatewayAllowlistCases.Key(null, list);
-
-        foreach (var trustworthy in new[] { true, false })
+        foreach (var list in GatewayAllowlistCases.OriginLists)
         {
-            var legacy = LegacyGatewayMatching.IsIpAllowed(list, address, trustworthy);
-            var current = GatewayKeyRestrictions.IsIpAllowed(key, address, trustworthy, out _);
+            var parsed = GatewayAllowlistRules.ParseOrigins(list);
+            var key = GatewayAllowlistCases.Key(list, null);
+            foreach (var probe in GatewayAllowlistCases.OriginProbes)
+            {
+                var legacy = LegacyGatewayMatching.IsOriginAllowed(list, probe);
+                var current = GatewayKeyRestrictions.IsOriginAllowed(key, probe);
 
-            if (parsed.Invalid.Count == 0) Assert.Equal(legacy, current);
-            else if (current) Assert.True(legacy, $"'{list}' widened access for {probe}");
+                if (parsed.Invalid.Count == 0) Assert.True(legacy == current, $"'{list}' vs '{probe}': legacy={legacy}, current={current}");
+                else if (current) Assert.True(legacy, $"'{list}' widened access for '{probe}'");
+            }
         }
     }
+
+    [Fact]
+    public void Ip_table_matches_legacy_when_valid_and_never_widens()
+    {
+        foreach (var list in GatewayAllowlistCases.IpLists)
+        {
+            var parsed = GatewayAllowlistRules.ParseIps(list);
+            var key = GatewayAllowlistCases.Key(null, list);
+            foreach (var probe in GatewayAllowlistCases.IpProbes)
+            {
+                var address = IPAddress.Parse(probe);
+                foreach (var trustworthy in new[] { true, false })
+                {
+                    var legacy = LegacyGatewayMatching.IsIpAllowed(list, address, trustworthy);
+                    var current = GatewayKeyRestrictions.IsIpAllowed(key, address, trustworthy, out _);
+
+                    if (parsed.Invalid.Count == 0) Assert.True(legacy == current, $"'{list}' vs {probe}: legacy={legacy}, current={current}");
+                    else if (current) Assert.True(legacy, $"'{list}' widened access for {probe}");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void A_scoped_client_matches_a_plain_rule_by_design()
+    {
+        // Bilinen tek fark (rapor bölüm 5): eski IPAddress.Equals kapsam kimliğini de karşılaştırıyordu, CIDR yolu
+        // karşılaştırmıyordu. Artık her kural CIDR: aynı bağlantı-yerel adres, kapsam ne olursa olsun eşleşir.
+        // Kural kapsam kimliği taşıyamaz (reddedilir), başka adrese izin verilmez.
+        Assert.Null(GatewayAllowlistRules.NormalizeIp("fe80::1%3"));
+        var key = GatewayAllowlistCases.Key(null, "fe80::1");
+        Assert.True(GatewayKeyRestrictions.IsIpAllowed(key, IPAddress.Parse("fe80::1%3"), true, out _));
+        Assert.False(GatewayKeyRestrictions.IsIpAllowed(key, IPAddress.Parse("fe80::2%3"), true, out _));
+    }
+
+    [Theory]
+    [InlineData("::ffff:1.2.3")]
+    [InlineData("::ffff:1.23")]
+    [InlineData("::.2.3.4/0")]
+    [InlineData("::ffff:62:.253.88.177/46")]
+    [InlineData("::ffff:1.2.3.07")]
+    public void Truncated_embedded_ipv4_is_invalid(string rule) =>
+        Assert.Null(GatewayAllowlistRules.NormalizeIp(rule));
 
     [Theory]
     [InlineData("*")]

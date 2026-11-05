@@ -19,6 +19,7 @@ namespace Namines.Tests.Services;
 /// <b>tüm arayüzlerine</b> (0.0.0.0) açıyor: genel IP'si olan bir makinede bu,
 /// veritabanını bilinen bir parolayla internete açmak demekti.
 /// </summary>
+[Collection(ProcessWorkingDirectoryCollection.Name)]
 public sealed class CoderAiPackageSecretsTests : IDisposable
 {
     private readonly string _cwd = Directory.GetCurrentDirectory();
@@ -142,4 +143,13 @@ public sealed class CoderAiPackageSecretsTests : IDisposable
 
         Assert.Contains(".env", gitignore);
     }
+}
+
+/// <summary>
+/// Süreç geneli çalışma dizinini değiştiren testler: paralel koşan hiçbir test onu görmemeli.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class ProcessWorkingDirectoryCollection
+{
+    public const string Name = "ProcessWorkingDirectory";
 }

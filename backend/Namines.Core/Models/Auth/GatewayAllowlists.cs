@@ -88,6 +88,10 @@ public static partial class GatewayAllowlistRules
 
     public const string PrefixPattern = @"^(0|[1-9][0-9]{0,2})$";
 
+    /// <summary>IPv6 içinde gömülü IPv4 ancak tam dört oktet ve baştaki sıfır olmadan.</summary>
+    public const string EmbeddedIpv4Pattern =
+        @"^[0-9a-fA-F:]*:(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$";
+
     [GeneratedRegex(OriginPattern, RegexOptions.CultureInvariant)]
     private static partial Regex OriginRegex();
 
@@ -99,6 +103,12 @@ public static partial class GatewayAllowlistRules
 
     [GeneratedRegex(PrefixPattern, RegexOptions.CultureInvariant)]
     private static partial Regex PrefixRegex();
+
+    [GeneratedRegex(EmbeddedIpv4Pattern, RegexOptions.CultureInvariant)]
+    private static partial Regex EmbeddedIpv4Regex();
+
+    private static bool HasStrictDots(string address) =>
+        !address.Contains('.') || Ipv4Regex().IsMatch(address) || EmbeddedIpv4Regex().IsMatch(address);
 
     /// <summary>Geçerliyse kanonik origin, değilse null.</summary>
     public static string? NormalizeOrigin(string? entry)
@@ -117,7 +127,7 @@ public static partial class GatewayAllowlistRules
         // Köşeli parantezli IPv6 ve port aralığı kalıpla ifade edilemiyor.
         var host = match.Groups[1].Value;
         if (host.StartsWith('[') &&
-            (!IPAddress.TryParse(host[1..^1], out var parsed) || parsed.AddressFamily != AddressFamily.InterNetworkV6))
+            (!HasStrictDots(host[1..^1]) || !IPAddress.TryParse(host[1..^1], out var parsed) || parsed.AddressFamily != AddressFamily.InterNetworkV6))
             return null;
 
         var authorityEnd = match.Groups[1].Index + match.Groups[1].Length;
@@ -141,6 +151,7 @@ public static partial class GatewayAllowlistRules
         var slash = value.IndexOf('/');
         var addressText = slash < 0 ? value : value[..slash];
         if (!Ipv4Regex().IsMatch(addressText) && !Ipv6CharsRegex().IsMatch(addressText)) return null;
+        if (!HasStrictDots(addressText)) return null;
         if (!IPAddress.TryParse(addressText, out var address)) return null;
 
         if (address.IsIPv4MappedToIPv6)
