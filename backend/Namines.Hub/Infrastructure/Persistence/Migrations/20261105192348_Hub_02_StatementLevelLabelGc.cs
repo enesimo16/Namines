@@ -14,9 +14,27 @@ namespace Namines.Hub.Infrastructure.Persistence.Migrations
     /// </summary>
     public partial class Hub_02_StatementLevelLabelGc : Migration
     {
+        /// <summary>
+        /// CREATE OR REPLACE fonksiyonun sahibini ister. 14.2C'yi süper kullanıcı çalıştırıp sonradan rollere geçilen
+        /// kurulumda fonksiyon eski sahibinde kalıyordu ve migration çıplak 42501 ile düşüyordu (denetim R2-M1).
+        /// Kural aynı (yine 42501, işlem geri alınır) ama mesaj ne yapılacağını söylüyor.
+        /// </summary>
+        private const string OwnershipGuard = """
+            DO $own$
+            DECLARE fn_owner oid;
+            BEGIN
+                SELECT p.proowner INTO fn_owner FROM pg_proc p WHERE p.oid = 'hub.issue_label_gc()'::regprocedure;
+                IF NOT pg_has_role(current_user, fn_owner, 'USAGE') THEN
+                    RAISE EXCEPTION 'Hub_02: hub.issue_label_gc() is owned by %, migrations run as %. Re-run deploy/sql/roles.sql (it hands functions to namines_migrator), then --migrate again.', fn_owner::regrole, current_user
+                        USING ERRCODE = '42501';
+                END IF;
+            END $own$;
+            """;
+
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("SET LOCAL lock_timeout = '30s';");
+            migrationBuilder.Sql(OwnershipGuard);
             migrationBuilder.Sql("""
                 DROP TRIGGER trg_repo_issue_labels_gc ON hub.repo_issue_labels;
                 CREATE OR REPLACE FUNCTION hub.issue_label_gc() RETURNS trigger LANGUAGE plpgsql AS $gc$
@@ -39,6 +57,7 @@ namespace Namines.Hub.Infrastructure.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("SET LOCAL lock_timeout = '30s';");
+            migrationBuilder.Sql(OwnershipGuard);
             migrationBuilder.Sql("""
                 DROP TRIGGER trg_repo_issue_labels_gc ON hub.repo_issue_labels;
                 CREATE OR REPLACE FUNCTION hub.issue_label_gc() RETURNS trigger LANGUAGE plpgsql AS $gc$

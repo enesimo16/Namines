@@ -58,18 +58,67 @@ BEGIN
   END LOOP;
 END $$;
 
--- Mevcut tabloların sahipliğini migrator'a devret (yoksa migration'daki ALTER TABLE
--- sahibi olmayan rolle başarısız olur). Yalnızca bu betiği çalıştıran rol sahipse işe yarar.
--- Şema listesi yukarıdakiyle AYNI olmalı: eksik şemanın tabloları eski sahibinde kalır ve o modülün sonraki
--- migration'ı migrator ile düşer (denetim m-2, ops).
+-- Mevcut nesnelerin sahipliğini migrator'a devret (yoksa migration'daki ALTER/CREATE OR REPLACE sahibi
+-- olmayan rolle 42501 ile düşer). Yalnızca bu betiği çalıştıran rol sahipse işe yarar.
+-- Tablo ve dizi yetmez: süper kullanıcıyla kurulmuş bir veritabanında fonksiyonlar (ör. hub.issue_label_gc
+-- tetikleyici fonksiyonu), tipler, görünümler ve şemaların kendisi de eski sahibinde kalır; sonraki migration
+-- onları değiştiremez (denetim m-2 ops, R2-M1 fonksiyon). Eklentiye ait nesneler eklentiyle yönetilir, atlanır.
+-- migration_quarantine yalnız sahiplik listesinde: uygulama rolü ona erişmez, ama 14.2C Down'ı onu okur.
 DO $$
-DECLARE r record;
+DECLARE
+  owned text[] := ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway','ops','migration_quarantine'];
+  r record;
 BEGIN
-  FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname = ANY (ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway','ops']) LOOP
-    EXECUTE format('ALTER TABLE %I.%I OWNER TO namines_migrator', r.schemaname, r.tablename);
+  -- Şemalar. public paylaşılır (PG15+ sahibi pg_database_owner), devredilmez; migrator'ın orada CREATE'i var.
+  FOR r IN SELECT nspname FROM pg_namespace WHERE nspname = ANY (owned) AND nspname <> 'public' LOOP
+    EXECUTE format('ALTER SCHEMA %I OWNER TO namines_migrator', r.nspname);
   END LOOP;
-  FOR r IN SELECT sequence_schema AS s, sequence_name AS n FROM information_schema.sequences WHERE sequence_schema = ANY (ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway','ops']) LOOP
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'migration_quarantine') THEN
+    GRANT USAGE, CREATE ON SCHEMA migration_quarantine TO namines_migrator;
+  END IF;
+
+  -- Tablolar, bölümlü tablolar, görünümler, gerçekleştirilmiş görünümler, yabancı tablolar.
+  FOR r IN
+    SELECT n.nspname AS s, c.relname AS n, c.relkind AS k
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = ANY (owned) AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
+  LOOP
+    EXECUTE format(CASE r.k
+        WHEN 'v' THEN 'ALTER VIEW %I.%I OWNER TO namines_migrator'
+        WHEN 'm' THEN 'ALTER MATERIALIZED VIEW %I.%I OWNER TO namines_migrator'
+        WHEN 'f' THEN 'ALTER FOREIGN TABLE %I.%I OWNER TO namines_migrator'
+        ELSE 'ALTER TABLE %I.%I OWNER TO namines_migrator' END, r.s, r.n);
+  END LOOP;
+
+  FOR r IN SELECT sequence_schema AS s, sequence_name AS n FROM information_schema.sequences WHERE sequence_schema = ANY (owned) LOOP
     EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO namines_migrator', r.s, r.n);
+  END LOOP;
+
+  -- Fonksiyon, tetikleyici fonksiyonu, prosedür, toplama.
+  FOR r IN
+    SELECT p.oid::regprocedure::text AS sig, p.prokind AS k
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = ANY (owned)
+      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+  LOOP
+    EXECUTE format(CASE r.k
+        WHEN 'a' THEN 'ALTER AGGREGATE %s OWNER TO namines_migrator'
+        WHEN 'p' THEN 'ALTER PROCEDURE %s OWNER TO namines_migrator'
+        ELSE 'ALTER FUNCTION %s OWNER TO namines_migrator' END, r.sig);
+  END LOOP;
+
+  -- Kullanıcı tipleri: enum, domain, range ve tek başına bileşik tip. Dizi, çoklu aralık ve tablo satır
+  -- tipleri sahibini kendi nesnesinden alır, doğrudan değiştirilemez.
+  FOR r IN
+    SELECT t.oid::regtype::text AS t, t.typtype AS k
+    FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = ANY (owned)
+      AND (t.typtype IN ('e', 'd', 'r')
+           OR (t.typtype = 'c' AND EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = t.typrelid AND c.relkind = 'c')))
+      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_type'::regclass AND d.objid = t.oid AND d.deptype = 'e')
+  LOOP
+    EXECUTE format(CASE r.k WHEN 'd' THEN 'ALTER DOMAIN %s OWNER TO namines_migrator' ELSE 'ALTER TYPE %s OWNER TO namines_migrator' END, r.t);
   END LOOP;
 END $$;
 

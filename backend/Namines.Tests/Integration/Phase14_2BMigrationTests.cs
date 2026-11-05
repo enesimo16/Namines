@@ -91,6 +91,14 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         await cmd.ExecuteNonQueryAsync();
     }
 
+    private static async Task<string?> ScalarAsync(string cs, string sql)
+    {
+        await using var conn = new NpgsqlConnection(cs);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        return (await cmd.ExecuteScalarAsync())?.ToString();
+    }
+
     private static async Task<long> CountAsync(string cs, string sql)
     {
         await using var conn = new NpgsqlConnection(cs);
@@ -485,6 +493,68 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
             await ctx.Database.MigrateAsync();
         }
         Assert.Equal(4, await CountAsync(adminCs, """SELECT count(*) FROM pg_tables WHERE schemaname = 'ops' AND tablename IN ('Feedbacks','SqlExecutionAudits','FeatureFlags','AiToolRoutes')"""));
+    }
+
+    [RequiresDockerFact]
+    public async Task Suveri_kullaniciyla_14_2C_kurulumu_rollere_gecip_migrator_ile_tum_zincirleri_tamamliyor()
+    {
+        // Denetim R2-M1: 14.2C'yi süper kullanıcı çalıştırınca hub.issue_label_gc onun malı kalıyordu; roles.sql
+        // yalnız tablo ve dizi devrediyordu, Hub_02 migrator ile 42501 alıp Hub/Gateway/Ops'u durduruyordu.
+        const string database = "b_roles_after_2c";
+        var adminCs = await _pg.CreateDatabaseAsync(database);
+        await using (var ctx = Context(adminCs))
+            await ctx.GetService<IMigrator>().MigrateAsync(TestModules.Level14_2C);
+        await TestModules.SeedLiveAsync(adminCs);
+        Assert.Equal("postgres", await ScalarAsync(adminCs, "SELECT proowner::regrole::text FROM pg_proc WHERE oid = 'hub.issue_label_gc()'::regprocedure"));
+
+        await _pg.ApplyRolesAsync(database, await File.ReadAllTextAsync(BackendFile("..", "deploy", "sql", "roles.sql")));
+        Assert.Equal("namines_migrator", await ScalarAsync(adminCs, "SELECT proowner::regrole::text FROM pg_proc WHERE oid = 'hub.issue_label_gc()'::regprocedure"));
+        Assert.Equal(0, await CountAsync(adminCs, """
+            SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname IN ('public','flow','namines_vault','ground','desk','studio','hub','gateway','ops','migration_quarantine')
+              AND p.proowner::regrole::text <> 'namines_migrator'
+            """));
+
+        // Belgeli geçiş: migration artık migrator ile, tek komut, bütün zincirler.
+        var migratorCs = new NpgsqlConnectionStringBuilder(adminCs) { Username = "namines_migrator", Password = "migrator-pw" }.ConnectionString;
+        await TestModules.MigrateAllAsync(migratorCs);
+        Assert.Empty(await Namines.BuildingBlocks.Persistence.ModuleMigrationOrchestrator.GetPendingAsync(TestModules.Descriptors, migratorCs));
+        Assert.Equal("statement", await ScalarAsync(adminCs, "SELECT CASE WHEN tgtype & 1 = 1 THEN 'row' ELSE 'statement' END FROM pg_trigger WHERE tgname = 'trg_repo_issue_labels_gc'"));
+        await TestModules.AssertSeedIntactAsync(adminCs);
+
+        // Uygulama rolü taşınan her tabloyu okur ve yazar; etiket GC tetikleyicisi onun yetkisiyle çalışır.
+        var appCs = new NpgsqlConnectionStringBuilder(adminCs) { Username = "namines_app", Password = "app-pw" }.ConnectionString;
+        foreach (var (schema, table) in TestModules.MovedTables)
+            Assert.True(await CountAsync(appCs, $"SELECT count(*) FROM {schema}.\"{table}\"") >= 0);
+        await ExecAsync(appCs, """DELETE FROM hub.repo_issue_labels WHERE "RepoIssueId" = 'i1'""");
+        Assert.Equal(0, await CountAsync(appCs, """SELECT count(*) FROM hub.issue_labels WHERE "Id" = 'l1'"""));
+        await ExecAsync(appCs, """INSERT INTO ops."Feedbacks" ("Message","Category","CreatedAt") VALUES ('m','General',now())""");
+        await ExecAsync(appCs, """UPDATE gateway."GatewayApiKeys" SET "LastUsedAt" = now() WHERE "ProjectId" = 'p1'""");
+    }
+
+    [RequiresDockerFact]
+    public async Task Fonksiyon_sahibi_eksikse_Hub_02_ne_yapilacagini_soyleyerek_durur_ve_roles_sql_sonrasi_devam_eder()
+    {
+        const string database = "b_hub02_guard";
+        var adminCs = await _pg.CreateDatabaseAsync(database);
+        await using (var ctx = Context(adminCs))
+            await ctx.GetService<IMigrator>().MigrateAsync(TestModules.Level14_2C);
+        var roles = await File.ReadAllTextAsync(BackendFile("..", "deploy", "sql", "roles.sql"));
+        await _pg.ApplyRolesAsync(database, roles);
+        // Eski roles.sql'in bıraktığı durum: fonksiyon hâlâ süper kullanıcıda.
+        await ExecAsync(adminCs, "ALTER FUNCTION hub.issue_label_gc() OWNER TO postgres");
+
+        var migratorCs = new NpgsqlConnectionStringBuilder(adminCs) { Username = "namines_migrator", Password = "migrator-pw" }.ConnectionString;
+        var ex = await Assert.ThrowsAsync<PostgresException>(() => TestModules.MigrateAllAsync(migratorCs));
+        Assert.Equal("42501", ex.SqlState);
+        Assert.Contains("Re-run deploy/sql/roles.sql", ex.MessageText);
+        Assert.Equal(1, await CountAsync(adminCs, "SELECT count(*) FROM hub.\"__EFMigrationsHistory\""));
+        Assert.Equal("row", await ScalarAsync(adminCs, "SELECT CASE WHEN tgtype & 1 = 1 THEN 'row' ELSE 'statement' END FROM pg_trigger WHERE tgname = 'trg_repo_issue_labels_gc'"));
+
+        // Runbook adımı: roles.sql yeniden, sonra aynı komut kaldığı yerden tamamlar.
+        await _pg.ApplyRolesAsync(database, roles);
+        await TestModules.MigrateAllAsync(migratorCs);
+        Assert.Empty(await Namines.BuildingBlocks.Persistence.ModuleMigrationOrchestrator.GetPendingAsync(TestModules.Descriptors, migratorCs));
     }
 
     [RequiresDockerFact]
