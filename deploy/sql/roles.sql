@@ -32,11 +32,13 @@ ALTER ROLE namines_migrator PASSWORD :migrator_password;
 ALTER ROLE namines_app      PASSWORD :app_password;
 ALTER ROLE namines_app NOSUPERUSER NOCREATEDB NOCREATEROLE;
 
-GRANT CONNECT ON DATABASE :"dbname" TO namines_migrator, namines_app;
+GRANT CONNECT, CREATE ON DATABASE :"dbname" TO namines_migrator;
+GRANT CONNECT ON DATABASE :"dbname" TO namines_app;
 
 -- Namines şemaları: modül tabloları kendi şemalarında (flow, namines_vault, ground, desk, studio,
--- hub), kalanı 'public'te. Şemalar burada migrator'a ait açılır: migrator'ın veritabanı düzeyinde
--- CREATE yetkisi yok. Başka şema eklenirse listeye ekleyin.
+-- hub), kalanı 'public'te. Şemalar burada migrator'a ait açılır ki aşağıdaki app yetkileri bugünden
+-- geçerli olsun. Migrator'ın veritabanı CREATE yetkisi de var: migration'lar yeni şema (EnsureSchema,
+-- geçici karantina vb.) açabilmeli. Yeni şema eklenirse listeye ekleyin; yoksa app ona erişemez.
 DO $$
 DECLARE s text;
 BEGIN
