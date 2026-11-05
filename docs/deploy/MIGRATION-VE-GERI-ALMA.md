@@ -193,6 +193,12 @@ her zaman istenen şeyi yapmaz):
   (`Down` verileri geri koyar; önce ReadModel, sonra Decompose), SONRA eski imaj. Düz metin paylaşım token'ı geri gelmez ama linkler özetle çalışır;
   proje başına yalnızca en yeni etkin paylaşım linki döner; boş `studio`/`hub` şemaları durur (varsayılan yetkiler korunsun diye). Ayrıntı: `docs/architecture/PHASE_14_2B_REPORT.md` §3.
 
+## 5.2 Abonelik iptali kuyruğu
+
+Silinen hesabın Stripe iptali `PendingSubscriptionCancellations` tablosunda bekler ve işçi tarafından tamamlanır.
+`GET /api/admin/subscription-cancellations` içinde `stuck > 0` ya da "iptal edilemedi" ERROR logu görülürse abonelik
+Stripe panelinden elle iptal edilir. **Geri alma uyarısı:** bu migration geri alınırsa açık satırlar silinir; önce listeyi kontrol edin.
+
 ## 6. Bugün eksik olanlar (dürüst kayıt)
 
 Bu belge kuralı ve prosedürü yazıyor. **Aşağıdakiler hâlâ yok** ve bu belge

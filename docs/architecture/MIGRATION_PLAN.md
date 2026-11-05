@@ -2,7 +2,7 @@
 
 > **Gerçek durum (2026-11-05).** Bu belgedeki 11 bağlamlı, şema başına geçmiş tablolu düzen HEDEF'tir; bugün
 > tek zincir `AuthDbContext`; hiç çağrılmayan `ModuleMigrationOrchestrator` 14.2B'de silindi, aşağıdaki sözü tasarım notu. 14.2B bu zincirde üç
-> gerçek migration ile uygulandı (`Phase14_2B_ReconcileModelDrift`, `Phase14_2B_DecomposeCloudProjects`, `Phase14_2B_ExploreReadModel`); aşağıdaki SQL örnekleri
+> gerçek migration ile uygulandı (`Phase14_2B_ReconcileModelDrift`, `Phase14_2B_DecomposeCloudProjects`, `Phase14_2B_ExploreReadModel`), ardından `AddSubscriptionCancellationOutbox`; aşağıdaki SQL örnekleri
 > tasarım notudur, çalışan metin `Namines.Infrastructure/Migrations/Phase14_2B_DecompositionScripts.cs`'tedir.
 >
 > **Eski üreteç artığı:** `studio.*`/`hub.*` tabloları önceden varsa migration açık hatayla durur ve hiçbir şey
@@ -35,7 +35,7 @@ Aynı PostgreSQL veritabanı üzerinde çalışan modül `DbContext`'lerinin bir
      - `ops.__EFMigrationsHistory`
 2. **Ayrı `MigrationsAssembly`:**
    - Her modülün migration sınıfları ve `DbContextModelSnapshot`'ı o modülün kendi derlemesinde (`Namines.Vault`, `Namines.Ground`, `Namines.Flow`, `Namines.Desk`, `Namines.Hub`, vb.) yaşar.
-3. **Deterministik Sıralı Migration Koşucusu (`ModuleMigrationOrchestrator`):**
+3. **Deterministik Sıralı Migration Koşucusu (HEDEF; bugün YOK, `ModuleMigrationOrchestrator` 14.2B'de silindi, yukarıdaki nota bakın):**
    - `Program.cs` içindeki `--migrate` ve başlangıç doğrulaması, tüm `IModuleDbContextMigrator` kayıtlarını `Order` sırasına göre çalıştırır:
      1. Mevcut `AuthDbContext` (geçiş tamamlanana kadar geriye uyumluluk için Order = 0)
      2. `Identity` (Order = 10)

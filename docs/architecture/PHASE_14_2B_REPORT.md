@@ -128,9 +128,17 @@ studio.projects'e gelen FK: 19 (Branches, SchemaVersions, ChangeRequests, Gatewa
   tohumlayıcılar, hesap silme devri (test var: yeniden adlandırma aramaya yansıyor).
 - **Hesap silme sırası (denetim B-2):** ön kontroller → kişisel projeler (blob/sağlayıcı, kullanıcı satırı silinmeden
   önce olmak zorunda, yoksa FK cascade temizliği atlar) → **tek işlem** (devir + slug çözümü, yıldızlar, kullanıcı,
-  denetim) → Stripe, işlem başarılı olduktan sonra. Denetim satırı önce `pending` yazılır, sonra sonuçla güncellenir.
-  İşlem düşerse Stripe'a dokunulmaz, devir geri alınır, yeniden deneme tamamlar (test var). **Kalan pencere:** beklenmeyen
-  bir DB hatasında kişisel projeler silinmiş olarak kalır, hesap durur; kullanıcı yeniden deneyince biter.
+  denetim) → Stripe, işlem başarılı olduktan sonra. İşlem düşerse Stripe'a dokunulmaz, devir geri alınır, yeniden deneme
+  tamamlar (test var). **Kalan pencere:** beklenmeyen bir DB hatasında kişisel projeler silinmiş olarak kalır, hesap durur;
+  kullanıcı 503 `ACCOUNT_DELETE_INCOMPLETE` ve yeniden denemenin güvenli olduğunu söyleyen mesajı alır (genel 500 değil).
+- **Abonelik iptali outbox'ı (denetim B-3):** `PendingSubscriptionCancellations` satırı kullanıcı silmeyle aynı işlemde
+  yazılır (kullanıcıya FK yok). Commit sonrası ilk deneme `CancellationToken.None` + 30 sn üst sınırla çalışır, istemci
+  kopması iptali durdurmaz. `SubscriptionCancellationWorker` dakikada bir vadesi gelen satırları alır: kısa işlemde
+  `FOR UPDATE SKIP LOCKED`, geri çekilme 2 dk'dan 6 saate; Stripe çağrısı sırasında kilit tutulmaz, çift çağrı zararsız
+  (`resource_missing` = tamam). 8 denemeden sonra her başarısızlık ERROR loglar; `GET /api/admin/subscription-cancellations`
+  açık ve takılı satırları listeler (API; admin arayüzü eklenmedi). Saklama yalnız tamamlananları 90 günde siler, açık satır
+  silinmez. Denetim kaydındaki `stripe` alanı: `none`, `queued` (iptal outbox'ta, doğruluk kaynağı satırın kendisi) ya da
+  ilk deneme başarılıysa `canceled`. Brief'e eklenen tek kolon `NextAttemptAt` (geri çekilme indeksli ve SQLite uyumlu).
 - **Paylaşım linki yeniden gösterim:** arayüz her tıklamada POST atıp dönen token'dan URL kopyalıyor; GET yok.
   Özet saklayınca aynı token geri verilemez. Tek satırda döndürmek daha önce yapıştırılmış URL'leri sessizce
   öldürürdü. Bu yüzden **proje başına çok satır**: her POST yeni link üretir, eskiler çalışır, DELETE hepsini
@@ -158,6 +166,7 @@ studio.projects'e gelen FK: 19 (Branches, SchemaVersions, ChangeRequests, Gatewa
 | POST paylaşıma 429 (kendi kovası `share-create`, kullanıcı başına 30/dk) | Genel hata mesajı | Fork/ayar/silme kovasından ayrıldı (L-3) |
 | Explore'a 429 (`explore-public`, IP başına 120/dk) | Genel hata | B-1 |
 | Fork silinince `ForkCount`, hesap silinince `StarCount` düşüyor | Yok | Düzeltme, kabul |
+| Hesap silme işlemi düşerse 500 yerine 503 `ACCOUNT_DELETE_INCOMPLETE` | Yok: mesaj gösteriliyor | Kabul |
 | Devredilen repoda varisin slug'ı varsa `slug-2` (URL değişir, loglanır) | Yok | B-2 |
 
 ## 5. Güvenlik geçişi
