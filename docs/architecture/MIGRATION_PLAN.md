@@ -1,9 +1,9 @@
 # MIGRATION PLAN — 11 DbContext, Şema İzolasyonu ve Sıfır Veri Kayıplı 3NF Geçiş Planı
 
-> **Gerçek durum (2026-11-05).** Bu belgedeki 11 bağlamlı, şema başına geçmiş tablolu düzen HEDEF'tir; bugün
-> tek zincir `AuthDbContext`; hiç çağrılmayan `ModuleMigrationOrchestrator` 14.2B'de silindi, aşağıdaki sözü tasarım notu. 14.2B bu zincirde üç
-> gerçek migration ile uygulandı (`Phase14_2B_ReconcileModelDrift`, `Phase14_2B_DecomposeCloudProjects`, `Phase14_2B_ExploreReadModel`), ardından `AddSubscriptionCancellationOutbox`; aşağıdaki SQL örnekleri
-> tasarım notudur, çalışan metin `Namines.Infrastructure/Migrations/Phase14_2B_DecompositionScripts.cs`'tedir.
+> **Gerçek durum (14.2D-1).** Beş zincir var: Auth (`public.__EFMigrationsHistory`), Studio, Hub, Gateway, Ops (kendi `<şema>.__EFMigrationsHistory`).
+> `--migrate` ve başlangıç kontrolü `ModuleMigrationOrchestrator` üzerinden: danışma kilidi, Auth önce, sonra modüller Order'a göre. Vault, Ground, Flow, Desk,
+> Billing, Governance, Identity açıkça "sahip değil", DDL'leri Auth zincirinde. Aşağıdaki 11 zincirli düzen hâlâ hedef; D-2 sonrası bile Vault/Ground/Flow/Desk için karar açık.
+> 14.2B ve 14.2C migration'ları Auth zincirinde; çalışan metinler `Namines.Infrastructure/Migrations`. Aşağıdaki SQL tasarım notudur.
 >
 > **Eski üreteç artığı:** `studio.*`/`hub.*` tabloları önceden varsa migration açık hatayla durur ve hiçbir şey
 > değiştirmez. Üreteçler uygulamadan hiç çağrılmadığı için prod'da beklenmez; bir ortamda elle çalıştırıldıysa

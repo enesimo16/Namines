@@ -6,15 +6,16 @@
 
 ## 1. Tam Sahiplik Tablosu
 
-> **Hedef tablo.** Şu an fiziksel olarak taşınmış olanlar yalnızca `studio.projects`, `studio.project_connections`,
-> `studio.project_shares`, `hub.repositories`, `hub.project_tags` (14.2B), `hub.issue_labels`, `hub.repo_issue_labels`,
-> `gateway.api_key_allowed_origins`, `gateway.api_key_allowed_ips`, `gateway.table_masked_columns` (14.2C). `RepoStars`, `RepoIssues`, `Branches`,
-> `CrossDatabaseRelations`, `GatewayApiKeys`, `GatewayTablePermissions`, `GatewayAuditEntries` vb. hâlâ `public`'te. `StudioDbContext` yalnızca Studio'nun 3 tablosunu, `HubDbContext`
-> Hub'ın 2 tablosu + `public."RepoStars"`'ı eşler. `GatewayDbContext` 3 çocuk tabloyu ve üstlerini gerçek yerlerinde eşler ama
-> hiçbir üretim kodu kullanmıyor; Gateway hâlâ `AuthDbContext`'ten okuyor (D-1). Issue etiketleri yalnızca `AuthDbContext`'te (`RepoIssues` D-1'de Hub'a geçince taşınır). DDL'in tek sahibi `AuthDbContext` migration zinciri.
-> Sözleşmeler: `IStudioApplicationService` (özet, bağlantı üst verisi, paylaşım), `IProjectConnectionSecretProvider`
-> (tek çözme kapısı), `IHubApplicationService` (repo, etiket, yıldız, fork, Explore adayları),
-> `ICrossModuleTransaction` (Auth + Studio + Hub tek işlem).
+> **Gerçek durum (14.2D-1).** Aşağıdaki tablo HEDEF adları da içerir. Bugün fiziksel olarak:
+> - `studio`: `projects`, `project_connections`, `project_shares`, `"Branches"`, `"SchemaVersions"`, `"CrossDatabaseRelations"`
+> - `hub`: `repositories`, `project_tags`, `issue_labels`, `repo_issue_labels`, `"RepoIssues"`, `"RepoIssueComments"`, `"RepoStars"`
+> - `gateway`: `"GatewayApiKeys"`, `"GatewayTablePermissions"`, `"GatewayAuditEntries"`, `api_key_allowed_origins`, `api_key_allowed_ips`, `table_masked_columns`
+> - `ops`: `"Feedbacks"`, `"SqlExecutionAudits"`, `"FeatureFlags"`, `"AiToolRoutes"`
+>
+> Tablo adları taşımada değişmedi (`GatewayApiKeys` hedefteki `gateway_api_keys` olmadı): yeniden adlandırma ayrı bir karar, bu fazın kapsamı değil.
+> Bu dört modülün bağlamı internal, kendi zinciri ve geçmiş tablosu var. Identity, Billing, Governance (tablolar `public`'te, 14.2D-2) ile Vault, Ground, Flow, Desk (tablolar kendi şemasında) DDL'i hâlâ `AuthDbContext` zincirinde.
+> Sözleşmeler: `BuildingBlocks/Contracts/StudioContracts.cs` (`IStudioProjects`, `IStudioBranches`, `IStudioRelations`, `IStudioAdminQueries`, `IProjectDeletion`), `IStudioApplicationService`, `IProjectConnectionSecretProvider` (tek çözme kapısı), `ITenantProjectAuthority`, `IHubApplicationService`, `IGatewayAccess`/`IGatewayKeyService`/`IGatewayAuditLog`/`IGatewayMaintenance`, `IFeedbackService`, `ISqlExecutionAuditService`, `IFeatureFlagService`, `ICrossModuleTransaction` (`ITransactionParticipant` ile).
+> Modüller arası FK kararı: `PHASE_14_2D_1_REPORT.md` §3.
 
 | Sıra | Modül | PostgreSQL Şeması | DbContext | Sahip Olduğu Tablolar (Hedef 3NF) | Sahip Olduğu Uygulama Servisleri & İşçiler | Sahip Olduğu Controller / Uçlar |
 |---|---|---|---|---|---|---|

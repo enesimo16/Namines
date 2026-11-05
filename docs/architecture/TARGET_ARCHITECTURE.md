@@ -68,9 +68,10 @@ flowchart TD
   - Birden fazla modül DbContext'inin aynı HTTP isteğinde atomik olarak yazması gerektiğinde (ör. `Ground` provizyon kaydı + `Studio` proje bağlantısı güncellemesi, veya `ProjectDeletion` akışı), aynı fiziksel `NpgsqlConnection` ve `DbTransaction` örneklerini tüm ilgili `DbContext`'lere (`db.Database.UseTransactionAsync`) bağlar.
 
 ### 3.4. EF Core Migration İzolasyonu ve Sıralı Orkestrasyon
-- `Namines.BuildingBlocks.Persistence.IModuleDbContextMigrator` ve `ModuleMigrationOrchestrator`:
-  - Her modül kendi `IModuleDbContextMigrator` kaydını (`Order`, `ModuleName`, `SchemaName`, `MigrateAsync`, `GetPendingMigrationsAsync`) sunar.
-  - `--migrate` komutu veya başlangıç kontrolü, modülleri deterministik bağımlılık sırasıyla (`Order: 10..110`) migrate eder ve doğrular.
+- Çalışan düzen (14.2D-1): `ModuleMigrationOrchestrator` + her bağlamın `ModuleMigrationDescriptor` kaydı (`OwnsChain` ya da `DdlInAuthChain`, gerekçesiyle).
+  - `--migrate` ve başlangıç bekleyen-migration kontrolü aynı yoldan geçer; Auth önce, modüller `Order` sırasıyla (Studio 20, Hub 90, Gateway 100, Ops 110); danışma kilidi çakışmayı önler.
+  - Modül bağlamı internal; dışarıya Application sözleşmesi çıkar. Servisler modülün `I*Data` arayüzünden veri görür, Infrastructure ad alanına başvurmaz (mimari test IL düzeyinde).
+- Hedef: Identity, Billing, Governance 14.2D-2'de aynı düzene girer.
 
 ### 3.5. Arka Plan İşçilerinin Sahipliği (Background Worker Ownership)
 - Her `BackgroundService` ait olduğu modülün `Infrastructure/Workers/` klasöründe `internal sealed` olarak yaşar ve modülün `Add<Module>Module()` metodu tarafından kaydedilir:

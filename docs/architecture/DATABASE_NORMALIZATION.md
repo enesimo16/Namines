@@ -56,6 +56,8 @@ Mevcut `CloudProjects` tablosu 4 farklı iş alanının verisini ve geçişli ba
    - `ProjectId (PK, FK -> studio.projects.Id ON DELETE CASCADE)`, `Slug (varchar(128))`, `Description (varchar(1000))`, `Visibility (int CHECK)`, `Category (varchar(64))`, `ForkedFromProjectId (FK -> studio.projects.Id ON DELETE SET NULL)`, `LinkedGithubRepo (varchar(140))`, `StarCount (int CHECK >= 0)`, `ForkCount (int CHECK >= 0)`, `UpdatedAt (timestamptz)`.
 
 #### B. Modül Tablolarındaki Geçişli `OrganizationId` Sütunlarının Kaldırılması (`ProjectId -> OrganizationId`)
+
+> **14.2D-1 (BL-8):** `vault_backups`, `vault_restores`, `vault_schedules`, `ground_databases` üzerindeki kolon `Phase14_2D1_DropModuleOrganizationCopies` ile düştü. Down projeden doldurur, testli.
 - `namines_vault.vault_backups`, `namines_vault.vault_restores`, `namines_vault.vault_schedules` ve `ground.ground_databases` tablolarındaki `OrganizationId` sütunu `ProjectId` üzerinden geçişli bağımlıdır (`ProjectId -> studio.projects.OrganizationId`).
 - Bu sütun kaldırılarak veri anomalisi (proje başka bir organizasyona devredildiğinde yedeklerin eski organizasyonda kalması) tamamen önlenir.
 
@@ -71,6 +73,8 @@ Mevcut `CloudProjects` tablosu 4 farklı iş alanının verisini ve geçişli ba
 ---
 
 ## 3. Veritabanı Bütünlük ve İndeks Kuralları (Tüm Şemalar)
+
+> **14.2D-1:** üst tablolar `studio`/`hub`/`gateway`/`ops` altında. Şemalar arası FK'ler veritabanında kalır, EF modelinde yok (bağlamlar birbirini görmez): tablo listesi ve her FK'nin kararı `PHASE_14_2D_1_REPORT.md` §3. `repo_issue_labels` bileşik FK ile issue ve etiketin aynı projede olmasını veritabanında zorlar (BL-C1).
 
 - **Yabancı Anahtar (FK) Politikası:**
   - Kişisel/geçmiş veriler (`desk.sql_query_history`, `desk.saved_queries`, `desk.desk_handoff_tokens`, `hub.repo_stars`, `billing.user_ai_quotas`): `ON DELETE CASCADE`.

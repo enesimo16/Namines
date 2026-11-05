@@ -205,6 +205,23 @@ her zaman istenen şeyi yapmaz):
   `ConnectionStrings__DefaultConnection="<bağlantı>;Command Timeout=1800" dotnet ef database update 20261105105313_AddSubscriptionCancellationOutbox -c AuthDbContext --project backend/Namines.Infrastructure --startup-project backend/Namines.API`
   (200 bin issue'luk DB'de koşuldu: 10,9 sn.) Temiz listeler kanonik döner, karantinadakiler ham metinle; karar aynı kalır. Ayrıntı: `docs/architecture/PHASE_14_2C_REPORT.md` §3.
 
+## 5.3 Bilinçli istisna: Faz 14.2D-1
+
+Tablolar `public`'ten `studio`/`hub`/`gateway`/`ops` altına yerinde taşınır (`ALTER TABLE SET SCHEMA`), uyumluluk görünümü yok. Eski kod yeni şemada sorgu hatası verir (fail-closed).
+
+- **Sıra:** `deploy/sql/roles.sql` (artık `ops` şemasını da açar) → eski sürümü durdur → yedek → `--migrate` → yeni sürümü aç. Tek komut hepsini yapar; Auth önce, sonra Studio, Hub, Gateway, Ops. Kesilirse aynı komut kaldığı yerden devam eder (test: `Interrupted_run_resumes_from_the_failed_module`).
+- **Süre (kilit):** her zincir tek işlem, ACCESS EXCLUSIVE taşınan tablolarda; `lock_timeout` 30 sn, açık işlem varsa `55P03` ile düşer ve tekrar denenir. 200 bin issue + 200 bin bağ + 200 bin sürüm + 200 bin denetim: `--migrate` toplam 5 sn, okuma yükü altında en uzun okuyucu beklemesi 2,9 sn (ayrıntı rapor §6).
+- **Geri alma:** kod geri alınacaksa ÖNCE veritabanı, modüller TERS sırada, sonra Auth (kolonlar geri gelir, kayıp yok):
+  ```
+  dotnet ef database update 0 -c OpsDbContext     --project backend/Namines.Ops     --startup-project backend/Namines.API
+  dotnet ef database update 0 -c GatewayDbContext --project backend/Namines.Gateway --startup-project backend/Namines.API
+  dotnet ef database update 0 -c HubDbContext     --project backend/Namines.Hub     --startup-project backend/Namines.API
+  dotnet ef database update 0 -c StudioDbContext  --project backend/Namines.Studio  --startup-project backend/Namines.API
+  dotnet ef database update 20261105114438_Phase14_2C_NormalizeCollections -c AuthDbContext --project backend/Namines.Infrastructure --startup-project backend/Namines.API
+  ```
+  Sıra önemli: Auth'un devir migration'ları boş `Up`/`Down`'dır, tabloları modül `Down`'ı geri getirir. Auth'u önce geri almak veri bozmaz ama eski kod tabloları bulamaz.
+- **Sonrası:** Vault/Ground `OrganizationId` kopyaları düşer; `Down` projeden doldurur. `repo_issue_labels` bileşik FK: farklı projeden bağ varsa migration `RAISE` ile durur (`Migration_stops_when_a_cross_project_label_link_exists`), satır karantinaya gitmez, operatör düzeltir.
+
 ## 5.2 Abonelik iptali kuyruğu
 
 Silinen hesabın Stripe iptali `PendingSubscriptionCancellations` tablosunda bekler ve işçi tarafından tamamlanır.
