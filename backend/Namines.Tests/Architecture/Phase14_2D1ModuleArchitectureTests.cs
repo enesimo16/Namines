@@ -20,23 +20,24 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     private static readonly string[] Modules = { "Namines.Studio", "Namines.Hub", "Namines.Gateway", "Namines.Ops" };
 
     /// <summary>
-    /// AuthDbContext enjekte etmesine izin verilen controller'lar: yalnızca D-2 modüllerinin kendi verisi.
-    /// Her satır, D-2'de kaldırılmak üzere burada açıkça duruyor.
+    /// AuthDbContext enjekte etmesine izin verilen controller'lar ve dokundukları D-2 verisi (14.2D-1 denetim
+    /// sonrası sayıldı). Studio/Hub/Gateway/Ops verisi ve proje yaşam döngüsü bu controller'larda yok
+    /// (<see cref="Controllers_do_not_write_studio_projects_directly"/>). Her satır D-2'de kalkmak üzere burada.
     /// </summary>
     private static readonly HashSet<string> D2ControllersAllowedAuthDbContext = new(StringComparer.Ordinal)
     {
-        "AdminController",          // D-2 Identity/Billing: kullanıcı listesi, kota
-        "AuthController",           // D-2 Identity
-        "ChangeRequestController",  // D-2 Governance
-        "CoderAIController",        // D-2 Billing: AI politikası
-        "DocumentationController",  // D-2 Billing: AI politikası
-        "PolicyController",         // D-2 Billing
-        "ProjectMemberController",  // D-2 Identity: üyelik
-        "QuotaController",          // D-2 Billing
-        "SmartSeedController",      // D-2 Billing: AI politikası
-        "StripeWebhookController",  // D-2 Billing
-        "TeamController",           // D-2 Identity
-        "UsageController",          // D-2 Billing
+        "AdminController",          // Identity: Users; Billing: UserAIQuotas, UserAIPolicies, UsageEvents, GlobalAiUsages, PendingSubscriptionCancellations; Governance: ChangeRequests
+        "AuthController",           // Identity: kullanıcı, oturum, MFA; Billing: UserAIPolicies, UserAIQuotas
+        "ChangeRequestController",  // Governance: ChangeRequests, ChangeRequestApprovals, ChangeRequestAuditLogs
+        "CoderAIController",        // Billing: UserAIPolicies
+        "DocumentationController",  // Billing: UserAIPolicies
+        "PolicyController",         // Billing: UserAIPolicies; Identity: Users
+        "ProjectMemberController",  // Identity: OrganizationMembers
+        "QuotaController",          // Billing: UserAIQuotas, GlobalAiUsages; Identity: Users
+        "SmartSeedController",      // Billing: UserAIPolicies
+        "StripeWebhookController",  // Billing: StripeWebhookEvents
+        "TeamController",           // Identity: OrganizationMembers, TeamInvites, Users, kişisel org
+        "UsageController",          // Billing: UserBillingSettings; Identity: Users
     };
 
     private static string BackendRoot()

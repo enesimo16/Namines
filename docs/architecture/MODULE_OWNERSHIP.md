@@ -14,6 +14,7 @@
 >
 > Tablo adları taşımada değişmedi (`GatewayApiKeys` hedefteki `gateway_api_keys` olmadı): yeniden adlandırma ayrı bir karar, bu fazın kapsamı değil.
 > Bu dört modülün bağlamı internal, kendi zinciri ve geçmiş tablosu var. Identity, Billing, Governance (tablolar `public`'te, 14.2D-2) ile Vault, Ground, Flow, Desk (tablolar kendi şemasında) DDL'i hâlâ `AuthDbContext` zincirinde.
+> Proje yaşam döngüsü (oluşturma, güncelleme, org taşıması, otomatik onay) aktörlü `Namines.Studio.Application.IProjectLifecycleService`'te; okuma modeli Hub'ın uyguladığı `IProjectReadModelWriter` ile aynı işlemde. Gateway veri düzlemi kararları `Namines.Gateway.Application.IGatewayRequestGate`'te. Vault, Ground, Flow, Desk varlıklarının `AuthDbContext`'ten çıkması Faz 14.2D-2'nin işi.
 > Sözleşmeler: `BuildingBlocks/Contracts/StudioContracts.cs` (`IStudioProjects`, `IStudioBranches`, `IStudioRelations`, `IStudioAdminQueries`, `IProjectDeletion`), `IStudioApplicationService`, `IProjectConnectionSecretProvider` (tek çözme kapısı), `ITenantProjectAuthority`, `IHubApplicationService`, `IGatewayAccess`/`IGatewayKeyService`/`IGatewayAuditLog`/`IGatewayMaintenance`, `IFeedbackService`, `ISqlExecutionAuditService`, `IFeatureFlagService`, `ICrossModuleTransaction` (`ITransactionParticipant` ile).
 > Modüller arası FK kararı: `PHASE_14_2D_1_REPORT.md` §3.
 

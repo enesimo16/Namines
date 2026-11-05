@@ -220,6 +220,8 @@ Tablolar `public`'ten `studio`/`hub`/`gateway`/`ops` altına yerinde taşınır 
   dotnet ef database update 20261105114438_Phase14_2C_NormalizeCollections -c AuthDbContext --project backend/Namines.Infrastructure --startup-project backend/Namines.API
   ```
   Sıra önemli: Auth'un devir migration'ları boş `Up`/`Down`'dır, tabloları modül `Down`'ı geri getirir. Auth'u önce geri almak veri bozmaz ama eski kod tabloları bulamaz.
+- **Hub zinciri iki adım:** `Hub_01_AdoptTables` ve `Hub_02_StatementLevelLabelGc` (etiket temizliği deyim düzeyi). `update 0` ikisini de geri alır; Down satır düzeyi tetikleyiciyi aynı adla geri koyar, 14.2C Down'ı onu düşürebilsin.
+- **Roller:** `roles.sql` sahiplik devrinde artık `ops` da var. Süper kullanıcıyla kurulup sonradan rollere geçen ortamda betiği yeniden çalıştırın; yoksa Ops migration'ı `namines_migrator` ile düşer.
 - **Sonrası:** Vault/Ground `OrganizationId` kopyaları düşer; `Down` projeden doldurur. `repo_issue_labels` bileşik FK: farklı projeden bağ varsa migration `RAISE` ile durur (`Migration_stops_when_a_cross_project_label_link_exists`), satır karantinaya gitmez, operatör düzeltir.
 
 ## 5.2 Abonelik iptali kuyruğu
