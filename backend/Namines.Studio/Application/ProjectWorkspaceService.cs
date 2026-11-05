@@ -14,11 +14,6 @@ public interface IProjectWorkspaceService
 {
     /// <summary>Üyesi olunan organizasyonlardaki projeler; org'a taşınmamış eski satırlar yalnızca kurucusuna.</summary>
     Task<IReadOnlyList<WorkspaceProject>> ListForUserAsync(string userId, CancellationToken ct = default);
-
-    /// <summary>Yetki yoksa NotFound; projeyi başka org'a taşıyabilmek CanManageMembers ister.</summary>
-    Task<ModuleOutcome<string>> MoveToOrganizationAsync(string actorUserId, string projectId, string organizationId, CancellationToken ct = default);
-
-    Task<ModuleOutcome<bool>> SetAutoApproveAsync(string actorUserId, string projectId, bool enabled, CancellationToken ct = default);
 }
 
 internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
@@ -60,23 +55,5 @@ internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
                 // Org'a taşınmamış satırda sahip Owner sayılır (yetki kuralıyla aynı).
                 p.OrganizationId == null ? p.UserId == userId : roles.TryGetValue(p.OrganizationId, out var role) && role == OrgRole.Owner))
             .ToList();
-    }
-
-    public async Task<ModuleOutcome<string>> MoveToOrganizationAsync(string actorUserId, string projectId, string organizationId, CancellationToken ct = default)
-    {
-        if (!await _authority.CanManageMembersAsync(projectId, actorUserId, ct))
-            return ModuleOutcome<string>.NotFound();
-        return await _projects.SetOrganizationAsync(projectId, organizationId, ct)
-            ? ModuleOutcome<string>.Ok(organizationId)
-            : ModuleOutcome<string>.NotFound();
-    }
-
-    public async Task<ModuleOutcome<bool>> SetAutoApproveAsync(string actorUserId, string projectId, bool enabled, CancellationToken ct = default)
-    {
-        if (!await _authority.CanManageMembersAsync(projectId, actorUserId, ct))
-            return ModuleOutcome<bool>.NotFound();
-        return await _projects.SetAutoApproveSafeChangesAsync(projectId, enabled, ct)
-            ? ModuleOutcome<bool>.Ok(enabled)
-            : ModuleOutcome<bool>.NotFound();
     }
 }

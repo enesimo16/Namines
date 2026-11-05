@@ -125,6 +125,7 @@ public sealed class ModuleKit
     public ICrossDatabaseRelationService RelationService => new CrossDatabaseRelationService(Studio, DefaultAuthority);
     public IProjectWorkspaceService Workspace => new ProjectWorkspaceService(Studio, DefaultAuthority, Identity, Projects);
     public IShareService Shares => new ShareService(DefaultAuthority, StudioService);
+    public IProjectLifecycleService Lifecycle => new ProjectLifecycleService(Projects, DefaultAuthority, Identity, new HubApplicationService(Hub), Transaction);
     internal HubIssueService HubIssues => new HubIssueService(Hub, HubService, Projects, DefaultAuthority, Identity);
 
     public IHubRepositoryService HubRepositories(IProjectDeletion deletion) =>

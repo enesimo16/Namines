@@ -20,7 +20,7 @@ public class SyncProjectIdValidationTests
     [InlineData("a")]
     public void Ordinary_client_ids_are_accepted(string id)
     {
-        Assert.True(AuthController.IsSafeNewProjectId(id));
+        Assert.True(Namines.Studio.Application.ProjectLifecycleService.IsSafeNewProjectId(id));
     }
 
     [Theory]
@@ -37,13 +37,13 @@ public class SyncProjectIdValidationTests
     [InlineData("id\nnewline")]
     public void Ids_that_could_escape_a_path_or_collide_with_an_identifier_are_rejected(string? id)
     {
-        Assert.False(AuthController.IsSafeNewProjectId(id));
+        Assert.False(Namines.Studio.Application.ProjectLifecycleService.IsSafeNewProjectId(id));
     }
 
     [Fact]
     public void An_overlong_id_is_rejected()
     {
-        Assert.False(AuthController.IsSafeNewProjectId(new string('a', 65)));
-        Assert.True(AuthController.IsSafeNewProjectId(new string('a', 64)));
+        Assert.False(Namines.Studio.Application.ProjectLifecycleService.IsSafeNewProjectId(new string('a', 65)));
+        Assert.True(Namines.Studio.Application.ProjectLifecycleService.IsSafeNewProjectId(new string('a', 64)));
     }
 }

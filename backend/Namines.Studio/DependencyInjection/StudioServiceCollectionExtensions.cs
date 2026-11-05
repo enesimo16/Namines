@@ -46,6 +46,7 @@ public static class StudioServiceCollectionExtensions
         services.AddScoped<IStudioRelations>(sp => sp.GetRequiredService<CrossDatabaseRelationService>());
 
         services.AddScoped<IProjectWorkspaceService, ProjectWorkspaceService>();
+        services.AddScoped<IProjectLifecycleService, ProjectLifecycleService>();
         services.AddScoped<IShareService, ShareService>();
         services.AddScoped<IStudioApplicationService, StudioApplicationService>();
 

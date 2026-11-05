@@ -199,7 +199,7 @@ public static class DevSandboxSeeder
         await studioProjects.SaveAsync(new[]
         {
             new ProjectWrite(ProjectId, project?.Name ?? ProjectName, project?.DbType ?? "PostgreSQL", schemaJson,
-                project?.NodePositionsJson ?? "{}", project?.UserId ?? owner.Id, org.Id),
+                project?.NodePositionsJson ?? "{}", project?.UserId ?? owner.Id, org.Id, project?.RowVersion),
         }, ct);
         var ownerUserId = project?.UserId ?? owner.Id;
         var effectiveName = project?.Name ?? ProjectName;

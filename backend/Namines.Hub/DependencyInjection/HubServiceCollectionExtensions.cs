@@ -30,7 +30,9 @@ public static class HubServiceCollectionExtensions
         services.AddSingleton(MigrationDescriptor);
         services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<HubDbContext>()));
 
-        services.AddScoped<IHubApplicationService, HubApplicationService>();
+        services.AddScoped<HubApplicationService>();
+        services.AddScoped<IHubApplicationService>(sp => sp.GetRequiredService<HubApplicationService>());
+        services.AddScoped<Namines.BuildingBlocks.Contracts.IProjectReadModelWriter>(sp => sp.GetRequiredService<HubApplicationService>());
         services.AddScoped<IHubRepositoryService, HubRepositoryService>();
         services.AddScoped<HubIssueService>();
         services.AddScoped<IHubIssueService>(sp => sp.GetRequiredService<HubIssueService>());

@@ -102,8 +102,16 @@ public interface IStudioProjects
     /// <summary>
     /// Tümünü aynı <c>SaveChanges</c>'te yazar. <see cref="Namines.BuildingBlocks.Persistence.ICrossModuleTransaction"/>
     /// içinde çağrılınca işleme katılır; yeniden denemede temiz başlasın diye izleyiciyi kendisi temizler.
+    /// Var olan projeye yazımda <see cref="ProjectWrite.ExpectedRowVersion"/> zorunlu: bayat okumadan yapılan
+    /// tam satır yazımı araya giren şema kaydını sessizce eziyordu (denetim B-1).
     /// </summary>
     Task SaveAsync(IReadOnlyList<ProjectWrite> writes, CancellationToken ct = default);
+
+    /// <summary>
+    /// Yalnızca ad ve motor (ve <c>UpdatedAt</c>). Hub ayarları bunun dışında Studio alanı yazmaz; şema ve
+    /// org sütunlarına hiç dokunmadığı için eşzamanlı şema kaydıyla yarışamaz. Proje yoksa false.
+    /// </summary>
+    Task<bool> RenameAsync(string projectId, string name, string dbType, CancellationToken ct = default);
 
     /// <summary>Yalnızca organizasyon değişir; proje yoksa false. Sürüm jetonu ilerler.</summary>
     Task<bool> SetOrganizationAsync(string projectId, string organizationId, CancellationToken ct = default);
@@ -121,6 +129,18 @@ public interface IStudioProjects
     Task<IReadOnlyList<string>> ListIdsInOrganizationsAsync(IReadOnlyCollection<string> organizationIds, CancellationToken ct = default);
 
     Task<IReadOnlyList<StudioProjectHeader>> ListInOrganizationAsync(string organizationId, int take, CancellationToken ct = default);
+}
+
+/// <summary>Projenin Hub'daki ad/motor kopyası ve eksik slug'ı için tek yazım.</summary>
+public sealed record ProjectReadModelWrite(string ProjectId, string OwnerUserId, string Name, string DbType);
+
+/// <summary>
+/// Studio proje kaydederken okuma modelinin aynı işlemde güncel kalması için çağırdığı kapı. Hub uygular;
+/// Studio Hub'ı tanımaz. Slug üretimi Hub'ın işi: aynı çağrıdaki projeler birbirinin slug'ını da sayar.
+/// </summary>
+public interface IProjectReadModelWriter
+{
+    Task WriteAsync(IReadOnlyList<ProjectReadModelWrite> writes, CancellationToken ct = default);
 }
 
 /// <summary>Studio branch ve şema sürümlerinin modüller arası sözleşmesi. Yetki çağıranda.</summary>

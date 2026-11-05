@@ -55,8 +55,10 @@ internal sealed class StudioProjectService : IStudioProjects, IStudioAdminQuerie
         {
             if (existing.TryGetValue(write.Id, out var project))
             {
+                if (write.ExpectedRowVersion is not { } expected)
+                    throw new ArgumentException($"Project '{write.Id}' exists; an update must carry the row version it was read with.", nameof(writes));
                 // İstemcinin gördüğü sürüm jetonu özgün değer olur: araya biri girdiyse UPDATE 0 satır etkiler.
-                if (write.ExpectedRowVersion is { } expected && _db.Database.IsNpgsql())
+                if (_db.Database.IsNpgsql())
                     _db.Entry(project).Property(p => p.RowVersion).OriginalValue = expected;
 
                 project.Name = write.Name;
@@ -85,6 +87,33 @@ internal sealed class StudioProjectService : IStudioProjects, IStudioAdminQuerie
 
         await _db.SaveChangesAsync(ct);
         _db.ChangeTracker.Clear();
+    }
+
+    public async Task<bool> RenameAsync(string projectId, string name, string dbType, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dbType);
+
+        // İzlenen varlık: EF yalnızca değişen üç kolonu yazar. Sürüm jetonu arada başka bir yazımı (şema kaydı)
+        // görürse yeniden okunup tekrar denenir; ad/motor dışında taşıdığımız bir değer olmadığı için kayıp yok.
+        for (var attempt = 1; ; attempt++)
+        {
+            _db.ChangeTracker.Clear();
+            var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+            if (project is null) return false;
+            project.Name = name;
+            project.DbType = dbType;
+            project.UpdatedAt = DateTime.UtcNow;
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+                _db.ChangeTracker.Clear();
+                return true;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 3)
+            {
+            }
+        }
     }
 
     public async Task<bool> SetOrganizationAsync(string projectId, string organizationId, CancellationToken ct = default)

@@ -41,7 +41,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
 
     private static TeamController CreateController(AuthDbContext db, string userId)
     {
-        var controller = new TeamController(db, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Identity);
+        var controller = new TeamController(db, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Identity, TestModules.For(db).Lifecycle);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext

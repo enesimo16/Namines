@@ -110,7 +110,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
     }
 
     private static ChangeRequestController NewController(AuthDbContext db, string userId) =>
-        new(db, migrationService: null!, testRunner: null!, aiService: null!, quota: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
+        new(db, migrationService: null!, testRunner: null!, aiService: null!, quota: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches, lifecycle: TestModules.For(db).Lifecycle)
         {
             ControllerContext = new ControllerContext
             {

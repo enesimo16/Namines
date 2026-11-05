@@ -355,10 +355,8 @@ internal sealed class HubRepositoryService : IHubRepositoryService
         ProjectRepository updated = null!;
         await _transaction.ExecuteAsync(async c =>
         {
-            await _projects.SaveAsync(new[]
-            {
-                new ProjectWrite(project.Id, name, dbType, project.SchemaJson, project.NodePositionsJson, project.UserId, project.OrganizationId),
-            }, c);
+            // Yalnızca ad ve motor: şema, düğüm konumu ve org Studio'nun, burada okunan kopyaları bayat olabilir.
+            await _projects.RenameAsync(project.Id, name, dbType, c);
             if (autoApprove != project.AutoApproveSafeChanges)
                 await _projects.SetAutoApproveSafeChangesAsync(project.Id, autoApprove, c);
             updated = await _hub.ApplySettingsAsync(projectId, project.UserId, name, dbType, change, c);

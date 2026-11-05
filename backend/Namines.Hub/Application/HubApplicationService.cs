@@ -1,3 +1,4 @@
+using Namines.BuildingBlocks.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,7 +9,7 @@ using Namines.Hub.Domain;
 
 namespace Namines.Hub.Application;
 
-internal sealed class HubApplicationService : IHubApplicationService
+internal sealed class HubApplicationService : IHubApplicationService, IProjectReadModelWriter
 {
     private readonly IHubData _dbContext;
 
@@ -124,6 +125,47 @@ internal sealed class HubApplicationService : IHubApplicationService
         _dbContext.ProjectTags.AddRange(ProjectTagRules.Parse(repository.ProjectId, tagsCsv));
         await _dbContext.SaveChangesAsync(ct);
         _dbContext.ChangeTracker.Clear();
+    }
+
+    public async Task WriteAsync(IReadOnlyList<ProjectReadModelWrite> writes, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(writes);
+        var reserved = new HashSet<(string Owner, string Slug)>();
+        foreach (var write in writes)
+        {
+            var existing = await GetRepositoryAsync(write.ProjectId, ct);
+            var slug = existing is null || string.IsNullOrWhiteSpace(existing.Slug)
+                ? await BuildUniqueSlugAsync(write.Name, write.ProjectId, write.OwnerUserId, reserved, ct)
+                : null;
+            await EnsureRepositoryAsync(write.ProjectId, write.OwnerUserId, write.Name, write.DbType, slug, ct);
+        }
+    }
+
+    /// <summary>
+    /// Proje adından sahip başına benzersiz, asla boş olmayan slug. Yalnızca özel karakterli bir ad boş slug
+    /// veriyordu: Hub'da boş slug çözümlenemez, çakışan slug başka projeyi gölgeler.
+    /// </summary>
+    private async Task<string> BuildUniqueSlugAsync(
+        string? name, string projectId, string ownerUserId, HashSet<(string Owner, string Slug)> reserved, CancellationToken ct)
+    {
+        var clean = System.Text.RegularExpressions.Regex
+            .Replace((name ?? "").ToLowerInvariant(), @"[^a-z0-9\-]", "-")
+            .Trim('-');
+        var baseSlug = string.IsNullOrWhiteSpace(clean)
+            ? $"project-{projectId[..Math.Min(6, projectId.Length)]}"
+            : clean;
+
+        var candidate = baseSlug;
+        for (var suffix = 2; ; suffix++)
+        {
+            // Aynı çağrıdaki henüz yazılmamış projeler de sayılır (toplu senkron).
+            if (!reserved.Contains((ownerUserId, candidate)) && !await IsSlugTakenByOwnerAsync(ownerUserId, candidate, projectId, ct))
+            {
+                reserved.Add((ownerUserId, candidate));
+                return candidate;
+            }
+            candidate = $"{baseSlug}-{suffix}";
+        }
     }
 
     public async Task<ProjectRepository> EnsureRepositoryAsync(

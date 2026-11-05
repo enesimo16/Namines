@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
+using Namines.Studio.Application;
 using Xunit;
 using static Namines.Tests.TestSupport.ModuleTestDb;
 
@@ -21,7 +22,8 @@ public sealed class StudioApplicationTests : IDisposable
     public async Task Save_creates_then_updates_and_clears_tracker()
     {
         await Kit.Projects.SaveAsync(new[] { new ProjectWrite("n1", "New", "PostgreSQL", "{}", "{}", Owner, OrgId) });
-        await Kit.Projects.SaveAsync(new[] { new ProjectWrite("n1", "Renamed", "MySQL", "{}", "{}", Owner, OrgId) });
+        var created = (await Kit.Projects.GetHeaderAsync("n1"))!;
+        await Kit.Projects.SaveAsync(new[] { new ProjectWrite("n1", "Renamed", "MySQL", "{}", "{}", Owner, OrgId, created.RowVersion) });
 
         var row = await Kit.Projects.GetAsync("n1");
         Assert.Equal(("Renamed", "MySQL"), (row!.Name, row.DbType));
@@ -111,24 +113,163 @@ public sealed class StudioApplicationTests : IDisposable
         await Assert.ThrowsAnyAsync<ArgumentException>(() => Kit.Workspace.ListForUserAsync(""));
     }
 
+    // ── Yaşam döngüsü (denetim M-2) ──────────────────────────────────────────
+
+    private async Task AddOrgAsync(string orgId, string member, OrgRole role)
+    {
+        Kit.Db.Organizations.Add(new Organization { Id = orgId, Name = orgId });
+        Kit.Db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = orgId, UserId = member, Role = role });
+        await Kit.Db.SaveChangesAsync();
+    }
+
     [Theory]
     [InlineData(Viewer)]
     [InlineData(Editor)]
     [InlineData(Outsider)]
-    public async Task Moving_a_project_requires_member_management(string actor)
+    public async Task Sharing_a_project_requires_member_management(string actor)
     {
-        var outcome = await Kit.Workspace.MoveToOrganizationAsync(actor, ProjectId, "org-2");
+        await AddOrgAsync("org-2", actor, OrgRole.Owner);
+        var outcome = await Kit.Lifecycle.ShareToOrganizationAsync(actor, ProjectId, "org-2");
         Assert.Equal(ModuleOutcomeKind.NotFound, outcome.Kind);
         Assert.Equal(OrgId, (await Kit.Projects.GetHeaderAsync(ProjectId))!.OrganizationId);
     }
 
     [Fact]
+    public async Task Sharing_into_an_organization_the_actor_is_not_in_is_refused()
+    {
+        // Proje yöneticisi bile projeyi yabancı bir org'a (ve onun sahiplerine) veremez: m-5'in IDOR'u.
+        Kit.Db.Organizations.Add(new Organization { Id = "foreign", Name = "Foreign" });
+        await Kit.Db.SaveChangesAsync();
+        Assert.Equal(ModuleOutcomeKind.NotFound, (await Kit.Lifecycle.ShareToOrganizationAsync(Owner, ProjectId, "foreign")).Kind);
+        Assert.Equal(ModuleOutcomeKind.NotFound, (await Kit.Lifecycle.ShareToOrganizationAsync(Owner, ProjectId, "")).Kind);
+        Assert.Equal(OrgId, (await Kit.Projects.GetHeaderAsync(ProjectId))!.OrganizationId);
+    }
+
+    [Fact]
+    public async Task Admin_who_is_a_member_of_the_target_can_share_and_repeat_is_idempotent()
+    {
+        await AddOrgAsync("org-2", Admin, OrgRole.Viewer);
+        Assert.Equal("org-2", (await Kit.Lifecycle.ShareToOrganizationAsync(Admin, ProjectId, "org-2")).Value);
+        Assert.Equal("org-2", (await Kit.Projects.GetHeaderAsync(ProjectId))!.OrganizationId);
+        // Proje artık org-2'de; Admin orada Viewer, yeniden taşıyamaz.
+        Assert.Equal(ModuleOutcomeKind.NotFound, (await Kit.Lifecycle.ShareToOrganizationAsync(Admin, ProjectId, "org-2")).Kind);
+    }
+
+    [Theory]
+    [InlineData(Admin)]
+    [InlineData(Editor)]
+    [InlineData(Outsider)]
+    public async Task Unshare_is_owner_only(string actor)
+    {
+        Assert.Equal(ModuleOutcomeKind.NotFound, (await Kit.Lifecycle.UnshareAsync(actor, ProjectId)).Kind);
+        Assert.Equal(OrgId, (await Kit.Projects.GetHeaderAsync(ProjectId))!.OrganizationId);
+    }
+
+    [Fact]
+    public async Task Unshare_returns_the_project_to_the_founders_personal_organization()
+    {
+        var outcome = await Kit.Lifecycle.UnshareAsync(Owner, ProjectId);
+        Assert.True(outcome.IsOk);
+        var personal = await Kit.Db.Organizations.SingleAsync(o => o.Id == outcome.Value);
+        Assert.True(personal.IsPersonal);
+        Assert.Equal(outcome.Value, (await Kit.Projects.GetHeaderAsync(ProjectId))!.OrganizationId);
+    }
+
+    [Fact]
+    public async Task Resolving_organization_needs_view_access_and_does_not_migrate_for_outsiders()
+    {
+        Assert.Null(await Kit.Lifecycle.ResolveOrganizationAsync(Outsider, ProjectId));
+        Assert.Null(await Kit.Lifecycle.ResolveOrganizationAsync("", ProjectId));
+        Assert.Equal(OrgId, await Kit.Lifecycle.ResolveOrganizationAsync(Viewer, ProjectId));
+    }
+
+    private static ProjectSyncItem Item(string id, string name = "N", string schema = "{}", uint? version = null) =>
+        new(id, name, "PostgreSQL", schema, "{}", version);
+
+    [Fact]
+    public async Task Sync_updates_editable_creates_new_and_writes_the_read_model()
+    {
+        var outcome = await Kit.Lifecycle.SyncAsync(Editor, "editor", new[] { Item(ProjectId, "Edited", TwoTables), Item("fresh-1", "Fresh") });
+        Assert.Equal(ProjectSyncStatus.Saved, outcome.Status);
+        Assert.Equal(2, outcome.SavedCount);
+        Assert.Equal(TwoTables, (await Kit.Projects.GetAsync(ProjectId))!.SchemaJson);
+        var change = Assert.Single(outcome.Changes);
+        Assert.Equal(ProjectId, change.ProjectId);
+
+        var fresh = (await Kit.Projects.GetAsync("fresh-1"))!;
+        Assert.Equal(Editor, fresh.UserId);
+        Assert.NotEqual(OrgId, fresh.OrganizationId);
+        var repo = await Kit.HubService.GetRepositoryAsync("fresh-1");
+        Assert.Equal(("Fresh", "fresh"), (repo!.ProjectName, repo.Slug));
+        Assert.Equal("Edited", (await Kit.HubService.GetRepositoryAsync(ProjectId))!.ProjectName);
+    }
+
+    [Fact]
+    public async Task Sync_skips_read_only_projects_for_viewers()
+    {
+        var outcome = await Kit.Lifecycle.SyncAsync(Viewer, "viewer", new[] { Item(ProjectId, "Hijack", TwoTables) });
+        Assert.Equal(0, outcome.SavedCount);
+        Assert.NotEqual("Hijack", (await Kit.Projects.GetAsync(ProjectId))!.Name);
+    }
+
+    [Fact]
+    public async Task Sync_by_an_outsider_never_overwrites_and_gets_a_new_identity()
+    {
+        var outcome = await Kit.Lifecycle.SyncAsync(Outsider, "outsider", new[] { Item(ProjectId, "Hijack", TwoTables), Item("../etc", "Bad id") });
+        Assert.Equal(2, outcome.SavedCount);
+        Assert.NotEqual("Hijack", (await Kit.Projects.GetAsync(ProjectId))!.Name);
+        Assert.Null(await Kit.Projects.GetAsync("../etc"));
+        Assert.Equal(2, await Kit.Studio.Projects.CountAsync(p => p.UserId == Outsider));
+    }
+
+    [Fact]
+    public async Task Sync_with_a_stale_version_is_a_conflict_and_writes_nothing()
+    {
+        var header = (await Kit.Projects.GetHeaderAsync(ProjectId))!;
+        var outcome = await Kit.Lifecycle.SyncAsync(Owner, "owner", new[] { Item("other-new", "X"), Item(ProjectId, "Stale", TwoTables, header.RowVersion + 1) });
+        Assert.Equal(ProjectSyncStatus.VersionConflict, outcome.Status);
+        Assert.Equal((ProjectId, header.RowVersion + 1, header.RowVersion), (outcome.Conflict!.ProjectId, outcome.Conflict.YourVersion, outcome.Conflict.CurrentVersion));
+        Assert.Null(await Kit.Projects.GetAsync("other-new"));
+    }
+
+    [Fact]
+    public async Task Sync_reserves_slugs_inside_one_batch_and_rejects_bad_input()
+    {
+        var outcome = await Kit.Lifecycle.SyncAsync(Owner, "owner", new[] { Item("s1", "Same"), Item("s2", "Same"), Item("s3", "!!!") });
+        Assert.Equal(3, outcome.SavedCount);
+        Assert.Equal("same", (await Kit.HubService.GetRepositoryAsync("s1"))!.Slug);
+        Assert.Equal("same-2", (await Kit.HubService.GetRepositoryAsync("s2"))!.Slug);
+        Assert.StartsWith("project-", (await Kit.HubService.GetRepositoryAsync("s3"))!.Slug);
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Kit.Lifecycle.SyncAsync("", "x", Array.Empty<ProjectSyncItem>()));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => Kit.Lifecycle.SyncAsync(Owner, "owner", null!));
+    }
+
+    [Fact]
     public async Task Auto_approve_requires_member_management()
     {
-        Assert.Equal(ModuleOutcomeKind.NotFound, (await Kit.Workspace.SetAutoApproveAsync(Editor, ProjectId, true)).Kind);
+        Assert.Equal(ModuleOutcomeKind.NotFound, (await Kit.Lifecycle.SetAutoApproveAsync(Editor, ProjectId, true)).Kind);
+        Assert.Equal(ModuleOutcomeKind.NotFound, (await Kit.Lifecycle.SetAutoApproveAsync(Admin, "missing", true)).Kind);
         Assert.False((await Kit.Projects.GetHeaderAsync(ProjectId))!.AutoApproveSafeChanges);
-        Assert.True((await Kit.Workspace.SetAutoApproveAsync(Admin, ProjectId, true)).IsOk);
+        Assert.True((await Kit.Lifecycle.SetAutoApproveAsync(Admin, ProjectId, true)).IsOk);
+        Assert.True((await Kit.Lifecycle.SetAutoApproveAsync(Admin, ProjectId, true)).IsOk);
         Assert.True((await Kit.Projects.GetHeaderAsync(ProjectId))!.AutoApproveSafeChanges);
+    }
+
+    [Fact]
+    public async Task Rename_touches_only_name_engine_and_timestamp()
+    {
+        await Kit.Projects.SaveAsync(new[] { new ProjectWrite(ProjectId, "P", "PostgreSQL", TwoTables, "{\"a\":1}", Owner, OrgId, (await Kit.Projects.GetHeaderAsync(ProjectId))!.RowVersion) });
+        Assert.True(await Kit.Projects.RenameAsync(ProjectId, "Renamed", "MySQL"));
+        var row = (await Kit.Projects.GetAsync(ProjectId))!;
+        Assert.Equal(("Renamed", "MySQL", TwoTables, "{\"a\":1}", OrgId), (row.Name, row.DbType, row.SchemaJson, row.NodePositionsJson, row.OrganizationId));
+        Assert.False(await Kit.Projects.RenameAsync("missing", "x", "PostgreSQL"));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Kit.Projects.RenameAsync(ProjectId, " ", "MySQL"));
+    }
+
+    [Fact]
+    public async Task Updating_an_existing_project_without_its_version_is_refused()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => Kit.Projects.SaveAsync(new[] { new ProjectWrite(ProjectId, "X", "PostgreSQL", "{}", "{}", Owner, OrgId) }));
     }
 
     // ── Branch ve sürüm ──────────────────────────────────────────────────────

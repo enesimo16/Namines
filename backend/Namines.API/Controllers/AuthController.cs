@@ -58,12 +58,9 @@ namespace Namines.API.Controllers
         private readonly AccountDeletionService? _accountDeletion;
         private readonly IFlowModule? _flowModule;
         private readonly IDeskModule? _deskModule;
-        private readonly IHubApplicationService _hub;
         private readonly IStudioApplicationService _studio;
-        private readonly ICrossModuleTransaction _transaction;
+        private readonly IProjectLifecycleService _lifecycle;
 
-        private readonly ITenantProjectAuthority _authority;
-        private readonly IStudioProjects _projects;
         private readonly IProjectWorkspaceService _workspace;
 
         public AuthController(
@@ -73,11 +70,8 @@ namespace Namines.API.Controllers
             IMigrationService migrationService,
             IAutomationJobQueue automationQueue,
             ILogger<AuthController> logger,
-            IHubApplicationService hub,
             IStudioApplicationService studio,
-            ICrossModuleTransaction transaction,
-            ITenantProjectAuthority authority,
-            IStudioProjects projects,
+            IProjectLifecycleService lifecycle,
             IProjectWorkspaceService workspace,
             IWebHostEnvironment? environment = null,
             IHttpClientFactory? httpClientFactory = null,
@@ -87,8 +81,7 @@ namespace Namines.API.Controllers
             IFlowModule? flowModule = null,
             IDeskModule? deskModule = null)
         {
-            _authority = authority;
-            _projects = projects;
+            _lifecycle = lifecycle;
             _workspace = workspace;
             _userManager = userManager;
             _context = context;
@@ -96,9 +89,7 @@ namespace Namines.API.Controllers
             _migrationService = migrationService;
             _automationQueue = automationQueue;
             _logger = logger;
-            _hub = hub;
             _studio = studio;
-            _transaction = transaction;
             _environment = environment;
             _httpClientFactory = httpClientFactory;
             _httpClientFactory = httpClientFactory;
@@ -387,45 +378,6 @@ namespace Namines.API.Controllers
             });
         }
 
-        /// <summary>
-        /// Yeni bir projenin istemci-secimli kimligi icin izin verilen bicim. Gercek
-        /// istemciler crypto.randomUUID() uretir; yol ayiricilari, nokta ve alt cizgi
-        /// disarida kaliyor, boylece kimlik yola ya da tanimlayiciya guvenle gomulebilir.
-        /// </summary>
-        internal static bool IsSafeNewProjectId(string? id) =>
-            !string.IsNullOrEmpty(id) && System.Text.RegularExpressions.Regex.IsMatch(
-                id, "^[A-Za-z0-9-]{1,64}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-
-        /// <summary>
-        /// Proje adından kullanıcı-başına benzersiz, ASLA boş olmayan slug üretir.
-        /// Adı yalnızca özel karakterlerden oluşan bir proje önceden boş slug alıyordu;
-        /// Hub'da boş slug çözümlenemez ve çakışan slug başka projeyi gölgeler.
-        /// </summary>
-        private async Task<string> BuildUniqueSlugAsync(
-            string? name, string projectId, string userId, HashSet<(string Owner, string Slug)> reserved)
-        {
-            var clean = System.Text.RegularExpressions.Regex
-                .Replace((name ?? "").ToLowerInvariant(), @"[^a-z0-9\-]", "-")
-                .Trim('-');
-            var baseSlug = string.IsNullOrWhiteSpace(clean)
-                ? $"project-{projectId[..Math.Min(6, projectId.Length)]}"
-                : clean;
-
-            var candidate = baseSlug;
-            for (var suffix = 2; ; suffix++)
-            {
-                // Aynı istekteki henüz kaydedilmemiş projeler de sayılır (toplu senkron).
-                var taken = reserved.Contains((userId, candidate)) ||
-                    await _hub.IsSlugTakenByOwnerAsync(userId, candidate, projectId);
-                if (!taken)
-                {
-                    reserved.Add((userId, candidate));
-                    return candidate;
-                }
-                candidate = $"{baseSlug}-{suffix}";
-            }
-        }
-
         [Authorize]
         [HttpPost("sync")]
         [RequestSizeLimit(SchemaRequestLimits.BulkSyncBytes)]
@@ -439,105 +391,34 @@ namespace Namines.API.Controllers
             if (user == null)
                 return Unauthorized();
 
-            // Yeni projeler HER ZAMAN kişisel organizasyona gider. Önceden kullanıcının ilk
-            // ekip org'una (`??= activeOrgId`) bağlanıyordu: bu, kullanıcı istemeden projeyi
-            // tüm ekibe açıyordu. Ekiple paylaşım yalnızca TeamController share/unshare ile.
-            var personalOrg = await _context.GetOrCreatePersonalOrgAsync(
-                userId, user.UserName ?? "Personal");
+            // Yetki, sürüm çakışması, kimlik üretimi ve işlem Studio'da (denetim M-2); burada yalnız HTTP eşlemesi.
+            var outcome = await _lifecycle.SyncAsync(userId, user.UserName ?? "Personal",
+                projects.Select(p => new ProjectSyncItem(p.Id, p.Name, p.DbType, p.SchemaJson, p.NodePositionsJson, p.RowVersion)).ToList());
 
-            int savedCount = 0;
-            var pendingDiffs = new List<(string ProjectId, string DbType, string? OldJson, string NewJson)>();
-            var pendingRepositories = new List<(string ProjectId, string OwnerUserId, string Name, string DbType, string? Slug)>();
-            var reservedSlugs = new HashSet<(string Owner, string Slug)>();
-            var pendingWrites = new List<ProjectWrite>();
-            foreach (var projDto in projects)
+            if (outcome.Status == ProjectSyncStatus.VersionConflict)
             {
-                var existing = await _projects.GetAsync(projDto.Id);
-                var canEditExisting = existing != null &&
-                    await _authority.CanEditAsync(existing.Id, userId);
-                var canViewExisting = existing != null &&
-                    (canEditExisting || await _authority.CanViewAsync(existing.Id, userId));
-
-                if (existing != null && canEditExisting)
+                var conflict = outcome.Conflict!;
+                return Conflict(new
                 {
-                    // ÇAKIŞMA KONTROLÜ (REL-003a / B-32).
-                    if (projDto.RowVersion is { } clientVersion &&
-                        clientVersion != existing.RowVersion)
-                    {
-                        return Conflict(new
-                        {
-                            message = "This project was changed by someone else while you were working on it. " +
-                                      "Reload it to get the latest version, then re-apply your changes.",
-                            projectId = existing.Id,
-                            projectName = existing.Name,
-                            yourVersion = clientVersion,
-                            currentVersion = existing.RowVersion,
-                            changedAt = existing.UpdatedAt,
-                        });
-                    }
-
-                    string? oldSchemaJsonForDiff = existing.SchemaJson;
-                    string newSchemaJsonForDiff = projDto.SchemaJson;
-                    string dbTypeForDiff = existing.DbType;
-                    string projectIdForDiff = existing.Id;
-
-                    var existingRepository = await _hub.GetRepositoryAsync(existing.Id);
-                    var missingSlug = existingRepository is null || string.IsNullOrWhiteSpace(existingRepository.Slug)
-                        ? await BuildUniqueSlugAsync(projDto.Name, existing.Id, existing.UserId, reservedSlugs)
-                        : null;
-                    // Slug dolu olsa da satır yazılır: ad/motor okuma modeli projeyle aynı işlemde güncel kalsın.
-                    pendingRepositories.Add((existing.Id, existing.UserId, projDto.Name, projDto.DbType, missingSlug));
-                    // Okunan sürüm jetonu beklenen değer: okuma ile yazma arasındaki yarış 409'a düşer.
-                    pendingWrites.Add(new ProjectWrite(
-                        existing.Id, projDto.Name, projDto.DbType, projDto.SchemaJson, projDto.NodePositionsJson,
-                        existing.UserId, existing.OrganizationId ?? personalOrg.Id, existing.RowVersion));
-
-                    pendingDiffs.Add((projectIdForDiff, dbTypeForDiff, oldSchemaJsonForDiff, newSchemaJsonForDiff));
-                }
-                else if (existing != null && canViewExisting)
-                {
-                    // Ortak projede salt-okunur (Viewer) üye: üzerine yazma veya kopya oluşturma.
-                    continue;
-                }
-                else
-                {
-                    var idTakenByOther = !IsSafeNewProjectId(projDto.Id) || existing != null;
-                    var newId = idTakenByOther ? Guid.NewGuid().ToString() : projDto.Id;
-
-                    pendingWrites.Add(new ProjectWrite(
-                        newId, projDto.Name, projDto.DbType, projDto.SchemaJson, projDto.NodePositionsJson,
-                        userId, personalOrg.Id));
-                    pendingRepositories.Add((newId, userId, projDto.Name, projDto.DbType, await BuildUniqueSlugAsync(projDto.Name, newId, userId, reservedSlugs)));
-                }
-                savedCount++;
-            }
-
-            try
-            {
-                // Proje ve repo satırı tek işlemde: repo satırı olmayan proje oluşmaz.
-                await _transaction.ExecuteAsync(async c =>
-                {
-                    await _projects.SaveAsync(pendingWrites, c);
-                    foreach (var (projectId, ownerUserId, name, dbType, slug) in pendingRepositories)
-                        await _hub.EnsureRepositoryAsync(projectId, ownerUserId, name, dbType, slug, c);
+                    message = "This project was changed by someone else while you were working on it. " +
+                              "Reload it to get the latest version, then re-apply your changes.",
+                    projectId = conflict.ProjectId,
+                    projectName = conflict.ProjectName,
+                    yourVersion = conflict.YourVersion,
+                    currentVersion = conflict.CurrentVersion,
+                    changedAt = conflict.ChangedAt,
                 });
             }
-            catch (DbUpdateConcurrencyException)
-            {
-                // İstemcinin RowVersion'ı yoksa/eskiyse yukarıdaki kontrol yakalamaz; xmin
-                // jetonu okuma-yazma arasındaki yarışı burada yakalar → 500 değil 409.
+            if (outcome.Status == ProjectSyncStatus.ConcurrentModification)
+                // İstemcinin sürümü yoksa yukarıdaki kontrol yakalamaz; xmin okuma-yazma yarışını yakalar: 500 değil 409.
                 return ConcurrencyConflict.Result();
-            }
 
-            // Kaydetme başarılı OLDUKTAN SONRA — sunucu, istemcinin "şunu değiştirdim"
-            // iddiasına değil, KENDİ hesapladığı diff'e güveniyor (bkz. spec "Kritik
-            // bulgu"). Kuyruk dolarsa iş sessizce loglanıp atlanır — bu, senkron
-            // isteğin (proje kaydetme) başarısını ASLA etkilemez.
-            // ÖNCE: bu partide hangi projelerin AÇIK bir otomasyon kuralı var?
-            // Kullanıcıların büyük çoğunluğunun hiç kuralı yok; kural yoksa
-            // deserialize + diff + enqueue işinin TAMAMI boşa gidiyordu (her
-            // sync'te, her proje için). Tek sorgu + HashSet: Task 1'in
-            // (ProjectId, Enabled) indeksi bunu zaten karşılıyor.
+            var savedCount = outcome.SavedCount;
+            var pendingDiffs = outcome.Changes.Select(c => (c.ProjectId, c.DbType, OldJson: c.OldSchemaJson, NewJson: c.NewSchemaJson)).ToList();
+
+            // Kaydetme başarılı OLDUKTAN SONRA: sunucu istemcinin "şunu değiştirdim" iddiasına değil kendi hesapladığı
+            // diff'e güvenir. Kuyruk dolarsa iş loglanıp atlanır, senkron isteğin başarısını ASLA etkilemez. Kuralı
+            // olmayan projede deserialize + diff + enqueue boşa gitmesin diye önce kuralı olanlar tek sorguda alınır.
             var diffProjectIds = pendingDiffs.Select(d => d.ProjectId).Distinct().ToList();
             IReadOnlySet<string> projectIdsWithRules = diffProjectIds.Count == 0 || _flowModule is null
 

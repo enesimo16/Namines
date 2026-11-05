@@ -34,12 +34,14 @@ public class TeamController : ControllerBase
     private readonly ITenantProjectAuthority _authority;
     private readonly IStudioProjects _studioProjects;
     private readonly IIdentityDirectory _identity;
+    private readonly Namines.Studio.Application.IProjectLifecycleService _lifecycle;
 
-    public TeamController(AuthDbContext context, ITenantProjectAuthority authority, IStudioProjects studioProjects, IIdentityDirectory identity)
+    public TeamController(AuthDbContext context, ITenantProjectAuthority authority, IStudioProjects studioProjects, IIdentityDirectory identity, Namines.Studio.Application.IProjectLifecycleService lifecycle)
     {
         _context = context;
         _authority = authority;
         _studioProjects = studioProjects;
+        _lifecycle = lifecycle;
         _identity = identity;
     }
 
@@ -410,17 +412,13 @@ public class TeamController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        // "Kurucu" kısayolu YOK: org'dan çıkarılmış (ya da rolü düşürülmüş) kurucu,
-        // projeyi başka bir org'a taşıyarak ekibin erişimini koparamamalı. Yetki
-        // yalnızca projenin MEVCUT org'undaki rolden gelir (OrgAccess).
-        if (!await _authority.CanManageMembersAsync(projectId, userId, ct))
-            return NotFound(new { error = "Project not found or you do not have permission to share it." });
-
+        // Yetki (projede üye yönetimi, hedef org'da üyelik) Studio'da; burada yalnızca hedef org seçimi.
         var org = await ActiveOrgAsync(userId, ct);
-        if (!await _studioProjects.SetOrganizationAsync(projectId, org.Id, ct))
+        var moved = await _lifecycle.ShareToOrganizationAsync(userId, projectId, org.Id, ct);
+        if (!moved.IsOk)
             return NotFound(new { error = "Project not found or you do not have permission to share it." });
 
-        return Ok(new { projectId, organizationId = org.Id });
+        return Ok(new { projectId, organizationId = moved.Value });
     }
 
     /// <summary>
@@ -432,23 +430,11 @@ public class TeamController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        // Paylaşımı geri çekmek ekibin erişimini keser: yalnızca projenin mevcut
-        // org'undaki Owner yapabilir (Admin değil), kurucu olması tek başına yetmez.
-        if (await _authority.GetRoleAsync(projectId, userId, ct) != OrgRole.Owner)
+        // Yalnız mevcut org'un Owner'ı; proje kurucunun kişisel org'una döner. Karar Studio'da.
+        var moved = await _lifecycle.UnshareAsync(userId, projectId, ct);
+        if (!moved.IsOk)
             return NotFound(new { error = "Project not found or you do not have permission to unshare it." });
 
-        var project = await _studioProjects.GetHeaderAsync(projectId, ct);
-        if (project is null)
-            return NotFound(new { error = "Project not found or you do not have permission to unshare it." });
-
-        // Proje, çağıranın değil KURUCUNUN kişisel org'una döner; aksi hâlde ekip
-        // sahibi başkasının projesini kendi kişisel org'una çekmiş olurdu.
-        var founderName = await _context.Users.AsNoTracking()
-            .Where(u => u.Id == project.UserId).Select(u => u.UserName).FirstOrDefaultAsync(ct);
-        var personalOrg = await _context.GetOrCreatePersonalOrgAsync(project.UserId, founderName ?? "Personal", ct);
-
-        await _studioProjects.SetOrganizationAsync(projectId, personalOrg.Id, ct);
-
-        return Ok(new { projectId = project.Id, organizationId = personalOrg.Id });
+        return Ok(new { projectId, organizationId = moved.Value });
     }
 }

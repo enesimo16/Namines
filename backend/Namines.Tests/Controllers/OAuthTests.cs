@@ -78,7 +78,7 @@ public sealed class OAuthTests : IAsyncLifetime
             config,
             new MigrationService(null!),
             new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Workspace,
+            NullLogger<AuthController>.Instance, TestModules.For(db).StudioService, TestModules.For(db).Lifecycle, TestModules.For(db).Workspace,
             new FakeEnv(environment))
         {
             ControllerContext = new ControllerContext

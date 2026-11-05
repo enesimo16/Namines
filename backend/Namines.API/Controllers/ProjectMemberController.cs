@@ -37,36 +37,26 @@ public class ProjectMemberController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly ITenantProjectAuthority _authority;
-    private readonly IStudioProjects _studioProjects;
+    private readonly Namines.Studio.Application.IProjectLifecycleService _lifecycle;
     private readonly IGatewayMaintenance _gateway;
     private readonly Namines.BuildingBlocks.Persistence.ICrossModuleTransaction _transaction;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public ProjectMemberController(AuthDbContext context, UserManager<ApplicationUser> userManager, ITenantProjectAuthority authority, IStudioProjects studioProjects, IGatewayMaintenance gateway, Namines.BuildingBlocks.Persistence.ICrossModuleTransaction transaction)
+    public ProjectMemberController(AuthDbContext context, UserManager<ApplicationUser> userManager, ITenantProjectAuthority authority, Namines.Studio.Application.IProjectLifecycleService lifecycle, IGatewayMaintenance gateway, Namines.BuildingBlocks.Persistence.ICrossModuleTransaction transaction)
     {
         _gateway = gateway;
         _transaction = transaction;
         _context = context;
         _authority = authority;
-        _studioProjects = studioProjects;
+        _lifecycle = lifecycle;
         _userManager = userManager;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    /// <summary>Projenin org'unu bul; yoksa (eski satır) sahibinin kişisel org'una taşı.</summary>
-    private async Task<string?> ResolveOrgIdAsync(string projectId, CancellationToken ct)
-    {
-        var project = await _studioProjects.GetHeaderAsync(projectId, ct);
-        if (project is null) return null;
-        if (!string.IsNullOrEmpty(project.OrganizationId)) return project.OrganizationId;
-
-        // Migration öncesinden kalmış satır — tembel taşıma.
-        var owner = await _userManager.FindByIdAsync(project.UserId);
-        var org = await _context.GetOrCreatePersonalOrgAsync(project.UserId, owner?.UserName ?? "Personal", ct);
-        await _studioProjects.SetOrganizationAsync(projectId, org.Id, ct);
-        return org.Id;
-    }
+    /// <summary>Projenin org'u; org'suz eski satırın tembel taşıması Studio'da, görme yetkisiyle.</summary>
+    private Task<string?> ResolveOrgIdAsync(string projectId, string userId, CancellationToken ct) =>
+        _lifecycle.ResolveOrganizationAsync(userId, projectId, ct);
 
     private const string OwnerOnlyError =
         "Only an owner can grant, change or remove the owner role.";
@@ -91,7 +81,7 @@ public class ProjectMemberController : ControllerBase
         if (!await _authority.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found." });
 
-        var orgId = await ResolveOrgIdAsync(projectId, ct);
+        var orgId = await ResolveOrgIdAsync(projectId, userId, ct);
         if (orgId is null) return NotFound(new { error = "Project not found." });
 
         var members = await _context.OrganizationMembers
@@ -126,7 +116,7 @@ public class ProjectMemberController : ControllerBase
         if (invitee is null)
             return NotFound(new { error = "No user is registered with this email. (Invites are not available yet - the user must sign up first.)" });
 
-        var orgId = await ResolveOrgIdAsync(projectId, ct);
+        var orgId = await ResolveOrgIdAsync(projectId, userId, ct);
         if (orgId is null) return NotFound(new { error = "Project not found." });
 
         var already = await _context.OrganizationMembers
@@ -155,7 +145,7 @@ public class ProjectMemberController : ControllerBase
         if (!await _authority.CanManageMembersAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found, or you do not have permission to manage members." });
 
-        var orgId = await ResolveOrgIdAsync(projectId, ct);
+        var orgId = await ResolveOrgIdAsync(projectId, userId, ct);
         if (orgId is null) return NotFound(new { error = "Project not found." });
 
         var member = await _context.OrganizationMembers
@@ -206,7 +196,7 @@ public class ProjectMemberController : ControllerBase
         if (!await _authority.CanManageMembersAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found, or you do not have permission to manage members." });
 
-        var orgId = await ResolveOrgIdAsync(projectId, ct);
+        var orgId = await ResolveOrgIdAsync(projectId, userId, ct);
         if (orgId is null) return NotFound(new { error = "Project not found." });
 
         var member = await _context.OrganizationMembers

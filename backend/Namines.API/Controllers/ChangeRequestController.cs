@@ -83,6 +83,7 @@ public class ChangeRequestController : ControllerBase
 
     private readonly ITenantProjectAuthority _authority;
     private readonly IStudioProjects _projects;
+    private readonly Namines.Studio.Application.IProjectLifecycleService _lifecycle;
     private readonly IStudioBranches _branches;
 
     public ChangeRequestController(
@@ -93,8 +94,10 @@ public class ChangeRequestController : ControllerBase
         AiQuotaService quota,
         ITenantProjectAuthority authority,
         IStudioProjects projects,
-        IStudioBranches branches)
+        IStudioBranches branches,
+        Namines.Studio.Application.IProjectLifecycleService lifecycle)
     {
+        _lifecycle = lifecycle;
         _authority = authority;
         _projects = projects;
         _branches = branches;
@@ -240,10 +243,8 @@ public class ChangeRequestController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        // Onay zorunluluğunu GEVŞETEN bir ayar — Editor'a bırakılmaz, Admin/Owner gerekir.
-        if (!await _authority.CanManageMembersAsync(projectId, userId))
-            return NotFound(new { error = "Project not found, or it does not belong to this user." });
-        if (!await _projects.SetAutoApproveSafeChangesAsync(projectId, request.Enabled))
+        // Yetki (Admin/Owner) Studio'da: onay zorunluluğunu gevşeten ayar.
+        if (!(await _lifecycle.SetAutoApproveAsync(userId, projectId, request.Enabled)).IsOk)
             return NotFound(new { error = "Project not found, or it does not belong to this user." });
 
         return Ok(new { Id = projectId, AutoApproveSafeChanges = request.Enabled });

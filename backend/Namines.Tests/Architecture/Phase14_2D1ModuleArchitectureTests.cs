@@ -437,6 +437,63 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     }
 
     [Fact]
+    public void Controllers_do_not_write_studio_projects_directly()
+    {
+        // Denetim M-2: proje yazımı ve org taşıması aktörlü yaşam döngüsü servisinden geçer; yetkisiz sözleşme
+        // metotları yalnızca yetkiyi kendisi yapmış modül içi akışlar (hesap/proje silme, Hub) içindir.
+        var writes = typeof(IStudioProjects).GetMethods()
+            .Where(m => m.Name is not ("GetAsync" or "GetHeaderAsync" or "GetManyAsync" or "GetHeadersAsync" or "ExistsAsync")
+                        && !m.Name.StartsWith("List", StringComparison.Ordinal))
+            .ToHashSet();
+        var violations = new List<string>();
+        foreach (var controller in Controllers())
+        {
+            foreach (var method in AllMethods(controller))
+            {
+                foreach (var called in CalledMethods(method))
+                    if (writes.Contains(called)) violations.Add($"{controller.Name}.{method.Name} -> {called.Name}");
+            }
+        }
+        Assert.Empty(violations);
+    }
+
+    private static IEnumerable<MethodBase> AllMethods(Type type)
+    {
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        foreach (var m in type.GetMethods(all)) yield return m;
+        foreach (var c in type.GetConstructors(all)) yield return c;
+        foreach (var nested in type.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic))
+            foreach (var m in AllMethods(nested)) yield return m;
+    }
+
+    /// <summary>Gövdedeki call/callvirt/ldftn hedefleri.</summary>
+    private static IEnumerable<MethodBase> CalledMethods(MethodBase method)
+    {
+        byte[]? il;
+        try { il = method.GetMethodBody()?.GetILAsByteArray(); }
+        catch (Exception ex) when (ex is TypeLoadException or FileNotFoundException) { yield break; }
+        if (il is null) yield break;
+        for (var i = 0; i + 4 < il.Length; i++)
+        {
+            var isCall = il[i] is 0x28 or 0x6F or 0x73 || (il[i] == 0xFE && i + 5 < il.Length && il[i + 1] is 0x06 or 0x07);
+            if (!isCall) continue;
+            var at = il[i] == 0xFE ? i + 2 : i + 1;
+            MethodBase? target;
+            try
+            {
+                target = method.Module.ResolveMethod(BitConverter.ToInt32(il, at),
+                    method.DeclaringType is { IsGenericType: true } d ? d.GetGenericArguments() : null,
+                    method.IsGenericMethod ? method.GetGenericArguments() : null);
+            }
+            catch (Exception ex) when (ex is ArgumentException or BadImageFormatException or TypeLoadException or MissingMemberException or FileNotFoundException)
+            {
+                continue;
+            }
+            if (target is not null) yield return target;
+        }
+    }
+
+    [Fact]
     public void Project_read_model_writes_have_a_single_door()
     {
         // BL-5: ad/motor kopyası Hub'da. Yazım yolu Studio'nun sözleşmesi; bağlam internal olduğu için dışarıdan
@@ -461,7 +518,7 @@ public sealed class Phase14_2D1ModuleArchitectureTests
         // ProjectWrite üreten her üretim sınıfı okuma modelini de yazıyor.
         var writers = new Dictionary<string, string[]>
         {
-            ["AuthController.cs"] = new[] { "EnsureRepositoryAsync" },
+            ["ProjectLifecycleService.cs"] = new[] { "_readModel.WriteAsync" },
             ["HubRepositoryService.cs"] = new[] { "ApplySettingsAsync", "CreateRepositoryAsync" },
             ["DevSandboxSeeder.cs"] = new[] { "EnsureRepositoryAsync" },
             ["HubBlueprintSeeder.cs"] = new[] { "CreateRepositoryAsync" },
