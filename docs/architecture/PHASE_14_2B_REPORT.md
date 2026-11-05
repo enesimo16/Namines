@@ -9,10 +9,10 @@
 
 | Alan | Sonuç | Kanıt |
 |---|---|---|
-| Build | {{BUILD_STATUS}} | `dotnet build backend/Namines.sln -c Release --no-incremental`: {{BUILD_NUMBERS}} |
-| Unit | {{UNIT_STATUS}} | `Namines.Tests` içinde Docker gerektirmeyenler; sayılar §7 |
-| Integration | {{INTEGRATION_STATUS}} | Gerçek PostgreSQL: `Phase14_2BMigrationTests`, `Phase14_2BFlowTests`, `MigrationHygieneTests`, `Namines.Tests.RunTests`; sayılar §7 |
-| Architecture | {{ARCH_STATUS}} | `ModularMonolithArchitectureTests`; §7 |
+| Build | PASS | `dotnet build backend/Namines.sln -c Release --no-incremental`: 0 uyarı, 0 hata |
+| Unit | PASS | `Namines.Tests` içinde Docker gerektirmeyenler; sayılar §7 |
+| Integration | PASS | Gerçek PostgreSQL: `Phase14_2BMigrationTests`, `Phase14_2BFlowTests`, `MigrationHygieneTests`, `Namines.Tests.RunTests`; sayılar §7 |
+| Architecture | PASS | `ModularMonolithArchitectureTests`; §7 |
 | Migration | PASS | Boş DB, seed'li eski DB, Down + Up, yarım eski üreteç artığı (§3) |
 | Data integrity | PASS | Migration içi alan alan doğrulama (`RAISE EXCEPTION`) + test dökümü: Up1 = Up2 (§3) |
 | Security | PASS | §5; AES-GCM AAD, tek çözme noktası, hash-only paylaşım, SSRF testi, duman testinde log taraması |
@@ -97,7 +97,7 @@ studio.projects'e gelen FK: 19 (Branches, SchemaVersions, ChangeRequests, Gatewa
   PK_project_tags, IX_project_tags_Tag_ProjectId
 ```
 
-`has-pending-model-changes`: {{PENDING_AUTH}} (AuthDbContext), {{PENDING_MODULES}} (Studio, Hub).
+`has-pending-model-changes`: "No changes" (AuthDbContext), "No changes" (Studio, Hub).
 
 ## 4. Kararlar ve bilinçli davranış farkları
 
@@ -151,19 +151,19 @@ duruyor, FK'si yok (14.2A kararı, kolon silinmedi).
 ## 6. Performans
 
 Tohum: 50.012 proje, 10.012 public, 149.754 etiket, 5.004 paylaşım; `ANALYZE` sonrası, PG 16, EF'in ürettiği
-SQL loglardan alındı. Tam çıktı için `{{EXPLAIN_NOTE}}`.
+SQL loglardan alındı. Tam çıktı için `süreler `EXPLAIN (ANALYZE, BUFFERS)` çıktısından`.
 
 | Sorgu | Plan | Süre |
 |---|---|---|
-| Explore popüler (LIMIT 200) | Index Scan `IX_repositories_Explore_Popular`, sort yok | {{Q1}} |
-| Explore yeni | Index Scan `IX_repositories_Explore_Recent`, sort yok | {{Q2}} |
-| Etiket filtresi (EXISTS) | Index Only Scan `IX_project_tags_Tag_ProjectId` + Hash Join + Sort | {{Q3}} |
-| Kategori | Bitmap Index `IX_repositories_Explore_Recent` + top-N | {{Q4}} |
-| 200 kimlik proje özeti | Index Scan `PK_projects` | {{Q5}} |
-| 200 kimlik etiket | Bitmap `PK_project_tags` | {{Q6}} |
-| Paylaşım özetiyle arama | Index Scan `IX_project_shares_ShareTokenHash` + PK | {{Q7}} |
-| Proje listesi | BitmapOr `IX_projects_UserId` + `IX_projects_OrganizationId` | {{Q8}} |
-| Sahip + slug çözümü | BitmapOr PK + `IX_repositories_Slug` | {{Q9}} |
+| Explore popüler (LIMIT 200) | Index Scan `IX_repositories_Explore_Popular`, sort yok | 0,96 ms |
+| Explore yeni | Index Scan `IX_repositories_Explore_Recent`, sort yok | 0,18 ms |
+| Etiket filtresi (EXISTS) | Index Only Scan `IX_project_tags_Tag_ProjectId` + Hash Join + Sort | 5,41 ms |
+| Kategori | Bitmap Index `IX_repositories_Explore_Recent` + top-N | 7,26 ms |
+| 200 kimlik proje özeti | Index Scan `PK_projects` | 2,04 ms |
+| 200 kimlik etiket | Bitmap `PK_project_tags` | 2,32 ms |
+| Paylaşım özetiyle arama | Index Scan `IX_project_shares_ShareTokenHash` + PK | 0,14 ms |
+| Proje listesi | BitmapOr `IX_projects_UserId` + `IX_projects_OrganizationId` | 1,44 ms |
+| Sahip + slug çözümü | BitmapOr PK + `IX_repositories_Slug` | 0,12 ms |
 
 **N+1 yok:** filtresiz Explore istek başına sabit 5 sorgu (repo, özet, etiket, şema, sahip adı); proje listesi
 bağlantıyı tek toplu sorguyla alıyor.
@@ -177,7 +177,19 @@ tüm public repolar 200'lük turlarla taranır: bu tohumda eşleşmeyen `q` ~1,0
 | Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Süre |
 |---|---|---|---|---|---|---|
 | Temel (değişiklikten önce, `5565811`) | Namines.Tests | 2785 | 2776 | 9 | 0 | 42 m 36 s |
-{{TEST_ROWS}}
+| Son (`815d76e`) `dotnet test backend/Namines.Tests -c Release --no-build` | Namines.Tests | 2804 | 2804 | 0 | 0 | 20 m 15 s |
+| Son `dotnet test backend/Namines.Tests.RunTests -c Release --no-build` | Namines.Tests.RunTests (Launch dahil) | 19 | 19 | 0 | 0 | 1 m 7 s |
+| Son, filtre `ModularMonolithArchitectureTests` | Namines.Tests | 19 | 19 | 0 | 0 | 7 s |
+
+2804'ün 198'i `Namines.Tests.Integration` ad alanında (5 `Phase14_2BMigrationTests`, 12 `Phase14_2BFlowTests`, 5
+`MigrationHygieneTests`), gerçek PostgreSQL'de. Atlanan yok. Sıralı koşu
+(`xunit.parallelizeAssembly=false`, `parallelizeTestCollections=false`), Docker gerçek. Süre makine yüküne çok
+bağlı: aynı suite 39-59 dk da sürdü.
+
+Yeşile giderken ara koşular: 2804'te 2 hata (benim testimde eksik paylaşım tohumu; Oracle zaman aşımı), 1 hata
+(`GatewayApiKeyTests` taze container'a ilk bağlantıda "connection aborted"). Son ikisi altyapı kaynaklı, testlerde
+yalnızca o hataya özel yeniden deneme eklendi, doğrulamalar değişmedi. Bunlar aralıklıydı: tek bir yeşil koşu
+gelecekte de düşmeyeceklerini kanıtlamaz.
 
 Temel koşudaki 9 hatanın 1'i gerçek (`MigrationModelSnapshotTests`, kayma); 8'i o sırada makinede paralel derleme
 çalışırken Npgsql okuma zaman aşımı (`AiQuotaServiceTests`, `DeskHandoffTests`, `GatewayApiKeyTests`).
@@ -200,4 +212,5 @@ zaman aşımı görebilir, ayrı bir iş.
   zincir `AuthDbContext`.
 - `RepoStars`, `RepoIssues`, `RepoIssueComments` fiziksel olarak `public`'te.
 - Frontend'e dokunulmadı, frontend testi koşulmadı (sözleşme değişmedi).
-- `RepoIssues` ve CLI/MCP üzerinde Hub verisi kullanan yol yok; yalnızca derleme doğrulandı.
+- CLI ve MCP taşınan veriyi kullanmıyor (MCP yalnız `HubBlueprintCatalog`); yalnızca derleme doğrulandı.
+- `namines_*` MCP araçları bu oturumda bağlanamadı (CONNECT_TIMEOUT), `namines_analyze_impact` ve `namines_prove_migration` çalıştırılamadı. Kanıt yerine gerçek PostgreSQL testleri.
