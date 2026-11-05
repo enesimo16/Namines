@@ -29,6 +29,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
     {
         if (!DockerAvailable.Value) return;
         await _container.StartAsync();
+        PostgresTestPools.Reset();
 
         _options = new DbContextOptionsBuilder<AuthDbContext>()
             .UseNpgsql(_container.GetConnectionString()).Options;

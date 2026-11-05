@@ -34,6 +34,7 @@ public class OrgAccessTests : IAsyncLifetime
     {
         if (!DockerAvailable.Value) return;
         await _container.StartAsync();
+        PostgresTestPools.Reset();
 
         _context = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>()
             .UseNpgsql(_container.GetConnectionString()).Options);

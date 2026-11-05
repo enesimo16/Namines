@@ -31,6 +31,7 @@ public class GatewayRateLimiterDistributedTests : IAsyncLifetime
         if (!DockerAvailable.Value) return;
 
         await _container.StartAsync();
+        PostgresTestPools.Reset();
         _redis = await ConnectionMultiplexer.ConnectAsync(_container.GetConnectionString());
     }
 

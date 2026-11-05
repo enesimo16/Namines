@@ -187,3 +187,13 @@ internal static class DockerAvailable
         }
     }
 }
+
+/// <summary>
+/// Npgsql havuzu bağlantı dizesine göre anahtarlanır ve test başına açılan container'ların host portu
+/// geri dönüşebilir: yeni container eskisinin portunu alırsa havuz ölü bağlantıyı verir ve test ilk
+/// yazmada "Exception while writing to stream" ile düşer (tam koşuda iki kez görüldü).
+/// </summary>
+internal static class PostgresTestPools
+{
+    public static void Reset() => Npgsql.NpgsqlConnection.ClearAllPools();
+}

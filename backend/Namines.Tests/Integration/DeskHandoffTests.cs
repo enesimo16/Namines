@@ -28,6 +28,7 @@ public class DeskHandoffTests : IAsyncLifetime
     {
         if (!DockerAvailable.Value) return;
         await _container.StartAsync();
+        PostgresTestPools.Reset();
 
         var connStr = _container.GetConnectionString();
         _options = new DbContextOptionsBuilder<AuthDbContext>()

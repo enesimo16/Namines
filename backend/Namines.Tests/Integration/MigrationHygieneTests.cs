@@ -30,6 +30,7 @@ public class MigrationHygieneTests : IAsyncLifetime
     {
         if (!DockerAvailable.Value) return;
         await _container.StartAsync();
+        PostgresTestPools.Reset();
     }
 
     public async Task DisposeAsync()

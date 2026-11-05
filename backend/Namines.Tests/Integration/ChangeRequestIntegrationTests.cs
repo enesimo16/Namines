@@ -31,6 +31,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         if (!DockerAvailable.Value) return;
 
         await _container.StartAsync();
+        PostgresTestPools.Reset();
 
         var options = new DbContextOptionsBuilder<AuthDbContext>()
             .UseNpgsql(_container.GetConnectionString())
