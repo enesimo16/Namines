@@ -8,6 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Namines.BuildingBlocks.Security;
+using Namines.BuildingBlocks.Application;
 using Microsoft.AspNetCore.RateLimiting;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Observability;
@@ -131,7 +133,8 @@ public class GatewayController : ControllerBase
     private readonly GroqAIService _groq;
     private readonly ILogger<GatewayController> _logger;
     private readonly AiQuotaService _quota;
-    private readonly IConnectionSecretProtector _protector;
+    private readonly IProjectConnectionSecretProvider _secrets;
+    private readonly IStudioApplicationService _studio;
     private readonly IDbIntrospectionService _introspection;
 
     /// <summary>
@@ -147,7 +150,7 @@ public class GatewayController : ControllerBase
     public GatewayController(
         IGatewayService gateway, AuthDbContext context, IConfiguration configuration,
         GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota,
-        IConnectionSecretProtector protector, IDbIntrospectionService introspection,
+        IProjectConnectionSecretProvider secrets, IStudioApplicationService studio, IDbIntrospectionService introspection,
         ISqlWorkbenchService workbench)
     {
         _workbench = workbench;
@@ -157,7 +160,8 @@ public class GatewayController : ControllerBase
         _groq = groq;
         _logger = logger;
         _quota = quota;
-        _protector = protector;
+        _secrets = secrets;
+        _studio = studio;
         _introspection = introspection;
     }
 
@@ -501,12 +505,8 @@ public class GatewayController : ControllerBase
             projectId = requestedProjectId;
         }
 
-        var project = await _context.CloudProjects
-            .Where(p => p.Id == projectId)
-            .Select(p => new { p.EncryptedConnectionString, p.ConnectionDbType })
-            .FirstOrDefaultAsync(ct);
-
-        if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString))
+        var stored = await _secrets.GetStoredConnectionAsync(projectId, ct);
+        if (stored is null)
             return (null, string.Empty, null);
 
         // Çözülemezse (anahtar döndü / kayıt bozuldu) İSTİSNA fırlar ve üstteki
@@ -516,11 +516,11 @@ public class GatewayController : ControllerBase
         // Motor türü İSTEKTEKİNE DEĞİL saklanana güvenir: istemci boş ya da
         // yanlış gönderebilir, ama bağlantının hangi motora ait olduğunu
         // kaydeden taraf sunucudur.
-        var dbType = !string.IsNullOrWhiteSpace(project.ConnectionDbType)
-            ? project.ConnectionDbType
+        var dbType = !string.IsNullOrWhiteSpace(stored.ConnectionDbType)
+            ? stored.ConnectionDbType
             : (requestedDbType ?? string.Empty);
 
-        return (_protector.Unprotect(project.EncryptedConnectionString, associatedData: projectId), dbType, null);
+        return (stored.ConnectionString, dbType, null);
     }
 
     [HttpPost("list")]
@@ -799,7 +799,7 @@ public class GatewayController : ControllerBase
     /// 1. Çağıran bu projenin <b>Owner</b>'ı mı (Admin bile yetmez — 34-SENDEN-
     ///    BEKLENENLER.md madde 13'ün kararı: "tüm güvenlik önlemleri").
     /// 2. Proje sahibi SQL konsolunu bu proje için AÇIKÇA açmış mı
-    ///    (<c>CloudProject.AllowDeskSql</c>, varsayılan kapalı).
+    ///    (<c>ProjectConnection.AllowDeskSql</c>, varsayılan kapalı).
     /// 3. SQL'in kendisi tek bir SELECT/WITH/EXPLAIN/SHOW ifadesi mi
     ///    (<c>GatewayService.EnsureReadOnlySelectStatement</c> — DB'nin kendi
     ///    salt-okunur oturumunun SQL Server/Oracle'da hiç var olmamasını telafi
@@ -833,18 +833,19 @@ public class GatewayController : ControllerBase
         if (role != OrgRole.Owner)
             return StatusCode(403, new { message = "Only the project Owner can use the Desk SQL console." });
 
-        var project = await _context.CloudProjects
-            .Where(p => p.Id == request.ProjectId)
-            .Select(p => new { p.EncryptedConnectionString, p.ConnectionDbType, p.AllowDeskSql })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString))
+        // Önce üst veri: reddedilecek bir istek için sır çözülmez.
+        var connectionMeta = await _studio.GetConnectionMetadataAsync(request.ProjectId, cancellationToken);
+        if (!connectionMeta.HasConnection)
             return BadRequest(new { message = "This project has no stored database connection." });
-        if (!project.AllowDeskSql)
+        if (!connectionMeta.AllowDeskSql)
             return StatusCode(403, new { message = "The SQL console is not enabled for this project yet." });
 
-        var connectionString = _protector.Unprotect(project.EncryptedConnectionString, associatedData: request.ProjectId);
-        var dbType = project.ConnectionDbType ?? "PostgreSQL";
+        var stored = await _secrets.GetStoredConnectionAsync(request.ProjectId, cancellationToken);
+        if (stored is null)
+            return BadRequest(new { message = "This project has no stored database connection." });
+
+        var connectionString = stored.ConnectionString;
+        var dbType = string.IsNullOrWhiteSpace(stored.ConnectionDbType) ? "PostgreSQL" : stored.ConnectionDbType;
         var maxRows = Math.Clamp(request.MaxRows, 1, 2000);
 
         // ArgumentException (tek-ifade/salt-okunur ihlali) ve "not allowed" (SSRF)
@@ -1015,10 +1016,7 @@ public class GatewayController : ControllerBase
         if (role != OrgRole.Owner)
             return (StatusCode(403, new { message = "Only the project Owner can use the Desk SQL console." }), null);
 
-        var allowed = await _context.CloudProjects
-            .Where(p => p.Id == projectId)
-            .Select(p => p.AllowDeskSql)
-            .FirstOrDefaultAsync(cancellationToken);
+        var allowed = (await _studio.GetConnectionMetadataAsync(projectId, cancellationToken)).AllowDeskSql;
 
         return allowed
             ? (null, userId)
@@ -1432,10 +1430,7 @@ public class GatewayController : ControllerBase
                           "Send your own connection string, or use the Desk SQL console.",
             });
 
-        var allowDeskSql = await _context.CloudProjects
-            .Where(p => p.Id == projectId)
-            .Select(p => p.AllowDeskSql)
-            .FirstOrDefaultAsync(ct);
+        var allowDeskSql = (await _studio.GetConnectionMetadataAsync(projectId, ct)).AllowDeskSql;
         if (!allowDeskSql)
             return StatusCode(403, new { message = "The SQL console is not enabled for this project yet." });
 
@@ -1625,7 +1620,7 @@ public class GatewayController : ControllerBase
     /// </summary>
     /// <summary>
     /// Ham SQL projeye SAKLI bağlantıda çalışacaksa, projenin ham-SQL anahtarı
-    /// (<c>CloudProject.AllowDeskSql</c>) açık olmak zorunda. İzin varsa <c>null</c>.
+    /// (<c>ProjectConnection.AllowDeskSql</c>) açık olmak zorunda. İzin varsa <c>null</c>.
     ///
     /// <b>Bulunan açık (docs/last-review H-3):</b> bu kontrol yalnızca oturum
     /// yolunda vardı (<see cref="AuthorizeSessionRawSqlAsync"/>, `key is null`
@@ -1642,14 +1637,9 @@ public class GatewayController : ControllerBase
     {
         if (key is null || !string.IsNullOrWhiteSpace(requestConnectionString)) return null;
 
-        var allowDeskSql = await _context.CloudProjects
-            .Where(p => p.Id == key.ProjectId)
-            .Select(p => (bool?)p.AllowDeskSql)
-            .FirstOrDefaultAsync(ct);
-
-        // Proje bulunamadıysa da REDDEDİLİYOR: "kayıt yok" durumunu izin saymak,
+        // Proje ya da bağlantı satırı yoksa da REDDEDİLİYOR: "kayıt yok" durumunu izin saymak,
         // fail-open olurdu.
-        if (allowDeskSql == true) return null;
+        if ((await _studio.GetConnectionMetadataAsync(key.ProjectId, ct)).AllowDeskSql) return null;
 
         NaminesMetrics.GatewayRequest("sql", "denied");
         return StatusCode(403, new
@@ -1759,19 +1749,18 @@ public class GatewayController : ControllerBase
             sessionCanWrite = await _context.CanEditAsync(projectId, userId!, cancellationToken);
         }
 
-        var project = await _context.CloudProjects
-            .Where(p => p.Id == resolvedProjectId)
-            .Select(p => new { p.EncryptedConnectionString, p.ConnectionDbType })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (string.IsNullOrWhiteSpace(project?.EncryptedConnectionString))
+        var connectionMeta = await _studio.GetConnectionMetadataAsync(resolvedProjectId, cancellationToken);
+        if (!connectionMeta.HasConnection)
             return BadRequest(new { message = "This project has no stored database connection." });
 
         try
         {
-            var connectionString = _protector.Unprotect(project.EncryptedConnectionString, associatedData: resolvedProjectId);
+            var stored = await _secrets.GetStoredConnectionAsync(resolvedProjectId, cancellationToken)
+                ?? throw new InvalidOperationException("The stored connection disappeared while it was being read.");
             var schema = await _introspection.IntrospectAsync(
-                connectionString, project.ConnectionDbType ?? "PostgreSQL", cancellationToken);
+                stored.ConnectionString,
+                string.IsNullOrWhiteSpace(stored.ConnectionDbType) ? "PostgreSQL" : stored.ConnectionDbType,
+                cancellationToken);
 
             // İlişkiler Id üzerinden geliyor; Desk'in isimle çalışması daha basit.
             var tableById  = schema.Tables.ToDictionary(t => t.Id);

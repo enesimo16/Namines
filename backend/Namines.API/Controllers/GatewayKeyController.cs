@@ -59,21 +59,19 @@ public sealed record SetTablePermissionRequest(
 public class GatewayKeyController : ControllerBase
 {
     private readonly AuthDbContext _context;
-    private readonly IConnectionSecretProtector _protector;
     private readonly IDbHostAccessPolicy _hostPolicy;
     private readonly IDbIntrospectionService _introspection;
     private readonly IGroundModule? _ground;
-    private readonly IProjectConnectionSecretProvider? _secretProvider;
+    private readonly IProjectConnectionSecretProvider _secretProvider;
 
     public GatewayKeyController(
         AuthDbContext context,
-        IConnectionSecretProtector protector,
         IDbHostAccessPolicy hostPolicy,
         IDbIntrospectionService introspection,
-        IGroundModule? ground = null, IProjectConnectionSecretProvider? secretProvider = null)
+        IProjectConnectionSecretProvider secretProvider,
+        IGroundModule? ground = null)
     {
         _context = context;
-        _protector = protector;
         _hostPolicy = hostPolicy;
         _introspection = introspection;
         _ground = ground;
@@ -476,13 +474,9 @@ public class GatewayKeyController : ControllerBase
             return BadRequest(new { error = DbConnectionFailure.Classify(ex) });
         }
 
-        project.EncryptedConnectionString = _protector.Protect(request.ConnectionString, associatedData: projectId);
-        project.ConnectionDbType = request.DbType;
-        project.UpdatedAt = DateTime.UtcNow;
-        if (_secretProvider != null) { await _secretProvider.SetConnectionAsync(projectId, request.ConnectionString, request.DbType, ct); }
         try
         {
-            await _context.SaveChangesAsync(ct);
+            await _secretProvider.SetConnectionAsync(projectId, request.ConnectionString, request.DbType, ct);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -530,13 +524,9 @@ public class GatewayKeyController : ControllerBase
             });
         }
 
-        project.EncryptedConnectionString = null;
-        project.ConnectionDbType = null;
-        project.UpdatedAt = DateTime.UtcNow;
-        if (_secretProvider != null) { await _secretProvider.ClearConnectionAsync(projectId, ct); }
         try
         {
-            await _context.SaveChangesAsync(ct);
+            await _secretProvider.ClearConnectionAsync(projectId, ct);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -569,18 +559,15 @@ public class GatewayKeyController : ControllerBase
         var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
         if (project is null) return NotFound(new { error = "Project not found." });
 
-        project.AllowDeskSql = request.Enabled;
-        project.UpdatedAt = DateTime.UtcNow;
-        if (_secretProvider != null) { await _secretProvider.SetDeskSqlEnabledAsync(projectId, request.Enabled, ct); }
         try
         {
-            await _context.SaveChangesAsync(ct);
+            await _secretProvider.SetDeskSqlEnabledAsync(projectId, request.Enabled, ct);
         }
         catch (DbUpdateConcurrencyException)
         {
             return ConcurrencyConflict.Result();
         }
 
-        return Ok(new { projectId, allowDeskSql = project.AllowDeskSql });
+        return Ok(new { projectId, allowDeskSql = request.Enabled });
     }
 }

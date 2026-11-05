@@ -522,7 +522,7 @@ public sealed class GatewayService : IGatewayService
     /// yan etkisi olan bir fonksiyon çağrısı (ör. bir sıra/sequence'i ilerleten
     /// <c>nextval()</c>) teorik olarak hâlâ mümkün — tam bir SQL ayrıştırıcısı
     /// olmadan sıfıra indirilemez. Bu yüzden Desk'in SQL konsolu yalnızca proje
-    /// Owner'ına açık ve varsayılan KAPALI (<c>CloudProject.AllowDeskSql</c>).
+    /// Owner'ına açık ve varsayılan KAPALI (<c>ProjectConnection.AllowDeskSql</c>).
     /// </summary>
     internal static void EnsureReadOnlySelectStatement(string sql)
     {

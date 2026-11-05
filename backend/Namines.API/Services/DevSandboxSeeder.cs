@@ -7,7 +7,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Namines.Core.Models.Auth;
-using Namines.Core.Security;
+using Namines.BuildingBlocks.Application;
+using Namines.BuildingBlocks.Security;
 using Namines.Infrastructure.Data;
 
 namespace Namines.API.Services;
@@ -43,7 +44,8 @@ public static class DevSandboxSeeder
     public static async Task SeedAsync(
         AuthDbContext context,
         IConfiguration configuration,
-        IConnectionSecretProtector protector,
+        IProjectConnectionSecretProvider secrets,
+        IHubApplicationService hub,
         ILogger logger,
         CancellationToken ct = default)
     {
@@ -74,7 +76,7 @@ public static class DevSandboxSeeder
 
         await EnsureDatabaseAsync(controlConnection, logger, ct);
         await EnsureTablesAsync(sandboxConnection, logger, ct);
-        await EnsureProjectAsync(context, protector, owner, sandboxConnection, logger, ct);
+        await EnsureProjectAsync(context, secrets, hub, owner, sandboxConnection, logger, ct);
     }
 
     /// <summary>
@@ -175,7 +177,8 @@ public static class DevSandboxSeeder
 
     private static async Task EnsureProjectAsync(
         AuthDbContext context,
-        IConnectionSecretProtector protector,
+        IProjectConnectionSecretProvider secrets,
+        IHubApplicationService hub,
         ApplicationUser owner,
         string sandboxConnection,
         ILogger logger,
@@ -206,14 +209,15 @@ public static class DevSandboxSeeder
         }
 
         project.OrganizationId = org.Id;
-        // Bağlantı HER AÇILIŞTA yeniden şifreleniyor: şifreleme anahtarı
-        // değiştiğinde eski şifreli metin çözülemez hâle gelir ve proje
-        // sessizce bozulurdu. Yeniden yazmak bu sınıfı tamamen kaldırıyor.
-        project.EncryptedConnectionString = protector.Protect(sandboxConnection);
-        project.ConnectionDbType = "PostgreSQL";
         project.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(ct);
+        await hub.EnsureRepositoryAsync(ProjectId, project.UserId, null, ct);
+
+        // Bağlantı HER AÇILIŞTA yeniden şifreleniyor: şifreleme anahtarı
+        // değiştiğinde eski şifreli metin çözülemez hâle gelir ve proje
+        // sessizce bozulurdu. Yeniden yazmak bu sınıfı tamamen kaldırıyor.
+        await secrets.SetConnectionAsync(ProjectId, sandboxConnection, "PostgreSQL", ct);
         await EnsureTablePermissionsAsync(context, logger, ct);
 
         if (isNew)

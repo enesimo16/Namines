@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Namines.BuildingBlocks.Application;
+using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.Core.Models.Hub;
 using Namines.Infrastructure.Catalogs;
@@ -29,6 +31,8 @@ public static class HubBlueprintSeeder
     public static async Task SeedAsync(
         AuthDbContext context,
         UserManager<ApplicationUser> userManager,
+        IHubApplicationService hub,
+        ICrossModuleTransaction transaction,
         ILogger logger,
         CancellationToken ct = default)
     {
@@ -82,12 +86,10 @@ public static class HubBlueprintSeeder
         // 2. Blueprints tanımları
         var blueprints = HubBlueprintCatalog.All;
 
-        var existingSlugs = await context.CloudProjects
-            .Where(p => p.UserId == architect.Id)
-            .Select(p => p.Slug)
-            .ToListAsync(ct);
+        var existingSlugs = await hub.GetSlugsByOwnerAsync(architect.Id, ct);
 
-        var existingSlugSet = new HashSet<string>(existingSlugs.Where(s => s != null)!, StringComparer.OrdinalIgnoreCase);
+        var existingSlugSet = new HashSet<string>(existingSlugs, StringComparer.OrdinalIgnoreCase);
+        var newRepositories = new List<(ProjectRepository Repository, string? Tags)>();
 
         var addedCount = 0;
         foreach (var bp in blueprints)
@@ -99,16 +101,7 @@ public static class HubBlueprintSeeder
             {
                 Id = Guid.NewGuid().ToString(),
                 Name = bp.Name,
-                Slug = bp.Slug,
-                Description = bp.Description,
-                Category = bp.Category,
-                Tags = bp.Tags,
                 DbType = "PostgreSQL",
-                Visibility = ProjectVisibility.Public,
-                // Katalogdaki StarCount/ForkCount uydurma rakamlardı; Hub gerçek etkileşim
-                // göstermeli, tohumlanan repolar 0'dan başlar.
-                StarCount = 0,
-                ForkCount = 0,
                 UserId = architect.Id,
                 OrganizationId = personalOrg.Id,
                 SchemaJson = JsonSerializer.Serialize(bp.Schema, SchemaJsonOptions.Default),
@@ -118,6 +111,20 @@ public static class HubBlueprintSeeder
             };
 
             await context.CloudProjects.AddAsync(project, ct);
+
+            // Katalogdaki StarCount/ForkCount uydurma rakamlardı; Hub gerçek etkileşim
+            // göstermeli, tohumlanan repolar 0'dan başlar.
+            newRepositories.Add((new ProjectRepository
+            {
+                ProjectId = project.Id,
+                OwnerUserId = architect.Id,
+                Slug = bp.Slug,
+                Description = bp.Description,
+                Category = bp.Category,
+                Visibility = ProjectVisibility.Public,
+                CreatedAt = project.CreatedAt,
+                UpdatedAt = project.UpdatedAt
+            }, bp.Tags));
 
             // Default main branch
             var mainBranch = new Branch
@@ -153,7 +160,15 @@ public static class HubBlueprintSeeder
 
         if (addedCount > 0)
         {
-            await context.SaveChangesAsync(ct);
+            // Proje ve vitrin satırı tek işlemde: yarım kalan tohum, bir sonraki açılışta slug'ı
+            // "var" sayıp projeyi vitrinsiz bırakırdı.
+            await transaction.ExecuteAsync(async c =>
+            {
+                await context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+                foreach (var (repository, tags) in newRepositories)
+                    await hub.CreateRepositoryAsync(repository, tags, c);
+            }, ct);
+            context.ChangeTracker.AcceptAllChanges();
             logger.LogInformation("Namines Hub için {Count} kurumsal mimari şablonu başarıyla tohumlandı.", addedCount);
         }
     }

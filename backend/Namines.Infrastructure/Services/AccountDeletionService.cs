@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Namines.BuildingBlocks.Application;
+using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 
@@ -53,6 +55,8 @@ public class AccountDeletionService
     private readonly AuthDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ProjectDeletionService _projects;
+    private readonly IHubApplicationService _hub;
+    private readonly ICrossModuleTransaction _transaction;
     private readonly ISubscriptionCanceller? _stripe;
     private readonly ILogger<AccountDeletionService> _logger;
 
@@ -60,12 +64,16 @@ public class AccountDeletionService
         AuthDbContext context,
         UserManager<ApplicationUser> userManager,
         ProjectDeletionService projects,
+        IHubApplicationService hub,
+        ICrossModuleTransaction transaction,
         ILogger<AccountDeletionService> logger,
         ISubscriptionCanceller? stripe = null)
     {
         _context = context;
         _userManager = userManager;
         _projects = projects;
+        _hub = hub;
+        _transaction = transaction;
         _logger = logger;
         _stripe = stripe;
     }
@@ -222,10 +230,12 @@ public class AccountDeletionService
 
         // ── 4. Kalan DB işleri + kullanıcı + denetim: TEK işlem ──────────────
         var revokedKeys = 0;
-        var strategy = _context.Database.CreateExecutionStrategy();
-        var failure = await strategy.ExecuteAsync<AccountDeletionResult?>(async () =>
+        // Hub yazımları (devir, yıldızlar) kullanıcı silmeyle aynı işlemde: biri geri alınırsa hepsi.
+        AccountDeletionResult? failure = null;
+        try
         {
-            await using var tx = await _context.Database.BeginTransactionAsync(ct);
+            await _transaction.ExecuteAsync(async _ =>
+            {
 
             foreach (var (projectId, newOwner) in reassign)
             {
@@ -233,7 +243,11 @@ public class AccountDeletionService
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(p => p.UserId, newOwner)
                         .SetProperty(p => p.UpdatedAt, DateTime.UtcNow), ct);
+                await _hub.ReassignOwnerAsync(projectId, newOwner, ct);
             }
+
+            // Kullanıcı silinince FK yıldızları cascade siler ama sayaçlar düşmezdi.
+            await _hub.RemoveStarsByUserAsync(userId, ct);
 
             foreach (var (orgId, newCreator) in orgHeirs)
             {
@@ -264,9 +278,10 @@ public class AccountDeletionService
             var deleted = await _userManager.DeleteAsync(user);
             if (!deleted.Succeeded)
             {
-                await tx.RollbackAsync(ct);
                 _logger.LogError("Kullanici silinemedi: {Errors}", string.Join(", ", deleted.Errors.Select(e => e.Code)));
-                return new AccountDeletionResult(false, 500, "ACCOUNT_DELETE_FAILED", "The account could not be deleted. Try again.");
+                failure = new AccountDeletionResult(false, 500, "ACCOUNT_DELETE_FAILED", "The account could not be deleted. Try again.");
+                // İstisna işlemi geri alır; işleme açık kalıp commit edilmesin diye dönüş yeterli değil.
+                throw new AccountDeletionAbortedException();
             }
 
             _context.ChangeRequestAuditLogs.Add(new ChangeRequestAuditLog
@@ -285,10 +300,17 @@ public class AccountDeletionService
                 }),
             });
             await _context.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-            return null;
-        });
+            }, ct);
+        }
+        catch (AccountDeletionAbortedException)
+        {
+            return failure!;
+        }
 
-        return failure ?? AccountDeletionResult.Success();
+        return AccountDeletionResult.Success();
+    }
+
+    private sealed class AccountDeletionAbortedException : Exception
+    {
     }
 }

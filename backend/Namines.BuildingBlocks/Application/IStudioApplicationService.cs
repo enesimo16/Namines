@@ -2,64 +2,73 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Namines.Core.Models.Auth;
 
 namespace Namines.BuildingBlocks.Application;
 
+/// <summary>Bir projenin bağlantı üst verisi. Şifreli metin bilerek YOK: "var/yok" yeterli.</summary>
+public sealed record ProjectConnectionMetadata(
+    string ProjectId,
+    bool HasConnection,
+    string? ConnectionDbType,
+    bool AllowDeskSql);
+
+/// <summary>Toplu okumalar için hafif proje özeti; SchemaJson taşımaz (çok büyük olabilir).</summary>
+public sealed record StudioProjectSummary(
+    string Id,
+    string Name,
+    string DbType,
+    string UserId,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
+
+/// <summary>Anonim paylaşım uçlarının görebileceği alanların tamamı.</summary>
+public sealed record SharedProjectView(
+    string Name,
+    string DbType,
+    string SchemaJson,
+    string NodePositionsJson);
+
 /// <summary>
-/// Studio Bounded Context Uygulama Servis Sözleşmesi (Phase 14.2B).
-/// <c>studio.projects</c> ve <c>studio.project_shares</c> tabloları üzerindeki tüm
-/// iş kurallarını, optimistik eşzamanlılığı (<c>RowVersion</c>) ve kriptografik paylaşım özetlerini yönetir.
+/// Studio modülünün dış sözleşmesi: proje özetleri, bağlantı üst verisi, anonim paylaşım.
+/// Bağlantı sırrını çözmek burada değil, <c>IProjectConnectionSecretProvider</c>'da.
+/// Yetki denetimi ÇAĞIRANIN işi: bu servis kiracı bilgisini görmez.
 /// </summary>
 public interface IStudioApplicationService
 {
-    Task<CloudProject?> GetProjectAsync(string projectId, CancellationToken ct = default);
-
-    Task<IReadOnlyList<CloudProject>> GetProjectsForUserOrOrgAsync(
-        string userId,
-        IReadOnlyCollection<string> orgIds,
+    /// <summary>N+1 olmasın diye toplu; bilinmeyen kimlikler sonuçta yer almaz.</summary>
+    Task<IReadOnlyDictionary<string, StudioProjectSummary>> GetProjectSummariesAsync(
+        IReadOnlyCollection<string> projectIds,
         CancellationToken ct = default);
 
-    Task<CloudProject> CreateOrUpdateProjectAsync(
-        CloudProject project,
+    Task<IReadOnlyDictionary<string, string>> GetSchemaJsonAsync(
+        IReadOnlyCollection<string> projectIds,
         CancellationToken ct = default);
 
-    Task<bool> DeleteProjectAsync(
+    /// <summary>Satır yoksa bağlantısız ve SQL konsolu kapalı kabul edilir (null dönmez).</summary>
+    Task<ProjectConnectionMetadata> GetConnectionMetadataAsync(
         string projectId,
         CancellationToken ct = default);
 
+    Task<IReadOnlyDictionary<string, ProjectConnectionMetadata>> GetConnectionMetadataAsync(
+        IReadOnlyCollection<string> projectIds,
+        CancellationToken ct = default);
+
     /// <summary>
-    /// Kriptografik rastgele 192-bit URL-safe token üretir, SHA-256 özetini
-    /// <c>studio.project_shares</c> tablosuna yazar ve ham token'ı tek seferlik döndürür.
-    /// Düz metin token hiçbir yerde saklanmaz.
+    /// Yeni bir bağlantı üretir, yalnızca özetini yazar, ham token'ı bu tek seferlik döndürür.
+    /// Önceki bağlantılar geçerli kalır (bkz. <see cref="Namines.Core.Models.Auth.ProjectShare"/>).
+    /// Proje yoksa <see cref="KeyNotFoundException"/>.
     /// </summary>
     Task<string> CreateShareLinkAsync(
         string projectId,
         CancellationToken ct = default);
 
-    /// <summary>
-    /// Projenin salt-okunur paylaşım bağlantısını derhal iptal eder (<c>studio.project_shares</c> kaydını siler).
-    /// </summary>
-    Task<bool> RevokeShareLinkAsync(
+    /// <summary>Projenin TÜM etkin paylaşım bağlantılarını kapatır; kapatılan sayısını döner.</summary>
+    Task<int> RevokeShareLinksAsync(
         string projectId,
         CancellationToken ct = default);
 
-    /// <summary>
-    /// SHA-256 token özeti ile paylaşım kaydını sorgular.
-    /// </summary>
-    Task<ProjectShare?> GetShareByTokenHashAsync(
+    /// <summary>Ham token değil özet alır; iptal edilmiş bağlantı için null.</summary>
+    Task<SharedProjectView?> GetSharedProjectByTokenHashAsync(
         string tokenHash,
-        CancellationToken ct = default);
-
-    /// <summary>
-    /// Paylaşım jetonunun SHA-256 özeti üzerinden projeyi salt-okunur getirir.
-    /// </summary>
-    Task<CloudProject?> GetSharedProjectByTokenHashAsync(
-        string tokenHash,
-        CancellationToken ct = default);
-
-    Task<bool> SetAutoApproveSafeChangesAsync(
-        string projectId,
-        bool enabled,
         CancellationToken ct = default);
 }

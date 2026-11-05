@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Namines.BuildingBlocks.Application;
+using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.Ground.Application;
 using Namines.Infrastructure.Data;
@@ -39,8 +40,8 @@ public class ProjectDeletionService
     private readonly AuthDbContext _context;
     private readonly IVaultApplicationService _vault;
     private readonly IGroundApplicationService _ground;
-    private readonly IStudioApplicationService? _studio;
-    private readonly IHubApplicationService? _hub;
+    private readonly IHubApplicationService _hub;
+    private readonly ICrossModuleTransaction _transaction;
     private readonly ILogger<ProjectDeletionService> _logger;
 
     public ProjectDeletionService(
@@ -48,15 +49,15 @@ public class ProjectDeletionService
         IVaultApplicationService vault,
         IGroundApplicationService ground,
         ILogger<ProjectDeletionService> logger,
-        IStudioApplicationService? studio = null,
-        IHubApplicationService? hub = null)
+        IHubApplicationService hub,
+        ICrossModuleTransaction transaction)
     {
         _context = context;
         _vault = vault;
         _ground = ground;
         _logger = logger;
-        _studio = studio;
         _hub = hub;
+        _transaction = transaction;
     }
 
     public async Task<ProjectDeletionResult> DeleteAsync(
@@ -106,20 +107,17 @@ public class ProjectDeletionService
             .ToListAsync(ct);
         _context.CrossDatabaseRelations.RemoveRange(crossRels);
 
-        // Phase 14.2B: Studio ve Hub Bounded Context'lerindeki normalize verileri temizle
-        if (_studio != null)
-        {
-            await _studio.DeleteProjectAsync(projectId, ct);
-        }
-        if (_hub != null)
-        {
-            await _hub.DeleteRepositoryAsync(projectId, ct);
-        }
-
+        // Bağlantı, paylaşım, repo ve etiket satırları DB'deki FK ile cascade gider; burada kalan
+        // tek iş fork kaynağının sayacı, proje silinmeden önce ve aynı işlemde.
         // "Silindi" denetim satırı silmeyle AYNI işlemde: biri olmadan diğeri olmaz.
         _context.CloudProjects.Remove(project);
         AddAudit(ChangeRequestAuditAction.ProjectDeleted, project, actorUserId, counts, null, recordName);
-        await _context.SaveChangesAsync(ct);
+        await _transaction.ExecuteAsync(async c =>
+        {
+            await _hub.DetachFromForkSourceAsync(projectId, c);
+            await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+        }, ct);
+        _context.ChangeTracker.AcceptAllChanges();
 
         _logger.LogInformation("Proje silindi: {ProjectId} (aktör {Actor}).", projectId, actorUserId);
         return ProjectDeletionResult.Success();

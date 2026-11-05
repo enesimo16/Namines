@@ -16,28 +16,28 @@ namespace Namines.Infrastructure.Data;
 /// sözleşmelerinin <see cref="AuthDbContext"/> tabanlı sunucu-otoriteli uygulaması.
 ///
 /// <b>Neden gerekli:</b> Modüller (Vault, Ground, Flow, Desk, Hub vb.) kendi şemalarındaki
-/// tablolardan transitif <c>OrganizationId</c> ve <c>EncryptedConnectionString</c>
-/// sütunlarını çıkardığında (3NF) ve kendi <c>DbContext</c>'lerine geçtiğinde,
-/// <see cref="AuthDbContext"/>'e doğrudan bağımlı olmadan tenant izolasyonunu ve
-/// bağlantı sırrı erişimini bu dar sözleşmeler üzerinden doğrular.
+/// tablolardan transitif <c>OrganizationId</c> sütununu çıkardığında (3NF) ve kendi
+/// <c>DbContext</c>'lerine geçtiğinde, <see cref="AuthDbContext"/>'e doğrudan bağımlı olmadan
+/// tenant izolasyonunu doğrular. Bağlantı sırrı <c>studio.project_connections</c>'tan okunur;
+/// çözme işinin tek kapısı burası.
 /// </summary>
 public sealed class TenantProjectAuthorityService : ITenantProjectAuthority, IProjectConnectionSecretProvider
 {
     private readonly AuthDbContext _context;
     private readonly IConnectionSecretProtector _protector;
     private readonly IDbHostAccessPolicy? _hostPolicy;
-    private readonly IStudioModule? _studioModule;
+    private readonly StudioDbContext _studio;
 
     public TenantProjectAuthorityService(
         AuthDbContext context,
+        StudioDbContext studio,
         IConnectionSecretProtector protector,
-        IDbHostAccessPolicy? hostPolicy = null,
-        IStudioModule? studioModule = null)
+        IDbHostAccessPolicy? hostPolicy = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _studio = studio ?? throw new ArgumentNullException(nameof(studio));
         _protector = protector ?? throw new ArgumentNullException(nameof(protector));
         _hostPolicy = hostPolicy;
-        _studioModule = studioModule;
     }
 
     public async Task<ProjectAuthoritySnapshot?> GetProjectSnapshotAsync(
@@ -47,7 +47,8 @@ public sealed class TenantProjectAuthorityService : ITenantProjectAuthority, IPr
         if (string.IsNullOrWhiteSpace(projectId))
             return null;
 
-        var project = await _context.CloudProjects
+        // Bağlantı satırı yoksa SQL konsolu kapalı (false): opt-in'in varsayılanı.
+        var project = await _studio.Projects
             .AsNoTracking()
             .Where(p => p.Id == projectId)
             .Select(p => new
@@ -57,7 +58,10 @@ public sealed class TenantProjectAuthorityService : ITenantProjectAuthority, IPr
                 p.DbType,
                 p.UserId,
                 p.OrganizationId,
-                p.AllowDeskSql,
+                AllowDeskSql = _studio.ProjectConnections
+                    .Where(c => c.ProjectId == p.Id)
+                    .Select(c => c.AllowDeskSql)
+                    .FirstOrDefault(),
                 p.AutoApproveSafeChanges,
                 p.SchemaJson
             })
@@ -167,66 +171,39 @@ public sealed class TenantProjectAuthorityService : ITenantProjectAuthority, IPr
         string projectId,
         CancellationToken ct = default)
     {
+        var stored = await GetStoredConnectionAsync(projectId, ct);
+        if (stored is null || string.IsNullOrWhiteSpace(stored.ConnectionDbType))
+            return null;
+
+        return stored with { HostPolicyDenyReason = FindDisallowedHost(stored.ConnectionString, stored.ConnectionDbType) };
+    }
+
+    public async Task<ResolvedProjectConnection?> GetStoredConnectionAsync(
+        string projectId,
+        CancellationToken ct = default)
+    {
         if (string.IsNullOrWhiteSpace(projectId))
             return null;
 
-        // 1. Önce 3NF normalize studio.project_connections tablosunu dene
-        if (_studioModule is not null)
-        {
-            var pc = await _studioModule.DbContext.ProjectConnections
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.ProjectId == projectId, ct);
-
-            if (pc is not null && !string.IsNullOrWhiteSpace(pc.EncryptedConnectionString))
-            {
-                var plaintextFrom3Nf = _protector.Unprotect(pc.EncryptedConnectionString, associatedData: projectId);
-                var denyReasonFrom3Nf = FindDisallowedHost(plaintextFrom3Nf, pc.ConnectionDbType);
-                var projectName = await _context.CloudProjects
-                    .Where(p => p.Id == projectId)
-                    .Select(p => p.Name)
-                    .FirstOrDefaultAsync(ct) ?? projectId;
-
-                return new ResolvedProjectConnection(
-                    projectId,
-                    projectName,
-                    plaintextFrom3Nf,
-                    pc.ConnectionDbType,
-                    pc.AllowDeskSql,
-                    denyReasonFrom3Nf);
-            }
-        }
-
-        // 2. Geriye dönük uyumluluk: CloudProjects üzerindeki mirası oku
-        var project = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .Select(p => new
-            {
-                p.Id,
-                p.Name,
-                p.EncryptedConnectionString,
-                p.ConnectionDbType,
-                p.AllowDeskSql
-            })
+        // Bu dosya, proje bağlantısının çözüldüğü TEK yer (mimari test denetliyor).
+        var row = await (
+                from c in _studio.ProjectConnections.AsNoTracking()
+                join p in _studio.Projects.AsNoTracking() on c.ProjectId equals p.Id
+                where c.ProjectId == projectId
+                select new { c.EncryptedConnectionString, c.ConnectionDbType, c.AllowDeskSql, p.Name })
             .FirstOrDefaultAsync(ct);
 
-        if (project is null ||
-            string.IsNullOrWhiteSpace(project.EncryptedConnectionString) ||
-            string.IsNullOrWhiteSpace(project.ConnectionDbType))
-        {
+        if (row is null || string.IsNullOrWhiteSpace(row.EncryptedConnectionString))
             return null;
-        }
 
-        var plaintext = _protector.Unprotect(project.EncryptedConnectionString, associatedData: projectId);
-        var denyReason = FindDisallowedHost(plaintext, project.ConnectionDbType);
+        var plaintext = _protector.Unprotect(row.EncryptedConnectionString, associatedData: projectId);
 
         return new ResolvedProjectConnection(
-            project.Id,
-            project.Name,
+            projectId,
+            row.Name,
             plaintext,
-            project.ConnectionDbType,
-            project.AllowDeskSql,
-            denyReason);
+            row.ConnectionDbType ?? string.Empty,
+            row.AllowDeskSql);
     }
 
     public async Task<ResolvedProjectConnection?> ResolveForUserAsync(
@@ -257,110 +234,72 @@ public sealed class TenantProjectAuthorityService : ITenantProjectAuthority, IPr
             return false;
         }
 
-        var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
-
-        if (project is null)
-            return false;
-
-        var protectedConn = _protector.Protect(rawConnectionString, associatedData: projectId);
-        project.EncryptedConnectionString = protectedConn;
-        project.ConnectionDbType = connectionDbType;
-        project.UpdatedAt = DateTime.UtcNow;
-
-        if (_studioModule is not null)
+        return await MutateConnectionAsync(projectId, connection =>
         {
-            var existingConn = await _studioModule.DbContext.ProjectConnections
-                .FirstOrDefaultAsync(c => c.ProjectId == projectId, ct);
-
-            if (existingConn is not null)
-            {
-                existingConn.EncryptedConnectionString = protectedConn;
-                existingConn.ConnectionDbType = connectionDbType;
-                existingConn.UpdatedAt = DateTime.UtcNow;
-            }
-            else
-            {
-                _studioModule.DbContext.ProjectConnections.Add(new ProjectConnection
-                {
-                    ProjectId = projectId,
-                    EncryptedConnectionString = protectedConn,
-                    ConnectionDbType = connectionDbType,
-                    AllowDeskSql = project.AllowDeskSql,
-                    UpdatedAt = DateTime.UtcNow
-                });
-            }
-            await _studioModule.DbContext.SaveChangesAsync(ct);
-        }
-
-        await _context.SaveChangesAsync(ct);
-        return true;
+            connection.EncryptedConnectionString = _protector.Protect(rawConnectionString, associatedData: projectId);
+            connection.ConnectionDbType = connectionDbType;
+        }, ct);
     }
 
-    public async Task<bool> ClearConnectionAsync(
+    public Task<bool> ClearConnectionAsync(
         string projectId,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(projectId))
-            return false;
+            return Task.FromResult(false);
 
-        var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
-
-        if (project is null)
-            return false;
-
-        project.EncryptedConnectionString = null;
-        project.ConnectionDbType = null;
-        project.UpdatedAt = DateTime.UtcNow;
-
-        if (_studioModule is not null)
+        // SQL konsolu onayı bağlantıyla birlikte silinmez: Owner'ın kararı, bağlantı yenilenince
+        // aynen geçerli kalmalı. Onay da yoksa satır anlamını yitirir ve silinir.
+        return MutateConnectionAsync(projectId, connection =>
         {
-            var existingConn = await _studioModule.DbContext.ProjectConnections
-                .FirstOrDefaultAsync(c => c.ProjectId == projectId, ct);
-
-            if (existingConn is not null)
-            {
-                _studioModule.DbContext.ProjectConnections.Remove(existingConn);
-                await _studioModule.DbContext.SaveChangesAsync(ct);
-            }
-        }
-
-        await _context.SaveChangesAsync(ct);
-        return true;
+            connection.EncryptedConnectionString = null;
+            connection.ConnectionDbType = null;
+        }, ct);
     }
 
-    public async Task<bool> SetDeskSqlEnabledAsync(
+    public Task<bool> SetDeskSqlEnabledAsync(
         string projectId,
         bool enabled,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(projectId))
-            return false;
+            return Task.FromResult(false);
 
-        var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        return MutateConnectionAsync(projectId, connection => connection.AllowDeskSql = enabled, ct);
+    }
 
+    /// <summary>
+    /// Bağlantı satırı ile projenin UpdatedAt'i tek SaveChanges'te (tek işlem) değişir; proje
+    /// satırına dokunmak aynı zamanda xmin'i ilerletir, yani eski sürümle kaydetmeye çalışan
+    /// istemci yine çakışma görür. Eşzamanlı yazıda <c>DbUpdateConcurrencyException</c> çağırana gider.
+    /// </summary>
+    private async Task<bool> MutateConnectionAsync(string projectId, Action<ProjectConnection> mutate, CancellationToken ct)
+    {
+        _studio.ChangeTracker.Clear();
+
+        var project = await _studio.Projects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
         if (project is null)
             return false;
 
-        project.AllowDeskSql = enabled;
-        project.UpdatedAt = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+        var connection = await _studio.ProjectConnections.FirstOrDefaultAsync(c => c.ProjectId == projectId, ct);
+        var isNew = connection is null;
+        connection ??= new ProjectConnection { ProjectId = projectId, CreatedAt = now };
 
-        if (_studioModule is not null)
-        {
-            var existingConn = await _studioModule.DbContext.ProjectConnections
-                .FirstOrDefaultAsync(c => c.ProjectId == projectId, ct);
+        mutate(connection);
+        connection.UpdatedAt = now;
+        project.UpdatedAt = now;
 
-            if (existingConn is not null)
-            {
-                existingConn.AllowDeskSql = enabled;
-                existingConn.UpdatedAt = DateTime.UtcNow;
-                await _studioModule.DbContext.SaveChangesAsync(ct);
-            }
-        }
+        var meaningful = connection.EncryptedConnectionString is not null ||
+                         connection.ConnectionDbType is not null ||
+                         connection.AllowDeskSql;
+        if (isNew && meaningful)
+            _studio.ProjectConnections.Add(connection);
+        else if (!isNew && !meaningful)
+            _studio.ProjectConnections.Remove(connection);
 
-        await _context.SaveChangesAsync(ct);
+        await _studio.SaveChangesAsync(ct);
+        _studio.ChangeTracker.Clear();
         return true;
     }
 }

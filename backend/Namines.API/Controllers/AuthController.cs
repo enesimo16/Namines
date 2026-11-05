@@ -17,6 +17,8 @@ using Namines.Infrastructure.Data;
 
 using Namines.API.Extensions;
 using Namines.Desk.Abstractions;
+using Namines.BuildingBlocks.Application;
+using Namines.BuildingBlocks.Persistence;
 using Namines.Flow.Abstractions;
 using Namines.Infrastructure.Services;
 using System;
@@ -56,6 +58,9 @@ namespace Namines.API.Controllers
         private readonly AccountDeletionService? _accountDeletion;
         private readonly IFlowModule? _flowModule;
         private readonly IDeskModule? _deskModule;
+        private readonly IHubApplicationService _hub;
+        private readonly IStudioApplicationService _studio;
+        private readonly ICrossModuleTransaction _transaction;
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
@@ -64,6 +69,9 @@ namespace Namines.API.Controllers
             IMigrationService migrationService,
             IAutomationJobQueue automationQueue,
             ILogger<AuthController> logger,
+            IHubApplicationService hub,
+            IStudioApplicationService studio,
+            ICrossModuleTransaction transaction,
             IWebHostEnvironment? environment = null,
             IHttpClientFactory? httpClientFactory = null,
 
@@ -78,6 +86,9 @@ namespace Namines.API.Controllers
             _migrationService = migrationService;
             _automationQueue = automationQueue;
             _logger = logger;
+            _hub = hub;
+            _studio = studio;
+            _transaction = transaction;
             _environment = environment;
             _httpClientFactory = httpClientFactory;
             _httpClientFactory = httpClientFactory;
@@ -380,7 +391,8 @@ namespace Namines.API.Controllers
         /// Adı yalnızca özel karakterlerden oluşan bir proje önceden boş slug alıyordu;
         /// Hub'da boş slug çözümlenemez ve çakışan slug başka projeyi gölgeler.
         /// </summary>
-        private async Task<string> BuildUniqueSlugAsync(string? name, string projectId, string userId)
+        private async Task<string> BuildUniqueSlugAsync(
+            string? name, string projectId, string userId, HashSet<(string Owner, string Slug)> reserved)
         {
             var clean = System.Text.RegularExpressions.Regex
                 .Replace((name ?? "").ToLowerInvariant(), @"[^a-z0-9\-]", "-")
@@ -392,10 +404,14 @@ namespace Namines.API.Controllers
             var candidate = baseSlug;
             for (var suffix = 2; ; suffix++)
             {
-                var taken =
-                    _context.CloudProjects.Local.Any(p => p.UserId == userId && p.Id != projectId && p.Slug == candidate) ||
-                    await _context.CloudProjects.AnyAsync(p => p.UserId == userId && p.Id != projectId && p.Slug == candidate);
-                if (!taken) return candidate;
+                // Aynı istekteki henüz kaydedilmemiş projeler de sayılır (toplu senkron).
+                var taken = reserved.Contains((userId, candidate)) ||
+                    await _hub.IsSlugTakenByOwnerAsync(userId, candidate, projectId);
+                if (!taken)
+                {
+                    reserved.Add((userId, candidate));
+                    return candidate;
+                }
                 candidate = $"{baseSlug}-{suffix}";
             }
         }
@@ -421,6 +437,8 @@ namespace Namines.API.Controllers
 
             int savedCount = 0;
             var pendingDiffs = new List<(string ProjectId, string DbType, string? OldJson, string NewJson)>();
+            var pendingRepositories = new List<(string ProjectId, string OwnerUserId, string? Slug)>();
+            var reservedSlugs = new HashSet<(string Owner, string Slug)>();
             foreach (var projDto in projects)
             {
                 var existing = await _context.CloudProjects
@@ -458,8 +476,12 @@ namespace Namines.API.Controllers
                     existing.SchemaJson = projDto.SchemaJson;
                     existing.NodePositionsJson = projDto.NodePositionsJson;
                     existing.UpdatedAt = DateTime.UtcNow;
-                    if (string.IsNullOrWhiteSpace(existing.Slug))
-                        existing.Slug = await BuildUniqueSlugAsync(existing.Name, existing.Id, existing.UserId);
+                    var existingRepository = await _hub.GetRepositoryAsync(existing.Id);
+                    if (existingRepository is null || string.IsNullOrWhiteSpace(existingRepository.Slug))
+                    {
+                        pendingRepositories.Add((existing.Id, existing.UserId,
+                            await BuildUniqueSlugAsync(existing.Name, existing.Id, existing.UserId, reservedSlugs)));
+                    }
                     existing.OrganizationId ??= personalOrg.Id;
                     _context.CloudProjects.Update(existing);
 
@@ -479,7 +501,6 @@ namespace Namines.API.Controllers
                     {
                         Id = newId,
                         Name = projDto.Name,
-                        Slug = await BuildUniqueSlugAsync(projDto.Name, newId, userId),
                         DbType = projDto.DbType,
                         SchemaJson = projDto.SchemaJson,
                         NodePositionsJson = projDto.NodePositionsJson,
@@ -489,13 +510,21 @@ namespace Namines.API.Controllers
                         UpdatedAt = DateTime.UtcNow
                     };
                     await _context.CloudProjects.AddAsync(newCloudProj);
+                    pendingRepositories.Add((newId, userId, await BuildUniqueSlugAsync(projDto.Name, newId, userId, reservedSlugs)));
                 }
                 savedCount++;
             }
 
             try
             {
-                await _context.SaveChangesAsync();
+                // Proje ve repo satırı tek işlemde: repo satırı olmayan proje oluşmaz.
+                await _transaction.ExecuteAsync(async c =>
+                {
+                    await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+                    foreach (var (projectId, ownerUserId, slug) in pendingRepositories)
+                        await _hub.EnsureRepositoryAsync(projectId, ownerUserId, slug, c);
+                });
+                _context.ChangeTracker.AcceptAllChanges();
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -607,18 +636,17 @@ namespace Namines.API.Controllers
                     ownerUserId = p.UserId,
                     ownerName = p.User.UserName,
                     isMine = p.UserId == userId,
-                    // Namines Desk (namines_desk/02-PROJECTS.md §2): kart üzerindeki
-                    // "bağlı/bağlı değil" rozeti gerçek bir alana dayanıyor —
-                    // bağlantı dizesinin KENDİSİ asla dönmez, yalnızca var/yok bilgisi.
-                    hasConnection = p.EncryptedConnectionString != null,
-                    connectionDbType = p.ConnectionDbType,
                     p.OrganizationId,
-                    p.AllowDeskSql,
                     // İstemci bunu saklayıp `sync`'te geri göndermek zorunda,
                     // yoksa çakışma koruması devreye girmez (B-32).
                     p.RowVersion,
                 })
                 .ToListAsync();
+
+            // Namines Desk (namines_desk/02-PROJECTS.md §2): kart üzerindeki "bağlı/bağlı değil"
+            // rozeti gerçek bir alana dayanıyor; bağlantı dizesinin KENDİSİ asla dönmez, yalnızca
+            // var/yok bilgisi. Tek toplu sorgu: proje başına ayrı sorgu (N+1) değil.
+            var connections = await _studio.GetConnectionMetadataAsync(projects.Select(p => p.Id).ToList());
 
             // Tablo sayısı SchemaJson'dan sayılır (§2 "Tablo sayısı" alanı) — ayrı
             // bir sorgu değil, zaten dönen alanın üstüne bir hesap. Ayrıştırılamayan
@@ -633,14 +661,15 @@ namespace Namines.API.Controllers
             {
                 p.Id, p.Name, p.DbType, p.SchemaJson, p.NodePositionsJson, p.CreatedAt, p.UpdatedAt,
                 p.AutoApproveSafeChanges, p.ownerUserId, p.ownerName, p.isMine,
-                p.hasConnection, p.connectionDbType,
+                hasConnection = connections.GetValueOrDefault(p.Id)?.HasConnection ?? false,
+                connectionDbType = connections.GetValueOrDefault(p.Id)?.ConnectionDbType,
                 tableCount = TryCountTables(p.SchemaJson),
                 // Legacy (org'a taşınmamış) satırlarda GetRoleAsync'in kendi kuralıyla
                 // aynı: sahip == Owner sayılır (OrgAccess.GetRoleAsync'teki fallback).
                 isOwner = p.OrganizationId == null
                     ? p.isMine
                     : myRoles.TryGetValue(p.OrganizationId, out var role) && role == OrgRole.Owner,
-                allowDeskSql = p.AllowDeskSql,
+                allowDeskSql = connections.GetValueOrDefault(p.Id)?.AllowDeskSql ?? false,
                 p.RowVersion,
             });
 

@@ -19,6 +19,7 @@ using Namines.Core.Models.Auth;
 using Namines.Core.Models.Hub;
 using Namines.Core.Nsl;
 using Namines.BuildingBlocks.Application;
+using Namines.BuildingBlocks.Persistence;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 
@@ -59,17 +60,24 @@ public class HubController : ControllerBase
     private readonly AuthDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ProjectDeletionService _projectDeletion;
-    private readonly IHubApplicationService? _hub;
-    private readonly IStudioApplicationService? _studio;
+    private readonly IHubApplicationService _hub;
+    private readonly IStudioApplicationService _studio;
+    private readonly ICrossModuleTransaction _transaction;
 
     public HubController(
-        AuthDbContext context, UserManager<ApplicationUser> userManager, ProjectDeletionService projectDeletion, IHubApplicationService? hub = null, IStudioApplicationService? studio = null)
+        AuthDbContext context,
+        UserManager<ApplicationUser> userManager,
+        ProjectDeletionService projectDeletion,
+        IHubApplicationService hub,
+        IStudioApplicationService studio,
+        ICrossModuleTransaction transaction)
     {
         _context = context;
         _userManager = userManager;
         _projectDeletion = projectDeletion;
         _hub = hub;
         _studio = studio;
+        _transaction = transaction;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -88,7 +96,6 @@ public class HubController : ControllerBase
     {
         var raw = (slugOrId ?? string.Empty).Trim();
         if (raw.Length == 0) return null;
-        var normalized = raw.ToLowerInvariant();
 
         var query = _context.CloudProjects.AsNoTracking().Include(p => p.User);
 
@@ -108,8 +115,10 @@ public class HubController : ControllerBase
 
         if (string.IsNullOrEmpty(ownerId)) return null;
 
-        return await query.FirstOrDefaultAsync(
-            p => p.UserId == ownerId && (p.Id == raw || p.Slug == raw || p.Slug == normalized), ct);
+        var projectId = await _hub.ResolveProjectIdAsync(ownerId, raw, ct);
+        return projectId is null
+            ? null
+            : await query.FirstOrDefaultAsync(p => p.Id == projectId, ct);
     }
 
     /// <summary>
@@ -125,56 +134,25 @@ public class HubController : ControllerBase
         [FromQuery] string? sort = "popular", // "popular" | "recent"
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 12,
+        [FromQuery] string? tag = null,
         CancellationToken ct = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 50);
 
-        var query = _context.CloudProjects
-            .AsNoTracking()
-            .Include(p => p.User)
-            .Where(p => p.Visibility == ProjectVisibility.Public &&
-                        !string.IsNullOrEmpty(p.Description));
-
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var term = q.Trim().ToLower();
-            query = query.Where(p =>
-                p.Name.ToLower().Contains(term) ||
-                (p.Description != null && p.Description.ToLower().Contains(term)) ||
-                (p.Tags != null && p.Tags.ToLower().Contains(term)));
-        }
-
-        if (!string.IsNullOrWhiteSpace(category))
-        {
-            var cat = category.Trim().ToLower();
-            query = query.Where(p => p.Category.ToLower() == cat);
-        }
-
-        if (!string.IsNullOrWhiteSpace(dbType))
-        {
-            var engine = dbType.Trim().ToLower();
-            query = query.Where(p => p.DbType.ToLower() == engine);
-        }
-
-        if (sort?.Equals("recent", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            query = query.OrderByDescending(p => p.CreatedAt);
-        }
-        else
-        {
-            query = query.OrderByDescending(p => p.StarCount).ThenByDescending(p => p.CreatedAt);
-        }
+        var candidates = await CollectExploreCandidatesAsync(q, category, dbType, tag, sort, ct);
 
         // Quality Gate filtresi: En az 4 tablo, 2 ilişki, 0 NSL error
-        var candidates = await query.Take(200).ToListAsync(ct);
+        var candidateIds = candidates.Select(c => c.Repository.ProjectId).ToList();
+        var schemaJsonById = await _studio.GetSchemaJsonAsync(candidateIds, ct);
 
-        var qualified = new List<(CloudProject Project, DatabaseSchema Schema)>();
-        foreach (var p in candidates)
+        var qualified = new List<(ExploreCandidate Candidate, DatabaseSchema Schema)>();
+        foreach (var candidate in candidates)
         {
+            if (!schemaJsonById.TryGetValue(candidate.Repository.ProjectId, out var schemaJson)) continue;
             try
             {
-                var schema = JsonSerializer.Deserialize<DatabaseSchema>(p.SchemaJson, SchemaJsonOptions.Default);
+                var schema = JsonSerializer.Deserialize<DatabaseSchema>(schemaJson, SchemaJsonOptions.Default);
                 if (schema != null &&
                     schema.Tables.Count >= 4 &&
                     schema.Relations.Count >= 2)
@@ -183,7 +161,7 @@ public class HubController : ControllerBase
                     var hasError = findings.Any(f => f.Severity.Equals("error", StringComparison.OrdinalIgnoreCase));
                     if (!hasError)
                     {
-                        qualified.Add((p, schema));
+                        qualified.Add((candidate, schema));
                     }
                 }
             }
@@ -194,27 +172,34 @@ public class HubController : ControllerBase
         }
 
         var total = qualified.Count;
-        var pagedItems = qualified
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        var page_ = qualified.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        // Yalnızca görünen sayfanın sahipleri: tek sorgu, N+1 yok.
+        var ownerIds = page_.Select(x => x.Candidate.Project.UserId).Distinct().ToList();
+        var ownerNames = await _context.Users.AsNoTracking()
+            .Where(u => ownerIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.UserName })
+            .ToDictionaryAsync(u => u.Id, u => u.UserName, ct);
+
+        var pagedItems = page_
             .Select(x => new
             {
-                x.Project.Id,
-                x.Project.Name,
-                x.Project.Slug,
-                x.Project.Description,
-                x.Project.DbType,
-                x.Project.Category,
-                x.Project.Tags,
-                x.Project.StarCount,
-                x.Project.ForkCount,
-                x.Project.ForkedFromProjectId,
-                x.Project.CreatedAt,
-                x.Project.UpdatedAt,
+                x.Candidate.Project.Id,
+                x.Candidate.Project.Name,
+                x.Candidate.Repository.Slug,
+                x.Candidate.Repository.Description,
+                x.Candidate.Project.DbType,
+                x.Candidate.Repository.Category,
+                Tags = x.Candidate.TagsCsv,
+                x.Candidate.Repository.StarCount,
+                x.Candidate.Repository.ForkCount,
+                x.Candidate.Repository.ForkedFromProjectId,
+                x.Candidate.Project.CreatedAt,
+                x.Candidate.Project.UpdatedAt,
                 Owner = new
                 {
-                    Id = x.Project.User?.Id ?? x.Project.UserId,
-                    Username = x.Project.User?.UserName ?? "unknown"
+                    Id = x.Candidate.Project.UserId,
+                    Username = ownerNames.GetValueOrDefault(x.Candidate.Project.UserId) ?? "unknown"
                 },
                 Stats = new
                 {
@@ -233,6 +218,64 @@ public class HubController : ControllerBase
         });
     }
 
+    private sealed record ExploreCandidate(ProjectRepository Repository, StudioProjectSummary Project, string? TagsCsv);
+
+    // Quality Gate şemayı ayrıştırıyor; bu pahalı olduğu için istek başına aday tavanı var.
+    private const int ExploreCandidateLimit = 200;
+
+    /// <summary>
+    /// İki modüllü süzme, SQL join'i olmadan: Hub sıralı adayları toplu sayfalarla verir, her sayfa
+    /// için Studio'dan yalnızca ad/motor okunur (şema yok). q ve dbType Studio alanlarına baktığı
+    /// için bellekte süzülür; tavan dolunca durulur. Filtresiz istekte tek tur, yani sabit sorgu sayısı.
+    /// </summary>
+    private async Task<List<ExploreCandidate>> CollectExploreCandidatesAsync(
+        string? q, string? category, string? dbType, string? tag, string? sort, CancellationToken ct)
+    {
+        var criteria = new ExploreCriteria(
+            category, tag, sort?.Equals("recent", StringComparison.OrdinalIgnoreCase) == true);
+
+        var term = string.IsNullOrWhiteSpace(q) ? null : q.Trim().ToLowerInvariant();
+        var tagKey = string.IsNullOrWhiteSpace(q) ? null : ProjectTagRules.Key(q);
+        var engine = string.IsNullOrWhiteSpace(dbType) ? null : dbType.Trim().ToLowerInvariant();
+
+        var result = new List<ExploreCandidate>(ExploreCandidateLimit);
+        for (var skip = 0; result.Count < ExploreCandidateLimit; skip += ExploreCandidateLimit)
+        {
+            var batch = await _hub.GetExploreCandidatesAsync(criteria, skip, ExploreCandidateLimit, ct);
+            if (batch.Count == 0) break;
+
+            var ids = batch.Select(r => r.ProjectId).ToList();
+            var projects = await _studio.GetProjectSummariesAsync(ids, ct);
+            var tags = await _hub.GetTagsCsvAsync(ids, ct);
+
+            foreach (var repo in batch)
+            {
+                if (!projects.TryGetValue(repo.ProjectId, out var project)) continue;
+                if (engine != null && project.DbType.ToLowerInvariant() != engine) continue;
+
+                var csv = tags.GetValueOrDefault(repo.ProjectId);
+                if (term != null &&
+                    !project.Name.ToLowerInvariant().Contains(term, StringComparison.Ordinal) &&
+                    !(repo.Description ?? string.Empty).ToLowerInvariant().Contains(term, StringComparison.Ordinal) &&
+                    !HasTag(csv, tagKey!))
+                {
+                    continue;
+                }
+
+                result.Add(new ExploreCandidate(repo, project, csv));
+                if (result.Count == ExploreCandidateLimit) break;
+            }
+
+            if (batch.Count < ExploreCandidateLimit) break;
+        }
+
+        return result;
+    }
+
+    // Serbest aramada etiket yalnızca TAM (büyük/küçük harf duyarsız) eşleşir; CSV'de alt dizge yok.
+    private static bool HasTag(string? csv, string key) =>
+        csv != null && csv.Split(',').Any(t => ProjectTagRules.Key(t) == key);
+
     /// <summary>
     /// Repo detayları, şema AST, branch'ler, issue sayıları, PR sayıları ve caller yetkisi.
     /// </summary>
@@ -248,11 +291,13 @@ public class HubController : ControllerBase
         }
 
         var currentUserId = CurrentUserId;
+        var repository = await _hub.GetRepositoryAsync(project.Id, ct);
+        var visibility = repository?.Visibility ?? ProjectVisibility.Private;
 
         // Yetki kontrolü: Public olmayan repoları yalnızca üyeler görebilir.
         // Giriş yapmamış istemciye 401, giriş yapmış ama üye olmayana 404 dönmek
         // "bu private repo var" bilgisini sızdıran bir oracle'dı; ikisi de 404.
-        if (project.Visibility != ProjectVisibility.Public)
+        if (visibility != ProjectVisibility.Public)
         {
             if (string.IsNullOrEmpty(currentUserId) ||
                 !await _context.CanViewAsync(project.Id, currentUserId, ct))
@@ -267,7 +312,7 @@ public class HubController : ControllerBase
         {
             callerRole = await _context.GetRoleAsync(project.Id, currentUserId, ct);
             canEdit = callerRole is OrgRole.Editor or OrgRole.Admin or OrgRole.Owner;
-            isStarred = await _context.RepoStars.AnyAsync(s => s.ProjectId == project.Id && s.UserId == currentUserId, ct);
+            isStarred = await _hub.IsStarredByUserAsync(project.Id, currentUserId, ct);
         }
 
         var branches = await _context.Branches
@@ -285,24 +330,27 @@ public class HubController : ControllerBase
         var closedPrCount = await _context.ChangeRequests.CountAsync(c => c.ProjectId == project.Id && c.Status != ChangeRequestStatus.PendingReview, ct);
 
         object? forkedFrom = null;
-        if (!string.IsNullOrEmpty(project.ForkedFromProjectId))
+        if (!string.IsNullOrEmpty(repository?.ForkedFromProjectId))
         {
             var parent = await _context.CloudProjects
                 .AsNoTracking()
                 .Include(p => p.User)
-                .FirstOrDefaultAsync(p => p.Id == project.ForkedFromProjectId, ct);
+                .FirstOrDefaultAsync(p => p.Id == repository.ForkedFromProjectId, ct);
 
             if (parent != null)
             {
+                var parentRepository = await _hub.GetRepositoryAsync(parent.Id, ct);
                 forkedFrom = new
                 {
                     parent.Id,
                     parent.Name,
-                    parent.Slug,
+                    parentRepository?.Slug,
                     OwnerUsername = parent.User?.UserName ?? "unknown"
                 };
             }
         }
+
+        var tagsCsv = await _hub.GetTagsCsvAsync(project.Id, ct);
 
         DatabaseSchema schema;
         try
@@ -319,17 +367,17 @@ public class HubController : ControllerBase
         {
             project.Id,
             project.Name,
-            project.Slug,
-            project.Description,
-            project.Visibility,
-            project.Category,
-            project.Tags,
+            repository?.Slug,
+            repository?.Description,
+            Visibility = visibility,
+            Category = repository?.Category ?? "General",
+            Tags = tagsCsv,
             project.DbType,
-            project.StarCount,
-            project.ForkCount,
-            project.ForkedFromProjectId,
+            StarCount = repository?.StarCount ?? 0,
+            ForkCount = repository?.ForkCount ?? 0,
+            repository?.ForkedFromProjectId,
             ForkedFrom = forkedFrom,
-            project.LinkedGithubRepo,
+            repository?.LinkedGithubRepo,
             project.AutoApproveSafeChanges,
             project.CreatedAt,
             project.UpdatedAt,
@@ -453,41 +501,24 @@ public class HubController : ControllerBase
         // yetkisiz değişebiliyordu. Aynı kural görünürlük/slug/GitHub bağlantısına da
         // uygulanıyor. Yalnızca DEĞİŞEN alanlar sayılıyor: ayarlar formu değişmemiş
         // değerleri de geri gönderdiğinde bir Editor'ün ad/açıklama kaydı 403 almamalı.
+        var repository = await _hub.GetRepositoryAsync(projectId, ct);
+        var currentVisibility = repository?.Visibility ?? ProjectVisibility.Private;
+
         var touchesPrivileged =
-            (request.Visibility.HasValue && request.Visibility.Value != project.Visibility) ||
+            (request.Visibility.HasValue && request.Visibility.Value != currentVisibility) ||
             (request.AutoApproveSafeChanges.HasValue && request.AutoApproveSafeChanges.Value != project.AutoApproveSafeChanges) ||
-            (newSlug != null && !string.Equals(newSlug, project.Slug, StringComparison.Ordinal)) ||
-            (newGithubRepo != null && !string.Equals(newGithubRepo, project.LinkedGithubRepo ?? string.Empty, StringComparison.Ordinal));
+            (newSlug != null && !string.Equals(newSlug, repository?.Slug, StringComparison.Ordinal)) ||
+            (newGithubRepo != null && !string.Equals(newGithubRepo, repository?.LinkedGithubRepo ?? string.Empty, StringComparison.Ordinal));
 
         if (touchesPrivileged && !await _context.CanManageMembersAsync(projectId, userId, ct))
             return Forbid();
 
-        if (newSlug != null && !string.Equals(newSlug, project.Slug, StringComparison.Ordinal))
-        {
-            var conflict = await _context.CloudProjects.AnyAsync(p => p.Id != projectId && p.Slug == newSlug, ct);
-            if (conflict)
-                return Conflict(new { error = "This slug is already taken." });
-
-            project.Slug = newSlug;
-        }
+        var slugChanged = newSlug != null && !string.Equals(newSlug, repository?.Slug, StringComparison.Ordinal);
+        if (slugChanged && await _hub.IsSlugTakenAsync(newSlug!, projectId, ct))
+            return Conflict(new { error = "This slug is already taken." });
 
         if (!string.IsNullOrWhiteSpace(request.Name))
             project.Name = request.Name.Trim();
-
-        if (request.Description != null)
-            project.Description = request.Description.Trim();
-
-        if (request.Visibility.HasValue)
-            project.Visibility = request.Visibility.Value;
-
-        if (request.Category != null)
-            project.Category = request.Category.Trim();
-
-        if (request.Tags != null)
-            project.Tags = request.Tags.Trim();
-
-        if (newGithubRepo != null)
-            project.LinkedGithubRepo = newGithubRepo;
 
         if (request.AutoApproveSafeChanges.HasValue)
             project.AutoApproveSafeChanges = request.AutoApproveSafeChanges.Value;
@@ -496,9 +527,25 @@ public class HubController : ControllerBase
             project.DbType = newDbType;
 
         project.UpdatedAt = DateTime.UtcNow;
+
+        var change = new RepositorySettingsChange(
+            Slug: slugChanged ? newSlug : null,
+            Description: request.Description?.Trim(),
+            Visibility: request.Visibility,
+            Category: request.Category?.Trim(),
+            Tags: request.Tags?.Trim(),
+            LinkedGithubRepo: newGithubRepo);
+
+        // Proje ve repo tek işlemde: yarım uygulanmış PATCH bırakılmaz.
+        ProjectRepository updated = null!;
         try
         {
-            await _context.SaveChangesAsync(ct);
+            await _transaction.ExecuteAsync(async c =>
+            {
+                await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+                updated = await _hub.ApplySettingsAsync(projectId, project.UserId, change, c);
+            }, ct);
+            _context.ChangeTracker.AcceptAllChanges();
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -507,47 +554,22 @@ public class HubController : ControllerBase
         catch (DbUpdateException ex) when (DbUniqueViolation.IsUniqueViolation(ex))
         {
             // Ön kontrol ile kayıt arasında aynı sahibin başka bir isteği slug'ı aldıysa
-            // (UserId, Slug) unique index yakalar; 500 yerine ön kontroldekiyle aynı 409.
+            // (OwnerUserId, Slug) unique index yakalar; 500 yerine ön kontroldekiyle aynı 409.
             return Conflict(new { error = "This slug is already taken." });
-        }
-
-        if (_hub != null)
-        {
-            var repo = new ProjectRepository
-            {
-                ProjectId = projectId,
-                Slug = project.Slug ?? projectId,
-                Description = project.Description,
-                Visibility = project.Visibility,
-                Category = project.Category,
-                StarCount = project.StarCount,
-                ForkCount = project.ForkCount,
-                ForkedFromProjectId = project.ForkedFromProjectId,
-                LinkedGithubRepo = project.LinkedGithubRepo,
-                UpdatedAt = DateTime.UtcNow
-            };
-            var tagsList = string.IsNullOrWhiteSpace(project.Tags)
-                ? Array.Empty<string>()
-                : project.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            await _hub.UpsertRepositoryAsync(repo, tagsList, ct);
-        }
-        if (_studio != null)
-        {
-            await _studio.CreateOrUpdateProjectAsync(project, ct);
         }
 
         return Ok(new
         {
             project.Id,
             project.Name,
-            project.Slug,
-            project.Description,
-            project.Visibility,
-            project.Category,
-            project.Tags,
+            updated.Slug,
+            updated.Description,
+            updated.Visibility,
+            updated.Category,
+            Tags = await _hub.GetTagsCsvAsync(projectId, ct),
             project.DbType,
             project.AutoApproveSafeChanges,
-            project.LinkedGithubRepo,
+            updated.LinkedGithubRepo,
             project.UpdatedAt
         });
     }
@@ -595,83 +617,15 @@ public class HubController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var visibility = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .Select(p => (ProjectVisibility?)p.Visibility)
-            .FirstOrDefaultAsync(ct);
+        var visibility = await _hub.GetVisibilityAsync(projectId, ct);
         if (visibility == null) return NotFound(new { error = "Repository not found." });
 
         if (visibility != ProjectVisibility.Public && !await _context.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Repository not found." });
 
-        // Yıldız satırı + sayaç TEK işlemde: biri başarısız olursa diğeri de geri alınır
-        // (önceden satır eklenip sayaç güncellenmezse sayaç kalıcı olarak sapıyordu).
-        // EnableRetryOnFailure açık olduğundan elle açılan işlem yürütme stratejisinin
-        // içinde olmak ZORUNDA; strateji temsilciyi baştan çalıştırabilir.
-        bool isStarred;
-        try
-        {
-            var strategy = _context.Database.CreateExecutionStrategy();
-            isStarred = await strategy.ExecuteAsync(async () =>
-            {
-                _context.ChangeTracker.Clear();
-                await using var tx = await _context.Database.BeginTransactionAsync(ct);
-
-                var existing = await _context.RepoStars
-                    .AnyAsync(s => s.ProjectId == projectId && s.UserId == userId, ct);
-                if (existing)
-                {
-                    // Silmeyi ve sayacı SQL'de yapıyoruz: yüklenmiş varlık üzerinde `StarCount - 1`
-                    // okuma-değiştirme-yazma idi ve eşzamanlı iki yıldız birbirinin sayısını ezerdi.
-                    var removed = await _context.RepoStars
-                        .Where(s => s.ProjectId == projectId && s.UserId == userId)
-                        .ExecuteDeleteAsync(ct);
-                    if (removed > 0)
-                        await AdjustStarCountAsync(projectId, -1, ct);
-                    await tx.CommitAsync(ct);
-                    return false;
-                }
-
-                await _context.RepoStars.AddAsync(new RepoStar
-                {
-                    ProjectId = projectId,
-                    UserId = userId,
-                    CreatedAt = DateTime.UtcNow
-                }, ct);
-                await _context.SaveChangesAsync(ct);
-                await AdjustStarCountAsync(projectId, +1, ct);
-                await tx.CommitAsync(ct);
-                return true;
-            });
-        }
-        catch (DbUpdateException)
-        {
-            // Aynı kullanıcının eşzamanlı ikinci isteği (çift tıklama): (ProjectId, UserId)
-            // birincil anahtarı ikinci eklemeyi reddetti — işlem geri alındı, sayaç ARTMADI.
-            // Zaten yıldızlıysa 500 yerine olması gereken durumu döndür.
-            _context.ChangeTracker.Clear();
-            if (!await _context.RepoStars.AnyAsync(s => s.ProjectId == projectId && s.UserId == userId, ct))
-                throw;
-            isStarred = true;
-        }
-
-        var starCount = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .Select(p => p.StarCount)
-            .FirstOrDefaultAsync(ct);
+        var (starCount, isStarred) = await _hub.ToggleStarAsync(projectId, userId, ct);
         return Ok(new { isStarred, starCount });
     }
-
-    // Sayaç değişimi tek SQL ifadesi (UPDATE ... SET StarCount = StarCount + n): okuma-değiştirme-yazma
-    // yarışı yok. Sıfırın altına inmez.
-    private Task<int> AdjustStarCountAsync(string projectId, int delta, CancellationToken ct) =>
-        _context.CloudProjects
-            .Where(p => p.Id == projectId)
-            .ExecuteUpdateAsync(s => s.SetProperty(
-                p => p.StarCount,
-                p => p.StarCount + delta < 0 ? 0 : p.StarCount + delta), ct);
 
     /// <summary>
     /// Repo kopyalama (Fork). Orijinal şema ve main branch klonlanır, fork_count++ artar.
@@ -694,7 +648,9 @@ public class HubController : ControllerBase
 
         if (project == null) return NotFound(new { error = "Repository not found." });
 
-        if (project.Visibility != ProjectVisibility.Public && !await _context.CanViewAsync(projectId, userId, ct))
+        var sourceRepository = await _hub.GetRepositoryAsync(projectId, ct);
+        if ((sourceRepository?.Visibility ?? ProjectVisibility.Private) != ProjectVisibility.Public &&
+            !await _context.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Repository not found." });
 
         var callerUser = await _userManager.FindByIdAsync(userId);
@@ -706,7 +662,7 @@ public class HubController : ControllerBase
             : $"{project.Name}-fork";
         if (forkName.Length > MaxNameLength) forkName = forkName[..MaxNameLength];
 
-        var baseSlug = !string.IsNullOrWhiteSpace(project.Slug) ? project.Slug : project.Name.ToLowerInvariant();
+        var baseSlug = !string.IsNullOrWhiteSpace(sourceRepository?.Slug) ? sourceRepository.Slug : project.Name.ToLowerInvariant();
         var cleanBaseSlug = Regex.Replace(baseSlug, @"[^a-z0-9\-]", "").Trim('-');
         if (cleanBaseSlug.Length == 0) cleanBaseSlug = "repo";
         var forkSlug = $"{cleanBaseSlug}-{Guid.NewGuid().ToString()[..6]}";
@@ -715,17 +671,11 @@ public class HubController : ControllerBase
         {
             Id = Guid.NewGuid().ToString(),
             Name = forkName,
-            Slug = forkSlug,
             DbType = project.DbType,
             SchemaJson = project.SchemaJson,
             NodePositionsJson = project.NodePositionsJson,
             UserId = userId,
             OrganizationId = personalOrg.Id,
-            Visibility = ProjectVisibility.Private,
-            Category = project.Category,
-            Tags = project.Tags,
-            ForkedFromProjectId = project.Id,
-            Description = $"Forked from {project.User?.UserName ?? "unknown"}/{project.Name}",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -743,46 +693,39 @@ public class HubController : ControllerBase
         };
         await _context.Branches.AddAsync(defaultBranch, ct);
 
-        await _context.SaveChangesAsync(ct);
-
-        // Sayaç SQL'de artırılıyor (eşzamanlı fork'lar birbirini ezmesin).
-        await _context.CloudProjects
-            .Where(p => p.Id == projectId)
-            .ExecuteUpdateAsync(s => s.SetProperty(p => p.ForkCount, p => p.ForkCount + 1), ct);
-
-        if (_hub != null)
+        var forkedRepository = new ProjectRepository
         {
-            var repo = new ProjectRepository
-            {
-                ProjectId = forkedProject.Id,
-                Slug = forkedProject.Slug,
-                Description = forkedProject.Description,
-                Visibility = forkedProject.Visibility,
-                Category = forkedProject.Category,
-                StarCount = 0,
-                ForkCount = 0,
-                ForkedFromProjectId = project.Id,
-                PublishedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            var tags = string.IsNullOrWhiteSpace(forkedProject.Tags)
-                ? Array.Empty<string>()
-                : forkedProject.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            await _hub.UpsertRepositoryAsync(repo, tags, ct);
-            await _hub.ForkRepositoryAsync(project.Id, forkedProject.Id, ct);
-        }
-        if (_studio != null)
-        {
-            await _studio.CreateOrUpdateProjectAsync(forkedProject, ct);
-        }
+            ProjectId = forkedProject.Id,
+            OwnerUserId = userId,
+            Slug = forkSlug,
+            Description = $"Forked from {project.User?.UserName ?? "unknown"}/{project.Name}",
+            Visibility = ProjectVisibility.Private,
+            Category = sourceRepository?.Category ?? "General",
+            ForkedFromProjectId = project.Id,
+            CreatedAt = forkedProject.CreatedAt,
+            UpdatedAt = forkedProject.UpdatedAt
+        };
+        var sourceTags = await _hub.GetTagsCsvAsync(project.Id, ct);
 
-        return CreatedAtAction(nameof(GetRepo), new { owner = callerName, slugOrId = forkedProject.Slug }, new
+        // Proje, repo satırı ve kaynağın sayacı tek işlemde: fork ya tam olur ya hiç olmaz.
+        await _transaction.ExecuteAsync(async c =>
+        {
+            await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+            // Self-FK kaynak repo satırını ister; satırsız eski proje burada tamamlanır.
+            if (sourceRepository is null)
+                await _hub.EnsureRepositoryAsync(project.Id, project.UserId, null, c);
+            await _hub.CreateRepositoryAsync(forkedRepository, sourceTags, c);
+            await _hub.IncrementForkCountAsync(project.Id, c);
+        }, ct);
+        _context.ChangeTracker.AcceptAllChanges();
+
+        return CreatedAtAction(nameof(GetRepo), new { owner = callerName, slugOrId = forkSlug }, new
         {
             forkedProject.Id,
             forkedProject.Name,
-            forkedProject.Slug,
-            forkedProject.ForkedFromProjectId,
-            forkedProject.Visibility,
+            Slug = forkSlug,
+            forkedRepository.ForkedFromProjectId,
+            forkedRepository.Visibility,
             forkedProject.CreatedAt
         });
     }
@@ -801,11 +744,11 @@ public class HubController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
-        if (project == null) return NotFound(new { error = "Repository not found." });
+        if (!await _context.CloudProjects.AsNoTracking().AnyAsync(p => p.Id == projectId, ct))
+            return NotFound(new { error = "Repository not found." });
 
         var userId = CurrentUserId;
-        if (project.Visibility != ProjectVisibility.Public &&
+        if (await _hub.GetVisibilityAsync(projectId, ct) != ProjectVisibility.Public &&
             (string.IsNullOrEmpty(userId) || !await _context.CanViewAsync(projectId, userId, ct)))
         {
             return NotFound(new { error = "Repository not found." });
@@ -900,10 +843,10 @@ public class HubController : ControllerBase
         if (request.Body != null && request.Body.Trim().Length > MaxIssueBodyLength)
             return BadRequest(new { error = $"Body must be at most {MaxIssueBodyLength} characters." });
 
-        var project = await _context.CloudProjects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId, ct);
-        if (project == null) return NotFound(new { error = "Repository not found." });
+        if (!await _context.CloudProjects.AsNoTracking().AnyAsync(p => p.Id == projectId, ct))
+            return NotFound(new { error = "Repository not found." });
 
-        if (project.Visibility != ProjectVisibility.Public && !await _context.CanViewAsync(projectId, userId, ct))
+        if (await _hub.GetVisibilityAsync(projectId, ct) != ProjectVisibility.Public && !await _context.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Repository not found." });
 
         // Numara = MAX+1 okuma-değiştirme-yazma: eşzamanlı iki istek aynı numarayı üretir ve
@@ -980,7 +923,6 @@ public class HubController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var issue = await _context.RepoIssues
-            .Include(i => i.Project)
             .FirstOrDefaultAsync(i => i.Id == issueId, ct);
 
         if (issue == null) return NotFound(new { error = "Issue not found." });
@@ -988,7 +930,7 @@ public class HubController : ControllerBase
         // Yazar olmak tek başına yetki değil: repodan çıkarılmış (artık göremeyen) yazar da
         // issue'yu yeniden açıp kapatabiliyordu. Önce görme yetkisi, sonra yazar/editör.
         // Public repoda herkes görebilir; özel repoda üyelik şart. Göremeyene 404.
-        if (issue.Project.Visibility != ProjectVisibility.Public &&
+        if (await _hub.GetVisibilityAsync(issue.ProjectId, ct) != ProjectVisibility.Public &&
             !await _context.CanViewAsync(issue.ProjectId, userId, ct))
             return NotFound(new { error = "Issue not found." });
 
@@ -1025,15 +967,9 @@ public class HubController : ControllerBase
 
         if (issue == null) return NotFound(new { error = "Issue not found." });
 
-        var project = await _context.CloudProjects
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == issue.ProjectId, ct);
-
-        if (project == null) return NotFound(new { error = "Repository not found." });
-
         var userId = CurrentUserId;
-        if (project.Visibility != ProjectVisibility.Public &&
-            (string.IsNullOrEmpty(userId) || !await _context.CanViewAsync(project.Id, userId, ct)))
+        if (await _hub.GetVisibilityAsync(issue.ProjectId, ct) != ProjectVisibility.Public &&
+            (string.IsNullOrEmpty(userId) || !await _context.CanViewAsync(issue.ProjectId, userId, ct)))
         {
             return NotFound(new { error = "Issue not found." });
         }
@@ -1078,10 +1014,7 @@ public class HubController : ControllerBase
         var issue = await _context.RepoIssues.FirstOrDefaultAsync(i => i.Id == issueId, ct);
         if (issue == null) return NotFound(new { error = "Issue not found." });
 
-        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == issue.ProjectId, ct);
-        if (project == null) return NotFound(new { error = "Repository not found." });
-
-        if (project.Visibility != ProjectVisibility.Public && !await _context.CanViewAsync(project.Id, userId, ct))
+        if (await _hub.GetVisibilityAsync(issue.ProjectId, ct) != ProjectVisibility.Public && !await _context.CanViewAsync(issue.ProjectId, userId, ct))
             return NotFound(new { error = "Repository not found." });
 
         var comment = new RepoIssueComment
@@ -1122,7 +1055,7 @@ public class HubController : ControllerBase
         // sahipler arasında aramak, başkasının reposuna "owner/slug" rozeti üretmekti).
         var project = await FindProjectByOwnerAsync(owner, slug, ct);
 
-        if (project == null || project.Visibility != ProjectVisibility.Public)
+        if (project == null || await _hub.GetVisibilityAsync(project.Id, ct) != ProjectVisibility.Public)
         {
             var fallbackSvg = GenerateShieldBadge("namines hub", "private / not found", "#64748b");
             Response.Headers.CacheControl = "public, max-age=60";

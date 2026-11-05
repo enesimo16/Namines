@@ -10,6 +10,7 @@ using Namines.Core;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
+using Namines.BuildingBlocks.Security;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Ground.Application;
@@ -59,7 +60,7 @@ public class LaunchService
     private readonly IDbIntrospectionService _introspection;
     private readonly IDatabaseExecutor _executor;
     private readonly IVaultApplicationService _vault;
-    private readonly IConnectionSecretProtector _protector;
+    private readonly IProjectConnectionSecretProvider _secrets;
     private readonly AuthDbContext _context;
     private readonly ILogger<LaunchService> _logger;
 
@@ -68,7 +69,7 @@ public class LaunchService
         IDbIntrospectionService introspection,
         IDatabaseExecutor executor,
         IVaultApplicationService vault,
-        IConnectionSecretProtector protector,
+        IProjectConnectionSecretProvider secrets,
         AuthDbContext context,
         ILogger<LaunchService> logger)
     {
@@ -76,7 +77,7 @@ public class LaunchService
         _introspection = introspection;
         _executor = executor;
         _vault = vault;
-        _protector = protector;
+        _secrets = secrets;
         _context = context;
         _logger = logger;
     }
@@ -95,21 +96,12 @@ public class LaunchService
         if (!provisionResult.Ok)
             return new LaunchResult(LaunchStatus.ProvisionFailed, Error: provisionResult.Error);
 
-        if (string.IsNullOrWhiteSpace(project.EncryptedConnectionString))
-        {
-            var latestEncrypted = await _context.CloudProjects
-                .AsNoTracking()
-                .Where(p => p.Id == project.Id)
-                .Select(p => p.EncryptedConnectionString)
-                .FirstOrDefaultAsync(ct);
-            project.EncryptedConnectionString = latestEncrypted;
-        }
-
-        if (string.IsNullOrWhiteSpace(project.EncryptedConnectionString))
+        var stored = await _secrets.GetStoredConnectionAsync(project.Id, ct);
+        if (stored is null)
             return new LaunchResult(LaunchStatus.ProvisionFailed,
                 Error: "Provisioning reported success but left no connection string.");
 
-        var connectionString = _protector.Unprotect(project.EncryptedConnectionString, associatedData: project.Id);
+        var connectionString = stored.ConnectionString;
 
         DatabaseSchema liveSchema;
         try

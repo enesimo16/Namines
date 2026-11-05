@@ -25,122 +25,169 @@ public sealed class HubApplicationService : IHubApplicationService
             return null;
 
         return await _dbContext.Repositories
+            .AsNoTracking()
             .FirstOrDefaultAsync(r => r.ProjectId == projectId, ct);
     }
 
-    public async Task<ProjectRepository?> GetRepositoryBySlugAsync(string slug, CancellationToken ct = default)
+    public async Task<IReadOnlyDictionary<string, ProjectRepository>> GetRepositoriesAsync(
+        IReadOnlyCollection<string> projectIds,
+        CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(slug))
-            return null;
-
-        var normalized = slug.Trim().ToLowerInvariant();
+        if (projectIds is not { Count: > 0 })
+            return new Dictionary<string, ProjectRepository>();
 
         return await _dbContext.Repositories
-            .FirstOrDefaultAsync(r => r.Slug == slug || r.Slug == normalized, ct);
+            .AsNoTracking()
+            .Where(r => projectIds.Contains(r.ProjectId))
+            .ToDictionaryAsync(r => r.ProjectId, ct);
     }
 
-    public async Task<IReadOnlyList<string>> GetTagsForProjectAsync(string projectId, CancellationToken ct = default)
+    public async Task<ProjectVisibility?> GetVisibilityAsync(string projectId, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(projectId))
-            return Array.Empty<string>();
+            return null;
 
-        return await _dbContext.ProjectTags
+        return await _dbContext.Repositories
+            .AsNoTracking()
+            .Where(r => r.ProjectId == projectId)
+            .Select(r => (ProjectVisibility?)r.Visibility)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<string?> GetTagsCsvAsync(string projectId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectId))
+            return null;
+
+        var tags = await _dbContext.ProjectTags
             .AsNoTracking()
             .Where(t => t.ProjectId == projectId)
-            .Select(t => t.Tag)
+            .ToListAsync(ct);
+        return ProjectTagRules.ToCsv(tags);
+    }
+
+    public async Task<IReadOnlyDictionary<string, string?>> GetTagsCsvAsync(
+        IReadOnlyCollection<string> projectIds,
+        CancellationToken ct = default)
+    {
+        if (projectIds is not { Count: > 0 })
+            return new Dictionary<string, string?>();
+
+        var tags = await _dbContext.ProjectTags
+            .AsNoTracking()
+            .Where(t => projectIds.Contains(t.ProjectId))
+            .ToListAsync(ct);
+
+        return tags
+            .GroupBy(t => t.ProjectId)
+            .ToDictionary(g => g.Key, g => ProjectTagRules.ToCsv(g));
+    }
+
+    public async Task<string?> ResolveProjectIdAsync(string ownerUserId, string slugOrId, CancellationToken ct = default)
+    {
+        var raw = (slugOrId ?? string.Empty).Trim();
+        if (raw.Length == 0 || string.IsNullOrWhiteSpace(ownerUserId))
+            return null;
+        var normalized = raw.ToLowerInvariant();
+
+        return await _dbContext.Repositories
+            .AsNoTracking()
+            .Where(r => r.OwnerUserId == ownerUserId &&
+                        (r.ProjectId == raw || r.Slug == raw || r.Slug == normalized))
+            .Select(r => r.ProjectId)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public Task<bool> IsSlugTakenByOwnerAsync(string ownerUserId, string slug, string? excludeProjectId, CancellationToken ct = default) =>
+        _dbContext.Repositories
+            .AsNoTracking()
+            .AnyAsync(r => r.OwnerUserId == ownerUserId && r.Slug == slug && r.ProjectId != excludeProjectId, ct);
+
+    public Task<bool> IsSlugTakenAsync(string slug, string excludeProjectId, CancellationToken ct = default) =>
+        _dbContext.Repositories
+            .AsNoTracking()
+            .AnyAsync(r => r.ProjectId != excludeProjectId && r.Slug == slug, ct);
+
+    public async Task<IReadOnlyList<string>> GetSlugsByOwnerAsync(string ownerUserId, CancellationToken ct = default)
+    {
+        return await _dbContext.Repositories
+            .AsNoTracking()
+            .Where(r => r.OwnerUserId == ownerUserId && r.Slug != null)
+            .Select(r => r.Slug!)
             .ToListAsync(ct);
     }
 
-    public async Task<ProjectRepository> UpsertRepositoryAsync(
-        ProjectRepository repository,
-        IEnumerable<string>? tags = null,
-        CancellationToken ct = default)
+    public async Task CreateRepositoryAsync(ProjectRepository repository, string? tagsCsv, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(repository);
 
-        var existing = await _dbContext.Repositories
-            .FirstOrDefaultAsync(r => r.ProjectId == repository.ProjectId, ct);
-
-        if (existing is null)
-        {
-            repository.PublishedAt = repository.PublishedAt == default ? DateTime.UtcNow : repository.PublishedAt;
-            repository.UpdatedAt = DateTime.UtcNow;
-            await _dbContext.Repositories.AddAsync(repository, ct);
-            existing = repository;
-        }
-        else
-        {
-            existing.Slug = repository.Slug;
-            existing.Description = repository.Description;
-            existing.Visibility = repository.Visibility;
-            existing.Category = repository.Category;
-            existing.LinkedGithubRepo = repository.LinkedGithubRepo ?? existing.LinkedGithubRepo;
-            existing.UpdatedAt = DateTime.UtcNow;
-        }
-
-        if (tags is not null)
-        {
-            var existingTags = await _dbContext.ProjectTags
-                .Where(t => t.ProjectId == repository.ProjectId)
-                .ToListAsync(ct);
-
-            if (existingTags.Count > 0)
-                _dbContext.ProjectTags.RemoveRange(existingTags);
-
-            var normalizedTags = tags
-                .Where(t => !string.IsNullOrWhiteSpace(t))
-                .Select(t => t.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(t => new ProjectTag { ProjectId = repository.ProjectId, Tag = t });
-
-            await _dbContext.ProjectTags.AddRangeAsync(normalizedTags, ct);
-        }
-
+        _dbContext.ChangeTracker.Clear();
+        _dbContext.Repositories.Add(repository);
+        _dbContext.ProjectTags.AddRange(ProjectTagRules.Parse(repository.ProjectId, tagsCsv));
         await _dbContext.SaveChangesAsync(ct);
-        return existing;
+        _dbContext.ChangeTracker.Clear();
     }
 
-    public async Task<bool> DeleteRepositoryAsync(string projectId, CancellationToken ct = default)
+    public async Task<ProjectRepository> EnsureRepositoryAsync(
+        string projectId,
+        string ownerUserId,
+        string? slugIfMissing,
+        CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(projectId))
-            return false;
-
-        var existing = await _dbContext.Repositories
-            .FirstOrDefaultAsync(r => r.ProjectId == projectId, ct);
-
-        if (existing is null)
-            return false;
-
-        var tags = await _dbContext.ProjectTags
-            .Where(t => t.ProjectId == projectId)
-            .ToListAsync(ct);
-        if (tags.Count > 0)
-            _dbContext.ProjectTags.RemoveRange(tags);
-
-        var stars = await _dbContext.RepoStars
-            .Where(s => s.ProjectId == projectId)
-            .ToListAsync(ct);
-        if (stars.Count > 0)
-            _dbContext.RepoStars.RemoveRange(stars);
-
-        var issues = await _dbContext.RepoIssues
-            .Where(i => i.ProjectId == projectId)
-            .ToListAsync(ct);
-        if (issues.Count > 0)
+        _dbContext.ChangeTracker.Clear();
+        var repo = await _dbContext.Repositories.FirstOrDefaultAsync(r => r.ProjectId == projectId, ct);
+        if (repo is null)
         {
-            var issueIds = issues.Select(i => i.Id).ToList();
-            var comments = await _dbContext.RepoIssueComments
-                .Where(c => issueIds.Contains(c.IssueId))
-                .ToListAsync(ct);
-            if (comments.Count > 0)
-                _dbContext.RepoIssueComments.RemoveRange(comments);
-
-            _dbContext.RepoIssues.RemoveRange(issues);
+            repo = new ProjectRepository { ProjectId = projectId, OwnerUserId = ownerUserId, Slug = slugIfMissing };
+            _dbContext.Repositories.Add(repo);
+        }
+        else if (string.IsNullOrWhiteSpace(repo.Slug) && !string.IsNullOrWhiteSpace(slugIfMissing))
+        {
+            repo.Slug = slugIfMissing;
+            repo.UpdatedAt = DateTime.UtcNow;
         }
 
-        _dbContext.Repositories.Remove(existing);
         await _dbContext.SaveChangesAsync(ct);
-        return true;
+        _dbContext.ChangeTracker.Clear();
+        return repo;
+    }
+
+    public async Task<ProjectRepository> ApplySettingsAsync(
+        string projectId,
+        string ownerUserId,
+        RepositorySettingsChange change,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+
+        _dbContext.ChangeTracker.Clear();
+        var repo = await _dbContext.Repositories.FirstOrDefaultAsync(r => r.ProjectId == projectId, ct);
+        if (repo is null)
+        {
+            repo = new ProjectRepository { ProjectId = projectId, OwnerUserId = ownerUserId };
+            _dbContext.Repositories.Add(repo);
+        }
+
+        if (change.Slug != null) repo.Slug = change.Slug;
+        if (change.Description != null) repo.Description = change.Description;
+        if (change.Visibility.HasValue) repo.Visibility = change.Visibility.Value;
+        if (change.Category != null) repo.Category = change.Category;
+        if (change.LinkedGithubRepo != null) repo.LinkedGithubRepo = change.LinkedGithubRepo;
+        repo.UpdatedAt = DateTime.UtcNow;
+
+        if (change.Tags != null)
+        {
+            // Sil + ekle: Position ve DisplayTag birlikte değiştiği için satır satır karşılaştırmak
+            // kazanç sağlamıyor; ikisi aynı SaveChanges içinde.
+            var existing = await _dbContext.ProjectTags.Where(t => t.ProjectId == projectId).ToListAsync(ct);
+            _dbContext.ProjectTags.RemoveRange(existing);
+            await _dbContext.SaveChangesAsync(ct);
+            _dbContext.ProjectTags.AddRange(ProjectTagRules.Parse(projectId, change.Tags));
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+        _dbContext.ChangeTracker.Clear();
+        return repo;
     }
 
     public async Task<(int starCount, bool starred)> ToggleStarAsync(string projectId, string userId, CancellationToken ct = default)
@@ -148,38 +195,66 @@ public sealed class HubApplicationService : IHubApplicationService
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        var repo = await _dbContext.Repositories
-            .FirstOrDefaultAsync(r => r.ProjectId == projectId, ct);
-
-        var existingStar = await _dbContext.RepoStars
-            .FirstOrDefaultAsync(s => s.ProjectId == projectId && s.UserId == userId, ct);
-
+        // Yıldız satırı + sayaç TEK işlemde: biri başarısız olursa diğeri de geri alınır.
+        // Elle açılan işlem yürütme stratejisinin içinde olmak zorunda (bkz. Program.cs retry).
         bool starred;
-        if (existingStar is not null)
+        try
         {
-            _dbContext.RepoStars.Remove(existingStar);
-            if (repo is not null && repo.StarCount > 0)
-                repo.StarCount--;
-            starred = false;
-        }
-        else
-        {
-            await _dbContext.RepoStars.AddAsync(new RepoStar
+            var strategy = _dbContext.Database.CreateExecutionStrategy();
+            starred = await strategy.ExecuteAsync(async () =>
             {
-                ProjectId = projectId,
-                UserId = userId,
-                CreatedAt = DateTime.UtcNow
-            }, ct);
+                _dbContext.ChangeTracker.Clear();
+                await using var tx = await _dbContext.Database.BeginTransactionAsync(ct);
 
-            if (repo is not null)
-                repo.StarCount++;
+                // Önce silmeyi dene: "var mı" okuması ayrı olsaydı eşzamanlı iki kaldırma sayacı
+                // iki kez düşürürdü. Etkilenen satır sayısı tek doğruluk kaynağı.
+                var removed = await _dbContext.RepoStars
+                    .Where(s => s.ProjectId == projectId && s.UserId == userId)
+                    .ExecuteDeleteAsync(ct);
+                if (removed > 0)
+                {
+                    await AdjustStarCountAsync(projectId, -removed, ct);
+                    await tx.CommitAsync(ct);
+                    return false;
+                }
+
+                _dbContext.RepoStars.Add(new RepoStar
+                {
+                    ProjectId = projectId,
+                    UserId = userId,
+                    CreatedAt = DateTime.UtcNow
+                });
+                await _dbContext.SaveChangesAsync(ct);
+                await AdjustStarCountAsync(projectId, +1, ct);
+                await tx.CommitAsync(ct);
+                return true;
+            });
+        }
+        catch (DbUpdateException)
+        {
+            // Aynı kullanıcının eşzamanlı ikinci isteği: (ProjectId, UserId) PK ikinci eklemeyi
+            // reddetti, işlem geri alındı, sayaç ARTMADI. Zaten yıldızlıysa 500 değil o durum döner.
+            _dbContext.ChangeTracker.Clear();
+            if (!await IsStarredByUserAsync(projectId, userId, ct))
+                throw;
             starred = true;
         }
 
-        await _dbContext.SaveChangesAsync(ct);
-        var currentCount = repo?.StarCount ?? 0;
-        return (currentCount, starred);
+        var starCount = await _dbContext.Repositories
+            .AsNoTracking()
+            .Where(r => r.ProjectId == projectId)
+            .Select(r => r.StarCount)
+            .FirstOrDefaultAsync(ct);
+        return (starCount, starred);
     }
+
+    // Tek SQL ifadesi: okuma-değiştirme-yazma yarışı yok, sıfırın altına inmez.
+    private Task<int> AdjustStarCountAsync(string projectId, int delta, CancellationToken ct) =>
+        _dbContext.Repositories
+            .Where(r => r.ProjectId == projectId)
+            .ExecuteUpdateAsync(s => s.SetProperty(
+                r => r.StarCount,
+                r => r.StarCount + delta < 0 ? 0 : r.StarCount + delta), ct);
 
     public async Task<bool> IsStarredByUserAsync(string projectId, string userId, CancellationToken ct = default)
     {
@@ -191,124 +266,81 @@ public sealed class HubApplicationService : IHubApplicationService
             .AnyAsync(s => s.ProjectId == projectId && s.UserId == userId, ct);
     }
 
-    public async Task<IReadOnlyList<ProjectRepository>> GetExploreRepositoriesAsync(
-        string? query,
-        string? category,
-        string? tag,
-        string? dbType,
-        string sort,
-        int page,
-        int pageSize,
+    public async Task<IReadOnlyList<ProjectRepository>> GetExploreCandidatesAsync(
+        ExploreCriteria criteria,
+        int skip,
+        int take,
         CancellationToken ct = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 50);
+        ArgumentNullException.ThrowIfNull(criteria);
 
-        var q = BuildExploreQuery(query, category, tag);
-
-        if (string.Equals(sort, "recent", StringComparison.OrdinalIgnoreCase))
-            q = q.OrderByDescending(r => r.PublishedAt);
-        else
-            q = q.OrderByDescending(r => r.StarCount).ThenByDescending(r => r.PublishedAt);
-
-        return await q
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(ct);
-    }
-
-    public async Task<int> CountExploreRepositoriesAsync(
-        string? query,
-        string? category,
-        string? tag,
-        string? dbType,
-        CancellationToken ct = default)
-    {
-        var q = BuildExploreQuery(query, category, tag);
-        return await q.CountAsync(ct);
-    }
-
-    public async Task<ProjectRepository> ForkRepositoryAsync(
-        string sourceProjectId,
-        string targetProjectId,
-        CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceProjectId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(targetProjectId);
-
-        var sourceRepo = await _dbContext.Repositories
-            .FirstOrDefaultAsync(r => r.ProjectId == sourceProjectId, ct);
-
-        if (sourceRepo is not null)
-        {
-            sourceRepo.ForkCount++;
-            sourceRepo.UpdatedAt = DateTime.UtcNow;
-        }
-
-        var forkedRepo = new ProjectRepository
-        {
-            ProjectId = targetProjectId,
-            Slug = $"{sourceRepo?.Slug ?? "project"}-fork-{Guid.NewGuid():N}"[..Math.Min(120, 20)],
-            Description = sourceRepo?.Description,
-            Visibility = ProjectVisibility.Private,
-            Category = sourceRepo?.Category ?? "General",
-            StarCount = 0,
-            ForkCount = 0,
-            ForkedFromProjectId = sourceProjectId,
-            PublishedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        await _dbContext.Repositories.AddAsync(forkedRepo, ct);
-
-        // Kaynak etiketleri varsa kopyala
-        var sourceTags = await _dbContext.ProjectTags
-            .AsNoTracking()
-            .Where(t => t.ProjectId == sourceProjectId)
-            .ToListAsync(ct);
-
-        if (sourceTags.Count > 0)
-        {
-            var forkedTags = sourceTags.Select(t => new ProjectTag
-            {
-                ProjectId = targetProjectId,
-                Tag = t.Tag
-            });
-            await _dbContext.ProjectTags.AddRangeAsync(forkedTags, ct);
-        }
-
-        await _dbContext.SaveChangesAsync(ct);
-        return forkedRepo;
-    }
-
-    private IQueryable<ProjectRepository> BuildExploreQuery(string? query, string? category, string? tag)
-    {
         var q = _dbContext.Repositories
             .AsNoTracking()
-            .Where(r => r.Visibility == ProjectVisibility.Public && !string.IsNullOrEmpty(r.Description));
+            .Where(r => r.Visibility == ProjectVisibility.Public &&
+                        r.Description != null && r.Description != "");
 
-        if (!string.IsNullOrWhiteSpace(category) && !string.Equals(category, "all", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(criteria.Category))
         {
-            q = q.Where(r => r.Category == category);
+            var cat = criteria.Category.Trim().ToLower();
+            q = q.Where(r => r.Category.ToLower() == cat);
         }
 
-        if (!string.IsNullOrWhiteSpace(tag))
+        if (!string.IsNullOrWhiteSpace(criteria.Tag))
         {
-            var normalizedTag = tag.Trim();
-            var projectIdsWithTag = _dbContext.ProjectTags
-                .AsNoTracking()
-                .Where(t => t.Tag == normalizedTag)
-                .Select(t => t.ProjectId);
-
-            q = q.Where(r => projectIdsWithTag.Contains(r.ProjectId));
+            // Kanonik anahtarla tam eşleşme: CSV üzerinde LIKE yok, IX_project_tags_Tag_ProjectId.
+            var key = ProjectTagRules.Key(criteria.Tag);
+            q = q.Where(r => _dbContext.ProjectTags.Any(t => t.Tag == key && t.ProjectId == r.ProjectId));
         }
 
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            var term = query.Trim();
-            q = q.Where(r => r.Slug.Contains(term) || (r.Description != null && r.Description.Contains(term)));
-        }
+        q = criteria.RecentFirst
+            ? q.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.ProjectId)
+            : q.OrderByDescending(r => r.StarCount).ThenByDescending(r => r.CreatedAt).ThenByDescending(r => r.ProjectId);
 
-        return q;
+        return await q.Skip(skip).Take(take).ToListAsync(ct);
+    }
+
+    public Task IncrementForkCountAsync(string sourceProjectId, CancellationToken ct = default) =>
+        _dbContext.Repositories
+            .Where(r => r.ProjectId == sourceProjectId)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.ForkCount, r => r.ForkCount + 1), ct);
+
+    public Task ReassignOwnerAsync(string projectId, string newOwnerUserId, CancellationToken ct = default) =>
+        _dbContext.Repositories
+            .Where(r => r.ProjectId == projectId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.OwnerUserId, newOwnerUserId)
+                .SetProperty(r => r.UpdatedAt, DateTime.UtcNow), ct);
+
+    public async Task DetachFromForkSourceAsync(string projectId, CancellationToken ct = default)
+    {
+        var sourceId = await _dbContext.Repositories
+            .AsNoTracking()
+            .Where(r => r.ProjectId == projectId)
+            .Select(r => r.ForkedFromProjectId)
+            .FirstOrDefaultAsync(ct);
+        if (sourceId is null) return;
+
+        await _dbContext.Repositories
+            .Where(r => r.ProjectId == sourceId)
+            .ExecuteUpdateAsync(s => s.SetProperty(
+                r => r.ForkCount,
+                r => r.ForkCount > 0 ? r.ForkCount - 1 : 0), ct);
+    }
+
+    public async Task RemoveStarsByUserAsync(string userId, CancellationToken ct = default)
+    {
+        var starred = await _dbContext.RepoStars
+            .AsNoTracking()
+            .Where(s => s.UserId == userId)
+            .Select(s => s.ProjectId)
+            .ToListAsync(ct);
+        if (starred.Count == 0) return;
+
+        await _dbContext.RepoStars.Where(s => s.UserId == userId).ExecuteDeleteAsync(ct);
+        await _dbContext.Repositories
+            .Where(r => starred.Contains(r.ProjectId))
+            .ExecuteUpdateAsync(s => s.SetProperty(
+                r => r.StarCount,
+                r => r.StarCount > 0 ? r.StarCount - 1 : 0), ct);
     }
 }

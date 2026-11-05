@@ -3,16 +3,14 @@ using System.Text;
 using System.Net;
 using System.Text.Json.Serialization;
 using Namines.Core.Analysis;
-using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 using Namines.BuildingBlocks.Application;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace Namines.API.Controllers;
@@ -23,64 +21,48 @@ public class ShareController : ControllerBase
 {
     private readonly AuthDbContext _context;
     private readonly ILinterService _linter;
-    private readonly IStudioApplicationService? _studio;
-    private readonly IConfiguration? _configuration;
+    private readonly IStudioApplicationService _studio;
 
     public ShareController(
         AuthDbContext context,
         ILinterService linter,
-        IStudioApplicationService? studio = null,
-        IConfiguration? configuration = null)
+        IStudioApplicationService studio)
     {
         _context = context;
         _linter  = linter;
         _studio = studio;
-        _configuration = configuration;
     }
 
     private string CurrentUserId =>
         User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
 
     /// <summary>
-    /// Token üretir (veya mevcut token'ı döndürür).
+    /// Yeni bir paylaşım bağlantısı üretir ve ham token'ı bu tek yanıtta döndürür; veritabanında
+    /// yalnızca SHA-256 özeti kalır. Arayüz linki her tıklamada bu uçtan aldığı için önceki
+    /// bağlantılar geçerli kalır (bkz. ProjectShare); hepsini kapatmak için DELETE.
     /// </summary>
     [Authorize]
     [HttpPost("{projectId}")]
+    [EnableRateLimiting("sensitive")]
     public async Task<IActionResult> CreateShareLink(string projectId)
     {
         if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
         if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
             return NotFound();
 
-        string rawToken;
-        if (_studio != null)
+        try
         {
-            try
-            {
-                rawToken = await _studio.CreateShareLinkAsync(projectId);
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
+            var rawToken = await _studio.CreateShareLinkAsync(projectId, HttpContext.RequestAborted);
+            return Ok(new { token = rawToken });
         }
-        else
+        catch (KeyNotFoundException)
         {
-            var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId);
-            if (project is null) return NotFound();
-
-            rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))
-                .Replace('+', '-').Replace('/', '_').TrimEnd('=');
-            project.ShareTokenHash = ShareTokenHasher.Hash(rawToken);
-            project.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            return NotFound();
         }
-
-        return Ok(new { token = rawToken });
     }
 
     /// <summary>
-    /// Paylaşım token'ını iptal eder.
+    /// Projenin tüm paylaşım bağlantılarını iptal eder.
     /// </summary>
     [Authorize]
     [HttpDelete("{projectId}")]
@@ -90,59 +72,28 @@ public class ShareController : ControllerBase
         if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
             return NotFound();
 
-        if (_studio != null)
-        {
-            await _studio.RevokeShareLinkAsync(projectId);
-        }
-        else
-        {
-            var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId);
-            if (project is null) return NotFound();
-            project.ShareToken = null;
-            project.ShareTokenHash = null;
-            project.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-        }
-
+        await _studio.RevokeShareLinksAsync(projectId, HttpContext.RequestAborted);
         return NoContent();
     }
 
     /// <summary>Herkese açık: token ile şema JSON'ını döndürür. Auth gerektirmez.</summary>
     [AllowAnonymous]
     [HttpGet("view/{token}")]
+    [EnableRateLimiting("share-public")]
     public async Task<IActionResult> GetSharedSchema(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
-        var tokenHash = ShareTokenHasher.Hash(token);
 
-        if (_studio != null)
+        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), HttpContext.RequestAborted);
+        if (project is null) return NotFound();
+
+        return Ok(new
         {
-            var project = await _studio.GetSharedProjectByTokenHashAsync(tokenHash);
-            if (project is null) return NotFound();
-
-            return Ok(new
-            {
-                project.Name,
-                project.DbType,
-                project.SchemaJson,
-                project.NodePositionsJson,
-            });
-        }
-
-        var legacyProject = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.ShareTokenHash == tokenHash)
-            .Select(p => new
-            {
-                p.Name,
-                p.DbType,
-                p.SchemaJson,
-                p.NodePositionsJson,
-            })
-            .FirstOrDefaultAsync();
-
-        if (legacyProject is null) return NotFound();
-        return Ok(legacyProject);
+            project.Name,
+            project.DbType,
+            project.SchemaJson,
+            project.NodePositionsJson,
+        });
     }
 
     /// <summary>
@@ -151,26 +102,13 @@ public class ShareController : ControllerBase
     /// </summary>
     [AllowAnonymous]
     [HttpGet("badge/{token}")]
+    [EnableRateLimiting("share-public")]
     public async Task<IActionResult> GetDbaBadge(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
-        var tokenHash = ShareTokenHasher.Hash(token);
 
-        string? schemaJson = null;
-        if (_studio != null)
-        {
-            var project = await _studio.GetSharedProjectByTokenHashAsync(tokenHash);
-            schemaJson = project?.SchemaJson;
-        }
-        else
-        {
-            schemaJson = await _context.CloudProjects
-                .AsNoTracking()
-                .Where(p => p.ShareTokenHash == tokenHash)
-                .Select(p => p.SchemaJson)
-                .FirstOrDefaultAsync();
-        }
-
+        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), HttpContext.RequestAborted);
+        var schemaJson = project?.SchemaJson;
         if (schemaJson is null) return NotFound();
 
         // Deserialise — options mirror the frontend camelCase output
@@ -231,41 +169,14 @@ public class ShareController : ControllerBase
     /// </summary>
     [AllowAnonymous]
     [HttpGet("og/{token}.svg")]
+    [EnableRateLimiting("share-public")]
     public async Task<IActionResult> OgImage(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
-        var tokenHash = ShareTokenHasher.Hash(token);
+        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), HttpContext.RequestAborted);
+        if (project is null) return NotFound();
 
-        string? name = null;
-        string? dbType = null;
-        string? schemaJson = null;
-
-        if (_studio != null)
-        {
-            var project = await _studio.GetSharedProjectByTokenHashAsync(tokenHash);
-            if (project is not null)
-            {
-                name = project.Name;
-                dbType = project.DbType;
-                schemaJson = project.SchemaJson;
-            }
-        }
-        else
-        {
-            var legacy = await _context.CloudProjects
-                .AsNoTracking()
-                .Where(p => p.ShareTokenHash == tokenHash)
-                .Select(p => new { p.Name, p.DbType, p.SchemaJson })
-                .FirstOrDefaultAsync();
-            if (legacy is not null)
-            {
-                name = legacy.Name;
-                dbType = legacy.DbType;
-                schemaJson = legacy.SchemaJson;
-            }
-        }
-
-        if (name is null || dbType is null || schemaJson is null) return NotFound();
+        var (name, dbType, schemaJson) = (project.Name, project.DbType, project.SchemaJson);
 
         DatabaseSchema schema;
         try
@@ -294,41 +205,14 @@ public class ShareController : ControllerBase
     /// </summary>
     [AllowAnonymous]
     [HttpGet("meta/{token}")]
+    [EnableRateLimiting("share-public")]
     public async Task<IActionResult> Meta(string token)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
-        var tokenHash = ShareTokenHasher.Hash(token);
+        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), HttpContext.RequestAborted);
+        if (project is null) return NotFound();
 
-        string? name = null;
-        string? dbType = null;
-        string? schemaJson = null;
-
-        if (_studio != null)
-        {
-            var project = await _studio.GetSharedProjectByTokenHashAsync(tokenHash);
-            if (project is not null)
-            {
-                name = project.Name;
-                dbType = project.DbType;
-                schemaJson = project.SchemaJson;
-            }
-        }
-        else
-        {
-            var legacy = await _context.CloudProjects
-                .AsNoTracking()
-                .Where(p => p.ShareTokenHash == tokenHash)
-                .Select(p => new { p.Name, p.DbType, p.SchemaJson })
-                .FirstOrDefaultAsync();
-            if (legacy is not null)
-            {
-                name = legacy.Name;
-                dbType = legacy.DbType;
-                schemaJson = legacy.SchemaJson;
-            }
-        }
-
-        if (name is null || dbType is null || schemaJson is null) return NotFound();
+        var (name, dbType, schemaJson) = (project.Name, project.DbType, project.SchemaJson);
 
         var tables = 0;
         var relations = 0;

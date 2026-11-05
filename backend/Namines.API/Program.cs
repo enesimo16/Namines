@@ -329,6 +329,20 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         // Hub'ın sık ama ucuz yazmaları (yıldız, issue, yorum). "sensitive"in dakikada
         // 5'i bir issue tartışmasını bile tıkardı; spam'i durdurmak için kullanıcı
         // başına 30 yeterli. Pahalı/yıkıcı olanlar (fork, ayar, silme) "sensitive"te kalır.
+        // Anonim paylaşım uçları (view/meta/badge/og): token 192-bit, kaba kuvvet zaten umutsuz; bu
+        // sınır tarama ve özet sorgusu yükü içindir. Rozet ve önizleme başka sitelerden (README,
+        // sosyal ağ proxy'leri) tek IP'den gelebildiği için "sensitive"ten bilerek geniş.
+        options.AddPolicy("share-public", httpContext =>
+        {
+            var partitionKey = httpContext.Connection.RemoteIpAddress?.ToString() ?? "anon";
+            return RateLimitPartition.GetFixedWindowLimiter("share:" + partitionKey, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
+        });
+
         options.AddPolicy("hub-write", httpContext =>
         {
             var partitionKey =
@@ -727,7 +741,7 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
     if (args.Contains("--reencrypt-secrets", StringComparer.OrdinalIgnoreCase))
     {
         using var rotScope = app.Services.CreateScope();
-        var rotDb = rotScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var rotDb = rotScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Modules.StudioDbContext>();
         var rotProtector = rotScope.ServiceProvider.GetRequiredService<Namines.Core.Security.IConnectionSecretProtector>()
             as Namines.Core.Security.IRotatableSecretProtector
             ?? throw new InvalidOperationException("Yapılandırılan koruyucu anahtar rotasyonunu desteklemiyor.");
@@ -800,7 +814,8 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
                 await Namines.API.Services.DevSandboxSeeder.SeedAsync(
                     ownerScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
                     app.Configuration,
-                    ownerScope.ServiceProvider.GetRequiredService<IConnectionSecretProtector>(),
+                    ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Security.IProjectConnectionSecretProvider>(),
+                    ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Application.IHubApplicationService>(),
                     ownerScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
                         .CreateLogger(nameof(Namines.API.Services.DevSandboxSeeder)));
             }
@@ -817,6 +832,8 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
             await Namines.API.Services.HubBlueprintSeeder.SeedAsync(
                 ownerScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
                 ownerScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Application.IHubApplicationService>(),
+                ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Persistence.ICrossModuleTransaction>(),
                 ownerScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
                     .CreateLogger(nameof(Namines.API.Services.HubBlueprintSeeder)));
         }

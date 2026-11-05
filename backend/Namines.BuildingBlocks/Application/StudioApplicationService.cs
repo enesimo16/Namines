@@ -12,6 +12,12 @@ namespace Namines.BuildingBlocks.Application;
 
 public sealed class StudioApplicationService : IStudioApplicationService
 {
+    /// <summary>
+    /// Proje başına etkin bağlantı tavanı. Her paylaşım tıklaması yeni satır ürettiği için bir
+    /// üst sınır şart; aşılınca en eskisi kapanır (hata vermek arayüzde paylaşımı kırardı).
+    /// </summary>
+    public const int MaxActiveSharesPerProject = 50;
+
     private readonly StudioDbContext _dbContext;
 
     public StudioApplicationService(StudioDbContext dbContext)
@@ -19,113 +25,60 @@ public sealed class StudioApplicationService : IStudioApplicationService
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
-    public async Task<CloudProject?> GetProjectAsync(string projectId, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(projectId))
-            return null;
-
-        return await _dbContext.Projects
-            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
-    }
-
-    public async Task<IReadOnlyList<CloudProject>> GetProjectsForUserOrOrgAsync(
-        string userId,
-        IReadOnlyCollection<string> orgIds,
+    public async Task<IReadOnlyDictionary<string, StudioProjectSummary>> GetProjectSummariesAsync(
+        IReadOnlyCollection<string> projectIds,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(userId))
-            return Array.Empty<CloudProject>();
+        if (projectIds is not { Count: > 0 })
+            return new Dictionary<string, StudioProjectSummary>();
 
-        var query = _dbContext.Projects.AsNoTracking();
-
-        if (orgIds is { Count: > 0 })
-        {
-            query = query.Where(p => (p.OrganizationId == null && p.UserId == userId) ||
-                                     (p.OrganizationId != null && orgIds.Contains(p.OrganizationId)));
-        }
-        else
-        {
-            query = query.Where(p => p.UserId == userId);
-        }
-
-        return await query
-            .OrderByDescending(p => p.UpdatedAt)
-            .ToListAsync(ct);
+        return await _dbContext.Projects
+            .AsNoTracking()
+            .Where(p => projectIds.Contains(p.Id))
+            .Select(p => new StudioProjectSummary(p.Id, p.Name, p.DbType, p.UserId, p.CreatedAt, p.UpdatedAt))
+            .ToDictionaryAsync(p => p.Id, ct);
     }
 
-    public async Task<CloudProject> CreateOrUpdateProjectAsync(CloudProject project, CancellationToken ct = default)
+    public async Task<IReadOnlyDictionary<string, string>> GetSchemaJsonAsync(
+        IReadOnlyCollection<string> projectIds,
+        CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(project);
+        if (projectIds is not { Count: > 0 })
+            return new Dictionary<string, string>();
 
-        var existing = await _dbContext.Projects
-            .FirstOrDefaultAsync(p => p.Id == project.Id, ct);
-
-        if (existing is null)
-        {
-            project.CreatedAt = project.CreatedAt == default ? DateTime.UtcNow : project.CreatedAt;
-            project.UpdatedAt = DateTime.UtcNow;
-            await _dbContext.Projects.AddAsync(project, ct);
-            await _dbContext.SaveChangesAsync(ct);
-            return project;
-        }
-
-        existing.Name = project.Name;
-        existing.DbType = project.DbType;
-        existing.SchemaJson = project.SchemaJson;
-        existing.NodePositionsJson = project.NodePositionsJson;
-        existing.AutoApproveSafeChanges = project.AutoApproveSafeChanges;
-        existing.OrganizationId = project.OrganizationId ?? existing.OrganizationId;
-        existing.UpdatedAt = DateTime.UtcNow;
-
-        await _dbContext.SaveChangesAsync(ct);
-        return existing;
+        return await _dbContext.Projects
+            .AsNoTracking()
+            .Where(p => projectIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.SchemaJson })
+            .ToDictionaryAsync(p => p.Id, p => p.SchemaJson, ct);
     }
 
-    public async Task<bool> DeleteProjectAsync(string projectId, CancellationToken ct = default)
+    public async Task<ProjectConnectionMetadata> GetConnectionMetadataAsync(
+        string projectId,
+        CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(projectId))
-            return false;
+        var map = await GetConnectionMetadataAsync(new[] { projectId }, ct);
+        return map.TryGetValue(projectId, out var meta)
+            ? meta
+            : new ProjectConnectionMetadata(projectId, false, null, false);
+    }
 
-        var project = await _dbContext.Projects
-            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
+    public async Task<IReadOnlyDictionary<string, ProjectConnectionMetadata>> GetConnectionMetadataAsync(
+        IReadOnlyCollection<string> projectIds,
+        CancellationToken ct = default)
+    {
+        if (projectIds is not { Count: > 0 })
+            return new Dictionary<string, ProjectConnectionMetadata>();
 
-        if (project is null)
-            return false;
-
-        // İlgili 3NF varlıklarını temizle
-        var shares = await _dbContext.ProjectShares
-            .Where(s => s.ProjectId == projectId)
-            .ToListAsync(ct);
-        if (shares.Count > 0)
-            _dbContext.ProjectShares.RemoveRange(shares);
-
-        var conns = await _dbContext.ProjectConnections
-            .Where(c => c.ProjectId == projectId)
-            .ToListAsync(ct);
-        if (conns.Count > 0)
-            _dbContext.ProjectConnections.RemoveRange(conns);
-
-        var gitRepos = await _dbContext.ProjectGitRepositories
-            .Where(g => g.ProjectId == projectId)
-            .ToListAsync(ct);
-        if (gitRepos.Count > 0)
-            _dbContext.ProjectGitRepositories.RemoveRange(gitRepos);
-
-        var branches = await _dbContext.Branches
-            .Where(b => b.ProjectId == projectId)
-            .ToListAsync(ct);
-        if (branches.Count > 0)
-            _dbContext.Branches.RemoveRange(branches);
-
-        var versions = await _dbContext.SchemaVersions
-            .Where(v => v.ProjectId == projectId)
-            .ToListAsync(ct);
-        if (versions.Count > 0)
-            _dbContext.SchemaVersions.RemoveRange(versions);
-
-        _dbContext.Projects.Remove(project);
-        await _dbContext.SaveChangesAsync(ct);
-        return true;
+        return await _dbContext.ProjectConnections
+            .AsNoTracking()
+            .Where(c => projectIds.Contains(c.ProjectId))
+            .Select(c => new ProjectConnectionMetadata(
+                c.ProjectId,
+                c.EncryptedConnectionString != null,
+                c.ConnectionDbType,
+                c.AllowDeskSql))
+            .ToDictionaryAsync(c => c.ProjectId, ct);
     }
 
     public async Task<string> CreateShareLinkAsync(string projectId, CancellationToken ct = default)
@@ -134,94 +87,62 @@ public sealed class StudioApplicationService : IStudioApplicationService
 
         var projectExists = await _dbContext.Projects.AnyAsync(p => p.Id == projectId, ct);
         if (!projectExists)
-            throw new KeyNotFoundException($"Project '{projectId}' not found in studio.projects.");
+            throw new KeyNotFoundException("Project not found.");
 
         // Kriptografik rastgele 24-byte (192-bit entropi) URL-safe token
         var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
-        var tokenHash = ShareTokenHasher.Hash(rawToken);
-
-        var existingShare = await _dbContext.ProjectShares
-            .FirstOrDefaultAsync(s => s.ProjectId == projectId, ct);
-
-        if (existingShare is not null)
+        var now = DateTime.UtcNow;
+        _dbContext.ChangeTracker.Clear();
+        _dbContext.ProjectShares.Add(new ProjectShare
         {
-            existingShare.ShareTokenHash = tokenHash;
-            existingShare.UpdatedAt = DateTime.UtcNow;
-        }
-        else
-        {
-            await _dbContext.ProjectShares.AddAsync(new ProjectShare
-            {
-                ProjectId = projectId,
-                ShareTokenHash = tokenHash,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            }, ct);
-        }
-
+            ProjectId = projectId,
+            ShareTokenHash = ShareTokenHasher.Hash(rawToken),
+            CreatedAt = now,
+        });
         await _dbContext.SaveChangesAsync(ct);
+
+        var overflow = await _dbContext.ProjectShares
+            .Where(s => s.ProjectId == projectId && s.RevokedAt == null)
+            .OrderByDescending(s => s.CreatedAt)
+            .ThenByDescending(s => s.Id)
+            .Skip(MaxActiveSharesPerProject)
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+        if (overflow.Count > 0)
+        {
+            await _dbContext.ProjectShares
+                .Where(s => overflow.Contains(s.Id))
+                .ExecuteUpdateAsync(u => u.SetProperty(s => s.RevokedAt, (DateTime?)now), ct);
+        }
+
         return rawToken;
     }
 
-    public async Task<bool> RevokeShareLinkAsync(string projectId, CancellationToken ct = default)
+    public async Task<int> RevokeShareLinksAsync(string projectId, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(projectId))
-            return false;
+            return 0;
 
-        var share = await _dbContext.ProjectShares
-            .FirstOrDefaultAsync(s => s.ProjectId == projectId, ct);
-
-        if (share is null)
-            return false;
-
-        _dbContext.ProjectShares.Remove(share);
-        await _dbContext.SaveChangesAsync(ct);
-        return true;
-    }
-
-    public async Task<ProjectShare?> GetShareByTokenHashAsync(string tokenHash, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(tokenHash))
-            return null;
-
+        var now = DateTime.UtcNow;
         return await _dbContext.ProjectShares
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.ShareTokenHash == tokenHash, ct);
+            .Where(s => s.ProjectId == projectId && s.RevokedAt == null)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.RevokedAt, (DateTime?)now), ct);
     }
 
-    public async Task<CloudProject?> GetSharedProjectByTokenHashAsync(string tokenHash, CancellationToken ct = default)
+    public async Task<SharedProjectView?> GetSharedProjectByTokenHashAsync(string tokenHash, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(tokenHash))
             return null;
 
-        var share = await _dbContext.ProjectShares
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.ShareTokenHash == tokenHash, ct);
+        // Tek modül içi join: paylaşım ve proje aynı bağlamda.
+        var query =
+            from s in _dbContext.ProjectShares.AsNoTracking()
+            join p in _dbContext.Projects.AsNoTracking() on s.ProjectId equals p.Id
+            where s.ShareTokenHash == tokenHash && s.RevokedAt == null
+            select new SharedProjectView(p.Name, p.DbType, p.SchemaJson, p.NodePositionsJson);
 
-        if (share is null)
-            return null;
-
-        return await _dbContext.Projects
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == share.ProjectId, ct);
-    }
-
-    public async Task<bool> SetAutoApproveSafeChangesAsync(string projectId, bool enabled, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(projectId))
-            return false;
-
-        var project = await _dbContext.Projects
-            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
-
-        if (project is null)
-            return false;
-
-        project.AutoApproveSafeChanges = enabled;
-        project.UpdatedAt = DateTime.UtcNow;
-        await _dbContext.SaveChangesAsync(ct);
-        return true;
+        return await query.FirstOrDefaultAsync(ct);
     }
 }
