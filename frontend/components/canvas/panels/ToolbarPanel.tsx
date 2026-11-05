@@ -12,6 +12,7 @@ import { useMultiplayerStore } from '../../../store/useMultiplayerStore';
 import { useBranchStore } from '../../../store/useBranchStore';
 import { useSqlExplorerStore } from '../../../store/useSqlExplorerStore';
 import { useToastStore } from '../../../store/useToastStore';
+import { shareLinkToast } from '../../../lib/shareLinkMessage';
 import { useProjectHistoryStore } from '../../../store/useProjectHistoryStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useAIGateway } from '../../../hooks/useAIGateway';
@@ -199,10 +200,11 @@ export default function ToolbarPanel() {
         await authService.syncProjects(syncData);
       }
 
-      const { token } = await authService.createShareLink(activeProjectId);
-      const shareUrl = `${window.location.origin}/share/${token}`;
+      const created = await authService.createShareLink(activeProjectId);
+      const shareUrl = `${window.location.origin}/share/${created.token}`;
       await navigator.clipboard.writeText(shareUrl);
-      showToast('Read-only share link copied to clipboard!', 'success');
+      const toast = shareLinkToast(created);
+      showToast(toast.message, toast.type);
       setIsShareOpen(false);
     } catch {
       showToast('Failed to generate share link. Try again.', 'error');

@@ -956,7 +956,8 @@ export const authService = {
     },
   },
 
-  createShareLink: async (projectId: string): Promise<{ token: string }> => {
+  // closedOldestLinks: tavan (50) aşılınca sunucunun kapattığı en eski bağlantı sayısı; yalnızca >0 iken gelir.
+  createShareLink: async (projectId: string): Promise<{ token: string; closedOldestLinks?: number }> => {
     const response = await api.post(`/share/${projectId}`);
     return response.data;
   },
