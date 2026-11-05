@@ -211,24 +211,13 @@ public class AccountDeletionService
             }
         }
 
-        // ── 3. Stripe (DB dışı; başarısızlık silmeyi bloklamaz) ──────────────
-        var stripeOutcome = "none";
-        if (!string.IsNullOrWhiteSpace(user.StripeSubscriptionId))
-        {
-            var canceled = false;
-            if (_stripe is not null)
-            {
-                try { canceled = await _stripe.CancelAsync(user.StripeSubscriptionId, ct); }
-                catch (Exception ex) { _logger.LogError(ex, "Stripe aboneligi iptal edilemedi (kullanici {UserId}).", userId); }
-            }
-
-            stripeOutcome = canceled ? "canceled" : "manual_cancellation_required";
-            if (!canceled)
-                _logger.LogWarning("Hesap silindi ama Stripe aboneligi ELLE iptal edilmeli (kullanici {UserId}, abonelik {Sub}).",
-                    userId, user.StripeSubscriptionId);
-        }
-
-        // ── 4. Kalan DB işleri + kullanıcı + denetim: TEK işlem ──────────────
+        // ── 3. Kalan DB işleri + kullanıcı + denetim: TEK işlem ──────────────
+        // Stripe bu işlemden SONRA: önce iptal edilseydi işlem düştüğünde hesap yerinde ama aboneliği
+        // iptal edilmiş kalırdı. Projeler ise bilinçli olarak önce: kullanıcı satırı silinirse FK cascade
+        // blob/sağlayıcı temizliğini atlardı. Buradaki işlem düşerse yeniden deneme kaldığı yerden sürer.
+        var hasSubscription = !string.IsNullOrWhiteSpace(user.StripeSubscriptionId);
+        var subscriptionId = user.StripeSubscriptionId;
+        ChangeRequestAuditLog? accountAudit = null;
         var revokedKeys = 0;
         // Hub yazımları (devir, yıldızlar) kullanıcı silmeyle aynı işlemde: biri geri alınırsa hepsi.
         AccountDeletionResult? failure = null;
@@ -243,7 +232,9 @@ public class AccountDeletionService
                     .ExecuteUpdateAsync(s => s
                         .SetProperty(p => p.UserId, newOwner)
                         .SetProperty(p => p.UpdatedAt, DateTime.UtcNow), ct);
-                await _hub.ReassignOwnerAsync(projectId, newOwner, ct);
+                var renamedSlug = await _hub.ReassignOwnerAsync(projectId, newOwner, ct);
+                if (renamedSlug is not null)
+                    _logger.LogWarning("Hesap silme: {ProjectId} devrinde slug çakıştı, yeni slug {Slug}.", projectId, renamedSlug);
             }
 
             // Kullanıcı silinince FK yıldızları cascade siler ama sayaçlar düşmezdi.
@@ -284,21 +275,15 @@ public class AccountDeletionService
                 throw new AccountDeletionAbortedException();
             }
 
-            _context.ChangeRequestAuditLogs.Add(new ChangeRequestAuditLog
+            accountAudit = new ChangeRequestAuditLog
             {
                 ChangeRequestId = userId,
                 ProjectId = string.Empty,
                 Action = ChangeRequestAuditAction.AccountDeleted,
-                Details = JsonSerializer.Serialize(new
-                {
-                    deletedProjects = deleteIds.Count,
-                    reassignedProjects = reassign.Count,
-                    deletedOrganizations = orgsToDelete.Count,
-                    leftOrganizations = leftOrgs,
-                    revokedApiKeys = revokedKeys,
-                    stripe = stripeOutcome,
-                }),
-            });
+                // Abonelik varsa "pending": süreç işlemle Stripe arasında ölürse kayıt elle bakılacağını söyler.
+                Details = AuditDetails(hasSubscription ? "pending" : "none"),
+            };
+            _context.ChangeRequestAuditLogs.Add(accountAudit);
             await _context.SaveChangesAsync(ct);
             }, ct);
         }
@@ -307,7 +292,43 @@ public class AccountDeletionService
             return failure!;
         }
 
+        // ── 4. Stripe (DB dışı; başarısızlık silmeyi bloklamaz, hesap artık yok) ──
+        if (hasSubscription)
+        {
+            var canceled = false;
+            if (_stripe is not null)
+            {
+                try { canceled = await _stripe.CancelAsync(subscriptionId!, ct); }
+                catch (Exception ex) { _logger.LogError(ex, "Stripe aboneligi iptal edilemedi (kullanici {UserId}).", userId); }
+            }
+
+            if (!canceled)
+                _logger.LogWarning("Hesap silindi ama Stripe aboneligi ELLE iptal edilmeli (kullanici {UserId}, abonelik {Sub}).",
+                    userId, subscriptionId);
+
+            try
+            {
+                accountAudit!.Details = AuditDetails(canceled ? "canceled" : "manual_cancellation_required");
+                await _context.SaveChangesAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                // Hesap silindi; yanıtı bozmak yanlış olur. Kayıt "pending" kalır, elle bakılır.
+                _logger.LogError(ex, "Hesap silme denetim kaydi guncellenemedi (kullanici {UserId}).", userId);
+            }
+        }
+
         return AccountDeletionResult.Success();
+
+        string AuditDetails(string stripeOutcome) => JsonSerializer.Serialize(new
+        {
+            deletedProjects = deleteIds.Count,
+            reassignedProjects = reassign.Count,
+            deletedOrganizations = orgsToDelete.Count,
+            leftOrganizations = leftOrgs,
+            revokedApiKeys = revokedKeys,
+            stripe = stripeOutcome,
+        });
     }
 
     private sealed class AccountDeletionAbortedException : Exception
