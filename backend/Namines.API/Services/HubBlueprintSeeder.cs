@@ -150,11 +150,11 @@ public static class HubBlueprintSeeder
                 Body = bp.StarterIssueBody,
                 RelatedTableName = bp.StarterIssueTable,
                 NslRuleCode = bp.StarterIssueNslCode,
-                Labels = "architecture,review",
                 CreatedByUserId = architect.Id,
                 CreatedAt = project.CreatedAt.AddHours(2),
                 IsClosed = false
             };
+            await context.AttachAsync(starterIssue, "architecture,review", ct);
             await context.RepoIssues.AddAsync(starterIssue, ct);
 
             addedCount++;

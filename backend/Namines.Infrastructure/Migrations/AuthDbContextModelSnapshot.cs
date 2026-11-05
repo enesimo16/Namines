@@ -694,12 +694,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasDefaultValueSql("gen_random_uuid()::text");
 
-                    b.Property<string>("AllowedIps")
-                        .HasColumnType("text");
-
-                    b.Property<string>("AllowedOrigins")
-                        .HasColumnType("text");
-
                     b.Property<bool>("CanExecuteSql")
                         .HasColumnType("boolean");
 
@@ -740,6 +734,12 @@ namespace Namines.Infrastructure.Migrations
                     b.Property<int?>("RateLimitPerMinute")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("RestrictIps")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RestrictOrigins")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -757,6 +757,64 @@ namespace Namines.Infrastructure.Migrations
                     b.ToTable("GatewayApiKeys", t =>
                         {
                             t.HasCheckConstraint("CK_GatewayApiKeys_RateLimitPerMinute", "\"RateLimitPerMinute\" >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKeyAllowedIp", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
+
+                    b.Property<string>("ApiKeyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Cidr")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId", "Cidr")
+                        .IsUnique();
+
+                    b.ToTable("api_key_allowed_ips", "gateway", t =>
+                        {
+                            t.HasCheckConstraint("CK_api_key_allowed_ips_Cidr", "position('/' in \"Cidr\") > 0 AND (\"Cidr\"::cidr) IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKeyAllowedOrigin", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
+
+                    b.Property<string>("ApiKeyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId", "Origin")
+                        .IsUnique();
+
+                    b.ToTable("api_key_allowed_origins", "gateway", t =>
+                        {
+                            t.HasCheckConstraint("CK_api_key_allowed_origins_Origin", "\"Origin\" ~ '^[a-z][a-z0-9+.-]*://([a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*|\\[[0-9a-f:.]+\\])(:[1-9][0-9]{0,4})?$'");
                         });
                 });
 
@@ -810,6 +868,35 @@ namespace Namines.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTableMaskedColumn", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
+
+                    b.Property<string>("ColumnName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TablePermissionId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TablePermissionId", "ColumnName")
+                        .IsUnique();
+
+                    b.ToTable("table_masked_columns", "gateway", t =>
+                        {
+                            t.HasCheckConstraint("CK_table_masked_columns_ColumnName", "\"ColumnName\" <> ''");
+                        });
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTablePermission", b =>
                 {
                     b.Property<string>("Id")
@@ -824,9 +911,6 @@ namespace Namines.Infrastructure.Migrations
 
                     b.Property<bool>("CanWrite")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("MaskedColumns")
-                        .HasColumnType("text");
 
                     b.Property<string>("ProjectId")
                         .IsRequired()
@@ -1952,6 +2036,37 @@ namespace Namines.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Hub.IssueLabel", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("ProjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("issue_labels", "hub", t =>
+                        {
+                            t.HasCheckConstraint("CK_issue_labels_NormalizedName", "\"NormalizedName\" <> ''");
+                        });
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssue", b =>
                 {
                     b.Property<string>("Id")
@@ -1976,10 +2091,6 @@ namespace Namines.Infrastructure.Migrations
 
                     b.Property<int>("IssueNumber")
                         .HasColumnType("integer");
-
-                    b.Property<string>("Labels")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
 
                     b.Property<string>("NslRuleCode")
                         .HasMaxLength(32)
@@ -2043,6 +2154,29 @@ namespace Namines.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_RepoIssueComments_Body_Length", "char_length(\"Body\") <= 10000");
                         });
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssueLabel", b =>
+                {
+                    b.Property<string>("RepoIssueId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IssueLabelId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.HasKey("RepoIssueId", "IssueLabelId");
+
+                    b.HasIndex("IssueLabelId", "RepoIssueId");
+
+                    b.ToTable("repo_issue_labels", "hub");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoStar", b =>
@@ -2277,6 +2411,33 @@ namespace Namines.Infrastructure.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKeyAllowedIp", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.GatewayApiKey", null)
+                        .WithMany("IpRules")
+                        .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKeyAllowedOrigin", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.GatewayApiKey", null)
+                        .WithMany("OriginRules")
+                        .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTableMaskedColumn", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.GatewayTablePermission", null)
+                        .WithMany("MaskedColumnRules")
+                        .HasForeignKey("TablePermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTablePermission", b =>
@@ -2585,6 +2746,15 @@ namespace Namines.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Hub.IssueLabel", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssue", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
@@ -2621,6 +2791,23 @@ namespace Namines.Infrastructure.Migrations
                     b.Navigation("Issue");
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssueLabel", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Hub.IssueLabel", "Label")
+                        .WithMany()
+                        .HasForeignKey("IssueLabelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Namines.Core.Models.Hub.RepoIssue", null)
+                        .WithMany("LabelLinks")
+                        .HasForeignKey("RepoIssueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Label");
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Hub.RepoStar", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", "Project")
@@ -2645,6 +2832,18 @@ namespace Namines.Infrastructure.Migrations
                     b.Navigation("Approvals");
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKey", b =>
+                {
+                    b.Navigation("IpRules");
+
+                    b.Navigation("OriginRules");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTablePermission", b =>
+                {
+                    b.Navigation("MaskedColumnRules");
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.Organization", b =>
                 {
                     b.Navigation("Members");
@@ -2653,6 +2852,11 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.AutomationRule", b =>
                 {
                     b.Navigation("Actions");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Hub.RepoIssue", b =>
+                {
+                    b.Navigation("LabelLinks");
                 });
 #pragma warning restore 612, 618
         }

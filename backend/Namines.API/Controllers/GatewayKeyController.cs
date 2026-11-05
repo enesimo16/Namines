@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -148,13 +149,23 @@ public class GatewayKeyController : ControllerBase
                         "Raw SQL bypasses table permissions, and export downloads whole tables.",
             });
 
+        // Liste geçersizse anahtar HİÇ üretilmez: geçersiz girdiyi sessizce atmak, kullanıcının
+        // kısıtladığını sandığı bir anahtarı daha geniş ya da kullanılamaz bırakırdı.
+        var origins = GatewayAllowlistRules.ParseOrigins(request.AllowedOrigins);
+        if (AllowlistError("origin", origins, request.AllowedOrigins) is { } originError)
+            return BadRequest(new { error = originError });
+
+        var ips = GatewayAllowlistRules.ParseIps(request.AllowedIps);
+        if (AllowlistError("IP or CIDR", ips, request.AllowedIps) is { } ipError)
+            return BadRequest(new { error = ipError });
+
         var (entity, rawKey) = GatewayAccess.CreateKey(
             projectId, request.Name.Trim(), userId, request.CanWrite, request.ExpiresAt);
 
         entity.CanExecuteSql = request.CanExecuteSql;
         entity.CanExport = request.CanExport;
-        entity.AllowedOrigins = Normalize(request.AllowedOrigins);
-        entity.AllowedIps = Normalize(request.AllowedIps);
+        GatewayAllowlistRules.ApplyOrigins(entity, origins.Entries);
+        GatewayAllowlistRules.ApplyIps(entity, ips.Entries);
         // Belirtilmemişse planın hakkı: kullanıcıyı bir sayı uydurmaya zorlamak,
         // çoğu kişinin ya çok düşük ya çok yüksek seçmesi demek.
         entity.RateLimitPerMinute = request.RateLimitPerMinute ?? planCeiling;
@@ -173,8 +184,8 @@ public class GatewayKeyController : ControllerBase
             entity.CanExecuteSql,
             entity.CanExport,
             entity.ExpiresAt,
-            entity.AllowedOrigins,
-            entity.AllowedIps,
+            AllowedOrigins = GatewayAllowlistRules.DisplayOrigins(entity.RestrictOrigins, origins.Entries),
+            AllowedIps = GatewayAllowlistRules.DisplayIps(entity.RestrictIps, ips.Entries),
             entity.RateLimitPerMinute,
             key = rawKey,
             warning = "This is the only time the key is shown. Store it now.",
@@ -190,18 +201,30 @@ public class GatewayKeyController : ControllerBase
             return NotFound(new { error = "Project not found." });
 
         var keys = await _context.GatewayApiKeys
+            .AsNoTracking()
             .Where(k => k.ProjectId == projectId)
             .OrderByDescending(k => k.CreatedAt)
             // KeyHash bilinçli olarak dışarıda: gösterilecek bir değer değil.
             .Select(k => new
             {
                 k.Id, k.Name, k.Prefix, k.CanWrite, k.CanExecuteSql, k.CanExport,
-                k.AllowedOrigins, k.AllowedIps, k.RateLimitPerMinute,
+                k.RestrictOrigins, k.RestrictIps,
+                Origins = k.OriginRules.OrderBy(o => o.Position).Select(o => o.Origin).ToList(),
+                Ips = k.IpRules.OrderBy(i => i.Position).Select(i => i.Cidr).ToList(),
+                k.RateLimitPerMinute,
                 k.CreatedAt, k.ExpiresAt, k.RevokedAt, k.LastUsedAt,
             })
+            .AsSplitQuery()
             .ToListAsync(ct);
 
-        return Ok(keys);
+        return Ok(keys.Select(k => new
+        {
+            k.Id, k.Name, k.Prefix, k.CanWrite, k.CanExecuteSql, k.CanExport,
+            AllowedOrigins = GatewayAllowlistRules.DisplayOrigins(k.RestrictOrigins, k.Origins),
+            AllowedIps = GatewayAllowlistRules.DisplayIps(k.RestrictIps, k.Ips),
+            k.RateLimitPerMinute,
+            k.CreatedAt, k.ExpiresAt, k.RevokedAt, k.LastUsedAt,
+        }));
     }
 
     /// <summary>
@@ -330,9 +353,23 @@ public class GatewayKeyController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Boş/whitespace listeyi null'a indirger: "" ile null aynı anlama gelmeli.</summary>
-    private static string? Normalize(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    /// <summary>
+    /// Boş/whitespace "kısıt yok" demek. Yalnızca virgülden oluşan metin ise hata: eskiden kısıtsız
+    /// anahtar üretiyordu, oysa yazan kişi bir şey kısıtladığını sanıyordu.
+    /// </summary>
+    private static string? AllowlistError(string kind, AllowlistParseResult parsed, string? raw)
+    {
+        if (parsed.Invalid.Count > 0)
+            return $"Invalid {kind} entry: '{parsed.Invalid[0]}'. " +
+                   (kind == "origin"
+                       ? "Use scheme://host[:port] with no path or trailing slash. Wildcards are not supported."
+                       : "Use a plain address or address/prefix.");
+        if (parsed.Entries.Count > GatewayAllowlistRules.MaxEntriesPerList)
+            return $"At most {GatewayAllowlistRules.MaxEntriesPerList} {kind} entries are allowed per key.";
+        if (!parsed.HasAnyEntry && !string.IsNullOrWhiteSpace(raw))
+            return $"The {kind} list has no entries. Leave it empty for no restriction.";
+        return null;
+    }
 
     // ── Tablo izinleri ───────────────────────────────────────────────────────
 
@@ -345,13 +382,20 @@ public class GatewayKeyController : ControllerBase
             return NotFound(new { error = "Project not found." });
 
         var permissions = await _context.GatewayTablePermissions
+            .AsNoTracking()
             .Where(p => p.ProjectId == projectId)
             .OrderBy(p => p.TableName)
+            .Select(p => new
+            {
+                p.TableName, p.CanRead, p.CanWrite, p.CanExport, p.UpdatedAt,
+                Masked = p.MaskedColumnRules.OrderBy(m => m.Position).Select(m => m.ColumnName).ToList(),
+            })
             .ToListAsync(ct);
 
         return Ok(permissions.Select(p => new
         {
-            p.TableName, p.CanRead, p.CanWrite, p.CanExport, p.MaskedColumns, p.UpdatedAt,
+            p.TableName, p.CanRead, p.CanWrite, p.CanExport,
+            MaskedColumns = GatewayAllowlistRules.DisplayMaskedColumns(p.Masked), p.UpdatedAt,
         }));
     }
 
@@ -374,7 +418,12 @@ public class GatewayKeyController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.TableName))
             return BadRequest(new { error = "A table name is required." });
 
+        var masked = GatewayAllowlistRules.ParseMaskedColumns(request.MaskedColumns);
+        if (masked.Any(m => m.Length > GatewayAllowlistRules.MaxMaskedColumnLength))
+            return BadRequest(new { error = $"A masked column name can be at most {GatewayAllowlistRules.MaxMaskedColumnLength} characters." });
+
         var existing = await _context.GatewayTablePermissions
+            .Include(p => p.MaskedColumnRules)
             .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.TableName == request.TableName, ct);
 
         if (!request.CanRead && !request.CanWrite)
@@ -403,15 +452,34 @@ public class GatewayKeyController : ControllerBase
         // indirmek, okuma iznini anlamsız kılardı. O yüzden CanRead kapalıysa
         // CanExport da kapanıyor — sessizce yok sayılmıyor.
         existing.CanExport = request.CanExport && existing.CanRead;
-        existing.MaskedColumns = Normalize(request.MaskedColumns);
+        SyncMaskedColumns(existing, masked);
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(ct);
         return Ok(new
         {
             existing.TableName, existing.CanRead, existing.CanWrite,
-            existing.CanExport, existing.MaskedColumns,
+            existing.CanExport, MaskedColumns = GatewayAllowlistRules.DisplayMaskedColumns(masked),
         });
+    }
+
+    /// <summary>
+    /// Var olan satır korunur, yalnızca fark yazılır. Listeyi silip yeniden eklemek gerekmiyor ve
+    /// aynı SaveChanges işleminde kaldığı için maskesiz görünen bir an oluşmuyor.
+    /// </summary>
+    private static void SyncMaskedColumns(GatewayTablePermission permission, IReadOnlyList<string> columns)
+    {
+        foreach (var stale in permission.MaskedColumnRules.Where(m => !columns.Contains(m.ColumnName, StringComparer.Ordinal)).ToList())
+            permission.MaskedColumnRules.Remove(stale);
+
+        for (var i = 0; i < columns.Count; i++)
+        {
+            var row = permission.MaskedColumnRules.FirstOrDefault(m => string.Equals(m.ColumnName, columns[i], StringComparison.Ordinal));
+            if (row is null)
+                permission.MaskedColumnRules.Add(new GatewayTableMaskedColumn { TablePermissionId = permission.Id, ColumnName = columns[i], Position = i });
+            else
+                row.Position = i;
+        }
     }
 
     // ── Namines Desk: projeye bağlı CANLI veritabanı bağlantısı ──────────────

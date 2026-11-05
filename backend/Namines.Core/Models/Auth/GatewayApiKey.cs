@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
@@ -74,22 +75,25 @@ public class GatewayApiKey
     public bool CanExport { get; set; }
 
     /// <summary>
-    /// İzin verilen kaynaklar, virgülle ayrılmış (<c>https://app.musteri.com</c>).
-    /// Boşsa kısıt yok. Doluysa <c>Origin</c> başlığı taşımayan istek de reddedilir —
-    /// "origin kısıtla" diyen biri, başlığı hiç göndermeyen istemciye kapıyı açık
-    /// bırakmayı kastetmez.
+    /// Origin listesi uygulanıyor mu. Satır yokluğundan AYRI bir bayrak: geçersiz girdileri atılınca
+    /// listesi boşalan anahtar "kısıt yok"a dönüşmesin, her isteği reddetsin. Satır varsa bayrak
+    /// kapalı olsa bile liste uygulanır (bkz. <c>GatewayKeyRestrictions</c>).
+    /// Doluysa <c>Origin</c> başlığı taşımayan istek de reddedilir.
     /// </summary>
-    public string? AllowedOrigins { get; set; }
+    public bool RestrictOrigins { get; set; }
 
     /// <summary>
-    /// İzin verilen kaynak adresler, virgülle ayrılmış düz IP ya da CIDR
-    /// (<c>1.2.3.4</c>, <c>10.0.0.0/8</c>). Boşsa kısıt yok.
-    ///
-    /// Uygulama güvenilen proxy ağları tanımlanmadan bir proxy arkasındaysa istemci
-    /// adresi taklit edilebilir; o durumda bu liste doluysa istek REDDEDİLİR
-    /// (bkz. <c>GatewayKeyRestrictions.IsIpAllowed</c>).
+    /// IP listesi uygulanıyor mu, gerekçe <see cref="RestrictOrigins"/> ile aynı. Uygulama güvenilen
+    /// proxy ağları tanımlanmadan bir proxy arkasındaysa istemci adresi taklit edilebilir; o durumda
+    /// istek REDDEDİLİR (bkz. <c>GatewayKeyRestrictions.IsIpAllowed</c>).
     /// </summary>
-    public string? AllowedIps { get; set; }
+    public bool RestrictIps { get; set; }
+
+    [JsonIgnore]
+    public ICollection<GatewayApiKeyAllowedOrigin> OriginRules { get; set; } = new List<GatewayApiKeyAllowedOrigin>();
+
+    [JsonIgnore]
+    public ICollection<GatewayApiKeyAllowedIp> IpRules { get; set; } = new List<GatewayApiKeyAllowedIp>();
 
     /// <summary>
     /// Dakikadaki istek sınırı. Null ise sunucunun genel politikası geçerli.
@@ -148,14 +152,14 @@ public class GatewayTablePermission
     public bool CanExport { get; set; }
 
     /// <summary>
-    /// Virgülle ayrılmış kolon adları — API anahtarıyla okunduğunda değerleri
-    /// maskelenir (06 §4). Boşsa maskeleme yok.
+    /// API anahtarıyla okunduğunda değerleri maskelenen kolonlar (06 §4). Boşsa maskeleme yok.
     ///
     /// Tabloyu tamamen kapatmak yerine kolon maskelemek, geliştiricinin verinin
     /// ŞEKLİYLE çalışmasını sağlar: satır sayısı, birleştirmeler ve dağılım
     /// gerçek kalır, kişisel içerik kalmaz.
     /// </summary>
-    public string? MaskedColumns { get; set; }
+    [JsonIgnore]
+    public ICollection<GatewayTableMaskedColumn> MaskedColumnRules { get; set; } = new List<GatewayTableMaskedColumn>();
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

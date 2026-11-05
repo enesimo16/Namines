@@ -10,9 +10,13 @@ namespace Namines.Infrastructure.Data;
 /// API anahtarının kaynak kısıtları (new-phase/08-GATEWAY-API.md §4.3:
 /// <c>allowedIps</c>, <c>allowedOrigins</c>).
 ///
-/// Her iki liste de BOŞSA kısıt yoktur — anahtarın kendisi zaten bir kimlik.
-/// Doluysa kural katı: eşleşmeyen reddedilir ve <b>kararsız kalınan durumda da
+/// Kısıt işaretli değilse ve liste boşsa kısıt yoktur — anahtarın kendisi zaten bir kimlik.
+/// Aksi hâlde kural katı: eşleşmeyen reddedilir ve <b>kararsız kalınan durumda da
 /// reddedilir</b>. Gerekçe aşağıda, <see cref="IsIpAllowed"/>'da.
+///
+/// <b>"Kısıt var" ile "satır var" ayrı sorular:</b> geçersiz girdileri karantinaya alınmış ya da
+/// navigasyonu yüklenmemiş bir anahtarda liste boş görünür ve bu asla "serbest" anlamına gelmemeli.
+/// İki taraf da kapalıya düşer: bayrak VEYA satır varsa kısıt uygulanır, satır yoksa reddedilir.
 /// </summary>
 public static class GatewayKeyRestrictions
 {
@@ -23,11 +27,10 @@ public static class GatewayKeyRestrictions
     /// </summary>
     public static bool IsOriginAllowed(GatewayApiKey key, string? origin)
     {
-        var allowed = Split(key.AllowedOrigins);
-        if (allowed.Length == 0) return true;
+        if (!key.RestrictOrigins && key.OriginRules.Count == 0) return true;
         if (string.IsNullOrWhiteSpace(origin)) return false;
 
-        return allowed.Any(a => string.Equals(a, origin, StringComparison.OrdinalIgnoreCase));
+        return key.OriginRules.Any(a => string.Equals(a.Origin, origin, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -45,8 +48,7 @@ public static class GatewayKeyRestrictions
     {
         reason = string.Empty;
 
-        var allowed = Split(key.AllowedIps);
-        if (allowed.Length == 0) return true;
+        if (!key.RestrictIps && key.IpRules.Count == 0) return true;
 
         if (!clientAddressIsTrustworthy)
         {
@@ -67,7 +69,7 @@ public static class GatewayKeyRestrictions
         // v4'e indirgemek "1.2.3.4/32" kuralının çalışmasını sağlar.
         var address = clientAddress.IsIPv4MappedToIPv6 ? clientAddress.MapToIPv4() : clientAddress;
 
-        if (allowed.Any(rule => Matches(rule, address))) return true;
+        if (key.IpRules.Any(rule => Matches(rule.Cidr, address))) return true;
 
         // Adres mesaja KOYULMUYOR: hata gövdesi çağırana hangi IP olarak
         // görüldüğünü söylerse, kuralı atlatmayı deneyen birine geri bildirim verir.
@@ -110,9 +112,4 @@ public static class GatewayKeyRestrictions
         address.AddressFamily == AddressFamily.InterNetworkV6 && address.IsIPv4MappedToIPv6
             ? address.MapToIPv4()
             : address;
-
-    private static string[] Split(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? Array.Empty<string>()
-            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

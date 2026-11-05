@@ -73,7 +73,12 @@ public static class GatewayAccess
         var prefix = rawKey[..PrefixLength];
         var expectedHash = Hash(rawKey);
 
+        // Kaynak kısıtları aynı sorguda: her istekte tek tur. Liste başına üst sınır API'de
+        // (GatewayAllowlistRules.MaxEntriesPerList), iki koleksiyonun çarpımı küçük kalır.
         var candidates = await context.GatewayApiKeys
+            .Include(k => k.OriginRules)
+            .Include(k => k.IpRules)
+            .AsSingleQuery()
             .Where(k => k.Prefix == prefix)
             .ToListAsync(ct);
 
@@ -176,14 +181,13 @@ public static class GatewayAccess
     public static async Task<IReadOnlyList<string>> MaskedColumnsAsync(
         this AuthDbContext context, string projectId, string tableName, CancellationToken ct = default)
     {
-        var permission = await context.GatewayTablePermissions
-            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.TableName == tableName, ct);
-
-        if (permission is null || string.IsNullOrWhiteSpace(permission.MaskedColumns))
-            return Array.Empty<string>();
-
-        return permission.MaskedColumns
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return await context.GatewayTablePermissions
+            .AsNoTracking()
+            .Where(p => p.ProjectId == projectId && p.TableName == tableName)
+            .SelectMany(p => p.MaskedColumnRules)
+            .OrderBy(m => m.Position)
+            .Select(m => m.ColumnName)
+            .ToListAsync(ct);
     }
 
     /// <summary>Anahtarın erişebildiği tablolar — <c>/tables</c> ucunun kaynağı.</summary>

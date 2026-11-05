@@ -740,7 +740,7 @@ public class HubController : ControllerBase
             query = query.Where(i => i.RelatedTableName == relatedTable);
 
         if (!string.IsNullOrWhiteSpace(label))
-            query = query.Where(i => i.Labels != null && i.Labels.Contains(label));
+            query = query.WithLabel(projectId, label);
 
         var totalCount = await query.CountAsync(ct);
         var openCount = await _context.RepoIssues.CountAsync(i => i.ProjectId == projectId && !i.IsClosed, ct);
@@ -762,7 +762,7 @@ public class HubController : ControllerBase
                 i.IsClosed,
                 i.RelatedTableName,
                 i.NslRuleCode,
-                i.Labels,
+                LabelNames = i.LabelLinks.OrderBy(l => l.Position).Select(l => l.DisplayName).ToList(),
                 i.CreatedAt,
                 i.ClosedAt,
                 CreatedBy = new
@@ -775,6 +775,23 @@ public class HubController : ControllerBase
             })
             .ToListAsync(ct);
 
+        // Yanıtın tarihsel biçimi: Labels virgüllü metin (frontend onu ayırıyor).
+        var items = issues.Select(i => new
+        {
+            i.Id,
+            i.IssueNumber,
+            i.Title,
+            i.Body,
+            i.IsClosed,
+            i.RelatedTableName,
+            i.NslRuleCode,
+            Labels = IssueLabelRules.ToCsv(i.LabelNames),
+            i.CreatedAt,
+            i.ClosedAt,
+            i.CreatedBy,
+            i.CommentsCount,
+        }).ToList();
+
         return Ok(new
         {
             Total = totalCount,
@@ -782,7 +799,7 @@ public class HubController : ControllerBase
             ClosedCount = closedCount,
             Page = page,
             PageSize = pageSize,
-            Items = issues
+            Items = items
         });
     }
 
@@ -840,12 +857,14 @@ public class HubController : ControllerBase
                 Body = request.Body?.Trim() ?? string.Empty,
                 RelatedTableName = request.RelatedTableName?.Trim(),
                 NslRuleCode = request.NslRuleCode?.Trim(),
-                Labels = request.Labels?.Trim(),
                 CreatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
                 IsClosed = false
             };
 
+            // Etiket satırı da bu işlemde açılıyor: eşzamanlı aynı yeni etiket UNIQUE'e takılır ve
+            // numara çakışmasıyla aynı yoldan yeniden denenir (ikinci denemede satır artık var).
+            await _context.AttachAsync(candidate, request.Labels, ct);
             await _context.RepoIssues.AddAsync(candidate, ct);
             try
             {
@@ -855,11 +874,11 @@ public class HubController : ControllerBase
             }
             catch (DbUpdateException) when (attempt < maxAttempts)
             {
-                _context.Entry(candidate).State = EntityState.Detached;
+                _context.DetachPending();
             }
             catch (DbUpdateException)
             {
-                _context.Entry(candidate).State = EntityState.Detached;
+                _context.DetachPending();
                 return Conflict(new { error = "Could not allocate an issue number. Please retry." });
             }
         }
@@ -876,7 +895,7 @@ public class HubController : ControllerBase
             issue.IsClosed,
             issue.RelatedTableName,
             issue.NslRuleCode,
-            issue.Labels,
+            Labels = IssueLabelRules.ToCsv(issue.LabelLinks.OrderBy(l => l.Position).Select(l => l.DisplayName)),
             issue.CreatedAt
         });
     }

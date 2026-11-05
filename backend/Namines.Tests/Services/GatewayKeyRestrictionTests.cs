@@ -14,12 +14,12 @@ namespace Namines.Tests.Services;
 /// </summary>
 public class GatewayKeyRestrictionTests
 {
-    private static GatewayApiKey Key(string? origins = null, string? ips = null, int? rate = null) => new()
+    private static GatewayApiKey Key(string? origins = null, string? ips = null, int? rate = null)
     {
-        Id = "k1", ProjectId = "p1", Name = "k", Prefix = "nmn_x", KeyHash = "h",
-        CreatedByUserId = "u1",
-        AllowedOrigins = origins, AllowedIps = ips, RateLimitPerMinute = rate,
-    };
+        var key = GatewayAllowlistCases.Key(origins, ips);
+        key.RateLimitPerMinute = rate;
+        return key;
+    }
 
     // ── Origin ───────────────────────────────────────────────────────────────
 

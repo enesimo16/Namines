@@ -37,6 +37,48 @@ public static class HubModelConfiguration
     /// migration zincirinin sahibi AuthDbContext buradan okur. Studio'ya giden FK yalnızca
     /// AuthDbContext tarafında tanımlı, çünkü Hub bağlamı <see cref="CloudProject"/>'i tanımaz.
     /// </summary>
+    /// <summary>
+    /// Issue etiketleri. <c>RepoIssues</c> henüz HubDbContext'te değil (D-1), bu yüzden yalnızca
+    /// AuthDbContext çağırıyor; tablolar şimdiden Hub şemasında.
+    /// </summary>
+    public static void ConfigureIssueLabelTables(ModelBuilder builder, string? schema)
+    {
+        builder.Entity<IssueLabel>(entity =>
+        {
+            entity.ToTable("issue_labels", schema, t =>
+            {
+                if (schema is not null)
+                    t.HasCheckConstraint("CK_issue_labels_NormalizedName", "\"NormalizedName\" <> ''");
+            });
+            entity.HasKey(l => l.Id);
+            entity.Property(l => l.ProjectId).IsRequired();
+            entity.Property(l => l.Name).IsRequired().HasMaxLength(IssueLabelRules.MaxNameLength);
+            entity.Property(l => l.NormalizedName).IsRequired().HasMaxLength(IssueLabelRules.MaxNameLength);
+            entity.HasIndex(l => new { l.ProjectId, l.NormalizedName }).IsUnique();
+            entity.HasOne<CloudProject>()
+                .WithMany()
+                .HasForeignKey(l => l.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<RepoIssueLabel>(entity =>
+        {
+            entity.ToTable("repo_issue_labels", schema);
+            entity.HasKey(l => new { l.RepoIssueId, l.IssueLabelId });
+            entity.Property(l => l.DisplayName).IsRequired().HasMaxLength(IssueLabelRules.MaxNameLength);
+            // Filtre etiketten issue'ya gider; PK ters yönde olduğu için bunu karşılamaz.
+            entity.HasIndex(l => new { l.IssueLabelId, l.RepoIssueId });
+            entity.HasOne<RepoIssue>()
+                .WithMany(i => i.LabelLinks)
+                .HasForeignKey(l => l.RepoIssueId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(l => l.Label)
+                .WithMany()
+                .HasForeignKey(l => l.IssueLabelId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
     public static void ConfigureOwnedTables(ModelBuilder builder, string? schema, bool excludeFromMigrations)
     {
         builder.Entity<ProjectRepository>(entity =>

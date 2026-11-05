@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -254,7 +255,9 @@ public static class DevSandboxSeeder
                 CanWrite = true,
                 // 'eposta' maskeli: maskelemenin kendisi ve maskeli okumanın
                 // denetim kaydına düşmesi, ancak maskeli bir kolon varsa denenebilir.
-                MaskedColumns = table == "musteri" ? "eposta" : null,
+                MaskedColumnRules = table == "musteri"
+                    ? new List<GatewayTableMaskedColumn> { new() { ColumnName = "eposta", Position = 0 } }
+                    : new List<GatewayTableMaskedColumn>(),
             });
             added++;
         }

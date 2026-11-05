@@ -55,6 +55,11 @@ public class MigrationCompatibilityTests
     /// </summary>
     private static readonly Dictionary<string, string> DeliberateExceptions = new()
     {
+        ["20261105114438_Phase14_2C_NormalizeCollections"] =
+            "CSV kolonları tek işlemde ilişkisel tablolara ve fiziksel DROP (sahibin kararı). Ham SQL olduğu için " +
+            "kural yakalamıyor ama kayıt burada: eski kod yeni şemada ÇALIŞMAZ ve bu fail-closed'dır (sorgu hatası, " +
+            "maskesiz okuma ya da serbest allowlist değil). Dağıtım: eski sürümü durdur, --migrate, yeni sürümü aç " +
+            "(bkz. PHASE_14_2C_REPORT.md bölüm 3).",
         ["20261105055013_Phase14_2B_ReconcileModelDrift"] =
             "ShareToken kolonu: bir önceki sürümün kodu onu zaten [NotMapped] tutuyordu, yani hiçbir sorgu " +
             "okumuyor. Düz metin token'ın DB'de kalması bu kuraldan daha büyük risk (sahibin kararı).",

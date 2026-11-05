@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 using Namines.Core.Models.Auth;
 
@@ -26,8 +28,9 @@ namespace Namines.Core.Models.Hub
         /// <summary>Linter kuralından üretildiyse kural kodu (ör: "NSL006")</summary>
         public string? NslRuleCode { get; set; }
 
-        /// <summary>Virgülle ayrılmış etiketler (ör: "dba-risk,performance")</summary>
-        public string? Labels { get; set; }
+        /// <summary>Etiketler (hub.repo_issue_labels). API bunları eskisi gibi virgüllü metin döndürür.</summary>
+        [JsonIgnore]
+        public ICollection<RepoIssueLabel> LabelLinks { get; set; } = new List<RepoIssueLabel>();
 
         public string? CreatedByUserId { get; set; }
         public ApplicationUser? CreatedByUser { get; set; }

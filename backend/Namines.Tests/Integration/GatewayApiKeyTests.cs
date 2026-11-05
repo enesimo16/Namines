@@ -74,6 +74,9 @@ public class GatewayApiKeyTests : IAsyncLifetime
         return (_shared, projectId);
     }
 
+    private static List<GatewayTableMaskedColumn> Masks(params string[] columns) =>
+        columns.Select((c, i) => new GatewayTableMaskedColumn { ColumnName = c, Position = i }).ToList();
+
     private static async Task<(GatewayApiKey Key, string Raw)> AddKeyAsync(
         AuthDbContext context, string projectId, bool canWrite = false, DateTime? expiresAt = null)
     {
@@ -327,7 +330,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         context.GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = projectId, TableName = "users",
-            CanRead = true, MaskedColumns = "email, phone",
+            CanRead = true, MaskedColumnRules = Masks("email", "phone"),
         });
         await context.SaveChangesAsync();
 
@@ -361,7 +364,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         context.GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = otherProjectId, TableName = "users",
-            CanRead = true, MaskedColumns = "email",
+            CanRead = true, MaskedColumnRules = Masks("email"),
         });
         await context.SaveChangesAsync();
 

@@ -22,7 +22,7 @@ namespace Namines.Tests.Controllers;
 /// bildirdiği kaynak kısıtları.
 ///
 /// <b>Bulunan açık:</b> bu üç uç anahtarı yalnızca KİMLİK olarak doğruluyordu. Diğer tüm
-/// anahtar uçları ek olarak <c>AllowedOrigins</c>/<c>AllowedIps</c> ve dakikalık sınırı
+/// anahtar uçları ek olarak origin/IP listelerini ve dakikalık sınırı
 /// uyguluyordu. Yani IP'ye kilitlenmiş bir anahtar sızarsa, saldırgan herhangi bir adresten
 /// müşterinin canlı üretim şemasını (<c>/schema</c> introspection yapıyor) okuyabiliyordu.
 /// </summary>
@@ -49,8 +49,8 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
 
         var (entity, raw) = GatewayAccess.CreateKey("proj-1", "k", "owner", canWrite: false, expiresAt: null);
         // Yalnızca belirli bir uygulama sunucusundan kullanılabilen bir anahtar.
-        entity.AllowedIps = "203.0.113.7";
-        entity.AllowedOrigins = "https://app.example.com";
+        GatewayAllowlistRules.ApplyIps(entity, GatewayAllowlistRules.ParseIps("203.0.113.7").Entries);
+        GatewayAllowlistRules.ApplyOrigins(entity, GatewayAllowlistRules.ParseOrigins("https://app.example.com").Entries);
         db.GatewayApiKeys.Add(entity);
         await db.SaveChangesAsync();
         _rawKey = raw;

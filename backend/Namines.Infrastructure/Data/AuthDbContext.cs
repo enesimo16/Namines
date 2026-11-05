@@ -82,6 +82,8 @@ namespace Namines.Infrastructure.Data
             builder.Entity<CloudProject>().ToTable("projects", isPostgres ? StudioModelConfiguration.DefaultSchemaName : null);
             StudioModelConfiguration.ConfigureOwnedTables(builder, isPostgres ? StudioModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
             HubModelConfiguration.ConfigureOwnedTables(builder, isPostgres ? HubModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
+            HubModelConfiguration.ConfigureIssueLabelTables(builder, isPostgres ? HubModelConfiguration.DefaultSchemaName : null);
+            GatewayModelConfiguration.ConfigureAllowlistTables(builder, isPostgres ? GatewayModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
             builder.Entity<ProjectRepository>()
                 .HasOne<CloudProject>()
                 .WithOne()
@@ -501,7 +503,6 @@ namespace Namines.Infrastructure.Data
                 entity.Property(i => i.Title).HasMaxLength(256);
                 entity.Property(i => i.RelatedTableName).HasMaxLength(128);
                 entity.Property(i => i.NslRuleCode).HasMaxLength(32);
-                entity.Property(i => i.Labels).HasMaxLength(256);
                 entity.HasOne(i => i.Project)
                     .WithMany()
                     .HasForeignKey(i => i.ProjectId)
@@ -646,7 +647,8 @@ namespace Namines.Infrastructure.Data
                 typeof(RepoIssueComment), typeof(DeskHandoffToken), typeof(SqlQueryHistoryEntry),
                 typeof(SavedQuery), typeof(VaultBackup), typeof(VaultRestore), typeof(VaultSchedule),
                 typeof(GroundDatabase), typeof(AutomationRule), typeof(AutomationAction),
-                typeof(AutomationRunLog),
+                typeof(AutomationRunLog), typeof(GatewayApiKeyAllowedOrigin), typeof(GatewayApiKeyAllowedIp),
+                typeof(GatewayTableMaskedColumn), typeof(IssueLabel),
             };
 
             foreach (var type in guidKeyed)
