@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Namines.BuildingBlocks.Persistence;
 using Namines.Ground.Abstractions;
 using Namines.Ground.Application;
 using Namines.Ground.Infrastructure.Persistence;
@@ -51,13 +50,6 @@ public static class GroundServiceCollectionExtensions
                         GroundDbContext.SchemaName));
             });
         }
-
-        services.AddSingleton<IModuleDbContextMigrator>(sp =>
-            new ModuleDbContextMigrator<GroundDbContext>(
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                order: 50,
-                moduleName: "Ground",
-                schemaName: GroundDbContext.SchemaName));
 
         services.AddSingleton<IDatabaseProvider, LocalPostgresProvider>();
         services.AddHttpClient<INeonClient, NeonClient>();

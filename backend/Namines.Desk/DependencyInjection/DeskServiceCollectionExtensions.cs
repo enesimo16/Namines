@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Namines.BuildingBlocks.Persistence;
 using Namines.Desk.Abstractions;
 using Namines.Desk.Application;
 using Namines.Desk.Infrastructure.Persistence;
@@ -40,13 +39,6 @@ public static class DeskServiceCollectionExtensions
                         DeskDbContext.SchemaName));
             });
         }
-
-        services.AddSingleton<IModuleDbContextMigrator>(sp =>
-            new ModuleDbContextMigrator<DeskDbContext>(
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                order: 80,
-                moduleName: "Desk",
-                schemaName: DeskDbContext.SchemaName));
 
         services.TryAddSingleton<IDeskHandoffTokenValidator, DeskHandoffTokenValidator>();
         services.TryAddScoped<IDeskApplicationService, DeskApplicationService>();

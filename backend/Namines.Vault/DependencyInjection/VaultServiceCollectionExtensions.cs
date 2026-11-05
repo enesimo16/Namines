@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Namines.BuildingBlocks.Persistence;
 using Namines.Vault.Abstractions;
 using Namines.Vault.Application;
 using Namines.Vault.Infrastructure.Persistence;
@@ -50,13 +49,6 @@ public static class VaultServiceCollectionExtensions
                         VaultDbContext.SchemaName));
             });
         }
-
-        services.AddSingleton<IModuleDbContextMigrator>(sp =>
-            new ModuleDbContextMigrator<VaultDbContext>(
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                order: 60,
-                moduleName: "Vault",
-                schemaName: VaultDbContext.SchemaName));
 
         services.TryAddSingleton<BackupCipher>();
 

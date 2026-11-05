@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Namines.BuildingBlocks.Persistence;
 using Namines.Flow.Abstractions;
 using Namines.Flow.Application;
 using Namines.Flow.Infrastructure.Persistence;
@@ -42,13 +41,6 @@ public static class FlowServiceCollectionExtensions
                         FlowDbContext.SchemaName));
             });
         }
-
-        services.AddSingleton<IModuleDbContextMigrator>(sp =>
-            new ModuleDbContextMigrator<FlowDbContext>(
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                order: 70,
-                moduleName: "Flow",
-                schemaName: FlowDbContext.SchemaName));
 
         services.TryAddSingleton<IFlowRuleMatcher, FlowRuleMatcher>();
         services.TryAddSingleton<IFlowJobQueue, FlowJobQueue>();

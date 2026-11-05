@@ -10,8 +10,8 @@ using Namines.BuildingBlocks.Persistence;
 namespace Namines.BuildingBlocks.DependencyInjection;
 
 /// <summary>
-/// Modüler monolit paylaşılan altyapı bileşenlerini (migration orkestratörü,
-/// paylaşılan transaction yöneticisi ve çekirdek 7 modülün izole DbContext/Migrator/Facade kayıtları)
+/// Modüler monolit paylaşılan altyapı bileşenlerini (paylaşılan transaction yöneticisi ve çekirdek
+/// 7 modülün izole DbContext/Facade kayıtları)
 /// DI konteynerine kaydeder.
 /// </summary>
 public static class BuildingBlocksServiceCollectionExtensions
@@ -25,54 +25,53 @@ public static class BuildingBlocksServiceCollectionExtensions
         Func<IConfiguration, string>? connectionStringFactory = null)
     {
         services.TryAddScoped<ISharedTransactionManager, SharedTransactionManager>();
-        services.TryAddScoped<ModuleMigrationOrchestrator>();
 
         RegisterModule<IdentityModuleDbContext, IIdentityModule, IdentityModule>(
-            services, configureDbContext, connectionStringFactory, order: 10, moduleName: "Identity",
-            schemaName: IdentityModuleDbContext.DefaultSchema,
+            services, configureDbContext, connectionStringFactory,
             historyTable: IdentityModuleDbContext.MigrationsHistoryTableName,
+            schemaName: IdentityModuleDbContext.DefaultSchema,
             db => new IdentityModule(db));
 
         RegisterModule<StudioDbContext, IStudioModule, StudioModule>(
-            services, configureDbContext, connectionStringFactory, order: 20, moduleName: "Studio",
-            schemaName: StudioDbContext.DefaultSchema,
+            services, configureDbContext, connectionStringFactory,
             historyTable: StudioDbContext.MigrationsHistoryTableName,
+            schemaName: StudioDbContext.DefaultSchema,
             db => new StudioModule(db, new StudioApplicationService(db)));
 
         services.TryAddScoped<IStudioApplicationService>(sp =>
             sp.GetRequiredService<IStudioModule>().Projects);
 
         RegisterModule<BillingDbContext, IBillingModule, BillingModule>(
-            services, configureDbContext, connectionStringFactory, order: 30, moduleName: "Billing",
-            schemaName: BillingDbContext.DefaultSchema,
+            services, configureDbContext, connectionStringFactory,
             historyTable: BillingDbContext.MigrationsHistoryTableName,
+            schemaName: BillingDbContext.DefaultSchema,
             db => new BillingModule(db));
 
         RegisterModule<GovernanceDbContext, IGovernanceModule, GovernanceModule>(
-            services, configureDbContext, connectionStringFactory, order: 40, moduleName: "Governance",
-            schemaName: GovernanceDbContext.DefaultSchema,
+            services, configureDbContext, connectionStringFactory,
             historyTable: GovernanceDbContext.MigrationsHistoryTableName,
+            schemaName: GovernanceDbContext.DefaultSchema,
             db => new GovernanceModule(db));
 
         RegisterModule<HubDbContext, IHubModule, HubModule>(
-            services, configureDbContext, connectionStringFactory, order: 90, moduleName: "Hub",
-            schemaName: HubDbContext.DefaultSchema,
+            services, configureDbContext, connectionStringFactory,
             historyTable: HubDbContext.MigrationsHistoryTableName,
+            schemaName: HubDbContext.DefaultSchema,
             db => new HubModule(db, new HubApplicationService(db)));
 
         services.TryAddScoped<IHubApplicationService>(sp =>
             sp.GetRequiredService<IHubModule>().Repositories);
 
         RegisterModule<GatewayDbContext, IGatewayModule, GatewayModule>(
-            services, configureDbContext, connectionStringFactory, order: 100, moduleName: "Gateway",
-            schemaName: GatewayDbContext.DefaultSchema,
+            services, configureDbContext, connectionStringFactory,
             historyTable: GatewayDbContext.MigrationsHistoryTableName,
+            schemaName: GatewayDbContext.DefaultSchema,
             db => new GatewayModule(db));
 
         RegisterModule<OpsDbContext, IOpsModule, OpsModule>(
-            services, configureDbContext, connectionStringFactory, order: 110, moduleName: "Ops",
-            schemaName: OpsDbContext.DefaultSchema,
+            services, configureDbContext, connectionStringFactory,
             historyTable: OpsDbContext.MigrationsHistoryTableName,
+            schemaName: OpsDbContext.DefaultSchema,
             db => new OpsModule(db));
 
         return services;
@@ -82,10 +81,8 @@ public static class BuildingBlocksServiceCollectionExtensions
         IServiceCollection services,
         Action<DbContextOptionsBuilder>? configureDbContext,
         Func<IConfiguration, string>? connectionStringFactory,
-        int order,
-        string moduleName,
-        string schemaName,
         string historyTable,
+        string schemaName,
         Func<TDbContext, TModuleInterface> moduleFactory)
         where TDbContext : DbContext
         where TModuleInterface : class
@@ -110,13 +107,6 @@ public static class BuildingBlocksServiceCollectionExtensions
                     npgsql => npgsql.MigrationsHistoryTable(historyTable, schemaName));
             });
         }
-
-        services.AddSingleton<IModuleDbContextMigrator>(sp =>
-            new ModuleDbContextMigrator<TDbContext>(
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                order: order,
-                moduleName: moduleName,
-                schemaName: schemaName));
 
         services.TryAddScoped<TModuleInterface>(sp =>
             moduleFactory(sp.GetRequiredService<TDbContext>()));
