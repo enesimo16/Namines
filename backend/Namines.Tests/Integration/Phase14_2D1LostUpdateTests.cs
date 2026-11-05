@@ -102,6 +102,33 @@ public sealed class Phase14_2D1LostUpdateTests : IAsyncLifetime
         }));
     }
 
+    [RequiresDockerFact]
+    public async Task Download_key_rotation_keeps_the_old_key_when_the_new_one_cannot_be_written()
+    {
+        // Denetim m-3: iptal ve yeni anahtar ayrı commit'ti; ikincisi düşünce proje anahtarsız kalıyordu.
+        var cs = await UpgradedAsync("rotate_atomic");
+        var first = await Kit(cs).GatewayKeys.RotateDownloadKeyAsync("u1", "p1");
+        Assert.True(first.IsOk, first.Error);
+
+        await using (var conn = new NpgsqlConnection(cs))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("""
+                CREATE FUNCTION pg_temp_fail() RETURNS trigger LANGUAGE plpgsql AS $f$ BEGIN RAISE EXCEPTION 'injected'; END $f$;
+                CREATE TRIGGER fail_new_key BEFORE INSERT ON gateway."GatewayApiKeys" FOR EACH ROW EXECUTE FUNCTION pg_temp_fail();
+                """, conn);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        await Assert.ThrowsAnyAsync<Exception>(() => Kit(cs).GatewayKeys.RotateDownloadKeyAsync("u1", "p1"));
+
+        await using var check = new NpgsqlConnection(cs);
+        await check.OpenAsync();
+        await using var active = new NpgsqlCommand("""SELECT count(*) FROM gateway."GatewayApiKeys" WHERE "ProjectId" = 'p1' AND "Name" = 'Downloaded project' AND "RevokedAt" IS NULL""", check);
+        Assert.Equal(1L, (long)(await active.ExecuteScalarAsync())!);
+        Assert.NotNull(await Kit(cs).GatewayAccess.AuthenticateAsync(first.Value!.RawKey));
+    }
+
     private sealed class NoDeletion : IProjectDeletion
     {
         public Task<ProjectDeletionResult> DeleteAsync(string projectId, string? actorUserId, CancellationToken ct, bool recordName = true) =>

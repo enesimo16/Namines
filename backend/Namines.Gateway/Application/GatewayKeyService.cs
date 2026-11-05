@@ -324,13 +324,20 @@ internal sealed class GatewayKeyService : IGatewayKeyService, IGatewayMaintenanc
         var (entity, rawKey) = GatewayKeys.CreateKey(projectId, DownloadKeyName, actorUserId, canWrite: true, expiresAt: null);
         entity.RateLimitPerMinute = ceiling;
 
-        _db.ChangeTracker.Clear();
-        await _db.GatewayApiKeys
-            .Where(k => k.ProjectId == projectId && k.Name == DownloadKeyName && k.RevokedAt == null)
-            .ExecuteUpdateAsync(s => s.SetProperty(k => k.RevokedAt, (DateTime?)now), ct);
-        _db.GatewayApiKeys.Add(entity);
-        await _db.SaveChangesAsync(ct);
-        _db.ChangeTracker.Clear();
+        // İptal ve yeni anahtar tek işlemde (denetim m-3): ikincisi düşerse eski anahtar iptal, yenisi yok kalırdı.
+        // Çağıran zaten bir işlemdeyse ona katılır.
+        await _db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            _db.ChangeTracker.Clear();
+            await using var tx = _db.Database.CurrentTransaction is null ? await _db.Database.BeginTransactionAsync(ct) : null;
+            await _db.GatewayApiKeys
+                .Where(k => k.ProjectId == projectId && k.Name == DownloadKeyName && k.RevokedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(k => k.RevokedAt, (DateTime?)now), ct);
+            _db.GatewayApiKeys.Add(entity);
+            await _db.SaveChangesAsync(ct);
+            if (tx is not null) await tx.CommitAsync(ct);
+            _db.ChangeTracker.Clear();
+        });
         return ModuleOutcome<DownloadKey>.Ok(new DownloadKey(rawKey));
     }
 
