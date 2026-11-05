@@ -1,29 +1,101 @@
 # Faz 14.2B Bağımsız Kabul Denetimi
 
-> Denetlenen: `arch/phase-14-2`, `5565811..68c9fec`. Tarih: 2026-11-05. Bu belge `5565811` üzerindeki eski denetimin yerini alır.
+> Denetlenen: `arch/phase-14-2`, ikinci tur `f741b8b..9f59c07` (birinci tur `5565811..68c9fec`). Tarih: 2026-11-05.
 > Ortam: Windows 11, .NET 8.0.427, Docker 29.9; kendi `postgres:16-alpine` container'ım, testlerde Testcontainers (`postgres:17-alpine`). Uygulayıcının rapor ve test çıktılarına güvenilmedi; aşağıdaki her sayı bu denetimde üretildi.
 
-## Karar: CONDITIONALLY ACCEPTED
+## Nihai karar (ikinci tur): CONDITIONALLY ACCEPTED
 
-Veri taşıma, şema, tüketici geçişi ve güvenlik sağlam. **İki bloklayıcı (B-1, B-2) ile M-1, M-2 bu fazda kapatılmadan 14.2C'ye geçilemez.** Düzeltmelerden sonra yalnızca bu dört madde yeniden denetlenir.
+Birinci turun bütün bulguları (B-1, B-2, M-1, M-2, L-1..L-5) gerçek koşularla kapandı. Ancak B-2 düzeltmesi **yeni bir bloklayıcı getirdi: B-3**. Abonelik iptali artık commit'ten sonra çalışıyor ve kaybolabiliyor. ACCEPTED verilemez; B-3 kapanmadan 14.2C'ye geçilemez. Yeniden denetim yalnızca B-3 ve tam test koşusudur.
 
-## Kabul tablosu
+## Kabul tablosu (ikinci tur, `9f59c07`)
 
 | Alan | Sonuç | Kanıt |
 |---|---|---|
 | Build | PASS | `dotnet build backend/Namines.sln -c Release --no-incremental`: 0 uyarı, 0 hata |
-| Unit | PASS | `Namines.Tests`: 2804 toplam, 2804 geçti, 0 kaldı, 0 atlandı, 12 dk 17 sn, sıralı. Docker gerektirmeyenler bu sayının içinde |
-| Integration | PASS | Aynı koşuda gerçek PG (atlanan yok); `Namines.Tests.RunTests`: 19/19, 2 dk 14 sn. Eksik senaryo: B-1, B-2 |
-| Architecture | PASS | `ModularMonolithArchitectureTests` yeşil; okundu, yansıma ve kaynak taraması gerçek; kendi grep'im aynı sonucu verdi |
-| Migration | PASS, M-1 hariç | `--migrate` boş DB: 49 migration, katalog temiz. Seed'li yükseltme, Down, Up: §1. `has-pending-model-changes` Auth, Studio, Hub: temiz |
-| Data integrity | PASS, L-1 hariç | 50 kötü niyetli satır: alan alan fark yok; Up1 = Up2 |
-| Security | PASS | Gerçek API'ye karşı 38/38 yetki ve sızıntı kontrolü; §3 |
-| API compatibility | PASS, farklar §4 | Rota listeleri `diff` ile aynı, frontend değişmedi; `tsc` 0 hata; vitest 39 dosya, 280/280 |
-| Performans (ek) | **FAIL** | B-1 |
-| Documentation | **FAIL** | M-2 |
+| Unit | PASS | `Namines.Tests`: 2812 toplam, 2812 geçti, 0 kaldı, 0 atlandı, 11 dk 45 sn, sıralı. Docker gerektirmeyenler bu sayının içinde |
+| Integration | PASS, B-3 senaryosu yok | Aynı koşuda gerçek PG; `Namines.Tests.RunTests`: 19/19, 1 dk 28 sn. Bir önceki deneme benim kabuğumda `MSYS_NO_PATHCONV=1` yüzünden .NET çalışma zamanını bulamayıp başlamadı (kod hatası değil); temiz kabukta yeniden koşuldu |
+| Architecture | PASS | `ModularMonolithArchitectureTests` yeşil; yazım noktaları elle de tarandı (§A) |
+| Migration | PASS | Boş DB, seed'li Up, Down, Up, en az yetkili rol (boş ve seed'li): §A. `has-pending-model-changes` Auth, Studio, Hub: temiz |
+| Data integrity | PASS | 52 kötü niyetli satır: alan farkı yok, etiket 52/52 C# ile aynı, Up1 = Up2 |
+| Security | PASS | Gerçek API'ye karşı 38/38 yeniden geçti; log'da bağlantı parolası 0 |
+| API compatibility | PASS, farklar §4 | Rotalar ve DTO alanları aynı; `tsc` 0 hata; vitest 39 dosya, 280/280. Frontend'de tek değişiklik arama kutusu metni |
+| Performans (ek) | PASS | Eşleşmeyen `q` ve motor: 14-54 ms, test yükü altında (önce 570-625 ms boşta) |
+| Billing bütünlüğü (ek) | **FAIL** | B-3 |
+| Documentation | PASS, B-3 hariç | Rapor güncel; `PHASE_14_2B_REPORT.md` §4 "pending" anlatımı B-3 ile düzeltilmeli |
 | Independent audit | CONDITIONALLY ACCEPTED | Bu belge |
 
-## Bloklayıcı bulgular
+## Açık bloklayıcı
+
+### B-3 (HIGH): Commit'ten sonra Stripe iptali kaybolabiliyor; `pending` satırını kimse işlemiyor
+
+`backend/Namines.Infrastructure/Services/AccountDeletionService.cs:284`, `:296-312`. **Yeni:** birinci turda iptal işlemden önce çalışıyordu.
+
+**"Kim yeniden deniyor?" Hiç kimse.** Üretim kodunda `pending` veya `manual_cancellation_required` okuyan bir yer yok (tam grep; işçi yok, Admin ucu yok). Üç kayıp yolu:
+
+| Yol | Ne olur | İz |
+|---|---|---|
+| Commit ile Stripe arasında süreç ölür (deploy, OOM) | İptal hiç gönderilmez, hesap yok, **müşteri ödemeye devam eder** | Yalnız `stripe:"pending"`. Abonelik kimliği hiçbir yerde yok: kullanıcı satırı silindi, `Details` kimliği taşımıyor, log yazılmadı. **Sessiz ve kurtarılamaz** |
+| İstemci commit'ten sonra bağlantıyı keser | `ct` = `RequestAborted` (`AuthController.cs:922`). İptal edilmiş token `:301`'de Stripe çağrısını düşürür, `StripeSubscriptionCanceller.cs:42` yutup `false` döner; `:312` de aynı token'la patlar | Satır `pending` kalır; kimlik yalnız log'da. Bu yol kod okumasıyla belirlendi, çalıştırılarak denenmedi |
+| Stripe geçici hatası | `manual_cancellation_required`, yeniden deneme yok | Kimlik yalnız log'da |
+
+Gerçek API'de kanıt (abonelikli hesap, Stripe anahtarı yok): `DELETE /api/auth/me` 200; denetim satırı `"stripe":"manual_cancellation_required"`; `sub_audit_test_1` denetim tablosunda **0**, log'da 1 satır.
+
+Eski sırada süreç ölürse hesap duruyor ve abonelik iptal edilmiş oluyordu; yani ödeme devam etmiyordu. Yeni sıra işlem hatasındaki sorunu doğru çözdü ama ölümcül yolu "silinmiş hesaba sessiz tahsilat"a çevirdi. Üçüncü yol önceden de vardı; ilk ikisi bu düzeltmeyle geldi.
+
+**Gerekli düzeltme (transactional outbox):**
+1. Tablo: `PendingSubscriptionCancellation` (`Id`, `SubscriptionId`, `CreatedAt`, `Attempts`, `LastAttemptAt`, `CompletedAt`), `AuthDbContext` zincirinde ileri migration. Kullanıcıya FK yok; satır hesaptan uzun yaşamalı. D-2'de Billing'e taşınır.
+2. Satır, kullanıcı silmeyle **aynı işlemde** yazılır (`:284` yanında).
+3. Commit sonrası ilk deneme `ct` ile değil, `CancellationToken.None` + süre sınırıyla yapılır. Başarıda `CompletedAt` ve denetim satırı güncellenir.
+4. Arka plan işçisi tamamlanmamış satırları artan aralıkla yeniden dener. `CancelAsync` `resource_missing` için `true` döndüğünden idempotent; çoklu instance için `FOR UPDATE SKIP LOCKED`. Eşiği aşan satır her turda `LogError` üretir ve Admin'de görünür. Stripe anahtarı yoksa satır bekler, silinmez.
+5. Retention açık satırı silmez.
+6. Gerçek PG testleri: (a) commit sonrası canceller çağrılmadan süreç ölümü benzetimi, işçi tamamlar; (b) iptal edilmiş token, iptal yine gider; (c) Stripe önce hata sonra başarı, tek iptal; (d) işlem düşerse outbox satırı da yok.
+
+## İkinci tur bulguları
+
+| ID | Durum | Kanıt |
+|---|---|---|
+| B-1 | **Kapandı** | Tek SQL + sabit toplu okuma. 50.000 proje / 10.012 public, test yükü altında: `q=zzzznomatch` 24-54 ms, `dbType=Oracle` 14-20 ms, `tag` 33-46 ms. `explore-public` 120/dk IP. Test `CommandCounter` ile gerçek SQL sayıyor (650 repoda ≤5). `q=100%`, `q=_` 200; `İstanbul/istanbul/şema/ŞEMA` ad üzerinde buluyor |
+| B-2 | **Kapandı** | §B. Gerçek API: çakışan varis ile `DELETE /api/auth/me` 200, repo `same-name-2`, varisin `same-name`'i değişmedi, sahip güncel, WRN log'u var |
+| M-1 | **Kapandı** | Boş DB + `roles.sql` + migrator: 50/50 migration. Seed'li: Up, Down, Up migrator ile geçti; 5 tabloda `namines_app` DML yetkili |
+| M-2 | **Kapandı** | Kilit ölçülü, §4 tablosu var. Kendi ölçümüm: Decompose **11 sn** (50.000 proje, boşta, EF log zaman damgası; harf harf anahtar fonksiyonu 7 sn'den çıkardı), ReadModel 1 sn. Raporun 13,7 sn'si `docker exec` içeriyor, aynı büyüklük; pencere planı için yeterli |
+| L-1 | **Kapandı** | Seed'e `𐐀`, `Ⅷ`, `Ⓐ`, `ẞ`, `ΣΣΣ`, `ﬁ`, `K` eklendi; C# eşleniği ile 52/52 birebir, fark 0 |
+| L-2 | **Kapandı** | `when (ex is not PostgresException && ...)` |
+| L-3 | **Kapandı** | `share-create` 30/dk ayrı kova; iptal satırı 90 gün sonra siliniyor (`DataRetentionService`, gerçek PG testi). 50 link tavanı raporda bilinçli karar |
+| L-4 | **Kapandı** | `Up_/Down_dogrulamasi_bozulmus_veriyi_yakaliyor`; `Down` etiket ve paylaşımı da doğruluyor, temizse VALIDATE ediyor |
+| L-5 | **Kapandı** | Kod silindi. `MIGRATION_PLAN.md:38` eski anlatımı duruyor (`:4` notu düzeltiyor): sıradaki doküman turunda temizlenmeli, bloklamaz |
+
+## §A. Okuma modeli migration'ı ve kayma
+
+**`Phase14_2B_ExploreReadModel` NOT VALID durumu birebir mi? Evet.** Decompose'da durdurup `(tablo, kısıt, convalidated, tanım)` dökümü aldım, sonra `--migrate` ile `ExploreReadModel`'i uyguladım; EXCEPT iki yönde **0 fark**. 9 CHECK'in 7'si NOT VALID kalıyor, kısıtlar yine denetliyor, kaldırma aynı işlemde (`pg_get_constraintdef` " NOT VALID" ekini koruyor). Yalnız NOT VALID olanlar kaldırılıyor. Repo alanları ve `UpdatedAt` değişmedi. `ProjectName/ProjectDbType` NOT NULL, proje ile 0 fark.
+
+**Tam yol:** Up → Down → Up: Up1 = Up2 (repo, bağlantı, paylaşım, etiket, proje: 0 fark). Down farkları yalnız bildirilenler. Şemalar bilinçli olarak kalıyor (`DROP SCHEMA` kaldırıldı).
+
+**Kayabilir mi? Bugünkü kodda hayır; koruma yok.**
+- `CloudProject.Name/DbType` yazan üretim satırları: yalnız `AuthController.cs:474-475` ve `HubController.cs:490,496` (tam grep: `.Name =`, `.DbType =`, `SetProperty`, ham SQL). İkisi de `ICrossModuleTransaction` içinde okuma modelini yazıyor.
+- Eşzamanlı ad değişimi xmin ile çakışır; proje satırı işlem boyunca kilitli olduğundan iki yazım iç içe geçemez.
+- `new ProjectRepository`: 4 yer, hepsi ad ve motoru dolduruyor. `DevSandboxSeeder` işlem dışı ama her açılışta yeniden eşitliyor.
+- Hesap devri ad veya motor değiştirmiyor. `TeamController` yalnız org değiştiriyor. MCP/CLI projeye doğrudan yazmıyor (`CloudProject`, `AuthDbContext`, `auth/sync` eşleşmesi 0).
+- Gerçek API: sync ve PATCH ile ad ve motor değişimi aramaya yansıdı, eski ad artık bulunmuyor.
+- **Öneri (bloklamaz):** DB düzeyinde ve testte yeni yazım noktasını yakalayan bir şey yok. `Name`/`DbType` atamasını tarayan bir mimari test ekleyin.
+
+## §B. B-2'nin kalan penceresi: kabul edilebilir, bloklayıcı değil
+
+Kişisel projeler işlemden önce silindiği için beklenmeyen DB hatasında proje silinmiş, hesap duruyor kalıyor. **Kabul edilebilir**, gerekçe:
+- Kullanıcı parola ve e-posta onayıyla tam olarak bu projelerin silinmesini istedi; niyete aykırı veri kaybı yok.
+- Silinenler yalnız kendisinin ve tek üyesi olduğu org'ların projeleri. Başka kullanıcı etkilenmiyor; devredilecekler işlemde, geri alınıyor.
+- Kalıcı neden kalmadı (slug çakışması çözüldü, ön kontroller başta). Yeniden deneme tamamlıyor (gerçek PG testi, trigger ile düşürülen işlem).
+- Sıra gerekçesi doğru: kullanıcı satırı önce silinirse FK cascade blob/sağlayıcı temizliğini atlar.
+- **Öneri (bloklamaz):** bu durumda genel 500 yerine "projeleriniz silindi, işlemi yeniden deneyin" mesajı.
+
+Bu kabul B-3'e uzanmaz: orada zarar görülmüyor ve kullanıcı yeniden deneyemiyor çünkü hesabı yok.
+
+---
+
+# Birinci tur kaydı (`68c9fec`)
+
+Aşağıdaki bulgular ve sayılar birinci tura aittir; durumları yukarıdaki tabloda. §1-§6 kanıtları o commit içindir, §3-§5 sonuçları ikinci turda yeniden doğrulandı.
+
+## Birinci tur bulguları
 
 ### B-1 (HIGH): Explore'da `q`/`dbType` tüm public repoları uygulama belleğinde tarıyor
 
@@ -188,7 +260,3 @@ Rotalar aynı, DTO alan adları aynı. Davranış farkları:
 | `RepoStars` `public`'te | Hayır: brief 4 tablo diyor, Hub taşıması D-1 | D-1'e kayıtlı |
 | Vault/Ground `OrganizationId` | Hayır: brief yalnız FK kaymasını istiyor; kod yalnız yazıyor, yetkide okumuyor | D fazı backlog |
 | `namines_*` MCP araçları | Bu denetimde de bağlanamadı (CONNECT_TIMEOUT) | Kanıt gerçek PG |
-
-## Yeniden denetim koşulu
-
-B-1, B-2, M-1, M-2 kapanınca: tam build, `Namines.Tests`, `Namines.Tests.RunTests`, seed'li Up/Down/Up (yeni migration dahil), 50.000 projede Explore ölçümü, hesap silme senaryosu yeniden koşulur. Sonuç temizse karar ACCEPTED olur.
