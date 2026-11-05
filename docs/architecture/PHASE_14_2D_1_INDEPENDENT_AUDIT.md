@@ -1,8 +1,12 @@
 # Faz 14.2D-1 Bağımsız Denetim
 
-> Kapsam: `arch/phase-14-2`, `f5fcd96..a00861c` (1. tur) ve `c736d90..ca19825` (2. tur, §8). Denetçi kodu yazmadı, kod değiştirmedi; yalnızca bu belge eklendi.
+> Kapsam: `arch/phase-14-2`, `f5fcd96..a00861c` (1. tur) ve `c736d90..ca19825` (2. tur, §8) ve `155a4b7..3558d0f` (3. tur, §9). Denetçi kodu yazmadı, kod değiştirmedi; yalnızca bu belge eklendi.
 
-## Son karar (2. tur): CONDITIONALLY ACCEPTED
+## Son karar (3. tur): ACCEPTED
+
+3. turda R2-M1 ve 2. turun Minor maddeleri kapandı; gerçek PG'de yeniden üretilerek doğrulandı. D-1 kapsamında açık madde yok (§9).
+
+## 2. tur kararı: CONDITIONALLY ACCEPTED
 
 1. turun bütün bulguları kapandı ve çalıştırılarak doğrulandı (§8). Ama 2. turda gelen `Hub_02` yeni bir Major açtı (R2-M1): belgeli "mevcut kurulum sonradan rollere geçer" yolunda `--migrate` `42501` ile düşüyor. Düzeltme küçük; aynı fazda yapılıp yalnız bu madde yeniden doğrulanınca faz ACCEPTED olabilir. Aşağıdaki 1. tur metni tarihsel kayıttır.
 
@@ -261,3 +265,76 @@ Her mutasyondan sonra `git checkout`; temiz derleme 0 uyarı, 0 hata.
 - Kilit süresi yük altında yeniden ölçülmedi.
 - Üretim veritabanı.
 - 1. turdaki diğer sınırlar geçerli (§6).
+
+## 9. 3. tur (`155a4b7..3558d0f`) ve son karar
+
+**Son karar: ACCEPTED.** D-1 kapsamında açık madde kalmadı. 2. turun R2-M1, R2-m1, R2-m2 ve R2-m3 maddeleri kapandı; hepsini `3558d0f`'nin temiz derlemesinde kendim çalıştırarak doğruladım. m-9 (Vault/Ground/Flow/Desk) D-2'ye atanmış durumda; D-2 kabulünde kontrol edilmeli.
+
+### 9.1 Faz sonu tablosu (3. tur)
+
+| Alan | Sonuç | Kanıt |
+|---|---|---|
+| Build | PASS | `--no-incremental` Release: 0 uyarı, 0 hata, 33 sn |
+| Unit | PASS | Tam süit içinde |
+| Integration | PASS | 3184/3184; geç rollere geçiş için iki yeni gerçek PG testi |
+| Architecture | PASS | Yeni testlere 3 mutasyon düşürdü. Yansımayla çağrı mutasyonu kaçtı; bilinçli bir kaçış girişimi olduğu için bulgu sayılmadı (§9.4) |
+| Migration | PASS | §9.2: geç rollere geçiş, guard, süper kullanıcı kurulumları, boş DB |
+| Data integrity | PASS | Geç geçişte veri birebir; B-1 probu bir kez daha 0/64 |
+| Security | PASS | Matris 829 karşılaştırmada 2 fark: ikisi de beklenen 500→503. Production'da yığın izi yok |
+| API compatibility | PASS | Bilinçli tek fark: `migration/generate` 500 yerine 503 |
+| Documentation | PASS | Runbook'a `roles.sql` adımı eklendi |
+| Independent audit | **ACCEPTED** | |
+
+### 9.2 roles.sql ve Hub_02 guard (gerçek PG, `aud/r3roles.sh`)
+
+| Senaryo | Sonuç |
+|---|---|
+| A. 14.2C süper kullanıcıyla kuruldu (karışık tohum), sonra `roles.sql`, sonra `namines_migrator` ile `--migrate` | rc=0, veri birebir. Duman `namines_app` ile 95/95. GC tetikleyicisi `namines_app` rolüyle çalıştı |
+| A'da `roles.sql` ikinci kez | rc=0 (idempotent); sahiplik ve yetkiler değişmedi |
+| Sahiplik dağılımı (A, E, F) | Tablo, dizi, `hub.issue_label_gc`, ve `public` dışındaki şemalar `namines_migrator`'da. `public` `pg_database_owner`'da. `namines_app` hiçbir nesnenin sahibi değil |
+| Karantina | `namines_app`'in `migration_quarantine` üzerinde USAGE yetkisi yok, okuyabildiği tablo 0 |
+| B. Fonksiyonun sahibi bilerek `postgres`'e geri alındı | `42501`, mesaj `Re-run deploy/sql/roles.sql`. `roles.sql` yeniden çalışınca `--migrate` rc=0 |
+| C. Boş DB, yalnız süper kullanıcı | rc=0, guard tetiklenmedi |
+| D. 14.2C süper kullanıcı kurulumu, rol yok | rc=0, guard tetiklenmedi |
+| E. Boş DB: önce `roles.sql`, sonra migrator ile migrate, sonra `roles.sql` yine | rc=0, rc=0; uygulama rolü yetkileri eksiksiz |
+| F. Süper kullanıcıyla tam migrate, sonra `roles.sql`, sonra süper kullanıcıyla yeniden migrate | rc=0 |
+| G. `pgcrypto` eklentisi ile kendi enum ve view'ım | Eklentiye ait fonksiyon `postgres`'te kaldı (doğru); enum ve view `namines_migrator`'a geçti |
+
+### 9.3 Gateway ve 503
+
+- **Yetki matrisi.** Taban ve yeni ikili, 829 karşılaştırma. Tek farklar `POST api/migration/generate` için yabancı ve viewer: 500→503. Uygulayıcının bildirdiğiyle aynı; başka fark yok.
+- **Desk konsol probu (`aud/r3.js`), taban ve yeni ikili, çıktı birebir:** bağlantı yokken 400, Admin 403, yabancı 404, konsol kapalıyken 403, konsol açıkken sahip 200, konsol açıkken Admin 403.
+- **503 gövdesi.** Development'ta `detailed` alanı yığın izini içeriyor; bu merkezi middleware'in var olan, Development'a özel davranışı. Production'da yığın izi yok ve gövde sabit bir metin: "Groq is not configured on this server...". Eski 500 yanıtı `ex.Message`'ı her ortamda döndürüyordu; yeni hâl daha az bilgi sızdırıyor.
+
+### 9.4 Mutasyonlar (her biri tek başına, derle, filtreli test, geri al)
+
+| Mutasyon | Sonuç |
+|---|---|
+| `IGatewayAccess` yeniden public + `FeedbackController.Submit` içinde kapısız `AuthenticateAsync` (2. turda kaçan mutasyon) | Düştü: 10 test (assembly başına tarama ve "internal kalmalı" kontrolü) |
+| `GatewayController.DeskSql` içinde `GetRoleAsync` ile ikinci Owner kontrolü | Düştü: `Gateway_controller_leaves_owner_checks_to_the_gate` |
+| API'den yansımayla internal `IGatewayAccess.AuthenticateAsync` çağrısı | Kaçtı (164/164). Testin kendi açıklaması bunu "ikinci kat" diye tanımlıyor; derleyici doğrudan kullanımı engelliyor. Yansımayla bilinçli kaçış kaza değil, kod incelemesinin konusu. Bulgu değil, not |
+| `Hub_02` guard'ı kaldırıldı | Düştü: guard testi |
+| `roles.sql` fonksiyonları devretmiyor | Düştü: 2 gerçek PG testi (geç rollere geçiş ve guard) |
+
+Mutasyonlardan sonra çalışma ağacı temiz; temiz derleme 0 uyarı, 0 hata.
+
+### 9.5 Sayılar (3. tur, çalıştırıldı)
+
+| Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Inconclusive | Süre | Ortam |
+|---|---|---|---|---|---|---|---|---|
+| `dotnet test -c Release --no-build` (paralel kapalı, `3558d0f` temiz ağaç) | `Namines.Tests` | 3184 | 3184 | 0 | 0 | 0 | 20 dk 33 sn | Docker, PG17; TRX sayaçları aynı |
+| Aynı | `Namines.Tests.RunTests` | 19 | 19 | 0 | 0 | 0 | 1 dk 6 sn | Aynı |
+| `smoke-d1.js` | `namines_app`, geç rollere geçişle yükseltilmiş DB | 95 | 95 | 0 | | | | PG16 |
+| `probes.js lost` | Yeni ikili | 64 durumda ikisi de 200 | | 0 kayıp | | | | PG16 |
+
+### 9.6 3. turda doğrulanamayanlar
+
+- Frontend (bu turda frontend değişmedi; ESLint, vitest ve `next build` sonuçları uygulayıcının bildirimi, ben koşmadım).
+- CLI ve MCP dumanı.
+- Üretim veritabanı ve yük altında kilit süresi.
+- 1. ve 2. turun §6 ve §8.8'deki sınırları geçerli.
+
+### 9.7 Faz dışı notlar (blok değil)
+
+- m-9: Vault, Ground, Flow, Desk Faz 14.2D-2'ye atandı. D-2 kabulünde "AuthDbContext yalnız Identity" maddesiyle birlikte denetlenmeli.
+- `MigrationController` ve `ReverseEngineerController` diğer istisnalarda hâlâ `ex.Message` döndürüyor (D-1 öncesinden kalma, D-1 modülü değil). Backlog'a.
