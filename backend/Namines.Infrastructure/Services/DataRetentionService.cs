@@ -103,10 +103,12 @@ public class DataRetentionService : BackgroundService
     }
 
     public const int DefaultRevokedShareDays = 90;
+    public const int DefaultCompletedSubscriptionCancellationDays = 90;
 
     public sealed record RetentionOptions(
         int GatewayAuditDays, int SqlExecutionAuditDays, int UsageEventDays,
-        int ChangeRequestAuditDays, int StripeWebhookDays, int FeedbackDays)
+        int ChangeRequestAuditDays, int StripeWebhookDays, int FeedbackDays,
+        int CompletedSubscriptionCancellationDays)
     {
         public static RetentionOptions From(IConfiguration c)
         {
@@ -119,7 +121,8 @@ public class DataRetentionService : BackgroundService
                 usage,
                 c.GetValue("Retention:ChangeRequestAuditDays", DefaultChangeRequestAuditDays),
                 c.GetValue("Retention:StripeWebhookDays", DefaultStripeWebhookDays),
-                c.GetValue("Retention:FeedbackDays", DefaultFeedbackDays));
+                c.GetValue("Retention:FeedbackDays", DefaultFeedbackDays),
+                c.GetValue("Retention:CompletedSubscriptionCancellationDays", DefaultCompletedSubscriptionCancellationDays));
         }
     }
 
@@ -146,6 +149,9 @@ public class DataRetentionService : BackgroundService
         await Run<UsageEvent>("UsageEvents", o.UsageEventDays, c => e => e.OccurredAt < c, e => e.Id);
         await Run<ChangeRequestAuditLog>("ChangeRequestAuditLogs", o.ChangeRequestAuditDays, c => e => e.CreatedAt < c, e => e.Id);
         await Run<StripeWebhookEvent>("StripeWebhookEvents", o.StripeWebhookDays, c => e => e.ProcessedAt < c, e => e.Id);
+        // Yalnızca TAMAMLANANLAR: açık satır, henüz iptal edilmemiş bir abonelik demek; ne kadar eski olursa olsun silinmez.
+        await Run<PendingSubscriptionCancellation>("PendingSubscriptionCancellations", o.CompletedSubscriptionCancellationDays,
+            c => e => e.CompletedAt != null && e.CompletedAt < c, e => e.Id);
         await Run<Namines.Core.Models.Feedback>("Feedbacks", o.FeedbackDays, c => e => e.CreatedAt < c, e => e.Id);
 
         // Süresi dolmuş tek kullanımlık jetonlar: Desk modülü üzerinden temizlenir.

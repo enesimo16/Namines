@@ -40,6 +40,7 @@ namespace Namines.Infrastructure.Data
 
         /// <summary>İşlenmiş Stripe olayları — tekrar iletimi tanımak için (docs/last-review M-2).</summary>
         public DbSet<StripeWebhookEvent> StripeWebhookEvents { get; set; } = null!;
+        public DbSet<PendingSubscriptionCancellation> PendingSubscriptionCancellations { get; set; } = null!;
         /// <summary>
         /// Desk SQL konsolunun sorgu gecmisi (F-01) -- KULLANICIYA OZEL okunur.
         /// Denetim kaydi degil: <see cref="GatewayAuditEntry"/> hesap
@@ -87,6 +88,15 @@ namespace Namines.Infrastructure.Data
                 .HasForeignKey<ProjectRepository>(r => r.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
             ConfigureMovedTableConstraints(builder, isPostgres);
+
+            builder.Entity<PendingSubscriptionCancellation>(entity =>
+            {
+                entity.Property(c => c.SubscriptionId).IsRequired();
+                // İşçi yalnızca açık satırlara bakıyor; tamamlananlar indeksi şişirmesin.
+                entity.HasIndex(c => c.NextAttemptAt)
+                    .HasDatabaseName("IX_PendingSubscriptionCancellations_Open")
+                    .HasFilter("\"CompletedAt\" IS NULL");
+            });
 
             builder.Entity<CloudProject>()
                 .HasOne(p => p.User)
@@ -629,7 +639,7 @@ namespace Namines.Infrastructure.Data
         {
             var guidKeyed = new[]
             {
-                typeof(CloudProject), typeof(ProjectShare), typeof(Branch), typeof(SchemaVersion), typeof(ChangeRequest),
+                typeof(CloudProject), typeof(ProjectShare), typeof(PendingSubscriptionCancellation), typeof(Branch), typeof(SchemaVersion), typeof(ChangeRequest),
                 typeof(ChangeRequestApproval), typeof(ChangeRequestAuditLog), typeof(Organization),
                 typeof(TeamInvite), typeof(GatewayApiKey), typeof(GatewayTablePermission),
                 typeof(CrossDatabaseRelation), typeof(SqlExecutionAudit), typeof(RepoIssue),

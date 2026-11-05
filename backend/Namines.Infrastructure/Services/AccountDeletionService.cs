@@ -212,12 +212,14 @@ public class AccountDeletionService
         }
 
         // ── 3. Kalan DB işleri + kullanıcı + denetim: TEK işlem ──────────────
-        // Stripe bu işlemden SONRA: önce iptal edilseydi işlem düştüğünde hesap yerinde ama aboneliği
-        // iptal edilmiş kalırdı. Projeler ise bilinçli olarak önce: kullanıcı satırı silinirse FK cascade
-        // blob/sağlayıcı temizliğini atlardı. Buradaki işlem düşerse yeniden deneme kaldığı yerden sürer.
+        // Stripe çağrısı bu işlemden SONRA: önce iptal edilseydi işlem düştüğünde hesap yerinde ama aboneliği
+        // iptal edilmiş kalırdı. İptal isteği ise işlemin İÇİNDE outbox satırı olarak yazılır: süreç commit
+        // ile Stripe arasında ölürse işçi tamamlar. Projeler bilinçli olarak önce: kullanıcı satırı silinirse
+        // FK cascade blob/sağlayıcı temizliğini atlardı. İşlem düşerse yeniden deneme kaldığı yerden sürer.
         var hasSubscription = !string.IsNullOrWhiteSpace(user.StripeSubscriptionId);
         var subscriptionId = user.StripeSubscriptionId;
-        ChangeRequestAuditLog? accountAudit = null;
+        string? auditId = null;
+        string? outboxId = null;
         var revokedKeys = 0;
         // Hub yazımları (devir, yıldızlar) kullanıcı silmeyle aynı işlemde: biri geri alınırsa hepsi.
         AccountDeletionResult? failure = null;
@@ -275,15 +277,23 @@ public class AccountDeletionService
                 throw new AccountDeletionAbortedException();
             }
 
-            accountAudit = new ChangeRequestAuditLog
+            if (hasSubscription)
+            {
+                var outbox = new PendingSubscriptionCancellation { SubscriptionId = subscriptionId! };
+                _context.PendingSubscriptionCancellations.Add(outbox);
+                outboxId = outbox.Id;
+            }
+
+            var accountAudit = new ChangeRequestAuditLog
             {
                 ChangeRequestId = userId,
                 ProjectId = string.Empty,
                 Action = ChangeRequestAuditAction.AccountDeleted,
-                // Abonelik varsa "pending": süreç işlemle Stripe arasında ölürse kayıt elle bakılacağını söyler.
-                Details = AuditDetails(hasSubscription ? "pending" : "none"),
+                // "queued": iptal outbox'ta; doğruluk kaynağı PendingSubscriptionCancellations satırı.
+                Details = AuditDetails(hasSubscription ? "queued" : "none"),
             };
             _context.ChangeRequestAuditLogs.Add(accountAudit);
+            auditId = accountAudit.Id;
             await _context.SaveChangesAsync(ct);
             }, ct);
         }
@@ -291,30 +301,40 @@ public class AccountDeletionService
         {
             return failure!;
         }
-
-        // ── 4. Stripe (DB dışı; başarısızlık silmeyi bloklamaz, hesap artık yok) ──
-        if (hasSubscription)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var canceled = false;
-            if (_stripe is not null)
-            {
-                try { canceled = await _stripe.CancelAsync(subscriptionId!, ct); }
-                catch (Exception ex) { _logger.LogError(ex, "Stripe aboneligi iptal edilemedi (kullanici {UserId}).", userId); }
-            }
+            // İşlem geri alındı, Stripe'a dokunulmadı; ama kişisel projeler bu adımdan önce silinmiş olabilir.
+            // Kullanıcı bunu ve yeniden denemenin güvenli olduğunu bilmeli, genel bir 500 değil.
+            _logger.LogError(ex, "Hesap silme islemi basarisiz (kullanici {UserId}); {Deleted} proje zaten silinmisti.", userId, deleteIds.Count);
+            var detail = deleteIds.Count > 0
+                ? "Your personal projects were already removed, but your account was not deleted. "
+                : "Your account was not deleted. ";
+            return new AccountDeletionResult(false, 503, "ACCOUNT_DELETE_INCOMPLETE",
+                detail + "Nothing else changed and your subscription was not touched. It is safe to try again.");
+        }
 
-            if (!canceled)
-                _logger.LogWarning("Hesap silindi ama Stripe aboneligi ELLE iptal edilmeli (kullanici {UserId}, abonelik {Sub}).",
-                    userId, subscriptionId);
-
+        // ── 4. Stripe: ilk deneme (DB dışı; başarısızlık silmeyi bloklamaz, işçi yeniden dener) ──
+        if (outboxId is not null)
+        {
+            // CancellationToken.None: istemci kopsa da iptal ve kayıt tamamlansın. Buradaki hata yanıtı
+            // bozmamalı, hesap artık yok; satır açık kaldığı için iş kaybolmaz.
             try
             {
-                accountAudit!.Details = AuditDetails(canceled ? "canceled" : "manual_cancellation_required");
-                await _context.SaveChangesAsync(ct);
+                var processor = new SubscriptionCancellationProcessor(_context, _stripe, _logger);
+                if (await processor.AttemptAsync(outboxId, DateTime.UtcNow))
+                {
+                    var details = AuditDetails("canceled");
+                    await _context.ChangeRequestAuditLogs.Where(a => a.Id == auditId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(a => a.Details, details), CancellationToken.None);
+                }
+                else
+                {
+                    _logger.LogWarning("Hesap silindi, Stripe iptali kuyrukta yeniden denenecek (kayit {Id}).", outboxId);
+                }
             }
             catch (Exception ex)
             {
-                // Hesap silindi; yanıtı bozmak yanlış olur. Kayıt "pending" kalır, elle bakılır.
-                _logger.LogError(ex, "Hesap silme denetim kaydi guncellenemedi (kullanici {UserId}).", userId);
+                _logger.LogError(ex, "Hesap silindi, Stripe ilk denemesi tamamlanamadi; isci yeniden deneyecek (kayit {Id}).", outboxId);
             }
         }
 

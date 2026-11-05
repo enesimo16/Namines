@@ -243,6 +243,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ProjectDeletionService>();
         services.AddScoped<AccountDeletionService>();
         services.AddScoped<ISubscriptionCanceller, Namines.API.Services.StripeSubscriptionCanceller>();
+        services.AddHostedService<SubscriptionCancellationWorker>();
 
         // Bekleme penceresi dolan yonetilen veritabanlarini kalici olarak siler.
         // GroundPurgeBackgroundService artik AddNaminesGround() icinde kaydediliyor.

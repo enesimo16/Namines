@@ -207,6 +207,36 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Tamamlanmamış abonelik iptalleri (hesabı silinmiş ama Stripe'ta iptal edilmemiş). <c>stuck</c>: uyarı
+    /// eşiğini aşmış, müşteri ücretlendirilmeye devam ediyor olabilir; elle bakılmalı.
+    /// </summary>
+    [HttpGet("subscription-cancellations")]
+    public async Task<IActionResult> GetPendingSubscriptionCancellations(CancellationToken ct)
+    {
+        var admin = await EnsureAdminAsync();
+        if (admin == null) return StatusCode(403, new { error = "Admin access required." });
+
+        var open = await _context.PendingSubscriptionCancellations.AsNoTracking()
+            .Where(c => c.CompletedAt == null)
+            .OrderByDescending(c => c.Attempts)
+            .ThenBy(c => c.CreatedAt)
+            .Take(200)
+            .Select(c => new
+            {
+                c.Id,
+                c.SubscriptionId,
+                c.CreatedAt,
+                c.Attempts,
+                c.LastAttemptAt,
+                c.NextAttemptAt,
+                stuck = c.Attempts >= Namines.Infrastructure.Services.SubscriptionCancellationProcessor.AlertAfterAttempts,
+            })
+            .ToListAsync(ct);
+
+        return Ok(new { total = open.Count, stuck = open.Count(c => c.stuck), items = open });
+    }
+
+    /// <summary>
     /// Sayfalanmış ve aranabilir kullanıcı listesi.
     /// </summary>
     [HttpGet("users")]

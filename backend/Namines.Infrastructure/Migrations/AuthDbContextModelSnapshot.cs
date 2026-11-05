@@ -1014,6 +1014,40 @@ namespace Namines.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Namines.Core.Models.Auth.PendingSubscriptionCancellation", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SubscriptionId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasDatabaseName("IX_PendingSubscriptionCancellations_Open")
+                        .HasFilter("\"CompletedAt\" IS NULL");
+
+                    b.ToTable("PendingSubscriptionCancellations");
+                });
+
             modelBuilder.Entity("Namines.Core.Models.Auth.ProjectConnection", b =>
                 {
                     b.Property<string>("ProjectId")
