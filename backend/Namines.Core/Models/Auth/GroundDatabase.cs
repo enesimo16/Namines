@@ -83,8 +83,6 @@ public class GroundDatabase
     /// </summary>
     public string ProjectId { get; set; } = null!;
 
-    public string? OrganizationId { get; set; }
-
     /// <summary>Hangi sağlayıcı ("LocalPostgres", "Neon").</summary>
     public string Provider { get; set; } = null!;
 

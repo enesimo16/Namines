@@ -176,7 +176,7 @@ public class LaunchServiceTests : IAsyncLifetime
         };
         await _context!.Studio().Projects.AddAsync(project);
         await _context!.Studio().SaveChangesAsync();
-        return (await TestModules.For(_context).Projects.GetAsync(project.Id))!;
+        return (await TestModules.For(_context!).Projects.GetAsync(project.Id))!;
     }
 
     private const string OneTableDdl = """

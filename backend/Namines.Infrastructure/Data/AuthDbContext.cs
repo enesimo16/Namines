@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Namines.BuildingBlocks.Modules;
 using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
@@ -18,9 +17,6 @@ namespace Namines.Infrastructure.Data
         public DbSet<ChangeRequestAuditLog> ChangeRequestAuditLogs { get; set; } = null!;
         public DbSet<Organization> Organizations { get; set; } = null!;
         public DbSet<OrganizationMember> OrganizationMembers { get; set; } = null!;
-        public DbSet<GatewayApiKey> GatewayApiKeys { get; set; } = null!;
-        public DbSet<GatewayTablePermission> GatewayTablePermissions { get; set; } = null!;
-        public DbSet<GatewayAuditEntry> GatewayAuditEntries { get; set; } = null!;
         public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
         public DbSet<UserBillingSettings> UserBillingSettings { get; set; } = null!;
         public DbSet<TeamInvite> TeamInvites { get; set; } = null!;
@@ -51,9 +47,6 @@ namespace Namines.Infrastructure.Data
             Namines.Vault.Configurations.VaultModelConfiguration.Configure(builder, isPostgres ? "namines_vault" : null);
             Namines.Ground.Configurations.GroundModelConfiguration.Configure(builder, isPostgres ? "ground" : null);
             Namines.Desk.Configurations.DeskModelConfiguration.Configure(builder, isPostgres ? "desk" : null);
-
-            // Gateway tabloları kendi fazına kadar Auth modelinde; allowlist çocukları zaten gateway şemasında.
-            GatewayModelConfiguration.ConfigureAllowlistTables(builder, isPostgres ? GatewayModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
 
             builder.Entity<PendingSubscriptionCancellation>(entity =>
             {
@@ -171,25 +164,6 @@ namespace Namines.Infrastructure.Data
                 .Property(s => s.MonthlyCapUsd)
                 .HasPrecision(18, 2);
 
-            // Anahtar doğrulaması önce önekle aday bulur; index olmadan her istek
-            // tüm anahtar tablosunu tarardı.
-            builder.Entity<GatewayApiKey>()
-                .HasIndex(k => k.Prefix);
-
-            builder.Entity<GatewayApiKey>().HasIndex(k => k.ProjectId);
-
-            builder.Entity<GatewayApiKey>()
-                .HasOne(k => k.CreatedByUser)
-                .WithMany()
-                .HasForeignKey(k => k.CreatedByUserId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            // Proje başına tablo adı tekil: aynı tabloya iki çelişen izin satırı
-            // olsaydı hangisinin geçerli olduğu kayda bağlı hale gelirdi.
-            builder.Entity<GatewayTablePermission>()
-                .HasIndex(p => new { p.ProjectId, p.TableName })
-                .IsUnique();
-
             builder.Entity<Organization>()
                 .HasOne(o => o.CreatedByUser)
                 .WithMany()
@@ -230,12 +204,6 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<TeamInvite>()
                 .HasIndex(i => i.OrganizationId);
-
-            // Gateway denetimi: "bu projenin son kayıtları" + analitik aralık sorguları (DB-12).
-            // Tablonun en hızlı büyüyen parçası; indeks migration'da CONCURRENTLY kurulur.
-            builder.Entity<GatewayAuditEntry>()
-                .HasIndex(a => new { a.ProjectId, a.CreatedAt })
-                .IsDescending(false, true);
 
             // Admin kullanım sorguları (Resource == X && OccurredAt aralığı) — DB-16.
             builder.Entity<UsageEvent>()
@@ -296,12 +264,6 @@ namespace Namines.Infrastructure.Data
             builder.Entity<Organization>()
                 .HasIndex(o => o.CreatedByUserId, "IX_Organizations_CreatedByUserId");
 
-            // API anahtarı özeti tekil: doğrulama özetle doğrudan arayabilsin, çakışma tek
-            // anahtarın iki hesaba ait olması demek olurdu.
-            builder.Entity<GatewayApiKey>()
-                .HasIndex(k => k.KeyHash)
-                .IsUnique();
-
             ConfigureCheckConstraints(builder, isPostgres);
             if (isPostgres) ConfigureGuidKeyDefaults(builder);
         }
@@ -323,12 +285,11 @@ namespace Namines.Infrastructure.Data
             {
                 typeof(PendingSubscriptionCancellation), typeof(ChangeRequest),
                 typeof(ChangeRequestApproval), typeof(ChangeRequestAuditLog), typeof(Organization),
-                typeof(TeamInvite), typeof(GatewayApiKey), typeof(GatewayTablePermission),
+                typeof(TeamInvite),
                 typeof(DeskHandoffToken), typeof(SqlQueryHistoryEntry),
                 typeof(SavedQuery), typeof(VaultBackup), typeof(VaultRestore), typeof(VaultSchedule),
                 typeof(GroundDatabase), typeof(AutomationRule), typeof(AutomationAction),
-                typeof(AutomationRunLog), typeof(GatewayApiKeyAllowedOrigin), typeof(GatewayApiKeyAllowedIp),
-                typeof(GatewayTableMaskedColumn),
+                typeof(AutomationRunLog),
             };
 
             foreach (var type in guidKeyed)
@@ -355,9 +316,6 @@ namespace Namines.Infrastructure.Data
             builder.Entity<ApplicationUser>().ToTable(t =>
                 t.HasCheckConstraint(N("AspNetUsers", "Type"), CheckConstraintSql.EnumIn<UserType>("Type")));
 
-            builder.Entity<GatewayAuditEntry>().ToTable(t =>
-                t.HasCheckConstraint(N("GatewayAuditEntries", "Kind"), CheckConstraintSql.EnumIn<GatewayWriteKind>("Kind")));
-
             builder.Entity<OrganizationMember>().ToTable(t =>
                 t.HasCheckConstraint(N("OrganizationMembers", "Role"), CheckConstraintSql.EnumIn<OrgRole>("Role")));
 
@@ -381,9 +339,6 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<ChangeRequestAuditLog>().ToTable(t =>
                 t.HasCheckConstraint(N("ChangeRequestAuditLogs", "Action"), CheckConstraintSql.EnumIn<ChangeRequestAuditAction>("Action")));
-
-            builder.Entity<GatewayApiKey>().ToTable(t =>
-                t.HasCheckConstraint(N("GatewayApiKeys", "RateLimitPerMinute"), CheckConstraintSql.AtLeast("RateLimitPerMinute", 1)));
 
             builder.Entity<UserAIPolicy>().ToTable(t =>
             {

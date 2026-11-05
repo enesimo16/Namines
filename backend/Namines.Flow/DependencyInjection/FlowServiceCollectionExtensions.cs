@@ -42,6 +42,8 @@ public static class FlowServiceCollectionExtensions
             });
         }
 
+        services.AddSingleton(Namines.BuildingBlocks.Persistence.NonOwnerContext.Descriptor<Namines.Flow.Infrastructure.Persistence.FlowDbContext>("Flow", "flow", "Tablolar kendi şemasında; DDL AuthDbContext zincirinde kalıyor. Bu fazda tablo taşınmadı, bağlam yalnızca okur/yazar."));
+
         services.TryAddSingleton<IFlowRuleMatcher, FlowRuleMatcher>();
         services.TryAddSingleton<IFlowJobQueue, FlowJobQueue>();
         services.TryAddScoped<IFlowApplicationService, FlowApplicationService>();

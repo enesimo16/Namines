@@ -347,10 +347,10 @@ public sealed class AuthHardeningTests : IAsyncLifetime
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "boss",
         });
 
-        var (sqlKey, rawSql) = GatewayAccess.CreateKey("p1", "sql", "creator", canWrite: false, expiresAt: null);
+        var (sqlKey, rawSql) = GatewayKeys.CreateKey("p1", "sql", "creator", canWrite: false, expiresAt: null);
         sqlKey.CanExecuteSql = true;
-        var (plainKey, rawPlain) = GatewayAccess.CreateKey("p1", "plain", "creator", canWrite: true, expiresAt: null);
-        db.GatewayApiKeys.AddRange(sqlKey, plainKey);
+        var (plainKey, rawPlain) = GatewayKeys.CreateKey("p1", "plain", "creator", canWrite: true, expiresAt: null);
+        db.Gateway().GatewayApiKeys.AddRange(sqlKey, plainKey);
         await db.SaveChangesAsync();
         return (rawSql, rawPlain);
     }
@@ -361,8 +361,8 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         var (rawSql, rawPlain) = await SeedKeysAsync(OrgRole.Admin);
         await using var db = NewContext();
 
-        Assert.Null(await db.AuthenticateAsync(TestModules.For(db).DefaultAuthority, rawSql));
-        Assert.NotNull(await db.AuthenticateAsync(TestModules.For(db).DefaultAuthority, rawPlain));
+        Assert.Null(await db.AuthenticateAsync(rawSql));
+        Assert.NotNull(await db.AuthenticateAsync(rawPlain));
     }
 
     [Fact]
@@ -371,7 +371,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         var (rawSql, _) = await SeedKeysAsync(OrgRole.Owner);
         await using var db = NewContext();
 
-        Assert.NotNull(await db.AuthenticateAsync(TestModules.For(db).DefaultAuthority, rawSql));
+        Assert.NotNull(await db.AuthenticateAsync(rawSql));
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
     {
         await SeedKeysAsync(OrgRole.Owner);
         await using var db = NewContext();
-        var controller = new ProjectMemberController(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects)
+        var controller = new ProjectMemberController(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects, gateway: TestModules.For(db).GatewayMaintenance, transaction: TestModules.For(db).Transaction)
         {
             ControllerContext = new ControllerContext
             {
@@ -395,7 +395,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
             await controller.ChangeRole("p1", "creator", new ChangeMemberRoleRequest(OrgRole.Editor), default));
 
         await using var verify = NewContext();
-        var keys = await verify.GatewayApiKeys.ToListAsync();
+        var keys = await verify.Gateway().GatewayApiKeys.ToListAsync();
         Assert.NotNull(keys.Single(k => k.CanExecuteSql).RevokedAt);
         Assert.Null(keys.Single(k => !k.CanExecuteSql).RevokedAt);
     }

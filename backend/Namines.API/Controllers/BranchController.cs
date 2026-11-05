@@ -54,7 +54,7 @@ public class BranchController : ControllerBase
     private readonly IBranchService _branches;
     private readonly IStudioBranches _versions;
     private readonly IBranchDatabaseProvisioner _databases;
-    private readonly AuthDbContext _billing;
+    private readonly IUsageMeter _usage;
 
     // Frontend enum'ları (ör. ReferentialAction) JSON'a string olarak yazıyor
     // ("NoAction", "Cascade"...) — dönüştürücü olmadan Deserialize<DatabaseSchema>
@@ -65,12 +65,12 @@ public class BranchController : ControllerBase
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public BranchController(IBranchService branches, IStudioBranches versions, IBranchDatabaseProvisioner databases, AuthDbContext billing)
+    public BranchController(IBranchService branches, IStudioBranches versions, IBranchDatabaseProvisioner databases, IUsageMeter usage)
     {
         _branches = branches;
         _versions = versions;
         _databases = databases;
-        _billing = billing;
+        _usage = usage;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -275,7 +275,7 @@ public class BranchController : ControllerBase
             // sağlayıcı hiçbir şey açmadığı hâlde. Kotanın gerekçesi doğruydu,
             // faturalamanın onu takip etmemesi yanlıştı.
             if (!alreadyExisted)
-                await _billing.RecordAsync(userId, UsageResource.BranchDatabase, 1, branchId, cancellationToken);
+                await _usage.RecordAsync(userId, UsageResource.BranchDatabase, 1, branchId, cancellationToken);
 
             return Ok(Describe(database));
         }
@@ -427,7 +427,7 @@ public class BranchController : ControllerBase
         // Kotayı ölçüm motoru veriyor (22 §5): dahil miktar içindeyse geç, aşıldıysa
         // yalnızca aşırı kullanım AÇIKSA ve harcama tavanı dolmadıysa geç. Sabit bir
         // sınır, ödeme yapmaya HAZIR bir kullanıcıyı da durdururdu.
-        var decision = await _billing.EvaluateAsync(userId, UsageResource.BranchDatabase, 1, ct);
+        var decision = await _usage.EvaluateAsync(userId, UsageResource.BranchDatabase, 1, ct);
 
         if (!decision.Allowed)
             return StatusCode(402, new

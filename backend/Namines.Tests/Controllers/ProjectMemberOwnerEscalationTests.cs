@@ -56,7 +56,7 @@ public sealed class ProjectMemberOwnerEscalationTests : IAsyncLifetime
 
     // ProjectId doluyken ResolveOrgIdAsync UserManager'a dokunmuyor.
     private ProjectMemberController NewController(AuthDbContext db, string userId) =>
-        new(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects)
+        new(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects, gateway: TestModules.For(db).GatewayMaintenance, transaction: TestModules.For(db).Transaction)
         {
             ControllerContext = new ControllerContext
             {

@@ -501,7 +501,7 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
     public async Task Modul_baglamlarinin_esledigi_her_tablo_ve_kolon_veritabaninda_var()
     {
         var cs = await _pg.CreateDatabaseAsync("b_mapping");
-        await using (var ctx = Context(cs)) await ctx.Database.MigrateAsync();
+        await TestModules.MigrateAllAsync(cs);
 
         await using var studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>().UseNpgsql(cs).Options);
         await using var hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>().UseNpgsql(cs).Options);

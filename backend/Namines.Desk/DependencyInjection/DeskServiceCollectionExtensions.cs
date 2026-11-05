@@ -40,6 +40,8 @@ public static class DeskServiceCollectionExtensions
             });
         }
 
+        services.AddSingleton(Namines.BuildingBlocks.Persistence.NonOwnerContext.Descriptor<Namines.Desk.Infrastructure.Persistence.DeskDbContext>("Desk", "desk", "Tablolar kendi şemasında; DDL AuthDbContext zincirinde kalıyor. Bu fazda tablo taşınmadı, bağlam yalnızca okur/yazar."));
+
         services.TryAddSingleton<IDeskHandoffTokenValidator, DeskHandoffTokenValidator>();
         services.TryAddScoped<IDeskApplicationService, DeskApplicationService>();
         services.TryAddScoped<IDeskModule, DeskModule>();

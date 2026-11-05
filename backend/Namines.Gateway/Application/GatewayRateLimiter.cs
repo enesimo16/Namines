@@ -3,10 +3,10 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Namines.Core.Models.Auth;
+using Namines.Gateway.Domain;
 using StackExchange.Redis;
 
-namespace Namines.Infrastructure.Data;
+namespace Namines.Gateway.Application;
 
 /// <summary>
 /// Anahtar başına dakikalık istek sınırı (new-phase/08-GATEWAY-API.md §4.3

@@ -40,7 +40,7 @@ public sealed class BranchMergePreviewTests : IAsyncLifetime
     private AuthDbContext NewContext() => new(_options);
 
     private static BranchController NewController(AuthDbContext db, string userId) =>
-        new(TestModules.For(db).BranchService, TestModules.For(db).Branches, new NoDatabases(), db)
+        new(TestModules.For(db).BranchService, TestModules.For(db).Branches, new NoDatabases(), TestModules.For(db).Usage)
         {
             ControllerContext = new ControllerContext
             {

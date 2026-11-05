@@ -166,8 +166,25 @@ internal sealed class HubIssueService : IHubIssueService, IHubIssueQueries
         if (!await _projects.ExistsAsync(projectId, ct) || !await CanSeeAsync(projectId, actorUserId, ct))
             return ModuleOutcome<CreatedIssue>.NotFound(RepositoryNotFound);
 
-        // Numara = MAX+1 okuma-değiştirme-yazma: eşzamanlı iki istek aynı numarayı üretir, benzersiz
-        // indeks ikincisini reddeder. Kaybeden numarayı yeniden hesaplayıp birkaç kez dener.
+        if (!_db.Database.IsNpgsql()) return await AllocateAndInsertAsync(actorUserId, projectId, command, ct);
+
+        // Numara = MAX+1 okuma-değiştirme-yazma. Yalnızca yeniden denemek eşzamanlı istekte kullanıcıya 409 döndürüyordu
+        // (gerçek PG'de 6 istekte görüldü); proje başına kısa kilit numara seçimini ve yeni etiket satırını sıraya koyar.
+        // Satır kilidi değil: projenin repo satırı olmak zorunda değil.
+        return await _db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+            var lockKey = "hub.issue:" + projectId;
+            await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))", ct);
+            var outcome = await AllocateAndInsertAsync(actorUserId, projectId, command, ct);
+            if (outcome.IsOk) await tx.CommitAsync(ct);
+            return outcome;
+        });
+    }
+
+    private async Task<ModuleOutcome<CreatedIssue>> AllocateAndInsertAsync(string actorUserId, string projectId, CreateIssueCommand command, CancellationToken ct)
+    {
+        // Kilit almayan yol (SQLite) ya da sıraya girmeyen bir yazıcı için benzersiz indeks son sınır: kaybeden yeniden hesaplar.
         for (var attempt = 1; attempt <= NumberAttempts; attempt++)
         {
             _db.ChangeTracker.Clear();
@@ -178,7 +195,7 @@ internal sealed class HubIssueService : IHubIssueService, IHubIssueQueries
                 Id = Guid.NewGuid().ToString(),
                 ProjectId = projectId,
                 IssueNumber = next,
-                Title = command.Title.Trim(),
+                Title = command.Title!.Trim(),
                 Body = command.Body?.Trim() ?? string.Empty,
                 RelatedTableName = command.RelatedTableName?.Trim(),
                 NslRuleCode = command.NslRuleCode?.Trim(),
@@ -199,7 +216,7 @@ internal sealed class HubIssueService : IHubIssueService, IHubIssueQueries
                 return ModuleOutcome<CreatedIssue>.Ok(new CreatedIssue(
                     issue.Id, issue.IssueNumber, issue.Title, issue.Body, issue.IsClosed, issue.RelatedTableName, issue.NslRuleCode, labels, issue.CreatedAt));
             }
-            catch (DbUpdateException) when (attempt < NumberAttempts)
+            catch (DbUpdateException) when (attempt < NumberAttempts && _db.Database.CurrentTransaction is null)
             {
                 _db.ChangeTracker.Clear();
             }

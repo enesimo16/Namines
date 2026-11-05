@@ -76,7 +76,8 @@ public class DataRetentionService : BackgroundService
                               ?? scope.ServiceProvider.GetService<IDeskModule>()?.Application;
                 await PurgeAsync(db, RetentionOptions.From(_configuration), _logger, DateTime.UtcNow,
                     TimeSpan.FromMilliseconds(200), stoppingToken,
-                    scope.ServiceProvider.GetRequiredService<IOpsRetentionService>(), deskApp);
+                    scope.ServiceProvider.GetRequiredService<IOpsRetentionService>(),
+                    scope.ServiceProvider.GetRequiredService<Namines.Gateway.Application.IGatewayMaintenance>(), deskApp);
 
                 // İptal edilmiş paylaşım satırı yalnızca "ne zaman kapatıldı" izi: sınırsız birikmesin.
                 var shareDays = _configuration.GetValue("Retention:RevokedShareDays", DefaultRevokedShareDays);
@@ -131,7 +132,7 @@ public class DataRetentionService : BackgroundService
     /// <summary>Test edilebilir temizlik adımı; tablo başına silinen satır sayısını döndürür.</summary>
     public static async Task<IReadOnlyDictionary<string, int>> PurgeAsync(
         AuthDbContext db, RetentionOptions o, ILogger logger, DateTime nowUtc,
-        TimeSpan pause, CancellationToken ct, IOpsRetentionService ops, IDeskApplicationService? deskApp = null)
+        TimeSpan pause, CancellationToken ct, IOpsRetentionService ops, Namines.Gateway.Application.IGatewayMaintenance gateway, IDeskApplicationService? deskApp = null)
     {
         var result = new Dictionary<string, int>();
 
@@ -146,7 +147,6 @@ public class DataRetentionService : BackgroundService
                 logger.LogInformation("Veri saklama: {Table} tablosundan {Rows} satir silindi (> {Days} gun).", name, n, days);
         }
 
-        await Run<GatewayAuditEntry>("GatewayAuditEntries", o.GatewayAuditDays, c => e => e.CreatedAt < c, e => e.Id);
         async Task RunModule(string name, int days, Func<Task<int>> purge)
         {
             if (days <= 0) return;
@@ -156,6 +156,7 @@ public class DataRetentionService : BackgroundService
                 logger.LogInformation("Veri saklama: {Table} tablosundan {Rows} satir silindi (> {Days} gun).", name, n, days);
         }
 
+        await RunModule("GatewayAuditEntries", o.GatewayAuditDays, () => gateway.PurgeAuditAsync(o.GatewayAuditDays, nowUtc, pause, ct));
         await RunModule("SqlExecutionAudits", o.SqlExecutionAuditDays, () => ops.PurgeSqlExecutionAuditsAsync(o.SqlExecutionAuditDays, nowUtc, pause, ct));
         await Run<UsageEvent>("UsageEvents", o.UsageEventDays, c => e => e.OccurredAt < c, e => e.Id);
         await Run<ChangeRequestAuditLog>("ChangeRequestAuditLogs", o.ChangeRequestAuditDays, c => e => e.CreatedAt < c, e => e.Id);

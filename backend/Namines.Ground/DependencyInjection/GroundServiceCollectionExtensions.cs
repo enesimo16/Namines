@@ -62,6 +62,8 @@ public static class GroundServiceCollectionExtensions
             sp.GetRequiredService<ISupabaseClient>(),
             sp.GetRequiredService<ILogger<SupabaseProvider>>()));
 
+        services.AddSingleton(Namines.BuildingBlocks.Persistence.NonOwnerContext.Descriptor<Namines.Ground.Infrastructure.Persistence.GroundDbContext>("Ground", "ground", "Tablolar kendi şemasında; DDL AuthDbContext zincirinde kalıyor. Bu fazda tablo taşınmadı, bağlam yalnızca okur/yazar."));
+
         services.TryAddScoped<IGroundApplicationService, GroundApplicationService>();
         services.TryAddScoped<IGroundModule>(sp => new GroundModule(
             sp.GetServices<IDatabaseProvider>(),

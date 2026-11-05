@@ -9,6 +9,17 @@ namespace Namines.BuildingBlocks.Persistence;
 /// </summary>
 public static class NonOwnerContext
 {
+    /// <summary>
+    /// Sahip olmayan bağlamın orkestratör kaydı. Sıraya girmez, çalıştırılmaz; ama listede durduğu için
+    /// test her bağlamın ya zinciri ya da gerekçesi olduğunu doğrulayabilir.
+    /// </summary>
+    public static ModuleMigrationDescriptor Descriptor<TContext>(string module, string schema, string reason)
+        where TContext : DbContext =>
+        new(module, int.MaxValue, schema, ModuleMigrationOwnership.DdlInAuthChain,
+            connectionString => (TContext)System.Activator.CreateInstance(
+                typeof(TContext), ModuleDbContextRegistration.MigrationOptions<TContext>(connectionString, schema))!,
+            reason);
+
     public static void ExcludeAllFromMigrations(ModelBuilder modelBuilder)
     {
         foreach (var entity in modelBuilder.Model.GetEntityTypes())

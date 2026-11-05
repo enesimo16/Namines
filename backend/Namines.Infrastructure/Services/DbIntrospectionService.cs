@@ -24,15 +24,24 @@ namespace Namines.Infrastructure.Services;
 public sealed class DbIntrospectionService : IDbIntrospectionService
 {
     private const int ConnectTimeoutSeconds = 10;
-    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(15);
+    /// <summary>
+    /// Varsayılan 15 sn. Oracle katalog görünümleri soğuk açılışta bunu aşabiliyor: kullanıcıya zaman aşımı
+    /// gösterilir, yeniden deneme çalışır. Yavaş kurulumlar Introspection:QueryTimeoutSeconds ile yükseltir (BL-9).
+    /// </summary>
+    private readonly TimeSpan _queryTimeout;
 
     private readonly ILogger<DbIntrospectionService> _logger;
     private readonly IDbHostAccessPolicy _hostPolicy;
 
-    public DbIntrospectionService(ILogger<DbIntrospectionService> logger, IDbHostAccessPolicy hostPolicy)
+    public DbIntrospectionService(
+        ILogger<DbIntrospectionService> logger,
+        IDbHostAccessPolicy hostPolicy,
+        Microsoft.Extensions.Configuration.IConfiguration? configuration = null)
     {
         _logger = logger;
         _hostPolicy = hostPolicy;
+        var seconds = configuration?["Introspection:QueryTimeoutSeconds"];
+        _queryTimeout = TimeSpan.FromSeconds(int.TryParse(seconds, out var s) ? Math.Clamp(s, 5, 300) : 15);
     }
 
     public async Task<DatabaseSchema> IntrospectAsync(
@@ -610,7 +619,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         }
     }
 
-    private static async Task LoadConstraintRowsAsync(
+    private async Task LoadConstraintRowsAsync(
         DbConnection conn,
         string constraintSql,
         Dictionary<string, SchemaTable> tables,
@@ -619,7 +628,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         await using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = constraintSql;
-            cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+            cmd.CommandTimeout = (int)_queryTimeout.TotalSeconds;
 
             await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SingleResult, ct);
             while (await reader.ReadAsync(ct))
@@ -670,7 +679,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
 
     }
 
-    private static async Task LoadIndexRowsAsync(
+    private async Task LoadIndexRowsAsync(
         DbConnection conn,
         string indexSql,
         Dictionary<string, SchemaTable> tables,
@@ -678,7 +687,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     {
         await using var indexCmd = conn.CreateCommand();
         indexCmd.CommandText = indexSql;
-        indexCmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+        indexCmd.CommandTimeout = (int)_queryTimeout.TotalSeconds;
 
         await using var indexReader = await indexCmd.ExecuteReaderAsync(CommandBehavior.SingleResult, ct);
         while (await indexReader.ReadAsync(ct))
@@ -884,7 +893,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     /// İSTEĞE BAĞLI üçüncü adım: UNIQUE/CHECK kısıtlarını ve index'leri doldurur.
     /// Verilmezse bu listeler boş kalır (motor bazında kademeli açılabilsin diye).
     /// </param>
-    private static async Task<DatabaseSchema> BuildSchemaAsync(
+    private async Task<DatabaseSchema> BuildSchemaAsync(
         DbConnection conn,
         string sql,
         string schemaName,
@@ -899,7 +908,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
         await using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = sql;
-            cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+            cmd.CommandTimeout = (int)_queryTimeout.TotalSeconds;
 
             await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SingleResult, ct);
             while (await reader.ReadAsync(ct))
@@ -996,7 +1005,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
     /// (ör. başka şemadaki bir tabloya FK) sessizce atlanır: uydurma bir ilişki
     /// üretmek, ilişkiyi hiç göstermemekten daha kötüdür.
     /// </summary>
-    private static async Task<List<SchemaRelation>> LoadRelationsAsync(
+    private async Task<List<SchemaRelation>> LoadRelationsAsync(
         DbConnection conn,
         string relationSql,
         Dictionary<string, SchemaTable> tables,
@@ -1006,7 +1015,7 @@ public sealed class DbIntrospectionService : IDbIntrospectionService
 
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = relationSql;
-        cmd.CommandTimeout = (int)QueryTimeout.TotalSeconds;
+        cmd.CommandTimeout = (int)_queryTimeout.TotalSeconds;
 
         await using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SingleResult, ct);
         while (await reader.ReadAsync(ct))

@@ -37,15 +37,15 @@ public sealed record LaunchRequest(string ProjectId, string Provider, string Ddl
 [FeatureGate("compile_launch")]
 public class LaunchController : ControllerBase
 {
-    private readonly AuthDbContext _context;
+    private readonly IGatewayKeyService _gatewayKeys;
     private readonly ITenantProjectAuthority _authority;
     private readonly IStudioProjects _projects;
     private readonly LaunchService _launch;
     private readonly IDeskModule _deskModule;
 
-    public LaunchController(AuthDbContext context, ITenantProjectAuthority authority, IStudioProjects projects, LaunchService launch, IDeskModule deskModule)
+    public LaunchController(IGatewayKeyService gatewayKeys, ITenantProjectAuthority authority, IStudioProjects projects, LaunchService launch, IDeskModule deskModule)
     {
-        _context = context;
+        _gatewayKeys = gatewayKeys;
         _authority = authority;
         _projects = projects;
         _launch = launch;
@@ -137,32 +137,11 @@ public class LaunchController : ControllerBase
             return BadRequest(new { error = "The project's stored schema is not valid." });
         }
 
-        // Her indirmede sınırsız/kalıcı bir anahtar birikmesin diye önceki
-        // "Downloaded project" anahtarı iptal edilir — ham anahtar bir daha
-        // gösterilemediği için ZATEN yeniden kullanılamaz, tek yapılabilecek
-        // eskisini geçersiz kılıp yerine yenisini koymak.
-        var previousDownloadKeys = await _context.GatewayApiKeys
-            .Where(k => k.ProjectId == projectId && k.Name == "Downloaded project" && k.RevokedAt == null)
-            .ToListAsync(ct);
-        foreach (var previous in previousDownloadKeys)
-            previous.RevokedAt = DateTime.UtcNow;
-
-        // Diğer Gateway anahtarlarıyla AYNI plan-bazlı istek-hızı tavanı —
-        // GatewayKeyController.Create'in uyguladığı kontrolün aynısı, burada da
-        // atlanmamalı (bkz. plan tavanı kontrolü orada).
-        var account = await _context.Users
-            .Where(u => u.Id == userId)
-            .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
-            .FirstOrDefaultAsync(ct);
-        var planCeiling = PlanQuotas.For(
-            PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false)
-        ).GatewayRequestsPerMinute;
-
-        var (entity, rawKey) = GatewayAccess.CreateKey(
-            projectId, "Downloaded project", userId, canWrite: true, expiresAt: null);
-        entity.RateLimitPerMinute = planCeiling;
-        _context.GatewayApiKeys.Add(entity);
-        await _context.SaveChangesAsync(ct);
+        // Her indirmede sınırsız/kalıcı bir anahtar birikmesin diye önceki anahtar iptal edilir, yenisi üretilir.
+        // Plan tavanı diğer anahtarlarla aynı (kural Gateway'de).
+        var rotated = await _gatewayKeys.RotateDownloadKeyAsync(userId, projectId, ct);
+        if (!rotated.IsOk) return Forbid();
+        var rawKey = rotated.Value!.RawKey;
 
         var zipBytes = await scaffolder.GenerateFullStackProjectAsync(schema);
         var apiOrigin = $"{Request.Scheme}://{Request.Host}";

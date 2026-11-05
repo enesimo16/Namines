@@ -11,3 +11,6 @@ global using Namines.Studio.Application;
 global using Namines.Studio.Domain;
 global using Namines.Studio.Infrastructure.Persistence;
 global using Namines.Tests.TestSupport;
+global using Namines.Gateway.Application;
+global using Namines.Gateway.Domain;
+global using Namines.Gateway.Infrastructure.Persistence;

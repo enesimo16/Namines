@@ -47,11 +47,11 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
             Id = "proj-1", Name = "p", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner",
         });
 
-        var (entity, raw) = GatewayAccess.CreateKey("proj-1", "k", "owner", canWrite: false, expiresAt: null);
+        var (entity, raw) = GatewayKeys.CreateKey("proj-1", "k", "owner", canWrite: false, expiresAt: null);
         // Yalnızca belirli bir uygulama sunucusundan kullanılabilen bir anahtar.
         GatewayAllowlistRules.ApplyIps(entity, GatewayAllowlistRules.ParseIps("203.0.113.7").Entries);
         GatewayAllowlistRules.ApplyOrigins(entity, GatewayAllowlistRules.ParseOrigins("https://app.example.com").Entries);
-        db.GatewayApiKeys.Add(entity);
+        db.Gateway().GatewayApiKeys.Add(entity);
         await db.SaveChangesAsync();
         _rawKey = raw;
     }
@@ -77,7 +77,7 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
             .Build();
 
         return new GatewayController(
-            gateway: null!, context: db, configuration: configuration,
+            gateway: null!, access: TestModules.For(db).GatewayAccess, audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: configuration,
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
             secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {

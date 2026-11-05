@@ -42,7 +42,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         {
             try
             {
-                await _shared.Database.MigrateAsync();
+                await _shared.MigrateAllModulesAsync();
                 break;
             }
             catch (Npgsql.NpgsqlException ex) when (ex is not Npgsql.PostgresException && attempt < connectAttempts)
@@ -81,8 +81,8 @@ public class GatewayApiKeyTests : IAsyncLifetime
     private static async Task<(GatewayApiKey Key, string Raw)> AddKeyAsync(
         AuthDbContext context, string projectId, bool canWrite = false, DateTime? expiresAt = null)
     {
-        var (entity, raw) = GatewayAccess.CreateKey(projectId, "test key", "u1", canWrite, expiresAt);
-        context.GatewayApiKeys.Add(entity);
+        var (entity, raw) = GatewayKeys.CreateKey(projectId, "test key", "u1", canWrite, expiresAt);
+        context.Gateway().GatewayApiKeys.Add(entity);
         await context.SaveChangesAsync();
         return (entity, raw);
     }
@@ -99,7 +99,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
 
         Assert.DoesNotContain(raw, entity.KeyHash);
         Assert.NotEqual(raw, entity.KeyHash);
-        Assert.Equal(GatewayAccess.Hash(raw), entity.KeyHash);
+        Assert.Equal(GatewayKeys.Hash(raw), entity.KeyHash);
     }
 
     [Fact]
@@ -108,8 +108,8 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var seen = new HashSet<string>();
         for (var i = 0; i < 200; i++)
         {
-            var (_, raw) = GatewayAccess.CreateKey("p1", "k", "u1", false, null);
-            Assert.StartsWith(GatewayAccess.KeyPrefix, raw);
+            var (_, raw) = GatewayKeys.CreateKey("p1", "k", "u1", false, null);
+            Assert.StartsWith(GatewayKeys.KeyPrefix, raw);
             Assert.True(seen.Add(raw));
         }
     }
@@ -120,7 +120,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         var (entity, raw) = await AddKeyAsync(context, projectId);
 
-        var resolved = await context.AuthenticateAsync(TestModules.For(context).DefaultAuthority, raw);
+        var resolved = await context.AuthenticateAsync(raw);
         Assert.NotNull(resolved);
         Assert.Equal(entity.Id, resolved!.Id);
     }
@@ -134,7 +134,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         await AddKeyAsync(context, projectId);
 
-        Assert.Null(await context.AuthenticateAsync(TestModules.For(context).DefaultAuthority, candidate));
+        Assert.Null(await context.AuthenticateAsync(candidate));
     }
 
     [RequiresDockerFact]
@@ -148,9 +148,9 @@ public class GatewayApiKeyTests : IAsyncLifetime
         entity.RevokedAt = DateTime.UtcNow;
         await context.SaveChangesAsync();
 
-        Assert.Null(await context.AuthenticateAsync(TestModules.For(context).DefaultAuthority, raw));
+        Assert.Null(await context.AuthenticateAsync(raw));
         // Kayıt duruyor: iptal silmek değil, işaretlemektir.
-        Assert.NotNull(await context.GatewayApiKeys.FindAsync(entity.Id));
+        Assert.NotNull(await context.Gateway().GatewayApiKeys.FindAsync(entity.Id));
     }
 
     [RequiresDockerFact]
@@ -159,7 +159,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         var (_, raw) = await AddKeyAsync(context, projectId, expiresAt: DateTime.UtcNow.AddSeconds(-1));
 
-        Assert.Null(await context.AuthenticateAsync(TestModules.For(context).DefaultAuthority, raw));
+        Assert.Null(await context.AuthenticateAsync(raw));
     }
 
     // ── ASIL KURAL: varsayılan kapalı ────────────────────────────────────────
@@ -181,7 +181,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         var (key, _) = await AddKeyAsync(context, projectId, canWrite: true);
 
-        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        context.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = projectId, TableName = "users", CanRead = true, CanWrite = false,
         });
@@ -199,7 +199,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         var (key, _) = await AddKeyAsync(context, projectId, canWrite: false);
 
-        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        context.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = projectId, TableName = "users", CanRead = true, CanWrite = true,
         });
@@ -217,7 +217,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
 
         var (key, _) = await AddKeyAsync(context, projectId);
 
-        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        context.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = otherProjectId, TableName = "users", CanRead = true,
         });
@@ -328,7 +328,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
     {
         var (context, projectId) = await SeededAsync();
 
-        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        context.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = projectId, TableName = "users",
             CanRead = true, MaskedColumnRules = Masks("email", "phone"),
@@ -347,7 +347,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
     {
         var (context, projectId) = await SeededAsync();
 
-        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        context.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = projectId, TableName = "orders", CanRead = true,
         });
@@ -362,7 +362,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         var (_, otherProjectId) = await SeededAsync();
 
-        context.GatewayTablePermissions.Add(new GatewayTablePermission
+        context.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = otherProjectId, TableName = "users",
             CanRead = true, MaskedColumnRules = Masks("email"),

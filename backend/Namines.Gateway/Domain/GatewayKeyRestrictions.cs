@@ -2,9 +2,8 @@ using System;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using Namines.Core.Models.Auth;
 
-namespace Namines.Infrastructure.Data;
+namespace Namines.Gateway.Domain;
 
 /// <summary>
 /// API anahtarının kaynak kısıtları (new-phase/08-GATEWAY-API.md §4.3:

@@ -180,8 +180,27 @@ internal sealed class StudioBranchService : IStudioBranches, IBranchService
 
         var checksum = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(schemaJson))).ToLowerInvariant();
 
-        // (BranchId, Version) tekil: iki eşzamanlı commit aynı numarayı seçerse ikincisi düşer. Commit'in
-        // içeriği taban sürüme bağlı değil, yani sonraki numarayla yeniden denemek doğru sıralamayı verir.
+        if (!_db.Database.IsNpgsql())
+            return await AppendVersionAsync(branchId, branch.ProjectId, checksum, schemaJson, message, tableCount, authorUserId, ct);
+
+        // Yalnızca yeniden denemek yetmez: her turda bir kişi kazanır, sekiz eşzamanlı commit beş denemeyi tüketip
+        // kullanıcıya hata döndürüyordu. Dal satırı kilidi numara seçimini sıraya koyar. NO KEY: aynı dala FK ile
+        // bağlanan başka yazmaları bekletmez.
+        return await _db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx = _db.Database.CurrentTransaction is null ? await _db.Database.BeginTransactionAsync(ct) : null;
+            await _db.Database.ExecuteSqlInterpolatedAsync($"""SELECT 1 FROM studio."Branches" WHERE "Id" = {branchId} FOR NO KEY UPDATE""", ct);
+            var added = await AppendVersionAsync(branchId, branch.ProjectId, checksum, schemaJson, message, tableCount, authorUserId, ct);
+            if (tx is not null) await tx.CommitAsync(ct);
+            return added;
+        });
+    }
+
+    private async Task<StudioSchemaVersion> AppendVersionAsync(
+        string branchId, string projectId, string checksum, string schemaJson, string? message, short tableCount, string? authorUserId, CancellationToken ct)
+    {
+        // (BranchId, Version) tekil: kilit almayan yol (SQLite) ya da sıraya girmeyen bir yazıcı aynı numarayı seçerse
+        // ikincisi düşer. Commit'in içeriği taban sürüme bağlı değil, sonraki numarayla denemek doğru sıralamayı verir.
         for (var attempt = 1; ; attempt++)
         {
             var last = await _db.SchemaVersions.AsNoTracking()
@@ -190,7 +209,7 @@ internal sealed class StudioBranchService : IStudioBranches, IBranchService
 
             var version = new SchemaVersion
             {
-                ProjectId = branch.ProjectId,
+                ProjectId = projectId,
                 BranchId = branchId,
                 Version = last + 1,
                 Checksum = checksum,
@@ -208,9 +227,15 @@ internal sealed class StudioBranchService : IStudioBranches, IBranchService
                 _db.Entry(version).State = EntityState.Detached;
                 return new StudioSchemaVersion(version.Id, version.ProjectId, version.BranchId, version.Version, version.Checksum, version.SchemaJson, version.Message, version.TableCount, version.AuthorUserId, version.CreatedAt);
             }
-            catch (DbUpdateException ex) when (attempt < CommitAttempts && IsUniqueViolation(ex))
+            catch (DbUpdateException ex) when (attempt < CommitAttempts && IsUniqueViolation(ex) && _db.Database.CurrentTransaction is null)
             {
                 _db.Entry(version).State = EntityState.Detached;
+            }
+            catch
+            {
+                // Bağlam kapsamlı: izlenen satır kalırsa aynı istekteki sonraki kayıt onu tekrar yazmayı dener.
+                _db.Entry(version).State = EntityState.Detached;
+                throw;
             }
         }
     }

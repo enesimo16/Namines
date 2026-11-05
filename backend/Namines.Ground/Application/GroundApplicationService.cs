@@ -138,7 +138,6 @@ public sealed class GroundApplicationService : IGroundApplicationService
         var record = new GroundDatabase
         {
             ProjectId = snapshot.ProjectId,
-            OrganizationId = snapshot.OrganizationId,
             Provider = provider.Name,
             CreatedByUserId = userId,
             Status = GroundStatus.Provisioning,

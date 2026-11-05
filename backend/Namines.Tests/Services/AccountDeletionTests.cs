@@ -65,7 +65,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
     private static AccountDeletionService NewService(
         AuthDbContext db, FakeStore store, FakeProvider provider, ISubscriptionCanceller? canceller = null) =>
-        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects, canceller);
+        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects, TestModules.For(db).GatewayMaintenance, canceller);
 
     private static CloudProject Project(string id, string userId, string? orgId) => new()
     {
@@ -101,7 +101,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         {
             vaultDb.VaultBackups.Add(new VaultBackup
             {
-                ProjectId = "pp", OrganizationId = "P", CreatedByUserId = "u1", DatabaseName = "d", Engine = "PostgreSQL",
+                ProjectId = "pp", CreatedByUserId = "u1", DatabaseName = "d", Engine = "PostgreSQL",
                 StorageKey = "pp/b0", StoreDescription = "fake", Status = VaultBackupStatus.Succeeded,
             });
             await vaultDb.SaveChangesAsync();
@@ -110,12 +110,12 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         {
             groundDb.GroundDatabases.Add(new GroundDatabase
             {
-                ProjectId = "pp", OrganizationId = "P", Provider = "FakeRemote", CreatedByUserId = "u1",
+                ProjectId = "pp", Provider = "FakeRemote", CreatedByUserId = "u1",
                 Status = GroundStatus.Active, ProviderProjectId = "remote-pp",
             });
             await groundDb.SaveChangesAsync();
         }
-        db.GatewayApiKeys.Add(new GatewayApiKey
+        db.Gateway().GatewayApiKeys.Add(new GatewayApiKey
         {
             ProjectId = "tp", Name = "k", Prefix = "nk_", KeyHash = "h", CreatedByUserId = "u1",
         });
@@ -276,7 +276,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await using var verify = NewContext();
         await using var verifyDesk = NewDeskDb(verify);
 
-        var key = await verify.GatewayApiKeys.SingleAsync();
+        var key = await verify.Gateway().GatewayApiKeys.SingleAsync();
         Assert.NotNull(key.RevokedAt);
         Assert.Null(key.CreatedByUserId);
 
@@ -376,7 +376,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         var um = NewUserManager(db);
         return new AuthController(um, db, config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Workspace, new FakeEnv(), null,
-            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects))
+            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects, TestModules.For(db).GatewayMaintenance))
         {
             ControllerContext = new ControllerContext
             {

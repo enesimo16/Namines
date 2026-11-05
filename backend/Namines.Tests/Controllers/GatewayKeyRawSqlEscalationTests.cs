@@ -68,7 +68,7 @@ public sealed class GatewayKeyRawSqlEscalationTests : IAsyncLifetime
     }
 
     private static GatewayKeyController NewController(AuthDbContext db, string userId) =>
-        new(context: db, hostPolicy: null!, introspection: null!, secretProvider: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
+        new(keys: TestModules.For(db).GatewayKeys, audit: TestModules.For(db).GatewayAudit, hostPolicy: null!, introspection: null!, secretProvider: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects)
         {
             ControllerContext = new ControllerContext
             {
@@ -95,7 +95,7 @@ public sealed class GatewayKeyRawSqlEscalationTests : IAsyncLifetime
 
         // Hiçbir anahtar yazılmamalı: reddedilen bir istek yarım kayıt bırakmamalı.
         await using var verify = NewContext();
-        Assert.Empty(await verify.GatewayApiKeys.ToListAsync());
+        Assert.Empty(await verify.Gateway().GatewayApiKeys.ToListAsync());
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class GatewayKeyRawSqlEscalationTests : IAsyncLifetime
         Assert.IsNotType<ObjectResult>(result);
 
         await using var verify = NewContext();
-        var key = Assert.Single(await verify.GatewayApiKeys.ToListAsync());
+        var key = Assert.Single(await verify.Gateway().GatewayApiKeys.ToListAsync());
         Assert.True(key.CanWrite);
         Assert.False(key.CanExecuteSql);
         Assert.False(key.CanExport);
@@ -147,7 +147,7 @@ public sealed class GatewayKeyRawSqlEscalationTests : IAsyncLifetime
         Assert.IsNotType<ObjectResult>(result);
 
         await using var verify = NewContext();
-        var key = Assert.Single(await verify.GatewayApiKeys.ToListAsync());
+        var key = Assert.Single(await verify.Gateway().GatewayApiKeys.ToListAsync());
         Assert.True(key.CanExecuteSql);
         Assert.True(key.CanExport);
     }

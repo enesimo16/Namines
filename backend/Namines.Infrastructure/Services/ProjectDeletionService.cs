@@ -40,6 +40,7 @@ public class ProjectDeletionService : IProjectDeletion
     private readonly IStudioProjects _projects;
     private readonly IStudioBranches _branches;
     private readonly IStudioRelations _relations;
+    private readonly Namines.Gateway.Application.IGatewayMaintenance _gateway;
     private readonly ICrossModuleTransaction _transaction;
     private readonly ILogger<ProjectDeletionService> _logger;
 
@@ -52,7 +53,8 @@ public class ProjectDeletionService : IProjectDeletion
         ICrossModuleTransaction transaction,
         IStudioProjects projects,
         IStudioBranches branches,
-        IStudioRelations relations)
+        IStudioRelations relations,
+        Namines.Gateway.Application.IGatewayMaintenance gateway)
     {
         _context = context;
         _vault = vault;
@@ -63,6 +65,7 @@ public class ProjectDeletionService : IProjectDeletion
         _projects = projects;
         _branches = branches;
         _relations = relations;
+        _gateway = gateway;
     }
 
     public async Task<ProjectDeletionResult> DeleteAsync(
@@ -117,8 +120,7 @@ public class ProjectDeletionService : IProjectDeletion
             await _hub.DetachFromForkSourceAsync(projectId, c);
             await _hub.PurgeProjectAsync(projectId, c);
             await _context.ChangeRequests.Where(r => r.ProjectId == projectId).ExecuteDeleteAsync(c);
-            await _context.GatewayApiKeys.Where(k => k.ProjectId == projectId).ExecuteDeleteAsync(c);
-            await _context.GatewayTablePermissions.Where(p => p.ProjectId == projectId).ExecuteDeleteAsync(c);
+            await _gateway.PurgeProjectAsync(projectId, c);
             await _projects.DeleteAsync(projectId, c);
             await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
         }, ct);

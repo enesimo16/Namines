@@ -71,9 +71,9 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner-1",
         });
 
-        var (key, raw) = GatewayAccess.CreateKey(
+        var (key, raw) = GatewayKeys.CreateKey(
             "proj-1", "admin key", "admin-1", canWrite: true, expiresAt: null);
-        db.GatewayApiKeys.Add(key);
+        db.Gateway().GatewayApiKeys.Add(key);
 
         await db.SaveChangesAsync();
         return raw;
@@ -81,7 +81,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
 
     private static ProjectMemberController NewMemberController(AuthDbContext db, string userId) =>
         // ProjectId doluyken ResolveOrgIdAsync UserManager'a dokunmuyor.
-        new(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects)
+        new(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects, gateway: TestModules.For(db).GatewayMaintenance, transaction: TestModules.For(db).Transaction)
         {
             ControllerContext = new ControllerContext
             {
@@ -102,7 +102,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         var rawKey = await SeedAsync(db);
 
         // Once calisiyor.
-        Assert.NotNull(await db.AuthenticateAsync(TestModules.For(db).DefaultAuthority, rawKey));
+        Assert.NotNull(await db.AuthenticateAsync(rawKey));
 
         // Uyeligi elle kaldir (uc kullanmadan) — asil iddia AuthenticateAsync'in
         // kendisi, cikarma ucunun iptali degil.
@@ -111,7 +111,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         await db.SaveChangesAsync();
 
         await using var verify = NewContext();
-        Assert.Null(await verify.AuthenticateAsync(TestModules.For(verify).DefaultAuthority, rawKey));
+        Assert.Null(await verify.AuthenticateAsync(rawKey));
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         Assert.IsType<OkObjectResult>(result);
 
         await using var verify = NewContext();
-        var key = Assert.Single(await verify.GatewayApiKeys.ToListAsync());
+        var key = Assert.Single(await verify.Gateway().GatewayApiKeys.ToListAsync());
         Assert.NotNull(key.RevokedAt);
     }
 
@@ -140,16 +140,16 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         await using var db = NewContext();
         await SeedAsync(db);
 
-        var (ownerKey, _) = GatewayAccess.CreateKey(
+        var (ownerKey, _) = GatewayKeys.CreateKey(
             "proj-1", "owner key", "owner-1", canWrite: true, expiresAt: null);
-        db.GatewayApiKeys.Add(ownerKey);
+        db.Gateway().GatewayApiKeys.Add(ownerKey);
         await db.SaveChangesAsync();
 
         var controller = NewMemberController(db, "owner-1");
         await controller.Remove("proj-1", "admin-1", default);
 
         await using var verify = NewContext();
-        var survivor = await verify.GatewayApiKeys
+        var survivor = await verify.Gateway().GatewayApiKeys
             .SingleAsync(k => k.CreatedByUserId == "owner-1");
         Assert.Null(survivor.RevokedAt);
     }

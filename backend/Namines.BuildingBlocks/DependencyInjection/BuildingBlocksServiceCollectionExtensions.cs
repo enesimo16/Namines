@@ -44,11 +44,10 @@ public static class BuildingBlocksServiceCollectionExtensions
             schemaName: GovernanceDbContext.DefaultSchema,
             db => new GovernanceModule(db));
 
-        RegisterModule<GatewayDbContext, IGatewayModule, GatewayModule>(
-            services, configureDbContext, connectionStringFactory,
-            historyTable: GatewayDbContext.MigrationsHistoryTableName,
-            schemaName: GatewayDbContext.DefaultSchema,
-            db => new GatewayModule(db));
+        const string d2 = "D-2 kapsamı: tablolar public'te, DDL AuthDbContext zincirinde; bağlam üretim yolunda kullanılmıyor.";
+        services.AddSingleton(NonOwnerContext.Descriptor<IdentityModuleDbContext>("Identity", "public", d2));
+        services.AddSingleton(NonOwnerContext.Descriptor<BillingDbContext>("Billing", "public", d2));
+        services.AddSingleton(NonOwnerContext.Descriptor<GovernanceDbContext>("Governance", "public", d2));
 
         return services;
     }

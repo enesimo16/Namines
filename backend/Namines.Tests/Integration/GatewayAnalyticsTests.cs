@@ -48,7 +48,7 @@ public class GatewayAnalyticsTests : IAsyncLifetime
         // Bilinçli, elle sayılabilir bir dağılım: gün 1'de 2 Create + 1 Update
         // (biri BAŞARISIZ), gün 2'de 1 Delete. Başka bir projenin (p2) kaydı da
         // eklenir — sızmadığını doğrulamak için.
-        context.GatewayAuditEntries.AddRange(
+        context.Gateway().GatewayAuditEntries.AddRange(
             new GatewayAuditEntry { ProjectId = "p1", Kind = GatewayWriteKind.Create, TableName = "customers", AffectedRows = 1, Succeeded = true, CreatedAt = day1 },
             new GatewayAuditEntry { ProjectId = "p1", Kind = GatewayWriteKind.Create, TableName = "customers", AffectedRows = 1, Succeeded = true, CreatedAt = day1.AddHours(1), ActorUserId = "u1" },
             new GatewayAuditEntry { ProjectId = "p1", Kind = GatewayWriteKind.Update, TableName = "vehicles", AffectedRows = 0, Succeeded = false, CreatedAt = day1.AddHours(2), ApiKeyPrefix = "nmn_abc" },
@@ -56,7 +56,7 @@ public class GatewayAnalyticsTests : IAsyncLifetime
             new GatewayAuditEntry { ProjectId = "p2", Kind = GatewayWriteKind.Create, TableName = "other", AffectedRows = 1, Succeeded = true, CreatedAt = day1 });
         await context.SaveChangesAsync();
 
-        var result = await context.AnalyticsAsync(TestModules.For(context).Branches, "p1", day1.AddDays(-1), day2.AddDays(1), "day");
+        var result = await context.AnalyticsAsync("p1", day1.AddDays(-1), day2.AddDays(1), "day");
 
         Assert.Equal(4, result.TotalWrites); // p2 hariç
         Assert.Equal(0.75, result.SuccessRate, precision: 2); // 3/4 başarılı
@@ -82,12 +82,12 @@ public class GatewayAnalyticsTests : IAsyncLifetime
         await using var context = Context();
         var baseTime = new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc);
 
-        context.GatewayAuditEntries.AddRange(
+        context.Gateway().GatewayAuditEntries.AddRange(
             new GatewayAuditEntry { ProjectId = "p1", Kind = GatewayWriteKind.Create, AffectedRows = 1, Succeeded = true, CreatedAt = baseTime },
             new GatewayAuditEntry { ProjectId = "p1", Kind = GatewayWriteKind.Create, AffectedRows = 1, Succeeded = true, CreatedAt = baseTime.AddHours(3) });
         await context.SaveChangesAsync();
 
-        var result = await context.AnalyticsAsync(TestModules.For(context).Branches, "p1", baseTime.AddHours(-1), baseTime.AddHours(4), "hour");
+        var result = await context.AnalyticsAsync("p1", baseTime.AddHours(-1), baseTime.AddHours(4), "hour");
 
         Assert.Equal(2, result.Buckets.Count);
     }
@@ -96,7 +96,7 @@ public class GatewayAnalyticsTests : IAsyncLifetime
     public async Task Empty_range_reports_zero_not_an_error()
     {
         await using var context = Context();
-        var result = await context.AnalyticsAsync(TestModules.For(context).Branches, "p1", DateTime.UtcNow.AddDays(-7), DateTime.UtcNow, "day");
+        var result = await context.AnalyticsAsync("p1", DateTime.UtcNow.AddDays(-7), DateTime.UtcNow, "day");
 
         Assert.Equal(0, result.TotalWrites);
         Assert.Equal(0.0, result.SuccessRate);

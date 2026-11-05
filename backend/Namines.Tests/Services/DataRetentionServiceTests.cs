@@ -51,8 +51,8 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         await using (var db = new AuthDbContext(_options))
         await using (var deskDb = new DeskDbContext(_deskOptions))
         {
-            db.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-400) });
-            db.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-10) });
+            db.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-400) });
+            db.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-10) });
             db.StripeWebhookEvents.Add(new StripeWebhookEvent { Id = "evt_old", EventType = "x", ProcessedAt = Now.AddDays(-200) });
             db.StripeWebhookEvents.Add(new StripeWebhookEvent { Id = "evt_new", EventType = "x", ProcessedAt = Now.AddDays(-1) });
             deskDb.DeskHandoffTokens.Add(new DeskHandoffToken { TokenHash = "a", UserId = "u", ExpiresAt = Now.AddDays(-30) });
@@ -68,7 +68,7 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         {
             var deskApp = new DeskApplicationService(deskDb, new DeskHandoffTokenValidator());
             var r = await DataRetentionService.PurgeAsync(
-                db, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db).OpsRetention, deskApp);
+                db, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db).OpsRetention, TestModules.For(db).GatewayMaintenance, deskApp);
             Assert.Equal(1, r["GatewayAuditEntries"]);
             Assert.Equal(1, r["StripeWebhookEvents"]);
             Assert.Equal(1, r["desk_handoff_tokens"]);
@@ -77,7 +77,7 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
 
         await using var check = new AuthDbContext(_options);
         await using var checkDesk = new DeskDbContext(_deskOptions);
-        Assert.Equal(1, await check.GatewayAuditEntries.CountAsync());
+        Assert.Equal(1, await check.Gateway().GatewayAuditEntries.CountAsync());
         Assert.Equal("evt_new", (await check.StripeWebhookEvents.SingleAsync()).Id);
         Assert.Equal("b", (await checkDesk.DeskHandoffTokens.SingleAsync()).TokenHash);
         Assert.Equal("i2", (await check.TeamInvites.SingleAsync()).TokenHash);
@@ -89,16 +89,16 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         await using (var db = new AuthDbContext(_options))
         {
             for (var i = 0; i < DataRetentionService.BatchSize + 50; i++)
-                db.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-999) });
+                db.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-999) });
             await db.SaveChangesAsync();
         }
         await using var db2 = new AuthDbContext(_options);
         await using var deskDb2 = new DeskDbContext(_deskOptions);
         var deskApp = new DeskApplicationService(deskDb2, new DeskHandoffTokenValidator());
         var r = await DataRetentionService.PurgeAsync(
-            db2, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db2).OpsRetention, deskApp);
+            db2, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db2).OpsRetention, TestModules.For(db2).GatewayMaintenance, deskApp);
         Assert.Equal(DataRetentionService.BatchSize + 50, r["GatewayAuditEntries"]);
-        Assert.Equal(0, await db2.GatewayAuditEntries.CountAsync());
+        Assert.Equal(0, await db2.Gateway().GatewayAuditEntries.CountAsync());
     }
 
     [Fact]

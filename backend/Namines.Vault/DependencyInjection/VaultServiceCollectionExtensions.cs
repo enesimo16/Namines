@@ -50,6 +50,8 @@ public static class VaultServiceCollectionExtensions
             });
         }
 
+        services.AddSingleton(Namines.BuildingBlocks.Persistence.NonOwnerContext.Descriptor<Namines.Vault.Infrastructure.Persistence.VaultDbContext>("Vault", "namines_vault", "Tablolar 14.2 öncesinden beri kendi şemasında; DDL AuthDbContext zincirinde kalıyor. Bu fazda tablo taşınmadı, bağlam yalnızca okur/yazar."));
+
         services.TryAddSingleton<BackupCipher>();
 
         services.TryAddSingleton<IBackupStore>(sp =>

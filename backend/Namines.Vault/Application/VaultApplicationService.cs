@@ -36,7 +36,6 @@ public interface IVaultApplicationService
     Task<VaultSchedule?> GetScheduleAsync(string projectId, CancellationToken ct = default);
     Task<VaultSchedule> SaveScheduleAsync(
         string projectId,
-        string? organizationId,
         bool enabled,
         VaultCadence cadence,
         int hourUtc,
@@ -169,7 +168,6 @@ public sealed class VaultApplicationService : IVaultApplicationService
 
     public async Task<VaultSchedule> SaveScheduleAsync(
         string projectId,
-        string? organizationId,
         bool enabled,
         VaultCadence cadence,
         int hourUtc,
@@ -180,7 +178,7 @@ public sealed class VaultApplicationService : IVaultApplicationService
         var schedule = await _db.VaultSchedules.FirstOrDefaultAsync(s => s.ProjectId == projectId, ct);
         if (schedule is null)
         {
-            schedule = new VaultSchedule { ProjectId = projectId, OrganizationId = organizationId };
+            schedule = new VaultSchedule { ProjectId = projectId };
             _db.VaultSchedules.Add(schedule);
         }
 
@@ -210,7 +208,7 @@ public sealed class VaultApplicationService : IVaultApplicationService
             return new VaultResult(false, error);
 
         var provider = FindProvider(resolved.ConnectionDbType)!;
-        var record = NewBackupRecord(snapshot.ProjectId, snapshot.OrganizationId, snapshot.ProjectName, userId, kind, provider.Engine);
+        var record = NewBackupRecord(snapshot.ProjectId, snapshot.ProjectName, userId, kind, provider.Engine);
 
         _db.VaultBackups.Add(record);
         await _db.SaveChangesAsync(ct);
@@ -270,7 +268,7 @@ public sealed class VaultApplicationService : IVaultApplicationService
             return new VaultResult(false, error);
 
         var provider = FindProvider(resolved.ConnectionDbType)!;
-        var record = NewBackupRecord(snapshot.ProjectId, snapshot.OrganizationId, snapshot.ProjectName, userId, kind, provider.Engine);
+        var record = NewBackupRecord(snapshot.ProjectId, snapshot.ProjectName, userId, kind, provider.Engine);
 
         _db.VaultBackups.Add(record);
         await _db.SaveChangesAsync(ct);
@@ -314,7 +312,6 @@ public sealed class VaultApplicationService : IVaultApplicationService
         var log = new VaultRestore
         {
             ProjectId = snapshot.ProjectId,
-            OrganizationId = snapshot.OrganizationId,
             BackupId = backup.Id,
             PreRestoreBackupId = preRestore.BackupId,
             PerformedByUserId = userId,
@@ -472,10 +469,9 @@ public sealed class VaultApplicationService : IVaultApplicationService
     }
 
     private VaultBackup NewBackupRecord(
-        string projectId, string? organizationId, string projectName, string userId, VaultBackupKind kind, string engine) => new()
+        string projectId, string projectName, string userId, VaultBackupKind kind, string engine) => new()
     {
         ProjectId = projectId,
-        OrganizationId = organizationId,
         CreatedByUserId = userId,
         DatabaseName = projectName,
         Engine = engine,

@@ -1,3 +1,4 @@
+using Namines.Gateway.DependencyInjection;
 using Namines.Hub.DependencyInjection;
 using Namines.Studio.DependencyInjection;
 using Namines.Ops.DependencyInjection;
@@ -183,6 +184,8 @@ public static class ServiceCollectionExtensions
         services.AddOpsModule(controlDb);
         services.AddStudioModule(controlDb);
         services.AddHubModule(controlDb);
+        services.AddGatewayModule(controlDb);
+        services.AddScoped<Namines.BuildingBlocks.Contracts.IUsageMeter, Namines.Infrastructure.Data.UsageMeterBridge>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IIdentityDirectory, Namines.Infrastructure.Data.IdentityDirectoryService>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IConnectionHostInspector, Namines.Infrastructure.Data.ConnectionHostInspector>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IChangeRequestStats, Namines.Infrastructure.Data.ChangeRequestStats>();

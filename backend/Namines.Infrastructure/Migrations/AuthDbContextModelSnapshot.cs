@@ -455,249 +455,6 @@ namespace Namines.Infrastructure.Migrations
                     b.ToTable("desk_handoff_tokens", "desk");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKey", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasDefaultValueSql("gen_random_uuid()::text");
-
-                    b.Property<bool>("CanExecuteSql")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("CanExport")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("CanWrite")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("KeyHash")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("LastUsedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Prefix")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProjectId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("RateLimitPerMinute")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("RestrictIps")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("RestrictOrigins")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("RevokedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("KeyHash")
-                        .IsUnique();
-
-                    b.HasIndex("Prefix");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("GatewayApiKeys", t =>
-                        {
-                            t.HasCheckConstraint("CK_GatewayApiKeys_RateLimitPerMinute", "\"RateLimitPerMinute\" >= 1");
-                        });
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKeyAllowedIp", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasDefaultValueSql("gen_random_uuid()::text");
-
-                    b.Property<string>("ApiKeyId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Cidr")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<int>("Position")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApiKeyId", "Cidr")
-                        .IsUnique();
-
-                    b.ToTable("api_key_allowed_ips", "gateway", t =>
-                        {
-                            t.HasCheckConstraint("CK_api_key_allowed_ips_Cidr", "position('/' in \"Cidr\") > 0 AND (\"Cidr\"::cidr) IS NOT NULL");
-                        });
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKeyAllowedOrigin", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasDefaultValueSql("gen_random_uuid()::text");
-
-                    b.Property<string>("ApiKeyId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Origin")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<int>("Position")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApiKeyId", "Origin")
-                        .IsUnique();
-
-                    b.ToTable("api_key_allowed_origins", "gateway", t =>
-                        {
-                            t.HasCheckConstraint("CK_api_key_allowed_origins_Origin", "\"Origin\" ~ '^[a-z][a-z0-9+.-]*://([a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*|\\[[0-9a-f:.]+\\])(:[1-9][0-9]{0,4})?$'");
-                        });
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayAuditEntry", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ActorUserId")
-                        .HasColumnType("text");
-
-                    b.Property<int>("AffectedRows")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ApiKeyId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ApiKeyPrefix")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Columns")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Kind")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ProjectId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("RowKey")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Succeeded")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("TableName")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId", "CreatedAt")
-                        .IsDescending(false, true);
-
-                    b.ToTable("GatewayAuditEntries", t =>
-                        {
-                            t.HasCheckConstraint("CK_GatewayAuditEntries_Kind", "\"Kind\" IN (0, 1, 2, 3, 4, 5, 6)");
-                        });
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTableMaskedColumn", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasDefaultValueSql("gen_random_uuid()::text");
-
-                    b.Property<string>("ColumnName")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<int>("Position")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("TablePermissionId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TablePermissionId", "ColumnName")
-                        .IsUnique();
-
-                    b.ToTable("table_masked_columns", "gateway", t =>
-                        {
-                            t.HasCheckConstraint("CK_table_masked_columns_ColumnName", "\"ColumnName\" <> ''");
-                        });
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTablePermission", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasDefaultValueSql("gen_random_uuid()::text");
-
-                    b.Property<bool>("CanExport")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("CanRead")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("CanWrite")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("ProjectId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TableName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId", "TableName")
-                        .IsUnique();
-
-                    b.ToTable("GatewayTablePermissions");
-                });
-
             modelBuilder.Entity("Namines.Core.Models.Auth.GlobalAiUsage", b =>
                 {
                     b.Property<int>("Id")
@@ -742,9 +499,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Error")
-                        .HasColumnType("text");
-
-                    b.Property<string>("OrganizationId")
                         .HasColumnType("text");
 
                     b.Property<string>("ProjectId")
@@ -1238,9 +992,6 @@ namespace Namines.Infrastructure.Migrations
                     b.Property<int>("Kind")
                         .HasColumnType("integer");
 
-                    b.Property<string>("OrganizationId")
-                        .HasColumnType("text");
-
                     b.Property<string>("ProjectId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1292,9 +1043,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
-
-                    b.Property<string>("OrganizationId")
                         .HasColumnType("text");
 
                     b.Property<string>("PerformedByUserId")
@@ -1352,9 +1100,6 @@ namespace Namines.Infrastructure.Migrations
 
                     b.Property<DateTime?>("LastRunAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("OrganizationId")
-                        .HasColumnType("text");
 
                     b.Property<string>("ProjectId")
                         .IsRequired()
@@ -1587,43 +1332,6 @@ namespace Namines.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKey", b =>
-                {
-                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("CreatedByUser");
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKeyAllowedIp", b =>
-                {
-                    b.HasOne("Namines.Core.Models.Auth.GatewayApiKey", null)
-                        .WithMany("IpRules")
-                        .HasForeignKey("ApiKeyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKeyAllowedOrigin", b =>
-                {
-                    b.HasOne("Namines.Core.Models.Auth.GatewayApiKey", null)
-                        .WithMany("OriginRules")
-                        .HasForeignKey("ApiKeyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTableMaskedColumn", b =>
-                {
-                    b.HasOne("Namines.Core.Models.Auth.GatewayTablePermission", null)
-                        .WithMany("MaskedColumnRules")
-                        .HasForeignKey("TablePermissionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Namines.Core.Models.Auth.GroundDatabase", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
@@ -1799,18 +1507,6 @@ namespace Namines.Infrastructure.Migrations
             modelBuilder.Entity("Namines.Core.Models.Auth.ChangeRequest", b =>
                 {
                     b.Navigation("Approvals");
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayApiKey", b =>
-                {
-                    b.Navigation("IpRules");
-
-                    b.Navigation("OriginRules");
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Auth.GatewayTablePermission", b =>
-                {
-                    b.Navigation("MaskedColumnRules");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.Organization", b =>

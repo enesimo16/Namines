@@ -52,7 +52,7 @@ public sealed class DefaultBranchVerbTests : IAsyncLifetime
 
     /// <summary>Bu iki uç yalnızca DbContext'e dokunuyor; diğer bağımlılıklar kullanılmıyor.</summary>
     private static BranchController NewController(AuthDbContext db, string userId) =>
-        new(TestModules.For(db).BranchService, TestModules.For(db).Branches, databases: null!, billing: db)
+        new(TestModules.For(db).BranchService, TestModules.For(db).Branches, databases: null!, usage: TestModules.For(db).Usage)
         {
             ControllerContext = new ControllerContext
             {

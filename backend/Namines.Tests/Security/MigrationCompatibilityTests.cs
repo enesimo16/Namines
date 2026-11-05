@@ -55,6 +55,10 @@ public class MigrationCompatibilityTests
     /// </summary>
     private static readonly Dictionary<string, string> DeliberateExceptions = new()
     {
+        ["20261105163819_Phase14_2D1_DropModuleOrganizationCopies"] =
+            "14.2D-1 zaten durdur-migrate-aç dağıtımı: aynı sürümde tablolar şema değiştiriyor, eski kod yeni şemada " +
+            "çalışmaz (fail-closed). Kolonlar hiç okunmuyordu; geri dönüşte Down projeden doldurur " +
+            "(bkz. PHASE_14_2D_1_REPORT.md).",
         ["20261105114438_Phase14_2C_NormalizeCollections"] =
             "CSV kolonları tek işlemde ilişkisel tablolara ve fiziksel DROP (sahibin kararı). Ham SQL olduğu için " +
             "kural yakalamıyor ama kayıt burada: eski kod yeni şemada ÇALIŞMAZ ve bu fail-closed'dır (sorgu hatası, " +

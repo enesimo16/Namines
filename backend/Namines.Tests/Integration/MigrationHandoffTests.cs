@@ -233,13 +233,36 @@ public sealed class MigrationHandoffTests : IAsyncLifetime
     }
 
     [RequiresDockerFact]
+    public async Task Dropped_organization_copies_come_back_from_projects_on_rollback()
+    {
+        var cs = await NewDatabaseAsync("orgcopies");
+        await MigrateAuthToAsync(cs, TestModules.Level14_2C);
+        await TestModules.SeedLiveAsync(cs);
+        await ExecAsync(cs, """
+            INSERT INTO ground.ground_databases ("Id","ProjectId","OrganizationId","Provider","Status","CreatedAt")
+            VALUES ('g1','p1','stale','Fake',0,now());
+            """);
+        await TestModules.MigrateAllAsync(cs);
+        Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'ground' AND table_name = 'ground_databases' AND column_name = 'OrganizationId'"));
+        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM ground.ground_databases"));
+
+        foreach (var module in TestModules.Descriptors.Where(d => d.Module != "Auth").OrderByDescending(d => d.Order))
+        {
+            await using var ctx = module.CreateContext(cs);
+            await ctx.GetService<IMigrator>().MigrateAsync("0");
+        }
+        await MigrateAuthToAsync(cs, TestModules.Level14_2C);
+        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM ground.ground_databases WHERE \"OrganizationId\" = 'o1'"));
+    }
+
+    [RequiresDockerFact]
     public async Task Interrupted_run_resumes_from_the_failed_module()
     {
         var cs = await NewDatabaseAsync("resume");
         await TestModules.MigrateAllAsync(cs, upToAuthOnly: true);
 
         // Bir modül zinciri çalışmadan önce engel: hedef şemada aynı adlı tablo. Orkestratör düşmeli.
-        var (schema, table) = TestModules.MovedTables[0];
+        var (schema, table) = ("studio", "Branches");
         await ExecAsync(cs, $"CREATE SCHEMA IF NOT EXISTS \"{schema}\"; CREATE TABLE \"{schema}\".\"{table}\" (x int);");
         await Assert.ThrowsAnyAsync<PostgresException>(() => TestModules.MigrateAllAsync(cs));
 

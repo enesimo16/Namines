@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Gateway.Domain;
 
 /// <summary>Gateway üzerinden yapılan yazma işleminin türü.</summary>
 public enum GatewayWriteKind

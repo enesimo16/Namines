@@ -59,7 +59,8 @@ public sealed record SetTablePermissionRequest(
 [Route("api/gateway/keys")]
 public class GatewayKeyController : ControllerBase
 {
-    private readonly AuthDbContext _context;
+    private readonly IGatewayKeyService _keys;
+    private readonly IGatewayAuditLog _audit;
     private readonly IDbHostAccessPolicy _hostPolicy;
     private readonly IDbIntrospectionService _introspection;
     private readonly IGroundModule? _ground;
@@ -67,22 +68,21 @@ public class GatewayKeyController : ControllerBase
 
     private readonly ITenantProjectAuthority _authority;
     private readonly IStudioProjects _projects;
-    private readonly IStudioBranches _branches;
 
     public GatewayKeyController(
-        AuthDbContext context,
+        IGatewayKeyService keys,
+        IGatewayAuditLog audit,
         IDbHostAccessPolicy hostPolicy,
         IDbIntrospectionService introspection,
         IProjectConnectionSecretProvider secretProvider,
         ITenantProjectAuthority authority,
         IStudioProjects projects,
-        IStudioBranches branches,
         IGroundModule? ground = null)
     {
-        _context = context;
+        _keys = keys;
+        _audit = audit;
         _authority = authority;
         _projects = projects;
-        _branches = branches;
         _hostPolicy = hostPolicy;
         _introspection = introspection;
         _ground = ground;
@@ -95,8 +95,8 @@ public class GatewayKeyController : ControllerBase
     /// Anahtar üretmek ve tablo açmak yönetim işidir — 05 §6'ya göre Admin ve üstü.
     /// Editor yetkisi şema yazmaya yeter ama bir tabloyu internete açmaya yetmemeli.
     /// </summary>
-    private async Task<bool> CanManageAsync(string projectId, string userId) =>
-        await _authority.CanManageMembersAsync(projectId, userId);
+    private Task<bool> CanManageAsync(string projectId, string userId) =>
+        _keys.CanManageAsync(userId, projectId);
 
     /// <summary>
     /// Namines Desk v2 §E4.2 / 34-SENDEN-BEKLENENLER.md madde 13 — SQL konsolunu
@@ -113,78 +113,14 @@ public class GatewayKeyController : ControllerBase
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Project not found." });
+        var outcome = await _keys.CreateAsync(userId, projectId, new CreateKeyCommand(
+            request.Name, request.CanWrite, request.CanExecuteSql, request.CanExport, request.ExpiresAt,
+            request.AllowedOrigins, request.AllowedIps, request.RateLimitPerMinute), ct);
+        if (!outcome.IsOk) return Fail(outcome);
 
-        if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { error = "A name is required for the key." });
-
-        // Sıfır ya da negatif bir limit anahtarı tamamen kullanılamaz kılardı; bunu
-        // "limit yok" saymak da yanlış olurdu, o yüzden açıkça reddediliyor.
-        // Doğrulama anahtar üretilmeden ÖNCE: reddedilecek bir istek için entropi
-        // harcamak ve yarı kurulmuş bir nesne bırakmak gereksiz.
-        if (request.RateLimitPerMinute is <= 0)
-            return BadRequest(new { error = "Rate limit must be greater than zero." });
-
-        // İstek hakkı PLANIN tavanını aşamaz. Aksi hâlde ücretsiz bir hesap kendine
-        // 100.000 rpm'lik bir anahtar üretip planı anlamsız kılardı — ve bunu
-        // fark etmenin tek yolu faturaya bakmak olurdu.
-        var account = await _context.Users
-            .Where(u => u.Id == userId)
-            .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
-            .FirstOrDefaultAsync(ct);
-
-        var tier = PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false);
-        var planCeiling = PlanQuotas.For(tier).GatewayRequestsPerMinute;
-
-        if (request.RateLimitPerMinute > planCeiling)
-            return BadRequest(new
-            {
-                error = $"The {tier} plan allows at most {planCeiling} requests per minute per key.",
-            });
-
-        // Ham SQL ve toplu dışa aktarım yetkileri ÜRETENİN kendi rolünden daha geniş
-        // OLAMAZ.
-        //
-        // Bulunan açık (docs/last-review H-3): bu uç `CanManageAsync` (Admin|Owner)
-        // ile korunuyordu ve `CanExecuteSql` doğrudan gövdeden geliyordu. Yani bir
-        // Admin kendine ham-SQL kapsamlı bir anahtar basıp projeye SAKLI üretim
-        // bağlantısında keyfi DDL çalıştırabiliyordu — `SetDeskSqlEnabled`'ın
-        // Owner-only eşiği (bkz. IsOwnerAsync'in sınıf yorumu) anahtar yolundan
-        // tamamen aşılıyordu. Yetki yükseltmenin kendisi buydu.
-        if ((request.CanExecuteSql || request.CanExport) && !await IsOwnerAsync(projectId, userId))
-            return StatusCode(403, new
-            {
-                error = "Only the project Owner can grant raw SQL or bulk export to a key. " +
-                        "Raw SQL bypasses table permissions, and export downloads whole tables.",
-            });
-
-        // Liste geçersizse anahtar HİÇ üretilmez: geçersiz girdiyi sessizce atmak, kullanıcının
-        // kısıtladığını sandığı bir anahtarı daha geniş ya da kullanılamaz bırakırdı.
-        var origins = GatewayAllowlistRules.ParseOrigins(request.AllowedOrigins);
-        if (AllowlistError("origin", origins, request.AllowedOrigins) is { } originError)
-            return BadRequest(new { error = originError });
-
-        var ips = GatewayAllowlistRules.ParseIps(request.AllowedIps);
-        if (AllowlistError("IP or CIDR", ips, request.AllowedIps) is { } ipError)
-            return BadRequest(new { error = ipError });
-
-        var (entity, rawKey) = GatewayAccess.CreateKey(
-            projectId, request.Name.Trim(), userId, request.CanWrite, request.ExpiresAt);
-
-        entity.CanExecuteSql = request.CanExecuteSql;
-        entity.CanExport = request.CanExport;
-        GatewayAllowlistRules.ApplyOrigins(entity, origins.Entries);
-        GatewayAllowlistRules.ApplyIps(entity, ips.Entries);
-        // Belirtilmemişse planın hakkı: kullanıcıyı bir sayı uydurmaya zorlamak,
-        // çoğu kişinin ya çok düşük ya çok yüksek seçmesi demek.
-        entity.RateLimitPerMinute = request.RateLimitPerMinute ?? planCeiling;
-
-        _context.GatewayApiKeys.Add(entity);
-        await _context.SaveChangesAsync(ct);
-
-        // Ham anahtar SADECE BURADA döner. Kayıtta yalnızca özeti var; bu yanıt
+        // Ham anahtar SADECE burada döner. Kayıtta yalnızca özeti var; bu yanıt
         // kaybolursa anahtar geri getirilemez, yenisi üretilir.
+        var entity = outcome.Value!;
         return Ok(new
         {
             entity.Id,
@@ -194,10 +130,10 @@ public class GatewayKeyController : ControllerBase
             entity.CanExecuteSql,
             entity.CanExport,
             entity.ExpiresAt,
-            AllowedOrigins = GatewayAllowlistRules.DisplayOrigins(entity.RestrictOrigins, origins.Entries),
-            AllowedIps = GatewayAllowlistRules.DisplayIps(entity.RestrictIps, ips.Entries),
+            entity.AllowedOrigins,
+            entity.AllowedIps,
             entity.RateLimitPerMinute,
-            key = rawKey,
+            key = entity.Key,
             warning = "This is the only time the key is shown. Store it now.",
         });
     }
@@ -207,48 +143,10 @@ public class GatewayKeyController : ControllerBase
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Project not found." });
-
-        var keys = await _context.GatewayApiKeys
-            .AsNoTracking()
-            .Where(k => k.ProjectId == projectId)
-            .OrderByDescending(k => k.CreatedAt)
-            // KeyHash bilinçli olarak dışarıda: gösterilecek bir değer değil.
-            .Select(k => new
-            {
-                k.Id, k.Name, k.Prefix, k.CanWrite, k.CanExecuteSql, k.CanExport,
-                k.RestrictOrigins, k.RestrictIps,
-                Origins = k.OriginRules.OrderBy(o => o.Position).Select(o => o.Origin).ToList(),
-                Ips = k.IpRules.OrderBy(i => i.Position).Select(i => i.Cidr).ToList(),
-                k.RateLimitPerMinute,
-                k.CreatedAt, k.ExpiresAt, k.RevokedAt, k.LastUsedAt,
-            })
-            .AsSplitQuery()
-            .ToListAsync(ct);
-
-        return Ok(keys.Select(k => new
-        {
-            k.Id, k.Name, k.Prefix, k.CanWrite, k.CanExecuteSql, k.CanExport,
-            AllowedOrigins = GatewayAllowlistRules.DisplayOrigins(k.RestrictOrigins, k.Origins),
-            AllowedIps = GatewayAllowlistRules.DisplayIps(k.RestrictIps, k.Ips),
-            k.RateLimitPerMinute,
-            k.CreatedAt, k.ExpiresAt, k.RevokedAt, k.LastUsedAt,
-        }));
+        var outcome = await _keys.ListAsync(userId, projectId, ct);
+        return outcome.IsOk ? Ok(outcome.Value) : Fail(outcome);
     }
 
-    /// <summary>
-    /// Projenin denetim kaydı (07 §5, Namines Desk D6 06-LOGS.md §4).
-    ///
-    /// <b>Anahtar yönetimiyle aynı yetki isteniyor (Admin ve üstü).</b> Denetim
-    /// kaydı kimin neye dokunduğunu gösterir; onu okuyabilmek, projenin veri
-    /// hareketlerinin tamamını görebilmek demektir ve bu bir yönetim yetkisidir.
-    /// Desk bu kuralı GEVŞETMİYOR (06-LOGS.md §4 yetki notu) — Viewer/Editor bu
-    /// ekranı görür ama açıklayıcı bir 403 alır, boş liste değil.
-    ///
-    /// Kayıt <b>yalnızca okunabilir</b> — silme ya da düzenleme ucu YOK. Silinebilen
-    /// bir denetim kaydı, tam olarak lazım olduğu anda kaybolur.
-    /// </summary>
     [HttpGet("{projectId}/audit")]
     public async Task<IActionResult> AuditTrail(
         string projectId,
@@ -261,50 +159,20 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        // 404 yalnızca proje gerçekten görünmezse (Viewer bile değilse) — hangi
-        // projelerin var olduğunu sızdırmamak için (AuthorizeAsync'teki aynı
-        // gerekçe). Görüyor ama Admin değilse 403 + AÇIK sebep: kabul kriteri 5
-        // "yetkisiz kullanıcı açıklayıcı mesaj görür, boş liste değil".
-        if (!await _authority.CanViewAsync(projectId, userId, ct))
-            return NotFound(new { error = "Project not found." });
-        if (!await CanManageAsync(projectId, userId))
-            return StatusCode(403, new { error = "Admin permission is required for this section." });
+        // 404 yalnızca proje gerçekten görünmezse; görüyor ama Admin değilse 403 + açık sebep.
+        var outcome = await _audit.TrailAsync(userId, projectId, new AuditQuery(from, to, kinds, tableName, succeeded, page, pageSize), ct);
+        if (!outcome.IsOk) return Fail(outcome);
 
-        var (entries, totalCount) = await _context.AuditTrailAsync(
-            projectId, from, to, kinds, tableName, succeeded, page, pageSize, ct);
-
+        var trail = outcome.Value!;
         return Ok(new
         {
-            totalCount,
+            totalCount = trail.TotalCount,
             page,
             pageSize,
-            entries = entries.Select(e => new
-            {
-                e.Id,
-                kind = e.Kind.ToString().ToLowerInvariant(),
-                e.TableName,
-                e.RowKey,
-                e.Columns,
-                e.AffectedRows,
-                e.Succeeded,
-                e.ApiKeyPrefix,
-                e.ActorUserId,
-                e.CreatedAt,
-            }),
+            entries = trail.Entries,
         });
     }
 
-    /// <summary>
-    /// Namines Desk — Analytics (D7, 07-ANALYTICS.md §3). Rota, doc'un tarif
-    /// ettiği <c>/api/gateway/analytics/{projectId}</c> ile birebir eşleşsin
-    /// diye bu controller'ın <c>api/gateway/keys</c> önekini AÇIKÇA aşıyor
-    /// (baştaki <c>/</c>) — mantıksal olarak Logs'la (bu dosyadaki `/audit`)
-    /// aynı yetki/veri katmanına ait olduğu için burada duruyor, ayrı bir
-    /// controller açmak gereksiz bölünme olurdu.
-    ///
-    /// <b>Yetki Logs ile aynı (Admin ve üstü):</b> toplamlar da projenin veri
-    /// hareketinin tamamını açığa vuruyor.
-    /// </summary>
     [HttpGet("/api/gateway/analytics/{projectId}")]
     public async Task<IActionResult> Analytics(
         string projectId, [FromQuery] DateTime? from = null, [FromQuery] DateTime? to = null,
@@ -313,16 +181,13 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await _authority.CanViewAsync(projectId, userId, ct))
-            return NotFound(new { error = "Project not found." });
-        if (!await CanManageAsync(projectId, userId))
-            return StatusCode(403, new { error = "Admin permission is required for this section." });
-
         var effectiveTo = to ?? DateTime.UtcNow;
         var effectiveFrom = from ?? effectiveTo.AddDays(-7);
         var effectiveBucket = bucket == "hour" ? "hour" : "day";
 
-        var result = await _context.AnalyticsAsync(_branches, projectId, effectiveFrom, effectiveTo, effectiveBucket, ct);
+        var analytics = await _audit.AnalyticsAsync(userId, projectId, effectiveFrom, effectiveTo, effectiveBucket, ct);
+        if (!analytics.IsOk) return Fail(analytics);
+        var result = analytics.Value!;
 
         return Ok(new
         {
@@ -349,37 +214,18 @@ public class GatewayKeyController : ControllerBase
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Project not found." });
-
-        var key = await _context.GatewayApiKeys
-            .FirstOrDefaultAsync(k => k.Id == keyId && k.ProjectId == projectId, ct);
-        if (key is null) return NotFound(new { error = "Key not found." });
-
-        // Silinmez, işaretlenir: "ne zaman iptal edildi" sorusu cevapsız kalmasın.
-        key.RevokedAt ??= DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
-
-        return NoContent();
+        var outcome = await _keys.RevokeAsync(userId, projectId, keyId, ct);
+        return outcome.IsOk ? NoContent() : Fail(outcome);
     }
 
-    /// <summary>
-    /// Boş/whitespace "kısıt yok" demek. Yalnızca virgülden oluşan metin ise hata: eskiden kısıtsız
-    /// anahtar üretiyordu, oysa yazan kişi bir şey kısıtladığını sanıyordu.
-    /// </summary>
-    private static string? AllowlistError(string kind, AllowlistParseResult parsed, string? raw)
+    private IActionResult Fail<T>(ModuleOutcome<T> outcome) => outcome.Kind switch
     {
-        if (parsed.Invalid.Count > 0)
-            return $"Invalid {kind} entry: '{parsed.Invalid[0]}'. " +
-                   (kind == "origin"
-                       ? "Use scheme://host[:port] with no path or trailing slash. Wildcards are not supported."
-                       : "Use a plain address or address/prefix.");
-        if (parsed.Entries.Count > GatewayAllowlistRules.MaxEntriesPerList)
-            return $"At most {GatewayAllowlistRules.MaxEntriesPerList} {kind} entries are allowed per key.";
-        if (!parsed.HasAnyEntry && !string.IsNullOrWhiteSpace(raw))
-            return $"The {kind} list has no entries. Leave it empty for no restriction.";
-        return null;
-    }
+        ModuleOutcomeKind.NotFound => NotFound(new { error = outcome.Error }),
+        ModuleOutcomeKind.Invalid => BadRequest(new { error = outcome.Error }),
+        ModuleOutcomeKind.Forbidden => StatusCode(403, new { error = outcome.Error }),
+        ModuleOutcomeKind.Conflict => Conflict(new { error = outcome.Error }),
+        _ => StatusCode(500),
+    };
 
     // ── Tablo izinleri ───────────────────────────────────────────────────────
 
@@ -388,108 +234,19 @@ public class GatewayKeyController : ControllerBase
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Project not found." });
-
-        var permissions = await _context.GatewayTablePermissions
-            .AsNoTracking()
-            .Where(p => p.ProjectId == projectId)
-            .OrderBy(p => p.TableName)
-            .Select(p => new
-            {
-                p.TableName, p.CanRead, p.CanWrite, p.CanExport, p.UpdatedAt,
-                Masked = p.MaskedColumnRules.OrderBy(m => m.Position).Select(m => m.ColumnName).ToList(),
-            })
-            .ToListAsync(ct);
-
-        return Ok(permissions.Select(p => new
-        {
-            p.TableName, p.CanRead, p.CanWrite, p.CanExport,
-            MaskedColumns = GatewayAllowlistRules.DisplayMaskedColumns(p.Masked), p.UpdatedAt,
-        }));
+        var outcome = await _keys.ListPermissionsAsync(userId, projectId, ct);
+        return outcome.IsOk ? Ok(outcome.Value) : Fail(outcome);
     }
 
-    /// <summary>
-    /// Bir tablonun API anahtarlarına açıklığını belirler.
-    ///
-    /// Kayıt yokluğu = erişim yok (08 §1). Bu yüzden hem <c>canRead</c> hem
-    /// <c>canWrite</c> false verildiğinde satır SİLİNİR: "her ikisi de kapalı" ile
-    /// "hiç kayıt yok" aynı anlama gelir, iki farklı temsil tutmak listeyi
-    /// yanıltıcı kılardı.
-    /// </summary>
     [HttpPut("{projectId}/tables")]
     public async Task<IActionResult> SetTablePermission(string projectId, [FromBody] SetTablePermissionRequest request, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        if (!await CanManageAsync(projectId, userId))
-            return NotFound(new { error = "Project not found." });
-
-        if (string.IsNullOrWhiteSpace(request.TableName))
-            return BadRequest(new { error = "A table name is required." });
-
-        var masked = GatewayAllowlistRules.ParseMaskedColumns(request.MaskedColumns);
-        if (masked.Any(m => m.Length > GatewayAllowlistRules.MaxMaskedColumnLength))
-            return BadRequest(new { error = $"A masked column name can be at most {GatewayAllowlistRules.MaxMaskedColumnLength} characters." });
-
-        var existing = await _context.GatewayTablePermissions
-            .Include(p => p.MaskedColumnRules)
-            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.TableName == request.TableName, ct);
-
-        if (!request.CanRead && !request.CanWrite)
-        {
-            if (existing is not null) _context.GatewayTablePermissions.Remove(existing);
-            await _context.SaveChangesAsync(ct);
-            return NoContent();
-        }
-
-        if (existing is null)
-        {
-            existing = new GatewayTablePermission
-            {
-                ProjectId = projectId,
-                TableName = request.TableName,
-            };
-            _context.GatewayTablePermissions.Add(existing);
-        }
-
-        existing.CanRead = request.CanRead;
-        // Yazma okumayı ima eder: yazabilen ama okuyamayan bir istemci, yazdığını
-        // doğrulayamaz ve bu neredeyse her zaman istenmeyen bir yapılandırmadır.
-        if (request.CanWrite) existing.CanRead = true;
-        existing.CanWrite = request.CanWrite;
-        // Dışa aktarım okumayı İMA ETMEZ, GEREKTİRİR: okunamayan bir tabloyu
-        // indirmek, okuma iznini anlamsız kılardı. O yüzden CanRead kapalıysa
-        // CanExport da kapanıyor — sessizce yok sayılmıyor.
-        existing.CanExport = request.CanExport && existing.CanRead;
-        SyncMaskedColumns(existing, masked);
-        existing.UpdatedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync(ct);
-        return Ok(new
-        {
-            existing.TableName, existing.CanRead, existing.CanWrite,
-            existing.CanExport, MaskedColumns = GatewayAllowlistRules.DisplayMaskedColumns(masked),
-        });
-    }
-
-    /// <summary>
-    /// Var olan satır korunur, yalnızca fark yazılır. Listeyi silip yeniden eklemek gerekmiyor ve
-    /// aynı SaveChanges işleminde kaldığı için maskesiz görünen bir an oluşmuyor.
-    /// </summary>
-    private static void SyncMaskedColumns(GatewayTablePermission permission, IReadOnlyList<string> columns)
-    {
-        foreach (var stale in permission.MaskedColumnRules.Where(m => !columns.Contains(m.ColumnName, StringComparer.Ordinal)).ToList())
-            permission.MaskedColumnRules.Remove(stale);
-
-        for (var i = 0; i < columns.Count; i++)
-        {
-            var row = permission.MaskedColumnRules.FirstOrDefault(m => string.Equals(m.ColumnName, columns[i], StringComparison.Ordinal));
-            if (row is null)
-                permission.MaskedColumnRules.Add(new GatewayTableMaskedColumn { TablePermissionId = permission.Id, ColumnName = columns[i], Position = i });
-            else
-                row.Position = i;
-        }
+        var outcome = await _keys.SetPermissionAsync(userId, projectId, new PermissionCommand(
+            request.TableName, request.CanRead, request.CanWrite, request.CanExport, request.MaskedColumns), ct);
+        if (!outcome.IsOk) return Fail(outcome);
+        return outcome.Value is null ? NoContent() : Ok(outcome.Value);
     }
 
     // ── Namines Desk: projeye bağlı CANLI veritabanı bağlantısı ──────────────

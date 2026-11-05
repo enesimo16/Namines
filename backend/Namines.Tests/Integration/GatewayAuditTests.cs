@@ -53,7 +53,7 @@ public class GatewayAuditTests : IAsyncLifetime
         await context.RecordAuditAsync(Key(), null, GatewayWriteKind.Update, "users", "42",
             new[] { "email", "note" }, affectedRows: 1, succeeded: true);
 
-        var entry = await context.GatewayAuditEntries.SingleAsync();
+        var entry = await context.Gateway().GatewayAuditEntries.SingleAsync();
 
         Assert.Equal("p1", entry.ProjectId);
         Assert.Equal("nmn_abc123", entry.ApiKeyPrefix);
@@ -75,7 +75,7 @@ public class GatewayAuditTests : IAsyncLifetime
         await context.RecordAuditAsync(Key(), null, GatewayWriteKind.Delete, "users", "7",
             null, affectedRows: 0, succeeded: false);
 
-        var entry = await context.GatewayAuditEntries.SingleAsync();
+        var entry = await context.Gateway().GatewayAuditEntries.SingleAsync();
 
         Assert.False(entry.Succeeded);
         Assert.Equal(0, entry.AffectedRows);
@@ -92,7 +92,7 @@ public class GatewayAuditTests : IAsyncLifetime
         await context.RecordAuditAsync(Key(), null, GatewayWriteKind.Create, "users", null,
             new[] { "email" }, affectedRows: 1, succeeded: true);
 
-        var entry = await context.GatewayAuditEntries.SingleAsync();
+        var entry = await context.Gateway().GatewayAuditEntries.SingleAsync();
 
         Assert.Equal("email", entry.Columns);
         // Modelde değeri tutacak bir alan olmadığını da kilitliyoruz: sonradan
@@ -108,7 +108,7 @@ public class GatewayAuditTests : IAsyncLifetime
 
         await context.RecordAuditAsync(null, "user-9", GatewayWriteKind.Sql, null, null, null, 3, true);
 
-        var entry = await context.GatewayAuditEntries.SingleAsync();
+        var entry = await context.Gateway().GatewayAuditEntries.SingleAsync();
 
         Assert.Equal("user-9", entry.ActorUserId);
         Assert.Null(entry.ApiKeyId);
@@ -124,7 +124,7 @@ public class GatewayAuditTests : IAsyncLifetime
 
         for (var i = 0; i < 10; i++)
         {
-            context.GatewayAuditEntries.Add(new GatewayAuditEntry
+            context.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry
             {
                 ProjectId = "p1", Kind = GatewayWriteKind.Create, TableName = "t" + i,
                 CreatedAt = DateTime.UtcNow.AddMinutes(i),
@@ -145,7 +145,7 @@ public class GatewayAuditTests : IAsyncLifetime
     {
         await using var context = Context();
         for (var i = 0; i < 3; i++)
-            context.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p1" });
+            context.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p1" });
         await context.SaveChangesAsync();
 
         Assert.Equal(3, (await context.AuditTrailAsync("p1", pageSize: 100_000)).Entries.Count);
@@ -156,8 +156,8 @@ public class GatewayAuditTests : IAsyncLifetime
     public async Task One_project_cannot_see_another_projects_trail()
     {
         await using var context = Context();
-        context.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p1", TableName = "mine" });
-        context.GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p2", TableName = "theirs" });
+        context.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p1", TableName = "mine" });
+        context.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p2", TableName = "theirs" });
         await context.SaveChangesAsync();
 
         var (trail, totalCount) = await context.AuditTrailAsync("p1", pageSize: 100);

@@ -4,6 +4,9 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Contracts;
 using Namines.BuildingBlocks.Security;
+using Namines.Gateway.Application;
+using Namines.Gateway.Domain;
+using Namines.Gateway.Infrastructure.Persistence;
 using Namines.Hub.Application;
 using Namines.Hub.Domain;
 using Namines.Hub.Infrastructure.Persistence;
@@ -34,6 +37,7 @@ public sealed class ModuleKit
         Db = db;
         Studio = new StudioDbContext(ModuleOptions<StudioDbContext>(connectionString, interceptors));
         Hub = new HubDbContext(ModuleOptions<HubDbContext>(connectionString, interceptors));
+        Gateway = new GatewayDbContext(ModuleOptions<GatewayDbContext>(connectionString, interceptors));
         Ops = new OpsDbContext(ModuleOptions<OpsDbContext>(connectionString, interceptors));
         Transaction = new CrossModuleTransaction(db, Participants(), new SharedTransactionManager());
         HookFlush();
@@ -54,6 +58,7 @@ public sealed class ModuleKit
         Db = db;
         Studio = new StudioDbContext(SharedConnectionOptions<StudioDbContext>(db));
         Hub = new HubDbContext(SharedConnectionOptions<HubDbContext>(db));
+        Gateway = new GatewayDbContext(SharedConnectionOptions<GatewayDbContext>(db));
         Ops = new OpsDbContext(SharedConnectionOptions<OpsDbContext>(db));
         Transaction = new CrossModuleTransaction(db, Participants(), new SharedTransactionManager());
         HookFlush();
@@ -66,6 +71,7 @@ public sealed class ModuleKit
     {
         yield return Studio;
         yield return Hub;
+        yield return Gateway;
         yield return Ops;
     }
 
@@ -99,6 +105,12 @@ public sealed class ModuleKit
     public AuthDbContext Db { get; }
     internal StudioDbContext Studio { get; }
     internal HubDbContext Hub { get; }
+    internal GatewayDbContext Gateway { get; }
+    public IGatewayAccess GatewayAccess => new GatewayAccessService(Gateway, DefaultAuthority);
+    public IGatewayAuditLog GatewayAudit => new GatewayAuditLog(Gateway, DefaultAuthority, Branches);
+    public IGatewayKeyService GatewayKeys => new GatewayKeyService(Gateway, DefaultAuthority, Identity);
+    public IGatewayMaintenance GatewayMaintenance => new GatewayKeyService(Gateway, DefaultAuthority, Identity);
+    public IUsageMeter Usage => new UsageMeterBridge(Db);
     public IStudioApplicationService StudioService => new StudioApplicationService(Studio);
     public IHubApplicationService HubService => new HubApplicationService(Hub);
     public ICrossModuleTransaction Transaction { get; }
@@ -209,6 +221,25 @@ public static partial class TestModules
     internal static OpsDbContext Ops(this AuthDbContext db) => For(db).Ops;
     internal static StudioDbContext Studio(this AuthDbContext db) => For(db).Studio;
     internal static HubDbContext Hub(this AuthDbContext db) => For(db).Hub;
+    internal static GatewayDbContext Gateway(this AuthDbContext db) => For(db).Gateway;
+
+    // Gateway'in eski yardımcı biçimleri: testler aynı kuralları sözleşmeden sınar.
+    public static Task<GatewayApiKey?> AuthenticateAsync(this AuthDbContext db, string? rawKey, CancellationToken ct = default) =>
+        For(db).GatewayAccess.AuthenticateAsync(rawKey, ct);
+    public static Task<bool> IsTableAllowedAsync(this AuthDbContext db, GatewayApiKey key, string table, bool forWrite, CancellationToken ct = default) =>
+        For(db).GatewayAccess.IsTableAllowedAsync(key, table, forWrite, ct);
+    public static Task<bool> IsTableExportAllowedAsync(this AuthDbContext db, GatewayApiKey key, string table, CancellationToken ct = default) =>
+        For(db).GatewayAccess.IsTableExportAllowedAsync(key, table, ct);
+    public static Task<IReadOnlyList<string>> MaskedColumnsAsync(this AuthDbContext db, string projectId, string table, CancellationToken ct = default) =>
+        For(db).GatewayAccess.MaskedColumnsAsync(projectId, table, ct);
+    public static Task<IReadOnlyList<GatewayTablePermission>> ReadableTablesAsync(this AuthDbContext db, string projectId, CancellationToken ct = default) =>
+        For(db).GatewayAccess.ReadableTablesAsync(projectId, ct);
+    public static Task RecordAuditAsync(this AuthDbContext db, GatewayApiKey? key, string? actorUserId, GatewayWriteKind kind, string? tableName, string? rowKey, IEnumerable<string>? columns, int affectedRows, bool succeeded, CancellationToken ct = default, string? projectId = null) =>
+        For(db).GatewayAudit.RecordAsync(key, actorUserId, kind, tableName, rowKey, columns, affectedRows, succeeded, ct, projectId);
+    public static Task<(List<GatewayAuditEntry> Entries, int TotalCount)> AuditTrailAsync(this AuthDbContext db, string projectId, DateTime? from = null, DateTime? to = null, IReadOnlyList<GatewayWriteKind>? kinds = null, string? tableName = null, bool? succeeded = null, int page = 1, int pageSize = 100, CancellationToken ct = default) =>
+        new GatewayAuditLog(For(db).Gateway, For(db).DefaultAuthority, For(db).Branches).QueryTrailAsync(projectId, new AuditQuery(from, to, kinds, tableName, succeeded, page, pageSize), ct);
+    public static Task<AnalyticsResult> AnalyticsAsync(this AuthDbContext db, string projectId, DateTime from, DateTime to, string bucket, CancellationToken ct = default) =>
+        new GatewayAuditLog(For(db).Gateway, For(db).DefaultAuthority, For(db).Branches).ComputeAnalyticsAsync(projectId, from, to, bucket, ct);
 
     // Yetki kuralı artık Studio'da; testlerin eski kısa yolları aynı sözleşmeye gider.
     public static Task<OrgRole?> GetRoleAsync(this AuthDbContext db, string projectId, string userId, CancellationToken ct = default) =>
@@ -260,6 +291,7 @@ public static partial class TestModules
         AuthMigrations.Descriptor,
         Namines.Studio.DependencyInjection.StudioServiceCollectionExtensions.MigrationDescriptor,
         Namines.Hub.DependencyInjection.HubServiceCollectionExtensions.MigrationDescriptor,
+        Namines.Gateway.DependencyInjection.GatewayServiceCollectionExtensions.MigrationDescriptor,
         Namines.Ops.DependencyInjection.OpsServiceCollectionExtensions.MigrationDescriptor,
     };
 

@@ -6,7 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Gateway.Domain;
 
 /// <summary>
 /// <c>gateway.api_key_allowed_origins</c>: anahtarın kabul ettiği tek bir <c>Origin</c>.

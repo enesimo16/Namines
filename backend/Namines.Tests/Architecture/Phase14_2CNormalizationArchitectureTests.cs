@@ -38,9 +38,9 @@ public sealed class Phase14_2CNormalizationArchitectureTests
         Assert.Null(entity.GetProperty(property, BindingFlags.Public | BindingFlags.Instance));
 
     [Theory]
-    [InlineData("GatewayAccess.cs")]
+    [InlineData("GatewayAccessService.cs")]
     [InlineData("GatewayKeyRestrictions.cs")]
-    [InlineData("RepoIssueLabelStore.cs")]
+    [InlineData("HubRepositoryService.cs")]
     [InlineData("GatewayController.cs")]
     [InlineData("HubController.cs")]
     public void Istek_yolunda_virgullu_metin_ayristirilmiyor(string file)
@@ -60,7 +60,7 @@ public sealed class Phase14_2CNormalizationArchitectureTests
                          s.Text.Contains("GatewayAllowlistRules.ParseMaskedColumns")))
             .Select(s => s.Name)
             .ToList();
-        Assert.Equal(new[] { "GatewayKeyController.cs" }, callers);
+        Assert.Equal(new[] { "GatewayKeyService.cs" }, callers);
     }
 
     [Fact]
@@ -90,9 +90,8 @@ public sealed class Phase14_2CNormalizationArchitectureTests
     [Fact]
     public void Her_eslenen_cocuk_tablo_dogru_semada()
     {
-        var options = new DbContextOptionsBuilder<AuthDbContext>()
-            .UseNpgsql("Host=localhost;Database=model-only").Options;
-        using var context = new AuthDbContext(options);
+        using var gateway = new GatewayDbContext(new DbContextOptionsBuilder<GatewayDbContext>().UseNpgsql("Host=localhost;Database=model-only").Options);
+        using var hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>().UseNpgsql("Host=localhost;Database=model-only").Options);
 
         (Type, string, string)[] expected =
         {
@@ -105,7 +104,7 @@ public sealed class Phase14_2CNormalizationArchitectureTests
 
         foreach (var (type, schema, table) in expected)
         {
-            var entity = context.Model.FindEntityType(type)!;
+            var entity = (gateway.Model.FindEntityType(type) ?? hub.Model.FindEntityType(type))!;
             Assert.Equal(schema, entity.GetSchema());
             Assert.Equal(table, entity.GetTableName());
             // Silme zinciri: çocuk satır sahipsiz kalamaz.

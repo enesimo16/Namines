@@ -388,11 +388,11 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         {
             await conn.OpenAsync();
             await using var dup = new NpgsqlCommand("""
-                INSERT INTO "RepoStars" ("ProjectId","UserId","CreatedAt") VALUES ('p1','dup-user',now());
+                INSERT INTO hub."RepoStars" ("ProjectId","UserId","CreatedAt") VALUES ('p1','dup-user',now());
                 """, conn);
             await Assert.ThrowsAsync<PostgresException>(() => dup.ExecuteNonQueryAsync()); // FK: yok olan kullanıcı
             await using var pk = new NpgsqlCommand("""
-                INSERT INTO "RepoStars" ("ProjectId","UserId","CreatedAt") VALUES ('p1','owner',now());
+                INSERT INTO hub."RepoStars" ("ProjectId","UserId","CreatedAt") VALUES ('p1','owner',now());
                 """, conn);
             var ex = await Assert.ThrowsAsync<PostgresException>(() => pk.ExecuteNonQueryAsync());
             Assert.Equal("23505", ex.SqlState);
@@ -466,7 +466,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await using var conn = new NpgsqlConnection(cs);
         await conn.OpenAsync();
         foreach (var table in new[] { "studio.projects WHERE \"Id\"", "studio.project_connections WHERE \"ProjectId\"", "studio.project_shares WHERE \"ProjectId\"",
-                     "hub.repositories WHERE \"ProjectId\"", "hub.project_tags WHERE \"ProjectId\"", "\"RepoStars\" WHERE \"ProjectId\"" })
+                     "hub.repositories WHERE \"ProjectId\"", "hub.project_tags WHERE \"ProjectId\"", "hub.\"RepoStars\" WHERE \"ProjectId\"" })
         {
             await using var cmd = new NpgsqlCommand($"SELECT count(*) FROM {table} = 'p1'", conn);
             Assert.Equal(0L, await cmd.ExecuteScalarAsync());
@@ -487,7 +487,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await using var d = Open(cs);
         var um = Users(d.Db);
         var service = new AccountDeletionService(d.Db, um, ProjectDeletionTestKit.Create(d.Db, d.Kit),
-            d.Kit.HubService, d.Kit.Transaction, NullLogger<AccountDeletionService>.Instance, d.Kit.Feedback, d.Kit.Projects);
+            d.Kit.HubService, d.Kit.Transaction, NullLogger<AccountDeletionService>.Instance, d.Kit.Feedback, d.Kit.Projects, d.Kit.GatewayMaintenance);
         var result = await service.DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
@@ -585,7 +585,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         // Eşleşen de aynı: ad, motor, tam etiket tek sorguda bulunuyor; kalan 650 satır taranmaz.
         var byName = await RunAsync(q: "needle");
         Assert.Equal(new[] { "real" }, byName.Ids);
-        Assert.Equal(5, byName.Commands); // repo, özet, etiket, şema, sahip adı
+        Assert.Equal(4, byName.Commands); // repo, proje (şema dahil), etiket, sahip adı
         Assert.Equal(new[] { "real" }, (await RunAsync(dbType: "mysql")).Ids);
         Assert.Equal(new[] { "real" }, (await RunAsync(q: "ALPHA")).Ids);
         Assert.DoesNotContain("real", (await RunAsync(q: "alph")).Ids); // etikette alt dizge yok
@@ -809,7 +809,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
         var result = await DataRetentionService.PurgeAsync(
             s.Db, DataRetentionService.RetentionOptions.From(new ConfigurationBuilder().Build()),
-            NullLogger.Instance, DateTime.UtcNow, TimeSpan.Zero, default, s.Kit.OpsRetention);
+            NullLogger.Instance, DateTime.UtcNow, TimeSpan.Zero, default, s.Kit.OpsRetention, s.Kit.GatewayMaintenance);
 
         Assert.Equal(1, result["PendingSubscriptionCancellations"]);
         var left = await s.Db.PendingSubscriptionCancellations.AsNoTracking().Select(c => c.Id).OrderBy(x => x).ToListAsync();
@@ -818,7 +818,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
     private static AccountDeletionService AccountDeletion(Scope s, ISubscriptionCanceller? canceller = null) =>
         new(s.Db, Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), s.Kit.HubService, s.Kit.Transaction,
-            NullLogger<AccountDeletionService>.Instance, s.Kit.Feedback, s.Kit.Projects, canceller);
+            NullLogger<AccountDeletionService>.Instance, s.Kit.Feedback, s.Kit.Projects, s.Kit.GatewayMaintenance, canceller);
 
     [RequiresDockerFact]
     public async Task Hesap_silme_varis_slug_cakismasi()
@@ -997,8 +997,8 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         var authority = s.Kit.Authority(_protector, devPolicy);
         await authority.SetConnectionAsync("p1", cs, "PostgreSQL");
 
-        var (key, raw) = GatewayAccess.CreateKey("p1", "key", "owner", canWrite: false, expiresAt: null);
-        s.Db.GatewayApiKeys.Add(key);
+        var (key, raw) = GatewayKeys.CreateKey("p1", "key", "owner", canWrite: false, expiresAt: null);
+        s.Db.Gateway().GatewayApiKeys.Add(key);
         await s.Db.SaveChangesAsync();
 
         GatewayController Gateway(IDbHostAccessPolicy policy, string? user, string? apiKey)
@@ -1007,7 +1007,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             if (apiKey != null) http.Request.Headers["X-Namines-Key"] = apiKey;
             var groq = new Namines.Infrastructure.AI.GroqAIService(new HttpClient(), _config, new HttpContextAccessor { HttpContext = http }, new MemoryCache(new MemoryCacheOptions()));
             return new GatewayController(
-                gateway: null!, context: s.Db, configuration: _config, groq: groq,
+                gateway: null!, access: TestModules.For(s.Db).GatewayAccess, audit: TestModules.For(s.Db).GatewayAudit, usage: TestModules.For(s.Db).Usage, configuration: _config, groq: groq,
                 logger: NullLogger<GatewayController>.Instance, quota: new AiQuotaService(s.Db, _config),
                 secrets: authority, studio: s.Kit.StudioService,
                 introspection: new DbIntrospectionService(NullLogger<DbIntrospectionService>.Instance, policy),

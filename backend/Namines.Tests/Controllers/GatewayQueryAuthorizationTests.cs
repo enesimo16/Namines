@@ -100,7 +100,7 @@ public sealed class GatewayQueryAuthorizationTests : IAsyncLifetime
         var quota = new Namines.Infrastructure.Data.AiQuotaService(db, new ConfigurationBuilder().Build());
 
         var controller = new GatewayController(
-            gateway: null!, context: db, configuration: new ConfigurationBuilder().Build(),
+            gateway: null!, access: TestModules.For(db).GatewayAccess, audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: new ConfigurationBuilder().Build(),
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
             secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {

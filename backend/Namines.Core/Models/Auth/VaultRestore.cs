@@ -19,8 +19,6 @@ public class VaultRestore
 
     public string ProjectId { get; set; } = null!;
 
-    public string? OrganizationId { get; set; }
-
     /// <summary>Geri yüklenen yedek. Yedek silinirse (elle/saklama) FK `SET NULL` — geri yükleme geçmişi kalır.</summary>
     public string? BackupId { get; set; }
 

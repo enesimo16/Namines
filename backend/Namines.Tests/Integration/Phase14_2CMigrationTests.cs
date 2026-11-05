@@ -36,7 +36,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
 
     private static async Task ExecAsync(string cs, string sql, params (string Name, object? Value)[] args)
     {
-        await using var conn = new NpgsqlConnection(cs);
+        await using var conn = new NpgsqlConnection(Sp(cs));
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(sql, conn) { CommandTimeout = 120 };
         foreach (var (name, value) in args) cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
@@ -45,7 +45,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
 
     private static async Task<long> CountAsync(string cs, string sql)
     {
-        await using var conn = new NpgsqlConnection(cs);
+        await using var conn = new NpgsqlConnection(Sp(cs));
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(sql, conn);
         return Convert.ToInt64(await cmd.ExecuteScalarAsync());
@@ -53,7 +53,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
 
     private static async Task<List<string>> DumpAsync(string cs, string sql)
     {
-        await using var conn = new NpgsqlConnection(cs);
+        await using var conn = new NpgsqlConnection(Sp(cs));
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand($"SELECT row_to_json(t)::text FROM ({sql}) t ORDER BY 1", conn);
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -64,18 +64,36 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
 
     private static async Task<string?> ScalarTextAsync(string cs, string sql)
     {
-        await using var conn = new NpgsqlConnection(cs);
+        await using var conn = new NpgsqlConnection(Sp(cs));
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(sql, conn);
         var value = await cmd.ExecuteScalarAsync();
         return value is null or DBNull ? null : (string)value;
     }
 
+    /// <summary>
+    /// Hedefsiz: üretimdeki tek yol, tüm zincirler. Hedefli: 14.2C'nin kendi adımları Auth zincirinde; modül
+    /// zincirleri uygulanmışsa önce geri alınır (runbook sırası), tablolar eski yerine döner.
+    /// </summary>
     private static async Task MigrateAsync(string cs, string? target = null)
     {
+        if (target is null)
+        {
+            await TestModules.MigrateAllAsync(cs);
+            return;
+        }
+        foreach (var module in TestModules.Descriptors.Where(d => d.Module != "Auth").OrderByDescending(d => d.Order))
+        {
+            await using var moduleContext = module.CreateContext(cs);
+            await moduleContext.GetService<IMigrator>().MigrateAsync("0");
+        }
         await using var ctx = Context(cs);
         await ctx.GetService<IMigrator>().MigrateAsync(target);
     }
+
+    /// <summary>Ham SQL dizgeleri şema adı yazmıyor: tablo hangi şemadaysa orada bulunur.</summary>
+    private static string Sp(string cs) =>
+        new NpgsqlConnectionStringBuilder(cs) { SearchPath = "public,gateway,hub,studio,ops" }.ConnectionString;
 
     private static readonly string[] Labels =
     {
@@ -152,7 +170,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
     private static async Task<List<GatewayApiKey>> LoadKeysAsync(string cs)
     {
         await using var ctx = Context(cs);
-        return await ctx.GatewayApiKeys.AsNoTracking().Include(k => k.OriginRules).Include(k => k.IpRules).AsSplitQuery().ToListAsync();
+        return await ctx.Gateway().GatewayApiKeys.AsNoTracking().Include(k => k.OriginRules).Include(k => k.IpRules).AsSplitQuery().ToListAsync();
     }
 
     [RequiresDockerFact]
@@ -175,7 +193,8 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM pg_trigger WHERE tgname = 'trg_repo_issue_labels_gc'"));
         Assert.Equal(5, await CountAsync(cs, """
             SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
-            WHERE c.contype = 'f' AND n.nspname IN ('gateway') OR (c.contype = 'f' AND c.conname IN ('FK_issue_labels_projects_ProjectId','FK_repo_issue_labels_RepoIssues_RepoIssueId'))
+            WHERE c.contype = 'f' AND ((n.nspname = 'gateway' AND c.conrelid::regclass::text ~ '(api_key_allowed_origins|api_key_allowed_ips|table_masked_columns)$')
+                OR c.conname IN ('FK_issue_labels_projects_ProjectId','FK_repo_issue_labels_RepoIssues_Project'))
             """));
     }
 
@@ -392,7 +411,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
     /// <summary>Tek oturumda: hazırlık, bozma, doğrulama. Doğrulama patlamalı, işlem geri alınır.</summary>
     private static async Task AssertVerifyRaisesAsync(string cs, string prepare, string corrupt, string verify, string expected)
     {
-        await using var conn = new NpgsqlConnection(cs);
+        await using var conn = new NpgsqlConnection(Sp(cs));
         await conn.OpenAsync();
         await using var tx = await conn.BeginTransactionAsync();
         foreach (var sql in new[] { prepare, corrupt })
@@ -416,7 +435,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         var verify = Phase14_2CNormalizationScripts.UpVerify;
 
         // Bozulmamış hâlde geçer: aşağıdakiler gerçekten bozmanın yakalandığını gösterir.
-        await using (var conn = new NpgsqlConnection(cs))
+        await using (var conn = new NpgsqlConnection(Sp(cs)))
         {
             await conn.OpenAsync();
             await using var tx = await conn.BeginTransactionAsync();
@@ -530,7 +549,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         var cs = await _pg.CreateDatabaseAsync("c_fuzz");
         await MigrateAsync(cs, Before);
 
-        await using var conn = new NpgsqlConnection(cs);
+        await using var conn = new NpgsqlConnection(Sp(cs));
         await conn.OpenAsync();
         await using var tx = await conn.BeginTransactionAsync();
         await using (var prepare = new NpgsqlCommand(Phase14_2CNormalizationScripts.UpPrepare, conn, tx) { CommandTimeout = 120 })
@@ -593,15 +612,15 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
             INSERT INTO "RepoIssues" ("Id","ProjectId","IssueNumber","Title","Body","IsClosed","CreatedAt")
             VALUES ('gc-a','proj',1,'a','',false,now()), ('gc-b','proj',2,'b','',false,now());
             INSERT INTO hub.issue_labels ("Id","ProjectId","Name","NormalizedName") VALUES ('gc-l','proj','x','x');
-            INSERT INTO hub.repo_issue_labels ("RepoIssueId","IssueLabelId","DisplayName","Position") VALUES ('gc-a','gc-l','x',0);
+            INSERT INTO hub.repo_issue_labels ("RepoIssueId","IssueLabelId","ProjectId","DisplayName","Position") VALUES ('gc-a','gc-l','proj','x',0);
             """);
 
         // T1 var olan etikete yeni bağ ekler, henüz commit etmez.
-        await using var t1 = new NpgsqlConnection(cs);
+        await using var t1 = new NpgsqlConnection(Sp(cs));
         await t1.OpenAsync();
         await using var tx1 = await t1.BeginTransactionAsync();
         await using (var link = new NpgsqlCommand(
-            """INSERT INTO hub.repo_issue_labels ("RepoIssueId","IssueLabelId","DisplayName","Position") VALUES ('gc-b','gc-l','x',0)""", t1, tx1))
+            """INSERT INTO hub.repo_issue_labels ("RepoIssueId","IssueLabelId","ProjectId","DisplayName","Position") VALUES ('gc-b','gc-l','proj','x',0)""", t1, tx1))
             await link.ExecuteNonQueryAsync();
 
         // T2 etiketin son görünen issue'sunu siler: tetikleyici T1'i beklemeli.
@@ -629,13 +648,13 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         var cs = await _pg.CreateDatabaseAsync("c_lock");
         await MigrateAsync(cs, Before);
 
-        await using var holder = new NpgsqlConnection(cs);
+        await using var holder = new NpgsqlConnection(Sp(cs));
         await holder.OpenAsync();
         await using var holderTx = await holder.BeginTransactionAsync();
         await using (var hold = new NpgsqlCommand("""SELECT * FROM "GatewayApiKeys" LIMIT 1""", holder, holderTx))
         await using (var r = await hold.ExecuteReaderAsync()) { }
 
-        await using var conn = new NpgsqlConnection(cs);
+        await using var conn = new NpgsqlConnection(Sp(cs));
         await conn.OpenAsync();
         await using var tx = await conn.BeginTransactionAsync();
         await using var cmd = new NpgsqlCommand("""
@@ -706,8 +725,8 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         // Etiket yaşam döngüsü: son bağ gidince katalog satırı da gider, başkası kullanıyorsa kalır.
         await ExecAsync(cs, """
             INSERT INTO "RepoIssues" ("Id","ProjectId","IssueNumber","Title","Body","IsClosed","CreatedAt") VALUES ('issue-x','p1',500,'t','b',false,now());
-            INSERT INTO hub.repo_issue_labels ("RepoIssueId","IssueLabelId","DisplayName","Position")
-            SELECT 'issue-x', "Id", "Name", 0 FROM hub.issue_labels WHERE "ProjectId" = 'p1' AND "NormalizedName" = 'tek';
+            INSERT INTO hub.repo_issue_labels ("RepoIssueId","IssueLabelId","ProjectId","DisplayName","Position")
+            SELECT 'issue-x', "Id", "ProjectId", "Name", 0 FROM hub.issue_labels WHERE "ProjectId" = 'p1' AND "NormalizedName" = 'tek';
             """);
         const string Tek = """SELECT count(*) FROM hub.issue_labels WHERE "ProjectId" = 'p1' AND "NormalizedName" = 'tek'""";
         var original = "issue-" + Array.IndexOf(Labels, "tek");
@@ -746,10 +765,10 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         var user = new ApplicationUser { Id = "owner", UserName = "owner", NormalizedUserName = "OWNER" };
         ctx.Users.Add(user);
         ctx.Studio().Projects.Add(new CloudProject { Id = "proj", Name = "P", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner" });
-        var (key, raw) = GatewayAccess.CreateKey("proj", "k", "owner", false, null);
+        var (key, raw) = GatewayKeys.CreateKey("proj", "k", "owner", false, null);
         GatewayAllowlistRules.ApplyOrigins(key, GatewayAllowlistRules.ParseOrigins(origins).Entries);
         GatewayAllowlistRules.ApplyIps(key, GatewayAllowlistRules.ParseIps(ips).Entries);
-        ctx.GatewayApiKeys.Add(key);
+        ctx.Gateway().GatewayApiKeys.Add(key);
         await ctx.SaveChangesAsync();
         return raw;
     }
@@ -762,15 +781,16 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         var raw = await SeedOwnedKeyAsync(cs, "https://a.com,https://b.com", "1.2.3.4,10.0.0.0/8");
 
         var log = new CommandLog();
-        await using var ctx = Context(cs, log);
-        var key = await ctx.AuthenticateAsync(TestModules.For(ctx).DefaultAuthority, raw);
+        await using var ctx = Context(cs);
+        var key = await new ModuleKit(ctx, cs, log).GatewayAccess.AuthenticateAsync(raw);
 
         Assert.NotNull(key);
         Assert.Equal(2, key!.OriginRules.Count);
         Assert.Equal(2, key.IpRules.Count);
         Assert.Single(log.Commands, c => c.Contains("api_key_allowed_origins"));
         Assert.Single(log.Commands, c => c.Contains("api_key_allowed_ips"));
-        Assert.Single(log.Commands, c => c.Contains("api_key_allowed_origins") && c.Contains("api_key_allowed_ips"));
+        // Bölünmüş sorgu: iki listenin çarpımı yok (BL-C3).
+        Assert.DoesNotContain(log.Commands, c => c.Contains("api_key_allowed_origins") && c.Contains("api_key_allowed_ips"));
         Assert.True(GatewayKeyRestrictions.IsOriginAllowed(key, "https://b.com"));
         Assert.False(GatewayKeyRestrictions.IsOriginAllowed(key, "https://c.com"));
         Assert.True(GatewayKeyRestrictions.IsIpAllowed(key, IPAddress.Parse("10.9.9.9"), true, out _));
@@ -785,7 +805,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
 
         await using (var ctx = Context(cs))
         {
-            ctx.GatewayTablePermissions.Add(new GatewayTablePermission
+            ctx.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
             {
                 ProjectId = "proj", TableName = "users", CanRead = true,
                 MaskedColumnRules = new List<GatewayTableMaskedColumn>
@@ -798,10 +818,11 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         }
 
         var log = new CommandLog();
-        await using (var ctx = Context(cs, log))
+        await using (var ctx = Context(cs))
         {
-            Assert.Equal(new[] { "email", "phone" }, await ctx.MaskedColumnsAsync("proj", "users"));
-            Assert.Empty(await ctx.MaskedColumnsAsync("proj", "nope"));
+            var access = new ModuleKit(ctx, cs, log).GatewayAccess;
+            Assert.Equal(new[] { "email", "phone" }, await access.MaskedColumnsAsync("proj", "users"));
+            Assert.Empty(await access.MaskedColumnsAsync("proj", "nope"));
             Assert.Equal(2, log.Commands.Count);
         }
 

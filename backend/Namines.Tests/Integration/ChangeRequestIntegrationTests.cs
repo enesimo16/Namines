@@ -131,9 +131,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         });
         await _context.SaveChangesAsync();
 
-        var branch = await _context.Studio().Branches.FindAsync(_branchId);
-        _context.Studio().Branches.Remove(branch!);
-        await _context.SaveChangesAsync();
+        _context.Studio().ChangeTracker.Clear();
+        await _context.Studio().Branches.Where(b => b.Id == _branchId).ExecuteDeleteAsync();
 
         // Branch -> ChangeRequest (Cascade) ve Branch -> SchemaVersion (Cascade) aynı silme
         // işleminde birlikte tetikleniyor; ChangeRequest.HeadVersionId'nin SchemaVersion'a
@@ -208,9 +207,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         });
         await _context.SaveChangesAsync();
 
-        var branch = await _context.Studio().Branches.FindAsync(_branchId);
-        _context.Studio().Branches.Remove(branch!);
-        await _context.SaveChangesAsync();
+        _context.Studio().ChangeTracker.Clear();
+        await _context.Studio().Branches.Where(b => b.Id == _branchId).ExecuteDeleteAsync();
 
         Assert.True(await _context.ChangeRequestAuditLogs.AnyAsync(a => a.ChangeRequestId == cr.Id));
         // DB-10: denetim izi CR'nin gitmesiyle SILINMEZ (FK yok, anlik kopya kalir).

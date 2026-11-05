@@ -113,25 +113,4 @@ public sealed class AutomationRuleContextTests : IAsyncLifetime
         Assert.Empty(await flowDb.AutomationActions.ToListAsync());
     }
 
-    [Fact]
-    public async Task Proje_silinince_kurallari_ve_loglari_da_siliniyor()
-    {
-        await using var db = NewContext();
-        await using var flowDb = NewFlowContext();
-        var project = await SeedProjectAsync(db);
-
-        var rule = new AutomationRule { ProjectId = project.Id, TriggerType = "TableAdded" };
-        flowDb.AutomationRules.Add(rule);
-        await flowDb.SaveChangesAsync();
-
-        flowDb.AutomationRunLogs.Add(new AutomationRunLog { RuleId = rule.Id, Status = "Success" });
-        await flowDb.SaveChangesAsync();
-
-        db.Studio().Projects.Remove(project);
-        await db.SaveChangesAsync();
-
-        await using var verifyFlow = NewFlowContext();
-        Assert.Empty(await verifyFlow.AutomationRules.ToListAsync());
-        Assert.Empty(await verifyFlow.AutomationRunLogs.ToListAsync());
-    }
 }

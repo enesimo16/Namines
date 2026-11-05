@@ -6,3 +6,5 @@ global using Namines.Hub.Application;
 global using Namines.Hub.Domain;
 global using Namines.Studio.Application;
 global using Namines.Studio.Domain;
+global using Namines.Gateway.Application;
+global using Namines.Gateway.Domain;

@@ -299,7 +299,6 @@ public class VaultController : ControllerBase
 
         var schedule = await Vault.SaveScheduleAsync(
             projectId,
-            snapshot.OrganizationId,
             request.Enabled,
             cadence,
             request.HourUtc,

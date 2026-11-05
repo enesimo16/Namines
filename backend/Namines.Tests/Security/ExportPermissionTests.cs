@@ -68,7 +68,7 @@ public sealed class ExportPermissionTests : IAsyncLifetime
     {
         var db = new AuthDbContext(_options);
 
-        db.GatewayTablePermissions.Add(new GatewayTablePermission
+        db.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = Project,
             TableName = Table,
@@ -160,7 +160,7 @@ public sealed class ExportPermissionTests : IAsyncLifetime
     public async Task Baska_projenin_izni_bu_anahtari_acmaz()
     {
         await using var db = new AuthDbContext(_options);
-        db.GatewayTablePermissions.Add(new GatewayTablePermission
+        db.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
         {
             ProjectId = "baska-proje",
             TableName = Table,

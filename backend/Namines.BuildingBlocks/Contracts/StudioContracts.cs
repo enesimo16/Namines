@@ -223,6 +223,17 @@ public interface IProjectDeletion
     Task<ProjectDeletionResult> DeleteAsync(string projectId, string? actorUserId, CancellationToken ct, bool recordName = true);
 }
 
+/// <summary>
+/// Kullanım ölçümü: faturalama tabloları Billing'in (D-2). Modüller ve controller'lar DbContext görmeden
+/// tüketimi yazar ve kota kararını alır.
+/// </summary>
+public interface IUsageMeter
+{
+    Task RecordAsync(string userId, Namines.Core.Models.Auth.UsageResource resource, decimal quantity = 1, string? contextLabel = null, CancellationToken ct = default);
+
+    Task<Namines.Core.Analysis.UsageDecision> EvaluateAsync(string userId, Namines.Core.Models.Auth.UsageResource resource, decimal requested = 1, CancellationToken ct = default);
+}
+
 /// <summary>Hub vitrininin değişiklik isteği sayacı; Governance verisine başka kapı yok.</summary>
 public interface IChangeRequestStats
 {

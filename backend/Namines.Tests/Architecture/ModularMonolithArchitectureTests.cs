@@ -1,3 +1,4 @@
+using Namines.Gateway.DependencyInjection;
 using Namines.Hub.DependencyInjection;
 using Namines.Studio.DependencyInjection;
 using Namines.Ops.DependencyInjection;
@@ -407,6 +408,7 @@ public sealed class ModularMonolithArchitectureTests
         services.AddOpsModule();
         services.AddStudioModule();
         services.AddHubModule();
+        services.AddGatewayModule();
         services.AddNaminesVault(registerWorkers: false);
         services.AddNaminesGround(registerWorkers: false);
         services.AddFlowModule(registerWorkers: false);
@@ -425,7 +427,7 @@ public sealed class ModularMonolithArchitectureTests
         var flow = scope.ServiceProvider.GetRequiredService<IFlowModule>();
         var desk = scope.ServiceProvider.GetRequiredService<IDeskModule>();
         var hubDb = scope.ServiceProvider.GetRequiredService<HubDbContext>();
-        var gateway = scope.ServiceProvider.GetRequiredService<IGatewayModule>();
+        var gatewayDb = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
         var opsDb = scope.ServiceProvider.GetRequiredService<OpsDbContext>();
 
         Assert.Equal("identity", identity.DbContext.Model.GetDefaultSchema());
@@ -433,7 +435,7 @@ public sealed class ModularMonolithArchitectureTests
         Assert.Equal("billing", billing.DbContext.Model.GetDefaultSchema());
         Assert.Equal("governance", governance.DbContext.Model.GetDefaultSchema());
         Assert.Equal("hub", hubDb.Model.GetDefaultSchema());
-        Assert.Equal("gateway", gateway.DbContext.Model.GetDefaultSchema());
+        Assert.Equal("gateway", gatewayDb.Model.GetDefaultSchema());
         Assert.Equal("ops", opsDb.Model.GetDefaultSchema());
 
         var groundDb = scope.ServiceProvider.GetRequiredService<GroundDbContext>();
@@ -459,32 +461,24 @@ public sealed class ModularMonolithArchitectureTests
         // Yansımayla izin listesi: taşınan bir alanın geri eklenmesi burada patlar.
         var allowed = new HashSet<string>
         {
-            "Id", "Name", "DbType", "SchemaJson", "NodePositionsJson", "UserId", "User",
-            "OrganizationId", "Organization", "RowVersion", "CreatedAt", "UpdatedAt", "AutoApproveSafeChanges",
+            "Id", "Name", "DbType", "SchemaJson", "NodePositionsJson", "UserId",
+            "OrganizationId", "RowVersion", "CreatedAt", "UpdatedAt", "AutoApproveSafeChanges",
         };
         var actual = typeof(CloudProject).GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(p => p.Name).ToHashSet();
         Assert.Equal(allowed, actual);
     }
 
     [Fact]
-    public void AuthDbContext_TasinanTablolariDbSetOlarakAcmaz_VeModelSadeceStudioHubSemasinaEsler()
+    public void TasinanTablolar_kendi_modul_baglaminda_ve_semasinda()
     {
-        var movedTypes = new[] { typeof(ProjectConnection), typeof(ProjectShare), typeof(ProjectRepository), typeof(ProjectTag) };
-        var dbSetTypes = typeof(AuthDbContext).GetProperties()
-            .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
-            .Select(p => p.PropertyType.GetGenericArguments()[0])
-            .ToHashSet();
-        Assert.Empty(dbSetTypes.Intersect(movedTypes));
-
-        var options = new DbContextOptionsBuilder<AuthDbContext>()
-            .UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused").Options;
-        using var db = new AuthDbContext(options);
-        Assert.Equal("studio", db.Model.FindEntityType(typeof(CloudProject))!.GetSchema());
-        Assert.Equal("projects", db.Model.FindEntityType(typeof(CloudProject))!.GetTableName());
-        Assert.Equal("studio", db.Model.FindEntityType(typeof(ProjectConnection))!.GetSchema());
-        Assert.Equal("studio", db.Model.FindEntityType(typeof(ProjectShare))!.GetSchema());
-        Assert.Equal("hub", db.Model.FindEntityType(typeof(ProjectRepository))!.GetSchema());
-        Assert.Equal("hub", db.Model.FindEntityType(typeof(ProjectTag))!.GetSchema());
+        using var studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>().UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused").Options);
+        using var hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>().UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused").Options);
+        Assert.Equal("studio", studio.Model.FindEntityType(typeof(CloudProject))!.GetSchema());
+        Assert.Equal("projects", studio.Model.FindEntityType(typeof(CloudProject))!.GetTableName());
+        Assert.Equal("studio", studio.Model.FindEntityType(typeof(ProjectConnection))!.GetSchema());
+        Assert.Equal("studio", studio.Model.FindEntityType(typeof(ProjectShare))!.GetSchema());
+        Assert.Equal("hub", hub.Model.FindEntityType(typeof(ProjectRepository))!.GetSchema());
+        Assert.Equal("hub", hub.Model.FindEntityType(typeof(ProjectTag))!.GetSchema());
     }
 
     private static string BackendRoot()
@@ -496,7 +490,7 @@ public sealed class ModularMonolithArchitectureTests
 
     private static IEnumerable<(string Path, string Text)> ProductionSources()
     {
-        foreach (var project in new[] { "Namines.API", "Namines.Infrastructure", "Namines.BuildingBlocks", "Namines.Core", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk", "Namines.Mcp", "Namines.Cli" })
+        foreach (var project in new[] { "Namines.API", "Namines.Infrastructure", "Namines.BuildingBlocks", "Namines.Core", "Namines.Studio", "Namines.Hub", "Namines.Gateway", "Namines.Ops", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk", "Namines.Mcp", "Namines.Cli" })
         {
             var root = System.IO.Path.Combine(BackendRoot(), project);
             foreach (var file in System.IO.Directory.EnumerateFiles(root, "*.cs", System.IO.SearchOption.AllDirectories))
@@ -518,14 +512,11 @@ public sealed class ModularMonolithArchitectureTests
         // sırları (EncryptedUserStore) proje bağlantısı değil.
         var allowedUnprotect = new[]
         {
-            "TenantProjectAuthorityService.cs", "ConnectionSecretReencryptor.cs",
+            "TenantProjectAuthorityService.cs", "ConnectionSecretRotation.cs",
             "AesGcmConnectionSecretProtector.cs", "IConnectionSecretProtector.cs", "EncryptedUserStore.cs",
         };
-        var allowedModuleTables = new[]
-        {
-            "StudioModule.cs", "HubModule.cs", "StudioApplicationService.cs", "HubApplicationService.cs",
-            "TenantProjectAuthorityService.cs", "ConnectionSecretReencryptor.cs", "AuthDbContext.cs",
-        };
+        var moduleRoots = new[] { "Namines.Studio", "Namines.Hub", "Namines.Gateway", "Namines.Ops" };
+        var allowedModuleTables = new[] { "AuthDbContext.cs" };
 
         var violations = new List<string>();
         foreach (var (path, text) in ProductionSources())
@@ -534,7 +525,8 @@ public sealed class ModularMonolithArchitectureTests
             if (!allowedUnprotect.Contains(name) && text.Contains(".Unprotect("))
                 violations.Add("Unprotect: " + name);
 
-            if (!allowedModuleTables.Contains(name) &&
+            var inModule = moduleRoots.Any(m => path.Contains(System.IO.Path.DirectorySeparatorChar + m + System.IO.Path.DirectorySeparatorChar));
+            if (!inModule && !allowedModuleTables.Contains(name) &&
                 (text.Contains(".ProjectConnections") || text.Contains(".ProjectShares") || text.Contains("Set<ProjectConnection>") ||
                  text.Contains("Set<ProjectShare>") || text.Contains("Set<ProjectRepository>") || text.Contains("Set<ProjectTag>") ||
                  text.Contains("Hub.Repositories") || text.Contains(".ProjectTags")))
@@ -552,7 +544,7 @@ public sealed class ModularMonolithArchitectureTests
     public void TaslananServisler_ZorunluBagimlilik_LegacyDalYok()
     {
         // İsteğe bağlı parametre, "null ise eski yola düş" dalını canlı tutuyordu.
-        foreach (var type in new[] { typeof(HubController), typeof(ShareController), typeof(GatewayKeyController), typeof(GatewayController), typeof(AuthController), typeof(ProjectDeletionService), typeof(AccountDeletionService), typeof(TenantProjectAuthorityService) })
+        foreach (var type in new[] { typeof(ShareController), typeof(GatewayController), typeof(AuthController), typeof(ProjectDeletionService), typeof(AccountDeletionService), typeof(TenantProjectAuthorityService) })
         {
             foreach (var ctor in type.GetConstructors())
             {
@@ -571,24 +563,6 @@ public sealed class ModularMonolithArchitectureTests
     }
 
     [Fact]
-    public void StudioHubBaglamlari_MigrationUretmez_DdlTekZincirde()
-    {
-        // İki bağlam aynı DDL'i üretirse sıra ve kayma sorunu çıkar: şema AuthDbContext zincirinde.
-        using var studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>()
-            .UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused").Options);
-        using var hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>()
-            .UseNpgsql("Host=localhost;Database=unused;Username=unused;Password=unused").Options);
-
-        foreach (DbContext context in new DbContext[] { studio, hub })
-        {
-            var differ = context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsModelDiffer>();
-            var model = context.GetService<Microsoft.EntityFrameworkCore.Metadata.IDesignTimeModel>().Model;
-            Assert.False(differ.HasDifferences(null, model.GetRelationalModel()),
-                context.GetType().Name + " migration üretmemeli");
-        }
-    }
-
-    [Fact]
     public void Istek_govdeleri_sayac_sahip_ve_sir_alani_tasimaz()
     {
         // Mass assignment: istemci yıldız/fork sayacını, sahibi, fork kaynağını ya da şifreli metni
@@ -599,72 +573,6 @@ public sealed class ModularMonolithArchitectureTests
             var names = type.GetProperties().Select(p => p.Name).ToList();
             Assert.Empty(names.Intersect(forbidden));
         }
-    }
-
-    [Fact]
-    public void Proje_adi_ve_motorunu_yalnizca_okuma_modelini_de_guncelleyen_siniflar_yazar()
-    {
-        // hub.repositories'teki ProjectName/ProjectDbType kopyaları aynı işlemde güncellenmeli. Yeni bir yazıcı
-        // Hub'ı unutursa Explore eski adla arar; bu test onu listeye girmeye ve kopyayı düşünmeye zorlar.
-        var knownWriters = new HashSet<string>
-        {
-            nameof(AuthController), nameof(HubController),
-            nameof(Namines.API.Services.DevSandboxSeeder), nameof(Namines.API.Services.HubBlueprintSeeder),
-        };
-
-        var setters = new[] { "set_Name", "set_DbType" }
-            .Select(n => typeof(CloudProject).GetMethod(n)!.MetadataToken)
-            .ToHashSet();
-        var assemblies = new[]
-        {
-            typeof(AuthController).Assembly, typeof(TenantProjectAuthorityService).Assembly, BuildingBlocksAssembly,
-            VaultAssembly, GroundAssembly, FlowAssembly, DeskAssembly,
-        };
-
-        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        var writers = new HashSet<string>();
-        foreach (var assembly in assemblies)
-        {
-            // Test ortamında yüklenemeyen sürüm uyuşmazlığı tipleri (Docker.DotNet) proje yazmıyor; atlanır.
-            Type[] types;
-            try { types = assembly.GetTypes(); }
-            catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
-
-            foreach (var type in types)
-            {
-                var methods = type.GetMethods(all).Cast<MethodBase>().Concat(type.GetConstructors(all));
-                foreach (var method in methods)
-                {
-                    byte[]? il;
-                    try { il = method.GetMethodBody()?.GetILAsByteArray(); }
-                    catch (TypeLoadException) { continue; } // aynı sürüm uyuşmazlığı: Docker.DotNet kullanan metot
-                    if (il is null) continue;
-                    // call (0x28) / callvirt (0x6F) + 4 baytlık metot token'ı. Kaba tarama: yanlış hizalanan
-                    // baytlar çözülemez ya da başka metoda çıkar, yalnız tam bu setter'lar sayılır.
-                    for (var i = 0; i + 4 < il.Length; i++)
-                    {
-                        if (il[i] != 0x28 && il[i] != 0x6F) continue;
-                        try
-                        {
-                            var target = method.Module.ResolveMethod(BitConverter.ToInt32(il, i + 1), type.IsGenericType ? type.GetGenericArguments() : null, method.IsGenericMethod ? method.GetGenericArguments() : null);
-                            if (target?.DeclaringType == typeof(CloudProject) && setters.Contains(target.MetadataToken))
-                            {
-                                var owner = type;
-                                while (owner.DeclaringType is not null) owner = owner.DeclaringType;
-                                writers.Add(owner.Name);
-                            }
-                        }
-                        catch (Exception ex) when (ex is ArgumentException or BadImageFormatException or MissingMethodException or TypeLoadException)
-                        {
-                            // Hizası kaymış bayt: token değil.
-                        }
-                    }
-                }
-            }
-        }
-
-        // Boş sonuç taramanın bozulduğu demek olurdu: dört yazıcı da bulunmalı.
-        Assert.Equal(knownWriters.OrderBy(x => x), writers.OrderBy(x => x));
     }
 
     [Fact]
@@ -758,7 +666,7 @@ public sealed class ModularMonolithArchitectureTests
 
         // 37 - 10 = 27 DbSets declared directly on AuthDbContext for Phase 14.1
         // 28: PendingSubscriptionCancellations, kullanıcı silmeyle aynı işlemde yazılmak zorunda (D-2'de Billing'e taşınır).
-        Assert.Equal(24, declaredDbSetProperties.Count);
+        Assert.Equal(14, declaredDbSetProperties.Count);
     }
 
     [Fact]

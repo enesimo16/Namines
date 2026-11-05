@@ -60,6 +60,7 @@ public class AccountDeletionService
     private readonly ProjectDeletionService _projects;
     private readonly IHubApplicationService _hub;
     private readonly IStudioProjects _studio;
+    private readonly Namines.Gateway.Application.IGatewayMaintenance _gateway;
     private readonly IFeedbackService _feedback;
     private readonly ICrossModuleTransaction _transaction;
     private readonly ISubscriptionCanceller? _stripe;
@@ -74,6 +75,7 @@ public class AccountDeletionService
         ILogger<AccountDeletionService> logger,
         IFeedbackService feedback,
         IStudioProjects studio,
+        Namines.Gateway.Application.IGatewayMaintenance gateway,
         ISubscriptionCanceller? stripe = null)
     {
         _context = context;
@@ -81,6 +83,7 @@ public class AccountDeletionService
         _projects = projects;
         _hub = hub;
         _studio = studio;
+        _gateway = gateway;
         _feedback = feedback;
         _transaction = transaction;
         _logger = logger;
@@ -249,9 +252,7 @@ public class AccountDeletionService
                 await _context.Organizations.Where(o => orgsToDelete.Contains(o.Id)).ExecuteDeleteAsync(ct);
 
             var now = DateTime.UtcNow;
-            revokedKeys = await _context.GatewayApiKeys
-                .Where(k => k.CreatedByUserId == userId && k.RevokedAt == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(k => k.RevokedAt, (DateTime?)now), ct);
+            revokedKeys = await _gateway.RevokeKeysByCreatorAsync(userId, ct);
 
             // Geri bildirim metni kalır (ürün geri bildirimi), kişiyi tanımlayan alanlar gider.
             await _feedback.AnonymizeByUserAsync(userId, ct);

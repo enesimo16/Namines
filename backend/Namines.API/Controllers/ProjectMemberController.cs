@@ -38,10 +38,14 @@ public class ProjectMemberController : ControllerBase
     private readonly AuthDbContext _context;
     private readonly ITenantProjectAuthority _authority;
     private readonly IStudioProjects _studioProjects;
+    private readonly IGatewayMaintenance _gateway;
+    private readonly Namines.BuildingBlocks.Persistence.ICrossModuleTransaction _transaction;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public ProjectMemberController(AuthDbContext context, UserManager<ApplicationUser> userManager, ITenantProjectAuthority authority, IStudioProjects studioProjects)
+    public ProjectMemberController(AuthDbContext context, UserManager<ApplicationUser> userManager, ITenantProjectAuthority authority, IStudioProjects studioProjects, IGatewayMaintenance gateway, Namines.BuildingBlocks.Persistence.ICrossModuleTransaction transaction)
     {
+        _gateway = gateway;
+        _transaction = transaction;
         _context = context;
         _authority = authority;
         _studioProjects = studioProjects;
@@ -183,20 +187,13 @@ public class ProjectMemberController : ControllerBase
         // aynı kural orada da uygulanıyor). Yalnızca listede "aktif" görünüp
         // yeniden Owner yapılınca canlanmasın diye açıkça iptal ediliyor.
         var revokedKeys = 0;
-        if (wasOwner && request.Role != OrgRole.Owner)
+        await _transaction.ExecuteAsync(async c =>
         {
-            var privilegedKeys = await _context.GatewayApiKeys
-                .Where(k => k.ProjectId == projectId
-                            && k.CreatedByUserId == memberUserId
-                            && k.RevokedAt == null
-                            && (k.CanExecuteSql || k.CanExport))
-                .ToListAsync(ct);
-            var now = DateTime.UtcNow;
-            foreach (var key in privilegedKeys) key.RevokedAt = now;
-            revokedKeys = privilegedKeys.Count;
-        }
-
-        await _context.SaveChangesAsync(ct);
+            if (wasOwner && request.Role != OrgRole.Owner)
+                revokedKeys = await _gateway.RevokeMemberKeysAsync(projectId, memberUserId, privilegedOnly: true, c);
+            await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+        }, ct);
+        _context.ChangeTracker.AcceptAllChanges();
         return Ok(new { member.UserId, member.Role, revokedKeys });
     }
 
@@ -239,16 +236,13 @@ public class ProjectMemberController : ControllerBase
         // kimsenin niyet etmediği bir anda yeniden canlanır.
         //
         // Yalnızca BU projenin anahtarları: üye başka bir projede kalabilir.
-        var now = DateTime.UtcNow;
-        var orphanedKeys = await _context.GatewayApiKeys
-            .Where(k => k.ProjectId == projectId
-                        && k.CreatedByUserId == memberUserId
-                        && k.RevokedAt == null)
-            .ToListAsync(ct);
-
-        foreach (var key in orphanedKeys) key.RevokedAt = now;
-
-        await _context.SaveChangesAsync(ct);
-        return Ok(new { removed = memberUserId, revokedKeys = orphanedKeys.Count });
+        var revoked = 0;
+        await _transaction.ExecuteAsync(async c =>
+        {
+            revoked = await _gateway.RevokeMemberKeysAsync(projectId, memberUserId, privilegedOnly: false, c);
+            await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+        }, ct);
+        _context.ChangeTracker.AcceptAllChanges();
+        return Ok(new { removed = memberUserId, revokedKeys = revoked });
     }
 }

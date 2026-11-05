@@ -128,7 +128,9 @@ public sealed record GatewayNlQueryRequest(
 public class GatewayController : ControllerBase
 {
     private readonly IGatewayService _gateway;
-    private readonly AuthDbContext _context;
+    private readonly IGatewayAccess _access;
+    private readonly IGatewayAuditLog _audit;
+    private readonly IUsageMeter _usage;
     private readonly IConfiguration _configuration;
     private readonly GroqAIService _groq;
     private readonly ILogger<GatewayController> _logger;
@@ -152,7 +154,7 @@ public class GatewayController : ControllerBase
     private readonly IStudioBranches _branches;
 
     public GatewayController(
-        IGatewayService gateway, AuthDbContext context, IConfiguration configuration,
+        IGatewayService gateway, IGatewayAccess access, IGatewayAuditLog audit, IUsageMeter usage, IConfiguration configuration,
         GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota,
         IProjectConnectionSecretProvider secrets, IStudioApplicationService studio, IDbIntrospectionService introspection,
         ISqlWorkbenchService workbench,
@@ -165,7 +167,9 @@ public class GatewayController : ControllerBase
         _branches = branches;
         _workbench = workbench;
         _gateway = gateway;
-        _context = context;
+        _access = access;
+        _audit = audit;
+        _usage = usage;
         _configuration = configuration;
         _groq = groq;
         _logger = logger;
@@ -225,7 +229,7 @@ public class GatewayController : ControllerBase
                 : (false, Unauthorized(), null);
         }
 
-        var key = await _context.AuthenticateAsync(_authority, header.ToString(), ct);
+        var key = await _access.AuthenticateAsync(header.ToString(), ct);
         if (key is null)
             return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }), null);
 
@@ -244,7 +248,7 @@ public class GatewayController : ControllerBase
                 message = $"This key is limited to {key.RateLimitPerMinute} requests per minute.",
             }), null);
 
-        if (!await _context.IsTableAllowedAsync(key, tableName, forWrite, ct))
+        if (!await _access.IsTableAllowedAsync(key, tableName, forWrite, ct))
             // 403 ve 404 arasında bilinçli tercih: anahtar geçerli, tablo yok demek
             // hangi tabloların var olduğunu sızdırırdı; erişim reddi doğru mesaj.
         {
@@ -261,17 +265,13 @@ public class GatewayController : ControllerBase
 
         // Kullanılmayan anahtarları fark edip kapatabilmek için. Her istekte yazmak
         // gereksiz yük olurdu; dakikada birden sık güncellenmez.
-        if (key.LastUsedAt is null || DateTime.UtcNow - key.LastUsedAt > TimeSpan.FromMinutes(1))
-        {
-            key.LastUsedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync(ct);
-        }
+        await _access.TouchLastUsedAsync(key, ct);
 
         NaminesMetrics.GatewayRequest(forWrite ? "write" : "read", "ok");
 
         // API isteği ölçümü (22 §5). Anahtarı ÜRETEN kullanıcıya yazılıyor:
         // isteği yapan taraf anonim bir uygulama, faturayı ödeyen ise hesap sahibi.
-        await _context.RecordAsync(
+        await _usage.RecordAsync(
             key.CreatedByUserId!, UsageResource.ApiRequest, 1, tableName, ct);
 
         return (true, null, key);
@@ -295,13 +295,13 @@ public class GatewayController : ControllerBase
     {
         if (key is null || rows.Count == 0) return rows;
 
-        var masked = await _context.MaskedColumnsAsync(key.ProjectId, tableName, ct);
+        var masked = await _access.MaskedColumnsAsync(key.ProjectId, tableName, ct);
         if (masked.Count == 0) return rows;
 
         // Hassas kolon okundu — kaydet. Denetim kaydı ÖNCEDEN yalnızca yazmaları
         // tutuyordu: maskeli e-postaları kimin çektiği hiçbir yerde görünmüyordu,
         // oysa maskelemeyi koymanın sebebi tam olarak o kolonun hassas olması.
-        await _context.RecordAuditAsync(
+        await _audit.RecordAsync(
             key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
             GatewayWriteKind.Read, tableName, rowKey: null, columns: masked,
             affectedRows: rows.Count, succeeded: true, ct);
@@ -363,7 +363,7 @@ public class GatewayController : ControllerBase
 
         foreach (var expand in expands)
         {
-            var masked = await _context.MaskedColumnsAsync(key.ProjectId, expand.Table, ct);
+            var masked = await _access.MaskedColumnsAsync(key.ProjectId, expand.Table, ct);
             if (masked.Count == 0) continue;
 
             var alias = string.IsNullOrWhiteSpace(expand.As) ? expand.Table : expand.As!;
@@ -371,7 +371,7 @@ public class GatewayController : ControllerBase
 
             // Hassas kolon okundu — ana tabloyla aynı gerekçeyle kaydediliyor
             // (MaskAsync'teki nota bakın): maskelemenin sebebi kolonun hassas olması.
-            await _context.RecordAuditAsync(
+            await _audit.RecordAsync(
                 key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
                 GatewayWriteKind.Read, expand.Table, rowKey: null, columns: masked,
                 affectedRows: result.Count, succeeded: true, ct);
@@ -413,8 +413,8 @@ public class GatewayController : ControllerBase
     ///   olduğunu DOĞRULAMADAN asla bağlantıyı çözmez</b> — aksi hâlde
     ///   giriş yapmış herhangi bir kullanıcı başkasının `projectId`'sini
     ///   yazıp o veritabanına bağlanabilirdi. Kontrol <c>OrgAccess</c>'teki
-    ///   tek kopyadan yapılır (<see cref="OrgAccess.CanViewAsync"/> /
-    ///   <see cref="OrgAccess.CanEditAsync"/>) — <c>GatewayKeyController</c>'ın
+    ///   tek kopyadan yapılır (<c>CanViewAsync</c> /
+    ///   <c>CanEditAsync</c>) — <c>GatewayKeyController</c>'ın
     ///   kullandığı <c>CanManageMembersAsync</c> kasıtlı olarak KULLANILMADI:
     ///   o Admin/Owner'a kilitli ve anahtar YÖNETİMİ için doğru, ama Desk'te
     ///   kendi projesinin verisine bakan bir Viewer/Editor'ı dışlardı.
@@ -558,7 +558,7 @@ public class GatewayController : ControllerBase
             // Tek bir HTTP isteğini expand sayısı kadar çarpmak, güvenlik düzeltmesini
             // sessiz bir fiyat artışına çevirirdi.
             if (apiKey is not null &&
-                !await _context.IsTableAllowedAsync(apiKey, expand.Table, forWrite: false, cancellationToken))
+                !await _access.IsTableAllowedAsync(apiKey, expand.Table, forWrite: false, cancellationToken))
             {
                 NaminesMetrics.GatewayRequest("read", "denied");
                 return StatusCode(403, new
@@ -1111,7 +1111,7 @@ public class GatewayController : ControllerBase
             return result;
         });
 
-        await _context.RecordAuditAsync(
+        await _audit.RecordAsync(
             key, User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
             kind, tableName, rowKey, columns, affected, succeeded, cancellationToken, projectId);
 
@@ -1172,7 +1172,7 @@ public class GatewayController : ControllerBase
         // bir indirme izni koymak, kendi verisini indirmesini engellemek olurdu.
         // Kapı, verdiğimiz ANAHTARLAR için var.
         if (apiKey is not null &&
-            !await _context.IsTableExportAllowedAsync(apiKey, request.TableName, cancellationToken))
+            !await _access.IsTableExportAllowedAsync(apiKey, request.TableName, cancellationToken))
         {
             NaminesMetrics.GatewayRequest("export", "denied");
             return StatusCode(403, new
@@ -1550,7 +1550,7 @@ public class GatewayController : ControllerBase
         }
 
         // Model gerçekten cevap verdi: bütçe zaten rezerve edildi, faturalama ölçümü işleniyor.
-        await _context.RecordAsync(key.CreatedByUserId!, UsageResource.AiCall, 1, "query/nl", cancellationToken);
+        await _usage.RecordAsync(key.CreatedByUserId!, UsageResource.AiCall, 1, "query/nl", cancellationToken);
 
         // Model "cevaplayamıyorum" diyebilmeli: uyduran bir sorgu, boş dönenden
         // çok daha kötüdür çünkü kullanıcı sonucun doğru olduğunu sanır.
@@ -1666,7 +1666,7 @@ public class GatewayController : ControllerBase
                 : (false, Unauthorized(), null);
         }
 
-        var key = await _context.AuthenticateAsync(_authority, header.ToString(), ct);
+        var key = await _access.AuthenticateAsync(header.ToString(), ct);
         if (key is null)
             return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }), null);
 
@@ -1694,7 +1694,7 @@ public class GatewayController : ControllerBase
         }
 
         NaminesMetrics.GatewayRequest("sql", "ok");
-        await _context.RecordAsync(key.CreatedByUserId!, UsageResource.ApiRequest, 1, "sql", ct);
+        await _usage.RecordAsync(key.CreatedByUserId!, UsageResource.ApiRequest, 1, "sql", ct);
 
         return (true, null, key);
     }
@@ -1732,7 +1732,7 @@ public class GatewayController : ControllerBase
         {
             resolvedProjectId = key.ProjectId;
 
-            var permissions = await _context.ReadableTablesAsync(key.ProjectId, cancellationToken);
+            var permissions = await _access.ReadableTablesAsync(key.ProjectId, cancellationToken);
             keyPermissions = permissions
                 .Where(p => p.CanRead)
                 .ToDictionary(p => p.TableName, p => p.CanWrite && key.CanWrite, StringComparer.OrdinalIgnoreCase);
@@ -1831,7 +1831,7 @@ public class GatewayController : ControllerBase
         if (keyFailure is not null) return keyFailure;
         if (key is null) return Unauthorized(new { message = "A valid API key is required." });
 
-        var permissions = await _context.ReadableTablesAsync(key.ProjectId, cancellationToken);
+        var permissions = await _access.ReadableTablesAsync(key.ProjectId, cancellationToken);
 
         return Ok(permissions.Select(p => new
         {
@@ -1876,9 +1876,7 @@ public class GatewayController : ControllerBase
             return StatusCode(500, new { message = "The stored schema could not be read." });
         }
 
-        var permissions = await _context.GatewayTablePermissions
-            .Where(p => p.ProjectId == key.ProjectId)
-            .ToListAsync(cancellationToken);
+        var permissions = await _access.ListPermissionsAsync(key.ProjectId, cancellationToken);
 
         var allowed = permissions.ToDictionary(
             p => p.TableName,
@@ -1901,7 +1899,7 @@ public class GatewayController : ControllerBase
     {
         if (!Request.Headers.TryGetValue(ApiKeyHeader, out var header)) return (null, null);
 
-        var key = await _context.AuthenticateAsync(_authority, header.ToString(), ct);
+        var key = await _access.AuthenticateAsync(header.ToString(), ct);
         if (key is null) return (null, null);
 
         if (!GatewayKeyRestrictions.IsOriginAllowed(key, Request.Headers.Origin.ToString()))

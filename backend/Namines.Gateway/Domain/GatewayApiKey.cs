@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Gateway.Domain;
 
 /// <summary>
 /// Gateway'e programatik erişim anahtarı (new-phase/08-GATEWAY-API.md §4.3).
@@ -101,7 +101,6 @@ public class GatewayApiKey
     public int? RateLimitPerMinute { get; set; }
 
     public string? CreatedByUserId { get; set; }
-    public ApplicationUser? CreatedByUser { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

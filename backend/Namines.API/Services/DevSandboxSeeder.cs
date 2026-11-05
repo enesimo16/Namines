@@ -48,6 +48,7 @@ public static class DevSandboxSeeder
         IProjectConnectionSecretProvider secrets,
         IHubApplicationService hub,
         IStudioProjects studioProjects,
+        IGatewayMaintenance gateway,
         ILogger logger,
         CancellationToken ct = default)
     {
@@ -78,7 +79,7 @@ public static class DevSandboxSeeder
 
         await EnsureDatabaseAsync(controlConnection, logger, ct);
         await EnsureTablesAsync(sandboxConnection, logger, ct);
-        await EnsureProjectAsync(context, secrets, hub, studioProjects, owner, sandboxConnection, logger, ct);
+        await EnsureProjectAsync(context, secrets, hub, studioProjects, gateway, owner, sandboxConnection, logger, ct);
     }
 
     /// <summary>
@@ -182,6 +183,7 @@ public static class DevSandboxSeeder
         IProjectConnectionSecretProvider secrets,
         IHubApplicationService hub,
         IStudioProjects studioProjects,
+        IGatewayMaintenance gateway,
         ApplicationUser owner,
         string sandboxConnection,
         ILogger logger,
@@ -209,7 +211,7 @@ public static class DevSandboxSeeder
         // değiştiğinde eski şifreli metin çözülemez hâle gelir ve proje
         // sessizce bozulurdu. Yeniden yazmak bu sınıfı tamamen kaldırıyor.
         await secrets.SetConnectionAsync(ProjectId, sandboxConnection, "PostgreSQL", ct);
-        await EnsureTablePermissionsAsync(context, logger, ct);
+        await EnsureTablePermissionsAsync(gateway, logger, ct);
 
         if (isNew)
             logger.LogWarning(
@@ -225,37 +227,12 @@ public static class DevSandboxSeeder
     /// gelmesinin tek amacı boşa çıkardı.
     /// </summary>
     private static async Task EnsureTablePermissionsAsync(
-        AuthDbContext context, ILogger logger, CancellationToken ct)
+        IGatewayMaintenance gateway, ILogger logger, CancellationToken ct)
     {
-        var existing = await context.GatewayTablePermissions
-            .Where(p => p.ProjectId == ProjectId)
-            .Select(p => p.TableName)
-            .ToListAsync(ct);
-
-        var added = 0;
-        foreach (var table in new[] { "musteri", "siparis" })
-        {
-            if (existing.Contains(table)) continue;
-
-            context.GatewayTablePermissions.Add(new GatewayTablePermission
-            {
-                ProjectId = ProjectId,
-                TableName = table,
-                CanRead = true,
-                CanWrite = true,
-                // 'eposta' maskeli: maskelemenin kendisi ve maskeli okumanın
-                // denetim kaydına düşmesi, ancak maskeli bir kolon varsa denenebilir.
-                MaskedColumnRules = table == "musteri"
-                    ? new List<GatewayTableMaskedColumn> { new() { ColumnName = "eposta", Position = 0 } }
-                    : new List<GatewayTableMaskedColumn>(),
-            });
-            added++;
-        }
-
-        if (added > 0)
-        {
-            await context.SaveChangesAsync(ct);
-            logger.LogWarning("Deneme projesine {Count} tablo izni açıldı.", added);
-        }
+        // 'eposta' maskeli: maskelemenin kendisi ve maskeli okumanın denetim kaydına düşmesi,
+        // ancak maskeli bir kolon varsa denenebilir.
+        await gateway.SeedTablePermissionAsync(ProjectId, "musteri", canRead: true, canWrite: true, new[] { "eposta" }, ct);
+        await gateway.SeedTablePermissionAsync(ProjectId, "siparis", canRead: true, canWrite: true, Array.Empty<string>(), ct);
+        logger.LogInformation("Deneme projesi tablo izinleri hazır.");
     }
 }

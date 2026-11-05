@@ -71,12 +71,12 @@ public sealed class GatewayExpandPermissionTests : IAsyncLifetime
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner-1",
         });
 
-        var (key, raw) = GatewayAccess.CreateKey(
+        var (key, raw) = GatewayKeys.CreateKey(
             "proj-1", "test key", "owner-1", canWrite: false, expiresAt: null);
-        db.GatewayApiKeys.Add(key);
+        db.Gateway().GatewayApiKeys.Add(key);
 
         foreach (var table in readableTables)
-            db.GatewayTablePermissions.Add(new GatewayTablePermission
+            db.Gateway().GatewayTablePermissions.Add(new GatewayTablePermission
             {
                 ProjectId = "proj-1", TableName = table, CanRead = true, CanWrite = false,
             });
@@ -98,7 +98,7 @@ public sealed class GatewayExpandPermissionTests : IAsyncLifetime
         httpContext.Request.Headers["X-Namines-Key"] = rawApiKey;
 
         return new GatewayController(
-            gateway: null!, context: db, configuration: new ConfigurationBuilder().Build(),
+            gateway: null!, access: TestModules.For(db).GatewayAccess, audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: new ConfigurationBuilder().Build(),
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
             secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {

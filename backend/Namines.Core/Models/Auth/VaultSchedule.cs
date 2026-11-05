@@ -26,8 +26,6 @@ public class VaultSchedule
     /// <summary>Proje başına EN FAZLA bir ayar (benzersiz indeks).</summary>
     public string ProjectId { get; set; } = null!;
 
-    public string? OrganizationId { get; set; }
-
     public bool Enabled { get; set; }
 
     public VaultCadence Cadence { get; set; } = VaultCadence.Daily;

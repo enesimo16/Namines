@@ -18,6 +18,20 @@ public sealed class ConnectionHostInspector : IConnectionHostInspector
         DbIntrospectionService.FindDisallowedHost(_policy, connectionString, connectionDbType);
 }
 
+/// <summary>Faturalama tabloları D-2'ye kadar AuthDbContext'te; modüller bu dar kapıdan yazar.</summary>
+public sealed class UsageMeterBridge : IUsageMeter
+{
+    private readonly AuthDbContext _context;
+
+    public UsageMeterBridge(AuthDbContext context) => _context = context;
+
+    public Task RecordAsync(string userId, Namines.Core.Models.Auth.UsageResource resource, decimal quantity = 1, string? contextLabel = null, CancellationToken ct = default) =>
+        _context.RecordAsync(userId, resource, quantity, contextLabel, ct);
+
+    public Task<Namines.Core.Analysis.UsageDecision> EvaluateAsync(string userId, Namines.Core.Models.Auth.UsageResource resource, decimal requested = 1, CancellationToken ct = default) =>
+        _context.EvaluateAsync(userId, resource, requested, ct);
+}
+
 /// <summary>Değişiklik isteği sayımı Governance'ın (D-2); Hub vitrini yalnızca sayıyı görür.</summary>
 public sealed class ChangeRequestStats : IChangeRequestStats
 {

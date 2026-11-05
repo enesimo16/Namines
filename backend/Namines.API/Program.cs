@@ -668,7 +668,7 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
     var redisForRateLimit = app.Services.GetService<IConnectionMultiplexer>();
     if (redisForRateLimit is not null)
     {
-        GatewayRateLimiter.UseDistributedCounter(
+        Namines.Gateway.Application.GatewayRateLimiter.UseDistributedCounter(
             redisForRateLimit,
             app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("GatewayRateLimiter"));
 
@@ -841,6 +841,7 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
                     ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Security.IProjectConnectionSecretProvider>(),
                     ownerScope.ServiceProvider.GetRequiredService<Namines.Hub.Application.IHubApplicationService>(),
                     ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IStudioProjects>(),
+                    ownerScope.ServiceProvider.GetRequiredService<Namines.Gateway.Application.IGatewayMaintenance>(),
                     ownerScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
                         .CreateLogger(nameof(Namines.API.Services.DevSandboxSeeder)));
             }

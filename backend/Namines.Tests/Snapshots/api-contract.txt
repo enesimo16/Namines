@@ -1,0 +1,320 @@
+DELETE /api/Admin/feedbacks/{id:int} [AdminController.DeleteFeedback] auth=authorize limit=- (id:Int32:route)
+DELETE /api/Admin/logs [AdminController.ClearLogs] auth=authorize limit=- ()
+DELETE /api/Auth/me [AuthController.DeleteAccount] auth=authorize limit=sensitive (request:DeleteAccountRequest:body)
+DELETE /api/Branch/{branchId}/database [BranchController.DestroyDatabase] auth=authorize limit=- (branchId:String:route)
+DELETE /api/CrossDatabase/relations/{id} [CrossDatabaseController.DeleteRelation] auth=authorize limit=- (id:String:route)
+DELETE /api/Share/{projectId} [ShareController.RevokeShareLink] auth=authorize limit=- (projectId:String:route)
+DELETE /api/automation/rules/{id} [AutomationController.DeleteRule] auth=authorize limit=- (id:String:route)
+DELETE /api/gateway/desk-sql/history [GatewayController.ClearDeskSqlHistory] auth=anonymous limit=gateway (projectId:String:query)
+DELETE /api/gateway/desk-sql/saved/{id} [GatewayController.DeleteSavedQuery] auth=anonymous limit=gateway (id:String:route, projectId:String:query)
+DELETE /api/gateway/keys/project/{projectId}/connection [GatewayKeyController.ClearProjectConnection] auth=authorize limit=- (projectId:String:route)
+DELETE /api/gateway/keys/{projectId}/{keyId} [GatewayKeyController.Revoke] auth=authorize limit=- (projectId:String:route, keyId:String:route)
+DELETE /api/hub/repos/{projectId} [HubController.DeleteRepo] auth=authorize limit=sensitive (projectId:String:route)
+DELETE /api/project/{projectId}/members/{memberUserId} [ProjectMemberController.Remove] auth=authorize limit=- (projectId:String:route, memberUserId:String:route)
+DELETE /api/team/invites/{inviteId} [TeamController.RevokeInvite] auth=authorize limit=- (inviteId:String:route)
+DELETE /api/vault/{projectId}/backups/{backupId} [VaultController.Delete] auth=authorize limit=- (projectId:String:route, backupId:String:route)
+GET /api/Admin/ai-routes [AdminController.GetAiRoutes] auth=authorize limit=- ()
+GET /api/Admin/bot/diagnostics [AdminController.GetBotDiagnostics] auth=authorize limit=- ()
+GET /api/Admin/bot/history [AdminController.GetBotHistory] auth=authorize limit=- ()
+GET /api/Admin/export/csv [AdminController.ExportCsv] auth=authorize limit=- (type:String:query)
+GET /api/Admin/features [AdminController.GetFeatures] auth=authorize limit=- ()
+GET /api/Admin/feedbacks [AdminController.GetFeedbacks] auth=authorize limit=- (category:String:query, page:Int32:query, pageSize:Int32:query)
+GET /api/Admin/logs [AdminController.GetLogs] auth=authorize limit=- (level:String:query, source:String:query, resolved:Boolean?:query, limit:Int32:query)
+GET /api/Admin/overview [AdminController.GetOverview] auth=authorize limit=- ()
+GET /api/Admin/projects/stats [AdminController.GetProjectStats] auth=authorize limit=- (page:Int32:query, pageSize:Int32:query)
+GET /api/Admin/projects/{id}/deep-stats [AdminController.GetProjectDeepStats] auth=authorize limit=- (id:String:route)
+GET /api/Admin/sessions [AdminController.GetSessions] auth=authorize limit=- (limit:Int32:query)
+GET /api/Admin/subscription-cancellations [AdminController.GetPendingSubscriptionCancellations] auth=authorize limit=- ()
+GET /api/Admin/tokens/stats [AdminController.GetTokenStats] auth=authorize limit=- (days:Int32:query, startDate:DateTime?:query, endDate:DateTime?:query, interval:String:query)
+GET /api/Admin/users [AdminController.GetUsers] auth=authorize limit=- (q:String:query, plan:String:query, page:Int32:query, pageSize:Int32:query)
+GET /api/Admin/users/{id} [AdminController.GetUserDetail] auth=authorize limit=- (id:String:route)
+GET /api/Admin/users/{id}/sessions [AdminController.GetUserSessions] auth=authorize limit=- (id:String:route)
+GET /api/Auth/mfa/status [AuthController.MfaStatus] auth=authorize limit=- ()
+GET /api/Auth/oauth/providers [AuthController.GetOAuthProviders] auth=anonymous limit=- ()
+GET /api/Auth/profile [AuthController.GetProfile] auth=authorize limit=- ()
+GET /api/Auth/projects [AuthController.GetProjects] auth=authorize limit=- ()
+GET /api/Branch/project/{projectId} [BranchController.ListBranches] auth=authorize limit=- (projectId:String:route)
+GET /api/Branch/project/{projectId}/default [BranchController.GetDefaultBranch] auth=authorize limit=- (projectId:String:route)
+GET /api/Branch/versions/{versionId} [BranchController.GetSchemaVersion] auth=authorize limit=- (versionId:String:route)
+GET /api/Branch/{branchId}/database [BranchController.GetDatabase] auth=authorize limit=- (branchId:String:route)
+GET /api/Branch/{branchId}/versions [BranchController.ListSchemaVersions] auth=authorize limit=- (branchId:String:route)
+GET /api/ChangeRequest/project/{projectId} [ChangeRequestController.ListForProject] auth=authorize limit=- (projectId:String:route)
+GET /api/ChangeRequest/{id} [ChangeRequestController.GetDetail] auth=authorize limit=- (id:String:route)
+GET /api/ChangeRequest/{id}/audit [ChangeRequestController.GetAuditLog] auth=authorize limit=- (id:String:route)
+GET /api/CoderAI/download/{jobId} [CoderAIController.DownloadZip] auth=authorize limit=- (jobId:String:route)
+GET /api/CoderAI/stream/{jobId} [CoderAIController.StreamLogs] auth=authorize limit=- (jobId:String:route)
+GET /api/Compile/eject/targets [CompileController.EjectTargets] auth= limit=sensitive ()
+GET /api/CrossDatabase/impact [CrossDatabaseController.Impact] auth=authorize limit=- (projectId:String:query, tableId:String:query, columnId:String:query)
+GET /api/CrossDatabase/relations [CrossDatabaseController.ListRelations] auth=authorize limit=- (projectId:String:query)
+GET /api/Docker/download/{jobId} [DockerController.DownloadBackup] auth=authorize limit=- (jobId:String:route)
+GET /api/Docker/stream/{jobId} [DockerController.StreamLogs] auth=authorize limit=- (jobId:String:route)
+GET /api/Features [FeaturesController.GetFlags] auth=anonymous limit=- ()
+GET /api/Share/badge/{token} [ShareController.GetDbaBadge] auth=anonymous limit=share-public (token:String:route)
+GET /api/Share/meta/{token} [ShareController.Meta] auth=anonymous limit=share-public (token:String:route)
+GET /api/Share/og/{token}.svg [ShareController.OgImage] auth=anonymous limit=share-public (token:String:route)
+GET /api/Share/view/{token} [ShareController.GetSharedSchema] auth=anonymous limit=share-public (token:String:route)
+GET /api/Sources [SourcesController.List] auth=anonymous limit=- ()
+GET /api/automation/rules [AutomationController.GetRules] auth=authorize limit=- (projectId:String:query)
+GET /api/automation/rules/{id}/runs [AutomationController.GetRuns] auth=authorize limit=- (id:String:route, limit:Int32:query)
+GET /api/gateway/analytics/{projectId} [GatewayKeyController.Analytics] auth=authorize limit=- (projectId:String:route, from:DateTime?:query, to:DateTime?:query, bucket:String:query)
+GET /api/gateway/desk-sql/history [GatewayController.DeskSqlHistory] auth=anonymous limit=gateway (projectId:String:query, limit:Int32:query)
+GET /api/gateway/desk-sql/saved [GatewayController.SavedQueries] auth=anonymous limit=gateway (projectId:String:query)
+GET /api/gateway/keys/{projectId} [GatewayKeyController.List] auth=authorize limit=- (projectId:String:route)
+GET /api/gateway/keys/{projectId}/audit [GatewayKeyController.AuditTrail] auth=authorize limit=- (projectId:String:route, from:DateTime?:query, to:DateTime?:query, kinds:IReadOnlyList<GatewayWriteKind>:query, tableName:String:query, succeeded:Boolean?:query, page:Int32:query, pageSize:Int32:query)
+GET /api/gateway/keys/{projectId}/tables [GatewayKeyController.ListTablePermissions] auth=authorize limit=- (projectId:String:route)
+GET /api/gateway/openapi.json [GatewayController.OpenApi] auth=anonymous limit=gateway ()
+GET /api/gateway/schema [GatewayController.Schema] auth=anonymous limit=gateway (projectId:String:query)
+GET /api/gateway/tables [GatewayController.Tables] auth=anonymous limit=gateway ()
+GET /api/ground/providers [GroundController.Providers] auth=authorize limit=- ()
+GET /api/ground/{projectId} [GroundController.Get] auth=authorize limit=- (projectId:String:route)
+GET /api/ground/{projectId}/metrics [GroundController.Metrics] auth=authorize limit=- (projectId:String:route)
+GET /api/hub/badge/{owner}/{slug}.svg [HubController.Badge] auth=anonymous limit=- (owner:String:route, slug:String:route)
+GET /api/hub/explore [HubController.Explore] auth=anonymous limit=explore-public (q:String:query, category:String:query, dbType:String:query, sort:String:query, page:Int32:query, pageSize:Int32:query, tag:String:query)
+GET /api/hub/issues/{issueId}/comments [HubController.ListComments] auth=anonymous limit=- (issueId:String:route)
+GET /api/hub/repos/{owner}/{slugOrId} [HubController.GetRepo] auth=anonymous limit=- (owner:String:route, slugOrId:String:route)
+GET /api/hub/repos/{projectId}/issues [HubController.ListIssues] auth=anonymous limit=- (projectId:String:route, status:String:query, relatedTable:String:query, label:String:query, page:Int32:query, pageSize:Int32:query)
+GET /api/project/{projectId}/members [ProjectMemberController.List] auth=authorize limit=- (projectId:String:route)
+GET /api/quota/models [QuotaController.Models] auth=anonymous limit=- ()
+GET /api/quota/pool-pressure [QuotaController.PoolPressure] auth=authorize limit=- (lookbackDays:Int32:query)
+GET /api/quota/status [QuotaController.GetStatus] auth=authorize limit=- ()
+GET /api/subscription/plans [SubscriptionController.GetPlans] auth=anonymous limit=- ()
+GET /api/subscription/status [SubscriptionController.GetStatus] auth=authorize limit=- ()
+GET /api/team [TeamController.GetTeam] auth=authorize limit=- ()
+GET /api/team/activity [TeamController.GetActivity] auth=authorize limit=- ()
+GET /api/team/invites/{token}/preview [TeamController.PreviewInvite] auth=anonymous limit=- (token:String:route)
+GET /api/usage [UsageController.Current] auth=authorize limit=- ()
+GET /api/user/policy [PolicyController.GetPolicy] auth=authorize limit=- ()
+GET /api/vault/health [VaultController.Health] auth=anonymous limit=- ()
+GET /api/vault/{projectId}/backups [VaultController.List] auth=authorize limit=- (projectId:String:route)
+GET /api/vault/{projectId}/backups/{backupId} [VaultController.GetBackup] auth=authorize limit=- (projectId:String:route, backupId:String:route)
+GET /api/vault/{projectId}/backups/{backupId}/download [VaultController.Download] auth=authorize limit=- (projectId:String:route, backupId:String:route)
+GET /api/vault/{projectId}/restores [VaultController.Restores] auth=authorize limit=- (projectId:String:route)
+GET /api/vault/{projectId}/schedule [VaultController.GetSchedule] auth=authorize limit=- (projectId:String:route)
+PATCH /api/Admin/users/{id}/plan [AdminController.UpdateUserPlan] auth=authorize limit=- (id:String:route, dto:UpdatePlanDto:body)
+PATCH /api/hub/issues/{issueId}/state [HubController.UpdateIssueState] auth=authorize limit=hub-write (issueId:String:route, request:UpdateIssueStateRequest:body)
+PATCH /api/hub/repos/{projectId}/settings [HubController.UpdateSettings] auth=authorize limit=sensitive (projectId:String:route, request:UpdateRepoSettingsRequest:body)
+POST /api/AIDba/analyze [AIDbaController.AnalyzeSchema] auth= limit=- (request:AIDbaRequest:body)
+POST /api/Admin/bot/run-audit [AdminController.RunBotAudit] auth=authorize limit=- ()
+POST /api/Admin/logs/simulate [AdminController.SimulateError] auth=authorize limit=- (req:SimulateErrorRequest:body)
+POST /api/Admin/logs/{id}/resolve [AdminController.ResolveLog] auth=authorize limit=- (id:String:route)
+POST /api/Admin/telemetry/track [AdminController.TrackClientEvent] auth=anonymous limit=gateway size-limited (item:TelemetryEventItem:body)
+POST /api/Admin/users/{id}/reset-quota [AdminController.ResetQuota] auth=authorize limit=- (id:String:route, dto:ResetQuotaDto:body)
+POST /api/Auth/desk-handoff-exchange [AuthController.ExchangeDeskHandoffToken] auth=anonymous limit=- (request:DeskHandoffExchangeRequest:body)
+POST /api/Auth/desk-handoff-token [AuthController.CreateDeskHandoffToken] auth=authorize limit=- ()
+POST /api/Auth/login [AuthController.Login] auth= limit=sensitive (model:LoginRequestDto:body)
+POST /api/Auth/logout [AuthController.Logout] auth= limit=- ()
+POST /api/Auth/mfa/disable [AuthController.DisableMfa] auth=authorize limit=- (request:MfaCodeRequest:body)
+POST /api/Auth/mfa/enable [AuthController.EnableMfa] auth=authorize limit=- (request:MfaCodeRequest:body)
+POST /api/Auth/mfa/setup [AuthController.StartMfaSetup] auth=authorize limit=- ()
+POST /api/Auth/oauth/callback [AuthController.OAuthCallback] auth=anonymous limit=sensitive (model:OAuthCallbackRequestDto:body)
+POST /api/Auth/register [AuthController.Register] auth= limit=- (model:RegisterRequestDto:body)
+POST /api/Auth/revoke-all-sessions [AuthController.RevokeAllSessions] auth=authorize limit=- ()
+POST /api/Auth/sync [AuthController.SyncProjects] auth=authorize limit=- size-limited (projects:List<SyncProjectDto>:body)
+POST /api/Branch [BranchController.CreateBranch] auth=authorize limit=- (request:CreateBranchRequest:body)
+POST /api/Branch/project/{projectId}/default [BranchController.EnsureDefaultBranch] auth=authorize limit=- (projectId:String:route)
+POST /api/Branch/{branchId}/database [BranchController.ProvisionDatabase] auth=authorize limit=- (branchId:String:route, request:ProvisionBranchDatabaseRequest:body)
+POST /api/Branch/{branchId}/database/seed [BranchController.SeedDatabase] auth=authorize limit=- (branchId:String:route, request:SeedBranchDatabaseRequest:body)
+POST /api/Branch/{branchId}/merge/preview [BranchController.MergePreview] auth=authorize limit=- (branchId:String:route)
+POST /api/Branch/{branchId}/versions [BranchController.CommitSchemaVersion] auth=authorize limit=- size-limited (branchId:String:route, request:CommitSchemaVersionRequest:body)
+POST /api/ChangeRequest/quick [ChangeRequestController.CreateQuick] auth=authorize limit=- size-limited (request:QuickChangeRequestRequest:body)
+POST /api/ChangeRequest/{id}/decide [ChangeRequestController.Decide] auth=authorize limit=- (id:String:route, request:DecideChangeRequestRequest:body)
+POST /api/ChangeRequest/{id}/run-tests [ChangeRequestController.RunTests] auth=authorize limit=sensitive (id:String:route)
+POST /api/ChangeRequest/{id}/scan-affected-code [ChangeRequestController.ScanAffectedCode] auth=authorize limit=- (id:String:route, request:ScanAffectedCodeRequest:body)
+POST /api/CodeSchema/extract [CodeSchemaController.Extract] auth=authorize limit=- (request:ExtractCodeSchemaRequest:body)
+POST /api/CodeSchema/infer-shapes [CodeSchemaController.InferShapes] auth=authorize limit=- (request:InferShapesRequest:body)
+POST /api/CoderAI/generate [CoderAIController.GenerateSandbox] auth=authorize limit=- (request:CoderAIRequest:body)
+POST /api/Compile/efcore [CompileController.CompileEfCore] auth= limit=sensitive (request:CompileRequest:body)
+POST /api/Compile/eject/{target} [CompileController.Eject] auth= limit=sensitive (target:String:route, request:CompileRequest:body)
+POST /api/Compile/eject/{target}/zip [CompileController.EjectZip] auth= limit=sensitive (target:String:route, request:CompileRequest:body)
+POST /api/Compile/nsl/parse [CompileController.ParseNsl] auth= limit=sensitive (request:NslParseRequest:body)
+POST /api/Compile/nsl/validate [CompileController.ValidateSchema] auth= limit=sensitive (request:CompileRequest:body)
+POST /api/Compile/prisma [CompileController.CompilePrisma] auth= limit=sensitive (request:CompileRequest:body)
+POST /api/Compile/prisma/zip [CompileController.CompilePrismaZip] auth= limit=sensitive (request:CompileRequest:body)
+POST /api/Compile/shared-hosting [CompileController.CompileSharedHosting] auth=authorize limit=sensitive (request:CompileRequest:body)
+POST /api/Compile/sql [CompileController.CompileSql] auth= limit=sensitive (request:CompileRequest:body)
+POST /api/CrossDatabase/relations [CrossDatabaseController.CreateRelation] auth=authorize limit=- (request:CreateCrossDatabaseRelationRequest:body)
+POST /api/DbIntrospect [DbIntrospectController.Introspect] auth=authorize limit=- (request:IntrospectRequest:body)
+POST /api/DbIntrospect/privileges [DbIntrospectController.Privileges] auth=authorize limit=- (request:IntrospectRequest:body)
+POST /api/Docker/run [DockerController.RunDockerSandbox] auth=authorize limit=sensitive (request:CompileRequest:body)
+POST /api/Documentation/mermaid [DocumentationController.GenerateMermaid] auth= limit=- (schema:DatabaseSchema:body)
+POST /api/Documentation/pdf [DocumentationController.GeneratePdf] auth= limit=- (request:PdfRequest:body)
+POST /api/Documentation/readme [DocumentationController.GenerateReadme] auth= limit=- (schema:DatabaseSchema:body, language:String:query)
+POST /api/Feedback [FeedbackController.Submit] auth= limit=sensitive (request:FeedbackRequest:body)
+POST /api/Lint [LintController.LintSchema] auth= limit=- (schema:DatabaseSchema:body)
+POST /api/Merge/preview [MergeController.Preview] auth=anonymous limit=sensitive (request:MergePreviewRequest:body)
+POST /api/Migration/diff [MigrationController.CalculateDiff] auth= limit=- (request:SchemaDiffRequest:body)
+POST /api/Migration/generate [MigrationController.GenerateMigration] auth= limit=- (request:MigrationGenerateRequest:body)
+POST /api/Migration/parse [MigrationController.ParseDbContext] auth= limit=- (request:ParseDbContextRequest:body)
+POST /api/ReverseEngineer/analyze [ReverseEngineerController.AnalyzeImage] auth= limit=- (image:IFormFile:route)
+POST /api/Scaffolder/export [ScaffolderController.ExportProject] auth= limit=- (schema:DatabaseSchema:body)
+POST /api/Scaffolder/export/python [ScaffolderController.ExportPythonProject] auth= limit=- (schema:DatabaseSchema:body)
+POST /api/Schema/clarify [SchemaController.Clarify] auth=anonymous limit=- (request:ClarifyRequest:body)
+POST /api/Schema/convert/analyze [SchemaController.ConvertAnalyze] auth=anonymous limit=- (request:ConvertAnalyzeRequest:body)
+POST /api/Schema/convert/apply [SchemaController.ConvertApply] auth=anonymous limit=- (request:ConvertApplyRequest:body)
+POST /api/Schema/generate [SchemaController.GenerateSchema] auth= limit=ai-generation (request:GenerateRequest:form)
+POST /api/Schema/mockdata [SchemaController.GenerateMockData] auth= limit=- (schema:DatabaseSchema:body)
+POST /api/Schema/plan [SchemaController.Plan] auth=anonymous limit=- (request:PlanRequest:body)
+POST /api/Schema/revise [SchemaController.ReviseSchema] auth= limit=- (request:ReviseRequest:body)
+POST /api/Share/{projectId} [ShareController.CreateShareLink] auth=authorize limit=share-create (projectId:String:route)
+POST /api/SmartSeed/generate [SmartSeedController.GenerateSmartSeed] auth= limit=- (request:SmartSeedRequest:body)
+POST /api/Voice/transcribe [VoiceController.TranscribeAudio] auth= limit=- (audio:IFormFile:form)
+POST /api/automation/rules [AutomationController.CreateRule] auth=authorize limit=- (request:CreateAutomationRuleRequest:body)
+POST /api/automation/rules/{id}/test [AutomationController.TestRule] auth=authorize limit=- (id:String:route)
+POST /api/executor/execute [DatabaseExecutorController.ExecuteScript] auth=authorize limit=sensitive (request:ExecutorRequest:body)
+POST /api/executor/test-connection [DatabaseExecutorController.TestConnection] auth=authorize limit=sensitive (request:ExecutorRequest:body)
+POST /api/gateway/bulk-delete [GatewayController.BulkDelete] auth=anonymous limit=gateway (request:GatewayBulkDeleteRequest:body)
+POST /api/gateway/create [GatewayController.Create] auth=anonymous limit=gateway (request:GatewayCreateRequest:body)
+POST /api/gateway/delete [GatewayController.Delete] auth=anonymous limit=gateway (request:GatewayDeleteRequest:body)
+POST /api/gateway/desk-sql [GatewayController.DeskSql] auth=anonymous limit=sensitive (request:GatewayDeskSqlRequest:body)
+POST /api/gateway/desk-sql/saved [GatewayController.SaveQuery] auth=anonymous limit=gateway (request:SaveQueryRequest:body)
+POST /api/gateway/detail [GatewayController.Detail] auth=anonymous limit=gateway (request:GatewayDetailRequest:body)
+POST /api/gateway/export [GatewayController.Export] auth=anonymous limit=gateway (request:GatewayExportRequest:body)
+POST /api/gateway/import [GatewayController.Import] auth=anonymous limit=gateway (request:GatewayImportRequest:body)
+POST /api/gateway/keys/{projectId} [GatewayKeyController.Create] auth=authorize limit=- (projectId:String:route, request:CreateGatewayKeyRequest:body)
+POST /api/gateway/list [GatewayController.List] auth=anonymous limit=gateway (request:GatewayListRequest:body)
+POST /api/gateway/query [GatewayController.Query] auth=anonymous limit=gateway (request:GatewayQueryRequest:body)
+POST /api/gateway/query/nl [GatewayController.NaturalLanguageQuery] auth=anonymous limit=gateway (request:GatewayNlQueryRequest:body)
+POST /api/gateway/rpc [GatewayController.Rpc] auth=anonymous limit=gateway (request:GatewayRpcRequest:body)
+POST /api/gateway/update [GatewayController.Update] auth=anonymous limit=gateway (request:GatewayUpdateRequest:body)
+POST /api/github/scan [GithubScanController.Scan] auth=authorize limit=sensitive (request:ScanRepositoryRequest:body)
+POST /api/github/webhook [GithubWebhookController.Receive] auth=anonymous limit=sensitive ()
+POST /api/ground/{projectId}/cancel-delete [GroundController.CancelDelete] auth=authorize limit=- (projectId:String:route)
+POST /api/ground/{projectId}/delete [GroundController.RequestDelete] auth=authorize limit=- (projectId:String:route, request:DeleteDatabaseRequest:body)
+POST /api/ground/{projectId}/provision [GroundController.Provision] auth=authorize limit=- (projectId:String:route, request:ProvisionRequest:body)
+POST /api/hub/issues/{issueId}/comments [HubController.CreateComment] auth=authorize limit=hub-write (issueId:String:route, request:CreateCommentRequest:body)
+POST /api/hub/repos/{projectId}/fork [HubController.Fork] auth=authorize limit=sensitive (projectId:String:route, request:ForkRepoRequest:body)
+POST /api/hub/repos/{projectId}/issues [HubController.CreateIssue] auth=authorize limit=hub-write (projectId:String:route, request:CreateIssueRequest:body)
+POST /api/hub/repos/{projectId}/star [HubController.ToggleStar] auth=authorize limit=hub-write (projectId:String:route)
+POST /api/launch [LaunchController.Launch] auth=authorize limit=- (request:LaunchRequest:body)
+POST /api/launch/{projectId}/download [LaunchController.Download] auth=authorize limit=- (projectId:String:route, scaffolder:IScaffolderService:route)
+POST /api/project/{projectId}/members [ProjectMemberController.Add] auth=authorize limit=- (projectId:String:route, request:AddMemberRequest:body)
+POST /api/subscription/checkout [SubscriptionController.CreateCheckoutSession] auth=authorize limit=- (plan:String:query, interval:String:query)
+POST /api/subscription/portal [SubscriptionController.CreatePortalSession] auth=authorize limit=- ()
+POST /api/team/invites [TeamController.CreateInvite] auth=authorize limit=- (request:CreateInviteRequest:body)
+POST /api/team/invites/{token}/accept [TeamController.AcceptInvite] auth=authorize limit=- (token:String:route)
+POST /api/team/projects/{projectId}/share [TeamController.ShareProject] auth=authorize limit=- (projectId:String:route)
+POST /api/team/projects/{projectId}/unshare [TeamController.UnshareProject] auth=authorize limit=- (projectId:String:route)
+POST /api/vault/{projectId}/backups [VaultController.Create] auth=authorize limit=- (projectId:String:route)
+POST /api/vault/{projectId}/backups/{backupId}/restore [VaultController.Restore] auth=authorize limit=- (projectId:String:route, backupId:String:route, request:RestoreBackupRequest:body)
+POST /api/vault/{projectId}/backups/{backupId}/verify [VaultController.Verify] auth=authorize limit=- (projectId:String:route, backupId:String:route)
+POST /api/webhooks/stripe [StripeWebhookController.HandleStripeWebhook] auth=anonymous limit=- ()
+PUT /api/Admin/ai-routes/{toolKey} [AdminController.UpdateAiRoute] auth=authorize limit=- (toolKey:String:route, request:UpdateAiRouteRequest:body)
+PUT /api/Admin/features/{key} [AdminController.UpdateFeature] auth=authorize limit=- (key:String:route, request:UpdateFeatureFlagRequest:body)
+PUT /api/Auth/profile [AuthController.UpdateProfile] auth=authorize limit=- (dto:UpdateProfileDto:body)
+PUT /api/ChangeRequest/project/{projectId}/auto-approve-safe [ChangeRequestController.SetAutoApproveSafe] auth=authorize limit=- (projectId:String:route, request:SetAutoApproveSafeRequest:body)
+PUT /api/automation/rules/{id} [AutomationController.UpdateRule] auth=authorize limit=- (id:String:route, request:UpdateAutomationRuleRequest:body)
+PUT /api/gateway/keys/project/{projectId}/connection [GatewayKeyController.SetProjectConnection] auth=authorize limit=- (projectId:String:route, request:SetProjectConnectionRequest:body)
+PUT /api/gateway/keys/project/{projectId}/desk-sql [GatewayKeyController.SetDeskSqlEnabled] auth=authorize limit=- (projectId:String:route, request:SetDeskSqlEnabledRequest:body)
+PUT /api/gateway/keys/{projectId}/tables [GatewayKeyController.SetTablePermission] auth=authorize limit=- (projectId:String:route, request:SetTablePermissionRequest:body)
+PUT /api/project/{projectId}/members/{memberUserId} [ProjectMemberController.ChangeRole] auth=authorize limit=- (projectId:String:route, memberUserId:String:route, request:ChangeMemberRoleRequest:body)
+PUT /api/usage/billing [UsageController.UpdateBilling] auth=authorize limit=- (request:UpdateBillingSettingsRequest:body)
+PUT /api/user/policy [PolicyController.UpdatePolicy] auth=authorize limit=- (model:UserAIPolicyDto:body)
+PUT /api/vault/{projectId}/schedule [VaultController.SaveSchedule] auth=authorize limit=- (projectId:String:route, request:SaveScheduleRequest:body)
+--- request bodies ---
+AIDbaRequest {DbType:DatabaseType, Schema:DatabaseSchema}
+AddMemberRequest {Email:String, Role:OrgRole}
+AiAdvancedSettings {AutoIndex:String, DbaSeverity:String, DocLevel:String, FkAction:String, MaxTokens:String, NamingConvention:String, PromptStyle:String, ScaffoldVersion:String, SeedDomain:String, SqlPrettyPrint:String, Temperature:String}
+ApprovalDecision enum{Approved=0,Rejected=1}
+AutomationActionDto {ActionConfigJson:String, ActionType:String}
+ChangeMemberRoleRequest {Role:OrgRole}
+ClarifyRequest {Prompt:String}
+CodeFileInput {Content:String, FileName:String}
+CoderAIRequest {DbType:DatabaseType, EnhanceWithAI:Boolean, Schema:DatabaseSchema}
+CommitSchemaVersionRequest {Message:String, SchemaJson:String}
+CompileRequest {DbType:DatabaseType, Schema:DatabaseSchema}
+ConvertAnalyzeRequest {Schema:DatabaseSchema, Source:DatabaseType, Target:DatabaseType}
+ConvertApplyRequest {Resolutions:Dictionary<String,String>, Schema:DatabaseSchema, Source:DatabaseType, Target:DatabaseType}
+CreateAutomationRuleRequest {Actions:List<AutomationActionDto>, ConditionsJson:String, Name:String, ProjectId:String, ScopeTableId:String, TriggerType:String}
+CreateBranchRequest {ForkedFromVersion:Int32?, IsDefault:Boolean, Name:String, ParentBranchId:String, ProjectId:String}
+CreateCommentRequest {Body:String}
+CreateCrossDatabaseRelationRequest {Note:String, SourceColumnId:String, SourceProjectId:String, SourceTableId:String, TargetColumnId:String, TargetProjectId:String, TargetTableId:String}
+CreateGatewayKeyRequest {AllowedIps:String, AllowedOrigins:String, CanExecuteSql:Boolean, CanExport:Boolean, CanWrite:Boolean, ExpiresAt:DateTime?, Name:String, RateLimitPerMinute:Int32?}
+CreateInviteRequest {ExpiresInDays:Int32, Role:OrgRole}
+CreateIssueRequest {Body:String, Labels:String, NslRuleCode:String, RelatedTableName:String, Title:String}
+DatabaseSchema {CloudProvider:String, Enums:List<SchemaEnum>, IncludeBiModule:Boolean, Name:String, Relations:List<SchemaRelation>, SchemaId:String, StoredProcedures:List<SchemaStoredProcedure>, Tables:List<SchemaTable>, Triggers:List<SchemaTrigger>}
+DatabaseType enum{MSSQL=0,PostgreSQL=1,MySQL=2,Oracle=3,SQLite=4,MariaDB=5}
+DecideChangeRequestRequest {Comment:String, Decision:ApprovalDecision}
+DeleteAccountRequest {Confirmation:String, Password:String, TwoFactorCode:String}
+DeleteDatabaseRequest {ConfirmProjectName:String}
+DeskHandoffExchangeRequest {Token:String}
+ExecutorRequest {ConnectionString:String, DbType:DatabaseType, ProjectId:String, Script:String}
+ExtractCodeSchemaRequest {CompareWith:DatabaseSchema, DbType:DatabaseType, Files:Dictionary<String,String>}
+FeedbackRequest {Category:String, Email:String, Message:String}
+ForkRepoRequest {Name:String}
+GatewayBulkDeleteRequest {ConnectionString:String, DbType:String, PkColumn:String, PkValues:List<String>, ProjectId:String, TableName:String}
+GatewayCreateRequest {ConnectionString:String, DbType:String, ProjectId:String, TableName:String, Values:Dictionary<String,String>}
+GatewayDeleteRequest {ConnectionString:String, DbType:String, PkColumn:String, PkValue:String, ProjectId:String, TableName:String}
+GatewayDeskSqlRequest {MaxRows:Int32, ProjectId:String, Sql:String}
+GatewayDetailRequest {ConnectionString:String, DbType:String, PkColumn:String, PkValue:String, ProjectId:String, TableName:String}
+GatewayExpand {As:String, FromColumn:String, Table:String, ToColumn:String}
+GatewayExportRequest {ConnectionString:String, DbType:String, Filters:IReadOnlyList<GatewayFilter>, Format:String, MaxRows:Int32, OrGroups:IReadOnlyList<GatewayFilterGroup>, OrderByColumn:String, ProjectId:String, Select:IReadOnlyList<String>, SortDirection:GatewaySortDirection, TableName:String}
+GatewayFilter {Column:String, Operator:GatewayOperator, Values:IReadOnlyList<String>}
+GatewayFilterGroup {Any:IReadOnlyList<GatewayFilter>}
+GatewayImportRequest {ConnectionString:String, DbType:String, Rows:List<Dictionary<String,String>>, TableName:String}
+GatewayListRequest {ConnectionString:String, DbType:String, Expand:IReadOnlyList<GatewayExpand>, Filters:IReadOnlyList<GatewayFilter>, IncludeTotalCount:Boolean, OrGroups:IReadOnlyList<GatewayFilterGroup>, OrderByColumn:String, Page:Int32, PageSize:Int32, ProjectId:String, Select:IReadOnlyList<String>, SortDirection:GatewaySortDirection, TableName:String}
+GatewayNlQueryRequest {ConnectionString:String, DbType:String, Execute:Boolean, ProjectId:String, Question:String}
+GatewayOperator enum{Eq=0,Neq=1,Gt=2,Gte=3,Lt=4,Lte=5,Like=6,In=7,IsNull=8,IsNotNull=9}
+GatewayQueryRequest {ConnectionString:String, DbType:String, ProjectId:String, ReadOnly:Boolean, Sql:String}
+GatewayRpcRequest {Arguments:List<String>, ConnectionString:String, DbType:String, Function:String}
+GatewaySortDirection enum{Asc=0,Desc=1}
+GatewayUpdateRequest {ConnectionString:String, DbType:String, PkColumn:String, PkValue:String, ProjectId:String, TableName:String, Values:Dictionary<String,String>}
+GatewayWriteKind enum{Create=0,Update=1,Delete=2,Import=3,Rpc=4,Sql=5,Read=6}
+GenerateRequest {AIProvider:String, Advanced:Boolean, Answers:String, ApiSpecUrl:String, DbType:DatabaseType, Image:IFormFile, ModelName:String, Prompt:String}
+InferShapesRequest {Responses:List<ObservedResponse>}
+IntrospectRequest {ConnectionString:String, DbType:String}
+LaunchRequest {DdlScript:String, ProjectId:String, Provider:String}
+LoginRequestDto {Email:String, Password:String, TwoFactorCode:String}
+MergePreviewRequest {Base:DatabaseSchema, Ours:DatabaseSchema, Theirs:DatabaseSchema}
+MfaCodeRequest {Code:String}
+MigrationGenerateRequest {DbType:DatabaseType, NewSchema:DatabaseSchema, OldSchema:DatabaseSchema}
+NslParseRequest {DbType:DatabaseType, Text:String}
+OAuthCallbackRequestDto {Code:String, IdToken:String, IsDevSimulation:Boolean, Provider:String, RedirectUri:String}
+ObservedResponse {Body:String, Endpoint:String}
+OrgRole enum{Viewer=0,Editor=1,Admin=2,Owner=3,Billing=4}
+ParseDbContextRequest {DbContextCode:String, DbType:DatabaseType}
+PdfRequest {Language:String, ProjectName:String, Schema:DatabaseSchema}
+PlanRequest {Answers:Dictionary<String,String>, Prompt:String, Round:Int32}
+ProjectVisibility enum{Private=0,Team=1,Public=2}
+ProvisionBranchDatabaseRequest {Engine:DatabaseType}
+ProvisionRequest {Provider:String}
+QuickChangeRequestRequest {Message:String, ProjectId:String, SchemaJson:String, Title:String}
+ReferentialAction enum{NoAction=0,Restrict=1,Cascade=2,SetNull=3,SetDefault=4}
+RegisterRequestDto {CompanyName:String, Email:String, Password:String, Type:String, Username:String}
+ResetQuotaDto {BonusPoints:Int32?, ResetToZero:Boolean}
+RestoreBackupRequest {ConfirmDatabaseName:String, Tables:IReadOnlyList<String>}
+ReviseRequest {AIProvider:String, Enums:List<SchemaEnum>, ExistingRelations:List<SchemaRelation>, ModelName:String, RevisionPrompt:String, SelectedTables:List<SchemaTable>, StoredProcedures:List<SchemaStoredProcedure>, Triggers:List<SchemaTrigger>}
+SaveQueryRequest {Name:String, ProjectId:String, Sql:String}
+SaveScheduleRequest {Cadence:String, DayOfWeek:Int32?, Enabled:Boolean, HourUtc:Int32, RetainCount:Int32}
+ScanAffectedCodeRequest {Files:List<CodeFileInput>}
+ScanRepositoryRequest {Branch:String, CompareWith:DatabaseSchema, DbType:DatabaseType, RepoUrl:String}
+SchemaCheck {Expression:String, Id:String, Name:String, StableUuid:String}
+SchemaColumn {Collation:String, DefaultValue:String, EnumRef:String, Generated:String, Id:String, Identity:Boolean?, IsArray:Boolean, IsFK:Boolean, IsNullable:Boolean, IsPK:Boolean, Length:Int32?, Name:String, Scale:Int32?, StableUuid:String, Type:String}
+SchemaDiffRequest {DbType:DatabaseType?, NewSchema:DatabaseSchema, OldSchema:DatabaseSchema}
+SchemaEnum {Id:String, Name:String, StableUuid:String, Values:List<String>}
+SchemaIndex {Columns:List<SchemaIndexColumn>, Id:String, IncludeColumnIds:List<String>, IsUnique:Boolean, Method:String, Name:String, StableUuid:String, Where:String}
+SchemaIndexColumn {ColumnId:String, Descending:Boolean}
+SchemaRelation {Id:String, OnDelete:ReferentialAction, OnUpdate:ReferentialAction, SourceColumnId:String, SourceTableId:String, TargetColumnId:String, TargetTableId:String, Type:String}
+SchemaRlsPolicy {Command:String, Id:String, Name:String, Role:String, StableUuid:String, Using:String, WithCheck:String}
+SchemaStoredProcedure {Body:String, Id:String, Name:String, Parameters:List<SchemaStoredProcedureParameter>, StableUuid:String, TargetEngine:DatabaseType}
+SchemaStoredProcedureParameter {Name:String, Type:String}
+SchemaTable {Checks:List<SchemaCheck>, Columns:List<SchemaColumn>, EnableRls:Boolean, Id:String, Indexes:List<SchemaIndex>, Name:String, RlsPolicies:List<SchemaRlsPolicy>, StableUuid:String, Uniques:List<SchemaUnique>}
+SchemaTrigger {Body:String, Event:String, Id:String, StableUuid:String, TableId:String, TargetEngine:DatabaseType, Timing:String}
+SchemaUnique {ColumnIds:List<String>, Id:String, Name:String, StableUuid:String}
+SeedBranchDatabaseRequest {RowsPerTable:Int32}
+SetAutoApproveSafeRequest {Enabled:Boolean}
+SetDeskSqlEnabledRequest {Enabled:Boolean}
+SetProjectConnectionRequest {ConnectionString:String, DbType:String}
+SetTablePermissionRequest {CanExport:Boolean, CanRead:Boolean, CanWrite:Boolean, MaskedColumns:String, TableName:String}
+SimulateErrorRequest {Level:String, Message:String, Source:String}
+SmartSeedRequest {DbType:DatabaseType, DomainHint:String, EnhanceWithAI:Boolean, RowCount:Int32, Schema:DatabaseSchema}
+SyncProjectDto {DbType:String, Id:String, Name:String, NodePositionsJson:String, RowVersion:UInt32?, SchemaJson:String}
+TelemetryEventItem {Action:String, DurationSeconds:Int32, Id:String, IpAddress:String, Metadata:String, Module:String, Path:String, SessionId:String, Timestamp:DateTime, UserAgent:String, UserEmail:String, UserId:String}
+UpdateAiRouteRequest {FallbackProvider:String, ModelName:String, Provider:String, Temperature:Double}
+UpdateAutomationRuleRequest {Actions:List<AutomationActionDto>, ConditionsJson:String, Enabled:Boolean, Name:String, ScopeTableId:String, TriggerType:String}
+UpdateBillingSettingsRequest {MonthlyCapUsd:Decimal?, OverageEnabled:Boolean}
+UpdateFeatureFlagRequest {IsEnabled:Boolean, Mode:String, NoticeMessage:String}
+UpdateIssueStateRequest {IsClosed:Boolean}
+UpdatePlanDto {PlanCode:String}
+UpdateProfileDto {Bio:String, CompanyName:String, FullName:String, GithubUrl:String, LinkedinUrl:String, Location:String, TwitterUrl:String, WebsiteUrl:String}
+UpdateRepoSettingsRequest {AutoApproveSafeChanges:Boolean?, Category:String, DbType:String, Description:String, LinkedGithubRepo:String, Name:String, Slug:String, Tags:String, Visibility:ProjectVisibility?}
+UserAIPolicyDto {Advanced:AiAdvancedSettings, DbaAnalysis:Int32, Documentation:Int32, Migration:Int32, Scaffolding:Int32, SchemaGeneration:Int32, SchemaRevision:Int32, SmartSeed:Int32, Voice:Int32}
