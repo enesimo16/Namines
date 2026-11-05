@@ -44,7 +44,7 @@ public class ShareController : ControllerBase
     [Authorize]
     [HttpPost("{projectId}")]
     [EnableRateLimiting("sensitive")]
-    public async Task<IActionResult> CreateShareLink(string projectId)
+    public async Task<IActionResult> CreateShareLink(string projectId, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
         if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
@@ -52,7 +52,7 @@ public class ShareController : ControllerBase
 
         try
         {
-            var rawToken = await _studio.CreateShareLinkAsync(projectId, HttpContext.RequestAborted);
+            var rawToken = await _studio.CreateShareLinkAsync(projectId, ct);
             return Ok(new { token = rawToken });
         }
         catch (KeyNotFoundException)
@@ -66,13 +66,13 @@ public class ShareController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpDelete("{projectId}")]
-    public async Task<IActionResult> RevokeShareLink(string projectId)
+    public async Task<IActionResult> RevokeShareLink(string projectId, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
         if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
             return NotFound();
 
-        await _studio.RevokeShareLinksAsync(projectId, HttpContext.RequestAborted);
+        await _studio.RevokeShareLinksAsync(projectId, ct);
         return NoContent();
     }
 
@@ -80,11 +80,11 @@ public class ShareController : ControllerBase
     [AllowAnonymous]
     [HttpGet("view/{token}")]
     [EnableRateLimiting("share-public")]
-    public async Task<IActionResult> GetSharedSchema(string token)
+    public async Task<IActionResult> GetSharedSchema(string token, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
 
-        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), HttpContext.RequestAborted);
+        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), ct);
         if (project is null) return NotFound();
 
         return Ok(new
@@ -103,11 +103,11 @@ public class ShareController : ControllerBase
     [AllowAnonymous]
     [HttpGet("badge/{token}")]
     [EnableRateLimiting("share-public")]
-    public async Task<IActionResult> GetDbaBadge(string token)
+    public async Task<IActionResult> GetDbaBadge(string token, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
 
-        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), HttpContext.RequestAborted);
+        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), ct);
         var schemaJson = project?.SchemaJson;
         if (schemaJson is null) return NotFound();
 
@@ -170,10 +170,10 @@ public class ShareController : ControllerBase
     [AllowAnonymous]
     [HttpGet("og/{token}.svg")]
     [EnableRateLimiting("share-public")]
-    public async Task<IActionResult> OgImage(string token)
+    public async Task<IActionResult> OgImage(string token, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
-        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), HttpContext.RequestAborted);
+        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), ct);
         if (project is null) return NotFound();
 
         var (name, dbType, schemaJson) = (project.Name, project.DbType, project.SchemaJson);
@@ -206,10 +206,10 @@ public class ShareController : ControllerBase
     [AllowAnonymous]
     [HttpGet("meta/{token}")]
     [EnableRateLimiting("share-public")]
-    public async Task<IActionResult> Meta(string token)
+    public async Task<IActionResult> Meta(string token, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(token)) return BadRequest();
-        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), HttpContext.RequestAborted);
+        var project = await _studio.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(token), ct);
         if (project is null) return NotFound();
 
         var (name, dbType, schemaJson) = (project.Name, project.DbType, project.SchemaJson);

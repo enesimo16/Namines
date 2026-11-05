@@ -172,16 +172,16 @@ public class HubController : ControllerBase
         }
 
         var total = qualified.Count;
-        var page_ = qualified.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var visibleItems = qualified.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         // Yalnızca görünen sayfanın sahipleri: tek sorgu, N+1 yok.
-        var ownerIds = page_.Select(x => x.Candidate.Project.UserId).Distinct().ToList();
+        var ownerIds = visibleItems.Select(x => x.Candidate.Project.UserId).Distinct().ToList();
         var ownerNames = await _context.Users.AsNoTracking()
             .Where(u => ownerIds.Contains(u.Id))
             .Select(u => new { u.Id, u.UserName })
             .ToDictionaryAsync(u => u.Id, u => u.UserName, ct);
 
-        var pagedItems = page_
+        var pagedItems = visibleItems
             .Select(x => new
             {
                 x.Candidate.Project.Id,
