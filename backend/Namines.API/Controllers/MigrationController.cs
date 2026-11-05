@@ -39,7 +39,8 @@ public class MigrationController : ControllerBase
             var schema = await _migrationService.ParseDbContextAsync(request.DbContextCode, request.DbType);
             return Ok(schema);
         }
-        catch (Exception ex)
+        // AI yapılandırılmamışsa merkezi ara katman 503 verir; burada yakalanınca mesajıyla 500 oluyordu (R2-m3).
+        catch (Exception ex) when (ex is not AiNotConfiguredException)
         {
             _logger.LogError(ex, "Migration: DbContext parse işlemi sırasında beklenmeyen hata");
             return StatusCode(500, new { error = $"Failed to parse DbContext: {ex.Message}" });
@@ -63,7 +64,8 @@ public class MigrationController : ControllerBase
             var diffResult = await _migrationService.CalculateDiffAsync(request.OldSchema, request.NewSchema, engine);
             return Ok(diffResult);
         }
-        catch (Exception ex)
+        // AI yapılandırılmamışsa merkezi ara katman 503 verir; burada yakalanınca mesajıyla 500 oluyordu (R2-m3).
+        catch (Exception ex) when (ex is not AiNotConfiguredException)
         {
             _logger.LogError(ex, "Migration: Şema karşılaştırma sırasında hata oluştu");
             return StatusCode(500, new { error = $"Schema comparison failed: {ex.Message}" });
@@ -86,7 +88,8 @@ public class MigrationController : ControllerBase
             var migrationResult = await _migrationService.GenerateMigrationAsync(request.OldSchema, request.NewSchema, request.DbType);
             return Ok(migrationResult);
         }
-        catch (Exception ex)
+        // AI yapılandırılmamışsa merkezi ara katman 503 verir; burada yakalanınca mesajıyla 500 oluyordu (R2-m3).
+        catch (Exception ex) when (ex is not AiNotConfiguredException)
         {
             _logger.LogError(ex, "Migration: Migration üretimi sırasında hata oluştu");
             return StatusCode(500, new { error = $"Migration code generation failed: {ex.Message}" });

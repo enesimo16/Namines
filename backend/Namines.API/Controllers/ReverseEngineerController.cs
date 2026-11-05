@@ -122,7 +122,8 @@ public class ReverseEngineerController : ControllerBase
 
             return Ok(parsedSchema);
         }
-        catch (Exception ex)
+        // AI yapılandırılmamışsa merkezi ara katman 503 verir; burada yakalanınca mesajıyla 500 oluyordu (R2-m3).
+        catch (Exception ex) when (ex is not AiNotConfiguredException)
         {
             _logger.LogError(ex, "ReverseEngineer: Görsel çözümleme sırasında hata oluştu.");
             return StatusCode(500, new { error = $"Whiteboard analysis failed: {ex.Message}" });
