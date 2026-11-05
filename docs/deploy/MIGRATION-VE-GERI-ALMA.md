@@ -198,10 +198,12 @@ her zaman istenen şeyi yapmaz):
 `Phase14_2C_NormalizeCollections` da tek adımlı (`MigrationCompatibilityTests.DeliberateExceptions`): CSV kolonları aynı işlemde tablolara taşınıp düşer.
 
 - **Sıra:** eski sürümü durdur, yedek al, `--migrate`, yeni sürümü aç. Eski kod yeni şemada sorgu hatası verir; maskesiz okuma ya da serbest allowlist oluşmaz.
-- **Süre:** ölçüm 200 bin issue + 20 bin anahtar + 50 bin izin için 110 sn, üç tabloda ACCESS EXCLUSIVE. `Database:MigrationCommandTimeoutSeconds` varsayılanı 1800.
+- **Süre:** ölçüm 200 bin issue + 20 bin anahtar + 50 bin izin için 36-110 sn (makine ve yüke göre), üç tabloda ACCESS EXCLUSIVE; `lock_timeout` 30 sn, açık işlem varsa `55P03` ile düşer, yeniden dene. `Database:MigrationCommandTimeoutSeconds` varsayılanı 1800.
 - **Yetki:** `deploy/sql/roles.sql` artık `gateway` şemasını da açıyor; yine de migration `namines_app` varsa yetki verir.
 - **Sonrası:** `migration_quarantine.orphaned_rows` içinde `source_table LIKE 'public.Gateway%'` satırlarına bak. Tüm girdileri geçersiz anahtar her isteği reddeder, kullanıcı yenisini üretmeli. `blank_list_means_no_restriction` kısıtsız kalan anahtarları gösterir.
-- **Geri alma:** kod geri alınacaksa ÖNCE veritabanı: `dotnet ef database update 20261105105313_AddSubscriptionCancellationOutbox`. Temiz listeler kanonik döner, karantinadakiler ham metinle; karar aynı kalır. Ayrıntı: `docs/architecture/PHASE_14_2C_REPORT.md` §3.
+- **Geri alma:** kod geri alınacaksa ÖNCE veritabanı. `dotnet ef` uygulamanın zaman aşımı ayarını okumaz, varsayılan 30 sn hacimde düşer (işlem geri alınır, veri sağlam). Bağlantı dizesinde süre ver:
+  `ConnectionStrings__DefaultConnection="<bağlantı>;Command Timeout=1800" dotnet ef database update 20261105105313_AddSubscriptionCancellationOutbox -c AuthDbContext --project backend/Namines.Infrastructure --startup-project backend/Namines.API`
+  (200 bin issue'luk DB'de koşuldu: 10,9 sn.) Temiz listeler kanonik döner, karantinadakiler ham metinle; karar aynı kalır. Ayrıntı: `docs/architecture/PHASE_14_2C_REPORT.md` §3.
 
 ## 5.2 Abonelik iptali kuyruğu
 
