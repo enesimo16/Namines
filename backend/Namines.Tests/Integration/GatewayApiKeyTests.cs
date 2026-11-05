@@ -31,7 +31,25 @@ public class GatewayApiKeyTests : IAsyncLifetime
 
         _shared = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>()
             .UseNpgsql(_container.GetConnectionString()).Options);
-        await _shared.Database.MigrateAsync();
+
+        // Bu sınıf her test için yeni container açıyor; Docker'ın port yönlendirmesi taze container'a
+        // ilk bağlantıyı ara sıra kesiyor (HistoryRepository.ExistsAsync'te "connection aborted",
+        // temel koşuda da görüldü). Üretim bağlamında retry stratejisi var, bu test bağlamında yok.
+        // Yalnızca bağlantı hatası yeniden denenir; migration işlemsel, yarım kalmaz.
+        const int connectAttempts = 4;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await _shared.Database.MigrateAsync();
+                break;
+            }
+            catch (Npgsql.NpgsqlException) when (attempt < connectAttempts)
+            {
+                await _shared.Database.CloseConnectionAsync();
+                await Task.Delay(TimeSpan.FromSeconds(2));
+            }
+        }
 
         await _shared.Users.AddAsync(new ApplicationUser { Id = "u1", UserName = "u1" });
         await _shared.SaveChangesAsync();
