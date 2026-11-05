@@ -706,6 +706,9 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         {
             // ConnectionStrings:Migrations tanımlıysa şema değişikliği ayrı (sahip) rolle yapılır;
             // uygulama rolü yalnızca DML yetkisiyle kalır. Tanımsızsa davranış değişmez.
+            // Veri taşıyan migration'lar sorgu zaman aşımını (30 sn) aşabilir: 200 bin issue'luk 14.2C
+            // doldurması aşıyordu. İşlem geri alınır, veri bozulmaz ama yükseltme hiç bitmez.
+            var migrationTimeout = TimeSpan.FromSeconds(app.Configuration.GetValue("Database:MigrationCommandTimeoutSeconds", 1800));
             var migrationsConnection = app.Configuration.GetConnectionString("Migrations");
             if (!string.IsNullOrWhiteSpace(migrationsConnection))
             {
@@ -713,12 +716,14 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
                     .UseNpgsql(migrationsConnection)
                     .Options;
                 using var migDb = new AuthDbContext(migOptions);
+                migDb.Database.SetCommandTimeout(migrationTimeout);
                 migDb.Database.Migrate();
                 Log.Information("Migration ConnectionStrings:Migrations ile uygulandı.");
             }
             else
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+                dbContext.Database.SetCommandTimeout(migrationTimeout);
                 dbContext.Database.Migrate();
             }
             Log.Information("Veritabanı migration başarıyla tamamlandı.");
