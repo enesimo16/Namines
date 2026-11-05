@@ -1,219 +1,194 @@
-# NAMINES — PHASE 14.2B INDEPENDENT ACCEPTANCE AUDIT
+# Faz 14.2B Bağımsız Kabul Denetimi
 
-> **Tarihsel belge.** `5565811` üzerindeki denetim; bulguları (kolonlar düşmemiş, tablolar yok) o commit için
-> doğruydu. Güncel durum ve kanıt: `PHASE_14_2B_REPORT.md`.
+> Denetlenen: `arch/phase-14-2`, `5565811..68c9fec`. Tarih: 2026-11-05. Bu belge `5565811` üzerindeki eski denetimin yerini alır.
+> Ortam: Windows 11, .NET 8.0.427, Docker 29.9; kendi `postgres:16-alpine` container'ım, testlerde Testcontainers (`postgres:17-alpine`). Uygulayıcının rapor ve test çıktılarına güvenilmedi; aşağıdaki her sayı bu denetimde üretildi.
 
-## CloudProjects God Entity Decomposition — Bağımsız Kabul ve Güvenlik Denetimi
+## Karar: CONDITIONALLY ACCEPTED
 
-> **Tarih:** 2026-11-04  
-> **Denetçi Rolü:** Principal Software Architect, Senior .NET Engineer, PostgreSQL Database Engineer & Security Auditor  
-> **Denetim Kapsamı:** Phase 14.2B Uygulama Raporu ve Kod Tabanı Gerçekliği  
-> **Nihai Karar:** ⚠️ **CONDITIONALLY ACCEPTED (ŞARTLI KABUL)**  
-> *(Temel şema ve servis altyapısı başarıyla kurulmuş olmakla birlikte, 4 adet bloklayıcı entegrasyon ve veri senkronizasyonu açığı giderilmeden Phase 14.2C'ye GEÇİLEMEZ.)*  
-> **Gerçek Tamamlanma Oranı:** **%75**
+Veri taşıma, şema, tüketici geçişi ve güvenlik sağlam. **İki bloklayıcı (B-1, B-2) ile M-1, M-2 bu fazda kapatılmadan 14.2C'ye geçilemez.** Düzeltmelerden sonra yalnızca bu dört madde yeniden denetlenir.
 
----
+## Kabul tablosu
 
-## 1. YÖNETİCİ ÖZETİ VE BAĞIMSIZ DENETİM KARARI
+| Alan | Sonuç | Kanıt |
+|---|---|---|
+| Build | PASS | `dotnet build backend/Namines.sln -c Release --no-incremental`: 0 uyarı, 0 hata |
+| Unit | PASS | `Namines.Tests`: 2804 toplam, 2804 geçti, 0 kaldı, 0 atlandı, 12 dk 17 sn, sıralı. Docker gerektirmeyenler bu sayının içinde |
+| Integration | PASS | Aynı koşuda gerçek PG (atlanan yok); `Namines.Tests.RunTests`: 19/19, 2 dk 14 sn. Eksik senaryo: B-1, B-2 |
+| Architecture | PASS | `ModularMonolithArchitectureTests` yeşil; okundu, yansıma ve kaynak taraması gerçek; kendi grep'im aynı sonucu verdi |
+| Migration | PASS, M-1 hariç | `--migrate` boş DB: 49 migration, katalog temiz. Seed'li yükseltme, Down, Up: §1. `has-pending-model-changes` Auth, Studio, Hub: temiz |
+| Data integrity | PASS, L-1 hariç | 50 kötü niyetli satır: alan alan fark yok; Up1 = Up2 |
+| Security | PASS | Gerçek API'ye karşı 38/38 yetki ve sızıntı kontrolü; §3 |
+| API compatibility | PASS, farklar §4 | Rota listeleri `diff` ile aynı, frontend değişmedi; `tsc` 0 hata; vitest 39 dosya, 280/280 |
+| Performans (ek) | **FAIL** | B-1 |
+| Documentation | **FAIL** | M-2 |
+| Independent audit | CONDITIONALLY ACCEPTED | Bu belge |
 
-Phase 14.2B uygulama raporu (`PHASE_14_2B_IMPLEMENTATION_REPORT.md`), `CloudProjects` God Entity ve God Table yapısının tamamen ortadan kaldırıldığını ve tüm tüketicilerin yeni modül sözleşmelerine geçirildiğini iddia etmiştir. 
+## Bloklayıcı bulgular
 
-Mevcut kaynak kodlar, PostgreSQL migration betikleri, EF Core model yapılandırmaları ve birim/entegrasyon testleri üzerinde yapılan **satır satır bağımsız denetim**, bu iddiaların gerçeği tam yansıtmadığını ortaya koymuştur:
+### B-1 (HIGH): Explore'da `q`/`dbType` tüm public repoları uygulama belleğinde tarıyor
 
-1. **God Table Fiziksel Olarak Durmaktadır:** `public.CloudProjects` tablosundan **hiçbir kolon fiziksel olarak DROP edilmemiştir (0 kolon silinmiştir)**. `BuildContractSql()` yalnızca bazı kolonları `NULL` yapmıştır; ancak `Visibility`, `Category`, `StarCount`, `ForkCount` ve `ForkedFromProjectId` alanları `NULL` dahi yapılmamıştır.
-2. **Kritik Fonksiyonel Regresyon (Yeni Projelerin Paylaşılamaması):** `AuthController.cs` yeni proje oluştururken ve güncellerken yalnızca `_context.CloudProjects` tablosuna yazmaktadır; `studio.projects` tablosuna yazmamaktadır. Sonuç olarak, göçten sonra oluşturulan herhangi bir proje için `ShareController.CreateShareLink` çağrıldığında `StudioApplicationService` projeyi `studio.projects` içinde bulamamakta, `KeyNotFoundException` fırlatmakta ve API kullanıcıya **404 Not Found** dönmektedir!
-3. **Vitrin ve Sosyal Sayaç Tutarsızlığı:** `HubController.ToggleStar` ve `AdjustStarCountAsync` metotları yalnızca `_context.CloudProjects.StarCount` kolonunu güncellemektedir; `hub.repositories.StarCount` kolonuna dokunmamaktadır. `HubController.Explore` ucu ise yalnızca `_context.CloudProjects` tablosunu sorgulamaktadır. Eğer `BuildContractSql()` (eski kolonları null yapan betik) çalıştırılırsa, `CloudProjects.Description` null olacağı için Explore akışı anında **0 sonuç döndürerek çökecektir.**
-4. **Anahtar Rotasyonu (Key Rotation) İhlali:** `ConnectionSecretReencryptor.cs` yalnızca `CloudProjects.EncryptedConnectionString` alanını taramakta ve yeniden şifrelemektedir. `studio.project_connections` tablosu rotasyon kapsamı dışındadır.
-5. **EF Core Model Snapshot Uyumsuzluğu:** `AuthDbContext` ve `AuthDbContextModelSnapshot.cs` içerisinde `CloudProject` hâlâ 14 kolon, tüm kısıtlar ve indeksleriyle yer almaktadır. EF Core seviyesinde herhangi bir migration üretilmemiştir.
+`backend/Namines.API/Controllers/HubController.cs:231-273`. 200'lük turlarla ilerleyen döngü, tur başına 3 sorgu çalıştırıyor. Uç anonim ve hız sınırı yok (`:128`). Motor filtresi arayüzün normal yolu (`frontend/app/hub/page.tsx:96`), yani "uç durum" değil.
 
-Bu gerekçelerle, Phase 14.2B **tam kabul (ACCEPTED) alamamış**, **ŞARTLI KABUL (CONDITIONALLY ACCEPTED)** statüsüne alınmıştır.
+Ölçüm (50.000 proje, 10.012 public, makine boşta, 3 ölçümün değerleri):
 
----
+| İstek | Süre |
+|---|---|
+| Filtresiz | 12-27 ms |
+| `?q=zzzznomatch` | 574-625 ms |
+| `?dbType=Oracle` | 567-577 ms (test yükü altında 3,4 sn'ye kadar) |
+| Eşdeğer tek SQL (`EXPLAIN ANALYZE`, hash join) | 20,6 ms |
 
-## 2. BÖLÜM 1: CLOUDPROJECTS KALINTILARI DENETİMİ
+Eski kod tek sorguydu; yeni kod 150 sorgu, yaklaşık 30 kat yavaş ve public repo sayısıyla doğrusal. 100.000 public repoda hesaplanan: yaklaşık 6 sn ve 1.500 sorgu, kimlik doğrulamasız ve sınırsız. Bu, sahibin "full scan yok / performans" standardını ihlal eder. Raporun "D-2'de arama indeksi gerekir" notu da "açık taşınmaz" kuralına aykırı. **Karar: bloklayıcı.**
 
-### 2.1. Entity ve Model Snapshot Durumu
-- **`CloudProject.cs`:** `backend/Namines.Core/Models/Auth/CloudProject.cs` incelendiğinde; `EncryptedConnectionString`, `ConnectionDbType`, `AllowDeskSql`, `ShareToken`, `ShareTokenHash`, `Slug`, `Description`, `Visibility`, `Category`, `Tags`, `StarCount`, `ForkCount`, `ForkedFromProjectId`, `LinkedGithubRepo` özelliklerinin **tamamı entity sınıfı üzerinde durmaktadır.**
-- **`AuthDbContextModelSnapshot.cs`:** Satır 550–650 arasında `CloudProject` için yukarıda sayılan 14 alanın tamamı, check constraint'ler (`CK_CloudProjects_StarCount`, `CK_CloudProjects_Tags_Length` vb.) ve filtreli indeksler (`IX_CloudProjects_Explore_Public`) eksiksiz olarak snapshot içinde mevcuttur.
-- **`AuthDbContext.cs`:** Satır 12'de `public DbSet<CloudProject> CloudProjects { get; set; } = null!;` durmaktadır. ModelBuilder içinde `Slug`, `Visibility` ve `StarCount` indeksleri ile tüm check constraint'ler tanımlanmaya devam etmektedir.
+**Gerekli düzeltme:**
+1. `hub.repositories`'e `OwnerUserId` deseniyle Hub'a ait okuma modeli kolonları ekle: `ProjectName`, `ProjectDbType`. İleri migration ile doldur, migration içinde alan alan doğrula.
+2. Yazımları proje yazımıyla aynı `ICrossModuleTransaction` içinde yap: `AuthController` sync, `UpdateSettings`, fork, tohumlayıcılar.
+3. `HubApplicationService.GetExploreCandidatesAsync` `q`/`dbType` filtresini tek SQL'de uygulasın (ad/açıklama `LIKE`, etiket `EXISTS`), `LIMIT 200`.
+4. `CollectExploreCandidatesAsync` döngüsünü ve `HasTag` CSV bölmesini sil.
+5. Explore'a anonim IP hız sınırı politikası ekle.
+6. Gerçek PG testi: eşleşmeyen `q` sabit sayıda sorgu çalıştırıyor; yeniden adlandırma aramaya yansıyor. Plan raporda.
 
-### 2.2. Fiziksel Kolon ve Kısıt Durumu (PostgreSQL)
+### B-2 (HIGH): Varisin aynı slug'ı varsa hesap silme kalıcı 500 veriyor ve geri alınamaz iş yapmış oluyor
 
-| Kolon Adı | `CloudProjects`'teki Durumu | Hedef Tablo | Fiziksel Olarak DROP Edildi mi? | Güvenlik / Bütünlük Riski |
+`backend/Namines.Infrastructure/Services/AccountDeletionService.cs:246` → `HubApplicationService.cs:307`, `IX_repositories_OwnerUserId_Slug` ihlali. Kişisel projeler (`:199`) ve Stripe iptali işlem (`:237`) **başlamadan önce** gerçekleşiyor.
+
+Gerçek API'de yeniden üretim:
+1. A ve H aynı takım org'unun üyesi. A'nın org projesi ve H'nin kendi projesi aynı adda ("Same Name"), ikisinin slug'ı `same-name`.
+2. `DELETE /api/auth/me` (A).
+3. Sonuç: `500 23505 IX_repositories_OwnerUserId_Slug`. Hesap duruyor, A'nın kişisel projesi **fiziksel olarak silinmiş**, ikinci deneme yine 500.
+
+Slug, addan ve yalnızca sahip içinde benzersiz üretildiği için (`BuildUniqueSlugAsync`) aynı adlı projeler sıradan bir durum. Regresyon değil (`5565811`'de `IX_CloudProjects_UserId_Slug` aynı davranışı veriyordu), ama bu fazın yeniden yazdığı akış ve taşınan veri üzerinde, rapor da "kapsam dışı" diye bırakmış. **Karar: bloklayıcı.**
+
+**Gerekli düzeltme:**
+- `ReassignOwnerAsync` işlem içinde çakışmayı çözsün: varis altında slug doluysa `slug-2`, `slug-3`... (`BuildUniqueSlugAsync` kuralıyla) ve logla.
+- Çakışma çözülemiyorsa hata, adım 2'den **önce** bir ön kontrolde dönmeli.
+- Gerçek PG testi: `Hesap_silme_varis_slug_cakismasi`, sonuçta hesap silinmiş, repo varise geçmiş, slug benzersiz.
+
+## Bu fazda kapanacak küçük bulgular
+
+### M-1 (MEDIUM): En az yetkili rolle `Down` + `Up` kırık
+
+`Phase14_2B_DecompositionScripts.cs:425-426` şemaları düşürüyor; `deploy/sql/roles.sql:35` migrator'a veritabanı `CREATE` yetkisi vermiyor.
+
+Yeniden üretim: `roles.sql`, `namines_migrator` ile Up (geçer), Down (geçer), yeniden Up: `42501 permission denied for database`. Veri kaybı yok, işlem geri alınıyor; `roles.sql` yeniden çalıştırılınca geçiyor. Runbook bunu söylemiyor (`docs/deploy/MIGRATION-VE-GERI-ALMA.md` §5.1). Aynı kök neden, rollerle **boş** DB kurulumunu da `20261024215203` migration'ında durduruyor (49 migration'ın 33'ü uygulanıyor; bu kısım önceden vardı).
+
+**Düzeltme:** `roles.sql:35` için ayrı satır: `GRANT CONNECT, CREATE ON DATABASE :"dbname" TO namines_migrator;` ve `:38-40` yorumunu düzelt. Doğrulandı: yetkiden sonra boş DB'de 49/49 uygulanıyor. Geri alma için bir test ekle.
+
+### M-2 (MEDIUM): Rapor eksik ve bir iddiası ölçümsüz
+
+`docs/architecture/PHASE_14_2B_REPORT.md`:
+- `:60-61` kilit süresi ölçülmemiş ("saniye altı beklenir"). Ölçüm: 50.000 projede ACCESS EXCLUSIVE tutan migration **7 sn** (boşta), 8 sn (yük altında). Bu sayı rapora ve runbook'a yazılmalı.
+- `:154` bozuk cümle.
+- `:214` frontend testi koşulmadı diyor; bu denetimin sayıları eklenmeli.
+- `:125` "2 bilinçli fark" eksik; §4'teki tablo esas alınmalı.
+- B-1, B-2, M-1 kapanınca §1, §5, §6 güncellenmeli.
+
+### Bloklamayan, düzeltilmesi önerilen
+
+| ID | Sev. | Yer | Bulgu | Düzeltme |
 |---|---|---|---|---|
-| `Id`, `Name`, `DbType`, `SchemaJson`, `NodePositionsJson`, `UserId`, `OrganizationId`, `AutoApproveSafeChanges` | Korunuyor | `studio.projects` | Hayır (Hedefte var) | Temel çekirdek model |
-| `EncryptedConnectionString` | `UPDATE ... SET NULL` | `studio.project_connections` | **HAYIR (Kolon duruyor)** | Gateway & LaunchService eski kolondan okuyor |
-| `ConnectionDbType` | `UPDATE ... SET NULL` | `studio.project_connections` | **HAYIR (Kolon duruyor)** | Gateway eski kolondan okuyor |
-| `AllowDeskSql` | `UPDATE ... SET = false` | `studio.project_connections` | **HAYIR (Kolon duruyor)** | Gateway & AuthController eski kolondan okuyor |
-| `ShareToken` | `UPDATE ... SET NULL` | Yok (`[NotMapped]`) | **HAYIR (Kolon duruyor)** | Düz metin veri temizlendi, kolon fiziksel duruyor |
-| `ShareTokenHash` | `UPDATE ... SET NULL` | `studio.project_shares` | **HAYIR (Kolon duruyor)** | ShareController legacy fallback'inde aranıyor |
-| `Slug` | `UPDATE ... SET NULL` | `hub.repositories` | **HAYIR (Kolon duruyor)** | HubController GetRepo/Explore eski kolondan okuyor |
-| `Description` | `UPDATE ... SET NULL` | `hub.repositories` | **HAYIR (Kolon duruyor)** | HubController Explore eski kolondan okuyor |
-| `Visibility` | **NULL BİLE YAPILMADI** | `hub.repositories` | **HAYIR (Kolon duruyor)** | HubController Explore filtreliyor |
-| `Category` | **NULL BİLE YAPILMADI** | `hub.repositories` | **HAYIR (Kolon duruyor)** | HubController Explore filtreliyor |
-| `Tags` (CSV) | `UPDATE ... SET NULL` | `hub.project_tags` | **HAYIR (Kolon duruyor)** | HubController Explore tag filtresinde aranıyor |
-| `StarCount` | **NULL BİLE YAPILMADI** | `hub.repositories` | **HAYIR (Kolon duruyor)** | ToggleStar yalnızca bu kolonu güncelliyor! |
-| `ForkCount` | **NULL BİLE YAPILMADI** | `hub.repositories` | **HAYIR (Kolon duruyor)** | Fork yalnızca bu kolonu artırıyor |
-| `ForkedFromProjectId` | **NULL BİLE YAPILMADI** | `hub.repositories` | **HAYIR (Kolon duruyor)** | HubController ilişkide kullanıyor |
-| `LinkedGithubRepo` | `UPDATE ... SET NULL` | `hub.repositories` | **HAYIR (Kolon duruyor)** | Eski kolon fiziksel duruyor |
+| L-1 | LOW | `Phase14_2B_DecompositionScripts.cs:31` | SQL anahtarı C# ile her zaman aynı değil. Yunanca `ΑΣ` için SQL `ας`, C# `ασ`: `?tag=ΑΣ` taşınan satırı bulmuyor, `ΑΣ`/`ασ` yinelemesi ayıklanmıyor. `U+E000` içeren etiket `İ`'ye çöküyor ve `İ` etiketi kayboluyor. 50 proje üzerinden `ProjectTagRules` eşleniğiyle karşılaştırmada 2 fark (t07, t13), diğer 48 birebir. Rapordaki "C# ile eşit" iddiası yalnız Türkçe fixture'da sınanmış | Migration prod'da donmadan önce: `lower`'dan önce `Σ`→`σ`, koruma için sentinel yerine `İ` parçalı işleme; fixture'a ekle |
+| L-2 | LOW | `GatewayApiKeyTests.cs:47` | `catch NpgsqlException`, `PostgresException`'ı da yakalıyor; yorum "yalnız bağlantı hatası" diyor. Kalıcı hata yine son denemede patlar, aralıklı migration hatası gizlenebilir | `when (ex is not PostgresException && attempt < n)` |
+| L-3 | LOW | `ShareController.cs:46`, `StudioApplicationService.cs:19` | POST'a yeni 429 geldi ve kova fork/ayar/silme ile ortak (brief yalnız anonim uçları istiyordu); arayüz genel hata gösteriyor (`ToolbarPanel.tsx:207`). 50 linkten sonra en eski link sessizce kapanıyor. İptal satırları hiç temizlenmiyor | `hub-write` politikası; iptal satırlarına saklama süresi |
+| L-4 | LOW | `Phase14_2B_DecompositionScripts.cs` | Etiket doğrulaması ekleme ile aynı anahtar fonksiyonunu kullanıyor; alan farkı `RAISE` dalları testle tetiklenmiyor (kendi okumamda mantık doğru). `Down` doğrulaması etiket/paylaşım karşılaştırmıyor; `Down` CHECK'leri temiz veride bile NOT VALID bırakıyor | Negatif test; `Down` sonunda VALIDATE denemesi |
+| L-5 | LOW | `ModuleMigrationOrchestrator.cs` | DI'da kayıtlı, hiç çağrılmıyor: ölü kod ve yanıltıcı | En geç D-2'de sil |
 
-**Sonuç:** `CloudProjects` tablosundan **tek bir kolon dahi DROP edilmemiştir.** `BuildContractSql()` yalnızca seçici bir `UPDATE ... SET = NULL` çalıştırmaktadır.
+## 1. Migration kanıtı
 
----
+**Üretim yolu (`Namines.API --migrate`, boş DB):** exit 0, 49 migration. Katalog:
+- `CloudProjects` adlı ilişki, kısıt, indeks: 0.
+- `ShareToken` kolonu: 0. Düz metin token kolonu hiçbir şemada yok.
+- `studio.projects`: 10 kolon; 13 kolon fiziksel olarak düşmüş.
+- `studio.projects`'e gelen FK: 19, silme davranışları korunmuş. Doğrulanmamış FK: 0.
 
-## 3. BÖLÜM 2: VERİ TAŞIMA VE MIGRATION GÜVENLİĞİ DENETİMİ
+**Satır satır SQL okuması (`b731850`):** kilit doğrulamadan önce alınıyor; tüm Up tek EF işleminde. Reconcile ayrı işlemde ve tek başına güvenli.
+- Doğruladım: yinelenen legacy token'da Reconcile `23505` ile durdu, geçmişe yazılmadı, `ShareToken` kolonu yerinde kaldı.
+- AAD proje kimliği olduğu için bayt kopyası doğru.
+- Veri kaybı yolu yok. Bilinçli olarak dönmeyenler: düz metin token, normalleşmemiş CSV, `''` şifreli metin → NULL.
 
-### 3.1. `Phase14_2B_DecompositionSql.cs` Analizi
+**Kötü niyetli seed (`20261030215219`, 50 proje).** Kapsam:
+- Virgül, boş, `İ/ı/I/i`, Unicode boşluk, zero-width, tab/newline, 256 ve 4000+ karakter etiket.
+- `''` slug (aynı sahipte iki kez), farklı sahipte aynı slug, `Dup/dup`, 5000 karakter slug.
+- Self fork, fork döngüsü, silinmiş kaynağa fork (FK kapalı eklendi).
+- Motorsuz şifreli metin, şifresiz `AllowDeskSql`, `''` şifreli metin, 100 KB şifreli metin.
+- Token + hash, uyumsuz token/hash, yalnız hash, `''` hash, hatalı uzunlukta ve büyük harf hash.
+- NOT VALID CHECK'leri aşan satırlar (Visibility=7, StarCount=-1, 5000 karakter açıklama).
 
-1. **Idempotency (Yinelenebilirlik):**
-   - `BuildExpandSql()`: `CREATE SCHEMA IF NOT EXISTS` ve `CREATE TABLE IF NOT EXISTS` kullandığı için tam idempotenttir.
-   - `BuildBackfillSql()`: `studio.projects`, `studio.project_connections`, `studio.project_shares`, `hub.repositories` için `ON CONFLICT (...) DO UPDATE`, `hub.project_tags` için `ON CONFLICT (...) DO NOTHING` kullandığı için mükerrer satır üretmez. Tekrar çalıştırılabilir.
-2. **Kriptografik Sır ve AAD Bütünlüğü:**
-   - `studio.project_connections` aktarımında `EncryptedConnectionString` verisi doğrudan kopyalanmaktadır; şifreli metin veya AAD (`ProjectId`) bozulmamaktadır.
-   - Ancak `ConnectionSecretReencryptor.cs` (Key Rotation) yalnızca `CloudProjects` tablosunu güncellemektedir. `studio.project_connections` tablosunu yeniden şifrelememektedir!
-3. **Paylaşım Jetonları:**
-   - `studio.project_shares` aktarımında düz metin token aktarılmamakta; yalnızca mevcut `ShareTokenHash` veya PostgreSQL `encode(sha256(convert_to(p."ShareToken", 'UTF8')), 'hex')` ile türetilen karma aktarılmaktadır.
-   - Düz metin token'lar veritabanına sızmamaktadır.
-4. **1NF Normalizasyonu (Etiketler):**
-   - `unnest(string_to_array(p."Tags", ','))` ile CSV string'leri temizlenerek `hub.project_tags` tablosuna aktarılmaktadır.
-5. **Verify Aşaması Eksiklikleri (`BuildVerifySql`):**
-   - `studio.projects`, `studio.project_connections`, `studio.project_shares`, `hub.repositories` için satır sayısı denetimi yapılmaktadır.
-   - **Kritik Eksik 1:** `hub.project_tags` tablosu için satır veya bütünlük denetimi **hiç yapılmamaktadır.**
-   - **Kritik Eksik 2:** Doğrulama yalnızca `IF v_actual < v_expected` büyüklük kontrolü yapmaktadır. Orphan (yetim) kayıt denetimi veya alan bazında checksum/veri karşılaştırması bulunmamaktadır.
-6. **Premature Contract Tehlikesi:**
-   - `BuildContractSql()`, `CloudProjects` üzerindeki `EncryptedConnectionString`, `ShareTokenHash`, `Tags`, `Slug`, `Description` alanlarını `NULL` yapmaktadır.
-   - **Tehlike:** Backend'deki `GatewayController`, `HubController.Explore`, `AuthController` bu alanları doğrudan okumaya devam ettiği için, bu SQL çalıştırıldığı anda canlı sistemde Gateway bağlantıları kopacak ve Explore akışı boş dönecektir!
+Sonuçlar:
 
----
+| Karşılaştırma | Sonuç |
+|---|---|
+| Proje çekirdek alanları, repo 12 alan | Fark yok (tek istisna: silinmiş kaynağa işaret eden `f07` → NULL, tasarım gereği; self fork ve döngü korunmuş) |
+| Bağlantı | Kayıp 0, şifreli metin birebir |
+| Paylaşım | Uyumsuz çiftte çalışan hash korunmuş, yalnız token'da SHA-256 doğru, boşlarda satır yok, 9/9 |
+| Etiket (C# karşılaştırması) | 48/50 birebir; 2 fark L-1 |
+| CHECK | Aşan satırlar NOT VALID, yeni yazımlar denetleniyor |
+| Down | Şema, indeks, FK adları geri; fark yalnız raporda bildirilenler: `Enc` c03/c04/c07 (`''`→NULL), `Fork` f07, `Hash` h01/h05/h07/h10 (hesaplanmış), `Token` (düz metin gitti), `Tags` normalleşmiş |
+| Up2 = Up1 | Repo, bağlantı, paylaşım, etiket, proje: EXCEPT farkı 0 |
 
-## 4. BÖLÜM 3: MİMARİ SINIR VE BAĞIMLILIK DENETİMİ
+**En az yetkili rol, seed'li DB:** `roles.sql` + migrator ile Up geçti, tablolar migrator'ın, `namines_app` DML yetkili ve şemada DDL yetkisiz. Kırık nokta M-1.
 
-Tüm backend kod tabanı taranmış ve modüler sınır ihlalleri tespit edilmiştir:
+## 2. Tüketici taraması
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                   MİMARİ SINIR İHLAL HARİTASI                          │
-├──────────────────────────┬─────────────────────────────────────────────┤
-│ Dosya & Satır            │ Tespit Edilen İhlal Türü                    │
-├──────────────────────────┼─────────────────────────────────────────────┤
-│ AuthController.cs:613    │ p.EncryptedConnectionString != null         │
-│ AuthController.cs:616    │ p.AllowDeskSql doğrudan okunuyor            │
-│ GatewayController.cs:506 │ p.EncryptedConnectionString doğrudan Select │
-│ GatewayController.cs:838 │ p.AllowDeskSql & ConnectionString doğrudan  │
-│ GatewayController.cs:1764│ p.EncryptedConnectionString doğrudan Select │
-│ GatewayKeyController:479 │ project.EncryptedConnectionString yazılıyor │
-│ GatewayKeyController:572 │ project.AllowDeskSql doğrudan yazılıyor     │
-│ HubController.cs:93      │ FindProjectByOwner -> _context.CloudProjects│
-│ HubController.cs:133     │ Explore -> _context.CloudProjects sorgusu   │
-│ HubController.cs:598     │ ToggleStar -> _context.CloudProjects        │
-│ HubController.cs:670     │ AdjustStarCount -> _context.CloudProjects   │
-│ HubController.cs:733     │ Fork -> _context.CloudProjects.AddAsync     │
-│ LaunchService.cs:98, 112 │ project.EncryptedConnectionString doğrudan  │
-│ Reencryptor.cs:23-40     │ CloudProjects üzerinden rotasyon            │
-│ TenantAuthority:176, 273 │ _studioModule.DbContext'e doğrudan erişim   │
-└──────────────────────────┴─────────────────────────────────────────────┘
-```
+- `_context.` veya `Set<>` ile taşınan tablolara modül dışı erişim: yok (yalnız Studio/Hub servisleri, `TenantProjectAuthorityService`, `ConnectionSecretReencryptor`).
+- `_studio == null` geri düşüşleri ve üreteçler silinmiş.
+- Kalan tek opsiyonel parametre `HubModule`/`StudioModule` kurucuları: veri yolu değil.
+- `new CloudProject` 4 yerde; hepsi repo satırını aynı işlemde yazıyor.
+- `CloudProject.UserId` değişen tek yer hesap silme ve `OwnerUserId` orada güncelleniyor.
+- CLI/MCP taşınan alan kullanmıyor.
 
-### 4.1. `HubController.cs` İhlalleri
-- `HubController`, `IHubApplicationService` enjeksiyonuna sahip olmasına rağmen, 1209 satırlık kod içerisinde yalnızca 2 noktada (`UpdateSettings` ve `Fork`) dual-write amacıyla `_hub`'ı çağırmaktadır.
-- `Explore` uç noktası (satır 121–220) tamamen `_context.CloudProjects` üzerinden çalışmaktadır.
-- `ToggleStar` ve `AdjustStarCountAsync` (satır 588–675) tamamen `_context.CloudProjects.StarCount` üzerinden çalışmaktadır.
-- `GetRepo`, `DeleteRepo`, `GetIssues`, `CreateIssue` tamamen `_context.CloudProjects` tablosuna sorgu atmaktadır.
+## 3. Güvenlik
 
-### 4.2. `AuthController.cs` İhlalleri
-- `CreateProject`, `SyncProject`, `GetProjects` (satır 520–650) doğrudan `_context.CloudProjects` tablosuna yazmakta ve okumaktadır.
-- `IStudioApplicationService` enjekte edilmemiştir; yeni projeler `studio.projects` tablosuna aktarılmamaktadır.
+**Kod okuması:**
+- Çözme yalnız `TenantProjectAuthorityService:199` ve rotasyon aracında.
+- Gateway önce yetki, sonra üst veri, en son çözme.
+- `ResolveForUserAsync` kiracı dışına null.
+- Rotasyon yeni tabloda (test gerçek PG).
 
----
+**Gerçek API, 38/38 (A sahibi, B yabancı):**
+- B için özel repo görüntüleme, `_` ile görüntüleme, yıldız, fork, paylaşım oluşturma/iptal, issue listesi: 404.
+- Ayar, silme, bağlantı yazma/silme, SQL konsolu bayrağı, gateway şeması: reddedildi.
+- Public repoda B, A'nın saklı bağlantısını kullanamıyor. Fork bağlantı ve paylaşım taşımıyor, özel açılıyor.
+- Mass assignment (`userId`, `slug`, `encryptedConnectionString`, `starCount`, `ownerUserId`, `forkedFromProjectId`) sync ve PATCH'te etkisiz. B'nin A'nın kimliğiyle sync'i A'yı değiştirmiyor.
+- Proje listesi ve repo DTO'sunda şifreli alan yok; özet token gibi kullanılamıyor (404).
+- Anonim paylaşım uçlarında 429 var; 192-bit token ile kaba kuvvet pratik değil.
+- API log'unda bağlantı parolası eşleşmesi 0. SSRF: özel adres bağlantı isteği 400.
 
-## 5. BÖLÜM 4: İŞLEVSEL REGRESYON DENETİMİ (12 TEMEL AKIŞ)
+## 4. API uyumu ve frontend
 
-| No | İş Akışı | Önceki Davranış Korundu mu? | Yeni Modüler Yapıya Geçti mi? | Durum & Tespit |
-|---|---|---|---|---|
-| 1 | **Proje Oluşturma** | Evet (Çalışıyor) | ❌ **HAYIR** | Sadece `CloudProjects`'e yazıyor. `studio.projects`'e yazmıyor! |
-| 2 | **Proje Güncelleme** | Evet (Çalışıyor) | ❌ **HAYIR** | Sadece `CloudProjects`'i güncelliyor. |
-| 3 | **Şema & Canvas Kaydetme** | Evet (Çalışıyor) | ❌ **HAYIR** | `CloudProjects.SchemaJson` üzerinden. |
-| 4 | **Connection Kaydetme / Çözme** | Kısmen | ⚠️ Kısmen | `TenantProjectAuthorityService` çift yazıyor/okuyor; ancak `GatewayController` doğrudan `CloudProjects` okuyor. |
-| 5 | **Share Oluşturma / Görüntüleme** | ❌ **REGRESYON** | ⚠️ Kısmen | **KRİTİK HATA:** Yeni açılan projeler `studio.projects`'te olmadığı için `POST /api/share/{id}` **404 NOT FOUND** vermektedir! |
-| 6 | **Repository Vitrin Ayarları** | Evet | ✅ Evet | `HubController.UpdateSettings` hem `CloudProjects` hem `hub.repositories` güncelliyor. |
-| 7 | **Explore Feed ve Filtreleme** | Evet (Mevcutta) | ❌ **HAYIR** | Sadece `CloudProjects` sorguluyor. `ContractSql` çalıştırılırsa boş döner. |
-| 8 | **Star ve Unstar** | Evet (Mevcutta) | ❌ **HAYIR** | Yalnızca `CloudProjects.StarCount` güncelleniyor; `hub.repositories.StarCount` sabit kalıyor! |
-| 9 | **Fork / Klonlama** | Evet | ✅ Evet | `CloudProjects` + `hub.repositories` + `studio.projects` dual-write yapılıyor. |
-| 10 | **Proje Silme (Deletion)** | Evet | ⚠️ Kısmen | `ProjectDeletionService` Studio ve Hub'dan siliyor; ancak ayrı transaction'larda çalıştığı için atomik değil. |
-| 11 | **Launch / Provisioning** | Evet | ❌ **HAYIR** | `LaunchService` doğrudan `CloudProjects.EncryptedConnectionString` okuyor. |
-| 12 | **Gateway Canlı Bağlantı** | Evet | ❌ **HAYIR** | `GatewayController` doğrudan `CloudProjects`'ten sorguluyor. |
+Rotalar aynı, DTO alan adları aynı. Davranış farkları:
 
----
+| Fark | Frontend etkisi | Değerlendirme |
+|---|---|---|
+| `Tags` normalleşmiş, etiketsizde `null` | Yok: `repo.tags \|\| ''`, `tags?: string` | Kabul |
+| Explore `q` etikette tam eşleşme | Kırılma yok; arama kutusu "tags" diyor, kısmi etiket artık bulunmuyor (`app/hub/page.tsx:179`) | Brief'in kararı; **sahibe bildirilmeli** |
+| `?tag=` eklendi | Yok | Kabul |
+| POST paylaşım her çağrıda yeni link, eskiler geçerli | Yok: UI her tıklamada POST atıyor | Kabul |
+| POST paylaşıma 429 | Genel hata mesajı | L-3 |
+| Fork silinince `ForkCount`, hesap silinince `StarCount` düşüyor | Yok | Düzeltme, kabul |
 
-## 6. BÖLÜM 5: TESTLERİN BAĞIMSIZ DOĞRULANMASI
+## 5. Test kalitesi
 
-### 6.1. Gerçek Test Çalıştırma Sonuçları
-Tüm test paketleri makinede bağımsız olarak koşturulmuştur:
+**`git diff 5565811..HEAD -- backend/Namines.Tests`:** silinen doğrulamalar silinen üreteçlere ve varlıklara ait veya yeni tablolara birebir çevrilmiş; zayıflatma bulmadım. Yeni `Skip` yok.
 
-1. **`Namines.Tests.RunTests` (Gerçek Docker Testleri):**
-   - Komut: `dotnet test backend/Namines.Tests.RunTests/Namines.Tests.RunTests.csproj`
-   - Sonuç: **19/19 Başarılı** (0 Hata, 0 Atlanan, Süre: 1m 8s).
-2. **`Phase14_2B_DecompositionTests` (PostgreSQL 17 Testcontainers):**
-   - Komut: `dotnet test backend/Namines.Tests/Namines.Tests.csproj --filter "FullyQualifiedName~Phase14_2B"`
-   - Sonuç: **4/4 Başarılı** (0 Hata, 0 Atlanan, Süre: 9s).
-3. **`ModularMonolithArchitectureTests`:**
-   - Sonuç: **13/13 Başarılı**.
-4. **`ShareTokenHashTests` & `HubControllerTests`:**
-   - Sonuç: **10/10 Başarılı**.
+`Phase14_2BFlowTests` ve `Phase14_2BMigrationTests` gerçek PG'de, üretimle aynı ayrı bağlantı ve retry düzeniyle, controller üzerinden; mock yok. Eksik: B-1 ve B-2 senaryoları.
 
-### 6.2. Testlerdeki Metodolojik Eksiklikler ve İllüzyonlar
-Testlerin yeşil olması, mimarinin eksiksiz tamamlandığını **kanıtlamamaktadır**:
-- **Test İllüzyonu 1 (`HubControllerTests`):** Testler `new HubController(db, userManager, ...)` çağrısında `_hub` parametresini `null` bırakmaktadır! Bu nedenle testler `IHubApplicationService`'i hiç çalıştırmamakta, yalnızca in-memory SQLite `CloudProjects` üzerinde dönmektedir.
-- **Test İllüzyonu 2 (`ShareTokenHashTests`):** Testler `new ShareController(db, ...)` çağrısında `_studio` parametresini `null` bırakmakta, yalnızca legacy fallback kodunu test etmektedir.
-- **Test İllüzyonu 3 (`Phase14_2B_DecompositionTests`):** PostgreSQL üzerinde koşan test, gerçek uygulama kodlarını (`AuthController`, `GatewayController`, `HubController`) değil; elle oluşturulan 3 satırlık izole bir mock tablo üzerinde SQL metinlerini çalıştırmaktadır. Gerçek uygulamanın contract sonrası davranışı test edilmemiştir.
+**İki retry:**
+- Oracle: yalnız zaman aşımı, doğrulama aynı, hata gizlemiyor. Üründeki 15 sn tavanı ayrı açık iş olarak raporda.
+- Gateway: kalıcı hatayı gizlemiyor, filtre fazla geniş (L-2).
 
----
+## 6. "Yapılmayanlar" listesi
 
-## 7. BÖLÜM 6: BULGU TABLOSU (FINDINGS LOG)
+| Madde | B'ye ait mi | Karar |
+|---|---|---|
+| Varis slug çakışması | Evet | **B-2** |
+| Kilit ölçümü | Evet (standart) | Ölçüldü, rapora yazılacak (M-2) |
+| Frontend testi | Evet | Koşuldu, geçti; rapora yazılacak (M-2) |
+| `ModuleMigrationOrchestrator` | Hayır: brief tek zincir kararı verdi | L-5 |
+| `RepoStars` `public`'te | Hayır: brief 4 tablo diyor, Hub taşıması D-1 | D-1'e kayıtlı |
+| Vault/Ground `OrganizationId` | Hayır: brief yalnız FK kaymasını istiyor; kod yalnız yazıyor, yetkide okumuyor | D fazı backlog |
+| `namines_*` MCP araçları | Bu denetimde de bağlanamadı (CONNECT_TIMEOUT) | Kanıt gerçek PG |
 
-| ID | Bulgu | Severity | Dosya / Kod Kanıtı | Gerekli Düzeltme | Bloklayıcı mı? |
-|---|---|---|---|---|---|
-| **SEC-14B-01** | Yeni oluşturulan projeler `studio.projects`'e yazılmıyor; Share bağlantısı 404 veriyor. | **CRITICAL (P0)** | `AuthController.cs:520` & `StudioApplicationService.cs:137` | `AuthController` içerisine `IStudioApplicationService` enjekte edilmeli, `CreateProject` ve `SyncProject`'te çift yazma (dual-write) sağlanmalı. | **EVET** |
-| **SEC-14B-02** | `HubController.ToggleStar` ve sayaçlar `hub.repositories`'e yazmıyor; veriler desenkronize. | **HIGH (P1)** | `HubController.cs:659-675` | `ToggleStar` ve `AdjustStarCountAsync` işlemleri `IHubApplicationService` üzerinden `hub.repositories`'e senkronize edilmeli. | **EVET** |
-| **SEC-14B-03** | Anahtar rotasyonu (`ConnectionSecretReencryptor`) `studio.project_connections`'ı kapsamıyor. | **HIGH (P1)** | `ConnectionSecretReencryptor.cs:23-40` | `ReencryptAsync` metodu `StudioDbContext.ProjectConnections` tablosunu da tarayıp yeniden şifrelemeli. | **EVET** |
-| **SEC-14B-04** | `Phase14_2B_DecompositionSql.BuildContractSql` erken çalıştırılırsa Gateway ve Explore çöker. | **HIGH (P1)** | `Phase14_2B_DecompositionSql.cs:257-280` | `ContractSql` aşaması, tüm tüketiciler (`GatewayController`, `HubController.Explore`) tamamen yeni tablolara geçene (Phase 14.2E) kadar ertelenmeli veya kilitlenmeli. | **EVET** |
-| **SEC-14B-05** | `BuildVerifySql` içerisinde `hub.project_tags` doğrulanmıyor; yetim kayıt kontrolü yok. | **MEDIUM (P2)**| `Phase14_2B_DecompositionSql.cs:202-250` | `BuildVerifySql` içine `hub.project_tags` satır sayısı kontrolü ve orphan ID eşleşme kontrolü eklenmeli. | **HAYIR** |
-| **SEC-14B-06** | `ProjectDeletionService` ayrı transaction'larda çalışıyor (Dağıtık atomisite eksik). | **MEDIUM (P2)**| `ProjectDeletionService.cs:110-123` | `BuildingBlocks.Persistence.SharedTransactionManager` kullanılarak Studio, Hub ve AuthContext tek veritabanı transaction'ına bağlanmalı. | **HAYIR** |
-| **SEC-14B-07** | Unit testler (`HubControllerTests`, `ShareTokenHashTests`) yeni modül servislerini mocklamıyor. | **MEDIUM (P2)**| `HubControllerTests.cs:60`, `ShareTokenHashTests.cs:72` | Test suitelerine `IHubApplicationService` ve `IStudioApplicationService` içeren kapsamlı senaryolar eklenmeli. | **HAYIR** |
+## Yeniden denetim koşulu
 
----
-
-## 8. PHASE 14.2B KABUL KRİTERLERİ DURUM MATRİSİ
-
-| Kriter | Planlanan Hedef | Gerçekleşen Durum | Sonuç |
-|---|---|---|---|
-| **1. 3NF Tablo Tanımları** | `studio.projects`, `studio.project_connections`, `studio.project_shares`, `hub.repositories`, `hub.project_tags` | Tamamı oluşturuldu ve EF Core modelleri tanımlandı. | ✅ **BAŞARILI** |
-| **2. Kriptografik Paylaşım Güvenliği** | SHA-256 karma tekil saklanmalı, raw token DB'ye yazılmamalı | `StudioApplicationService` ve `ProjectShare` üzerinde eksiksiz uygulandı. | ✅ **BAŞARILI** |
-| **3. 1NF Etiket Normalizasyonu** | CSV etiketler ilişkisel `(ProjectId, Tag)` tablosuna ayrıştırılmalı | `hub.project_tags` tablosuna aktarıldı, B-tree indeks kuruldu. | ✅ **BAŞARILI** |
-| **4. Dual-Write Bütünlüğü** | Yeni projeler ve güncellemeler normalize tablolara yansıtılmalı | `AuthController` ve `HubController.ToggleStar` yeni tablolara yazmıyor! | ❌ **BAŞARISIZ** |
-| **5. Sıfır Regresyon Garantisi** | Dış API sözleşmeleri ve UI kesintisiz çalışmalı | Yeni açılan projelerin paylaşılamaması (404) hatası mevcut. | ❌ **BAŞARISIZ** |
-| **6. Idempotent Migration SQL** | Expand -> Backfill -> Verify işlem içinde kayıpsız çalışmalı | PostgreSQL 17 testinde doğrulandı; ancak Verify'da tags eksik. | ⚠️ **KISMEN** |
-| **7. God Entity Tasfiyesi** | Eski kolonlar ve bağımlılıklar temizlenmeli | Kolonlar fiziksel duruyor; tüketiciler doğrudan okumaya devam ediyor. | ⚠️ **KISMEN** |
-
----
-
-## 9. NİHAİ KABUL KARARI VE BLOKLAYICI DÜZELTME PLANI
-
-### Karar: ⚠️ CONDITIONALLY ACCEPTED (ŞARTLI KABUL)
-
-Phase 14.2B, altyapı ve mimari tasarım seviyesinde hedeflerine büyük ölçüde ulaşmıştır. Ancak yukarıda listelenen **P0 ve P1 seviyesindeki 4 bloklayıcı açık kapatılmadan Phase 14.2C'ye geçilmesi sistem bütünlüğü açısından kabul edilemez.**
-
-### Phase 14.2C Öncesi Zorunlu Düzeltme Planı (Remediation Plan):
-
-1. **Adım 1 (P0 — Proje Oluşturma / Paylaşım Köprüsü):**
-   - `AuthController.cs`'e `IStudioApplicationService` enjekte edilecek.
-   - `CreateProject` ve `SyncProject` metotlarında proje `_context.CloudProjects`'e kaydedilirken eşzamanlı olarak `_studio.CreateOrUpdateProjectAsync` çağrılacak. Böylece yeni projelerin `studio.projects`'e yazılması ve `ShareController`'ın 404 vermesi engellenecek.
-2. **Adım 2 (P1 — Sosyal Sayaç Senkronizasyonu):**
-   - `HubController.ToggleStar` ve `AdjustStarCountAsync` metotlarına `_hub.ToggleStarAsync` çağrısı entegre edilecek.
-3. **Adım 3 (P1 — Anahtar Rotasyonu Kapsamı):**
-   - `ConnectionSecretReencryptor.cs` içerisine `StudioDbContext.ProjectConnections` tarama ve yeniden şifreleme mantığı eklenecek.
-4. **Adım 4 (P1 — Doğrulama SQL Sertleştirmesi):**
-   - `Phase14_2B_DecompositionSql.BuildVerifySql()` içerisine `hub.project_tags` satır sayısı denetimi eklenecek.
-   - `BuildContractSql()`'in bağımlılıklar tamamen bitene kadar çalıştırılmaması gerektiği dokümante edilecek.
-
-Bu 4 düzeltme tamamlanıp test edildikten sonra Phase 14.2B tam kabule dönecek ve Phase 14.2C'ye başlanabilecektir.
+B-1, B-2, M-1, M-2 kapanınca: tam build, `Namines.Tests`, `Namines.Tests.RunTests`, seed'li Up/Down/Up (yeni migration dahil), 50.000 projede Explore ölçümü, hesap silme senaryosu yeniden koşulur. Sonuç temizse karar ACCEPTED olur.
