@@ -461,6 +461,33 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
     }
 
     [RequiresDockerFact]
+    public async Task Superuser_ile_kurulup_sonradan_rollere_gecen_kurulumda_her_modul_semasi_migratora_gecer()
+    {
+        // Denetim m-2: ops sahiplik listesinde yoktu; tabloları postgres'te kalıyor, Ops migration'ı migrator ile düşüyordu.
+        const string database = "b_roles_after";
+        var adminCs = await _pg.CreateDatabaseAsync(database);
+        await TestModules.MigrateAllAsync(adminCs);
+        await _pg.ApplyRolesAsync(database, await File.ReadAllTextAsync(BackendFile("..", "deploy", "sql", "roles.sql")));
+
+        Assert.Equal(0, await CountAsync(adminCs, """
+            SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind IN ('r','S','p') AND n.nspname IN ('public','flow','namines_vault','ground','desk','studio','hub','gateway','ops')
+              AND c.relowner::regrole::text <> 'namines_migrator'
+            """));
+        Assert.True(await CountAsync(adminCs, "SELECT count(*) FROM pg_tables WHERE schemaname = 'ops'") >= 4);
+
+        // Kanıt: migrator, modül zincirini geri alıp yeniden uygulayabiliyor (tablo taşıması sahiplik ister).
+        var migratorCs = new NpgsqlConnectionStringBuilder(adminCs) { Username = "namines_migrator", Password = "migrator-pw" }.ConnectionString;
+        var ops = TestModules.Descriptors.Single(d => d.Module == "Ops");
+        await using (var ctx = ops.CreateContext(migratorCs))
+        {
+            await ctx.GetService<IMigrator>().MigrateAsync("0");
+            await ctx.Database.MigrateAsync();
+        }
+        Assert.Equal(4, await CountAsync(adminCs, """SELECT count(*) FROM pg_tables WHERE schemaname = 'ops' AND tablename IN ('Feedbacks','SqlExecutionAudits','FeatureFlags','AiToolRoutes')"""));
+    }
+
+    [RequiresDockerFact]
     public async Task En_az_yetkili_rolle_bos_kurulum_geri_alma_ve_yeniden_yukseltme_calisiyor()
     {
         const string database = "b_least_privilege";

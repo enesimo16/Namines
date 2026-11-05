@@ -60,13 +60,15 @@ END $$;
 
 -- Mevcut tabloların sahipliğini migrator'a devret (yoksa migration'daki ALTER TABLE
 -- sahibi olmayan rolle başarısız olur). Yalnızca bu betiği çalıştıran rol sahipse işe yarar.
+-- Şema listesi yukarıdakiyle AYNI olmalı: eksik şemanın tabloları eski sahibinde kalır ve o modülün sonraki
+-- migration'ı migrator ile düşer (denetim m-2, ops).
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname = ANY (ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway']) LOOP
+  FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname = ANY (ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway','ops']) LOOP
     EXECUTE format('ALTER TABLE %I.%I OWNER TO namines_migrator', r.schemaname, r.tablename);
   END LOOP;
-  FOR r IN SELECT sequence_schema AS s, sequence_name AS n FROM information_schema.sequences WHERE sequence_schema = ANY (ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway']) LOOP
+  FOR r IN SELECT sequence_schema AS s, sequence_name AS n FROM information_schema.sequences WHERE sequence_schema = ANY (ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway','ops']) LOOP
     EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO namines_migrator', r.s, r.n);
   END LOOP;
 END $$;
