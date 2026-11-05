@@ -34,6 +34,7 @@ public sealed class ChatProviderDependencyInjectionTests
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(options => options.UseSqlite(connection));
         services.AddDbContext<OpsDbContext>(options => options.UseSqlite(connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
 
         var dict = new Dictionary<string, string?>();
         foreach (var (key, value) in settings) dict[key] = value;

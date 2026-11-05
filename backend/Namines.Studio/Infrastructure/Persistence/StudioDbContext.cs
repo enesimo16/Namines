@@ -1,3 +1,4 @@
+using Namines.Studio.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Namines.BuildingBlocks.Persistence;
@@ -11,7 +12,7 @@ namespace Namines.Studio.Infrastructure.Persistence;
 /// doğrudan erişilemez. Kimlik tablolarına giden FK'ler (kurucu, organizasyon, yazar) DB'de duruyor,
 /// bu modelde yok: Studio <c>ApplicationUser</c>'ı tanımaz, kimlik bilgisi IIdentityDirectory'den gelir.
 /// </summary>
-internal sealed class StudioDbContext : DbContext
+internal sealed class StudioDbContext : DbContext, IStudioData
 {
     public const string SchemaName = "studio";
 

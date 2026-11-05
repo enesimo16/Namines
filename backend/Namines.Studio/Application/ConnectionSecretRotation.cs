@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Security;
-using Namines.Studio.Infrastructure.Persistence;
 
 namespace Namines.Studio.Application;
 
@@ -19,9 +18,9 @@ public interface IConnectionSecretRotation
 
 internal sealed class ConnectionSecretRotation : IConnectionSecretRotation
 {
-    private readonly StudioDbContext _db;
+    private readonly IStudioData _db;
 
-    public ConnectionSecretRotation(StudioDbContext db) => _db = db;
+    public ConnectionSecretRotation(IStudioData db) => _db = db;
 
     public Task<ConnectionSecretReencryptor.Result> ReencryptAllAsync(IRotatableSecretProtector protector, ILogger? logger = null, CancellationToken ct = default) =>
         ConnectionSecretReencryptor.ReencryptAsync(_db, protector, logger, ct);
@@ -32,7 +31,7 @@ public static class ConnectionSecretReencryptor
     public sealed record Result(int Scanned, int Reencrypted, int Failed);
 
     internal static async Task<Result> ReencryptAsync(
-        StudioDbContext db, IRotatableSecretProtector protector, ILogger? logger = null, CancellationToken ct = default)
+        IStudioData db, IRotatableSecretProtector protector, ILogger? logger = null, CancellationToken ct = default)
     {
         var rows = await db.ProjectConnections.AsNoTracking()
             .Where(c => c.EncryptedConnectionString != null && c.EncryptedConnectionString != "")

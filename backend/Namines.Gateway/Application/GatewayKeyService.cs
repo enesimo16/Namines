@@ -5,7 +5,6 @@ using Namines.BuildingBlocks.Security;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
 using Namines.Gateway.Domain;
-using Namines.Gateway.Infrastructure.Persistence;
 
 namespace Namines.Gateway.Application;
 
@@ -77,11 +76,11 @@ internal sealed class GatewayKeyService : IGatewayKeyService, IGatewayMaintenanc
     private const string ProjectNotFound = "Project not found.";
     public const string DownloadKeyName = "Downloaded project";
 
-    private readonly GatewayDbContext _db;
+    private readonly IGatewayData _db;
     private readonly ITenantProjectAuthority _authority;
     private readonly IIdentityDirectory _identity;
 
-    public GatewayKeyService(GatewayDbContext db, ITenantProjectAuthority authority, IIdentityDirectory identity)
+    public GatewayKeyService(IGatewayData db, ITenantProjectAuthority authority, IIdentityDirectory identity)
     {
         _db = db;
         _authority = authority;

@@ -1,3 +1,4 @@
+using Namines.Gateway.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Namines.BuildingBlocks.Persistence;
@@ -11,7 +12,7 @@ namespace Namines.Gateway.Infrastructure.Persistence;
 /// izin tablolarına modül dışından erişilemez. Projeye (cascade) ve üreticiye (SET NULL) giden FK'ler DB'de
 /// duruyor, bu modelde yok: Gateway proje ve kullanıcıyı yalnızca kimlikle tanır.
 /// </summary>
-internal sealed class GatewayDbContext : DbContext
+internal sealed class GatewayDbContext : DbContext, IGatewayData
 {
     public const string SchemaName = "gateway";
 

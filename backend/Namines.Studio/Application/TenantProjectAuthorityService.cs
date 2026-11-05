@@ -8,7 +8,6 @@ using Namines.BuildingBlocks.Security;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Studio.Domain;
-using Namines.Studio.Infrastructure.Persistence;
 
 namespace Namines.Studio.Application;
 
@@ -22,10 +21,10 @@ internal sealed class TenantProjectAuthorityService : ITenantProjectAuthority, I
     private readonly IIdentityDirectory _identity;
     private readonly IConnectionSecretProtector _protector;
     private readonly IConnectionHostInspector? _hostInspector;
-    private readonly StudioDbContext _studio;
+    private readonly IStudioData _studio;
 
     public TenantProjectAuthorityService(
-        StudioDbContext studio,
+        IStudioData studio,
         IIdentityDirectory identity,
         IConnectionSecretProtector protector,
         IConnectionHostInspector? hostInspector = null)

@@ -2,16 +2,15 @@ using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Contracts;
 using Namines.Studio.Domain;
-using Namines.Studio.Infrastructure.Persistence;
 
 namespace Namines.Studio.Application;
 
 /// <summary><see cref="IStudioProjects"/> ve yönetim okumalarının uygulaması; varlık modül dışına çıkmaz.</summary>
 internal sealed class StudioProjectService : IStudioProjects, IStudioAdminQueries
 {
-    private readonly StudioDbContext _db;
+    private readonly IStudioData _db;
 
-    public StudioProjectService(StudioDbContext db) => _db = db;
+    public StudioProjectService(IStudioData db) => _db = db;
 
     private static readonly System.Linq.Expressions.Expression<Func<CloudProject, StudioProjectHeader>> HeaderOf = p =>
         new StudioProjectHeader(p.Id, p.Name, p.DbType, p.UserId, p.OrganizationId, p.CreatedAt, p.UpdatedAt, p.AutoApproveSafeChanges, p.RowVersion);

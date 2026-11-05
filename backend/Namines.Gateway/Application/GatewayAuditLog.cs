@@ -3,7 +3,6 @@ using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Contracts;
 using Namines.BuildingBlocks.Security;
 using Namines.Gateway.Domain;
-using Namines.Gateway.Infrastructure.Persistence;
 
 namespace Namines.Gateway.Application;
 
@@ -61,11 +60,11 @@ internal sealed class GatewayAuditLog : IGatewayAuditLog
         public int Cnt { get; set; }
     }
 
-    private readonly GatewayDbContext _db;
+    private readonly IGatewayData _db;
     private readonly ITenantProjectAuthority _authority;
     private readonly IStudioBranches _branches;
 
-    public GatewayAuditLog(GatewayDbContext db, ITenantProjectAuthority authority, IStudioBranches branches)
+    public GatewayAuditLog(IGatewayData db, ITenantProjectAuthority authority, IStudioBranches branches)
     {
         _db = db;
         _authority = authority;

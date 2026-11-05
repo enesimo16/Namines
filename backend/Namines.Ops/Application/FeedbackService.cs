@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Namines.Ops.Domain;
-using Namines.Ops.Infrastructure.Persistence;
 
 namespace Namines.Ops.Application;
 
@@ -25,9 +24,9 @@ internal sealed class FeedbackService : IFeedbackService
     public const int MinMessageLength = 3;
     public const int MaxMessageLength = 4000;
 
-    private readonly OpsDbContext _db;
+    private readonly IOpsData _db;
 
-    public FeedbackService(OpsDbContext db) => _db = db;
+    public FeedbackService(IOpsData db) => _db = db;
 
     public async Task<bool> SubmitAsync(FeedbackSubmission submission, CancellationToken ct = default)
     {

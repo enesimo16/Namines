@@ -36,6 +36,7 @@ public sealed class EncryptedUserStoreTests : IAsyncLifetime
         services.AddSingleton<IConnectionSecretProtector, AesGcmConnectionSecretProtector>();
         services.AddDbContext<AuthDbContext>(o => o.UseSqlite(_connection));
         services.AddDbContext<OpsDbContext>(o => o.UseSqlite(_connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<AuthDbContext>()
             .AddUserStore<EncryptedUserStore>()

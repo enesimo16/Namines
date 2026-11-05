@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Security;
 using Namines.Core.Models.Auth;
 using Namines.Gateway.Domain;
-using Namines.Gateway.Infrastructure.Persistence;
 
 namespace Namines.Gateway.Application;
 
@@ -33,10 +32,10 @@ public interface IGatewayAccess
 
 internal sealed class GatewayAccessService : IGatewayAccess
 {
-    private readonly GatewayDbContext _db;
+    private readonly IGatewayData _db;
     private readonly ITenantProjectAuthority _authority;
 
-    public GatewayAccessService(GatewayDbContext db, ITenantProjectAuthority authority)
+    public GatewayAccessService(IGatewayData db, ITenantProjectAuthority authority)
     {
         _db = db;
         _authority = authority;

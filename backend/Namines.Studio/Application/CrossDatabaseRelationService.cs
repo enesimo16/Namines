@@ -5,7 +5,6 @@ using Namines.BuildingBlocks.Contracts;
 using Namines.BuildingBlocks.Security;
 using Namines.Core.Models;
 using Namines.Studio.Domain;
-using Namines.Studio.Infrastructure.Persistence;
 
 namespace Namines.Studio.Application;
 
@@ -42,10 +41,10 @@ internal sealed class CrossDatabaseRelationService : ICrossDatabaseRelationServi
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
     };
 
-    private readonly StudioDbContext _db;
+    private readonly IStudioData _db;
     private readonly ITenantProjectAuthority _authority;
 
-    public CrossDatabaseRelationService(StudioDbContext db, ITenantProjectAuthority authority)
+    public CrossDatabaseRelationService(IStudioData db, ITenantProjectAuthority authority)
     {
         _db = db;
         _authority = authority;

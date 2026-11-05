@@ -26,6 +26,7 @@ public static class HubServiceCollectionExtensions
         Action<DbContextOptionsBuilder>? configureDbContext = null)
     {
         services.AddModuleDbContext<HubDbContext>(HubDbContext.SchemaName, connectionStringFactory, configureDbContext);
+        services.AddScoped<IHubData>(sp => sp.GetRequiredService<HubDbContext>());
         services.AddSingleton(MigrationDescriptor);
         services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<HubDbContext>()));
 

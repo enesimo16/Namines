@@ -5,15 +5,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Namines.Hub.Domain;
-using Namines.Hub.Infrastructure.Persistence;
 
 namespace Namines.Hub.Application;
 
 internal sealed class HubApplicationService : IHubApplicationService
 {
-    private readonly HubDbContext _dbContext;
+    private readonly IHubData _dbContext;
 
-    public HubApplicationService(HubDbContext dbContext)
+    public HubApplicationService(IHubData dbContext)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }

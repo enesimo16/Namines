@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Namines.Ops.Domain;
-using Namines.Ops.Infrastructure.Persistence;
 
 namespace Namines.Ops.Application;
 
@@ -40,9 +39,9 @@ internal sealed class SqlExecutionAuditService : ISqlExecutionAuditService
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(200));
 
-    private readonly OpsDbContext _db;
+    private readonly IOpsData _db;
 
-    public SqlExecutionAuditService(OpsDbContext db) => _db = db;
+    public SqlExecutionAuditService(IOpsData db) => _db = db;
 
     public async Task RecordAsync(SqlExecutionRecord record, CancellationToken ct = default)
     {

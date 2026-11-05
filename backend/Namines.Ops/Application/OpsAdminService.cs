@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Security;
 using Namines.Ops.Domain;
-using Namines.Ops.Infrastructure.Persistence;
 
 namespace Namines.Ops.Application;
 
@@ -41,12 +40,12 @@ public interface IOpsAdminService
 
 internal sealed class OpsAdminService : IOpsAdminService
 {
-    private readonly OpsDbContext _db;
+    private readonly IOpsData _db;
     private readonly IPlatformAdminAuthority _admins;
     private readonly IFeatureFlagService _flags;
     private readonly IAiRouteCatalog _routes;
 
-    public OpsAdminService(OpsDbContext db, IPlatformAdminAuthority admins, IFeatureFlagService flags, IAiRouteCatalog routes)
+    public OpsAdminService(IOpsData db, IPlatformAdminAuthority admins, IFeatureFlagService flags, IAiRouteCatalog routes)
     {
         _db = db;
         _admins = admins;

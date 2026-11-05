@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Namines.Ops.Domain;
-using Namines.Ops.Infrastructure.Persistence;
 
 namespace Namines.Ops.Application;
 
@@ -558,7 +557,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
             if (DateTime.UtcNow < _nextRefreshUtc) return;
 
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetService<OpsDbContext>();
+            var db = scope.ServiceProvider.GetService<IOpsData>();
             var loaded = db == null;
             if (db != null)
             {
@@ -664,7 +663,7 @@ internal sealed class FeatureFlagService : IFeatureFlagService
 
         // Önce DB'ye yaz; başarısızsa çağıran hatayı görür ve önbellek eski (doğru) değerde kalır.
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetService<OpsDbContext>();
+        var db = scope.ServiceProvider.GetService<IOpsData>();
         if (db != null)
         {
             var existing = await db.FeatureFlags.FirstOrDefaultAsync(f => f.FeatureKey == updated.FeatureKey, ct);

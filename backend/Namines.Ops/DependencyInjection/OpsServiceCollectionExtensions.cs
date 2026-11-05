@@ -26,6 +26,7 @@ public static class OpsServiceCollectionExtensions
         Action<DbContextOptionsBuilder>? configureDbContext = null)
     {
         services.AddModuleDbContext<OpsDbContext>(OpsDbContext.SchemaName, connectionStringFactory, configureDbContext);
+        services.AddScoped<IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         services.AddSingleton(MigrationDescriptor);
         services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<OpsDbContext>()));
 

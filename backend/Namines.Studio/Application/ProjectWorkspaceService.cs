@@ -3,7 +3,6 @@ using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Contracts;
 using Namines.BuildingBlocks.Security;
 using Namines.Core.Models.Auth;
-using Namines.Studio.Infrastructure.Persistence;
 
 namespace Namines.Studio.Application;
 
@@ -24,12 +23,12 @@ public interface IProjectWorkspaceService
 
 internal sealed class ProjectWorkspaceService : IProjectWorkspaceService
 {
-    private readonly StudioDbContext _db;
+    private readonly IStudioData _db;
     private readonly ITenantProjectAuthority _authority;
     private readonly IIdentityDirectory _identity;
     private readonly IStudioProjects _projects;
 
-    public ProjectWorkspaceService(StudioDbContext db, ITenantProjectAuthority authority, IIdentityDirectory identity, IStudioProjects projects)
+    public ProjectWorkspaceService(IStudioData db, ITenantProjectAuthority authority, IIdentityDirectory identity, IStudioProjects projects)
     {
         _db = db;
         _authority = authority;

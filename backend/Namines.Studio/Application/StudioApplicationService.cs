@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Application;
 using Namines.Core.Models.Auth;
 using Namines.Studio.Domain;
-using Namines.Studio.Infrastructure.Persistence;
 
 namespace Namines.Studio.Application;
 
@@ -20,9 +19,9 @@ internal sealed class StudioApplicationService : IStudioApplicationService
     /// </summary>
     public const int MaxActiveSharesPerProject = 50;
 
-    private readonly StudioDbContext _dbContext;
+    private readonly IStudioData _dbContext;
 
-    public StudioApplicationService(StudioDbContext dbContext)
+    public StudioApplicationService(IStudioData dbContext)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }

@@ -1,3 +1,4 @@
+using Namines.Ops.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Namines.BuildingBlocks.Persistence;
@@ -11,7 +12,7 @@ namespace Namines.Ops.Infrastructure.Persistence;
 /// doğrudan erişilemez. <c>Feedbacks.UserId → AspNetUsers</c> FK'si DB'de kalıyor (SET NULL) ama
 /// bu modelde yok: Ops kimlik tablolarını tanımaz.
 /// </summary>
-internal sealed class OpsDbContext : DbContext
+internal sealed class OpsDbContext : DbContext, IOpsData
 {
     public const string SchemaName = "ops";
 

@@ -256,19 +256,22 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     }
 
     [Fact]
-    public void Application_layer_has_no_dependency_on_persistence_public_surface()
+    public void Application_layer_has_no_dependency_on_infrastructure_or_a_concrete_context()
     {
-        // Application sözleşmeleri (public arayüz ve kayıt tipleri) bağlam tipini dışarı açamaz.
+        // Yalnızca public yüzey değil: alan, kurucu ve metot gövdesi (IL) de taranır, internal servis de kapsanır.
+        var violations = new List<string>();
         foreach (var assembly in ModuleAssemblies())
         {
-            foreach (var type in LoadableTypes(assembly).Where(t => t.IsPublic && t.Namespace?.EndsWith(".Application", StringComparison.Ordinal) == true))
+            foreach (var type in LoadableTypes(assembly).Where(t => t.Namespace?.EndsWith(".Application", StringComparison.Ordinal) == true))
             {
-                const BindingFlags publicMembers = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-                var exposed = type.GetMethods(publicMembers).SelectMany(m => m.GetParameters().Select(p => p.ParameterType).Append(m.ReturnType))
-                    .Concat(type.GetProperties(publicMembers).Select(p => p.PropertyType));
-                Assert.DoesNotContain(exposed, IsDbContext);
+                foreach (var used in ReferencedTypes(type).Concat(TypesUsedInIl(type)).Distinct())
+                {
+                    if (IsDbContext(used) || used.Namespace?.StartsWith("Namines.", StringComparison.Ordinal) == true && used.Namespace.Contains(".Infrastructure", StringComparison.Ordinal))
+                        violations.Add($"{type.FullName} -> {used.FullName}");
+                }
             }
         }
+        Assert.Empty(violations);
     }
 
     [Fact]

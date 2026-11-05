@@ -29,6 +29,7 @@ public static class StudioServiceCollectionExtensions
         Action<DbContextOptionsBuilder>? configureDbContext = null)
     {
         services.AddModuleDbContext<StudioDbContext>(StudioDbContext.SchemaName, connectionStringFactory, configureDbContext);
+        services.AddScoped<IStudioData>(sp => sp.GetRequiredService<StudioDbContext>());
         services.AddSingleton(MigrationDescriptor);
         services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<StudioDbContext>()));
 

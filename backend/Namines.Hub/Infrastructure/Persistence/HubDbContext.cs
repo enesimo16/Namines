@@ -1,3 +1,4 @@
+using Namines.Hub.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Namines.BuildingBlocks.Persistence;
@@ -11,7 +12,7 @@ namespace Namines.Hub.Infrastructure.Persistence;
 /// Studio ve kimlik tablolarına giden FK'ler (projeye cascade, yazara SET NULL) DB'de duruyor, bu
 /// modelde yok: Hub projeyi ve kullanıcıyı yalnızca kimlikle tanır, veriyi sözleşmeden alır.
 /// </summary>
-internal sealed class HubDbContext : DbContext
+internal sealed class HubDbContext : DbContext, IHubData
 {
     public const string SchemaName = "hub";
 

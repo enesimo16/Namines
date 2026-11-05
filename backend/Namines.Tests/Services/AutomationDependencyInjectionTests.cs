@@ -27,6 +27,7 @@ public sealed class AutomationDependencyInjectionTests
 
         services.AddDbContext<AuthDbContext>(options => options.UseSqlite(connection));
         services.AddDbContext<OpsDbContext>(options => options.UseSqlite(connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
 
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>

@@ -3,7 +3,6 @@ using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Contracts;
 using Namines.BuildingBlocks.Security;
 using Namines.Hub.Domain;
-using Namines.Hub.Infrastructure.Persistence;
 
 namespace Namines.Hub.Application;
 
@@ -52,13 +51,13 @@ internal sealed class HubIssueService : IHubIssueService, IHubIssueQueries
     private const int MaxCommentLength = 10_000;
     private const int NumberAttempts = 5;
 
-    private readonly HubDbContext _db;
+    private readonly IHubData _db;
     private readonly IHubApplicationService _hub;
     private readonly IStudioProjects _projects;
     private readonly ITenantProjectAuthority _authority;
     private readonly IIdentityDirectory _identity;
 
-    public HubIssueService(HubDbContext db, IHubApplicationService hub, IStudioProjects projects, ITenantProjectAuthority authority, IIdentityDirectory identity)
+    public HubIssueService(IHubData db, IHubApplicationService hub, IStudioProjects projects, ITenantProjectAuthority authority, IIdentityDirectory identity)
     {
         _db = db;
         _hub = hub;
@@ -306,7 +305,7 @@ internal static class RepoIssueLabelStore
         return query.Where(i => i.LabelLinks.Any(l => l.ProjectId == projectId && l.Label.NormalizedName == key));
     }
 
-    public static async Task AttachAsync(HubDbContext db, RepoIssue issue, string? labelsCsv, CancellationToken ct = default)
+    public static async Task AttachAsync(IHubData db, RepoIssue issue, string? labelsCsv, CancellationToken ct = default)
     {
         var parsed = IssueLabelRules.Parse(labelsCsv);
         if (parsed.Count == 0) return;

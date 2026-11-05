@@ -8,7 +8,6 @@ using Namines.BuildingBlocks.Security;
 using Namines.Core.Analysis;
 using Namines.Core.Models;
 using Namines.Studio.Domain;
-using Namines.Studio.Infrastructure.Persistence;
 
 namespace Namines.Studio.Application;
 
@@ -56,10 +55,10 @@ internal sealed class StudioBranchService : IStudioBranches, IBranchService
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
     };
 
-    private readonly StudioDbContext _db;
+    private readonly IStudioData _db;
     private readonly ITenantProjectAuthority _authority;
 
-    public StudioBranchService(StudioDbContext db, ITenantProjectAuthority authority)
+    public StudioBranchService(IStudioData db, ITenantProjectAuthority authority)
     {
         _db = db;
         _authority = authority;

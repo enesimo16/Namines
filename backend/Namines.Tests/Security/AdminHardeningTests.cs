@@ -54,6 +54,7 @@ public class AdminHardeningTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddDbContext<AuthDbContext>(o => o.UseSqlite(connection));
         services.AddDbContext<OpsDbContext>(o => o.UseSqlite(connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
 
@@ -158,6 +159,7 @@ public class AdminHardeningTests : IAsyncLifetime
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(o => o.UseSqlite(_connection));
         services.AddDbContext<OpsDbContext>(o => o.UseSqlite(_connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
         var sp = services.BuildServiceProvider();
         var users = sp.GetRequiredService<UserManager<ApplicationUser>>();

@@ -26,6 +26,7 @@ public static class GatewayServiceCollectionExtensions
         Action<DbContextOptionsBuilder>? configureDbContext = null)
     {
         services.AddModuleDbContext<GatewayDbContext>(GatewayDbContext.SchemaName, connectionStringFactory, configureDbContext);
+        services.AddScoped<IGatewayData>(sp => sp.GetRequiredService<GatewayDbContext>());
         services.AddSingleton(MigrationDescriptor);
         services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<GatewayDbContext>()));
 

@@ -1,5 +1,4 @@
 using Namines.BuildingBlocks.Persistence;
-using Namines.Ops.Infrastructure.Persistence;
 
 namespace Namines.Ops.Application;
 
@@ -13,9 +12,9 @@ public interface IOpsRetentionService
 
 internal sealed class OpsRetentionService : IOpsRetentionService
 {
-    private readonly OpsDbContext _db;
+    private readonly IOpsData _db;
 
-    public OpsRetentionService(OpsDbContext db) => _db = db;
+    public OpsRetentionService(IOpsData db) => _db = db;
 
     public Task<int> PurgeSqlExecutionAuditsAsync(int days, DateTime nowUtc, TimeSpan pause, CancellationToken ct = default)
     {

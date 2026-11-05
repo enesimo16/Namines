@@ -19,6 +19,7 @@ public sealed class OpsApplicationTests : IDisposable
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<OpsDbContext>(o => o.UseSqlite(_connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         _sp = services.BuildServiceProvider();
         using var scope = _sp.CreateScope();
         scope.ServiceProvider.GetRequiredService<OpsDbContext>().Database.EnsureCreated();

@@ -49,6 +49,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddDbContext<AuthDbContext>(options => options.UseSqlite(_connection));
         services.AddDbContext<OpsDbContext>(options => options.UseSqlite(_connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         var sp = services.BuildServiceProvider();
         return sp.GetRequiredService<IServiceScopeFactory>();
     }
@@ -238,6 +239,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(opt => opt.UseSqlite(_connection));
         services.AddDbContext<OpsDbContext>(opt => opt.UseSqlite(_connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
         var sp = services.BuildServiceProvider();
 
@@ -304,6 +306,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(opt => opt.UseSqlite(_connection));
         services.AddDbContext<OpsDbContext>(opt => opt.UseSqlite(_connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
         var sp = services.BuildServiceProvider();
 
@@ -375,6 +378,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(opt => opt.UseSqlite(_connection));
         services.AddDbContext<OpsDbContext>(opt => opt.UseSqlite(_connection));
+        services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
         var sp = services.BuildServiceProvider();
 
