@@ -1,4 +1,13 @@
+global using Namines.BuildingBlocks.Application;
+global using Namines.BuildingBlocks.Contracts;
+global using Namines.Core.Models;
+global using Namines.Hub.Application;
+global using Namines.Hub.Domain;
+global using Namines.Hub.Infrastructure.Persistence;
 global using Namines.Ops.Application;
 global using Namines.Ops.Domain;
 global using Namines.Ops.Infrastructure.Persistence;
+global using Namines.Studio.Application;
+global using Namines.Studio.Domain;
+global using Namines.Studio.Infrastructure.Persistence;
 global using Namines.Tests.TestSupport;

@@ -26,18 +26,18 @@ public class DatabaseExecutorController : ControllerBase
 {
     private readonly IDatabaseExecutor _executor;
     private readonly ISqlExecutionAuditService _audit;
-    private readonly AuthDbContext _context;
+    private readonly ITenantProjectAuthority _authority;
     private readonly ILogger<DatabaseExecutorController> _logger;
 
     public DatabaseExecutorController(
         ISqlExecutionAuditService audit,
         IDatabaseExecutor executor,
-        AuthDbContext context,
+        ITenantProjectAuthority authority,
         ILogger<DatabaseExecutorController> logger)
     {
         _executor = executor;
         _audit = audit;
-        _context = context;
+        _authority = authority;
         _logger = logger;
     }
 
@@ -91,7 +91,7 @@ public class DatabaseExecutorController : ControllerBase
         // Kontrol ÇALIŞTIRMADAN ÖNCE: sonradan "kimliği düşürüp yine kaydet"
         // demek, betik çalıştıktan sonra sessizce izsiz bırakmak olurdu.
         if (!string.IsNullOrWhiteSpace(request.ProjectId)
-            && !await _context.CanViewAsync(request.ProjectId, userId, ct))
+            && !await _authority.CanViewAsync(request.ProjectId, userId, ct))
             return StatusCode(StatusCodes.Status403Forbidden, new
             {
                 success = false,

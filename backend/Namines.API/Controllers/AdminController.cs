@@ -37,6 +37,9 @@ public class AdminController : ControllerBase
     private readonly AdminTelemetryService _telemetry;
     private readonly IConfiguration _configuration;
     private readonly IOpsAdminService _ops;
+    private readonly IStudioAdminQueries _studio;
+    private readonly IStudioProjects _projects;
+    private readonly IIdentityDirectory _identity;
     private readonly IAiToolRouter? _aiRouter;
     private readonly IVaultModule? _vault;
     private readonly IGroundModule? _ground;
@@ -50,6 +53,9 @@ public class AdminController : ControllerBase
         AdminTelemetryService telemetry,
         IConfiguration configuration,
         IOpsAdminService ops,
+        IStudioAdminQueries studio,
+        IStudioProjects projects,
+        IIdentityDirectory identity,
         IAiToolRouter? aiRouter = null,
         IVaultModule? vault = null,
         IGroundModule? ground = null,
@@ -62,6 +68,9 @@ public class AdminController : ControllerBase
         _telemetry = telemetry;
         _configuration = configuration;
         _ops = ops;
+        _studio = studio;
+        _projects = projects;
+        _identity = identity;
         _aiRouter = aiRouter;
         _vault = vault;
         _ground = ground;
@@ -172,7 +181,7 @@ public class AdminController : ControllerBase
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
         var totalUsers = await _userManager.Users.CountAsync();
-        var totalProjects = await _context.CloudProjects.CountAsync();
+        var totalProjects = await _studio.CountProjectsAsync();
         var totalFeedbacks = await _ops.CountFeedbacksAsync(admin.Id);
         var activeDatabases = _ground != null ? await _ground.Databases.CountTotalDatabasesAsync() : 0;
 
@@ -298,11 +307,7 @@ public class AdminController : ControllerBase
             .Where(q => userIds.Contains(q.UserId))
             .ToDictionaryAsync(q => q.UserId);
 
-        var projectCounts = await _context.CloudProjects
-            .Where(p => userIds.Contains(p.UserId))
-            .GroupBy(p => p.UserId)
-            .Select(g => new { UserId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(g => g.UserId, g => g.Count);
+        var projectCounts = await _studio.CountByOwnerAsync(userIds);
 
         var items = users.Select(u =>
         {
@@ -354,17 +359,15 @@ public class AdminController : ControllerBase
         var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == id);
         var policy = await _context.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == id);
 
-        var projects = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.UserId == id)
-            .OrderByDescending(p => p.Id)
+        var projects = (await _studio.ListByOwnerAsync(id))
+            .OrderByDescending(p => p.Id, StringComparer.Ordinal)
             .Select(p => new
             {
                 id = p.Id,
                 name = p.Name,
                 dbType = p.DbType
             })
-            .ToListAsync();
+            .ToList();
 
         var feedbacks = await _ops.ListFeedbacksForUserAsync(admin.Id, id, user.Email, 10);
 
@@ -659,7 +662,7 @@ public class AdminController : ControllerBase
 
         // En çok kullanılan veritabanı motorları (yalnızca gerçek proje kayıtları; veri yoksa boş)
         var serverDistribution = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var projects = await _context.CloudProjects.AsNoTracking().Select(p => p.DbType).ToListAsync();
+        var projects = await _studio.ListDbTypesAsync();
         foreach (var p in projects)
         {
             var db = string.IsNullOrWhiteSpace(p) ? "Unknown" : p.Trim();
@@ -779,15 +782,12 @@ public class AdminController : ControllerBase
         if (page < 1) page = 1;
         if (pageSize < 5) pageSize = 5;
 
-        var totalProjects = await _context.CloudProjects.CountAsync();
+        var totalProjects = await _studio.CountProjectsAsync();
 
-        var projectsRaw = await _context.CloudProjects
-            .AsNoTracking()
-            .Include(p => p.User)
-            .OrderByDescending(p => p.UpdatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        var projectsRaw = await _studio.PageAsync((page - 1) * pageSize, pageSize);
+        var ownerIds = projectsRaw.Select(p => p.UserId).Distinct().ToList();
+        var ownerEmails = await _identity.GetUserEmailsAsync(ownerIds);
+        var ownerNames = await _identity.GetUserNamesAsync(ownerIds);
 
         var projectIds = projectsRaw.Select(p => p.Id).ToList();
         var vaultBackupCounts = _vault != null
@@ -814,8 +814,8 @@ public class AdminController : ControllerBase
                 id = p.Id,
                 name = p.Name,
                 ownerId = p.UserId,
-                ownerEmail = p.User?.Email ?? "Bilinmiyor",
-                ownerUsername = p.User?.UserName ?? "Kullanıcı",
+                ownerEmail = ownerEmails.GetValueOrDefault(p.UserId) ?? "Bilinmiyor",
+                ownerUsername = ownerNames.GetValueOrDefault(p.UserId) ?? "Kullanıcı",
                 dbType = string.IsNullOrWhiteSpace(p.DbType) ? "PostgreSQL" : p.DbType,
                 tableCount,
                 estimatedMb,
@@ -829,13 +829,12 @@ public class AdminController : ControllerBase
         // Toplamlar TÜM projeler üzerinden gerçek değerlerle hesaplanır (sayfa toplamı değil,
         // taban değer de yok). Şemalar tek tek akıtılır; hepsi belleğe alınmaz.
         long totalTablesCount = 0;
-        await foreach (var schemaJson in _context.CloudProjects.AsNoTracking().Select(p => p.SchemaJson).AsAsyncEnumerable())
+        await foreach (var schemaJson in _studio.StreamSchemasAsync())
         {
             totalTablesCount += CountTables(schemaJson);
         }
         var totalBackupBytes = _vault != null ? await _vault.Backups.GetTotalBackupBytesAsync() : 0L;
-        var totalSchemaChars = await _context.CloudProjects.AsNoTracking()
-            .SumAsync(p => (long?)(p.SchemaJson == null ? 0 : p.SchemaJson.Length)) ?? 0L;
+        var totalSchemaChars = await _studio.SumSchemaCharsAsync();
 
         return Ok(new
         {
@@ -1013,7 +1012,7 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        var project = await _context.CloudProjects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        var project = await _projects.GetAsync(id);
         if (project == null) return NotFound(new { error = "Project not found." });
 
         // Gerçek veritabanı varlıkları sorgulanır (M-3):
@@ -1138,7 +1137,8 @@ public class AdminController : ControllerBase
         if (kind == "projects")
         {
             sb.AppendLine("ID,Name,OwnerEmail,Engine,TableCount,StorageMb,CreatedAt");
-            var projs = await _context.CloudProjects.AsNoTracking().Include(p => p.User).Take(500).ToListAsync();
+            var projs = await _studio.ExportAsync(500);
+            var projOwnerEmails = await _identity.GetUserEmailsAsync(projs.Select(p => p.UserId).Distinct().ToList());
             var projIds = projs.Select(p => p.Id).ToList();
             var backupStats = _vault != null
                 ? await _vault.Backups.GetProjectBackupStatsAsync(projIds)
@@ -1147,7 +1147,7 @@ public class AdminController : ControllerBase
             {
                 var schemaBytes = string.IsNullOrEmpty(p.SchemaJson) ? 0 : System.Text.Encoding.UTF8.GetByteCount(p.SchemaJson);
                 var storageMb = Math.Round((schemaBytes + (backupStats.TryGetValue(p.Id, out var bs) ? bs.TotalBytes : 0L)) / BytesPerMb, 2);
-                sb.AppendLine(AdminCsv.Row(p.Id, p.Name ?? "Unnamed", p.User?.Email, p.DbType, CountTables(p.SchemaJson), storageMb, p.CreatedAt));
+                sb.AppendLine(AdminCsv.Row(p.Id, p.Name ?? "Unnamed", projOwnerEmails.GetValueOrDefault(p.UserId), p.DbType, CountTables(p.SchemaJson), storageMb, p.CreatedAt));
             }
         }
         else if (kind == "logs")

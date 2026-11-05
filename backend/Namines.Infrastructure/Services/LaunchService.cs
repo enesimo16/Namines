@@ -14,6 +14,7 @@ using Namines.BuildingBlocks.Security;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Ground.Application;
+using Namines.BuildingBlocks.Contracts;
 using Namines.Infrastructure.Data;
 using Namines.Ops.Application;
 using Namines.Vault.Application;
@@ -84,7 +85,7 @@ public class LaunchService
     }
 
     public async Task<LaunchResult> LaunchAsync(
-        CloudProject project, string userId, string providerName, string ddlScript, CancellationToken ct)
+        StudioProject project, string userId, string providerName, string ddlScript, CancellationToken ct)
     {
         var provider = _ground.FindProvider(providerName);
         if (provider is null)

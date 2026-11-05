@@ -38,7 +38,7 @@ public sealed class DefaultBranchVerbTests : IAsyncLifetime
         await db.EnsureModulesCreatedAsync();
 
         db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner-1",
@@ -52,7 +52,7 @@ public sealed class DefaultBranchVerbTests : IAsyncLifetime
 
     /// <summary>Bu iki uç yalnızca DbContext'e dokunuyor; diğer bağımlılıklar kullanılmıyor.</summary>
     private static BranchController NewController(AuthDbContext db, string userId) =>
-        new(db, databases: null!)
+        new(TestModules.For(db).BranchService, TestModules.For(db).Branches, databases: null!, billing: db)
         {
             ControllerContext = new ControllerContext
             {
@@ -67,7 +67,7 @@ public sealed class DefaultBranchVerbTests : IAsyncLifetime
     private async Task<int> BranchCountAsync()
     {
         await using var db = NewContext();
-        return await db.Branches.CountAsync();
+        return await db.Studio().Branches.CountAsync();
     }
 
     [Fact]

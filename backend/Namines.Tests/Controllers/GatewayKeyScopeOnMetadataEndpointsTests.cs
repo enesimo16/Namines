@@ -42,7 +42,7 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
         await db.EnsureModulesCreatedAsync();
 
         db.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner",
         });
@@ -79,7 +79,7 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
         return new GatewayController(
             gateway: null!, context: db, configuration: configuration,
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
-            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!)
+            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {
             ControllerContext = new ControllerContext { HttpContext = http },
         };

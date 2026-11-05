@@ -73,7 +73,7 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
         await using var db = NewContext();
         await using var groundDb = NewGroundContext();
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
@@ -217,7 +217,7 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
     {
         await using var db = NewContext();
         db.Users.AddRange(new ApplicationUser { Id = "a", UserName = "a" }, new ApplicationUser { Id = "b", UserName = "b" });
-        db.CloudProjects.AddRange(Project("p1", "a"), Project("p2", "a"), Project("p3", "b"));
+        db.Studio().Projects.AddRange(Project("p1", "a"), Project("p2", "a"), Project("p3", "b"));
         await db.SaveChangesAsync();
         var kit = TestModules.For(db);
         await kit.SeedRepositoryAsync("p1", "a", slug: "shop");
@@ -231,7 +231,7 @@ public sealed class GroundStaleClaimTests : IAsyncLifetime
     {
         await using var db = NewContext();
         db.Users.Add(new ApplicationUser { Id = "a", UserName = "a" });
-        db.CloudProjects.AddRange(Project("p1", "a"), Project("p2", "a"), Project("p3", "a"), Project("p4", "a"));
+        db.Studio().Projects.AddRange(Project("p1", "a"), Project("p2", "a"), Project("p3", "a"), Project("p4", "a"));
         await db.SaveChangesAsync();
 
         var kit = TestModules.For(db);

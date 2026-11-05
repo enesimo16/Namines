@@ -97,7 +97,7 @@ public sealed class GroundPurgeTests : IAsyncLifetime
     private async Task<GroundDatabase> SeedAsync(AuthDbContext db, GroundDbContext groundDb, string? providerProjectId)
     {
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",

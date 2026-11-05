@@ -65,7 +65,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
     private static AccountDeletionService NewService(
         AuthDbContext db, FakeStore store, FakeProvider provider, ISubscriptionCanceller? canceller = null) =>
-        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, canceller);
+        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects, canceller);
 
     private static CloudProject Project(string id, string userId, string? orgId) => new()
     {
@@ -93,7 +93,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Member(db, "P", "u1", OrgRole.Owner);
         Member(db, "T", "u2", OrgRole.Owner, 60);
         Member(db, "T", "u1", OrgRole.Editor, 30);
-        db.CloudProjects.AddRange(Project("pp", "u1", "P"), Project("tp", "u1", "T"));
+        db.Studio().Projects.AddRange(Project("pp", "u1", "P"), Project("tp", "u1", "T"));
         await db.SaveChangesAsync();
 
         store.Blobs["pp/b0"] = new byte[] { 1 };
@@ -157,7 +157,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
         await using var verify = NewContext();
         Assert.True(await verify.Users.AnyAsync(u => u.Id == "u1"));
-        Assert.Equal(2, await verify.CloudProjects.CountAsync());
+        Assert.Equal(2, await verify.Studio().Projects.CountAsync());
         Assert.Single(store.Blobs);
     }
 
@@ -179,7 +179,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await using var verify = NewContext();
         await using var verifyVault = NewVaultDb(verify);
         await using var verifyGround = NewGroundDb(verify);
-        Assert.False(await verify.CloudProjects.AnyAsync(p => p.Id == "pp"));
+        Assert.False(await verify.Studio().Projects.AnyAsync(p => p.Id == "pp"));
         Assert.False(await verify.Organizations.AnyAsync(o => o.Id == "P"));
         Assert.False(await verifyVault.VaultBackups.AnyAsync());
         Assert.False(await verifyGround.GroundDatabases.AnyAsync());
@@ -201,7 +201,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
-        var team = await verify.CloudProjects.SingleAsync(p => p.Id == "tp");
+        var team = await verify.Studio().Projects.SingleAsync(p => p.Id == "tp");
         Assert.Equal("u2", team.UserId);
         Assert.False(await verify.OrganizationMembers.AnyAsync(m => m.UserId == "u1"));
         Assert.True(await verify.Organizations.AnyAsync(o => o.Id == "T"));
@@ -222,7 +222,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
-        Assert.Equal("u2", (await verify.CloudProjects.SingleAsync(p => p.Id == "tp")).UserId);
+        Assert.Equal("u2", (await verify.Studio().Projects.SingleAsync(p => p.Id == "tp")).UserId);
     }
 
     [Fact]
@@ -315,7 +315,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.Equal(503, result.StatusCode);
         await using var verify = NewContext();
         Assert.True(await verify.Users.AnyAsync(u => u.Id == "u1"));
-        Assert.True(await verify.CloudProjects.AnyAsync(p => p.Id == "pp"));
+        Assert.True(await verify.Studio().Projects.AnyAsync(p => p.Id == "pp"));
     }
 
     [Fact]
@@ -324,12 +324,12 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         var store = new FakeStore();
         await using var db = NewContext();
         await SeedAsync(db, store);
-        var team = await db.CloudProjects.SingleAsync(p => p.Id == "tp");
-        db.RepoIssues.Add(new Namines.Core.Models.Hub.RepoIssue
+        var team = await db.Studio().Projects.SingleAsync(p => p.Id == "tp");
+        db.Hub().RepoIssues.Add(new RepoIssue
         {
             Id = "i1", ProjectId = "tp", IssueNumber = 1, Title = "t", CreatedByUserId = "u1",
         });
-        db.RepoIssueComments.Add(new Namines.Core.Models.Hub.RepoIssueComment
+        db.Hub().RepoIssueComments.Add(new RepoIssueComment
         {
             Id = "c1", IssueId = "i1", Body = "b", AuthorUserId = "u1",
         });
@@ -342,7 +342,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
         await using var read = NewContext();
-        var hub = new HubController(read, NewUserManager(read), Create(read), TestModules.For(read).HubService, TestModules.For(read).StudioService, TestModules.For(read).Transaction)
+        var hub = new HubController(TestModules.For(read).HubRepositories(Create(read)), TestModules.For(read).HubIssues)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -375,8 +375,8 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         var all = new List<Claim>(claims) { new(ClaimTypes.NameIdentifier, "u1") };
         var um = NewUserManager(db);
         return new AuthController(um, db, config, new MigrationService(null!), new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, new FakeEnv(), null,
-            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback))
+            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Workspace, new FakeEnv(), null,
+            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects))
         {
             ControllerContext = new ControllerContext
             {

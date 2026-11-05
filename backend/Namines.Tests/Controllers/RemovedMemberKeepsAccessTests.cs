@@ -65,7 +65,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         db.OrganizationMembers.Add(new OrganizationMember
         { OrganizationId = org.Id, UserId = "admin-1", Role = OrgRole.Admin });
 
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL", OrganizationId = org.Id,
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner-1",
@@ -81,7 +81,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
 
     private static ProjectMemberController NewMemberController(AuthDbContext db, string userId) =>
         // ProjectId doluyken ResolveOrgIdAsync UserManager'a dokunmuyor.
-        new(db, userManager: null!)
+        new(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects)
         {
             ControllerContext = new ControllerContext
             {
@@ -102,7 +102,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         var rawKey = await SeedAsync(db);
 
         // Once calisiyor.
-        Assert.NotNull(await db.AuthenticateAsync(rawKey));
+        Assert.NotNull(await db.AuthenticateAsync(TestModules.For(db).DefaultAuthority, rawKey));
 
         // Uyeligi elle kaldir (uc kullanmadan) — asil iddia AuthenticateAsync'in
         // kendisi, cikarma ucunun iptali degil.
@@ -111,7 +111,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
         await db.SaveChangesAsync();
 
         await using var verify = NewContext();
-        Assert.Null(await verify.AuthenticateAsync(rawKey));
+        Assert.Null(await verify.AuthenticateAsync(TestModules.For(verify).DefaultAuthority, rawKey));
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
     // ── (b) paylaşım linkleri ────────────────────────────────────────────────
 
     private static ShareController NewShareController(AuthDbContext db, string userId) =>
-        new(db, linter: null!, studio: TestModules.For(db).StudioService)
+        new(TestModules.For(db).Shares, linter: null!, studio: TestModules.For(db).StudioService)
         {
             ControllerContext = new ControllerContext
             {

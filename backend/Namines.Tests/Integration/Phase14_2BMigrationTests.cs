@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
-using Namines.BuildingBlocks.Modules;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Infrastructure.Data;

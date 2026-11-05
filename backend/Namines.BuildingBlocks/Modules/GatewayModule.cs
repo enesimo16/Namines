@@ -115,7 +115,6 @@ public static class GatewayModelConfiguration
             builder.Ignore<ApplicationUser>();
             builder.Ignore<Organization>();
             builder.Ignore<OrganizationMember>();
-            builder.Ignore<CloudProject>();
         }
 
         builder.Entity<GatewayApiKey>(entity =>
@@ -124,23 +123,7 @@ public static class GatewayModelConfiguration
             entity.HasKey(k => k.Id);
             entity.HasIndex(k => k.Prefix);
             entity.HasIndex(k => k.KeyHash).IsUnique();
-
-            if (configureCrossModuleForeignKeys)
-            {
-                entity.HasOne(k => k.Project)
-                    .WithMany()
-                    .HasForeignKey(k => k.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(k => k.CreatedByUser)
-                    .WithMany()
-                    .HasForeignKey(k => k.CreatedByUserId)
-                    .OnDelete(DeleteBehavior.SetNull);
-            }
-            else
-            {
-                entity.Ignore(k => k.Project);
-                entity.Ignore(k => k.CreatedByUser);
-            }
+            if (!configureCrossModuleForeignKeys) entity.Ignore(k => k.CreatedByUser);
         });
 
         builder.Entity<GatewayTablePermission>(entity =>
@@ -148,18 +131,6 @@ public static class GatewayModelConfiguration
             entity.ToTable("GatewayTablePermissions", schema is null ? null : ParentTablesSchema, t => t.ExcludeFromMigrations());
             entity.HasKey(p => p.Id);
             entity.HasIndex(p => new { p.ProjectId, p.TableName }).IsUnique();
-
-            if (configureCrossModuleForeignKeys)
-            {
-                entity.HasOne(p => p.Project)
-                    .WithMany()
-                    .HasForeignKey(p => p.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-            }
-            else
-            {
-                entity.Ignore(p => p.Project);
-            }
         });
 
         builder.Entity<GatewayAuditEntry>(entity =>

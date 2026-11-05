@@ -22,7 +22,6 @@ public class GatewayApiKey
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
     public string ProjectId { get; set; } = null!;
-    public CloudProject Project { get; set; } = null!;
 
     /// <summary>İnsan tarafından verilen etiket ("production backend", "CI").</summary>
     public string Name { get; set; } = null!;
@@ -133,7 +132,6 @@ public class GatewayTablePermission
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
     public string ProjectId { get; set; } = null!;
-    public CloudProject Project { get; set; } = null!;
 
     public string TableName { get; set; } = null!;
 

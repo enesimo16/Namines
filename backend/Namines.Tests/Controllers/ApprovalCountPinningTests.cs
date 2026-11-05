@@ -65,7 +65,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
         db.OrganizationMembers.Add(new OrganizationMember
         { OrganizationId = "org-1", UserId = "rev-2", Role = OrgRole.Editor });
 
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL", OrganizationId = "org-1",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "author",
@@ -74,7 +74,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
 
         var branch = new Branch
         { ProjectId = "proj-1", Name = "main", IsDefault = true, CreatedByUserId = "author" };
-        db.Branches.Add(branch);
+        db.Studio().Branches.Add(branch);
         await db.SaveChangesAsync();
 
         var version = new SchemaVersion
@@ -82,7 +82,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
             ProjectId = "proj-1", BranchId = branch.Id, Version = 1,
             Checksum = "abc", SchemaJson = "{}", AuthorUserId = "author",
         };
-        db.SchemaVersions.Add(version);
+        db.Studio().SchemaVersions.Add(version);
         await db.SaveChangesAsync();
 
         var cr = new ChangeRequest
@@ -110,7 +110,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
     }
 
     private static ChangeRequestController NewController(AuthDbContext db, string userId) =>
-        new(db, migrationService: null!, testRunner: null!, aiService: null!, quota: null!)
+        new(db, migrationService: null!, testRunner: null!, aiService: null!, quota: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {
             ControllerContext = new ControllerContext
             {

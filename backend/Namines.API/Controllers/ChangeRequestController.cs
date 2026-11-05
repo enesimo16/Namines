@@ -81,13 +81,23 @@ public class ChangeRequestController : ControllerBase
         Converters = { new JsonStringEnumConverter() }
     };
 
+    private readonly ITenantProjectAuthority _authority;
+    private readonly IStudioProjects _projects;
+    private readonly IStudioBranches _branches;
+
     public ChangeRequestController(
         AuthDbContext context,
         IMigrationService migrationService,
         IBranchTestRunner testRunner,
         IAIService aiService,
-        AiQuotaService quota)
+        AiQuotaService quota,
+        ITenantProjectAuthority authority,
+        IStudioProjects projects,
+        IStudioBranches branches)
     {
+        _authority = authority;
+        _projects = projects;
+        _branches = branches;
         _context = context;
         _migrationService = migrationService;
         _testRunner = testRunner;
@@ -116,9 +126,10 @@ public class ChangeRequestController : ControllerBase
             return BadRequest(new { error = "ProjectId and SchemaJson are required." });
 
         // 05 §6: şema yazma/CR açma → Editor ve üstü.
-        if (!await _context.CanEditAsync(request.ProjectId, userId))
+        if (!await _authority.CanEditAsync(request.ProjectId, userId))
             return NotFound(new { error = "Project not found, or it does not belong to this user." });
-        var project = await _context.CloudProjects.FirstAsync(p => p.Id == request.ProjectId);
+        var project = await _projects.GetHeaderAsync(request.ProjectId)
+            ?? throw new InvalidOperationException("Project disappeared after the access check.");
 
         DatabaseSchema headSchema;
         try
@@ -131,56 +142,19 @@ public class ChangeRequestController : ControllerBase
             return BadRequest(new { error = "SchemaJson is not a valid DatabaseSchema." });
         }
 
-        // Yarışa karşı sertleştirilmiş tek kopya — bkz. BranchProvisioning.
-        var branch = await _context.GetOrCreateDefaultBranchAsync(request.ProjectId, userId);
+        // Yarışa karşı sertleştirilmiş tek kopya: Studio sözleşmesi.
+        var branch = await _branches.GetOrCreateDefaultAsync(request.ProjectId, userId);
 
-        // Versiyon numarası oku-sonra-yaz yarışı: (BranchId, Version) unique. Aynı branch'te
-        // iki kişi aynı anda "Request Review" derse ikisi de aynı numarayı hesaplar ve
-        // ikincisi unique index'e çarpar. 500 vermek yerine yeniden okuyup bir sonraki
-        // numarayla tekrar dener — kullanıcının commit'i kaybolmaz.
-        SchemaVersion headVersion = null!;
-        SchemaVersion? previousVersion = null;
-        DatabaseSchema baseSchema = new();
-
-        const int maxVersionAttempts = 4;
-        for (var attempt = 1; ; attempt++)
-        {
-            previousVersion = await _context.SchemaVersions
-                .Where(v => v.BranchId == branch.Id)
-                .OrderByDescending(v => v.Version)
-                .FirstOrDefaultAsync();
-
-            baseSchema = previousVersion is not null
-                ? JsonSerializer.Deserialize<DatabaseSchema>(previousVersion.SchemaJson,
-                    SchemaJsonOptions) ?? new DatabaseSchema()
-                : new DatabaseSchema();
-
-            headVersion = new SchemaVersion
-            {
-                ProjectId = request.ProjectId,
-                BranchId = branch.Id,
-                Version = (previousVersion?.Version ?? 0) + 1,
-                Checksum = System.Convert.ToHexString(
-                    System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(request.SchemaJson))
-                ).ToLowerInvariant(),
-                SchemaJson = request.SchemaJson,
-                Message = request.Message,
-                TableCount = (short)headSchema.Tables.Count,
-                AuthorUserId = userId,
-                CreatedAt = DateTime.UtcNow
-            };
-            await _context.SchemaVersions.AddAsync(headVersion);
-
-            try
-            {
-                await _context.SaveChangesAsync();
-                break;
-            }
-            catch (DbUpdateException) when (attempt < maxVersionAttempts)
-            {
-                _context.Entry(headVersion).State = EntityState.Detached;
-            }
-        }
+        // Taban, sürüm eklenmeden önceki son sürüm. Sürüm numarası yarışı sözleşmenin içinde: aynı anda
+        // iki "Request Review" ikisini de kaydeder; taban bir önceki numaraya ait olur.
+        var headVersion = await _branches.AddVersionAsync(
+            branch.Id, request.SchemaJson, request.Message, (short)headSchema.Tables.Count, userId);
+        var previousVersion = headVersion.Version > 1
+            ? await _branches.GetVersionAtAsync(branch.Id, headVersion.Version - 1)
+            : null;
+        var baseSchema = previousVersion is not null
+            ? JsonSerializer.Deserialize<DatabaseSchema>(previousVersion.SchemaJson, SchemaJsonOptions) ?? new DatabaseSchema()
+            : new DatabaseSchema();
 
         var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsedEngine)
             ? parsedEngine
@@ -219,7 +193,7 @@ public class ChangeRequestController : ControllerBase
             ResolvedAt = autoApprove ? now : null,
             // Onay kuralının dayanağı BURADA sabitleniyor — bkz.
             // ChangeRequest.VotingMembersAtCreation'ın notu (docs/last-review M-1).
-            VotingMembersAtCreation = await _context.CountVotingMembersAsync(request.ProjectId),
+            VotingMembersAtCreation = await _authority.CountVotingMembersAsync(request.ProjectId),
         };
         await _context.ChangeRequests.AddAsync(changeRequest);
 
@@ -267,21 +241,12 @@ public class ChangeRequestController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         // Onay zorunluluğunu GEVŞETEN bir ayar — Editor'a bırakılmaz, Admin/Owner gerekir.
-        if (!await _context.CanManageMembersAsync(projectId, userId))
+        if (!await _authority.CanManageMembersAsync(projectId, userId))
             return NotFound(new { error = "Project not found, or it does not belong to this user." });
-        var project = await _context.CloudProjects.FirstAsync(p => p.Id == projectId);
+        if (!await _projects.SetAutoApproveSafeChangesAsync(projectId, request.Enabled))
+            return NotFound(new { error = "Project not found, or it does not belong to this user." });
 
-        project.AutoApproveSafeChanges = request.Enabled;
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return ConcurrencyConflict.Result();
-        }
-
-        return Ok(new { project.Id, project.AutoApproveSafeChanges });
+        return Ok(new { Id = projectId, AutoApproveSafeChanges = request.Enabled });
     }
 
     /// <summary>G16 — bir CR'ın yaşam döngüsü boyunca durum geçişlerinin (kim/ne zaman/neden)
@@ -298,9 +263,8 @@ public class ChangeRequestController : ControllerBase
         if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
-        if (!await _context.CanViewAsync(cr.ProjectId, userId))
+        if (!await _authority.CanViewAsync(cr.ProjectId, userId))
             return NotFound(new { error = "Change request not found." });
-        var project = await _context.CloudProjects.FirstAsync(p => p.Id == cr.ProjectId);
 
         var entries = await _context.ChangeRequestAuditLogs
             .Include(a => a.ActorUser)
@@ -327,24 +291,29 @@ public class ChangeRequestController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var cr = await _context.ChangeRequests
-            .Include(c => c.Branch)
-            .Include(c => c.HeadVersion)
-            .Include(c => c.BaseVersion)
             .Include(c => c.Approvals).ThenInclude(a => a.User)
             .FirstOrDefaultAsync(c => c.Id == id);
         if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
-        if (!await _context.CanViewAsync(cr.ProjectId, userId))
+        if (!await _authority.CanViewAsync(cr.ProjectId, userId))
             return NotFound(new { error = "Change request not found." });
-        var project = await _context.CloudProjects.FirstAsync(p => p.Id == cr.ProjectId);
+        var project = await _projects.GetHeaderAsync(cr.ProjectId)
+            ?? throw new InvalidOperationException("Project disappeared after the access check.");
 
         var impact = JsonSerializer.Deserialize<ImpactReport>(cr.ImpactReportJson);
 
-        var headSchema = JsonSerializer.Deserialize<DatabaseSchema>(cr.HeadVersion.SchemaJson,
+        // Sürüm ve branch Studio'nun: FK DB'de korunuyor, satır burada sözleşmeyle okunuyor.
+        var headVersion = await _branches.GetVersionAsync(cr.HeadVersionId)
+            ?? throw new InvalidOperationException("Head version is missing.");
+        var baseVersion = cr.BaseVersionId is null ? null : await _branches.GetVersionAsync(cr.BaseVersionId);
+        var branch = await _branches.GetAsync(cr.BranchId)
+            ?? throw new InvalidOperationException("Branch is missing.");
+
+        var headSchema = JsonSerializer.Deserialize<DatabaseSchema>(headVersion.SchemaJson,
             SchemaJsonOptions) ?? new DatabaseSchema();
-        var baseSchema = cr.BaseVersion is not null
-            ? JsonSerializer.Deserialize<DatabaseSchema>(cr.BaseVersion.SchemaJson,
+        var baseSchema = baseVersion is not null
+            ? JsonSerializer.Deserialize<DatabaseSchema>(baseVersion.SchemaJson,
                 SchemaJsonOptions) ?? new DatabaseSchema()
             : new DatabaseSchema();
 
@@ -439,7 +408,7 @@ public class ChangeRequestController : ControllerBase
 
         // UI'ın gösterdiği sayı, Decide'ın uyguladığı sayıyla AYNI olmalı — yoksa
         // "1/2 onay" yazarken CR onaylanmış görünür (kafa karıştırıcı ve güvensiz).
-        var teamSize = EffectiveTeamSize(cr, await _context.CountVotingMembersAsync(cr.ProjectId));
+        var teamSize = EffectiveTeamSize(cr, await _authority.CountVotingMembersAsync(cr.ProjectId));
         var required = ChangeRequestApprovalPolicy.EffectiveRequiredApprovals(cr.RiskLevel, teamSize);
         var approvedCount = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Approved);
         var rejectedCount = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Rejected);
@@ -449,15 +418,15 @@ public class ChangeRequestController : ControllerBase
             cr.Id,
             cr.ProjectId,
             cr.BranchId,
-            BranchName = cr.Branch.Name,
+            BranchName = branch.Name,
             cr.Title,
             cr.Status,
             cr.RiskLevel,
             cr.CreatedByUserId,
             cr.CreatedAt,
             cr.ResolvedAt,
-            HeadVersion = new { cr.HeadVersion.Id, cr.HeadVersion.Version, cr.HeadVersion.TableCount, cr.HeadVersion.CreatedAt },
-            BaseVersion = cr.BaseVersion is null ? null : new { cr.BaseVersion.Id, cr.BaseVersion.Version, cr.BaseVersion.TableCount, cr.BaseVersion.CreatedAt },
+            HeadVersion = new { headVersion.Id, headVersion.Version, headVersion.TableCount, headVersion.CreatedAt },
+            BaseVersion = baseVersion is null ? null : new { baseVersion.Id, baseVersion.Version, baseVersion.TableCount, baseVersion.CreatedAt },
             Impact = impact,
             AiExplanation = aiExplanation,
             Migration = migration,
@@ -492,18 +461,20 @@ public class ChangeRequestController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await _context.CanViewAsync(projectId, userId))
+        if (!await _authority.CanViewAsync(projectId, userId))
             return NotFound(new { error = "Project not found, or it does not belong to this user." });
 
         var entities = await _context.ChangeRequests
-            .Include(c => c.Branch)
-            .Include(c => c.HeadVersion)
             .Include(c => c.Approvals)
             .Where(c => c.ProjectId == projectId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
 
-        var listTeamSize = await _context.CountVotingMembersAsync(projectId);
+        var listTeamSize = await _authority.CountVotingMembersAsync(projectId);
+
+        // Toplu: satır başına ayrı sorgu olmasın.
+        var listBranches = await _branches.GetManyAsync(entities.Select(c => c.BranchId).Distinct().ToList());
+        var listVersions = await _branches.GetVersionHeadersAsync(entities.Select(c => c.HeadVersionId).Distinct().ToList());
 
         // ChangeRequestApprovalPolicy.EffectiveRequiredApprovals bir SQL çevirisi olmayan saf C#
         // fonksiyonu — EF'in .Select() projeksiyonunda client-evaluation'a izin verilmediği
@@ -514,8 +485,8 @@ public class ChangeRequestController : ControllerBase
             c.Title,
             c.Status,
             c.RiskLevel,
-            BranchName = c.Branch.Name,
-            TableCount = c.HeadVersion.TableCount,
+            BranchName = listBranches[c.BranchId].Name,
+            TableCount = listVersions[c.HeadVersionId].TableCount,
             c.CreatedAt,
             c.ResolvedAt,
             ApprovedCount = c.Approvals.Count(a => a.Decision == ApprovalDecision.Approved),
@@ -552,7 +523,7 @@ public class ChangeRequestController : ControllerBase
         // ulaşabiliyor; Destructive/Breaking'in "2 farklı kişi" kuralı ancak böyle
         // uygulanabilir hâle geliyor (önceden yalnızca proje sahibi erişebildiği için
         // kural matematiksel olarak imkânsızdı).
-        if (!await _context.CanEditAsync(cr.ProjectId, userId))
+        if (!await _authority.CanEditAsync(cr.ProjectId, userId))
             return NotFound(new { error = "Change request not found." });
 
         var approvedCountBefore = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Approved);
@@ -574,7 +545,7 @@ public class ChangeRequestController : ControllerBase
         // yıkıcı bir değişikliğin yetkisiz onaylanması olurdu.
         //
         // 0 = bu alan eklenmeden ÖNCE açılmış CR → canlı sayıya düş.
-        var teamSize = EffectiveTeamSize(cr, await _context.CountVotingMembersAsync(cr.ProjectId));
+        var teamSize = EffectiveTeamSize(cr, await _authority.CountVotingMembersAsync(cr.ProjectId));
 
         var evaluation = ChangeRequestApprovalPolicy.EvaluateVote(
             cr.RiskLevel, cr.Status, cr.CreatedByUserId, userId, request.Decision,
@@ -709,16 +680,18 @@ public class ChangeRequestController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var cr = await _context.ChangeRequests
-            .Include(c => c.HeadVersion)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
         if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // Gerçek container açıyor (pahalı) — Viewer tetikleyemez.
-        if (!await _context.CanEditAsync(cr.ProjectId, userId, cancellationToken))
+        if (!await _authority.CanEditAsync(cr.ProjectId, userId, cancellationToken))
             return NotFound(new { error = "Change request not found." });
-        var project = await _context.CloudProjects.FirstAsync(p => p.Id == cr.ProjectId, cancellationToken);
+        var project = await _projects.GetHeaderAsync(cr.ProjectId, cancellationToken)
+            ?? throw new InvalidOperationException("Project disappeared after the access check.");
 
-        var headSchema = JsonSerializer.Deserialize<DatabaseSchema>(cr.HeadVersion.SchemaJson, SchemaJsonOptions) ?? new DatabaseSchema();
+        var headVersion = await _branches.GetVersionAsync(cr.HeadVersionId, cancellationToken)
+            ?? throw new InvalidOperationException("Head version is missing.");
+        var headSchema = JsonSerializer.Deserialize<DatabaseSchema>(headVersion.SchemaJson, SchemaJsonOptions) ?? new DatabaseSchema();
         var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsedEngine)
             ? parsedEngine
             : DatabaseType.PostgreSQL;
@@ -752,9 +725,10 @@ public class ChangeRequestController : ControllerBase
         if (cr is null) return NotFound(new { error = "Change request not found." });
 
         // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
-        if (!await _context.CanViewAsync(cr.ProjectId, userId))
+        if (!await _authority.CanViewAsync(cr.ProjectId, userId))
             return NotFound(new { error = "Change request not found." });
-        var project = await _context.CloudProjects.FirstAsync(p => p.Id == cr.ProjectId);
+        var project = await _projects.GetHeaderAsync(cr.ProjectId)
+            ?? throw new InvalidOperationException("Project disappeared after the access check.");
 
         var impact = JsonSerializer.Deserialize<ImpactReport>(cr.ImpactReportJson)
             ?? throw new InvalidOperationException("Stored ImpactReport could not be deserialized.");

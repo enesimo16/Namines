@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging;
 using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
+using Namines.BuildingBlocks.Contracts;
+using Namines.Hub.Application;
 using Namines.Infrastructure.Data;
 using Namines.Ops.Application;
 
@@ -57,6 +59,7 @@ public class AccountDeletionService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ProjectDeletionService _projects;
     private readonly IHubApplicationService _hub;
+    private readonly IStudioProjects _studio;
     private readonly IFeedbackService _feedback;
     private readonly ICrossModuleTransaction _transaction;
     private readonly ISubscriptionCanceller? _stripe;
@@ -70,12 +73,14 @@ public class AccountDeletionService
         ICrossModuleTransaction transaction,
         ILogger<AccountDeletionService> logger,
         IFeedbackService feedback,
+        IStudioProjects studio,
         ISubscriptionCanceller? stripe = null)
     {
         _context = context;
         _userManager = userManager;
         _projects = projects;
         _hub = hub;
+        _studio = studio;
         _feedback = feedback;
         _transaction = transaction;
         _logger = logger;
@@ -135,10 +140,7 @@ public class AccountDeletionService
 
         // Kullanıcının oluşturduğu ama ÜYESİ olmadığı org'lardaki projeler için de varis lazım
         // (üyelikten çıkarılmış kurucu): CASCADE onları sessizce silerdi.
-        var created = await _context.CloudProjects
-            .Where(p => p.UserId == userId)
-            .Select(p => new { p.Id, p.OrganizationId })
-            .ToListAsync(ct);
+        var created = await _studio.ListCreatedByAsync(userId, ct);
 
         var deleteIds = new HashSet<string>();
         var reassign = new List<(string ProjectId, string NewOwner)>();
@@ -170,10 +172,7 @@ public class AccountDeletionService
         // yedek/Ground temizliği atlanmasın.
         if (orgsToDelete.Count > 0)
         {
-            var orgProjectIds = await _context.CloudProjects
-                .Where(p => p.OrganizationId != null && orgsToDelete.Contains(p.OrganizationId))
-                .Select(p => p.Id)
-                .ToListAsync(ct);
+            var orgProjectIds = await _studio.ListIdsInOrganizationsAsync(orgsToDelete.ToList(), ct);
             foreach (var id in orgProjectIds) deleteIds.Add(id);
         }
 
@@ -202,11 +201,8 @@ public class AccountDeletionService
         // ── 2. Projeler (dış kaynaklar dahil) ────────────────────────────────
         foreach (var projectId in deleteIds)
         {
-            var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
-            if (project is null) continue;
-
             // Denetim izinde ad/aktör YOK: silinen kişiye geri götürmesin.
-            var result = await _projects.DeleteAsync(project, actorUserId: null, ct, recordName: false);
+            var result = await _projects.DeleteAsync(projectId, actorUserId: null, ct, recordName: false);
             if (!result.Ok)
             {
                 _logger.LogWarning("Hesap silme durdu: proje {ProjectId} silinemedi ({Code}).", projectId, result.Code);
@@ -234,10 +230,7 @@ public class AccountDeletionService
 
             foreach (var (projectId, newOwner) in reassign)
             {
-                await _context.CloudProjects.Where(p => p.Id == projectId)
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(p => p.UserId, newOwner)
-                        .SetProperty(p => p.UpdatedAt, DateTime.UtcNow), ct);
+                await _studio.ReassignCreatorAsync(projectId, newOwner, ct);
                 var renamedSlug = await _hub.ReassignOwnerAsync(projectId, newOwner, ct);
                 if (renamedSlug is not null)
                     _logger.LogWarning("Hesap silme: {ProjectId} devrinde slug çakıştı, yeni slug {Slug}.", projectId, renamedSlug);

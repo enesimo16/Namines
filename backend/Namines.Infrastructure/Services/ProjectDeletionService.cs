@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Namines.BuildingBlocks.Application;
+using Namines.BuildingBlocks.Contracts;
+using Namines.Hub.Application;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.Ground.Application;
@@ -13,12 +15,6 @@ using Namines.Infrastructure.Data;
 using Namines.Vault.Application;
 
 namespace Namines.Infrastructure.Services;
-
-/// <summary>Proje silmenin sonucu. <see cref="StatusCode"/> HTTP karşılığı (200 = silindi).</summary>
-public sealed record ProjectDeletionResult(bool Ok, int StatusCode, string? Code = null, string? Error = null)
-{
-    public static ProjectDeletionResult Success() => new(true, 200);
-}
 
 /// <summary>
 /// Bir projeyi, dış kaynaklarıyla birlikte tutarlı biçimde siler (DB-10, DB-01/02).
@@ -35,12 +31,15 @@ public sealed record ProjectDeletionResult(bool Ok, int StatusCode, string? Code
 ///
 /// Yetki denetimi ÇAĞIRANIN işi (Hub'da Owner, hesap silmede sahiplik).
 /// </summary>
-public class ProjectDeletionService
+public class ProjectDeletionService : IProjectDeletion
 {
     private readonly AuthDbContext _context;
     private readonly IVaultApplicationService _vault;
     private readonly IGroundApplicationService _ground;
     private readonly IHubApplicationService _hub;
+    private readonly IStudioProjects _projects;
+    private readonly IStudioBranches _branches;
+    private readonly IStudioRelations _relations;
     private readonly ICrossModuleTransaction _transaction;
     private readonly ILogger<ProjectDeletionService> _logger;
 
@@ -50,7 +49,10 @@ public class ProjectDeletionService
         IGroundApplicationService ground,
         ILogger<ProjectDeletionService> logger,
         IHubApplicationService hub,
-        ICrossModuleTransaction transaction)
+        ICrossModuleTransaction transaction,
+        IStudioProjects projects,
+        IStudioBranches branches,
+        IStudioRelations relations)
     {
         _context = context;
         _vault = vault;
@@ -58,22 +60,26 @@ public class ProjectDeletionService
         _logger = logger;
         _hub = hub;
         _transaction = transaction;
+        _projects = projects;
+        _branches = branches;
+        _relations = relations;
     }
 
     public async Task<ProjectDeletionResult> DeleteAsync(
-        CloudProject project, string? actorUserId, CancellationToken ct, bool recordName = true)
+        string projectId, string? actorUserId, CancellationToken ct, bool recordName = true)
     {
-        var projectId = project.Id;
+        var project = await _projects.GetHeaderAsync(projectId, ct);
+        // Satır yoksa silinecek bir şey yok: yeniden deneme de başarılı sayılır.
+        if (project is null) return ProjectDeletionResult.Success();
 
         var counts = new
         {
             backups = await _vault.CountProjectBackupsAsync(projectId, ct),
             groundDatabases = await _ground.CountActiveProjectDatabasesAsync(projectId, ct),
-            branches = await _context.Branches.CountAsync(b => b.ProjectId == projectId, ct),
-            schemaVersions = await _context.SchemaVersions.CountAsync(v => v.ProjectId == projectId, ct),
+            branches = await _branches.CountBranchesAsync(projectId, ct),
+            schemaVersions = await _branches.CountVersionsAsync(projectId, ct),
             changeRequests = await _context.ChangeRequests.CountAsync(c => c.ProjectId == projectId, ct),
-            crossDatabaseRelations = await _context.CrossDatabaseRelations.CountAsync(
-                r => r.SourceProjectId == projectId || r.TargetProjectId == projectId, ct),
+            crossDatabaseRelations = await _relations.CountForProjectAsync(projectId, ct),
         };
 
         // (b) Kalıcı denetim kaydı — dış kaynaklara dokunmadan ÖNCE.
@@ -101,20 +107,19 @@ public class ProjectDeletionService
                 busy ? "GROUND_BUSY" : "GROUND_DEPROVISION_FAILED", groundResult.Error);
         }
 
-        // (e) Satırlar: Restrict FK'li kalan kayıtlar elle, geri kalanı cascade.
-        var crossRels = await _context.CrossDatabaseRelations
-            .Where(r => r.SourceProjectId == projectId || r.TargetProjectId == projectId)
-            .ToListAsync(ct);
-        _context.CrossDatabaseRelations.RemoveRange(crossRels);
-
-        // Bağlantı, paylaşım, repo ve etiket satırları DB'deki FK ile cascade gider; burada kalan
-        // tek iş fork kaynağının sayacı, proje silinmeden önce ve aynı işlemde.
+        // (e) Satırlar: ilişkiler Restrict olduğu için önce; her modül kendi satırını sözleşmesiyle siler.
+        // DB'deki şemalar arası FK'ler güvence olarak duruyor: bir modül unutsa da yetim satır oluşamaz.
         // "Silindi" denetim satırı silmeyle AYNI işlemde: biri olmadan diğeri olmaz.
-        _context.CloudProjects.Remove(project);
         AddAudit(ChangeRequestAuditAction.ProjectDeleted, project, actorUserId, counts, null, recordName);
         await _transaction.ExecuteAsync(async c =>
         {
+            await _relations.RemoveForProjectAsync(projectId, c);
             await _hub.DetachFromForkSourceAsync(projectId, c);
+            await _hub.PurgeProjectAsync(projectId, c);
+            await _context.ChangeRequests.Where(r => r.ProjectId == projectId).ExecuteDeleteAsync(c);
+            await _context.GatewayApiKeys.Where(k => k.ProjectId == projectId).ExecuteDeleteAsync(c);
+            await _context.GatewayTablePermissions.Where(p => p.ProjectId == projectId).ExecuteDeleteAsync(c);
+            await _projects.DeleteAsync(projectId, c);
             await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
         }, ct);
         _context.ChangeTracker.AcceptAllChanges();
@@ -130,7 +135,7 @@ public class ProjectDeletionService
     /// silinen kişiye geri götüren bilgi taşımamalı.
     /// </summary>
     private void AddAudit(
-        ChangeRequestAuditAction action, CloudProject project, string? actorUserId, object counts, string? failedStep, bool recordName)
+        ChangeRequestAuditAction action, StudioProjectHeader project, string? actorUserId, object counts, string? failedStep, bool recordName)
     {
         _context.ChangeRequestAuditLogs.Add(new ChangeRequestAuditLog
         {
@@ -144,7 +149,7 @@ public class ProjectDeletionService
     }
 
     private async Task WriteAuditAsync(
-        ChangeRequestAuditAction action, CloudProject project, string? actorUserId, object counts,
+        ChangeRequestAuditAction action, StudioProjectHeader project, string? actorUserId, object counts,
         string? failedStep, bool recordName, CancellationToken ct)
     {
         AddAudit(action, project, actorUserId, counts, failedStep, recordName);

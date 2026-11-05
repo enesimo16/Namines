@@ -44,6 +44,8 @@
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.BuildingBlocks\Namines.BuildingBlocks.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
+    <ProjectReference Include="..\Namines.Studio\Namines.Studio.csproj" />
+    <ProjectReference Include="..\Namines.Hub\Namines.Hub.csproj" />
     <ProjectReference Include="..\Namines.Ops\Namines.Ops.csproj" />
     <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
     <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />

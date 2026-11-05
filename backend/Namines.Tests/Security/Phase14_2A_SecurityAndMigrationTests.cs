@@ -11,7 +11,6 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Namines.API.Controllers;
-using Namines.BuildingBlocks.Modules;
 using Namines.BuildingBlocks.Persistence;
 using Namines.BuildingBlocks.Security;
 using Namines.Core.Models.Auth;
@@ -184,7 +183,7 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
             db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = "org-1", UserId = "owner-1", Role = OrgRole.Owner });
 
             var rawConn = "Host=db.acme.com;Database=secret;Username=root;Password=topsecret";
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = "proj-tenant",
                 Name = "Acme DB",
@@ -220,7 +219,7 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
             db.Organizations.Add(new Organization { Id = "org-leg", Name = "Org Leg", CreatedByUserId = "usr-leg-1" });
             db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = "org-leg", UserId = "usr-leg-1", Role = OrgRole.Owner });
 
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = "proj-leg-fallback",
                 Name = "Fallback Project",
@@ -262,7 +261,7 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
             db.Organizations.Add(new Organization { Id = "org-tok", Name = "Org Tok", CreatedByUserId = "u-tok" });
             db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = "org-tok", UserId = "u-tok", Role = OrgRole.Owner });
 
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = "p-migrated-tok",
                 Name = "Migrated Schema",
@@ -276,7 +275,7 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
         }
 
         await using var readDb = new AuthDbContext(_authOptions);
-        var controller = new ShareController(readDb, linter: null!, studio: TestModules.For(readDb).StudioService);
+        var controller = new ShareController(TestModules.For(readDb).Shares, linter: null!, studio: TestModules.For(readDb).StudioService);
 
         // 1. Old active share URL using rawToken WORKS!
         var oldUrlResult = await controller.GetSharedSchema(rawLegacyToken);

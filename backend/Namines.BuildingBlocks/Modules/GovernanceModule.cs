@@ -39,9 +39,6 @@ public static class GovernanceModelConfiguration
             builder.Ignore<ApplicationUser>();
             builder.Ignore<Organization>();
             builder.Ignore<OrganizationMember>();
-            builder.Ignore<CloudProject>();
-            builder.Ignore<Branch>();
-            builder.Ignore<SchemaVersion>();
         }
 
         builder.Entity<ChangeRequest>(entity =>
@@ -52,22 +49,6 @@ public static class GovernanceModelConfiguration
 
             if (configureCrossModuleForeignKeys)
             {
-                entity.HasOne(c => c.Project)
-                    .WithMany()
-                    .HasForeignKey(c => c.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(c => c.Branch)
-                    .WithMany()
-                    .HasForeignKey(c => c.BranchId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(c => c.HeadVersion)
-                    .WithMany()
-                    .HasForeignKey(c => c.HeadVersionId)
-                    .OnDelete(DeleteBehavior.NoAction);
-                entity.HasOne(c => c.BaseVersion)
-                    .WithMany()
-                    .HasForeignKey(c => c.BaseVersionId)
-                    .OnDelete(DeleteBehavior.NoAction);
                 entity.HasOne(c => c.CreatedByUser)
                     .WithMany()
                     .HasForeignKey(c => c.CreatedByUserId)
@@ -75,10 +56,6 @@ public static class GovernanceModelConfiguration
             }
             else
             {
-                entity.Ignore(c => c.Project);
-                entity.Ignore(c => c.Branch);
-                entity.Ignore(c => c.HeadVersion);
-                entity.Ignore(c => c.BaseVersion);
                 entity.Ignore(c => c.CreatedByUser);
             }
         });
@@ -153,5 +130,8 @@ public sealed class GovernanceDbContext : DbContext
             modelBuilder.HasDefaultSchema(schema);
 
         GovernanceModelConfiguration.Configure(modelBuilder, schema, configureCrossModuleForeignKeys: false);
+
+        // D-2'ye kadar: tablolar public'te ve DDL Auth zincirinde; bu bağlam kullanılmıyor ama yanlış şemaya eşli kalmasın.
+        NonOwnerContext.MapToActualSchema(modelBuilder, schema is null ? null : "public");
     }
 }

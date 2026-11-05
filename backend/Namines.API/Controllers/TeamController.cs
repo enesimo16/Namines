@@ -31,10 +31,16 @@ public sealed record CreateInviteRequest(OrgRole Role = OrgRole.Editor, int Expi
 public class TeamController : ControllerBase
 {
     private readonly AuthDbContext _context;
+    private readonly ITenantProjectAuthority _authority;
+    private readonly IStudioProjects _studioProjects;
+    private readonly IIdentityDirectory _identity;
 
-    public TeamController(AuthDbContext context)
+    public TeamController(AuthDbContext context, ITenantProjectAuthority authority, IStudioProjects studioProjects, IIdentityDirectory identity)
     {
         _context = context;
+        _authority = authority;
+        _studioProjects = studioProjects;
+        _identity = identity;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -380,20 +386,17 @@ public class TeamController : ControllerBase
 
         var org = await ActiveOrgAsync(userId, ct);
 
-        var projects = await _context.CloudProjects.AsNoTracking()
-            .Where(p => p.OrganizationId == org.Id)
-            .OrderByDescending(p => p.UpdatedAt)
-            .Take(50)
-            .Select(p => new
-            {
-                p.Id,
-                p.Name,
-                p.DbType,
-                p.UpdatedAt,
-                ownerUserId = p.UserId,
-                ownerName = p.User.UserName,
-            })
-            .ToListAsync(ct);
+        var headers = await _studioProjects.ListInOrganizationAsync(org.Id, 50, ct);
+        var ownerNames = await _identity.GetUserNamesAsync(headers.Select(p => p.UserId).Distinct().ToList(), ct);
+        var projects = headers.Select(p => new
+        {
+            p.Id,
+            p.Name,
+            p.DbType,
+            p.UpdatedAt,
+            ownerUserId = p.UserId,
+            ownerName = ownerNames.GetValueOrDefault(p.UserId),
+        }).ToList();
 
         return Ok(new { projects });
     }
@@ -410,21 +413,14 @@ public class TeamController : ControllerBase
         // "Kurucu" kısayolu YOK: org'dan çıkarılmış (ya da rolü düşürülmüş) kurucu,
         // projeyi başka bir org'a taşıyarak ekibin erişimini koparamamalı. Yetki
         // yalnızca projenin MEVCUT org'undaki rolden gelir (OrgAccess).
-        if (!await _context.CanManageMembersAsync(projectId, userId, ct))
+        if (!await _authority.CanManageMembersAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found or you do not have permission to share it." });
 
         var org = await ActiveOrgAsync(userId, ct);
-        var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
-
-        if (project is null)
+        if (!await _studioProjects.SetOrganizationAsync(projectId, org.Id, ct))
             return NotFound(new { error = "Project not found or you do not have permission to share it." });
 
-        project.OrganizationId = org.Id;
-        project.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
-
-        return Ok(new { projectId = project.Id, organizationId = org.Id });
+        return Ok(new { projectId, organizationId = org.Id });
     }
 
     /// <summary>
@@ -438,12 +434,10 @@ public class TeamController : ControllerBase
 
         // Paylaşımı geri çekmek ekibin erişimini keser: yalnızca projenin mevcut
         // org'undaki Owner yapabilir (Admin değil), kurucu olması tek başına yetmez.
-        if (await _context.GetRoleAsync(projectId, userId, ct) != OrgRole.Owner)
+        if (await _authority.GetRoleAsync(projectId, userId, ct) != OrgRole.Owner)
             return NotFound(new { error = "Project not found or you do not have permission to unshare it." });
 
-        var project = await _context.CloudProjects
-            .FirstOrDefaultAsync(p => p.Id == projectId, ct);
-
+        var project = await _studioProjects.GetHeaderAsync(projectId, ct);
         if (project is null)
             return NotFound(new { error = "Project not found or you do not have permission to unshare it." });
 
@@ -453,9 +447,7 @@ public class TeamController : ControllerBase
             .Where(u => u.Id == project.UserId).Select(u => u.UserName).FirstOrDefaultAsync(ct);
         var personalOrg = await _context.GetOrCreatePersonalOrgAsync(project.UserId, founderName ?? "Personal", ct);
 
-        project.OrganizationId = personalOrg.Id;
-        project.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(ct);
+        await _studioProjects.SetOrganizationAsync(projectId, personalOrg.Id, ct);
 
         return Ok(new { projectId = project.Id, organizationId = personalOrg.Id });
     }

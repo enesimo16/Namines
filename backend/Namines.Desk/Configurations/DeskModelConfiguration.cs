@@ -53,14 +53,12 @@ namespace Namines.Desk.Configurations
                         CheckConstraintSql.MaxLength("Sql", SqlQueryHistoryEntry.MaxSqlLength)));
 
                 entity.HasIndex(h => new { h.UserId, h.ProjectId, h.CreatedAt });
+                entity.HasIndex(h => h.ProjectId);
 
                 // Kullanıcıya özel veri (SQL metni PII içerebilir): proje ya da kullanıcı
                 // gidince kalması hata olur → CASCADE.
                 if (configureCrossModuleForeignKeys)
                 {
-                    entity.HasOne<CloudProject>().WithMany()
-                          .HasForeignKey(h => h.ProjectId)
-                          .OnDelete(DeleteBehavior.Cascade);
                     entity.HasOne<ApplicationUser>().WithMany()
                           .HasForeignKey(h => h.UserId)
                           .OnDelete(DeleteBehavior.Cascade);
@@ -81,12 +79,10 @@ namespace Namines.Desk.Configurations
                         CheckConstraintSql.MaxLength("Sql", SavedQuery.MaxSqlLength)));
 
                 entity.HasIndex(q => new { q.UserId, q.ProjectId, q.Name }).IsUnique();
+                entity.HasIndex(q => q.ProjectId);
 
                 if (configureCrossModuleForeignKeys)
                 {
-                    entity.HasOne<CloudProject>().WithMany()
-                          .HasForeignKey(q => q.ProjectId)
-                          .OnDelete(DeleteBehavior.Cascade);
                     entity.HasOne<ApplicationUser>().WithMany()
                           .HasForeignKey(q => q.UserId)
                           .OnDelete(DeleteBehavior.Cascade);

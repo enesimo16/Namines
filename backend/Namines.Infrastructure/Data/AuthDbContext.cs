@@ -4,19 +4,15 @@ using Namines.BuildingBlocks.Modules;
 using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
-using Namines.Core.Models.Hub;
 
 namespace Namines.Infrastructure.Data
 {
     public class AuthDbContext : IdentityDbContext<ApplicationUser>
     {
-        public DbSet<CloudProject> CloudProjects { get; set; } = null!;
         public DbSet<UserAIPolicy> UserAIPolicies { get; set; } = null!;
         public DbSet<UserAIQuota> UserAIQuotas { get; set; } = null!;
         public DbSet<GlobalAiUsage> GlobalAiUsages { get; set; } = null!;
         public DbSet<OrgAiUsage> OrgAiUsages { get; set; } = null!;
-        public DbSet<Branch> Branches { get; set; } = null!;
-        public DbSet<SchemaVersion> SchemaVersions { get; set; } = null!;
         public DbSet<ChangeRequest> ChangeRequests { get; set; } = null!;
         public DbSet<ChangeRequestApproval> ChangeRequestApprovals { get; set; } = null!;
         public DbSet<ChangeRequestAuditLog> ChangeRequestAuditLogs { get; set; } = null!;
@@ -28,7 +24,6 @@ namespace Namines.Infrastructure.Data
         public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
         public DbSet<UserBillingSettings> UserBillingSettings { get; set; } = null!;
         public DbSet<TeamInvite> TeamInvites { get; set; } = null!;
-        public DbSet<CrossDatabaseRelation> CrossDatabaseRelations { get; set; } = null!;
 
         /// <summary>İşlenmiş Stripe olayları — tekrar iletimi tanımak için (docs/last-review M-2).</summary>
         public DbSet<StripeWebhookEvent> StripeWebhookEvents { get; set; } = null!;
@@ -41,10 +36,6 @@ namespace Namines.Infrastructure.Data
         /// </summary>
 
         /// <summary>Kullanicinin ada kaydettigi sorgular (F-02).</summary>
-
-        public DbSet<RepoIssue> RepoIssues { get; set; } = null!;
-        public DbSet<RepoIssueComment> RepoIssueComments { get; set; } = null!;
-        public DbSet<RepoStar> RepoStars { get; set; } = null!;
 
         public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
         {
@@ -61,21 +52,8 @@ namespace Namines.Infrastructure.Data
             Namines.Ground.Configurations.GroundModelConfiguration.Configure(builder, isPostgres ? "ground" : null);
             Namines.Desk.Configurations.DeskModelConfiguration.Configure(builder, isPostgres ? "desk" : null);
 
-            // ── Faz 14.2B: Studio/Hub tablolarının DDL'i tek migration zincirinde kalıyor. DbSet YOK:
-            // bu tablolar AuthDbContext üzerinden okunmaz, yalnızca şema (snapshot, SQLite
-            // EnsureCreated) ve FK'ler için modelde. Okuma/yazma IStudioApplicationService,
-            // IHubApplicationService ve IProjectConnectionSecretProvider üzerinden.
-            builder.Entity<CloudProject>().ToTable("projects", isPostgres ? StudioModelConfiguration.DefaultSchemaName : null);
-            StudioModelConfiguration.ConfigureOwnedTables(builder, isPostgres ? StudioModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
-            HubModelConfiguration.ConfigureOwnedTables(builder, isPostgres ? HubModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
-            HubModelConfiguration.ConfigureIssueLabelTables(builder, isPostgres ? HubModelConfiguration.DefaultSchemaName : null);
+            // Gateway tabloları kendi fazına kadar Auth modelinde; allowlist çocukları zaten gateway şemasında.
             GatewayModelConfiguration.ConfigureAllowlistTables(builder, isPostgres ? GatewayModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
-            builder.Entity<ProjectRepository>()
-                .HasOne<CloudProject>()
-                .WithOne()
-                .HasForeignKey<ProjectRepository>(r => r.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-            ConfigureMovedTableConstraints(builder, isPostgres);
 
             builder.Entity<PendingSubscriptionCancellation>(entity =>
             {
@@ -85,12 +63,6 @@ namespace Namines.Infrastructure.Data
                     .HasDatabaseName("IX_PendingSubscriptionCancellations_Open")
                     .HasFilter("\"CompletedAt\" IS NULL");
             });
-
-            builder.Entity<CloudProject>()
-                .HasOne(p => p.User)
-                .WithMany()
-                .HasForeignKey(p => p.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<UserAIPolicy>()
                 .HasOne(p => p.User)
@@ -120,89 +92,7 @@ namespace Namines.Infrastructure.Data
                 .HasIndex(o => new { o.OrganizationId, o.Date })
                 .IsUnique();
 
-            // ── G10 — Branch / SchemaVersion (new-phase/30-SERVER-SIDE-BRANCHING.md §3 Adım 1) ──
-
-            builder.Entity<Branch>()
-                .HasOne(b => b.Project)
-                .WithMany()
-                .HasForeignKey(b => b.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<Branch>()
-                .HasOne(b => b.ParentBranch)
-                .WithMany()
-                .HasForeignKey(b => b.ParentBranchId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            builder.Entity<Branch>()
-                .HasOne(b => b.CreatedByUser)
-                .WithMany()
-                .HasForeignKey(b => b.CreatedByUserId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            // Proje içinde branch adı benzersiz olmalı — aynı projede iki "main" olamaz.
-            builder.Entity<Branch>()
-                .HasIndex(b => new { b.ProjectId, b.Name })
-                .IsUnique();
-
-            // Kısmi unique index: bir projede en fazla bir IsDefault=true branch olabilir.
-            // 18-CONTROL-PLANE-DDL.md'deki `ux_branches_default`'ın EF karşılığı.
-            builder.Entity<Branch>()
-                .HasIndex(b => b.ProjectId)
-                .IsUnique()
-                .HasFilter("\"IsDefault\" = true");
-
-            builder.Entity<SchemaVersion>()
-                .HasOne(v => v.Project)
-                .WithMany()
-                .HasForeignKey(v => v.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<SchemaVersion>()
-                .HasOne(v => v.Branch)
-                .WithMany()
-                .HasForeignKey(v => v.BranchId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<SchemaVersion>()
-                .HasOne(v => v.AuthorUser)
-                .WithMany()
-                .HasForeignKey(v => v.AuthorUserId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            // Branch içinde versiyon numarası benzersiz — commit sırasının garantisi.
-            builder.Entity<SchemaVersion>()
-                .HasIndex(v => new { v.BranchId, v.Version })
-                .IsUnique();
-
-            builder.Entity<SchemaVersion>()
-                .HasIndex(v => new { v.ProjectId, v.CreatedAt });
-
             // ── G11 — ChangeRequest / ChangeRequestApproval ("Database PR", new-phase/29) ──
-
-            builder.Entity<ChangeRequest>()
-                .HasOne(c => c.Project)
-                .WithMany()
-                .HasForeignKey(c => c.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<ChangeRequest>()
-                .HasOne(c => c.Branch)
-                .WithMany()
-                .HasForeignKey(c => c.BranchId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<ChangeRequest>()
-                .HasOne(c => c.HeadVersion)
-                .WithMany()
-                .HasForeignKey(c => c.HeadVersionId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            builder.Entity<ChangeRequest>()
-                .HasOne(c => c.BaseVersion)
-                .WithMany()
-                .HasForeignKey(c => c.BaseVersionId)
-                .OnDelete(DeleteBehavior.NoAction);
 
             builder.Entity<ChangeRequest>()
                 .HasOne(c => c.CreatedByUser)
@@ -212,6 +102,11 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<ChangeRequest>()
                 .HasIndex(c => new { c.ProjectId, c.CreatedAt });
+
+            // Studio'ya giden FK'ler DB'de duruyor (cascade/no action), modelde yok: indeksleri açıkça tutulur.
+            builder.Entity<ChangeRequest>().HasIndex(c => c.BranchId);
+            builder.Entity<ChangeRequest>().HasIndex(c => c.HeadVersionId);
+            builder.Entity<ChangeRequest>().HasIndex(c => c.BaseVersionId);
 
             builder.Entity<ChangeRequestApproval>()
                 .HasOne(a => a.ChangeRequest)
@@ -281,11 +176,7 @@ namespace Namines.Infrastructure.Data
             builder.Entity<GatewayApiKey>()
                 .HasIndex(k => k.Prefix);
 
-            builder.Entity<GatewayApiKey>()
-                .HasOne(k => k.Project)
-                .WithMany()
-                .HasForeignKey(k => k.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
+            builder.Entity<GatewayApiKey>().HasIndex(k => k.ProjectId);
 
             builder.Entity<GatewayApiKey>()
                 .HasOne(k => k.CreatedByUser)
@@ -298,12 +189,6 @@ namespace Namines.Infrastructure.Data
             builder.Entity<GatewayTablePermission>()
                 .HasIndex(p => new { p.ProjectId, p.TableName })
                 .IsUnique();
-
-            builder.Entity<GatewayTablePermission>()
-                .HasOne(p => p.Project)
-                .WithMany()
-                .HasForeignKey(p => p.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<Organization>()
                 .HasOne(o => o.CreatedByUser)
@@ -330,16 +215,6 @@ namespace Namines.Infrastructure.Data
             builder.Entity<OrganizationMember>()
                 .HasIndex(m => m.UserId);
 
-            // Org silinince projeleri de gitmeli (18'deki ON DELETE CASCADE).
-            builder.Entity<CloudProject>()
-                .HasOne(p => p.Organization)
-                .WithMany()
-                .HasForeignKey(p => p.OrganizationId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            builder.Entity<CloudProject>()
-                .HasIndex(p => p.OrganizationId);
-
             // ── Team davetleri ──────────────────────────────────────────────
             builder.Entity<TeamInvite>()
                 .HasOne(i => i.Organization)
@@ -355,36 +230,6 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<TeamInvite>()
                 .HasIndex(i => i.OrganizationId);
-
-            // ── second-phase/10-COKLU-DB.md — veritabanları arası mantıksal ilişki ──
-            // İki proje sınırını aşan bir kayıt olduğu için Restrict: bir projeyi
-            // silmek (CloudProject zaten Cascade ile projeyi siler), o projeye bağlı
-            // ilişkileri sessizce yetim BIRAKMAMALI — önce ilişkiler temizlenmeli.
-            // İki yön (Source/Target) aynı CloudProject'e FK verdiği için EF'in
-            // "birden fazla cascade yolu" hatasını önlemek için ikisi de Restrict.
-            builder.Entity<CrossDatabaseRelation>()
-                .HasOne(r => r.SourceProject)
-                .WithMany()
-                .HasForeignKey(r => r.SourceProjectId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.Entity<CrossDatabaseRelation>()
-                .HasOne(r => r.TargetProject)
-                .WithMany()
-                .HasForeignKey(r => r.TargetProjectId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            builder.Entity<CrossDatabaseRelation>()
-                .HasOne(r => r.CreatedByUser)
-                .WithMany()
-                .HasForeignKey(r => r.CreatedByUserId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            builder.Entity<CrossDatabaseRelation>()
-                .HasIndex(r => r.SourceProjectId);
-
-            builder.Entity<CrossDatabaseRelation>()
-                .HasIndex(r => r.TargetProjectId);
 
             // Gateway denetimi: "bu projenin son kayıtları" + analitik aralık sorguları (DB-12).
             // Tablonun en hızlı büyüyen parçası; indeks migration'da CONCURRENTLY kurulur.
@@ -407,89 +252,6 @@ namespace Namines.Infrastructure.Data
             // okunuyor: "bu müşteri için gördüğüm en yeni olay hangisi?"
             builder.Entity<StripeWebhookEvent>()
                 .HasIndex(e => new { e.StripeCustomerId, e.EventCreatedAt });
-
-            // Optimistic concurrency (REL-003a / B-32): PostgreSQL'in `xmin`
-            // sistem kolonuna esleniyor.
-            //
-            // Neden ayri bir kolon DEGIL: `xmin` her satirda ZATEN var ve her
-            // guncellemede motor tarafindan degisiyor. Kendi `byte[] RowVersion`
-            // kolonumuzu eklemek, mevcut satirlar icin bir backfill ve her
-            // guncellemede elle artirma gerektirirdi -- ikisi de atlanabilir
-            // adimlar, ve atlandiginda koruma sessizce YOK olurdu.
-            //
-            // ESLEME YALNIZCA POSTGRESQL ICIN ve bunu bir GERILEME ogretti:
-            // kosulsuz yazildiginda SQLite'ta `EnsureCreated`, `xmin` adinda
-            // GERCEK bir NOT NULL kolon uretiyor. Kolon
-            // `ValueGeneratedOnAddOrUpdate` oldugu icin EF insert'te deger
-            // GONDERMIYOR ve her ekleme
-            // "NOT NULL constraint failed: CloudProjects.xmin" ile patliyor.
-            // Bu, CloudProject ekleyen butun SQLite tabanli testleri kirdi
-            // (9 test) -- ve yalnizca tum suite kosturuldugunda gorundu.
-            //
-            // Diger saglayicilarda ozellik tamamen YOK SAYILIYOR: `xmin` bir
-            // PostgreSQL kavrami, taklidini uretmek yanlis bir guven verirdi.
-            if (Database.IsNpgsql())
-            {
-                builder.Entity<CloudProject>()
-                    .Property(p => p.RowVersion)
-                    .HasColumnName("xmin")
-                    .HasColumnType("xid")
-                    .ValueGeneratedOnAddOrUpdate()
-                    .IsConcurrencyToken();
-            }
-            else
-            {
-                builder.Entity<CloudProject>().Ignore(p => p.RowVersion);
-            }
-
-            // ── Namines Hub: Architecture Repositories, Issues, Comments & Stars ──
-            // "Projelerim", CanView/GetRole ve kullanıcı silme cascade'i UserId ile arıyor (DB-13).
-            builder.Entity<CloudProject>().HasIndex(p => p.UserId);
-
-            builder.Entity<RepoIssue>(entity =>
-            {
-                entity.HasKey(i => i.Id);
-                entity.HasIndex(i => new { i.ProjectId, i.IssueNumber }).IsUnique();
-                entity.HasIndex(i => new { i.ProjectId, i.IsClosed });
-                entity.Property(i => i.Title).HasMaxLength(256);
-                entity.Property(i => i.RelatedTableName).HasMaxLength(128);
-                entity.Property(i => i.NslRuleCode).HasMaxLength(32);
-                entity.HasOne(i => i.Project)
-                    .WithMany()
-                    .HasForeignKey(i => i.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(i => i.CreatedByUser)
-                    .WithMany()
-                    .HasForeignKey(i => i.CreatedByUserId)
-                    .OnDelete(DeleteBehavior.SetNull);
-            });
-
-            builder.Entity<RepoIssueComment>(entity =>
-            {
-                entity.HasKey(c => c.Id);
-                entity.HasIndex(c => c.IssueId);
-                entity.HasOne(c => c.Issue)
-                    .WithMany()
-                    .HasForeignKey(c => c.IssueId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(c => c.AuthorUser)
-                    .WithMany()
-                    .HasForeignKey(c => c.AuthorUserId)
-                    .OnDelete(DeleteBehavior.SetNull);
-            });
-
-            builder.Entity<RepoStar>(entity =>
-            {
-                entity.HasKey(s => new { s.ProjectId, s.UserId });
-                entity.HasOne(s => s.Project)
-                    .WithMany()
-                    .HasForeignKey(s => s.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(s => s.User)
-                    .WithMany()
-                    .HasForeignKey(s => s.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
-            });
 
             // ── Referans bütünlüğü (docs/last-review/05 DB-05/06) ──
             builder.Entity<OrgAiUsage>()
@@ -545,32 +307,6 @@ namespace Namines.Infrastructure.Data
         }
 
         /// <summary>
-        /// Taşınan tabloların CHECK kısıtları; ifadeler CloudProjects'tekilerle aynı. Migration'da
-        /// önce satırlar taşınıyor, kısıt NOT VALID ekleniyor ve yalnızca ihlal yoksa doğrulanıyor:
-        /// eski tabloda da NOT VALID olduğu için tavanı aşan eski satırlar olabilir.
-        /// </summary>
-        private static void ConfigureMovedTableConstraints(ModelBuilder builder, bool isPostgres)
-        {
-            static string N(string table, string col, string? suffix = null) => CheckConstraintSql.Name(table, col, suffix);
-
-            builder.Entity<ProjectRepository>().ToTable(t =>
-            {
-                t.HasCheckConstraint(N("repositories", "Visibility"), CheckConstraintSql.EnumIn<ProjectVisibility>("Visibility"));
-                t.HasCheckConstraint(N("repositories", "StarCount"), CheckConstraintSql.AtLeast("StarCount", 0));
-                t.HasCheckConstraint(N("repositories", "ForkCount"), CheckConstraintSql.AtLeast("ForkCount", 0));
-                if (!isPostgres) return;
-                t.HasCheckConstraint(N("repositories", "Description", "Length"), CheckConstraintSql.MaxLength("Description", 1000));
-                t.HasCheckConstraint(N("repositories", "Category", "Length"), CheckConstraintSql.MaxLength("Category", 64));
-                t.HasCheckConstraint(N("repositories", "LinkedGithubRepo", "Length"), CheckConstraintSql.MaxLength("LinkedGithubRepo", 140));
-            });
-
-            if (!isPostgres) return;
-
-            builder.Entity<ProjectShare>().ToTable(t =>
-                t.HasCheckConstraint(N("project_shares", "ShareTokenHash", "Length"), "char_length(\"ShareTokenHash\") = 64"));
-        }
-
-        /// <summary>
         /// Guid-dizgesi birincil anahtarlar (DB-24): uygulama anahtarı hâlâ KENDİ üretir
         /// (<c>Guid.NewGuid().ToString()</c>); DB varsayılanı yalnızca elle SQL / migration ile
         /// eklenen satırlar içindir (<c>gen_random_uuid()::text</c>, PG13+ çekirdek).
@@ -585,15 +321,14 @@ namespace Namines.Infrastructure.Data
         {
             var guidKeyed = new[]
             {
-                typeof(CloudProject), typeof(ProjectShare), typeof(PendingSubscriptionCancellation), typeof(Branch), typeof(SchemaVersion), typeof(ChangeRequest),
+                typeof(PendingSubscriptionCancellation), typeof(ChangeRequest),
                 typeof(ChangeRequestApproval), typeof(ChangeRequestAuditLog), typeof(Organization),
                 typeof(TeamInvite), typeof(GatewayApiKey), typeof(GatewayTablePermission),
-                typeof(CrossDatabaseRelation), typeof(RepoIssue),
-                typeof(RepoIssueComment), typeof(DeskHandoffToken), typeof(SqlQueryHistoryEntry),
+                typeof(DeskHandoffToken), typeof(SqlQueryHistoryEntry),
                 typeof(SavedQuery), typeof(VaultBackup), typeof(VaultRestore), typeof(VaultSchedule),
                 typeof(GroundDatabase), typeof(AutomationRule), typeof(AutomationAction),
                 typeof(AutomationRunLog), typeof(GatewayApiKeyAllowedOrigin), typeof(GatewayApiKeyAllowedIp),
-                typeof(GatewayTableMaskedColumn), typeof(IssueLabel),
+                typeof(GatewayTableMaskedColumn),
             };
 
             foreach (var type in guidKeyed)
@@ -603,13 +338,6 @@ namespace Namines.Infrastructure.Data
                     .ValueGeneratedNever();
             }
         }
-
-        /// <summary>
-        /// SchemaJson satır başına tavanı (karakter). İstek gövdesi için ayrı bir sınır yok
-        /// (Kestrel varsayılanı ~30 MB); bu CHECK tek bir kullanıcının sınırsız şema yazmasını
-        /// veritabanı düzeyinde keser. NOT VALID: yeni yazımlar için geçerli, eski satırlar dokunulmaz.
-        /// </summary>
-        public const int MaxSchemaJsonLength = 10_000_000;
 
         /// <summary>
         /// CHECK kısıtları (docs/last-review/05 DB-21/22). İfadeler <see cref="CheckConstraintSql"/>'den
@@ -663,27 +391,6 @@ namespace Namines.Infrastructure.Data
                     t.HasCheckConstraint(N("UserAIPolicies", col), CheckConstraintSql.EnumIn<AIMode>(col));
             });
 
-            // Uzunluk tavanları: char_length yalnızca PostgreSQL'de var. Değerler uygulamanın
-            // zaten uyguladığı sınırlarla aynı (HubController, FeedbackController); uygulamanın
-            // doğrulamadığı kolonlar (Feedbacks.Email, ChangeRequests.Title…) bilinçli olarak yok —
-            // CHECK orada kullanıcıya 500 olarak dönerdi.
-            if (!isPostgres) return;
-
-            builder.Entity<CloudProject>().ToTable(t =>
-            {
-                // Name: Hub PATCH 128 sınırlıyor ama kaydetme yolu (AuthController) doğrulamıyor → cömert tavan.
-                t.HasCheckConstraint(N("projects", "Name", "Length"), CheckConstraintSql.MaxLength("Name", 512));
-                t.HasCheckConstraint(N("projects", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength));
-            });
-
-            builder.Entity<SchemaVersion>().ToTable(t =>
-                t.HasCheckConstraint(N("SchemaVersions", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength)));
-
-            builder.Entity<RepoIssue>().ToTable(t =>
-                t.HasCheckConstraint(N("RepoIssues", "Body", "Length"), CheckConstraintSql.MaxLength("Body", 20_000)));
-
-            builder.Entity<RepoIssueComment>().ToTable(t =>
-                t.HasCheckConstraint(N("RepoIssueComments", "Body", "Length"), CheckConstraintSql.MaxLength("Body", 10_000)));
         }
     }
 }

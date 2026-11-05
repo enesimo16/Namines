@@ -1,3 +1,5 @@
+using Namines.Hub.DependencyInjection;
+using Namines.Studio.DependencyInjection;
 using Namines.Ops.DependencyInjection;
 using System;
 using Namines.Infrastructure.Data;
@@ -179,12 +181,15 @@ public static class ServiceCollectionExtensions
                     ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres",
                 config);
         services.AddOpsModule(controlDb);
+        services.AddStudioModule(controlDb);
+        services.AddHubModule(controlDb);
+        services.AddScoped<Namines.BuildingBlocks.Contracts.IIdentityDirectory, Namines.Infrastructure.Data.IdentityDirectoryService>();
+        services.AddScoped<Namines.BuildingBlocks.Contracts.IConnectionHostInspector, Namines.Infrastructure.Data.ConnectionHostInspector>();
+        services.AddScoped<Namines.BuildingBlocks.Contracts.IChangeRequestStats, Namines.Infrastructure.Data.ChangeRequestStats>();
+        services.AddScoped<Namines.BuildingBlocks.Contracts.IProjectDeletion>(sp => sp.GetRequiredService<Namines.Infrastructure.Services.ProjectDeletionService>());
         services.AddSingleton(Namines.Infrastructure.Data.AuthMigrations.Descriptor);
         services.AddScoped<Namines.BuildingBlocks.Security.IPlatformAdminAuthority, Namines.Infrastructure.Security.PlatformAdminAuthority>();
         services.AddScoped<Namines.BuildingBlocks.Persistence.ICrossModuleTransaction, Namines.Infrastructure.Data.CrossModuleTransaction>();
-        services.AddScoped<TenantProjectAuthorityService>();
-        services.AddScoped<ITenantProjectAuthority>(sp => sp.GetRequiredService<TenantProjectAuthorityService>());
-        services.AddScoped<IProjectConnectionSecretProvider>(sp => sp.GetRequiredService<TenantProjectAuthorityService>());
 
         // Namines Vault — yedekleme/geri yükleme. Modülün kendi kayıtları
         // (sağlayıcı, depo, şifreleme) tek bir uzantıda; VaultService ise

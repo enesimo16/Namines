@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Namines.BuildingBlocks.Modules;
 using Namines.Core.Models.Auth;
-using Namines.Core.Models.Hub;
+using Namines.Hub.Domain;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Migrations;
 using Namines.Tests.Services;
@@ -217,7 +217,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
             Assert.Equal(expected, await ctx.MaskedColumnsAsync("p1", "t" + i));
         }
 
-        var links = await ctx.RepoIssues.AsNoTracking().Include(r => r.LabelLinks).ThenInclude(l => l.Label).ToListAsync();
+        var links = await ctx.Hub().RepoIssues.AsNoTracking().Include(r => r.LabelLinks).ThenInclude(l => l.Label).ToListAsync();
         for (var i = 0; i < Labels.Length; i++)
         {
             var parsed = IssueLabelRules.Parse(Labels[i]);
@@ -745,7 +745,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         await using var ctx = Context(cs);
         var user = new ApplicationUser { Id = "owner", UserName = "owner", NormalizedUserName = "OWNER" };
         ctx.Users.Add(user);
-        ctx.CloudProjects.Add(new CloudProject { Id = "proj", Name = "P", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner" });
+        ctx.Studio().Projects.Add(new CloudProject { Id = "proj", Name = "P", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner" });
         var (key, raw) = GatewayAccess.CreateKey("proj", "k", "owner", false, null);
         GatewayAllowlistRules.ApplyOrigins(key, GatewayAllowlistRules.ParseOrigins(origins).Entries);
         GatewayAllowlistRules.ApplyIps(key, GatewayAllowlistRules.ParseIps(ips).Entries);
@@ -763,7 +763,7 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
 
         var log = new CommandLog();
         await using var ctx = Context(cs, log);
-        var key = await ctx.AuthenticateAsync(raw);
+        var key = await ctx.AuthenticateAsync(TestModules.For(ctx).DefaultAuthority, raw);
 
         Assert.NotNull(key);
         Assert.Equal(2, key!.OriginRules.Count);
@@ -824,19 +824,19 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         var b = new RepoIssue { ProjectId = "proj", IssueNumber = 2, Title = "b", Body = "" };
 
         // İkisi de katalogda etiketi göremez, ikisi de açmaya çalışır.
-        await first.AttachAsync(a, "Bug");
-        await second.AttachAsync(b, "BUG, other");
-        first.RepoIssues.Add(a);
-        second.RepoIssues.Add(b);
-        await first.SaveChangesAsync();
-        await Assert.ThrowsAsync<DbUpdateException>(() => second.SaveChangesAsync());
+        await RepoIssueLabelStore.AttachAsync(first.Hub(), a, "Bug");
+        await RepoIssueLabelStore.AttachAsync(second.Hub(), b, "BUG, other");
+        first.Hub().RepoIssues.Add(a);
+        second.Hub().RepoIssues.Add(b);
+        await first.Hub().SaveChangesAsync();
+        await Assert.ThrowsAsync<DbUpdateException>(() => second.Hub().SaveChangesAsync());
 
         // Controller'daki yeniden deneme yolu.
-        second.DetachPending();
+        second.Hub().ChangeTracker.Clear();
         var retry = new RepoIssue { ProjectId = "proj", IssueNumber = 2, Title = "b", Body = "" };
-        await second.AttachAsync(retry, "BUG, other");
-        second.RepoIssues.Add(retry);
-        await second.SaveChangesAsync();
+        await RepoIssueLabelStore.AttachAsync(second.Hub(), retry, "BUG, other");
+        second.Hub().RepoIssues.Add(retry);
+        await second.Hub().SaveChangesAsync();
 
         Assert.Equal(1, await CountAsync(cs, """SELECT count(*) FROM hub.issue_labels WHERE "NormalizedName" = 'bug'"""));
         Assert.Equal(2, await CountAsync(cs, "SELECT count(*) FROM hub.issue_labels"));
@@ -846,11 +846,11 @@ public sealed class Phase14_2CMigrationTests : IClassFixture<Phase14_2BPostgresF
         Assert.Contains(spelling, s => s.Contains("\"BUG\""));
 
         await using var read = Context(cs);
-        var filtered = await read.RepoIssues.Where(i => i.ProjectId == "proj").WithLabel("proj", " bUg ").CountAsync();
+        var filtered = await read.Hub().RepoIssues.Where(i => i.ProjectId == "proj").WithLabel("proj", " bUg ").CountAsync();
         Assert.Equal(2, filtered);
-        Assert.Equal(1, await read.RepoIssues.Where(i => i.ProjectId == "proj").WithLabel("proj", "other").CountAsync());
+        Assert.Equal(1, await read.Hub().RepoIssues.Where(i => i.ProjectId == "proj").WithLabel("proj", "other").CountAsync());
         // Eski LIKE alt dizge eşleşmesi bitti.
-        Assert.Equal(0, await read.RepoIssues.Where(i => i.ProjectId == "proj").WithLabel("proj", "bu").CountAsync());
+        Assert.Equal(0, await read.Hub().RepoIssues.Where(i => i.ProjectId == "proj").WithLabel("proj", "bu").CountAsync());
     }
 
     [RequiresDockerFact]

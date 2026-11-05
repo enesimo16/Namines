@@ -52,7 +52,7 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
             new ApplicationUser { Id = UserA, UserName = UserA },
             new ApplicationUser { Id = UserB, UserName = UserB });
         foreach (var pid in new[] { Project, OtherProject })
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = pid, Name = pid, DbType = "PostgreSQL", SchemaJson = "{}",
                 NodePositionsJson = "{}", UserId = UserA,

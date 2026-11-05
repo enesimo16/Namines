@@ -41,7 +41,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
 
     private static TeamController CreateController(AuthDbContext db, string userId)
     {
-        var controller = new TeamController(db);
+        var controller = new TeamController(db, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Identity);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -100,7 +100,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
             });
 
             // Kişisel proje (ekipte paylaşılmamış)
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = "proj-private-1",
                 Name = "Secret Personal Project",
@@ -114,7 +114,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
             });
 
             // Ekiple paylaşılan proje
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = "proj-team-shared-1",
                 Name = "Shared Team Project",
@@ -143,7 +143,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
         // Doğrulama: Kişisel projenin OrganizationId'si değişmemiş olmalı
         await using (var db = new AuthDbContext(_options))
         {
-            var privateProj = await db.CloudProjects.FindAsync("proj-private-1");
+            var privateProj = await db.Studio().Projects.FindAsync("proj-private-1");
             Assert.NotNull(privateProj);
             Assert.Equal("org-personal", privateProj.OrganizationId);
             Assert.NotEqual("org-team-shared", privateProj.OrganizationId);
@@ -198,7 +198,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
                 JoinedAt = DateTime.UtcNow
             });
 
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = "proj-toggle-1",
                 Name = "Toggle Project",
@@ -224,7 +224,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
 
         await using (var db = new AuthDbContext(_options))
         {
-            var proj = await db.CloudProjects.FindAsync("proj-toggle-1");
+            var proj = await db.Studio().Projects.FindAsync("proj-toggle-1");
             Assert.NotNull(proj);
             Assert.Equal("org-team-2", proj.OrganizationId);
         }
@@ -239,7 +239,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
 
         await using (var db = new AuthDbContext(_options))
         {
-            var proj = await db.CloudProjects.FindAsync("proj-toggle-1");
+            var proj = await db.Studio().Projects.FindAsync("proj-toggle-1");
             Assert.NotNull(proj);
             // Ekip organizasyonundan çıkarılmış olmalı
             Assert.NotEqual("org-team-2", proj.OrganizationId);

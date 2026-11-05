@@ -111,7 +111,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
             // MigrationService.CalculateDiffAsync).
             new MigrationService(null!),
             queue,
-            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction,
+            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Workspace,
             flowModule: new FlowModule(
                 new FlowRuleMatcher(),
                 new FlowApplicationService(

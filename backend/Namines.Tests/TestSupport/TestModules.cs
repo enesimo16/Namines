@@ -2,7 +2,14 @@ using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Namines.BuildingBlocks.Application;
-using Namines.BuildingBlocks.Modules;
+using Namines.BuildingBlocks.Contracts;
+using Namines.BuildingBlocks.Security;
+using Namines.Hub.Application;
+using Namines.Hub.Domain;
+using Namines.Hub.Infrastructure.Persistence;
+using Namines.Studio.Application;
+using Namines.Studio.Domain;
+using Namines.Studio.Infrastructure.Persistence;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
@@ -21,14 +28,12 @@ public sealed class ModuleKit
 {
     private bool _flushing;
 
-    /// <summary>Üretimdeki gibi: Studio/Hub kendi bağlantılarıyla, işlem paylaşımı SetDbConnection yoluyla.</summary>
+    /// <summary>Üretimdeki gibi: modüller kendi bağlantılarıyla, işlem paylaşımı SetDbConnection yoluyla.</summary>
     public ModuleKit(AuthDbContext db, string connectionString, params Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor[] interceptors)
     {
         Db = db;
-        Studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>().UseNpgsql(connectionString).AddInterceptors(interceptors).Options);
-        Hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>().UseNpgsql(connectionString).AddInterceptors(interceptors).Options);
-        StudioService = new StudioApplicationService(Studio);
-        HubService = new HubApplicationService(Hub);
+        Studio = new StudioDbContext(ModuleOptions<StudioDbContext>(connectionString, interceptors));
+        Hub = new HubDbContext(ModuleOptions<HubDbContext>(connectionString, interceptors));
         Ops = new OpsDbContext(ModuleOptions<OpsDbContext>(connectionString, interceptors));
         Transaction = new CrossModuleTransaction(db, Participants(), new SharedTransactionManager());
         HookFlush();
@@ -47,20 +52,8 @@ public sealed class ModuleKit
     public ModuleKit(AuthDbContext db)
     {
         Db = db;
-        var connection = db.Database.GetDbConnection();
-        if (db.Database.IsNpgsql())
-        {
-            Studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>().UseNpgsql(connection).Options);
-            Hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>().UseNpgsql(connection).Options);
-        }
-        else
-        {
-            Studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>().UseSqlite(connection).Options);
-            Hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>().UseSqlite(connection).Options);
-        }
-
-        StudioService = new StudioApplicationService(Studio);
-        HubService = new HubApplicationService(Hub);
+        Studio = new StudioDbContext(SharedConnectionOptions<StudioDbContext>(db));
+        Hub = new HubDbContext(SharedConnectionOptions<HubDbContext>(db));
         Ops = new OpsDbContext(SharedConnectionOptions<OpsDbContext>(db));
         Transaction = new CrossModuleTransaction(db, Participants(), new SharedTransactionManager());
         HookFlush();
@@ -104,14 +97,29 @@ public sealed class ModuleKit
     public IOpsRetentionService OpsRetention => new OpsRetentionService(Ops);
 
     public AuthDbContext Db { get; }
-    public StudioDbContext Studio { get; }
-    public HubDbContext Hub { get; }
-    public IStudioApplicationService StudioService { get; }
-    public IHubApplicationService HubService { get; }
+    internal StudioDbContext Studio { get; }
+    internal HubDbContext Hub { get; }
+    public IStudioApplicationService StudioService => new StudioApplicationService(Studio);
+    public IHubApplicationService HubService => new HubApplicationService(Hub);
     public ICrossModuleTransaction Transaction { get; }
 
-    public TenantProjectAuthorityService Authority(IConnectionSecretProtector protector, IDbHostAccessPolicy? hostPolicy = null) =>
-        new(Db, Studio, protector, hostPolicy);
+    public IIdentityDirectory Identity => new IdentityDirectoryService(Db);
+    public IStudioProjects Projects => new StudioProjectService(Studio);
+    public IStudioAdminQueries StudioAdmin => new StudioProjectService(Studio);
+    public ITenantProjectAuthority DefaultAuthority => Authority(new ThrowingProtector());
+    public IStudioBranches Branches => new StudioBranchService(Studio, DefaultAuthority);
+    public IBranchService BranchService => new StudioBranchService(Studio, DefaultAuthority);
+    public IStudioRelations Relations => new CrossDatabaseRelationService(Studio, DefaultAuthority);
+    public ICrossDatabaseRelationService RelationService => new CrossDatabaseRelationService(Studio, DefaultAuthority);
+    public IProjectWorkspaceService Workspace => new ProjectWorkspaceService(Studio, DefaultAuthority, Identity, Projects);
+    public IShareService Shares => new ShareService(DefaultAuthority, StudioService);
+    internal HubIssueService HubIssues => new HubIssueService(Hub, HubService, Projects, DefaultAuthority, Identity);
+
+    public IHubRepositoryService HubRepositories(IProjectDeletion deletion) =>
+        new HubRepositoryService(HubService, HubIssues, Projects, Branches, DefaultAuthority, Identity, deletion, new ChangeRequestStats(Db), Transaction);
+
+    internal TenantProjectAuthorityService Authority(IConnectionSecretProtector protector, IDbHostAccessPolicy? hostPolicy = null) =>
+        new(Studio, Identity, protector, hostPolicy is null ? null : new ConnectionHostInspector(hostPolicy));
 
     /// <summary>Hub verisini doğrudan yazar: proje oluşturma akışını sınamayan testlerin kurulumu.</summary>
     public async Task<ProjectRepository> SeedRepositoryAsync(
@@ -199,6 +207,22 @@ public static partial class TestModules
     public static ModuleKit For(AuthDbContext db) => Kits.GetValue(db, static d => new ModuleKit(d));
 
     internal static OpsDbContext Ops(this AuthDbContext db) => For(db).Ops;
+    internal static StudioDbContext Studio(this AuthDbContext db) => For(db).Studio;
+    internal static HubDbContext Hub(this AuthDbContext db) => For(db).Hub;
+
+    // Yetki kuralı artık Studio'da; testlerin eski kısa yolları aynı sözleşmeye gider.
+    public static Task<OrgRole?> GetRoleAsync(this AuthDbContext db, string projectId, string userId, CancellationToken ct = default) =>
+        For(db).DefaultAuthority.GetRoleAsync(projectId, userId, ct);
+    public static Task<bool> CanViewAsync(this AuthDbContext db, string projectId, string userId, CancellationToken ct = default) =>
+        For(db).DefaultAuthority.CanViewAsync(projectId, userId, ct);
+    public static Task<bool> CanEditAsync(this AuthDbContext db, string projectId, string userId, CancellationToken ct = default) =>
+        For(db).DefaultAuthority.CanEditAsync(projectId, userId, ct);
+    public static Task<bool> CanManageMembersAsync(this AuthDbContext db, string projectId, string userId, CancellationToken ct = default) =>
+        For(db).DefaultAuthority.CanManageMembersAsync(projectId, userId, ct);
+    public static Task<int> CountVotingMembersAsync(this AuthDbContext db, string projectId, CancellationToken ct = default) =>
+        For(db).DefaultAuthority.CountVotingMembersAsync(projectId, ct);
+    public static async Task<StudioBranch> GetOrCreateDefaultBranchAsync(this AuthDbContext db, string projectId, string userId, CancellationToken ct = default) =>
+        await For(db).Branches.GetOrCreateDefaultAsync(projectId, userId, ct);
 
     /// <summary>Tüm bağlamların şemasını aynı bağlantıda kurar. EnsureCreated tek bağlam içindir: ikinci bağlam "tablo var" deyip çıkardı.</summary>
     public static async Task EnsureModulesCreatedAsync(this AuthDbContext db)
@@ -234,6 +258,8 @@ public static partial class TestModules
     public static IReadOnlyList<ModuleMigrationDescriptor> Descriptors { get; } = new[]
     {
         AuthMigrations.Descriptor,
+        Namines.Studio.DependencyInjection.StudioServiceCollectionExtensions.MigrationDescriptor,
+        Namines.Hub.DependencyInjection.HubServiceCollectionExtensions.MigrationDescriptor,
         Namines.Ops.DependencyInjection.OpsServiceCollectionExtensions.MigrationDescriptor,
     };
 

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
-using Namines.Core.Models.Hub;
+using Namines.Hub.Domain;
 using Namines.Infrastructure.Catalogs;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
@@ -30,6 +30,8 @@ public static class HubBlueprintSeeder
 
     public static async Task SeedAsync(
         AuthDbContext context,
+        IStudioProjects studioProjects,
+        IStudioBranches studioBranches,
         UserManager<ApplicationUser> userManager,
         IHubApplicationService hub,
         ICrossModuleTransaction transaction,
@@ -90,6 +92,9 @@ public static class HubBlueprintSeeder
 
         var existingSlugSet = new HashSet<string>(existingSlugs, StringComparer.OrdinalIgnoreCase);
         var newRepositories = new List<(ProjectRepository Repository, string? Tags)>();
+        var newProjects = new List<ProjectWrite>();
+        var starterProjects = new List<(string ProjectId, DateTime SeededAt)>();
+        var starterIssues = new List<RepoIssue>();
 
         var addedCount = 0;
         foreach (var bp in blueprints)
@@ -97,20 +102,12 @@ public static class HubBlueprintSeeder
             if (existingSlugSet.Contains(bp.Slug))
                 continue;
 
-            var project = new CloudProject
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = bp.Name,
-                DbType = "PostgreSQL",
-                UserId = architect.Id,
-                OrganizationId = personalOrg.Id,
-                SchemaJson = JsonSerializer.Serialize(bp.Schema, SchemaJsonOptions.Default),
-                NodePositionsJson = "{}",
-                CreatedAt = DateTime.UtcNow.AddDays(-bp.DaysAgo),
-                UpdatedAt = DateTime.UtcNow.AddDays(-bp.DaysAgo)
-            };
-
-            await context.CloudProjects.AddAsync(project, ct);
+            var seededAt = DateTime.UtcNow.AddDays(-bp.DaysAgo);
+            var project = new ProjectWrite(
+                Guid.NewGuid().ToString(), bp.Name, "PostgreSQL",
+                JsonSerializer.Serialize(bp.Schema, SchemaJsonOptions.Default), "{}",
+                architect.Id, personalOrg.Id, null, seededAt, seededAt);
+            newProjects.Add(project);
 
             // Katalogdaki StarCount/ForkCount uydurma rakamlardı; Hub gerçek etkileşim
             // göstermeli, tohumlanan repolar 0'dan başlar.
@@ -124,21 +121,11 @@ public static class HubBlueprintSeeder
                 Description = bp.Description,
                 Category = bp.Category,
                 Visibility = ProjectVisibility.Public,
-                CreatedAt = project.CreatedAt,
-                UpdatedAt = project.UpdatedAt
+                CreatedAt = seededAt,
+                UpdatedAt = seededAt
             }, bp.Tags));
 
-            // Default main branch
-            var mainBranch = new Branch
-            {
-                Id = Guid.NewGuid().ToString(),
-                ProjectId = project.Id,
-                Name = "main",
-                IsDefault = true,
-                CreatedByUserId = architect.Id,
-                CreatedAt = project.CreatedAt
-            };
-            await context.Branches.AddAsync(mainBranch, ct);
+            starterProjects.Add((project.Id, seededAt));
 
             // Starter issue
             var starterIssue = new RepoIssue
@@ -151,11 +138,10 @@ public static class HubBlueprintSeeder
                 RelatedTableName = bp.StarterIssueTable,
                 NslRuleCode = bp.StarterIssueNslCode,
                 CreatedByUserId = architect.Id,
-                CreatedAt = project.CreatedAt.AddHours(2),
+                CreatedAt = seededAt.AddHours(2),
                 IsClosed = false
             };
-            await context.AttachAsync(starterIssue, "architecture,review", ct);
-            await context.RepoIssues.AddAsync(starterIssue, ct);
+            starterIssues.Add(starterIssue);
 
             addedCount++;
         }
@@ -166,11 +152,14 @@ public static class HubBlueprintSeeder
             // "var" sayıp projeyi vitrinsiz bırakırdı.
             await transaction.ExecuteAsync(async c =>
             {
-                await context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+                await studioProjects.SaveAsync(newProjects, c);
+                foreach (var (projectId, _) in starterProjects)
+                    await studioBranches.GetOrCreateDefaultAsync(projectId, architect.Id, c);
                 foreach (var (repository, tags) in newRepositories)
                     await hub.CreateRepositoryAsync(repository, tags, c);
+                foreach (var issue in starterIssues)
+                    await hub.AddSeedIssueAsync(issue, "architecture,review", c);
             }, ct);
-            context.ChangeTracker.AcceptAllChanges();
             logger.LogInformation("Namines Hub için {Count} kurumsal mimari şablonu başarıyla tohumlandı.", addedCount);
         }
     }

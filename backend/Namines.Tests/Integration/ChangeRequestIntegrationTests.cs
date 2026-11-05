@@ -46,7 +46,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         await _context.Users.AddAsync(new ApplicationUser { Id = _reviewerId, UserName = "reviewer" });
 
         _projectId = Guid.NewGuid().ToString();
-        await _context.CloudProjects.AddAsync(new CloudProject
+        await _context.Studio().Projects.AddAsync(new CloudProject
         {
             Id = _projectId, Name = "TestProject", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = _userId
@@ -54,7 +54,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         await _context.SaveChangesAsync();
 
         var branch = new Branch { ProjectId = _projectId, Name = "main", IsDefault = true, CreatedByUserId = _userId };
-        await _context.Branches.AddAsync(branch);
+        await _context.Studio().Branches.AddAsync(branch);
         await _context.SaveChangesAsync();
         _branchId = branch.Id;
 
@@ -63,7 +63,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
             ProjectId = _projectId, BranchId = _branchId, Version = 1,
             Checksum = "abc", SchemaJson = "{}", AuthorUserId = _userId
         };
-        await _context.SchemaVersions.AddAsync(version);
+        await _context.Studio().SchemaVersions.AddAsync(version);
         await _context.SaveChangesAsync();
         _headVersionId = version.Id;
     }
@@ -131,8 +131,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         });
         await _context.SaveChangesAsync();
 
-        var branch = await _context.Branches.FindAsync(_branchId);
-        _context.Branches.Remove(branch!);
+        var branch = await _context.Studio().Branches.FindAsync(_branchId);
+        _context.Studio().Branches.Remove(branch!);
         await _context.SaveChangesAsync();
 
         // Branch -> ChangeRequest (Cascade) ve Branch -> SchemaVersion (Cascade) aynı silme
@@ -208,8 +208,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         });
         await _context.SaveChangesAsync();
 
-        var branch = await _context.Branches.FindAsync(_branchId);
-        _context.Branches.Remove(branch!);
+        var branch = await _context.Studio().Branches.FindAsync(_branchId);
+        _context.Studio().Branches.Remove(branch!);
         await _context.SaveChangesAsync();
 
         Assert.True(await _context.ChangeRequestAuditLogs.AnyAsync(a => a.ChangeRequestId == cr.Id));

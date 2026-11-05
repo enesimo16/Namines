@@ -119,5 +119,8 @@ public sealed class IdentityModuleDbContext : DbContext
             modelBuilder.HasDefaultSchema(schema);
 
         IdentityModelConfiguration.Configure(modelBuilder, schema);
+
+        // D-2'ye kadar: tablolar public'te ve DDL Auth zincirinde; bu bağlam kullanılmıyor ama yanlış şemaya eşli kalmasın.
+        NonOwnerContext.MapToActualSchema(modelBuilder, schema is null ? null : "public");
     }
 }

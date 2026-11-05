@@ -65,7 +65,7 @@ public static class GatewayAccess
     /// dönerek özet hakkında zamanlama bilgisi sızdırır.
     /// </summary>
     public static async Task<GatewayApiKey?> AuthenticateAsync(
-        this AuthDbContext context, string? rawKey, CancellationToken ct = default)
+        this AuthDbContext context, Namines.BuildingBlocks.Security.ITenantProjectAuthority authority, string? rawKey, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(rawKey) || rawKey.Length <= PrefixLength) return null;
         if (!rawKey.StartsWith(KeyPrefix, StringComparison.Ordinal)) return null;
@@ -106,14 +106,14 @@ public static class GatewayAccess
         // şey üretenin projeyle HÂLÂ bir ilişkisi olup olmadığı.
         // Üreticisinin hesabı silinmişse (FK SET NULL) anahtar sahipsiz: kimseye faturalanamaz, kullanılamaz.
         if (match.CreatedByUserId is null) return null;
-        if (!await context.CanViewAsync(match.ProjectId, match.CreatedByUserId, ct)) return null;
+        if (!await authority.CanViewAsync(match.ProjectId, match.CreatedByUserId, ct)) return null;
 
         // HAM SQL / DIŞA AKTARIM anahtarları ÜRETENİN HÂLÂ OWNER olmasını ister.
         // Bu yetkiler yalnızca Owner'a verilebiliyor (bkz. GatewayKeyController.Create);
         // üretici sonradan Admin/Editor'a düşürülürse anahtar "Viewer yeter" kapısından
         // geçip yetki yükseltmenin arka kapısı olarak çalışmaya devam ederdi.
         if ((match.CanExecuteSql || match.CanExport)
-            && await context.GetRoleAsync(match.ProjectId, match.CreatedByUserId, ct) != OrgRole.Owner)
+            && await authority.GetRoleAsync(match.ProjectId, match.CreatedByUserId, ct) != OrgRole.Owner)
             return null;
 
         return match;

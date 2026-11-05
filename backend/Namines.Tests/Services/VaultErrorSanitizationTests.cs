@@ -135,7 +135,7 @@ public sealed class VaultErrorSanitizationTests : IAsyncLifetime
             Id = "p1", Name = "proj", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
         };
-        db.CloudProjects.Add(project);
+        db.Studio().Projects.Add(project);
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedConnectionAsync("p1", "enc:Host=db.example.com;Database=x;Username=u;Password=p", "PostgreSQL", false);
         return project;

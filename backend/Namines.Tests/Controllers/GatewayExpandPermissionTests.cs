@@ -65,7 +65,7 @@ public sealed class GatewayExpandPermissionTests : IAsyncLifetime
         AuthDbContext db, bool storeConnection, params string[] readableTables)
     {
         db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner-1",
@@ -100,7 +100,7 @@ public sealed class GatewayExpandPermissionTests : IAsyncLifetime
         return new GatewayController(
             gateway: null!, context: db, configuration: new ConfigurationBuilder().Build(),
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
-            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!)
+            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };

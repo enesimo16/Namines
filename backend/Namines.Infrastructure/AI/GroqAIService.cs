@@ -24,28 +24,6 @@ using System.Linq;
 
 namespace Namines.Infrastructure.AI;
 
-public class TolerantStringConverter : JsonConverter<string>
-{
-    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        if (reader.TokenType == JsonTokenType.Number) return reader.GetDouble().ToString();
-        if (reader.TokenType == JsonTokenType.True) return "true";
-        if (reader.TokenType == JsonTokenType.False) return "false";
-        if (reader.TokenType == JsonTokenType.String) return reader.GetString();
-        if (reader.TokenType == JsonTokenType.Null) return null;
-        
-        using (JsonDocument document = JsonDocument.ParseValue(ref reader))
-        {
-            return document.RootElement.GetRawText();
-        }
-    }
-
-    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options)
-    {
-        writer.WriteStringValue(value);
-    }
-}
-
 /// <summary>
 /// Groq chat-completion yanıtından içeriği çıkaran saf yardımcı. Gerçek HTTP
 /// çağrısından bağımsız — bu sayede kesilme (finish_reason=length) davranışı

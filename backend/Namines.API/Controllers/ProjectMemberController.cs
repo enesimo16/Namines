@@ -36,11 +36,15 @@ public sealed record ChangeMemberRoleRequest(OrgRole Role);
 public class ProjectMemberController : ControllerBase
 {
     private readonly AuthDbContext _context;
+    private readonly ITenantProjectAuthority _authority;
+    private readonly IStudioProjects _studioProjects;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public ProjectMemberController(AuthDbContext context, UserManager<ApplicationUser> userManager)
+    public ProjectMemberController(AuthDbContext context, UserManager<ApplicationUser> userManager, ITenantProjectAuthority authority, IStudioProjects studioProjects)
     {
         _context = context;
+        _authority = authority;
+        _studioProjects = studioProjects;
         _userManager = userManager;
     }
 
@@ -49,15 +53,14 @@ public class ProjectMemberController : ControllerBase
     /// <summary>Projenin org'unu bul; yoksa (eski satır) sahibinin kişisel org'una taşı.</summary>
     private async Task<string?> ResolveOrgIdAsync(string projectId, CancellationToken ct)
     {
-        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        var project = await _studioProjects.GetHeaderAsync(projectId, ct);
         if (project is null) return null;
         if (!string.IsNullOrEmpty(project.OrganizationId)) return project.OrganizationId;
 
         // Migration öncesinden kalmış satır — tembel taşıma.
         var owner = await _userManager.FindByIdAsync(project.UserId);
         var org = await _context.GetOrCreatePersonalOrgAsync(project.UserId, owner?.UserName ?? "Personal", ct);
-        project.OrganizationId = org.Id;
-        await _context.SaveChangesAsync(ct);
+        await _studioProjects.SetOrganizationAsync(projectId, org.Id, ct);
         return org.Id;
     }
 
@@ -73,7 +76,7 @@ public class ProjectMemberController : ControllerBase
     /// "yükseltme ancak var olan bir Owner tarafından yapılabilir".
     /// </summary>
     private async Task<bool> IsCallerOwnerAsync(string projectId, string userId, CancellationToken ct) =>
-        await _context.GetRoleAsync(projectId, userId, ct) == OrgRole.Owner;
+        await _authority.GetRoleAsync(projectId, userId, ct) == OrgRole.Owner;
 
     [HttpGet]
     public async Task<IActionResult> List(string projectId, CancellationToken ct)
@@ -81,7 +84,7 @@ public class ProjectMemberController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await _context.CanViewAsync(projectId, userId, ct))
+        if (!await _authority.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found." });
 
         var orgId = await ResolveOrgIdAsync(projectId, ct);
@@ -103,7 +106,7 @@ public class ProjectMemberController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await _context.CanManageMembersAsync(projectId, userId, ct))
+        if (!await _authority.CanManageMembersAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found, or you do not have permission to manage members." });
 
         if (string.IsNullOrWhiteSpace(request.Email))
@@ -145,7 +148,7 @@ public class ProjectMemberController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await _context.CanManageMembersAsync(projectId, userId, ct))
+        if (!await _authority.CanManageMembersAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found, or you do not have permission to manage members." });
 
         var orgId = await ResolveOrgIdAsync(projectId, ct);
@@ -203,7 +206,7 @@ public class ProjectMemberController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await _context.CanManageMembersAsync(projectId, userId, ct))
+        if (!await _authority.CanManageMembersAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found, or you do not have permission to manage members." });
 
         var orgId = await ResolveOrgIdAsync(projectId, ct);

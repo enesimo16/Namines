@@ -51,7 +51,7 @@ public sealed class AutomationRuleContextTests : IAsyncLifetime
             NodePositionsJson = "{}",
             UserId = "u1",
         };
-        db.CloudProjects.Add(project);
+        db.Studio().Projects.Add(project);
         await db.SaveChangesAsync();
         return project;
     }
@@ -127,7 +127,7 @@ public sealed class AutomationRuleContextTests : IAsyncLifetime
         flowDb.AutomationRunLogs.Add(new AutomationRunLog { RuleId = rule.Id, Status = "Success" });
         await flowDb.SaveChangesAsync();
 
-        db.CloudProjects.Remove(project);
+        db.Studio().Projects.Remove(project);
         await db.SaveChangesAsync();
 
         await using var verifyFlow = NewFlowContext();

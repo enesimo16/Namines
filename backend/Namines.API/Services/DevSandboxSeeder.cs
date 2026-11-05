@@ -47,6 +47,7 @@ public static class DevSandboxSeeder
         IConfiguration configuration,
         IProjectConnectionSecretProvider secrets,
         IHubApplicationService hub,
+        IStudioProjects studioProjects,
         ILogger logger,
         CancellationToken ct = default)
     {
@@ -77,7 +78,7 @@ public static class DevSandboxSeeder
 
         await EnsureDatabaseAsync(controlConnection, logger, ct);
         await EnsureTablesAsync(sandboxConnection, logger, ct);
-        await EnsureProjectAsync(context, secrets, hub, owner, sandboxConnection, logger, ct);
+        await EnsureProjectAsync(context, secrets, hub, studioProjects, owner, sandboxConnection, logger, ct);
     }
 
     /// <summary>
@@ -180,6 +181,7 @@ public static class DevSandboxSeeder
         AuthDbContext context,
         IProjectConnectionSecretProvider secrets,
         IHubApplicationService hub,
+        IStudioProjects studioProjects,
         ApplicationUser owner,
         string sandboxConnection,
         ILogger logger,
@@ -187,33 +189,21 @@ public static class DevSandboxSeeder
     {
         var org = await context.GetOrCreatePersonalOrgAsync(owner.Id, owner.UserName ?? "Personal", ct);
 
-        var project = await context.CloudProjects.FirstOrDefaultAsync(p => p.Id == ProjectId, ct);
+        var project = await studioProjects.GetAsync(ProjectId, ct);
         var isNew = project is null;
-
-        if (project is null)
+        var schemaJson = project?.SchemaJson ?? "{\"name\":\"" + ProjectName + "\",\"tables\":[],\"relations\":[]}";
+        // Boş obje DEĞİL: frontend'in DatabaseSchema tipi tables/relations'ı ZORUNLU dizi sayıyor;
+        // "{}" canvas'ı schema.tables.length üzerinde TypeError ile çökertiyordu.
+        await studioProjects.SaveAsync(new[]
         {
-            project = new CloudProject
-            {
-                Id = ProjectId,
-                Name = ProjectName,
-                DbType = "PostgreSQL",
-                // Boş obje DEĞİL: frontend'in DatabaseSchema tipi tables/relations'ı
-                // ZORUNLU dizi sayıyor (types/schema.ts) — "{}" canvas'ı
-                // `schema.tables.length` üzerinde TypeError ile çökertiyordu,
-                // çünkü hiçbir kod yolu boş projeyi bu şekilde üretmiyordu.
-                SchemaJson = "{\"name\":\"" + ProjectName + "\",\"tables\":[],\"relations\":[]}",
-                NodePositionsJson = "{}",
-                UserId = owner.Id,
-                CreatedAt = DateTime.UtcNow,
-            };
-            context.CloudProjects.Add(project);
-        }
+            new ProjectWrite(ProjectId, project?.Name ?? ProjectName, project?.DbType ?? "PostgreSQL", schemaJson,
+                project?.NodePositionsJson ?? "{}", project?.UserId ?? owner.Id, org.Id),
+        }, ct);
+        var ownerUserId = project?.UserId ?? owner.Id;
+        var effectiveName = project?.Name ?? ProjectName;
+        var effectiveDbType = project?.DbType ?? "PostgreSQL";
 
-        project.OrganizationId = org.Id;
-        project.UpdatedAt = DateTime.UtcNow;
-
-        await context.SaveChangesAsync(ct);
-        await hub.EnsureRepositoryAsync(ProjectId, project.UserId, project.Name, project.DbType, null, ct);
+        await hub.EnsureRepositoryAsync(ProjectId, ownerUserId, effectiveName, effectiveDbType, null, ct);
 
         // Bağlantı HER AÇILIŞTA yeniden şifreleniyor: şifreleme anahtarı
         // değiştiğinde eski şifreli metin çözülemez hâle gelir ve proje

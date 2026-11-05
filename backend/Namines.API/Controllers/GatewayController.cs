@@ -147,12 +147,22 @@ public class GatewayController : ControllerBase
     /// </summary>
     private const int NlQueryTokenEstimate = 2500;
 
+    private readonly ITenantProjectAuthority _authority;
+    private readonly IStudioProjects _projects;
+    private readonly IStudioBranches _branches;
+
     public GatewayController(
         IGatewayService gateway, AuthDbContext context, IConfiguration configuration,
         GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota,
         IProjectConnectionSecretProvider secrets, IStudioApplicationService studio, IDbIntrospectionService introspection,
-        ISqlWorkbenchService workbench)
+        ISqlWorkbenchService workbench,
+        ITenantProjectAuthority authority,
+        IStudioProjects projects,
+        IStudioBranches branches)
     {
+        _authority = authority;
+        _projects = projects;
+        _branches = branches;
         _workbench = workbench;
         _gateway = gateway;
         _context = context;
@@ -215,7 +225,7 @@ public class GatewayController : ControllerBase
                 : (false, Unauthorized(), null);
         }
 
-        var key = await _context.AuthenticateAsync(header.ToString(), ct);
+        var key = await _context.AuthenticateAsync(_authority, header.ToString(), ct);
         if (key is null)
             return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }), null);
 
@@ -449,8 +459,8 @@ public class GatewayController : ControllerBase
             return (false, null, Unauthorized());
 
         var hasAccess = forWrite
-            ? await _context.CanEditAsync(projectId, userId, ct)
-            : await _context.CanViewAsync(projectId, userId, ct);
+            ? await _authority.CanEditAsync(projectId, userId, ct)
+            : await _authority.CanViewAsync(projectId, userId, ct);
 
         if (!hasAccess)
             return (false, null, StatusCode(403, new { message = "You do not have access to this project." }));
@@ -823,7 +833,7 @@ public class GatewayController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var role = await _context.GetRoleAsync(request.ProjectId, userId, cancellationToken);
+        var role = await _authority.GetRoleAsync(request.ProjectId, userId, cancellationToken);
         // 404 ile "Owner değilsin" arasında ayrım yapılmıyor BURADA sızdırılan
         // bilgi için: proje hiç görünmüyorsa (Viewer bile değilsen) 404, GÖRÜYOR
         // ama Owner değilsen 403 + açık sebep — kabul kriteri "yetkisiz kullanıcı
@@ -1011,7 +1021,7 @@ public class GatewayController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId)) return (Unauthorized(), null);
 
-        var role = await _context.GetRoleAsync(projectId, userId, cancellationToken);
+        var role = await _authority.GetRoleAsync(projectId, userId, cancellationToken);
         if (role is null) return (NotFound(new { message = "Project not found." }), null);
         if (role != OrgRole.Owner)
             return (StatusCode(403, new { message = "Only the project Owner can use the Desk SQL console." }), null);
@@ -1418,7 +1428,7 @@ public class GatewayController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var role = await _context.GetRoleAsync(projectId, userId, ct);
+        var role = await _authority.GetRoleAsync(projectId, userId, ct);
         // 404 ile "Owner değilsin" ayrımı DeskSql ucuyla AYNI gerekçeyle:
         // proje hiç görünmüyorsa (Viewer bile değilsen) 404, görüyorsan ama
         // Owner değilsen 403 + açık sebep.
@@ -1469,11 +1479,7 @@ public class GatewayController : ControllerBase
         var keyDenied = await AuthorizeKeyRawSqlAsync(key, request.ConnectionString, cancellationToken);
         if (keyDenied is not null) return keyDenied;
 
-        var project = await _context.CloudProjects
-            .AsNoTracking()
-            .Where(p => p.Id == key.ProjectId)
-            .Select(p => p.SchemaJson)
-            .FirstOrDefaultAsync(cancellationToken);
+        var project = (await _projects.GetAsync(key.ProjectId, cancellationToken))?.SchemaJson;
 
         if (string.IsNullOrWhiteSpace(project))
             return BadRequest(new { message = "This project has no saved schema, so there is nothing to translate the question against." });
@@ -1660,7 +1666,7 @@ public class GatewayController : ControllerBase
                 : (false, Unauthorized(), null);
         }
 
-        var key = await _context.AuthenticateAsync(header.ToString(), ct);
+        var key = await _context.AuthenticateAsync(_authority, header.ToString(), ct);
         if (key is null)
             return (false, Unauthorized(new { message = "Invalid, expired or revoked API key." }), null);
 
@@ -1746,7 +1752,7 @@ public class GatewayController : ControllerBase
             // Erişim (view) yeterliyken canWrite AYRI bir bayrak — şemayı okumak
             // için Editor olmak gerekmez, ama Desk formunun düzenlenebilir mi
             // salt-okunur mu göstereceğini bu belirler.
-            sessionCanWrite = await _context.CanEditAsync(projectId, userId!, cancellationToken);
+            sessionCanWrite = await _authority.CanEditAsync(projectId, userId!, cancellationToken);
         }
 
         var connectionMeta = await _studio.GetConnectionMetadataAsync(resolvedProjectId, cancellationToken);
@@ -1853,14 +1859,8 @@ public class GatewayController : ControllerBase
         if (keyFailure is not null) return keyFailure;
         if (key is null) return Unauthorized(new { message = "A valid API key is required." });
 
-        var branch = await _context.Branches
-            .Where(b => b.ProjectId == key.ProjectId && b.IsDefault)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        var latest = branch is null ? null : await _context.SchemaVersions
-            .Where(v => v.BranchId == branch.Id)
-            .OrderByDescending(v => v.Version)
-            .FirstOrDefaultAsync(cancellationToken);
+        var branch = (await _branches.ListAsync(key.ProjectId, cancellationToken)).FirstOrDefault(b => b.IsDefault);
+        var latest = branch is null ? null : await _branches.GetLatestVersionAsync(branch.Id, cancellationToken);
 
         if (latest is null)
             return NotFound(new { message = "This project has no schema version yet." });
@@ -1901,7 +1901,7 @@ public class GatewayController : ControllerBase
     {
         if (!Request.Headers.TryGetValue(ApiKeyHeader, out var header)) return (null, null);
 
-        var key = await _context.AuthenticateAsync(header.ToString(), ct);
+        var key = await _context.AuthenticateAsync(_authority, header.ToString(), ct);
         if (key is null) return (null, null);
 
         if (!GatewayKeyRestrictions.IsOriginAllowed(key, Request.Headers.Origin.ToString()))

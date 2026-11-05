@@ -38,12 +38,16 @@ public sealed record LaunchRequest(string ProjectId, string Provider, string Ddl
 public class LaunchController : ControllerBase
 {
     private readonly AuthDbContext _context;
+    private readonly ITenantProjectAuthority _authority;
+    private readonly IStudioProjects _projects;
     private readonly LaunchService _launch;
     private readonly IDeskModule _deskModule;
 
-    public LaunchController(AuthDbContext context, LaunchService launch, IDeskModule deskModule)
+    public LaunchController(AuthDbContext context, ITenantProjectAuthority authority, IStudioProjects projects, LaunchService launch, IDeskModule deskModule)
     {
         _context = context;
+        _authority = authority;
+        _projects = projects;
         _launch = launch;
         _deskModule = deskModule;
     }
@@ -61,10 +65,10 @@ public class LaunchController : ControllerBase
             || string.IsNullOrWhiteSpace(request.DdlScript))
             return BadRequest(new { error = "projectId, provider and ddlScript are required." });
 
-        if (await _context.GetRoleAsync(request.ProjectId, userId, ct) != OrgRole.Owner)
+        if (await _authority.GetRoleAsync(request.ProjectId, userId, ct) != OrgRole.Owner)
             return Forbid();
 
-        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == request.ProjectId, ct);
+        var project = await _projects.GetAsync(request.ProjectId, ct);
         if (project is null) return NotFound(new { error = "Project not found." });
 
         var result = await _launch.LaunchAsync(project, userId, request.Provider, request.DdlScript, ct);
@@ -106,10 +110,10 @@ public class LaunchController : ControllerBase
         var userId = CurrentUserId;
         if (userId is null) return Unauthorized();
 
-        if (await _context.GetRoleAsync(projectId, userId, ct) != OrgRole.Owner)
+        if (await _authority.GetRoleAsync(projectId, userId, ct) != OrgRole.Owner)
             return Forbid();
 
-        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
+        var project = await _projects.GetAsync(projectId, ct);
         if (project is null) return NotFound(new { error = "Project not found." });
 
         DatabaseSchema schema;

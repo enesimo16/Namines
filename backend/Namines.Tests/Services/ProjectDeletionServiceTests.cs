@@ -33,7 +33,7 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         VaultBackupStatus backupStatus = VaultBackupStatus.Succeeded)
     {
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "Secret CRM", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
@@ -72,9 +72,9 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         var provider = new FakeProvider();
         await using var db = NewContext();
         await SeedAsync(db, store);
-        var project = await db.CloudProjects.SingleAsync();
+        var project = await db.Studio().Projects.SingleAsync();
 
-        var result = await Create(db, store, provider).DeleteAsync(project, "u1", CancellationToken.None);
+        var result = await Create(db, store, provider).DeleteAsync(project.Id, "u1", CancellationToken.None);
 
         Assert.True(result.Ok);
         Assert.Empty(store.Blobs);
@@ -83,7 +83,7 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         await using var verify = NewContext();
         await using var verifyVault = NewVaultDb(verify);
         await using var verifyGround = NewGroundDb(verify);
-        Assert.False(await verify.CloudProjects.AnyAsync());
+        Assert.False(await verify.Studio().Projects.AnyAsync());
         Assert.False(await verifyVault.VaultBackups.AnyAsync());
         Assert.False(await verifyGround.GroundDatabases.AnyAsync());
 
@@ -102,9 +102,9 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         var provider = new FakeProvider { FailDelete = true };
         await using var db = NewContext();
         await SeedAsync(db, store);
-        var project = await db.CloudProjects.SingleAsync();
+        var project = await db.Studio().Projects.SingleAsync();
 
-        var result = await Create(db, store, provider).DeleteAsync(project, "u1", CancellationToken.None);
+        var result = await Create(db, store, provider).DeleteAsync(project.Id, "u1", CancellationToken.None);
 
         Assert.False(result.Ok);
         Assert.Equal(503, result.StatusCode);
@@ -114,7 +114,7 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
 
         await using var verify = NewContext();
         await using var verifyGround = NewGroundDb(verify);
-        Assert.True(await verify.CloudProjects.AnyAsync(p => p.Id == "proj-1"));
+        Assert.True(await verify.Studio().Projects.AnyAsync(p => p.Id == "proj-1"));
         var ground = await verifyGround.GroundDatabases.SingleAsync();
         Assert.Equal(GroundStatus.PendingDelete, ground.Status);
         Assert.Null(ground.ClaimedAt);
@@ -132,9 +132,9 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         var provider = new FakeProvider();
         await using var db = NewContext();
         await SeedAsync(db, store);
-        var project = await db.CloudProjects.SingleAsync();
+        var project = await db.Studio().Projects.SingleAsync();
 
-        var result = await Create(db, store, provider).DeleteAsync(project, "u1", CancellationToken.None);
+        var result = await Create(db, store, provider).DeleteAsync(project.Id, "u1", CancellationToken.None);
 
         Assert.False(result.Ok);
         Assert.Equal(503, result.StatusCode);
@@ -142,7 +142,7 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
 
         await using var verify = NewContext();
         await using var verifyVault = NewVaultDb(verify);
-        Assert.True(await verify.CloudProjects.AnyAsync());
+        Assert.True(await verify.Studio().Projects.AnyAsync());
         Assert.Equal(2, await verifyVault.VaultBackups.CountAsync());
         Assert.Equal(2, store.Blobs.Count);
     }
@@ -154,9 +154,9 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         var provider = new FakeProvider();
         await using var db = NewContext();
         await SeedAsync(db, store, backupStatus: VaultBackupStatus.Running);
-        var project = await db.CloudProjects.SingleAsync();
+        var project = await db.Studio().Projects.SingleAsync();
 
-        var result = await Create(db, store, provider).DeleteAsync(project, "u1", CancellationToken.None);
+        var result = await Create(db, store, provider).DeleteAsync(project.Id, "u1", CancellationToken.None);
 
         Assert.Equal(409, result.StatusCode);
         Assert.Equal("BACKUP_IN_PROGRESS", result.Code);
@@ -173,15 +173,15 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         await SeedAsync(db, store);
         var service = Create(db, store, provider);
 
-        var first = await service.DeleteAsync(await db.CloudProjects.SingleAsync(), "u1", CancellationToken.None);
+        var first = await service.DeleteAsync((await db.Studio().Projects.SingleAsync()).Id, "u1", CancellationToken.None);
         Assert.False(first.Ok);
 
         provider.FailDelete = false;
-        var second = await service.DeleteAsync(await db.CloudProjects.SingleAsync(), "u1", CancellationToken.None);
+        var second = await service.DeleteAsync((await db.Studio().Projects.SingleAsync()).Id, "u1", CancellationToken.None);
 
         Assert.True(second.Ok);
         await using var verify = NewContext();
-        Assert.False(await verify.CloudProjects.AnyAsync());
+        Assert.False(await verify.Studio().Projects.AnyAsync());
         Assert.Equal(new[] { "remote-1" }, provider.Deleted);
     }
 }

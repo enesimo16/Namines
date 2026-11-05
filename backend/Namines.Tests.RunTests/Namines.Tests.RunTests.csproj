@@ -24,6 +24,7 @@
   -->
   <ItemGroup>
     <Compile Include="..\Namines.Tests\TestSupport\TestModules.cs" Link="TestSupport\TestModules.cs" />
+    <Compile Include="..\Namines.Tests\GlobalUsings.cs" Link="GlobalUsings.cs" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.8" />
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />

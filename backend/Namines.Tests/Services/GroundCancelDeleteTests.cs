@@ -112,7 +112,7 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
         };
-        db.CloudProjects.Add(project);
+        db.Studio().Projects.Add(project);
         await db.SaveChangesAsync();
 
         var record = new GroundDatabase

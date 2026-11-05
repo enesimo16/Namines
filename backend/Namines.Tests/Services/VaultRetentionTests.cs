@@ -125,7 +125,7 @@ public sealed class VaultRetentionTests : IAsyncLifetime
         await using var vaultDb = NewVaultContext();
 
         db.Users.Add(new Namines.Core.Models.Auth.ApplicationUser { Id = "u1", UserName = "u1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "p1", Name = "proj", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
@@ -176,7 +176,7 @@ public sealed class VaultRetentionTests : IAsyncLifetime
         await using var vaultDb = NewVaultContext();
 
         db.Users.Add(new Namines.Core.Models.Auth.ApplicationUser { Id = "u1", UserName = "u1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "p1", Name = "proj", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",

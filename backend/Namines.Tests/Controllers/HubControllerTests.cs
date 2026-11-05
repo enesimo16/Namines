@@ -15,7 +15,7 @@ using Namines.API.Controllers;
 using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
-using Namines.Core.Models.Hub;
+using Namines.Hub.Domain;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
@@ -58,7 +58,7 @@ public sealed class HubControllerTests : IAsyncLifetime
     private static HubController CreateController(AuthDbContext db, string? userId = null, string? username = null)
     {
         var userManager = NewUserManager(db);
-        var controller = new HubController(db, userManager, Namines.Tests.Services.ProjectDeletionTestKit.Create(db), TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction);
+        var controller = new HubController(TestModules.For(db).HubRepositories(Namines.Tests.Services.ProjectDeletionTestKit.Create(db)), TestModules.For(db).HubIssues);
 
         var httpContext = new DefaultHttpContext();
         if (!string.IsNullOrEmpty(userId))
@@ -170,7 +170,7 @@ public sealed class HubControllerTests : IAsyncLifetime
             CreatedAt = DateTime.UtcNow
         };
 
-        db.CloudProjects.AddRange(qualityRepo, simpleRepo, privateRepo);
+        db.Studio().Projects.AddRange(qualityRepo, simpleRepo, privateRepo);
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedRepositoryAsync("p-quality", owner.Id, slug: "quality-ecommerce", category: "E-Commerce", description: "Production-grade e-commerce schema in 3NF.", visibility: ProjectVisibility.Public);
         await TestModules.For(db).SeedRepositoryAsync("p-simple", owner.Id, slug: "simple-notes", category: "General", description: "Simple notes database.", visibility: ProjectVisibility.Public);
@@ -217,7 +217,7 @@ public sealed class HubControllerTests : IAsyncLifetime
             CreatedAt = DateTime.UtcNow
         };
 
-        db.CloudProjects.AddRange(pubRepo, privRepo);
+        db.Studio().Projects.AddRange(pubRepo, privRepo);
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedRepositoryAsync("p-pub", owner.Id, slug: "public-repo", visibility: ProjectVisibility.Public);
         await TestModules.For(db).SeedRepositoryAsync("p-priv", owner.Id, slug: "private-repo", visibility: ProjectVisibility.Private);
@@ -253,7 +253,7 @@ public sealed class HubControllerTests : IAsyncLifetime
             UserId = owner.Id,
             CreatedAt = DateTime.UtcNow
         };
-        db.CloudProjects.Add(repo);
+        db.Studio().Projects.Add(repo);
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedRepositoryAsync("p-star", owner.Id, slug: "star-repo", visibility: ProjectVisibility.Public, starCount: 0);
 
@@ -292,7 +292,7 @@ public sealed class HubControllerTests : IAsyncLifetime
             UserId = owner.Id,
             CreatedAt = DateTime.UtcNow
         };
-        db.CloudProjects.Add(repo);
+        db.Studio().Projects.Add(repo);
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedRepositoryAsync("p-original", owner.Id, slug: "original-arch", category: "FinTech", visibility: ProjectVisibility.Public, tags: "finance,ledger", forkCount: 0);
 
@@ -314,7 +314,7 @@ public sealed class HubControllerTests : IAsyncLifetime
 
         // Verify default main branch was created for the fork
         var forkedId = (string)val.Id;
-        var defaultBranch = await db.Branches.FirstOrDefaultAsync(b => b.ProjectId == forkedId && b.IsDefault);
+        var defaultBranch = await db.Studio().Branches.FirstOrDefaultAsync(b => b.ProjectId == forkedId && b.IsDefault);
         Assert.NotNull(defaultBranch);
         Assert.Equal("main", defaultBranch.Name);
         Assert.Equal(forker.Id, defaultBranch.CreatedByUserId);
@@ -337,7 +337,7 @@ public sealed class HubControllerTests : IAsyncLifetime
             UserId = user.Id,
             CreatedAt = DateTime.UtcNow
         };
-        db.CloudProjects.Add(repo);
+        db.Studio().Projects.Add(repo);
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedRepositoryAsync("p-issue", user.Id, slug: "issue-repo", visibility: ProjectVisibility.Public);
 
@@ -394,7 +394,7 @@ public sealed class HubControllerTests : IAsyncLifetime
             UserId = user.Id,
             CreatedAt = DateTime.UtcNow
         };
-        db.CloudProjects.Add(repo);
+        db.Studio().Projects.Add(repo);
 
         var issue = new RepoIssue
         {
@@ -405,7 +405,7 @@ public sealed class HubControllerTests : IAsyncLifetime
             CreatedByUserId = user.Id,
             CreatedAt = DateTime.UtcNow
         };
-        db.RepoIssues.Add(issue);
+        db.Hub().RepoIssues.Add(issue);
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedRepositoryAsync("p-comm", user.Id, slug: "comment-repo", visibility: ProjectVisibility.Public);
 
@@ -443,7 +443,7 @@ public sealed class HubControllerTests : IAsyncLifetime
             UserId = owner.Id,
             CreatedAt = DateTime.UtcNow
         };
-        db.CloudProjects.Add(repo);
+        db.Studio().Projects.Add(repo);
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedRepositoryAsync("p-badge", owner.Id, slug: "verified-repo", visibility: ProjectVisibility.Public);
 

@@ -64,7 +64,7 @@ public class OrgAccessTests : IAsyncLifetime
             new OrganizationMember { OrganizationId = _orgId, UserId = _viewerId, Role = OrgRole.Viewer });
 
         _projectId = Guid.NewGuid().ToString();
-        await _context.CloudProjects.AddAsync(new CloudProject
+        await _context.Studio().Projects.AddAsync(new CloudProject
         {
             Id = _projectId, Name = "P", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}",
@@ -131,7 +131,7 @@ public class OrgAccessTests : IAsyncLifetime
         // Migration öncesinden kalmış satır: OrganizationId boş. Erişimi sessizce
         // kesmek yerine oluşturana Owner yetkisi verilir (veri kaybı riskine karşı).
         var legacyId = Guid.NewGuid().ToString();
-        await _context.CloudProjects.AddAsync(new CloudProject
+        await _context.Studio().Projects.AddAsync(new CloudProject
         {
             Id = legacyId, Name = "Legacy", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}",

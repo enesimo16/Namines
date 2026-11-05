@@ -1,7 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
-using Namines.Core.Models.Hub;
+using Namines.Hub.Domain;
 using Namines.Infrastructure.Data;
 
 namespace Namines.Tests.Architecture;

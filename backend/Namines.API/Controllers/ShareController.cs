@@ -19,16 +19,16 @@ namespace Namines.API.Controllers;
 [Route("api/[controller]")]
 public class ShareController : ControllerBase
 {
-    private readonly AuthDbContext _context;
+    private readonly IShareService _shares;
     private readonly ILinterService _linter;
     private readonly IStudioApplicationService _studio;
 
     public ShareController(
-        AuthDbContext context,
+        IShareService shares,
         ILinterService linter,
         IStudioApplicationService studio)
     {
-        _context = context;
+        _shares = shares;
         _linter  = linter;
         _studio = studio;
     }
@@ -47,18 +47,13 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> CreateShareLink(string projectId, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
-        if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
-            return NotFound();
+        var outcome = await _shares.CreateAsync(CurrentUserId, projectId, ct);
+        if (!outcome.IsOk) return NotFound();
 
-        try
-        {
-            var rawToken = await _studio.CreateShareLinkAsync(projectId, ct);
-            return Ok(new { token = rawToken });
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        // Tavan aşılınca en eski bağlantılar kapanır; bu istemciye de söylenir, sessiz kalmaz.
+        return outcome.Value!.ClosedOldestLinks > 0
+            ? Ok(new { token = outcome.Value.Token, closedOldestLinks = outcome.Value.ClosedOldestLinks })
+            : Ok(new { token = outcome.Value.Token });
     }
 
     /// <summary>
@@ -69,11 +64,8 @@ public class ShareController : ControllerBase
     public async Task<IActionResult> RevokeShareLink(string projectId, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();
-        if (!await _context.CanManageMembersAsync(projectId, CurrentUserId))
-            return NotFound();
-
-        await _studio.RevokeShareLinksAsync(projectId, ct);
-        return NoContent();
+        var outcome = await _shares.RevokeAsync(CurrentUserId, projectId, ct);
+        return outcome.IsOk ? NoContent() : NotFound();
     }
 
     /// <summary>Herkese açık: token ile şema JSON'ını döndürür. Auth gerektirmez.</summary>

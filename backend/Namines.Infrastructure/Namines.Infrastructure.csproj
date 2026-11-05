@@ -5,6 +5,8 @@
     <ProjectReference Include="..\Namines.BuildingBlocks\Namines.BuildingBlocks.csproj" />
     <!-- Tek yonlu: Vault, Infrastructure'i GORMEZ. Yedekleme modulunun
          veritabanina/kimlige bagimli hale gelmesini derleyici engelliyor. -->
+    <ProjectReference Include="..\Namines.Studio\Namines.Studio.csproj" />
+    <ProjectReference Include="..\Namines.Hub\Namines.Hub.csproj" />
     <ProjectReference Include="..\Namines.Ops\Namines.Ops.csproj" />
     <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
     <!-- Ayni tek yonlu kural: Ground da Infrastructure'i GORMEZ. -->

@@ -37,9 +37,6 @@ namespace Namines.Vault.Configurations
                 // akışı önce yedekleri (blob dahil) açıkça temizlemek zorunda.
                 if (configureCrossModuleForeignKeys)
                 {
-                    entity.HasOne<CloudProject>().WithMany()
-                          .HasForeignKey(b => b.ProjectId)
-                          .OnDelete(DeleteBehavior.Restrict);
                     // Atıf kolonu: kullanıcı silinince boşalır, yedek kalır.
                     entity.HasOne<ApplicationUser>().WithMany()
                           .HasForeignKey(b => b.CreatedByUserId)
@@ -71,9 +68,6 @@ namespace Namines.Vault.Configurations
                 // ile zaten önce temizlenmiş olmak zorunda).
                 if (configureCrossModuleForeignKeys)
                 {
-                    entity.HasOne<CloudProject>().WithMany()
-                          .HasForeignKey(r => r.ProjectId)
-                          .OnDelete(DeleteBehavior.Cascade);
                     entity.HasOne<ApplicationUser>().WithMany()
                           .HasForeignKey(r => r.PerformedByUserId)
                           .OnDelete(DeleteBehavior.SetNull);
@@ -100,9 +94,6 @@ namespace Namines.Vault.Configurations
                 // Zamanlayıcı yapılandırmadır, veri değil: proje ile birlikte gider.
                 if (configureCrossModuleForeignKeys)
                 {
-                    entity.HasOne<CloudProject>().WithMany()
-                          .HasForeignKey(s => s.ProjectId)
-                          .OnDelete(DeleteBehavior.Cascade);
                 }
             });
         }

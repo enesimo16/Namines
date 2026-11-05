@@ -65,7 +65,7 @@ public sealed class AutomationRunLogRetentionTests : IAsyncLifetime
         if (!await db.Users.AnyAsync())
         {
             db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = "p1", Name = "p", DbType = "PostgreSQL",
                 SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",

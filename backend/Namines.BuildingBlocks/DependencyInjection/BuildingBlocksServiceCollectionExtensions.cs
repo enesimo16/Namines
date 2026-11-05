@@ -32,15 +32,6 @@ public static class BuildingBlocksServiceCollectionExtensions
             schemaName: IdentityModuleDbContext.DefaultSchema,
             db => new IdentityModule(db));
 
-        RegisterModule<StudioDbContext, IStudioModule, StudioModule>(
-            services, configureDbContext, connectionStringFactory,
-            historyTable: StudioDbContext.MigrationsHistoryTableName,
-            schemaName: StudioDbContext.DefaultSchema,
-            db => new StudioModule(db, new StudioApplicationService(db)));
-
-        services.TryAddScoped<IStudioApplicationService>(sp =>
-            sp.GetRequiredService<IStudioModule>().Projects);
-
         RegisterModule<BillingDbContext, IBillingModule, BillingModule>(
             services, configureDbContext, connectionStringFactory,
             historyTable: BillingDbContext.MigrationsHistoryTableName,
@@ -53,23 +44,11 @@ public static class BuildingBlocksServiceCollectionExtensions
             schemaName: GovernanceDbContext.DefaultSchema,
             db => new GovernanceModule(db));
 
-        RegisterModule<HubDbContext, IHubModule, HubModule>(
-            services, configureDbContext, connectionStringFactory,
-            historyTable: HubDbContext.MigrationsHistoryTableName,
-            schemaName: HubDbContext.DefaultSchema,
-            db => new HubModule(db, new HubApplicationService(db)));
-
-        services.TryAddScoped<IHubApplicationService>(sp =>
-            sp.GetRequiredService<IHubModule>().Repositories);
-
         RegisterModule<GatewayDbContext, IGatewayModule, GatewayModule>(
             services, configureDbContext, connectionStringFactory,
             historyTable: GatewayDbContext.MigrationsHistoryTableName,
             schemaName: GatewayDbContext.DefaultSchema,
             db => new GatewayModule(db));
-
-        services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<StudioDbContext>()));
-        services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<HubDbContext>()));
 
         return services;
     }

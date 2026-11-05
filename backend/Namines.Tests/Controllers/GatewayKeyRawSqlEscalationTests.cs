@@ -58,7 +58,7 @@ public sealed class GatewayKeyRawSqlEscalationTests : IAsyncLifetime
         db.OrganizationMembers.Add(new OrganizationMember
         { OrganizationId = org.Id, UserId = "admin-1", Role = OrgRole.Admin });
 
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL", OrganizationId = org.Id,
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner-1",
@@ -68,7 +68,7 @@ public sealed class GatewayKeyRawSqlEscalationTests : IAsyncLifetime
     }
 
     private static GatewayKeyController NewController(AuthDbContext db, string userId) =>
-        new(context: db, hostPolicy: null!, introspection: null!, secretProvider: null!)
+        new(context: db, hostPolicy: null!, introspection: null!, secretProvider: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {
             ControllerContext = new ControllerContext
             {

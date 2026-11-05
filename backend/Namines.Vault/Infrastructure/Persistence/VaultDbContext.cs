@@ -39,5 +39,8 @@ public sealed class VaultDbContext : DbContext
             modelBuilder,
             schema: isRelationalSchemasSupported ? SchemaName : null,
             configureCrossModuleForeignKeys: false);
+
+        // Tablolar AuthDbContext zincirinde kuruldu; bu bağlam migration üretmez (bkz. MIGRATION_PLAN.md).
+        Namines.BuildingBlocks.Persistence.NonOwnerContext.ExcludeAllFromMigrations(modelBuilder);
     }
 }

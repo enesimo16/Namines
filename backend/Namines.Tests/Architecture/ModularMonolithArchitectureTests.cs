@@ -1,3 +1,5 @@
+using Namines.Hub.DependencyInjection;
+using Namines.Studio.DependencyInjection;
 using Namines.Ops.DependencyInjection;
 using System;
 using System.Collections.Generic;
@@ -356,7 +358,7 @@ public sealed class ModularMonolithArchitectureTests
             UserId = owner.Id,
             OrganizationId = org.Id
         };
-        context.CloudProjects.Add(project);
+        context.Studio().Projects.Add(project);
         await context.SaveChangesAsync();
 
         var authority = TestModules.For(context).Authority(protector);
@@ -403,6 +405,8 @@ public sealed class ModularMonolithArchitectureTests
 
         services.AddNaminesBuildingBlocks();
         services.AddOpsModule();
+        services.AddStudioModule();
+        services.AddHubModule();
         services.AddNaminesVault(registerWorkers: false);
         services.AddNaminesGround(registerWorkers: false);
         services.AddFlowModule(registerWorkers: false);
@@ -413,22 +417,22 @@ public sealed class ModularMonolithArchitectureTests
 
         // Tüm 11 modül cephesi (facade) ve izole DbContext'leri çözümlenebilmeli ve PostgreSQL şemaları eşleşmeli.
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityModule>();
-        var studio = scope.ServiceProvider.GetRequiredService<IStudioModule>();
+        var studioDb = scope.ServiceProvider.GetRequiredService<StudioDbContext>();
         var billing = scope.ServiceProvider.GetRequiredService<IBillingModule>();
         var governance = scope.ServiceProvider.GetRequiredService<IGovernanceModule>();
         var ground = scope.ServiceProvider.GetRequiredService<IGroundModule>();
         var vault = scope.ServiceProvider.GetRequiredService<IVaultModule>();
         var flow = scope.ServiceProvider.GetRequiredService<IFlowModule>();
         var desk = scope.ServiceProvider.GetRequiredService<IDeskModule>();
-        var hub = scope.ServiceProvider.GetRequiredService<IHubModule>();
+        var hubDb = scope.ServiceProvider.GetRequiredService<HubDbContext>();
         var gateway = scope.ServiceProvider.GetRequiredService<IGatewayModule>();
         var opsDb = scope.ServiceProvider.GetRequiredService<OpsDbContext>();
 
         Assert.Equal("identity", identity.DbContext.Model.GetDefaultSchema());
-        Assert.Equal("studio", studio.DbContext.Model.GetDefaultSchema());
+        Assert.Equal("studio", studioDb.Model.GetDefaultSchema());
         Assert.Equal("billing", billing.DbContext.Model.GetDefaultSchema());
         Assert.Equal("governance", governance.DbContext.Model.GetDefaultSchema());
-        Assert.Equal("hub", hub.DbContext.Model.GetDefaultSchema());
+        Assert.Equal("hub", hubDb.Model.GetDefaultSchema());
         Assert.Equal("gateway", gateway.DbContext.Model.GetDefaultSchema());
         Assert.Equal("ops", opsDb.Model.GetDefaultSchema());
 
@@ -555,7 +559,7 @@ public sealed class ModularMonolithArchitectureTests
                 foreach (var parameter in ctor.GetParameters())
                 {
                     if (parameter.ParameterType == typeof(Namines.BuildingBlocks.Application.IStudioApplicationService) ||
-                        parameter.ParameterType == typeof(Namines.BuildingBlocks.Application.IHubApplicationService) ||
+                        parameter.ParameterType == typeof(IHubApplicationService) ||
                         parameter.ParameterType == typeof(IProjectConnectionSecretProvider) ||
                         parameter.ParameterType == typeof(StudioDbContext))
                     {

@@ -55,7 +55,7 @@ public static class GatewayAnalytics
     /// tarafında dönülüyor.
     /// </summary>
     public static async Task<AnalyticsResult> AnalyticsAsync(
-        this AuthDbContext context, string projectId, DateTime from, DateTime to, string bucket,
+        this AuthDbContext context, Namines.BuildingBlocks.Contracts.IStudioBranches versions, string projectId, DateTime from, DateTime to, string bucket,
         CancellationToken ct = default)
     {
         var truncUnit = bucket == "hour" ? "hour" : "day";
@@ -110,9 +110,7 @@ public static class GatewayAnalytics
         var humanCount = await baseQuery.CountAsync(e => e.ActorUserId != null, ct);
         var applicationCount = await baseQuery.CountAsync(e => e.ApiKeyPrefix != null, ct);
 
-        var schemaVersionCount = await context.SchemaVersions
-            .AsNoTracking()
-            .CountAsync(v => v.ProjectId == projectId && v.CreatedAt >= from && v.CreatedAt <= to, ct);
+        var schemaVersionCount = await versions.CountVersionsAsync(projectId, from, to, ct);
 
         return new AnalyticsResult(
             buckets,

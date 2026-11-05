@@ -69,7 +69,7 @@ public sealed class GatewayMaskingEndpointTests : IAsyncLifetime
         }
 
         db.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", NormalizedUserName = "OWNER" });
-        db.CloudProjects.Add(new CloudProject { Id = "proj", Name = "p", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner" });
+        db.Studio().Projects.Add(new CloudProject { Id = "proj", Name = "p", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "owner" });
 
         var (key, raw) = GatewayAccess.CreateKey("proj", "k", "owner", canWrite: false, expiresAt: null);
         key.CanExport = true;
@@ -106,7 +106,7 @@ public sealed class GatewayMaskingEndpointTests : IAsyncLifetime
         return new GatewayController(
             gateway: new GatewayService(new AllowAllHosts()), context: db, configuration: configuration,
             groq: groq, logger: NullLogger<GatewayController>.Instance, quota: new AiQuotaService(db, new ConfigurationBuilder().Build()),
-            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!)
+            secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {
             ControllerContext = new ControllerContext { HttpContext = http },
         };

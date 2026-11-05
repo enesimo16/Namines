@@ -67,7 +67,7 @@ public sealed class AuthControllerSecurityTests : IAsyncLifetime
             config,
             new MigrationService(null!),
             new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction);
+            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Workspace);
 
         controller.ControllerContext = new ControllerContext
         {

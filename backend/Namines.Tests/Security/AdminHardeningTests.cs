@@ -165,7 +165,7 @@ public class AdminHardeningTests : IAsyncLifetime
 
         var controller = new AdminController(
             users, db, NullLogger<AdminController>.Instance, telemetry ?? new AdminTelemetryService(),
-            new ConfigurationBuilder().Build(), TestOps.Admin(sp));
+            new ConfigurationBuilder().Build(), TestOps.Admin(sp), TestModules.For(db).StudioAdmin, TestModules.For(db).Projects, TestModules.For(db).Identity);
 
         var admin = new ApplicationUser { Id = "adm", UserName = "adm", Email = "adm@example.com", IsDev = true };
         await users.CreateAsync(admin);

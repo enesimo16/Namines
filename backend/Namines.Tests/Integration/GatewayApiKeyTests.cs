@@ -66,7 +66,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
     private async Task<(AuthDbContext Context, string ProjectId)> SeededAsync()
     {
         var projectId = "p-" + Guid.NewGuid().ToString("N")[..8];
-        _shared.CloudProjects.Add(new CloudProject
+        _shared.Studio().Projects.Add(new CloudProject
         {
             Id = projectId, Name = "test", UserId = "u1",
             DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}",
@@ -120,7 +120,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         var (entity, raw) = await AddKeyAsync(context, projectId);
 
-        var resolved = await context.AuthenticateAsync(raw);
+        var resolved = await context.AuthenticateAsync(TestModules.For(context).DefaultAuthority, raw);
         Assert.NotNull(resolved);
         Assert.Equal(entity.Id, resolved!.Id);
     }
@@ -134,7 +134,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         await AddKeyAsync(context, projectId);
 
-        Assert.Null(await context.AuthenticateAsync(candidate));
+        Assert.Null(await context.AuthenticateAsync(TestModules.For(context).DefaultAuthority, candidate));
     }
 
     [RequiresDockerFact]
@@ -148,7 +148,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         entity.RevokedAt = DateTime.UtcNow;
         await context.SaveChangesAsync();
 
-        Assert.Null(await context.AuthenticateAsync(raw));
+        Assert.Null(await context.AuthenticateAsync(TestModules.For(context).DefaultAuthority, raw));
         // Kayıt duruyor: iptal silmek değil, işaretlemektir.
         Assert.NotNull(await context.GatewayApiKeys.FindAsync(entity.Id));
     }
@@ -159,7 +159,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
         var (context, projectId) = await SeededAsync();
         var (_, raw) = await AddKeyAsync(context, projectId, expiresAt: DateTime.UtcNow.AddSeconds(-1));
 
-        Assert.Null(await context.AuthenticateAsync(raw));
+        Assert.Null(await context.AuthenticateAsync(TestModules.For(context).DefaultAuthority, raw));
     }
 
     // ── ASIL KURAL: varsayılan kapalı ────────────────────────────────────────

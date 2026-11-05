@@ -14,6 +14,7 @@ using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
+using Namines.BuildingBlocks.Application;
 using Namines.Infrastructure.Data;
 
 namespace Namines.API.Controllers;
@@ -50,8 +51,10 @@ public sealed record SeedBranchDatabaseRequest(int RowsPerTable = 25);
 [Authorize]
 public class BranchController : ControllerBase
 {
-    private readonly AuthDbContext _context;
+    private readonly IBranchService _branches;
+    private readonly IStudioBranches _versions;
     private readonly IBranchDatabaseProvisioner _databases;
+    private readonly AuthDbContext _billing;
 
     // Frontend enum'ları (ör. ReferentialAction) JSON'a string olarak yazıyor
     // ("NoAction", "Cascade"...) — dönüştürücü olmadan Deserialize<DatabaseSchema>
@@ -62,18 +65,23 @@ public class BranchController : ControllerBase
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public BranchController(AuthDbContext context, IBranchDatabaseProvisioner databases)
+    public BranchController(IBranchService branches, IStudioBranches versions, IBranchDatabaseProvisioner databases, AuthDbContext billing)
     {
-        _context = context;
+        _branches = branches;
+        _versions = versions;
         _databases = databases;
+        _billing = billing;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    // 05 §6: yetki sınırı artık tek sahip değil, organizasyon üyeliği (bkz. OrgAccess).
-    // Branch/versiyon uçları şema YAZAR — Editor ve üstü gerekir.
-    private async Task<bool> UserOwnsProjectAsync(string projectId, string userId) =>
-        await _context.CanEditAsync(projectId, userId);
+    private IActionResult Fail<T>(ModuleOutcome<T> outcome) => outcome.Kind switch
+    {
+        ModuleOutcomeKind.NotFound => NotFound(new { error = outcome.Error }),
+        ModuleOutcomeKind.Invalid => BadRequest(new { error = outcome.Error }),
+        ModuleOutcomeKind.Conflict => Conflict(new { error = outcome.Error }),
+        _ => StatusCode(500),
+    };
 
     [HttpPost]
     public async Task<IActionResult> CreateBranch([FromBody] CreateBranchRequest request)
@@ -81,62 +89,9 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (string.IsNullOrWhiteSpace(request.ProjectId) || string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(new { error = "ProjectId and Name are required." });
-
-        if (!await UserOwnsProjectAsync(request.ProjectId, userId))
-            return NotFound(new { error = "Project not found, or it does not belong to this user." });
-
-        var nameTaken = await _context.Branches
-            .AnyAsync(b => b.ProjectId == request.ProjectId && b.Name == request.Name);
-        if (nameTaken)
-            return Conflict(new { error = $"A branch named '{request.Name}' already exists in this project." });
-
-        if (request.ParentBranchId is not null)
-        {
-            var parentExists = await _context.Branches
-                .AnyAsync(b => b.Id == request.ParentBranchId && b.ProjectId == request.ProjectId);
-            if (!parentExists)
-                return BadRequest(new { error = "ParentBranchId was not found in this project." });
-        }
-
-        var branch = new Branch
-        {
-            ProjectId = request.ProjectId,
-            Name = request.Name,
-            ParentBranchId = request.ParentBranchId,
-            ForkedFromVersion = request.ForkedFromVersion,
-            IsDefault = request.IsDefault,
-            CreatedByUserId = userId,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        // Kısmi unique index (ProjectId WHERE IsDefault) DB seviyesinde tek default'u
-        // garanti eder, ama kullanıcıya çıplak bir constraint-violation 500'ü göstermek
-        // yerine önce eskisini açıkça devre dışı bırakıyoruz — aynı SaveChanges'te tutarlı.
-        if (request.IsDefault)
-        {
-            var previousDefault = await _context.Branches
-                .Where(b => b.ProjectId == request.ProjectId && b.IsDefault)
-                .ToListAsync();
-            foreach (var b in previousDefault) b.IsDefault = false;
-        }
-
-        await _context.Branches.AddAsync(branch);
-        await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            branch.Id,
-            branch.ProjectId,
-            branch.Name,
-            branch.ParentBranchId,
-            branch.ForkedFromVersion,
-            branch.IsDefault,
-            branch.CreatedByUserId,
-            branch.CreatedAt,
-            branch.ClosedAt
-        });
+        var outcome = await _branches.CreateAsync(userId, new CreateBranchCommand(
+            request.ProjectId, request.Name, request.ParentBranchId, request.ForkedFromVersion, request.IsDefault));
+        return outcome.IsOk ? Ok(outcome.Value) : Fail(outcome);
     }
 
     [HttpGet("project/{projectId}")]
@@ -145,28 +100,8 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await UserOwnsProjectAsync(projectId, userId))
-            return NotFound(new { error = "Project not found, or it does not belong to this user." });
-
-        var branches = await _context.Branches
-            .Where(b => b.ProjectId == projectId)
-            .OrderByDescending(b => b.IsDefault)
-            .ThenBy(b => b.CreatedAt)
-            .Select(b => new
-            {
-                b.Id,
-                b.ProjectId,
-                b.Name,
-                b.ParentBranchId,
-                b.ForkedFromVersion,
-                b.IsDefault,
-                b.CreatedByUserId,
-                b.CreatedAt,
-                b.ClosedAt
-            })
-            .ToListAsync();
-
-        return Ok(branches);
+        var outcome = await _branches.ListAsync(userId, projectId);
+        return outcome.IsOk ? Ok(outcome.Value) : Fail(outcome);
     }
 
     /// <summary>
@@ -198,19 +133,10 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await UserOwnsProjectAsync(projectId, userId))
-            return NotFound(new { error = "Project not found, or it does not belong to this user." });
-
-        var branch = await _context.Branches
-            .AsNoTracking()
-            .Where(b => b.ProjectId == projectId && b.IsDefault)
-            .Select(b => new { b.Id, b.ProjectId, b.Name })
-            .FirstOrDefaultAsync();
-
-        if (branch is null)
-            return NotFound(new { error = "This project has no default branch yet. POST to create it." });
-
-        return Ok(branch);
+        var outcome = await _branches.GetDefaultAsync(userId, projectId);
+        if (!outcome.IsOk) return Fail(outcome);
+        var branch = outcome.Value!;
+        return Ok(new { branch.Id, branch.ProjectId, branch.Name });
     }
 
     /// <summary>
@@ -226,18 +152,12 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await UserOwnsProjectAsync(projectId, userId))
-            return NotFound(new { error = "Project not found, or it does not belong to this user." });
-
-        var existed = await _context.Branches
-            .AsNoTracking()
-            .AnyAsync(b => b.ProjectId == projectId && b.IsDefault);
-
-        // Yarışa karşı sertleştirilmiş tek kopya — bkz. BranchProvisioning.
-        var branch = await _context.GetOrCreateDefaultBranchAsync(projectId, userId);
+        var outcome = await _branches.EnsureDefaultAsync(userId, projectId);
+        if (!outcome.IsOk) return Fail(outcome);
+        var (branch, created) = outcome.Value;
         var body = new { branch.Id, branch.ProjectId, branch.Name };
 
-        return existed ? Ok(body) : StatusCode(StatusCodes.Status201Created, body);
+        return created ? StatusCode(StatusCodes.Status201Created, body) : Ok(body);
     }
 
     [HttpPost("{branchId}/versions")]
@@ -247,61 +167,8 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (string.IsNullOrWhiteSpace(request.SchemaJson))
-            return BadRequest(new { error = "SchemaJson cannot be empty." });
-
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId);
-        if (branch is null) return NotFound(new { error = "Branch not found." });
-        if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch not found." });
-        if (branch.ClosedAt is not null)
-            return Conflict(new { error = "A new version cannot be added to a closed branch." });
-
-        short tableCount = 0;
-        try
-        {
-            var parsed = JsonSerializer.Deserialize<DatabaseSchema>(request.SchemaJson, SchemaJsonOptions);
-            tableCount = (short)(parsed?.Tables?.Count ?? 0);
-        }
-        catch (JsonException)
-        {
-            return BadRequest(new { error = "SchemaJson is not a valid DatabaseSchema." });
-        }
-
-        var lastVersion = await _context.SchemaVersions
-            .Where(v => v.BranchId == branchId)
-            .OrderByDescending(v => v.Version)
-            .Select(v => v.Version)
-            .FirstOrDefaultAsync();
-
-        var version = new SchemaVersion
-        {
-            ProjectId = branch.ProjectId,
-            BranchId = branchId,
-            Version = lastVersion + 1,
-            Checksum = ComputeChecksum(request.SchemaJson),
-            SchemaJson = request.SchemaJson,
-            Message = request.Message,
-            TableCount = tableCount,
-            AuthorUserId = userId,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        await _context.SchemaVersions.AddAsync(version);
-        await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            version.Id,
-            version.ProjectId,
-            version.BranchId,
-            version.Version,
-            version.Checksum,
-            version.Message,
-            version.TableCount,
-            version.AuthorUserId,
-            version.CreatedAt
-        });
+        var outcome = await _branches.CommitAsync(userId, branchId, request.SchemaJson, request.Message);
+        return outcome.IsOk ? Ok(outcome.Value) : Fail(outcome);
     }
 
     [HttpGet("{branchId}/versions")]
@@ -310,31 +177,8 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId);
-        if (branch is null) return NotFound(new { error = "Branch not found." });
-        if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch not found." });
-
-        // SchemaJson kasıtlı olarak dışarıda bırakılıyor — liste görünümü büyük blob'ları
-        // taşımamalı, tek bir versiyonun içeriği ayrı uç noktadan çekilir.
-        var versions = await _context.SchemaVersions
-            .Where(v => v.BranchId == branchId)
-            .OrderByDescending(v => v.Version)
-            .Select(v => new
-            {
-                v.Id,
-                v.ProjectId,
-                v.BranchId,
-                v.Version,
-                v.Checksum,
-                v.Message,
-                v.TableCount,
-                v.AuthorUserId,
-                v.CreatedAt
-            })
-            .ToListAsync();
-
-        return Ok(versions);
+        var outcome = await _branches.ListVersionsAsync(userId, branchId);
+        return outcome.IsOk ? Ok(outcome.Value) : Fail(outcome);
     }
 
     [HttpGet("versions/{versionId}")]
@@ -343,18 +187,27 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var version = await _context.SchemaVersions.FirstOrDefaultAsync(v => v.Id == versionId);
-        if (version is null) return NotFound(new { error = "Version not found." });
-        if (!await UserOwnsProjectAsync(version.ProjectId, userId))
-            return NotFound(new { error = "Version not found." });
+        var outcome = await _branches.GetVersionAsync(userId, versionId);
+        if (!outcome.IsOk) return Fail(outcome);
 
-        return Ok(version);
-    }
-
-    private static string ComputeChecksum(string schemaJson)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(schemaJson));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
+        // Yanıtın tarihsel biçimi varlığın kendisiydi: boş navigasyon alanları da anahtar olarak vardı.
+        var v = outcome.Value!;
+        return Ok(new
+        {
+            v.Id,
+            v.ProjectId,
+            Project = (object?)null,
+            v.BranchId,
+            Branch = (object?)null,
+            v.Version,
+            v.Checksum,
+            v.SchemaJson,
+            v.Message,
+            v.TableCount,
+            v.AuthorUserId,
+            AuthorUser = (object?)null,
+            v.CreatedAt,
+        });
     }
 
     // ── Branch veritabanı (06 §4) ────────────────────────────────────────────
@@ -373,15 +226,10 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (branch is null) return NotFound(new { error = "Branch not found." });
-        if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch not found." });
+        var authorized = await _branches.AuthorizeBranchAsync(userId, branchId, cancellationToken);
+        if (!authorized.IsOk) return Fail(authorized);
 
-        var latest = await _context.SchemaVersions
-            .Where(v => v.BranchId == branchId)
-            .OrderByDescending(v => v.Version)
-            .FirstOrDefaultAsync(cancellationToken);
+        var latest = await _versions.GetLatestVersionAsync(branchId, cancellationToken);
 
         // Şemasız bir branch için boş bir veritabanı açmak kaynak harcar ve
         // kullanıcıya hiçbir şey vermez.
@@ -427,7 +275,7 @@ public class BranchController : ControllerBase
             // sağlayıcı hiçbir şey açmadığı hâlde. Kotanın gerekçesi doğruydu,
             // faturalamanın onu takip etmemesi yanlıştı.
             if (!alreadyExisted)
-                await _context.RecordAsync(userId, UsageResource.BranchDatabase, 1, branchId, cancellationToken);
+                await _billing.RecordAsync(userId, UsageResource.BranchDatabase, 1, branchId, cancellationToken);
 
             return Ok(Describe(database));
         }
@@ -458,42 +306,15 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var source = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (source is null) return NotFound(new { error = "Branch not found." });
-        if (!await UserOwnsProjectAsync(source.ProjectId, userId))
-            return NotFound(new { error = "Branch not found." });
-
-        // Ata kaydı yoksa üç yollu birleştirme YAPILAMAZ. Sessizce iki yollu
-        // bir diff'e düşmek, kullanıcıya olmayan bir güvence vermek olurdu:
-        // "otomatik birleşti" ifadesinin anlamı tamamen ortak atadan geliyor.
-        if (source.ParentBranchId is null || source.ForkedFromVersion is null)
-            return BadRequest(new
-            {
-                error = "This branch has no recorded ancestor, so it cannot be merged three-way. " +
-                        "Only branches forked from another branch carry the fork point a merge needs.",
-            });
-
-        var target = await _context.Branches
-            .FirstOrDefaultAsync(b => b.Id == source.ParentBranchId, cancellationToken);
-        if (target is null) return BadRequest(new { error = "The branch this one was forked from no longer exists." });
-
-        var baseSchema = await LoadSchemaAsync(target.Id, source.ForkedFromVersion.Value, cancellationToken);
-        if (baseSchema is null)
-            return BadRequest(new { error = "The ancestor version this branch was forked from is missing." });
-
-        var ours = await LoadLatestSchemaAsync(target.Id, cancellationToken);
-        var theirs = await LoadLatestSchemaAsync(source.Id, cancellationToken);
-
-        if (ours is null || theirs is null)
-            return BadRequest(new { error = "Both branches need at least one committed schema version before they can be merged." });
-
-        var result = SchemaThreeWayMerger.Merge(baseSchema, ours, theirs);
+        var preview = await _branches.PreviewMergeAsync(userId, branchId, cancellationToken);
+        if (!preview.IsOk) return Fail(preview);
+        var (sourceBranch, targetBranch, baseVersion, result) = preview.Value!;
 
         return Ok(new
         {
-            sourceBranch = source.Name,
-            targetBranch = target.Name,
-            baseVersion = source.ForkedFromVersion.Value,
+            sourceBranch,
+            targetBranch,
+            baseVersion,
             autoMerged = result.AutoMerged,
             // `kind` STRING olarak geçiyor: sunucu enum'unu istemcide bire bir
             // kopyalamak bu projede bir kez kırıldı. Tanınmayan bir değer
@@ -514,42 +335,14 @@ public class BranchController : ControllerBase
         });
     }
 
-    /// <summary>Bir branch'in belirli versiyonundaki şema; yoksa null.</summary>
-    private async Task<DatabaseSchema?> LoadSchemaAsync(string branchId, int version, CancellationToken ct)
-    {
-        var json = await _context.SchemaVersions
-            .Where(v => v.BranchId == branchId && v.Version == version)
-            .Select(v => v.SchemaJson)
-            .FirstOrDefaultAsync(ct);
-
-        return Deserialize(json);
-    }
-
-    /// <summary>Bir branch'in en son şeması; hiç versiyon yoksa null.</summary>
-    private async Task<DatabaseSchema?> LoadLatestSchemaAsync(string branchId, CancellationToken ct)
-    {
-        var json = await _context.SchemaVersions
-            .Where(v => v.BranchId == branchId)
-            .OrderByDescending(v => v.Version)
-            .Select(v => v.SchemaJson)
-            .FirstOrDefaultAsync(ct);
-
-        return Deserialize(json);
-    }
-
-    private static DatabaseSchema? Deserialize(string? json) =>
-        string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<DatabaseSchema>(json, SchemaJsonOptions);
-
     [HttpGet("{branchId}/database")]
     public async Task<IActionResult> GetDatabase(string branchId, CancellationToken cancellationToken)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (branch is null) return NotFound(new { error = "Branch not found." });
-        if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch not found." });
+        var authorized = await _branches.AuthorizeBranchAsync(userId, branchId, cancellationToken);
+        if (!authorized.IsOk) return Fail(authorized);
 
         var database = await _databases.GetAsync(branchId, cancellationToken);
         return database is null
@@ -569,15 +362,10 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (branch is null) return NotFound(new { error = "Branch not found." });
-        if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch not found." });
+        var authorized = await _branches.AuthorizeBranchAsync(userId, branchId, cancellationToken);
+        if (!authorized.IsOk) return Fail(authorized);
 
-        var latest = await _context.SchemaVersions
-            .Where(v => v.BranchId == branchId)
-            .OrderByDescending(v => v.Version)
-            .FirstOrDefaultAsync(cancellationToken);
+        var latest = await _versions.GetLatestVersionAsync(branchId, cancellationToken);
 
         if (latest is null)
             return BadRequest(new { error = "This branch has no schema version yet." });
@@ -613,10 +401,8 @@ public class BranchController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == branchId, cancellationToken);
-        if (branch is null) return NotFound(new { error = "Branch not found." });
-        if (!await UserOwnsProjectAsync(branch.ProjectId, userId))
-            return NotFound(new { error = "Branch not found." });
+        var authorized = await _branches.AuthorizeBranchAsync(userId, branchId, cancellationToken);
+        if (!authorized.IsOk) return Fail(authorized);
 
         await _databases.DestroyAsync(branchId, cancellationToken);
         return NoContent();
@@ -641,7 +427,7 @@ public class BranchController : ControllerBase
         // Kotayı ölçüm motoru veriyor (22 §5): dahil miktar içindeyse geç, aşıldıysa
         // yalnızca aşırı kullanım AÇIKSA ve harcama tavanı dolmadıysa geç. Sabit bir
         // sınır, ödeme yapmaya HAZIR bir kullanıcıyı da durdururdu.
-        var decision = await _context.EvaluateAsync(userId, UsageResource.BranchDatabase, 1, ct);
+        var decision = await _billing.EvaluateAsync(userId, UsageResource.BranchDatabase, 1, ct);
 
         if (!decision.Allowed)
             return StatusCode(402, new

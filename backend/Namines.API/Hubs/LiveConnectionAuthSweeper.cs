@@ -105,7 +105,7 @@ public sealed class LiveConnectionAuthSweeper : BackgroundService
 
             foreach (var entry in byUser)
             {
-                var reason = await DenialReasonAsync(db, entry, userExists, currentStamp, ct);
+                var reason = await DenialReasonAsync(scope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Security.ITenantProjectAuthority>(), entry, userExists, currentStamp, ct);
                 if (reason is null) continue;
 
                 _logger.LogInformation(
@@ -130,7 +130,7 @@ public sealed class LiveConnectionAuthSweeper : BackgroundService
 
     /// <summary>Kapatma sebebi; bağlantı hâlâ yetkiliyse <c>null</c>.</summary>
     private static async Task<string?> DenialReasonAsync(
-        AuthDbContext db,
+        Namines.BuildingBlocks.Security.ITenantProjectAuthority authority,
         LiveConnectionRegistry.Entry entry,
         bool userExists,
         string? currentStamp,
@@ -148,7 +148,7 @@ public sealed class LiveConnectionAuthSweeper : BackgroundService
         // M-14: üyelik kaybı. Guest odaları (ProjectId null) kasıtlı olarak üyelik
         // istemiyor, bkz. CanvasHub sınıf notu — onları taramak, tasarlanmış bir
         // özelliği kırmak olurdu.
-        if (entry.ProjectId is not null && !await db.CanViewAsync(entry.ProjectId, entry.UserId, ct))
+        if (entry.ProjectId is not null && !await authority.CanViewAsync(entry.ProjectId, entry.UserId, ct))
             return "proje uyeligi kaldirilmis";
 
         return null;

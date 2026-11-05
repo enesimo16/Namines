@@ -45,7 +45,7 @@ public sealed class ExportPermissionTests : IAsyncLifetime
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
         foreach (var id in new[] { Project, "baska-proje" })
         {
-            db.CloudProjects.Add(new CloudProject
+            db.Studio().Projects.Add(new CloudProject
             {
                 Id = id,
                 Name = id,

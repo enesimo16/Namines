@@ -60,7 +60,7 @@ public sealed class AutomationControllerTests : IAsyncLifetime
             Id = projectId, Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = ownerId,
         };
-        db.CloudProjects.Add(project);
+        db.Studio().Projects.Add(project);
         await db.SaveChangesAsync();
         return project;
     }

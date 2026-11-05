@@ -25,14 +25,6 @@ namespace Namines.Flow.Configurations
                 else
                     entity.ToTable("automation_rules");
 
-                if (configureCrossModuleForeignKeys)
-                {
-                    entity.HasOne<CloudProject>()
-                          .WithMany()
-                          .HasForeignKey(r => r.ProjectId)
-                          .OnDelete(DeleteBehavior.Cascade);
-                }
-
                 entity.HasIndex(r => new { r.ProjectId, r.Enabled });
 
                 // Aksiyonlar kuralın parçası — kural silinince onlarla birlikte gider.

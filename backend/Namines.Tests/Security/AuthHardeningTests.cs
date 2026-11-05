@@ -84,7 +84,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
 
         return new AuthController(
             NewUserManager(db), db, config, new MigrationService(null!), new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, new FakeEnv(envName))
+            NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Workspace, new FakeEnv(envName))
         {
             ControllerContext = new ControllerContext
             {
@@ -236,7 +236,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         Assert.IsType<OkObjectResult>(await controller.SyncProjects(new() { Dto("new-1", "Orders") }));
 
         await using var verify = NewContext();
-        var project = await verify.CloudProjects.SingleAsync();
+        var project = await verify.Studio().Projects.SingleAsync();
         var org = await verify.Organizations.SingleAsync(o => o.Id == project.OrganizationId);
         Assert.True(org.IsPersonal);
         Assert.Equal("member-1", org.CreatedByUserId);
@@ -276,7 +276,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         db.OrganizationMembers.Add(new OrganizationMember
         { OrganizationId = "team-org", UserId = "team-owner", Role = OrgRole.Owner });
         // Kurucu org'da ÜYE DEĞİL.
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "shared-1", Name = "Team Project", DbType = "PostgreSQL", OrganizationId = "team-org",
             SchemaJson = "{\"tables\":[]}", NodePositionsJson = "{}", UserId = "founder",
@@ -295,7 +295,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         Assert.IsType<OkObjectResult>(await controller.SyncProjects(new() { dto }));
 
         await using var verify = NewContext();
-        var original = await verify.CloudProjects.SingleAsync(p => p.Id == "shared-1");
+        var original = await verify.Studio().Projects.SingleAsync(p => p.Id == "shared-1");
         Assert.Equal("Team Project", original.Name);
         Assert.Equal("team-org", original.OrganizationId);
 
@@ -305,7 +305,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
     }
 
     private static TeamController NewTeam(AuthDbContext db, string userId) =>
-        new(db)
+        new(db, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Identity)
         {
             ControllerContext = new ControllerContext
             {
@@ -328,7 +328,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         Assert.IsType<NotFoundObjectResult>(await team.UnshareProject("shared-1", CancellationToken.None));
 
         await using var verify = NewContext();
-        Assert.Equal("team-org", (await verify.CloudProjects.SingleAsync()).OrganizationId);
+        Assert.Equal("team-org", (await verify.Studio().Projects.SingleAsync()).OrganizationId);
     }
 
     // ── A-8: raw-SQL / export anahtarları Owner ister ────────────────────────
@@ -341,7 +341,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         db.Organizations.Add(new Organization { Id = "o1", Name = "o", IsPersonal = false, CreatedByUserId = "boss" });
         db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = "o1", UserId = "boss", Role = OrgRole.Owner });
         db.OrganizationMembers.Add(new OrganizationMember { OrganizationId = "o1", UserId = "creator", Role = creatorRole });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "p1", Name = "p", DbType = "PostgreSQL", OrganizationId = "o1",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "boss",
@@ -361,8 +361,8 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         var (rawSql, rawPlain) = await SeedKeysAsync(OrgRole.Admin);
         await using var db = NewContext();
 
-        Assert.Null(await db.AuthenticateAsync(rawSql));
-        Assert.NotNull(await db.AuthenticateAsync(rawPlain));
+        Assert.Null(await db.AuthenticateAsync(TestModules.For(db).DefaultAuthority, rawSql));
+        Assert.NotNull(await db.AuthenticateAsync(TestModules.For(db).DefaultAuthority, rawPlain));
     }
 
     [Fact]
@@ -371,7 +371,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         var (rawSql, _) = await SeedKeysAsync(OrgRole.Owner);
         await using var db = NewContext();
 
-        Assert.NotNull(await db.AuthenticateAsync(rawSql));
+        Assert.NotNull(await db.AuthenticateAsync(TestModules.For(db).DefaultAuthority, rawSql));
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
     {
         await SeedKeysAsync(OrgRole.Owner);
         await using var db = NewContext();
-        var controller = new ProjectMemberController(db, userManager: null!)
+        var controller = new ProjectMemberController(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects)
         {
             ControllerContext = new ControllerContext
             {

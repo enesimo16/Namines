@@ -67,8 +67,8 @@ public class KeyRotationTests
         await using (var pragma = conn.CreateCommand()) { pragma.CommandText = "PRAGMA foreign_keys=OFF;"; await pragma.ExecuteNonQueryAsync(); }
 
         var legacy = Make(K1);
-        db.CloudProjects.Add(new CloudProject { Id = "p1", Name = "a", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u",});
-        db.CloudProjects.Add(new CloudProject { Id = "p2", Name = "b", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u" });
+        db.Studio().Projects.Add(new CloudProject { Id = "p1", Name = "a", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u",});
+        db.Studio().Projects.Add(new CloudProject { Id = "p2", Name = "b", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u" });
         await db.SaveChangesAsync();
         await TestModules.For(db).SeedConnectionAsync("p1", legacy.Protect("conn-1"), "PostgreSQL", false);
 

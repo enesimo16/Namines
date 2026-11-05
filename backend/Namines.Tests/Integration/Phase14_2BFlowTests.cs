@@ -121,20 +121,20 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
     }
 
     private static HubController Hub(Scope s, string? userId = null) =>
-        new(s.Db, Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), s.Kit.HubService, s.Kit.StudioService, s.Kit.Transaction)
+        new(s.Kit.HubRepositories(ProjectDeletionTestKit.Create(s.Db, s.Kit)), s.Kit.HubIssues)
         {
             ControllerContext = new ControllerContext { HttpContext = Http(userId) },
         };
 
     private static ShareController Share(Scope s, string? userId = null) =>
-        new(s.Db, new LinterService(), s.Kit.StudioService)
+        new(s.Kit.Shares, new LinterService(), s.Kit.StudioService)
         {
             ControllerContext = new ControllerContext { HttpContext = Http(userId) },
         };
 
     private AuthController Auth(Scope s, string userId) =>
         new(Users(s.Db), s.Db, _config, new MigrationService(null!), new AutomationJobQueue(),
-            NullLogger<AuthController>.Instance, s.Kit.HubService, s.Kit.StudioService, s.Kit.Transaction)
+            NullLogger<AuthController>.Instance, s.Kit.HubService, s.Kit.StudioService, s.Kit.Transaction, s.Kit.DefaultAuthority, s.Kit.Projects, s.Kit.Workspace)
         {
             ControllerContext = new ControllerContext { HttpContext = Http(userId) },
         };
@@ -164,7 +164,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         string category = "General", string? tags = null, int stars = 0, string dbType = "PostgreSQL", DateTime? createdAt = null)
     {
         var at = createdAt ?? DateTime.UtcNow;
-        s.Db.CloudProjects.Add(new CloudProject
+        s.Db.Studio().Projects.Add(new CloudProject
         {
             Id = id, Name = name ?? id, DbType = dbType, SchemaJson = QualitySchema(), NodePositionsJson = "{}",
             UserId = owner, OrganizationId = org, CreatedAt = at, UpdatedAt = at,
@@ -207,7 +207,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.All(repos.Values, r => Assert.Equal("owner", r.OwnerUserId));
         Assert.All(repos.Values, r => Assert.Equal(ProjectVisibility.Private, r.Visibility));
 
-        var current = await v1.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "p-a");
+        var current = await v1.Db.Studio().Projects.AsNoTracking().SingleAsync(p => p.Id == "p-a");
 
         // Doğru sürüm kabul, eski sürüm 409 (xmin gerçek motorda).
         await using (var s2 = Open(cs))
@@ -216,7 +216,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             Assert.IsType<ConflictObjectResult>(await Auth(s3, "owner").SyncProjects(new() { Dto("p-a", "Orders v3", current.RowVersion) }));
 
         await using var v2 = Open(cs);
-        Assert.Equal("Orders v2", (await v2.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "p-a")).Name);
+        Assert.Equal("Orders v2", (await v2.Db.Studio().Projects.AsNoTracking().SingleAsync(p => p.Id == "p-a")).Name);
     }
 
     [RequiresDockerFact]
@@ -228,7 +228,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await SeedProjectAsync(s, "p2", slug: "free");
 
         await using var w = Open(cs);
-        var project = await w.Db.CloudProjects.SingleAsync(p => p.Id == "p2");
+        var project = await w.Db.Studio().Projects.SingleAsync(p => p.Id == "p2");
         project.Name = "Should roll back";
 
         // (sahip, slug) UNIQUE ihlali Hub tarafında, proje yazımından SONRA.
@@ -239,7 +239,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         }));
 
         await using var v = Open(cs);
-        Assert.Equal("p2", (await v.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "p2")).Name);
+        Assert.Equal("p2", (await v.Db.Studio().Projects.AsNoTracking().SingleAsync(p => p.Id == "p2")).Name);
         Assert.Equal("free", (await v.Kit.HubService.GetRepositoryAsync("p2"))!.Slug);
     }
 
@@ -338,10 +338,10 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
         var firstToken = await s.Kit.StudioService.CreateShareLinkAsync("p1");
         await Task.Delay(5);
-        for (var i = 0; i < Namines.BuildingBlocks.Application.StudioApplicationService.MaxActiveSharesPerProject; i++)
+        for (var i = 0; i < StudioApplicationService.MaxActiveSharesPerProject; i++)
             await s.Kit.StudioService.CreateShareLinkAsync("p1");
 
-        Assert.Equal(Namines.BuildingBlocks.Application.StudioApplicationService.MaxActiveSharesPerProject,
+        Assert.Equal(StudioApplicationService.MaxActiveSharesPerProject,
             await s.Kit.Studio.ProjectShares.CountAsync(x => x.ProjectId == "p1" && x.RevokedAt == null));
         Assert.Null(await s.Kit.StudioService.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(firstToken)));
     }
@@ -366,7 +366,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             await using var v = Open(cs);
             var repo = await v.Kit.HubService.GetRepositoryAsync("p1");
             Assert.Equal(expected, repo!.StarCount);
-            Assert.Equal(expected, await v.Db.RepoStars.CountAsync(x => x.ProjectId == "p1"));
+            Assert.Equal(expected, await v.Db.Hub().RepoStars.CountAsync(x => x.ProjectId == "p1"));
         }
         await AssertCounterMatchesAsync(5);
 
@@ -378,9 +378,9 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         }));
         await using (var v = Open(cs))
         {
-            var rows = await v.Db.RepoStars.CountAsync(x => x.ProjectId == "p1");
+            var rows = await v.Db.Hub().RepoStars.CountAsync(x => x.ProjectId == "p1");
             Assert.Equal(rows, (await v.Kit.HubService.GetRepositoryAsync("p1"))!.StarCount);
-            Assert.True(await v.Db.RepoStars.CountAsync(x => x.ProjectId == "p1" && x.UserId == "fan1") <= 1);
+            Assert.True(await v.Db.Hub().RepoStars.CountAsync(x => x.ProjectId == "p1" && x.UserId == "fan1") <= 1);
         }
 
         // Yinelenen yıldız veritabanı düzeyinde imkânsız.
@@ -422,7 +422,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             Assert.Equal("stranger", forked.OwnerUserId);
             Assert.Equal("FinTech", forked.Category);
             Assert.Equal("ledger,Finance", await v.Kit.HubService.GetTagsCsvAsync(forkId));
-            Assert.True(await v.Db.Branches.AnyAsync(b => b.ProjectId == forkId && b.IsDefault));
+            Assert.True(await v.Db.Studio().Branches.AnyAsync(b => b.ProjectId == forkId && b.IsDefault));
         }
 
         // Fork silinince kaynağın sayacı düşer.
@@ -443,7 +443,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             Assert.IsType<NoContentResult>(await Hub(d, "owner").DeleteRepo("src", default));
             await using var v = Open(cs);
             Assert.Null((await v.Kit.HubService.GetRepositoryAsync(second))!.ForkedFromProjectId);
-            Assert.True(await v.Db.CloudProjects.AnyAsync(p => p.Id == second));
+            Assert.True(await v.Db.Studio().Projects.AnyAsync(p => p.Id == second));
         }
     }
 
@@ -487,7 +487,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await using var d = Open(cs);
         var um = Users(d.Db);
         var service = new AccountDeletionService(d.Db, um, ProjectDeletionTestKit.Create(d.Db, d.Kit),
-            d.Kit.HubService, d.Kit.Transaction, NullLogger<AccountDeletionService>.Instance, d.Kit.Feedback);
+            d.Kit.HubService, d.Kit.Transaction, NullLogger<AccountDeletionService>.Instance, d.Kit.Feedback, d.Kit.Projects);
         var result = await service.DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
@@ -495,7 +495,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(0, (await v.Kit.HubService.GetRepositoryAsync("starred"))!.StarCount);
         var team = (await v.Kit.HubService.GetRepositoryAsync("team"))!;
         Assert.Equal("owner", team.OwnerUserId);
-        Assert.Equal("owner", (await v.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "team")).UserId);
+        Assert.Equal("owner", (await v.Db.Studio().Projects.AsNoTracking().SingleAsync(p => p.Id == "team")).UserId);
         Assert.Equal("team", await v.Kit.HubService.ResolveProjectIdAsync("owner", "teamrepo"));
     }
 
@@ -818,7 +818,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
     private static AccountDeletionService AccountDeletion(Scope s, ISubscriptionCanceller? canceller = null) =>
         new(s.Db, Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), s.Kit.HubService, s.Kit.Transaction,
-            NullLogger<AccountDeletionService>.Instance, s.Kit.Feedback, canceller);
+            NullLogger<AccountDeletionService>.Instance, s.Kit.Feedback, s.Kit.Projects, canceller);
 
     [RequiresDockerFact]
     public async Task Hesap_silme_varis_slug_cakismasi()
@@ -882,7 +882,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         {
             Assert.True(await v.Db.Users.AnyAsync(u => u.Id == "member"));
             Assert.Equal("member", (await v.Kit.HubService.GetRepositoryAsync("team"))!.OwnerUserId);
-            Assert.Equal("member", (await v.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "team")).UserId);
+            Assert.Equal("member", (await v.Db.Studio().Projects.AsNoTracking().SingleAsync(p => p.Id == "team")).UserId);
             // İşlem düştü: outbox satırı da yok, silinmemiş kullanıcının aboneliği iptal edilmez.
             Assert.False(await v.Db.PendingSubscriptionCancellations.AnyAsync());
         }
@@ -1011,7 +1011,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
                 logger: NullLogger<GatewayController>.Instance, quota: new AiQuotaService(s.Db, _config),
                 secrets: authority, studio: s.Kit.StudioService,
                 introspection: new DbIntrospectionService(NullLogger<DbIntrospectionService>.Instance, policy),
-                workbench: null!)
+                workbench: null!, authority: s.Kit.DefaultAuthority, projects: s.Kit.Projects, branches: s.Kit.Branches)
             {
                 ControllerContext = new ControllerContext { HttpContext = http },
             };

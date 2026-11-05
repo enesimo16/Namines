@@ -163,7 +163,7 @@ public class LaunchServiceTests : IAsyncLifetime
             new HttpContextAccessor(),
             new MemoryCache(new MemoryCacheOptions())));
 
-    private async Task<CloudProject> NewBareProjectAsync()
+    private async Task<StudioProject> NewBareProjectAsync()
     {
         var project = new CloudProject
         {
@@ -174,9 +174,9 @@ public class LaunchServiceTests : IAsyncLifetime
             NodePositionsJson = "{}",
             UserId = _userId,
         };
-        await _context!.CloudProjects.AddAsync(project);
-        await _context.SaveChangesAsync();
-        return project;
+        await _context!.Studio().Projects.AddAsync(project);
+        await _context!.Studio().SaveChangesAsync();
+        return (await TestModules.For(_context).Projects.GetAsync(project.Id))!;
     }
 
     private const string OneTableDdl = """

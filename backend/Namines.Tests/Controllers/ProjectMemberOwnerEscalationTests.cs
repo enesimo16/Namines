@@ -39,7 +39,7 @@ public sealed class ProjectMemberOwnerEscalationTests : IAsyncLifetime
         foreach (var id in new[] { "owner", "owner2", "admin", "editor" })
             db.Users.Add(new ApplicationUser { Id = id, UserName = id });
         db.Organizations.Add(new Organization { Id = OrgId, Name = "org", CreatedByUserId = "owner" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = ProjectId, Name = "p", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}",
             UserId = "owner", OrganizationId = OrgId,
@@ -56,7 +56,7 @@ public sealed class ProjectMemberOwnerEscalationTests : IAsyncLifetime
 
     // ProjectId doluyken ResolveOrgIdAsync UserManager'a dokunmuyor.
     private ProjectMemberController NewController(AuthDbContext db, string userId) =>
-        new(db, userManager: null!)
+        new(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, studioProjects: TestModules.For(db).Projects)
         {
             ControllerContext = new ControllerContext
             {

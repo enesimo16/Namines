@@ -42,7 +42,7 @@ public sealed class CanvasHubAuthorizationTests : IAsyncLifetime
         foreach (var id in new[] { "owner", "editor", "viewer", "stranger" })
             db.Users.Add(new ApplicationUser { Id = id, UserName = id });
         db.Organizations.Add(new Organization { Id = OrgId, Name = "org", CreatedByUserId = "owner" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = ProjectId, Name = "p", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}",
             UserId = "owner", OrganizationId = OrgId,
@@ -51,7 +51,7 @@ public sealed class CanvasHubAuthorizationTests : IAsyncLifetime
             new OrganizationMember { OrganizationId = OrgId, UserId = "owner", Role = OrgRole.Owner },
             new OrganizationMember { OrganizationId = OrgId, UserId = "editor", Role = OrgRole.Editor },
             new OrganizationMember { OrganizationId = OrgId, UserId = "viewer", Role = OrgRole.Viewer });
-        db.Branches.Add(new Branch { Id = BranchId, ProjectId = ProjectId, Name = "main", IsDefault = true, CreatedByUserId = "owner" });
+        db.Studio().Branches.Add(new Branch { Id = BranchId, ProjectId = ProjectId, Name = "main", IsDefault = true, CreatedByUserId = "owner" });
         await db.SaveChangesAsync();
     }
 
@@ -120,7 +120,7 @@ public sealed class CanvasHubAuthorizationTests : IAsyncLifetime
         var context = new FakeCallerContext(connectionId, userId);
         var groups = new RecordingGroups();
         var clients = new FakeClients();
-        var hub = new CanvasHub(new InMemoryPresenceStore(), db, new LiveConnectionRegistry())
+        var hub = new CanvasHub(new InMemoryPresenceStore(), TestModules.For(db).DefaultAuthority, TestModules.For(db).Branches, new LiveConnectionRegistry())
         {
             Context = context,
             Groups = groups,
@@ -239,19 +239,19 @@ public sealed class CanvasHubAuthorizationTests : IAsyncLifetime
     private async Task AddBranchAsync(string branchId, string projectId = ProjectId)
     {
         await using var db = new AuthDbContext(_options);
-        db.Branches.Add(new Branch { Id = branchId, ProjectId = projectId, Name = branchId, CreatedByUserId = "owner" });
+        db.Studio().Branches.Add(new Branch { Id = branchId, ProjectId = projectId, Name = branchId, CreatedByUserId = "owner" });
         await db.SaveChangesAsync();
     }
 
     private async Task AddPrivateProjectBranchAsync(string branchId)
     {
         await using var db = new AuthDbContext(_options);
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-private", Name = "private", DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}",
             UserId = "owner", OrganizationId = null,
         });
-        db.Branches.Add(new Branch { Id = branchId, ProjectId = "proj-private", Name = "main", IsDefault = true, CreatedByUserId = "owner" });
+        db.Studio().Branches.Add(new Branch { Id = branchId, ProjectId = "proj-private", Name = "main", IsDefault = true, CreatedByUserId = "owner" });
         await db.SaveChangesAsync();
     }
 

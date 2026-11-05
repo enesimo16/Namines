@@ -766,12 +766,11 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
     if (args.Contains("--reencrypt-secrets", StringComparer.OrdinalIgnoreCase))
     {
         using var rotScope = app.Services.CreateScope();
-        var rotDb = rotScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Modules.StudioDbContext>();
         var rotProtector = rotScope.ServiceProvider.GetRequiredService<Namines.Core.Security.IConnectionSecretProtector>()
             as Namines.Core.Security.IRotatableSecretProtector
             ?? throw new InvalidOperationException("Yapılandırılan koruyucu anahtar rotasyonunu desteklemiyor.");
-        var rotResult = Namines.Infrastructure.Security.ConnectionSecretReencryptor
-            .ReencryptAsync(rotDb, rotProtector, null).GetAwaiter().GetResult();
+        var rotResult = rotScope.ServiceProvider.GetRequiredService<Namines.Studio.Application.IConnectionSecretRotation>()
+            .ReencryptAllAsync(rotProtector, null).GetAwaiter().GetResult();
         Log.Information("--reencrypt-secrets: {Scanned} tarandı, {Done} yeniden şifrelendi, {Failed} başarısız.",
             rotResult.Scanned, rotResult.Reencrypted, rotResult.Failed);
         return rotResult.Failed == 0 ? 0 : 1;
@@ -840,7 +839,8 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
                     ownerScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
                     app.Configuration,
                     ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Security.IProjectConnectionSecretProvider>(),
-                    ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Application.IHubApplicationService>(),
+                    ownerScope.ServiceProvider.GetRequiredService<Namines.Hub.Application.IHubApplicationService>(),
+                    ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IStudioProjects>(),
                     ownerScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
                         .CreateLogger(nameof(Namines.API.Services.DevSandboxSeeder)));
             }
@@ -856,8 +856,10 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         {
             await Namines.API.Services.HubBlueprintSeeder.SeedAsync(
                 ownerScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
+                ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IStudioProjects>(),
+                ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IStudioBranches>(),
                 ownerScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
-                ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Application.IHubApplicationService>(),
+                ownerScope.ServiceProvider.GetRequiredService<Namines.Hub.Application.IHubApplicationService>(),
                 ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Persistence.ICrossModuleTransaction>(),
                 ownerScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
                     .CreateLogger(nameof(Namines.API.Services.HubBlueprintSeeder)));

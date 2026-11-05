@@ -254,7 +254,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             NullLogger<AdminController>.Instance,
             telemetry,
             config,
-            TestOps.Admin(sp, flags: flagService),
+            TestOps.Admin(sp, flags: flagService), TestModules.For(db).StudioAdmin, TestModules.For(db).Projects, TestModules.For(db).Identity,
             aiRouter: null);
 
         var testUser = new ApplicationUser
@@ -325,7 +325,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             NullLogger<AdminController>.Instance,
             telemetry,
             config,
-            TestOps.Admin(sp, flags: null),
+            TestOps.Admin(sp, flags: null), TestModules.For(db).StudioAdmin, TestModules.For(db).Projects, TestModules.For(db).Identity,
             aiRouter: router);
 
         var testUser = new ApplicationUser
@@ -400,7 +400,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             NullLogger<AdminController>.Instance,
             telemetry,
             config,
-            TestOps.Admin(sp, flags: flagService),
+            TestOps.Admin(sp, flags: flagService), TestModules.For(db).StudioAdmin, TestModules.For(db).Projects, TestModules.For(db).Identity,
             aiRouter: null);
 
         var claims = new System.Security.Claims.ClaimsPrincipal(

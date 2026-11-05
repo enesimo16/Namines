@@ -122,7 +122,7 @@ public sealed class AgentTools
         {
             var raw = schemaEl.GetString();
             if (!string.IsNullOrWhiteSpace(raw))
-                return JsonSerializer.Deserialize<DatabaseSchema>(raw, Namines.Infrastructure.Services.SchemaJsonOptions.Default);
+                return JsonSerializer.Deserialize<DatabaseSchema>(raw, Namines.Core.Models.SchemaJsonOptions.Default);
         }
 
         return Context;

@@ -29,7 +29,7 @@ public sealed class ShareTokenHashTests : IAsyncLifetime
         await using var db = new AuthDbContext(_options);
         await db.EnsureModulesCreatedAsync();
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "p1", Name = "Shared", DbType = "PostgreSQL", SchemaJson = "{\"tables\":[]}",
             NodePositionsJson = "{}", UserId = "u1",
@@ -84,7 +84,7 @@ public sealed class ShareTokenHashTests : IAsyncLifetime
     public async Task Anonim_uclar_token_ile_ozet_uzerinden_buluyor()
     {
         await using var db = new AuthDbContext(_options);
-        var controller = new ShareController(db, linter: null!, studio: TestModules.For(db).StudioService)
+        var controller = new ShareController(TestModules.For(db).Shares, linter: null!, studio: TestModules.For(db).StudioService)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };

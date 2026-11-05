@@ -37,16 +37,18 @@ namespace Namines.API.Hubs;
 // kullanıyoruz — böylece giriş yapmış bir kullanıcının kimliğine bürünmek (başka
 // birinin adını yazıp onun gibi görünmek) mümkün olmuyor. Anonim/guest kullanıcılar
 // için davranış değişmedi.
-public class CanvasHub : Hub
+public class CanvasHub : Microsoft.AspNetCore.SignalR.Hub
 {
     private readonly IPresenceStore _presence;
-    private readonly AuthDbContext _db;
+    private readonly ITenantProjectAuthority _authority;
+    private readonly IStudioBranches _branches;
     private readonly LiveConnectionRegistry _liveConnections;
 
-    public CanvasHub(IPresenceStore presence, AuthDbContext db, LiveConnectionRegistry liveConnections)
+    public CanvasHub(IPresenceStore presence, ITenantProjectAuthority authority, IStudioBranches branches, LiveConnectionRegistry liveConnections)
     {
         _presence = presence;
-        _db = db;
+        _authority = authority;
+        _branches = branches;
         _liveConnections = liveConnections;
     }
 
@@ -97,10 +99,7 @@ public class CanvasHub : Hub
 
     private Task<string?> ResolveBranchProjectAsync(string roomId)
     {
-        var bare = roomId.StartsWith(RoomPrefix, StringComparison.Ordinal) ? roomId[RoomPrefix.Length..] : roomId;
-        return _db.Branches.AsNoTracking()
-            .Where(b => b.Id == roomId || b.Id == bare)
-            .Select(b => b.ProjectId).FirstOrDefaultAsync();
+        return _branches.ResolveProjectIdAsync(roomId);
     }
 
     /// <summary>
@@ -134,7 +133,7 @@ public class CanvasHub : Hub
 
         var userId = CurrentUserId;
         var allowed = !string.IsNullOrEmpty(userId) &&
-            (requireEdit ? await _db.CanEditAsync(projectId, userId) : await _db.CanViewAsync(projectId, userId));
+            (requireEdit ? await _authority.CanEditAsync(projectId, userId) : await _authority.CanViewAsync(projectId, userId));
 
         Context.Items[key] = (DateTime.UtcNow, allowed);
         if (!allowed) await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
@@ -223,7 +222,7 @@ public class CanvasHub : Hub
         if (projectId is not null)
         {
             var userId = CurrentUserId;
-            if (string.IsNullOrEmpty(userId) || !await _db.CanViewAsync(projectId, userId))
+            if (string.IsNullOrEmpty(userId) || !await _authority.CanViewAsync(projectId, userId))
                 throw new HubException("You do not have access to this project.");
         }
 

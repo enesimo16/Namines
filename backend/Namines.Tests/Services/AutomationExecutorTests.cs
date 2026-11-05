@@ -76,7 +76,7 @@ public sealed class AutomationExecutorTests : IAsyncLifetime
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "user-1",
         };
-        db.CloudProjects.Add(project);
+        db.Studio().Projects.Add(project);
         await db.SaveChangesAsync();
 
         foreach (var r in rules)

@@ -20,7 +20,7 @@ public class BranchSchemaVersionTests : IAsyncLifetime
     private readonly PostgreSqlContainer _container =
         new PostgreSqlBuilder("postgres:17-alpine").Build();
 
-    private AuthDbContext? _context;
+    private AuthDbContext _context = null!;
     private string _projectId = null!;
     private string _userId = null!;
 
@@ -44,7 +44,7 @@ public class BranchSchemaVersionTests : IAsyncLifetime
         await _context.Users.AddAsync(new ApplicationUser { Id = _userId, UserName = "tester" });
 
         _projectId = Guid.NewGuid().ToString();
-        await _context.CloudProjects.AddAsync(new CloudProject
+        await _context.Studio().Projects.AddAsync(new CloudProject
         {
             Id = _projectId,
             Name = "TestProject",
@@ -76,10 +76,10 @@ public class BranchSchemaVersionTests : IAsyncLifetime
     public async Task Can_create_a_branch_and_read_it_back()
     {
         var branch = NewBranch("main", isDefault: true);
-        await _context!.Branches.AddAsync(branch);
+        await _context!.Studio().Branches.AddAsync(branch);
         await _context.SaveChangesAsync();
 
-        var reloaded = await _context.Branches.FindAsync(branch.Id);
+        var reloaded = await _context.Studio().Branches.FindAsync(branch.Id);
         Assert.NotNull(reloaded);
         Assert.Equal("main", reloaded!.Name);
         Assert.True(reloaded.IsDefault);
@@ -88,10 +88,10 @@ public class BranchSchemaVersionTests : IAsyncLifetime
     [RequiresDockerFact]
     public async Task Duplicate_branch_name_in_same_project_is_rejected()
     {
-        await _context!.Branches.AddAsync(NewBranch("feature-x"));
+        await _context!.Studio().Branches.AddAsync(NewBranch("feature-x"));
         await _context.SaveChangesAsync();
 
-        await _context.Branches.AddAsync(NewBranch("feature-x"));
+        await _context.Studio().Branches.AddAsync(NewBranch("feature-x"));
         await Assert.ThrowsAsync<DbUpdateException>(() => _context.SaveChangesAsync());
     }
 
@@ -100,23 +100,23 @@ public class BranchSchemaVersionTests : IAsyncLifetime
     {
         // Kısmi unique index'in (ProjectId WHERE IsDefault) gerçekten DB seviyesinde
         // uygulandığını kanıtlar — sadece EF/uygulama katmanında değil.
-        await _context!.Branches.AddAsync(NewBranch("main", isDefault: true));
+        await _context!.Studio().Branches.AddAsync(NewBranch("main", isDefault: true));
         await _context.SaveChangesAsync();
 
-        await _context.Branches.AddAsync(NewBranch("staging", isDefault: true));
+        await _context.Studio().Branches.AddAsync(NewBranch("staging", isDefault: true));
         await Assert.ThrowsAsync<DbUpdateException>(() => _context.SaveChangesAsync());
     }
 
     [RequiresDockerFact]
     public async Task Multiple_non_default_branches_are_allowed()
     {
-        await _context!.Branches.AddAsync(NewBranch("main", isDefault: true));
-        await _context.Branches.AddAsync(NewBranch("feature-a"));
-        await _context.Branches.AddAsync(NewBranch("feature-b"));
+        await _context!.Studio().Branches.AddAsync(NewBranch("main", isDefault: true));
+        await _context.Studio().Branches.AddAsync(NewBranch("feature-a"));
+        await _context.Studio().Branches.AddAsync(NewBranch("feature-b"));
 
         await _context.SaveChangesAsync();
 
-        var count = await _context.Branches.CountAsync(b => b.ProjectId == _projectId);
+        var count = await _context.Studio().Branches.CountAsync(b => b.ProjectId == _projectId);
         Assert.Equal(3, count);
     }
 
@@ -124,17 +124,17 @@ public class BranchSchemaVersionTests : IAsyncLifetime
     public async Task Schema_versions_are_numbered_uniquely_per_branch()
     {
         var branch = NewBranch("main", isDefault: true);
-        await _context!.Branches.AddAsync(branch);
+        await _context!.Studio().Branches.AddAsync(branch);
         await _context.SaveChangesAsync();
 
-        await _context.SchemaVersions.AddAsync(new SchemaVersion
+        await _context.Studio().SchemaVersions.AddAsync(new SchemaVersion
         {
             ProjectId = _projectId, BranchId = branch.Id, Version = 1,
             Checksum = "abc", SchemaJson = "{}", AuthorUserId = _userId
         });
         await _context.SaveChangesAsync();
 
-        await _context.SchemaVersions.AddAsync(new SchemaVersion
+        await _context.Studio().SchemaVersions.AddAsync(new SchemaVersion
         {
             ProjectId = _projectId, BranchId = branch.Id, Version = 1, // aynı numara — reddedilmeli
             Checksum = "def", SchemaJson = "{}", AuthorUserId = _userId
@@ -146,40 +146,40 @@ public class BranchSchemaVersionTests : IAsyncLifetime
     public async Task Deleting_project_cascades_to_branches_and_versions()
     {
         var branch = NewBranch("main", isDefault: true);
-        await _context!.Branches.AddAsync(branch);
+        await _context!.Studio().Branches.AddAsync(branch);
         await _context.SaveChangesAsync();
 
-        await _context.SchemaVersions.AddAsync(new SchemaVersion
+        await _context.Studio().SchemaVersions.AddAsync(new SchemaVersion
         {
             ProjectId = _projectId, BranchId = branch.Id, Version = 1,
             Checksum = "abc", SchemaJson = "{}", AuthorUserId = _userId
         });
         await _context.SaveChangesAsync();
 
-        var project = await _context.CloudProjects.FindAsync(_projectId);
-        _context.CloudProjects.Remove(project!);
+        var project = await _context.Studio().Projects.FindAsync(_projectId);
+        _context.Studio().Projects.Remove(project!);
         await _context.SaveChangesAsync();
 
-        Assert.False(await _context.Branches.AnyAsync(b => b.ProjectId == _projectId));
-        Assert.False(await _context.SchemaVersions.AnyAsync(v => v.ProjectId == _projectId));
+        Assert.False(await _context.Studio().Branches.AnyAsync(b => b.ProjectId == _projectId));
+        Assert.False(await _context.Studio().SchemaVersions.AnyAsync(v => v.ProjectId == _projectId));
     }
 
     [RequiresDockerFact]
     public async Task Deleting_parent_branch_sets_child_parent_id_to_null_not_delete()
     {
         var parent = NewBranch("main", isDefault: true);
-        await _context!.Branches.AddAsync(parent);
+        await _context!.Studio().Branches.AddAsync(parent);
         await _context.SaveChangesAsync();
 
         var child = NewBranch("feature-forked-from-main");
         child.ParentBranchId = parent.Id;
-        await _context.Branches.AddAsync(child);
+        await _context.Studio().Branches.AddAsync(child);
         await _context.SaveChangesAsync();
 
-        _context.Branches.Remove(parent);
+        _context.Studio().Branches.Remove(parent);
         await _context.SaveChangesAsync();
 
-        var reloadedChild = await _context.Branches.FindAsync(child.Id);
+        var reloadedChild = await _context.Studio().Branches.FindAsync(child.Id);
         Assert.NotNull(reloadedChild); // silinmedi
         Assert.Null(reloadedChild!.ParentBranchId); // ama referansı NULL'landı
     }
@@ -189,11 +189,11 @@ public class BranchSchemaVersionTests : IAsyncLifetime
 
     private async Task<Branch> GetOrCreateDefaultBranch()
     {
-        var branch = await _context!.Branches.FirstOrDefaultAsync(b => b.ProjectId == _projectId && b.IsDefault);
+        var branch = await _context!.Studio().Branches.FirstOrDefaultAsync(b => b.ProjectId == _projectId && b.IsDefault);
         if (branch is null)
         {
             branch = NewBranch("main", isDefault: true);
-            await _context.Branches.AddAsync(branch);
+            await _context.Studio().Branches.AddAsync(branch);
             await _context.SaveChangesAsync();
         }
         return branch;
@@ -202,7 +202,7 @@ public class BranchSchemaVersionTests : IAsyncLifetime
     [RequiresDockerFact]
     public async Task GetOrCreateDefaultBranch_creates_main_when_project_has_no_branches()
     {
-        Assert.False(await _context!.Branches.AnyAsync(b => b.ProjectId == _projectId));
+        Assert.False(await _context!.Studio().Branches.AnyAsync(b => b.ProjectId == _projectId));
 
         var branch = await GetOrCreateDefaultBranch();
 
@@ -218,7 +218,7 @@ public class BranchSchemaVersionTests : IAsyncLifetime
         var second = await GetOrCreateDefaultBranch();
 
         Assert.Equal(first.Id, second.Id);
-        Assert.Equal(1, await _context!.Branches.CountAsync(b => b.ProjectId == _projectId));
+        Assert.Equal(1, await _context!.Studio().Branches.CountAsync(b => b.ProjectId == _projectId));
     }
 
     /// <summary>
@@ -244,6 +244,6 @@ public class BranchSchemaVersionTests : IAsyncLifetime
         var branchA = await contextA.GetOrCreateDefaultBranchAsync(_projectId, _userId);
 
         Assert.Equal(branchB.Id, branchA.Id);   // aynı branch — iki kullanıcı aynı odada
-        Assert.Equal(1, await _context!.Branches.CountAsync(b => b.ProjectId == _projectId));
+        Assert.Equal(1, await _context!.Studio().Branches.CountAsync(b => b.ProjectId == _projectId));
     }
 }

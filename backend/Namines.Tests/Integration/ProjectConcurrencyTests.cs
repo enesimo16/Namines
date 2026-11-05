@@ -42,7 +42,7 @@ public class ProjectConcurrencyTests : IAsyncLifetime
         await db.MigrateAllModulesAsync();
 
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
-        db.CloudProjects.Add(NewProject("p1"));
+        db.Studio().Projects.Add(NewProject("p1"));
         await db.SaveChangesAsync();
     }
 
@@ -68,7 +68,7 @@ public class ProjectConcurrencyTests : IAsyncLifetime
     {
         await using var db = new AuthDbContext(_options);
 
-        var project = await db.CloudProjects.SingleAsync(p => p.Id == "p1", Ct);
+        var project = await db.Studio().Projects.SingleAsync(p => p.Id == "p1", Ct);
 
         Assert.NotEqual(0u, project.RowVersion);
     }
@@ -84,14 +84,14 @@ public class ProjectConcurrencyTests : IAsyncLifetime
         uint before;
         await using (var db = new AuthDbContext(_options))
         {
-            var p = await db.CloudProjects.SingleAsync(x => x.Id == "p1", Ct);
+            var p = await db.Studio().Projects.SingleAsync(x => x.Id == "p1", Ct);
             before = p.RowVersion;
             p.Name = "Yeni ad";
             await db.SaveChangesAsync(Ct);
         }
 
         await using var check = new AuthDbContext(_options);
-        var after = await check.CloudProjects.SingleAsync(x => x.Id == "p1", Ct);
+        var after = await check.Studio().Projects.SingleAsync(x => x.Id == "p1", Ct);
 
         Assert.NotEqual(before, after.RowVersion);
     }
@@ -108,12 +108,12 @@ public class ProjectConcurrencyTests : IAsyncLifetime
         // Kullanıcı A projeyi okuyor (elinde bu sürüm var).
         uint versionSeenByA;
         await using (var read = new AuthDbContext(_options))
-            versionSeenByA = (await read.CloudProjects.SingleAsync(p => p.Id == "p1", Ct)).RowVersion;
+            versionSeenByA = (await read.Studio().Projects.SingleAsync(p => p.Id == "p1", Ct)).RowVersion;
 
         // Kullanıcı B araya girip kaydediyor.
         await using (var other = new AuthDbContext(_options))
         {
-            var p = await other.CloudProjects.SingleAsync(x => x.Id == "p1", Ct);
+            var p = await other.Studio().Projects.SingleAsync(x => x.Id == "p1", Ct);
             p.SchemaJson = "{\"tables\":[]}";
             await other.SaveChangesAsync(Ct);
         }
@@ -121,7 +121,7 @@ public class ProjectConcurrencyTests : IAsyncLifetime
         // Şimdi A kaydetmeye çalışıyor. Denetleyicinin yaptığı karşılaştırma:
         // istemcinin gönderdiği sürüm != güncel sürüm  ->  409.
         await using var db = new AuthDbContext(_options);
-        var current = await db.CloudProjects.SingleAsync(x => x.Id == "p1", Ct);
+        var current = await db.Studio().Projects.SingleAsync(x => x.Id == "p1", Ct);
 
         Assert.NotEqual(versionSeenByA, current.RowVersion);
     }
@@ -136,8 +136,8 @@ public class ProjectConcurrencyTests : IAsyncLifetime
     {
         await using var db = new AuthDbContext(_options);
 
-        var first = (await db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "p1", Ct)).RowVersion;
-        var second = (await db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "p1", Ct)).RowVersion;
+        var first = (await db.Studio().Projects.AsNoTracking().SingleAsync(p => p.Id == "p1", Ct)).RowVersion;
+        var second = (await db.Studio().Projects.AsNoTracking().SingleAsync(p => p.Id == "p1", Ct)).RowVersion;
 
         Assert.Equal(first, second);
     }

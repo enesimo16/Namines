@@ -40,7 +40,7 @@ public sealed class BranchMergePreviewTests : IAsyncLifetime
     private AuthDbContext NewContext() => new(_options);
 
     private static BranchController NewController(AuthDbContext db, string userId) =>
-        new(db, new NoDatabases())
+        new(TestModules.For(db).BranchService, TestModules.For(db).Branches, new NoDatabases(), db)
         {
             ControllerContext = new ControllerContext
             {
@@ -94,7 +94,7 @@ public sealed class BranchMergePreviewTests : IAsyncLifetime
         db.Users.Add(new ApplicationUser { Id = userId, UserName = userId });
 
         var projectId = "proj-1";
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = projectId, Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = userId,
@@ -106,9 +106,9 @@ public sealed class BranchMergePreviewTests : IAsyncLifetime
             Id = "feat-1", ProjectId = projectId, Name = "feature/status",
             ParentBranchId = main.Id, ForkedFromVersion = 1, CreatedByUserId = userId,
         };
-        db.Branches.AddRange(main, feature);
+        db.Studio().Branches.AddRange(main, feature);
 
-        db.SchemaVersions.AddRange(
+        db.Studio().SchemaVersions.AddRange(
             new SchemaVersion { ProjectId = projectId, BranchId = main.Id, Version = 1, Checksum = "a", SchemaJson = baseJson },
             new SchemaVersion { ProjectId = projectId, BranchId = main.Id, Version = 2, Checksum = "b", SchemaJson = mainJson },
             new SchemaVersion { ProjectId = projectId, BranchId = feature.Id, Version = 1, Checksum = "c", SchemaJson = featureJson });
@@ -165,13 +165,13 @@ public sealed class BranchMergePreviewTests : IAsyncLifetime
 
         await using var db = NewContext();
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "proj-1", Name = "p", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "u1",
         });
-        db.Branches.Add(new Branch { Id = "root-1", ProjectId = "proj-1", Name = "main", IsDefault = true, CreatedByUserId = "u1" });
-        db.SchemaVersions.Add(new SchemaVersion { ProjectId = "proj-1", BranchId = "root-1", Version = 1, Checksum = "a", SchemaJson = json });
+        db.Studio().Branches.Add(new Branch { Id = "root-1", ProjectId = "proj-1", Name = "main", IsDefault = true, CreatedByUserId = "u1" });
+        db.Studio().SchemaVersions.Add(new SchemaVersion { ProjectId = "proj-1", BranchId = "root-1", Version = 1, Checksum = "a", SchemaJson = json });
         await db.SaveChangesAsync();
 
         var result = await NewController(db, "u1").MergePreview("root-1", default);

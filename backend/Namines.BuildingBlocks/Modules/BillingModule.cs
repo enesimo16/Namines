@@ -172,5 +172,8 @@ public sealed class BillingDbContext : DbContext
             modelBuilder.HasDefaultSchema(schema);
 
         BillingModelConfiguration.Configure(modelBuilder, schema, configureCrossModuleForeignKeys: false);
+
+        // D-2'ye kadar: tablolar public'te ve DDL Auth zincirinde; bu bağlam kullanılmıyor ama yanlış şemaya eşli kalmasın.
+        NonOwnerContext.MapToActualSchema(modelBuilder, schema is null ? null : "public");
     }
 }

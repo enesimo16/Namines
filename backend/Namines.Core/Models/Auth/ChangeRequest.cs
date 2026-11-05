@@ -19,17 +19,13 @@ namespace Namines.Core.Models.Auth
         public string Id { get; set; } = Guid.NewGuid().ToString();
 
         public string ProjectId { get; set; } = null!;
-        public CloudProject Project { get; set; } = null!;
 
         public string BranchId { get; set; } = null!;
-        public Branch Branch { get; set; } = null!;
 
         /// <summary>Null ise "boş şemadan" karşılaştırılıyor demektir (branch'in ilk versiyonu).</summary>
         public string? BaseVersionId { get; set; }
-        public SchemaVersion? BaseVersion { get; set; }
 
         public string HeadVersionId { get; set; } = null!;
-        public SchemaVersion HeadVersion { get; set; } = null!;
 
         public string? Title { get; set; }
 

@@ -65,14 +65,24 @@ public class GatewayKeyController : ControllerBase
     private readonly IGroundModule? _ground;
     private readonly IProjectConnectionSecretProvider _secretProvider;
 
+    private readonly ITenantProjectAuthority _authority;
+    private readonly IStudioProjects _projects;
+    private readonly IStudioBranches _branches;
+
     public GatewayKeyController(
         AuthDbContext context,
         IDbHostAccessPolicy hostPolicy,
         IDbIntrospectionService introspection,
         IProjectConnectionSecretProvider secretProvider,
+        ITenantProjectAuthority authority,
+        IStudioProjects projects,
+        IStudioBranches branches,
         IGroundModule? ground = null)
     {
         _context = context;
+        _authority = authority;
+        _projects = projects;
+        _branches = branches;
         _hostPolicy = hostPolicy;
         _introspection = introspection;
         _ground = ground;
@@ -86,7 +96,7 @@ public class GatewayKeyController : ControllerBase
     /// Editor yetkisi şema yazmaya yeter ama bir tabloyu internete açmaya yetmemeli.
     /// </summary>
     private async Task<bool> CanManageAsync(string projectId, string userId) =>
-        await _context.CanManageMembersAsync(projectId, userId);
+        await _authority.CanManageMembersAsync(projectId, userId);
 
     /// <summary>
     /// Namines Desk v2 §E4.2 / 34-SENDEN-BEKLENENLER.md madde 13 — SQL konsolunu
@@ -96,7 +106,7 @@ public class GatewayKeyController : ControllerBase
     /// değil — ikincisi yalnızca faturalama/org silme yetkisi olan role bırakıldı.
     /// </summary>
     private async Task<bool> IsOwnerAsync(string projectId, string userId) =>
-        await _context.GetRoleAsync(projectId, userId) == OrgRole.Owner;
+        await _authority.GetRoleAsync(projectId, userId) == OrgRole.Owner;
 
     [HttpPost("{projectId}")]
     public async Task<IActionResult> Create(string projectId, [FromBody] CreateGatewayKeyRequest request, CancellationToken ct)
@@ -255,7 +265,7 @@ public class GatewayKeyController : ControllerBase
         // projelerin var olduğunu sızdırmamak için (AuthorizeAsync'teki aynı
         // gerekçe). Görüyor ama Admin değilse 403 + AÇIK sebep: kabul kriteri 5
         // "yetkisiz kullanıcı açıklayıcı mesaj görür, boş liste değil".
-        if (!await _context.CanViewAsync(projectId, userId, ct))
+        if (!await _authority.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found." });
         if (!await CanManageAsync(projectId, userId))
             return StatusCode(403, new { error = "Admin permission is required for this section." });
@@ -303,7 +313,7 @@ public class GatewayKeyController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await _context.CanViewAsync(projectId, userId, ct))
+        if (!await _authority.CanViewAsync(projectId, userId, ct))
             return NotFound(new { error = "Project not found." });
         if (!await CanManageAsync(projectId, userId))
             return StatusCode(403, new { error = "Admin permission is required for this section." });
@@ -312,7 +322,7 @@ public class GatewayKeyController : ControllerBase
         var effectiveFrom = from ?? effectiveTo.AddDays(-7);
         var effectiveBucket = bucket == "hour" ? "hour" : "day";
 
-        var result = await _context.AnalyticsAsync(projectId, effectiveFrom, effectiveTo, effectiveBucket, ct);
+        var result = await _context.AnalyticsAsync(_branches, projectId, effectiveFrom, effectiveTo, effectiveBucket, ct);
 
         return Ok(new
         {
@@ -504,8 +514,7 @@ public class GatewayKeyController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.ConnectionString) || string.IsNullOrWhiteSpace(request.DbType))
             return BadRequest(new { error = "A connection string and engine type are required." });
 
-        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
-        if (project is null) return NotFound(new { error = "Project not found." });
+        if (!await _projects.ExistsAsync(projectId, ct)) return NotFound(new { error = "Project not found." });
 
         // SSRF: kaydetmeden ÖNCE. Reddedilecek bir hedefi şifreleyip saklamak,
         // sonra her istekte reddetmek; hatayı kullanıcıdan bir adım uzaklaştırırdı.
@@ -564,8 +573,7 @@ public class GatewayKeyController : ControllerBase
         if (!await CanManageAsync(projectId, userId))
             return NotFound(new { error = "Project not found." });
 
-        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
-        if (project is null) return NotFound(new { error = "Project not found." });
+        if (!await _projects.ExistsAsync(projectId, ct)) return NotFound(new { error = "Project not found." });
 
         // Namines Ground'un YÖNETTİĞİ bir veritabanının bağlantısı buradan
         // koparılamaz.
@@ -619,13 +627,12 @@ public class GatewayKeyController : ControllerBase
 
         // 404: proje hiç görünmüyor (Viewer bile değilsin) — var olan projectId'leri
         // sızdırmama gerekçesi diğer uçlarla aynı. Görüyor ama Owner değilsen 403.
-        var role = await _context.GetRoleAsync(projectId, userId, ct);
+        var role = await _authority.GetRoleAsync(projectId, userId, ct);
         if (role is null) return NotFound(new { error = "Project not found." });
         if (role != OrgRole.Owner)
             return StatusCode(403, new { error = "Only the project owner can enable or disable the SQL console." });
 
-        var project = await _context.CloudProjects.FirstOrDefaultAsync(p => p.Id == projectId, ct);
-        if (project is null) return NotFound(new { error = "Project not found." });
+        if (!await _projects.ExistsAsync(projectId, ct)) return NotFound(new { error = "Project not found." });
 
         try
         {

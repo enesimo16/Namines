@@ -52,7 +52,7 @@ public sealed class AuditProjectIdSpoofingTests : IAsyncLifetime
         db.Users.Add(new ApplicationUser { Id = "victim", UserName = "victim" });
         db.Users.Add(new ApplicationUser { Id = "attacker", UserName = "attacker" });
 
-        db.CloudProjects.Add(new CloudProject
+        db.Studio().Projects.Add(new CloudProject
         {
             Id = "victim-proj", Name = "victim", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = "victim",
@@ -76,7 +76,7 @@ public sealed class AuditProjectIdSpoofingTests : IAsyncLifetime
     }
 
     private static DatabaseExecutorController NewController(AuthDbContext db, string userId) =>
-        new(TestModules.For(db).SqlAudit, new NoopExecutor(), db, NullLogger<DatabaseExecutorController>.Instance)
+        new(TestModules.For(db).SqlAudit, new NoopExecutor(), TestModules.For(db).DefaultAuthority, NullLogger<DatabaseExecutorController>.Instance)
         {
             ControllerContext = new ControllerContext
             {

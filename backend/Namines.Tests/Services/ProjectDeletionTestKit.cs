@@ -118,7 +118,7 @@ internal static class ProjectDeletionTestKit
             authority,
             new IDatabaseProvider[] { provider },
             NullLogger<GroundApplicationService>.Instance);
-        return new ProjectDeletionService(db, vault, ground, NullLogger<ProjectDeletionService>.Instance, kit.HubService, kit.Transaction);
+        return new ProjectDeletionService(db, vault, ground, NullLogger<ProjectDeletionService>.Instance, kit.HubService, kit.Transaction, kit.Projects, kit.Branches, kit.Relations);
     }
 
     public static ProjectDeletionService Create(AuthDbContext db) => Create(db, new FakeStore(), new FakeProvider());

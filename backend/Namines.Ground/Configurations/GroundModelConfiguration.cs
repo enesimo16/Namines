@@ -41,9 +41,6 @@ namespace Namines.Ground.Configurations
                 // Silme akışı önce sağlayıcı DB'yi kapatıp kaydı işaretlemek zorunda.
                 if (configureCrossModuleForeignKeys)
                 {
-                    entity.HasOne<CloudProject>().WithMany()
-                          .HasForeignKey(g => g.ProjectId)
-                          .OnDelete(DeleteBehavior.Restrict);
                     entity.HasOne<ApplicationUser>().WithMany()
                           .HasForeignKey(g => g.CreatedByUserId)
                           .OnDelete(DeleteBehavior.SetNull);

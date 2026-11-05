@@ -62,6 +62,10 @@ namespace Namines.API.Controllers
         private readonly IStudioApplicationService _studio;
         private readonly ICrossModuleTransaction _transaction;
 
+        private readonly ITenantProjectAuthority _authority;
+        private readonly IStudioProjects _projects;
+        private readonly IProjectWorkspaceService _workspace;
+
         public AuthController(
             UserManager<ApplicationUser> userManager,
             AuthDbContext context,
@@ -72,6 +76,9 @@ namespace Namines.API.Controllers
             IHubApplicationService hub,
             IStudioApplicationService studio,
             ICrossModuleTransaction transaction,
+            ITenantProjectAuthority authority,
+            IStudioProjects projects,
+            IProjectWorkspaceService workspace,
             IWebHostEnvironment? environment = null,
             IHttpClientFactory? httpClientFactory = null,
 
@@ -80,6 +87,9 @@ namespace Namines.API.Controllers
             IFlowModule? flowModule = null,
             IDeskModule? deskModule = null)
         {
+            _authority = authority;
+            _projects = projects;
+            _workspace = workspace;
             _userManager = userManager;
             _context = context;
             _configuration = configuration;
@@ -439,14 +449,14 @@ namespace Namines.API.Controllers
             var pendingDiffs = new List<(string ProjectId, string DbType, string? OldJson, string NewJson)>();
             var pendingRepositories = new List<(string ProjectId, string OwnerUserId, string Name, string DbType, string? Slug)>();
             var reservedSlugs = new HashSet<(string Owner, string Slug)>();
+            var pendingWrites = new List<ProjectWrite>();
             foreach (var projDto in projects)
             {
-                var existing = await _context.CloudProjects
-                    .FirstOrDefaultAsync(p => p.Id == projDto.Id);
+                var existing = await _projects.GetAsync(projDto.Id);
                 var canEditExisting = existing != null &&
-                    await _context.CanEditAsync(existing.Id, userId);
+                    await _authority.CanEditAsync(existing.Id, userId);
                 var canViewExisting = existing != null &&
-                    (canEditExisting || await _context.CanViewAsync(existing.Id, userId));
+                    (canEditExisting || await _authority.CanViewAsync(existing.Id, userId));
 
                 if (existing != null && canEditExisting)
                 {
@@ -471,19 +481,16 @@ namespace Namines.API.Controllers
                     string dbTypeForDiff = existing.DbType;
                     string projectIdForDiff = existing.Id;
 
-                    existing.Name = projDto.Name;
-                    existing.DbType = projDto.DbType;
-                    existing.SchemaJson = projDto.SchemaJson;
-                    existing.NodePositionsJson = projDto.NodePositionsJson;
-                    existing.UpdatedAt = DateTime.UtcNow;
                     var existingRepository = await _hub.GetRepositoryAsync(existing.Id);
                     var missingSlug = existingRepository is null || string.IsNullOrWhiteSpace(existingRepository.Slug)
-                        ? await BuildUniqueSlugAsync(existing.Name, existing.Id, existing.UserId, reservedSlugs)
+                        ? await BuildUniqueSlugAsync(projDto.Name, existing.Id, existing.UserId, reservedSlugs)
                         : null;
                     // Slug dolu olsa da satır yazılır: ad/motor okuma modeli projeyle aynı işlemde güncel kalsın.
-                    pendingRepositories.Add((existing.Id, existing.UserId, existing.Name, existing.DbType, missingSlug));
-                    existing.OrganizationId ??= personalOrg.Id;
-                    _context.CloudProjects.Update(existing);
+                    pendingRepositories.Add((existing.Id, existing.UserId, projDto.Name, projDto.DbType, missingSlug));
+                    // Okunan sürüm jetonu beklenen değer: okuma ile yazma arasındaki yarış 409'a düşer.
+                    pendingWrites.Add(new ProjectWrite(
+                        existing.Id, projDto.Name, projDto.DbType, projDto.SchemaJson, projDto.NodePositionsJson,
+                        existing.UserId, existing.OrganizationId ?? personalOrg.Id, existing.RowVersion));
 
                     pendingDiffs.Add((projectIdForDiff, dbTypeForDiff, oldSchemaJsonForDiff, newSchemaJsonForDiff));
                 }
@@ -497,19 +504,9 @@ namespace Namines.API.Controllers
                     var idTakenByOther = !IsSafeNewProjectId(projDto.Id) || existing != null;
                     var newId = idTakenByOther ? Guid.NewGuid().ToString() : projDto.Id;
 
-                    var newCloudProj = new CloudProject
-                    {
-                        Id = newId,
-                        Name = projDto.Name,
-                        DbType = projDto.DbType,
-                        SchemaJson = projDto.SchemaJson,
-                        NodePositionsJson = projDto.NodePositionsJson,
-                        UserId = userId,
-                        OrganizationId = personalOrg.Id,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    await _context.CloudProjects.AddAsync(newCloudProj);
+                    pendingWrites.Add(new ProjectWrite(
+                        newId, projDto.Name, projDto.DbType, projDto.SchemaJson, projDto.NodePositionsJson,
+                        userId, personalOrg.Id));
                     pendingRepositories.Add((newId, userId, projDto.Name, projDto.DbType, await BuildUniqueSlugAsync(projDto.Name, newId, userId, reservedSlugs)));
                 }
                 savedCount++;
@@ -520,11 +517,10 @@ namespace Namines.API.Controllers
                 // Proje ve repo satırı tek işlemde: repo satırı olmayan proje oluşmaz.
                 await _transaction.ExecuteAsync(async c =>
                 {
-                    await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+                    await _projects.SaveAsync(pendingWrites, c);
                     foreach (var (projectId, ownerUserId, name, dbType, slug) in pendingRepositories)
                         await _hub.EnsureRepositoryAsync(projectId, ownerUserId, name, dbType, slug, c);
                 });
-                _context.ChangeTracker.AcceptAllChanges();
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -563,8 +559,8 @@ namespace Namines.API.Controllers
                 {
                     var oldSchema = string.IsNullOrWhiteSpace(oldJson)
                         ? new DatabaseSchema()
-                        : JsonSerializer.Deserialize<DatabaseSchema>(oldJson, Namines.Infrastructure.Services.SchemaJsonOptions.Default) ?? new DatabaseSchema();
-                    var newSchema = JsonSerializer.Deserialize<DatabaseSchema>(newJson, Namines.Infrastructure.Services.SchemaJsonOptions.Default) ?? new DatabaseSchema();
+                        : JsonSerializer.Deserialize<DatabaseSchema>(oldJson, Namines.Core.Models.SchemaJsonOptions.Default) ?? new DatabaseSchema();
+                    var newSchema = JsonSerializer.Deserialize<DatabaseSchema>(newJson, Namines.Core.Models.SchemaJsonOptions.Default) ?? new DatabaseSchema();
 
                     var engine = Enum.TryParse<DatabaseType>(dbType, ignoreCase: true, out var parsedEngine)
                         ? parsedEngine : DatabaseType.PostgreSQL;
@@ -593,55 +589,28 @@ namespace Namines.API.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            // ORTAK WORKSPACE: proje listesi artık yalnızca "benim oluşturduklarım"
-            // değil, ÜYESİ OLDUĞUM organizasyonların tamamı.
-            //
-            // Önceden `p.UserId == userId` yazıyordu; bu, Team planının satın
-            // aldığı şeyi imkânsız kılıyordu — ekip arkadaşı projeye eklense bile
-            // listesinde göremiyor, yalnızca doğrudan bağlantıyla açabiliyordu.
-            //
-            // Kişisel org da bu sorguya dahil (her kullanıcının bir tane var),
-            // yani tek kişilik hesaplarda sonuç aynı kalıyor.
-            var myOrgIds = await _context.OrganizationMembers.AsNoTracking()
-                .Where(m => m.UserId == userId)
-                .Select(m => m.OrganizationId)
-                .ToListAsync();
-
-            // Namines Desk v2 §E4.2: hangi projede Owner olduğumu bilmem gerekiyor
-            // (yalnızca Owner ham SQL çalıştırabilir/açabilir) — yukarıdaki
-            // `myOrgIds` yalnızca ÜYELİĞİ biliyordu, ROLÜ değil.
-            var myRoles = await _context.OrganizationMembers.AsNoTracking()
-                .Where(m => m.UserId == userId)
-                .ToDictionaryAsync(m => m.OrganizationId, m => m.Role);
-
-            var projects = await _context.CloudProjects
-                // "Kurucu" kısayolu yok: org'dan çıkarılan kurucu projeyi listesinde görmez.
-                // Yalnızca org'a taşınmamış (OrganizationId boş) eski satırlar sahibine açık
-                // (OrgAccess.GetRoleAsync ile aynı kural).
-                .Where(p => (p.OrganizationId == null && p.UserId == userId) ||
-                            (p.OrganizationId != null && myOrgIds.Contains(p.OrganizationId)))
-                .OrderByDescending(p => p.UpdatedAt)
-                .Select(p => new
-                {
-                    p.Id,
-                    p.Name,
-                    p.DbType,
-                    p.SchemaJson,
-                    p.NodePositionsJson,
-                    p.CreatedAt,
-                    p.UpdatedAt,
-                    p.AutoApproveSafeChanges,
-                    // Ekip görünümünde kimin projesi olduğu belli olmalı; aksi
-                    // hâlde ortak listede kimin ne eklediği anlaşılmaz.
-                    ownerUserId = p.UserId,
-                    ownerName = p.User.UserName,
-                    isMine = p.UserId == userId,
-                    p.OrganizationId,
-                    // İstemci bunu saklayıp `sync`'te geri göndermek zorunda,
-                    // yoksa çakışma koruması devreye girmez (B-32).
-                    p.RowVersion,
-                })
-                .ToListAsync();
+            // ORTAK WORKSPACE: üyesi olunan organizasyonların tüm projeleri, kişisel org dahil.
+            // Üyelik sınırı Studio'da uygulanıyor (IProjectWorkspaceService).
+            var workspace = await _workspace.ListForUserAsync(userId);
+            var projects = workspace.Select(w => new
+            {
+                w.Project.Id,
+                w.Project.Name,
+                w.Project.DbType,
+                w.Project.SchemaJson,
+                w.Project.NodePositionsJson,
+                w.Project.CreatedAt,
+                w.Project.UpdatedAt,
+                w.Project.AutoApproveSafeChanges,
+                // Ekip görünümünde kimin projesi olduğu belli olmalı.
+                ownerUserId = w.Project.UserId,
+                ownerName = w.OwnerName,
+                isMine = w.Project.UserId == userId,
+                w.Project.OrganizationId,
+                w.IsOwner,
+                // İstemci bunu saklayıp `sync`'te geri göndermek zorunda (B-32).
+                w.Project.RowVersion,
+            }).ToList();
 
             // Namines Desk (namines_desk/02-PROJECTS.md §2): kart üzerindeki "bağlı/bağlı değil"
             // rozeti gerçek bir alana dayanıyor; bağlantı dizesinin KENDİSİ asla dönmez, yalnızca
@@ -664,11 +633,7 @@ namespace Namines.API.Controllers
                 hasConnection = connections.GetValueOrDefault(p.Id)?.HasConnection ?? false,
                 connectionDbType = connections.GetValueOrDefault(p.Id)?.ConnectionDbType,
                 tableCount = TryCountTables(p.SchemaJson),
-                // Legacy (org'a taşınmamış) satırlarda GetRoleAsync'in kendi kuralıyla
-                // aynı: sahip == Owner sayılır (OrgAccess.GetRoleAsync'teki fallback).
-                isOwner = p.OrganizationId == null
-                    ? p.isMine
-                    : myRoles.TryGetValue(p.OrganizationId, out var role) && role == OrgRole.Owner,
+                isOwner = p.IsOwner,
                 allowDeskSql = connections.GetValueOrDefault(p.Id)?.AllowDeskSql ?? false,
                 p.RowVersion,
             });
