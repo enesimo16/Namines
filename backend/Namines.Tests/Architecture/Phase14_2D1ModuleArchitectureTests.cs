@@ -349,7 +349,7 @@ public sealed class Phase14_2D1ModuleArchitectureTests
 
     // ── Migration sahipliği ─────────────────────────────────────────────────
 
-    private static IReadOnlyList<ModuleMigrationDescriptor> AllDescriptors()
+    internal static IReadOnlyList<ModuleMigrationDescriptor> AllDescriptors()
     {
         var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
         services.AddLogging();
