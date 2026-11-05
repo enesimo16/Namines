@@ -17,7 +17,7 @@
 | API compatibility | PASS, farklar §4 tablosunda | Alan adları ve tipleri aynı (metin); gerçek API'ye karşı 53/53 duman; frontend: `tsc` 0 hata, vitest 39 dosya 280/280 |
 | Documentation | PASS | Bu rapor, `IMPLEMENTATION_STATUS.md`, `DATABASE_NORMALIZATION.md`, `MODULE_OWNERSHIP.md`, `docs/deploy/MIGRATION-VE-GERI-ALMA.md` §5.2 |
 | Performans | PASS | §7: etiket filtresi 2-33 ms, anahtar doğrulama tek sorguda 0,17 ms (200 bin issue, 20 bin anahtar) |
-| Independent audit | CONDITIONALLY ACCEPTED (B-1, M-1, M-2, M-3 açık) | `PHASE_14_2C_INDEPENDENT_AUDIT.md` |
+| Independent audit | ACCEPTED (ikinci tur, `cb4d3a4`; backlog BL-C1..C8 faza atandı) | `PHASE_14_2C_INDEPENDENT_AUDIT.md` |
 
 ## 2. Veri modeli (gerçekte oluşan)
 

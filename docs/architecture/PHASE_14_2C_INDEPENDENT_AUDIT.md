@@ -1,9 +1,94 @@
 # Faz 14.2C Bağımsız Kabul Denetimi
 
-> Denetlenen: `arch/phase-14-2`, `322d416..f4f9009`. Tarih: 2026-11-05.
+> Denetlenen: `arch/phase-14-2`, ikinci tur `1a9c6a0..cb4d3a4`, birinci tur `322d416..f4f9009`. Tarih: 2026-11-05.
 > Ortam: Windows 11, .NET 8.0.427, Docker; kendi `postgres:16` (Debian, ICU'lu, 16.15) container'ım, testlerde Testcontainers (`postgres:17-alpine`). Uygulayıcının rapor ve test çıktılarına güvenilmedi; aşağıdaki her sayı bu denetimde üretildi. Kod düzeltilmedi.
 
-## Nihai karar: CONDITIONALLY ACCEPTED
+## Nihai karar (ikinci tur, `cb4d3a4`): ACCEPTED
+
+B-1, M-1, M-2 ve M-3 kapandı; L-1, L-3, L-4, L-5, L-7 kapandı ya da gerekçeli karara bağlandı. Kabul kriterlerinin hepsi sağlanıyor, 14.2D-1 başlayabilir. Kalanlar bloklamıyor ve aşağıda faza atandı.
+
+**Sınırlar:** frontend bu turda koşulmadı (`322d416..HEAD` aralığında `frontend/` ve `services/` diff'i boş, ilk turun sonucu geçerli). Karşılaştırma yoklama temelli: 2,4 milyon karar her olası istemciyi kapsamaz.
+
+### Kabul tablosu (ikinci tur)
+
+| Alan | Sonuç | Kanıt |
+|---|---|---|
+| Build | PASS | `dotnet build backend/Namines.sln -c Release --no-incremental`: 0 uyarı, 0 hata |
+| Unit + Integration | PASS | `Namines.Tests`, sıralı: 2898 toplam, 2898 geçti, 0 kaldı, 0 atlandı, 15 dk 56 sn. Gerçek PG ve Docker ayakta |
+| RunTests | PASS | `Namines.Tests.RunTests`, sıralı: 19/19, 1 dk 1 sn |
+| Architecture | PASS | Aynı koşuda yeşil |
+| Migration | PASS | 90.000 fuzz anahtarıyla `--migrate` → runbook Down → `--migrate`: rc=0, Up1 = Up2 **0 fark**. `has-pending-model-changes` Auth, Studio, Hub, Gateway temiz |
+| Data integrity | PASS | Bayrak uyuşmazlığı 0; C#'ta olmayan satır 0; satıra dönmeyen C# girdisi 0. Hacimde Down sonrası 10.000 + 10.000 ham liste, 200.000 etiket, 50.000 maske geri geldi |
+| Security | PASS | IP ve origin genişlemesi 0 (aşağıda). B-1 HTTP: 403. Tek bilinçli fark L-1 |
+| API compatibility | PASS | Rota ve alan değişmedi. Duman 75/75. Yeni fark 409 raporda (L-3) |
+| Performans | PASS | Sorgu kodu bu turda değişmedi, ilk tur ölçümü geçerli. `--migrate` 200 bin issue: 39,5 sn |
+| Documentation | PASS, bir not | Rapor düzeltmeleri doğru, 2898/19 benimkiyle aynı. `IMPLEMENTATION_STATUS.md:3,18` hâlâ "denetim bekliyor": bu commit'in kapsamı dışında, sıradaki doküman işinde güncellenmeli |
+| Independent audit | **ACCEPTED** | Bu belge |
+
+### Bulguların yeniden sınanması
+
+| ID | Durum | Kanıt |
+|---|---|---|
+| B-1 | **Kapandı** | Aşağıda. Uygulayıcının fuzz'ı kullanılmadı |
+| M-1 | **Kapandı** | Gerçek migration'ın kurduğu tetikleyici (`FOR UPDATE` 1 eşleşme). Yarış, aynı anda 4 issue silinerek: katalog 1, işlenmiş bağ 1. Son bağ silinince katalog 0. Test `Etiket_temizligi_...` T2'nin beklediğini de doğruluyor |
+| M-2 | **Kapandı** | Runbook komutu yazıldığı gibi (`Command Timeout=1800`, `--no-build` yok): 200 bin issue, 20.000 karantina satırı: rc=0, derleme dahil 37 sn. Sonuç doğru, tablolar gitti, karantina 0, geçmiş `20261105105313`. Kök neden olarak karesel aramanın geçici tabloya alınması kodda doğru |
+| M-3 | **Kapandı** | xUnit tanılaması: `Starting: Namines.Tests (parallel test collections = off, ...)`. TRX'te sınıf geçişi 839'dan 300'e (229 sınıf; kalan, ms yuvarlaması ve koleksiyon içi sıra). `PrismaAvailable` artık `WorkingDirectory` veriyor, `CoderAiPackageSecretsTests` paralel olmayan koleksiyonda. Tam koşu temiz |
+| L-1 | Karar, kabul | Kod değişmedi, rapor §5'te gerekçeli, test belgeliyor. Bende 5366 yoklamanın hepsi aynı adres + kapsam kimliği |
+| L-3 | Karar, kabul | 409 §4'te. Duman: 8 eşzamanlı `PUT`'ta 3 tane, maske sonrası duruyor |
+| L-4 | **Kapandı** | Gerçek sınama: açık işlem varken `--migrate` 31 sn'de `55P03` ile düştü, sıfır olmayan çıkış, şema değişmedi; işlem kapanınca yeniden deneme rc=0. Testin kendisi elle yazılmış `LOCK` kullanıyor, gerçek davranışı bu ölçüm gösteriyor |
+| L-5 | **Kapandı** | Yalnız boşluk için iz yok, koşul `namines_2c_trim(...) <> ''` |
+| L-7 | **Kapandı** | `ByodbHardeningTests`, `DdlExecutionTests`, `GatewayWriteExecutionTests`, `Phase14_2BMigrationTests` eklendi |
+
+### Bağımsız fark testi
+
+Kendi dilbilgisi üretecim (mutasyon değil, parçadan kurma), sabit tohum. Kâhin olarak `git show 322d416:.../GatewayKeyRestrictions.cs` **derlendi**, elle kopya değil. Yeni taraf: gerçek `--migrate` ile dolan satırlar, gerçek `GatewayKeyRestrictions`.
+
+| Ölçü | Sonuç |
+|---|---|
+| Girdi | 60.000 IP listesi + 30.000 origin listesi; satır 27.372 IP, 7.950 origin; tümü geçersiz liste 48.651 |
+| Up doğrulaması | Yeni el yazısı ayrıştırıcı doldurmayla çelişmedi, migration düşmedi (yanlış alarm 0) |
+| IP karşılaştırma | 1.968.028 karar (güvenilir ve güvenilmez), **genişleme 0**. Kapsam kimlikli 5366 (L-1). Daralma 78.649, bilinçli |
+| Origin karşılaştırma | 434.809 karar, **genişleme 0**. Daralma 76.169, bilinçli |
+| Bayrak | Uyuşmazlık 0. İstemcisiz (null) durumda fark 0 |
+| Down sonrası eski kod | Geri dönen metin ile özgün metin eski kodda: 1.461.290 karar, **genişleme 0**, daralma 6 |
+| Üretecin gücü | Karantinadaki 5388 girdiyi çıplak `inet` kabul ediyor (`::FFFF:188.40`, `::FFFF:74.132.212` gibi): B-1 sınıfına gerçekten ulaşıldı ve hepsi kural olmadı |
+
+### B-1 gerçek HTTP (duman 75/75, API logunda `ada@secret.example` ve parola 0)
+
+`--migrate` sonrası, `X-Forwarded-For` güvenilir ağdan: `::ffff:1.2.3` için `1.2.3.0` → **403** (önceki tur 200). `::.2.3.4/0` için `2001:db8::1` ve `2600:1f18::77` → **403** (önceki tur 200). API `::ffff:1.2.3` → 400. Çocuk tablolar okunamazken yine 500, veri yok.
+
+### Test değişiklikleri zayıflatma mı?
+
+- **Kartezyen teori → iki Fact: zayıflatma yok.** Listeler ve yoklamalar aynı, yalnız 5 değer eklendi; `trustworthy` iki yönü duruyor; `Assert.Equal` → `Assert.True(legacy == current, mesaj)` aynı karar. Fark: ilk hatada durur. Silinen başka doğrulama yok (`git diff`: yalnız bu 4 `Assert` ve 2 `[Theory]`).
+- **Toplam 4675 → 2898** bu yüzden; ilk turda istediğim dürüst sayı.
+- **Doğrulama bağımsızlığı:** `Dogrulama_doldurma_...` korumayı söküp UpVerify'ın `verify ips` ile patladığını gösteriyor. Kırpma ve etiket anahtarı hâlâ ortak, rapor bunu açıkça yazıyor.
+- **`GatewayMaskingEndpointTests` gerçek:** gerçek PG, gerçek `GatewayController` ve `GatewayService`, maskesiz kontrol tablosu. İlk turda sınayamadığım `export`/`detail` sınırını kapatıyor. Geçici worktree'de mutasyon (silindi):
+
+| Mutasyon | Sonuç |
+|---|---|
+| Değişiklik yok | 6/6 |
+| `MaskedColumnsAsync` boş döner | 5 kaldı (list, detail, export csv/json, expand); kontrol testi geçti |
+| Yalnız expand yolu maskelemez | 1 kaldı (expand) |
+| Yalnız ana yol maskelemez | 4 kaldı (list, detail, export csv/json) |
+
+### Backlog (bloklamayan, faza atanmış)
+
+| ID | Sev. | Madde | Faz |
+|---|---|---|---|
+| BL-C1 | MEDIUM | `repo_issue_labels`'a bileşik FK ile proje bütünlüğü (bugün yalnız tek yazma yolu ve doğrulama koruyor) | 14.2D-1 (Hub) |
+| BL-C2 | LOW | L-2: karantina ham metni anahtar, proje ve hesap silinince duruyor; saklama süresi ya da silme akışı | 14.2D-2 (Identity) |
+| BL-C3 | LOW | L-6: anahtar sorgusu çarpımı eski büyük listelerde tavansız; gerekirse `AsSplitQuery` | 14.2D-1 (Gateway) |
+| BL-C4 | LOW | `RepoIssueLabelStore` Hub'a taşınması; `GatewayDbContext`'in gerçekten kullanılması | 14.2D-1 |
+| BL-C5 | LOW | L-3: maske `PUT` çakışmasında tek yeniden deneme (isteğe bağlı) | 14.2D-1 (Gateway) |
+| BL-C6 | LOW | Migration zinciri olmayan 8 bağlam `has-pending-model-changes`'te "changes" diyor; sahiplik taşınırken anlamlı hâle getirilmeli | 14.2D-1 / 14.2D-2 |
+| BL-C7 | BİLGİ | I-1: Unicode 16 harflerinde ICU/.NET etiket anahtarı farkı (27 kod noktası) | Sonraki .NET yükseltmesi |
+| BL-C8 | LOW | `IMPLEMENTATION_STATUS.md` 14.2C durumu güncellenmeli | 14.2D-1 başlangıcı |
+
+---
+
+# Birinci tur (`322d416..f4f9009`): kayıt
+
+## Birinci tur kararı: CONDITIONALLY ACCEPTED
 
 Normalizasyon tasarımı sağlam ve veri kaybı bulunmadı, ama raporun güvenlik iddiası ("geçersiz girdi asla genişletmez") **yanlış**: eski kodun hiçbir istemciyle eşleştirmediği bazı IP kuralları migration'dan sonra erişim veriyor (B-1, gerçek HTTP ile kanıtlı). Migration henüz hiçbir yere gitmedi, bu yüzden düzeltme aynı dosyada yapılmalı. B-1, M-1, M-2, M-3 kapanmadan 14.2D-1 başlamaz; dar kapsamlı yeniden denetim yeterli.
 
