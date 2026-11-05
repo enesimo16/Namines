@@ -1,6 +1,6 @@
 using System;
 
-namespace Namines.Core.Models;
+namespace Namines.Ops.Domain;
 
 /// <summary>Kullanıcı geri bildirimi (misafir veya giriş yapmış kullanıcı).</summary>
 public class Feedback

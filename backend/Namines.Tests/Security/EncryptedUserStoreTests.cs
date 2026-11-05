@@ -35,13 +35,14 @@ public sealed class EncryptedUserStoreTests : IAsyncLifetime
         services.AddSingleton<IConfiguration>(cfg);
         services.AddSingleton<IConnectionSecretProtector, AesGcmConnectionSecretProtector>();
         services.AddDbContext<AuthDbContext>(o => o.UseSqlite(_connection));
+        services.AddDbContext<OpsDbContext>(o => o.UseSqlite(_connection));
         services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<AuthDbContext>()
             .AddUserStore<EncryptedUserStore>()
             .AddDefaultTokenProviders();
         _sp = services.BuildServiceProvider();
         using var scope = _sp.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Database.EnsureCreatedAsync();
+        await scope.ServiceProvider.GetRequiredService<AuthDbContext>().EnsureModulesCreatedAsync();
     }
 
     public async Task DisposeAsync()

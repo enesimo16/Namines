@@ -3,7 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Namines.Core.Interfaces;
+using Namines.Ops.Application;
 
 namespace Namines.API.Controllers;
 

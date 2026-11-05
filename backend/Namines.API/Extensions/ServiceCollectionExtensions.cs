@@ -1,3 +1,4 @@
+using Namines.Ops.DependencyInjection;
 using System;
 using Namines.Infrastructure.Data;
 using Namines.BuildingBlocks.DependencyInjection;
@@ -172,6 +173,14 @@ public static class ServiceCollectionExtensions
                 config.GetConnectionString("DefaultConnection")
                     ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres",
                 config));
+        Func<IConfiguration, string> controlDb = config =>
+            Namines.Infrastructure.Data.ControlDbConnection.ApplyPoolDefaults(
+                config.GetConnectionString("DefaultConnection")
+                    ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres",
+                config);
+        services.AddOpsModule(controlDb);
+        services.AddSingleton(Namines.Infrastructure.Data.AuthMigrations.Descriptor);
+        services.AddScoped<Namines.BuildingBlocks.Security.IPlatformAdminAuthority, Namines.Infrastructure.Security.PlatformAdminAuthority>();
         services.AddScoped<Namines.BuildingBlocks.Persistence.ICrossModuleTransaction, Namines.Infrastructure.Data.CrossModuleTransaction>();
         services.AddScoped<TenantProjectAuthorityService>();
         services.AddScoped<ITenantProjectAuthority>(sp => sp.GetRequiredService<TenantProjectAuthorityService>());
@@ -297,8 +306,7 @@ public static class ServiceCollectionExtensions
         }
 
         // ── Admin: AI Tool Model Router & Feature Flags / Kill-Switch ───
-        services.AddSingleton<IAiToolRouter, AiToolRouter>();
-        services.AddSingleton<IFeatureFlagService, FeatureFlagService>();
+        services.AddSingleton<Namines.Ops.Application.IAiToolRouter, AiToolRouter>();
 
         return services;
     }

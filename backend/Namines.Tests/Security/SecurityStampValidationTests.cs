@@ -55,7 +55,7 @@ public sealed class SecurityStampValidationTests : IAsyncLifetime
             .Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
         db.Users.Add(new ApplicationUser
         {
             Id = UserId,

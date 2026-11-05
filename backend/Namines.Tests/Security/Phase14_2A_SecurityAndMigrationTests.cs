@@ -59,7 +59,7 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
             .Options;
 
         await using var db = new AuthDbContext(_authOptions);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
 
         _config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>

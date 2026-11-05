@@ -14,6 +14,8 @@ using Namines.Core.Analysis;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Core.Interfaces;
+using Namines.Ops.Application;
+using Namines.Ops.Domain;
 using Namines.Infrastructure.Data;
 
 using Namines.API.Services;
@@ -34,7 +36,7 @@ public class AdminController : ControllerBase
     private readonly ILogger<AdminController> _logger;
     private readonly AdminTelemetryService _telemetry;
     private readonly IConfiguration _configuration;
-    private readonly IFeatureFlagService? _featureFlags;
+    private readonly IOpsAdminService _ops;
     private readonly IAiToolRouter? _aiRouter;
     private readonly IVaultModule? _vault;
     private readonly IGroundModule? _ground;
@@ -47,7 +49,7 @@ public class AdminController : ControllerBase
         ILogger<AdminController> logger,
         AdminTelemetryService telemetry,
         IConfiguration configuration,
-        IFeatureFlagService? featureFlags = null,
+        IOpsAdminService ops,
         IAiToolRouter? aiRouter = null,
         IVaultModule? vault = null,
         IGroundModule? ground = null,
@@ -59,7 +61,7 @@ public class AdminController : ControllerBase
         _logger = logger;
         _telemetry = telemetry;
         _configuration = configuration;
-        _featureFlags = featureFlags;
+        _ops = ops;
         _aiRouter = aiRouter;
         _vault = vault;
         _ground = ground;
@@ -171,7 +173,7 @@ public class AdminController : ControllerBase
 
         var totalUsers = await _userManager.Users.CountAsync();
         var totalProjects = await _context.CloudProjects.CountAsync();
-        var totalFeedbacks = await _context.Feedbacks.CountAsync();
+        var totalFeedbacks = await _ops.CountFeedbacksAsync(admin.Id);
         var activeDatabases = _ground != null ? await _ground.Databases.CountTotalDatabasesAsync() : 0;
 
         var freeUsers = await _userManager.Users.CountAsync(u => !u.IsDev && (u.PlanCode == null || u.PlanCode == "" || u.PlanCode == "free"));
@@ -364,12 +366,7 @@ public class AdminController : ControllerBase
             })
             .ToListAsync();
 
-        var feedbacks = await _context.Feedbacks
-            .AsNoTracking()
-            .Where(f => f.UserId == id || f.Email == user.Email)
-            .OrderByDescending(f => f.CreatedAt)
-            .Take(10)
-            .ToListAsync();
+        var feedbacks = await _ops.ListFeedbacksForUserAsync(admin.Id, id, user.Email, 10);
 
         return Ok(new
         {
@@ -551,30 +548,15 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        if (page < 1) page = 1;
-        if (pageSize < 5) pageSize = 5;
-
-        var query = _context.Feedbacks.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(category) && category != "all")
-        {
-            query = query.Where(f => f.Category.ToLowerInvariant() == category.Trim().ToLowerInvariant());
-        }
-
-        var totalCount = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(f => f.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        var result = await _ops.ListFeedbacksAsync(admin.Id, category, page, pageSize);
 
         return Ok(new
         {
-            items,
-            totalCount,
-            page,
-            pageSize,
-            totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            items = result.Items,
+            totalCount = result.TotalCount,
+            page = result.Page,
+            pageSize = result.PageSize,
+            totalPages = result.TotalPages
         });
     }
 
@@ -587,11 +569,8 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        var feedback = await _context.Feedbacks.FindAsync(id);
-        if (feedback == null) return NotFound(new { error = "Feedback not found." });
-
-        _context.Feedbacks.Remove(feedback);
-        await _context.SaveChangesAsync();
+        if (!await _ops.DeleteFeedbackAsync(admin.Id, id))
+            return NotFound(new { error = "Feedback not found." });
 
         return Ok(new { message = "Feedback deleted." });
     }
@@ -1183,7 +1162,7 @@ public class AdminController : ControllerBase
         else if (kind == "feedbacks")
         {
             sb.AppendLine("ID,Category,UserEmail,Message,CreatedAt");
-            var feedbacks = await _context.Feedbacks.AsNoTracking().OrderByDescending(f => f.CreatedAt).Take(500).ToListAsync();
+            var feedbacks = await _ops.ExportFeedbacksAsync(admin.Id, 500);
             foreach (var f in feedbacks)
             {
                 sb.AppendLine(AdminCsv.Row(f.Id, f.Category, f.Email, f.Message, f.CreatedAt));
@@ -1252,9 +1231,7 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        if (_featureFlags == null) return Ok(Array.Empty<AdminFeatureFlag>());
-        var flags = await _featureFlags.GetAllFlagsAsync();
-        return Ok(flags);
+        return Ok(await _ops.ListFlagsAsync(admin.Id));
     }
 
     [HttpPut("features/{key}")]
@@ -1263,31 +1240,19 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        if (_featureFlags == null) return BadRequest("Feature flag service is not available.");
         if (string.IsNullOrWhiteSpace(key)) return BadRequest("Feature key is required.");
-
-        // Yalnızca katalogdaki bayraklar güncellenir; yazım hatası sessizce yeni bayrak yaratmasın.
-        if (await _featureFlags.GetFlagAsync(key) == null)
-        {
-            return NotFound(new { error = $"Unknown feature key '{key}'." });
-        }
 
         try
         {
             // Mod verilmediyse (null) servis mevcut modu korur; "Hidden" bayrak DisabledNotice'a dönmez.
-            await _featureFlags.UpdateFlagAsync(
-                key,
-                request.IsEnabled,
-                request.Mode ?? string.Empty,
-                request.NoticeMessage);
+            // Yalnızca katalogdaki bayraklar güncellenir; yazım hatası sessizce yeni bayrak yaratmasın.
+            var updated = await _ops.UpdateFlagAsync(admin.Id, key, request.IsEnabled, request.Mode ?? string.Empty, request.NoticeMessage);
+            return updated is null ? NotFound(new { error = $"Unknown feature key '{key}'." }) : Ok(updated);
         }
         catch (ArgumentException ex)
         {
             return BadRequest(new { error = ex.Message });
         }
-
-        var updated = await _featureFlags.GetFlagAsync(key);
-        return Ok(updated);
     }
 
     // ── AI Model Yönlendirme (Tool-Based Routing) ───────────────────────────
@@ -1298,7 +1263,7 @@ public class AdminController : ControllerBase
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
         if (_aiRouter == null) return Ok(new { routes = Array.Empty<AiToolRoute>(), providers = Array.Empty<string>() });
-        var routes = await _aiRouter.GetAllRoutesAsync();
+        var routes = await _ops.ListRoutesAsync(admin.Id);
         var providers = _aiRouter.GetAvailableProviders();
         return Ok(new { routes, providers });
     }
@@ -1312,14 +1277,7 @@ public class AdminController : ControllerBase
         if (_aiRouter == null) return BadRequest("AI router service is not available.");
         if (string.IsNullOrWhiteSpace(toolKey)) return BadRequest("Tool key is required.");
 
-        await _aiRouter.UpdateRouteAsync(
-            toolKey,
-            request.Provider,
-            request.ModelName,
-            request.Temperature,
-            request.FallbackProvider);
-
-        var updated = await _aiRouter.GetRouteAsync(toolKey);
+        var updated = await _ops.UpdateRouteAsync(admin.Id, toolKey, request.Provider, request.ModelName, request.Temperature, request.FallbackProvider);
         return Ok(updated);
     }
 }

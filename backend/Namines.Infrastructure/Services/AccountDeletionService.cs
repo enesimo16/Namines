@@ -11,6 +11,7 @@ using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+using Namines.Ops.Application;
 
 namespace Namines.Infrastructure.Services;
 
@@ -56,6 +57,7 @@ public class AccountDeletionService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ProjectDeletionService _projects;
     private readonly IHubApplicationService _hub;
+    private readonly IFeedbackService _feedback;
     private readonly ICrossModuleTransaction _transaction;
     private readonly ISubscriptionCanceller? _stripe;
     private readonly ILogger<AccountDeletionService> _logger;
@@ -67,12 +69,14 @@ public class AccountDeletionService
         IHubApplicationService hub,
         ICrossModuleTransaction transaction,
         ILogger<AccountDeletionService> logger,
+        IFeedbackService feedback,
         ISubscriptionCanceller? stripe = null)
     {
         _context = context;
         _userManager = userManager;
         _projects = projects;
         _hub = hub;
+        _feedback = feedback;
         _transaction = transaction;
         _logger = logger;
         _stripe = stripe;
@@ -257,10 +261,7 @@ public class AccountDeletionService
                 .ExecuteUpdateAsync(s => s.SetProperty(k => k.RevokedAt, (DateTime?)now), ct);
 
             // Geri bildirim metni kalır (ürün geri bildirimi), kişiyi tanımlayan alanlar gider.
-            await _context.Feedbacks.Where(f => f.UserId == userId)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(f => f.Email, (string?)null)
-                    .SetProperty(f => f.UserId, (string?)null), ct);
+            await _feedback.AnonymizeByUserAsync(userId, ct);
 
             // ExecuteUpdate/Delete izlenen varlıkları güncellemez: eski bir CloudProject örneği hâlâ
             // takipteyse kullanıcı silinirken EF onu (cascade) yeniden silmeye çalışıp devredilmiş

@@ -38,7 +38,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
             .Options;
 
         _context = new AuthDbContext(options);
-        await _context.Database.MigrateAsync();
+        await _context.MigrateAllModulesAsync();
 
         _userId = Guid.NewGuid().ToString();
         _reviewerId = Guid.NewGuid().ToString();

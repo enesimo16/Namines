@@ -39,7 +39,7 @@ public class ProjectConcurrencyTests : IAsyncLifetime
             .UseNpgsql(_container.GetConnectionString()).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.MigrateAsync();
+        await db.MigrateAllModulesAsync();
 
         db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
         db.CloudProjects.Add(NewProject("p1"));

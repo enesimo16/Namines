@@ -1,9 +1,10 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Namines.Core.Models;
+using Namines.Core.Interfaces;
+using Namines.Ops.Domain;
 
-namespace Namines.Core.Interfaces;
+namespace Namines.Ops.Application;
 
 /// <summary>
 /// AI araçlarının hangi LLM sağlayıcısına yönlendirileceğini yöneten dinamik yönlendirici.

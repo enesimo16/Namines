@@ -88,7 +88,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
     {
         var cs = await _pg.CreateDatabaseAsync(name);
         await using var scope = Open(cs);
-        await scope.Db.Database.MigrateAsync();
+        await scope.Db.MigrateAllModulesAsync();
 
         scope.Db.Users.AddRange(
             User("owner"), User("member"), User("stranger"), User("fan1"), User("fan2"));
@@ -487,7 +487,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await using var d = Open(cs);
         var um = Users(d.Db);
         var service = new AccountDeletionService(d.Db, um, ProjectDeletionTestKit.Create(d.Db, d.Kit),
-            d.Kit.HubService, d.Kit.Transaction, NullLogger<AccountDeletionService>.Instance);
+            d.Kit.HubService, d.Kit.Transaction, NullLogger<AccountDeletionService>.Instance, d.Kit.Feedback);
         var result = await service.DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
@@ -809,7 +809,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
         var result = await DataRetentionService.PurgeAsync(
             s.Db, DataRetentionService.RetentionOptions.From(new ConfigurationBuilder().Build()),
-            NullLogger.Instance, DateTime.UtcNow, TimeSpan.Zero, default);
+            NullLogger.Instance, DateTime.UtcNow, TimeSpan.Zero, default, s.Kit.OpsRetention);
 
         Assert.Equal(1, result["PendingSubscriptionCancellations"]);
         var left = await s.Db.PendingSubscriptionCancellations.AsNoTracking().Select(c => c.Id).OrderBy(x => x).ToListAsync();
@@ -818,7 +818,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
     private static AccountDeletionService AccountDeletion(Scope s, ISubscriptionCanceller? canceller = null) =>
         new(s.Db, Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), s.Kit.HubService, s.Kit.Transaction,
-            NullLogger<AccountDeletionService>.Instance, canceller);
+            NullLogger<AccountDeletionService>.Instance, s.Kit.Feedback, canceller);
 
     [RequiresDockerFact]
     public async Task Hesap_silme_varis_slug_cakismasi()

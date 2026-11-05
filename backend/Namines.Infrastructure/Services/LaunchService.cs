@@ -15,6 +15,7 @@ using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Ground.Application;
 using Namines.Infrastructure.Data;
+using Namines.Ops.Application;
 using Namines.Vault.Application;
 
 namespace Namines.Infrastructure.Services;
@@ -61,7 +62,7 @@ public class LaunchService
     private readonly IDatabaseExecutor _executor;
     private readonly IVaultApplicationService _vault;
     private readonly IProjectConnectionSecretProvider _secrets;
-    private readonly AuthDbContext _context;
+    private readonly ISqlExecutionAuditService _audit;
     private readonly ILogger<LaunchService> _logger;
 
     public LaunchService(
@@ -70,7 +71,7 @@ public class LaunchService
         IDatabaseExecutor executor,
         IVaultApplicationService vault,
         IProjectConnectionSecretProvider secrets,
-        AuthDbContext context,
+        ISqlExecutionAuditService audit,
         ILogger<LaunchService> logger)
     {
         _ground = ground;
@@ -78,7 +79,7 @@ public class LaunchService
         _executor = executor;
         _vault = vault;
         _secrets = secrets;
-        _context = context;
+        _audit = audit;
         _logger = logger;
     }
 
@@ -162,34 +163,17 @@ public class LaunchService
     {
         var (host, database) = ConnectionTargetDescriber.Describe(connectionString, DatabaseType.PostgreSQL);
 
-        var entry = new SqlExecutionAudit
-        {
-            UserId = userId,
-            ProjectId = projectId,
-            TargetHost = host,
-            TargetDatabase = database,
-            DbType = DatabaseType.PostgreSQL.ToString(),
-            ScriptHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ddlScript))),
-            ScriptPreview = ddlScript.Length <= ScriptPreviewLength ? ddlScript : ddlScript[..ScriptPreviewLength],
-            ScriptLength = ddlScript.Length,
-            ContainsDestructiveKeyword = DestructiveKeywords.Any(
-                k => ddlScript.Contains(k, StringComparison.OrdinalIgnoreCase)),
-            Success = execution.Success,
-            StatementsExecuted = execution.StatementsExecuted,
-            PartialApplyPossible = execution.PartialApplyPossible,
-            Error = execution.ErrorMessage,
-        };
-
         try
         {
-            _context.SqlExecutionAudits.Add(entry);
-            await _context.SaveChangesAsync(ct);
+            await _audit.RecordAsync(new SqlExecutionRecord(
+                userId, projectId, host, database, DatabaseType.PostgreSQL.ToString(), ddlScript,
+                execution.Success, execution.StatementsExecuted, execution.PartialApplyPossible, execution.ErrorMessage), ct);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Launch: SQL calistirma denetim kaydi YAZILAMADI. Kullanici={UserId} Hedef={Host}/{Database} Hash={Hash}",
-                userId, host, database, entry.ScriptHash);
+                "Launch: SQL calistirma denetim kaydi YAZILAMADI. Kullanici={UserId} Hedef={Host}/{Database}",
+                userId, host, database);
         }
     }
 }

@@ -37,7 +37,7 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
         _deskOptions = new DbContextOptionsBuilder<DeskDbContext>().UseSqlite(_connection).Options;
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
@@ -68,7 +68,7 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         {
             var deskApp = new DeskApplicationService(deskDb, new DeskHandoffTokenValidator());
             var r = await DataRetentionService.PurgeAsync(
-                db, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, deskApp);
+                db, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db).OpsRetention, deskApp);
             Assert.Equal(1, r["GatewayAuditEntries"]);
             Assert.Equal(1, r["StripeWebhookEvents"]);
             Assert.Equal(1, r["desk_handoff_tokens"]);
@@ -96,7 +96,7 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         await using var deskDb2 = new DeskDbContext(_deskOptions);
         var deskApp = new DeskApplicationService(deskDb2, new DeskHandoffTokenValidator());
         var r = await DataRetentionService.PurgeAsync(
-            db2, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, deskApp);
+            db2, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db2).OpsRetention, deskApp);
         Assert.Equal(DataRetentionService.BatchSize + 50, r["GatewayAuditEntries"]);
         Assert.Equal(0, await db2.GatewayAuditEntries.CountAsync());
     }

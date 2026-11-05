@@ -3,8 +3,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Namines.Core.Models;
-using Namines.Infrastructure.Data;
+using Namines.Ops.Application;
 
 namespace Namines.API.Controllers;
 
@@ -14,11 +13,11 @@ namespace Namines.API.Controllers;
 [EnableRateLimiting("sensitive")]
 public class FeedbackController : ControllerBase
 {
-    private readonly AuthDbContext _context;
+    private readonly IFeedbackService _feedback;
 
-    public FeedbackController(AuthDbContext context)
+    public FeedbackController(IFeedbackService feedback)
     {
-        _context = context;
+        _feedback = feedback;
     }
 
     public class FeedbackRequest
@@ -31,29 +30,10 @@ public class FeedbackController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Submit([FromBody] FeedbackRequest request)
     {
-        var message = request.Message?.Trim() ?? string.Empty;
-        if (message.Length < 3)
+        var accepted = await _feedback.SubmitAsync(new FeedbackSubmission(
+            User.FindFirstValue(ClaimTypes.NameIdentifier), request.Email, request.Category, request.Message));
+        if (!accepted)
             return BadRequest(new { message = "Your feedback is too short." });
-        if (message.Length > 4000)
-            message = message.Substring(0, 4000);
-
-        var category = request.Category switch
-        {
-            "bug" or "idea" or "general" => request.Category,
-            _ => "general"
-        };
-
-        var feedback = new Feedback
-        {
-            UserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
-            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
-            Category = category!,
-            Message = message,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        await _context.Feedbacks.AddAsync(feedback);
-        await _context.SaveChangesAsync();
 
         return Ok(new { message = "Thanks for your feedback." });
     }

@@ -34,7 +34,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
     }
 
     public async Task DisposeAsync()
@@ -48,6 +48,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
     {
         var services = new ServiceCollection();
         services.AddDbContext<AuthDbContext>(options => options.UseSqlite(_connection));
+        services.AddDbContext<OpsDbContext>(options => options.UseSqlite(_connection));
         var sp = services.BuildServiceProvider();
         return sp.GetRequiredService<IServiceScopeFactory>();
     }
@@ -82,7 +83,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             new MockChatProvider("deepseek")
         };
 
-        var router = new AiToolRouter(providers, scopeFactory, NullLogger<AiToolRouter>.Instance, config);
+        var router = new AiToolRouter(providers, new AiRouteCatalog(scopeFactory, NullLogger<AiRouteCatalog>.Instance), NullLogger<AiToolRouter>.Instance, config);
 
         var schemaRoute = await router.GetRouteAsync("schema_generator");
         Assert.NotNull(schemaRoute);
@@ -109,7 +110,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             new MockChatProvider("deepseek")
         };
 
-        var router = new AiToolRouter(providers, scopeFactory, NullLogger<AiToolRouter>.Instance, config);
+        var router = new AiToolRouter(providers, new AiRouteCatalog(scopeFactory, NullLogger<AiRouteCatalog>.Instance), NullLogger<AiToolRouter>.Instance, config);
 
         // Update route from groq to deepseek
         await router.UpdateRouteAsync(
@@ -127,7 +128,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
 
         // Verify persisted to DB using fresh context
         using var verifyCtx = CreateContext();
-        var dbEntity = await verifyCtx.AiToolRoutes.FindAsync("schema_generator");
+        var dbEntity = await verifyCtx.Ops().AiToolRoutes.FindAsync("schema_generator");
         Assert.NotNull(dbEntity);
         Assert.Equal("deepseek", dbEntity.Provider);
         Assert.Equal("deepseek-coder", dbEntity.ModelName);
@@ -148,7 +149,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             new MockChatProvider("openai")
         };
 
-        var router = new AiToolRouter(providers, scopeFactory, NullLogger<AiToolRouter>.Instance, config);
+        var router = new AiToolRouter(providers, new AiRouteCatalog(scopeFactory, NullLogger<AiRouteCatalog>.Instance), NullLogger<AiToolRouter>.Instance, config);
 
         var available = router.GetAvailableProviders();
         Assert.Contains("claude", available);
@@ -209,7 +210,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
 
         // Verify database entry
         using var verifyCtx = CreateContext();
-        var dbFlag = await verifyCtx.FeatureFlags.FindAsync("canvas");
+        var dbFlag = await verifyCtx.Ops().FeatureFlags.FindAsync("canvas");
         Assert.NotNull(dbFlag);
         Assert.False(dbFlag.IsEnabled);
         Assert.Equal("Hidden", dbFlag.Mode);
@@ -236,6 +237,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(opt => opt.UseSqlite(_connection));
+        services.AddDbContext<OpsDbContext>(opt => opt.UseSqlite(_connection));
         services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
         var sp = services.BuildServiceProvider();
 
@@ -252,7 +254,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             NullLogger<AdminController>.Instance,
             telemetry,
             config,
-            featureFlags: flagService,
+            TestOps.Admin(sp, flags: flagService),
             aiRouter: null);
 
         var testUser = new ApplicationUser
@@ -301,6 +303,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(opt => opt.UseSqlite(_connection));
+        services.AddDbContext<OpsDbContext>(opt => opt.UseSqlite(_connection));
         services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
         var sp = services.BuildServiceProvider();
 
@@ -312,7 +315,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             new MockChatProvider("groq"),
             new MockChatProvider("deepseek")
         };
-        var router = new AiToolRouter(providers, scopeFactory, NullLogger<AiToolRouter>.Instance, config);
+        var router = new AiToolRouter(providers, new AiRouteCatalog(scopeFactory, NullLogger<AiRouteCatalog>.Instance), NullLogger<AiToolRouter>.Instance, config);
         var telemetry = new Namines.API.Services.AdminTelemetryService();
 
         using var db = CreateContext();
@@ -322,7 +325,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             NullLogger<AdminController>.Instance,
             telemetry,
             config,
-            featureFlags: null,
+            TestOps.Admin(sp, flags: null),
             aiRouter: router);
 
         var testUser = new ApplicationUser
@@ -371,6 +374,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(opt => opt.UseSqlite(_connection));
+        services.AddDbContext<OpsDbContext>(opt => opt.UseSqlite(_connection));
         services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
         var sp = services.BuildServiceProvider();
 
@@ -396,7 +400,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
             NullLogger<AdminController>.Instance,
             telemetry,
             config,
-            featureFlags: flagService,
+            TestOps.Admin(sp, flags: flagService),
             aiRouter: null);
 
         var claims = new System.Security.Claims.ClaimsPrincipal(

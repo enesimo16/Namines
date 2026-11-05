@@ -34,7 +34,7 @@ public sealed class ProjectMemberOwnerEscalationTests : IAsyncLifetime
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
 
         foreach (var id in new[] { "owner", "owner2", "admin", "editor" })
             db.Users.Add(new ApplicationUser { Id = id, UserName = id });

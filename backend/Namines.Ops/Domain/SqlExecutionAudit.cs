@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Ops.Domain;
 
 /// <summary>
 /// `/api/executor/execute` üzerinden çalıştırılan her SQL betiğinin kaydı.

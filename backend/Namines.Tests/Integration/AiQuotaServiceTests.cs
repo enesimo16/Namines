@@ -35,7 +35,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
             .UseNpgsql(_container.GetConnectionString()).Options;
 
         await using var context = new AuthDbContext(_options);
-        await context.Database.MigrateAsync();
+        await context.MigrateAllModulesAsync();
         context.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
         context.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", IsDev = true });
         // Team plani: aktif abonelik + PlanCode "team".

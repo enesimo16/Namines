@@ -36,13 +36,13 @@ GRANT CONNECT, CREATE ON DATABASE :"dbname" TO namines_migrator;
 GRANT CONNECT ON DATABASE :"dbname" TO namines_app;
 
 -- Namines şemaları: modül tabloları kendi şemalarında (flow, namines_vault, ground, desk, studio,
--- hub), kalanı 'public'te. Şemalar burada migrator'a ait açılır ki aşağıdaki app yetkileri bugünden
+-- hub, gateway, ops), kalanı 'public'te. Şemalar burada migrator'a ait açılır ki aşağıdaki app yetkileri bugünden
 -- geçerli olsun. Migrator'ın veritabanı CREATE yetkisi de var: migration'lar yeni şema (EnsureSchema,
 -- geçici karantina vb.) açabilmeli. Yeni şema eklenirse listeye ekleyin; yoksa app ona erişemez.
 DO $$
 DECLARE s text;
 BEGIN
-  FOREACH s IN ARRAY ARRAY['public', 'flow', 'namines_vault', 'ground', 'desk', 'studio', 'hub', 'gateway'] LOOP
+  FOREACH s IN ARRAY ARRAY['public', 'flow', 'namines_vault', 'ground', 'desk', 'studio', 'hub', 'gateway', 'ops'] LOOP
     EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I AUTHORIZATION namines_migrator', s);
     EXECUTE format('GRANT USAGE, CREATE ON SCHEMA %I TO namines_migrator', s);
     EXECUTE format('GRANT USAGE ON SCHEMA %I TO namines_app', s);

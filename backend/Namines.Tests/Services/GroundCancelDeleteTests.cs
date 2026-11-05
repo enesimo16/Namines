@@ -38,7 +38,7 @@ public sealed class GroundCancelDeleteTests : IAsyncLifetime
         _groundOptions = new DbContextOptionsBuilder<GroundDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();

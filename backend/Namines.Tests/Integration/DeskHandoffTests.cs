@@ -37,7 +37,7 @@ public class DeskHandoffTests : IAsyncLifetime
             .UseNpgsql(connStr).Options;
 
         await using var context = new AuthDbContext(_options);
-        await context.Database.MigrateAsync();
+        await context.MigrateAllModulesAsync();
         await context.Users.AddAsync(new ApplicationUser { Id = "u1", UserName = "u1" });
         await context.SaveChangesAsync();
     }

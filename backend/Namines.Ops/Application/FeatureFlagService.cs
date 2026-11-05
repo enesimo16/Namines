@@ -7,11 +7,10 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Namines.Core.Interfaces;
-using Namines.Core.Models;
-using Namines.Infrastructure.Data;
+using Namines.Ops.Domain;
+using Namines.Ops.Infrastructure.Persistence;
 
-namespace Namines.Infrastructure.Services;
+namespace Namines.Ops.Application;
 
 /// <summary>
 /// Dinamik Özellik Bayrağı ve Acil Kapatma (Kill-Switch) Servisi.
@@ -21,7 +20,7 @@ namespace Namines.Infrastructure.Services;
 ///    veya gelindiğinde "Bu özellik şu anda bakım çalışması nedeniyle geçici olarak devre dışıdır" uyarısı verir.
 /// 2. <b>Hidden:</b> Özellik menüden, tuvalden ve yönlendirmelerden tamamen silinir, arayüzde hiç gözükmez.
 /// </summary>
-public sealed class FeatureFlagService : IFeatureFlagService
+internal sealed class FeatureFlagService : IFeatureFlagService
 {
     private readonly ConcurrentDictionary<string, AdminFeatureFlag> _flagsCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly IServiceScopeFactory _scopeFactory;
@@ -559,7 +558,7 @@ public sealed class FeatureFlagService : IFeatureFlagService
             if (DateTime.UtcNow < _nextRefreshUtc) return;
 
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetService<AuthDbContext>();
+            var db = scope.ServiceProvider.GetService<OpsDbContext>();
             var loaded = db == null;
             if (db != null)
             {
@@ -665,7 +664,7 @@ public sealed class FeatureFlagService : IFeatureFlagService
 
         // Önce DB'ye yaz; başarısızsa çağıran hatayı görür ve önbellek eski (doğru) değerde kalır.
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetService<OpsDbContext>();
         if (db != null)
         {
             var existing = await db.FeatureFlags.FirstOrDefaultAsync(f => f.FeatureKey == updated.FeatureKey, ct);

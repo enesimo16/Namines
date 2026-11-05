@@ -30,7 +30,7 @@ public class GatewayAnalyticsTests : IAsyncLifetime
             .UseNpgsql(_container.GetConnectionString()).Options;
 
         await using var context = new AuthDbContext(_options);
-        await context.Database.MigrateAsync();
+        await context.MigrateAllModulesAsync();
     }
 
     public Task DisposeAsync() => DockerAvailable.Value ? _container.DisposeAsync().AsTask() : Task.CompletedTask;

@@ -63,7 +63,7 @@ public class KeyRotationTests
         await conn.OpenAsync();
         var opts = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(conn).Options;
         await using var db = new AuthDbContext(opts);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
         await using (var pragma = conn.CreateCommand()) { pragma.CommandText = "PRAGMA foreign_keys=OFF;"; await pragma.ExecuteNonQueryAsync(); }
 
         var legacy = Make(K1);

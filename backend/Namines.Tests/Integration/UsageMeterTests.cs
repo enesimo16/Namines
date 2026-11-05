@@ -28,7 +28,7 @@ public class UsageMeterTests : IAsyncLifetime
 
         _context = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>()
             .UseNpgsql(_container.GetConnectionString()).Options);
-        await _context.Database.MigrateAsync();
+        await _context.MigrateAllModulesAsync();
     }
 
     public async Task DisposeAsync()

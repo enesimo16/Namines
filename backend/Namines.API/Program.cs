@@ -701,7 +701,6 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
                 "bunu false yapıp migration'ı ayrı bir adımda `--migrate` ile çalıştırın.");
         }
 
-        using var scope = app.Services.CreateScope();
         try
         {
             // ConnectionStrings:Migrations tanımlıysa şema değişikliği ayrı (sahip) rolle yapılır;
@@ -710,22 +709,14 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
             // doldurması aşıyordu. İşlem geri alınır, veri bozulmaz ama yükseltme hiç bitmez.
             var migrationTimeout = TimeSpan.FromSeconds(app.Configuration.GetValue("Database:MigrationCommandTimeoutSeconds", 1800));
             var migrationsConnection = app.Configuration.GetConnectionString("Migrations");
-            if (!string.IsNullOrWhiteSpace(migrationsConnection))
-            {
-                var migOptions = new DbContextOptionsBuilder<AuthDbContext>()
-                    .UseNpgsql(migrationsConnection)
-                    .Options;
-                using var migDb = new AuthDbContext(migOptions);
-                migDb.Database.SetCommandTimeout(migrationTimeout);
-                migDb.Database.Migrate();
-                Log.Information("Migration ConnectionStrings:Migrations ile uygulandı.");
-            }
-            else
-            {
-                var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-                dbContext.Database.SetCommandTimeout(migrationTimeout);
-                dbContext.Database.Migrate();
-            }
+            var migrationTarget = string.IsNullOrWhiteSpace(migrationsConnection) ? controlDbConnectionString : migrationsConnection;
+            var applied = Namines.BuildingBlocks.Persistence.ModuleMigrationOrchestrator.MigrateAllAsync(
+                    app.Services.GetServices<Namines.BuildingBlocks.Persistence.ModuleMigrationDescriptor>(),
+                    migrationTarget,
+                    migrationTimeout)
+                .GetAwaiter().GetResult();
+            foreach (var module in applied)
+                Log.Information("Migration {Module}: {Count} uygulandı.", module.Module, module.Applied.Count);
             Log.Information("Veritabanı migration başarıyla tamamlandı.");
         }
         catch (Exception ex)
@@ -747,9 +738,10 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         //
         // Development'ta uyarıyla geçiliyor: geliştirici migration'ı henüz
         // uygulamamış olabilir ve uygulamanın hiç açılmaması işi zorlaştırır.
-        using var scope = app.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        var pending = dbContext.Database.GetPendingMigrations().ToList();
+        var pending = Namines.BuildingBlocks.Persistence.ModuleMigrationOrchestrator.GetPendingAsync(
+                app.Services.GetServices<Namines.BuildingBlocks.Persistence.ModuleMigrationDescriptor>(),
+                controlDbConnectionString)
+            .GetAwaiter().GetResult();
 
         if (pending.Count == 0)
         {

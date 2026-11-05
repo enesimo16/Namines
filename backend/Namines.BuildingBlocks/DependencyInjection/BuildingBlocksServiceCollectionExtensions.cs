@@ -68,11 +68,8 @@ public static class BuildingBlocksServiceCollectionExtensions
             schemaName: GatewayDbContext.DefaultSchema,
             db => new GatewayModule(db));
 
-        RegisterModule<OpsDbContext, IOpsModule, OpsModule>(
-            services, configureDbContext, connectionStringFactory,
-            historyTable: OpsDbContext.MigrationsHistoryTableName,
-            schemaName: OpsDbContext.DefaultSchema,
-            db => new OpsModule(db));
+        services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<StudioDbContext>()));
+        services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<HubDbContext>()));
 
         return services;
     }

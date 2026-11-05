@@ -39,7 +39,7 @@ public sealed class AuditProjectIdSpoofingTests : IAsyncLifetime
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
@@ -76,7 +76,7 @@ public sealed class AuditProjectIdSpoofingTests : IAsyncLifetime
     }
 
     private static DatabaseExecutorController NewController(AuthDbContext db, string userId) =>
-        new(new NoopExecutor(), db, NullLogger<DatabaseExecutorController>.Instance)
+        new(TestModules.For(db).SqlAudit, new NoopExecutor(), db, NullLogger<DatabaseExecutorController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -110,7 +110,7 @@ public sealed class AuditProjectIdSpoofingTests : IAsyncLifetime
 
         // Kurbanın kaydında HİÇBİR satır olmamalı.
         await using var verify = NewContext();
-        Assert.Empty(await verify.SqlExecutionAudits
+        Assert.Empty(await verify.Ops().SqlExecutionAudits
             .Where(a => a.ProjectId == "victim-proj").ToListAsync());
     }
 
@@ -135,7 +135,7 @@ public sealed class AuditProjectIdSpoofingTests : IAsyncLifetime
         Assert.IsType<OkObjectResult>(result);
 
         await using var verify = NewContext();
-        var entry = Assert.Single(await verify.SqlExecutionAudits.ToListAsync());
+        var entry = Assert.Single(await verify.Ops().SqlExecutionAudits.ToListAsync());
         Assert.Equal("victim-proj", entry.ProjectId);
         Assert.Equal("victim", entry.UserId);
     }
@@ -162,7 +162,7 @@ public sealed class AuditProjectIdSpoofingTests : IAsyncLifetime
         Assert.IsType<OkObjectResult>(result);
 
         await using var verify = NewContext();
-        var entry = Assert.Single(await verify.SqlExecutionAudits.ToListAsync());
+        var entry = Assert.Single(await verify.Ops().SqlExecutionAudits.ToListAsync());
         Assert.Null(entry.ProjectId);
     }
 

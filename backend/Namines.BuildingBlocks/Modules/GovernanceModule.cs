@@ -125,15 +125,6 @@ public static class GovernanceModelConfiguration
                 entity.Ignore(a => a.ActorUser);
             }
         });
-
-        builder.Entity<SqlExecutionAudit>(entity =>
-        {
-            entity.ToTable("SqlExecutionAudits", schema);
-            entity.HasKey(a => a.Id);
-            entity.HasIndex(a => new { a.UserId, a.CreatedAt });
-            entity.HasIndex(a => a.CreatedAt);
-            entity.HasIndex(a => a.ProjectId);
-        });
     }
 }
 
@@ -149,7 +140,6 @@ public sealed class GovernanceDbContext : DbContext
     public DbSet<ChangeRequest> ChangeRequests => Set<ChangeRequest>();
     public DbSet<ChangeRequestApproval> ChangeRequestApprovals => Set<ChangeRequestApproval>();
     public DbSet<ChangeRequestAuditLog> ChangeRequestAuditLogs => Set<ChangeRequestAuditLog>();
-    public DbSet<SqlExecutionAudit> SqlExecutionAudits => Set<SqlExecutionAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

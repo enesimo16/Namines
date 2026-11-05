@@ -13,6 +13,7 @@ using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
+using Namines.Ops.Application;
 
 namespace Namines.API.Controllers;
 
@@ -23,33 +24,19 @@ namespace Namines.API.Controllers;
 [Route("api/executor")]
 public class DatabaseExecutorController : ControllerBase
 {
-    /// <summary>
-    /// Denetim kaydında saklanan betik ön ekinin uzunluğu. Betiğin TAMAMI
-    /// bilerek saklanmıyor — gerekçe <see cref="SqlExecutionAudit"/>'te.
-    /// </summary>
-    private const int ScriptPreviewLength = 500;
-
-    /// <summary>
-    /// Denetim kaydında "riskli" işareti koymak için taranan kelimeler.
-    ///
-    /// Kaba bir sinyal: bir yorumun içindeki "DROP" da işaretlenir. Yetki kararı
-    /// buna DAYANMIYOR — yalnızca kaydı sonradan tararken önceliklendirmeyi
-    /// mümkün kılıyor. Yanlış pozitif burada zararsız, yanlış negatif değil;
-    /// bu yüzden geniş tutuldu.
-    /// </summary>
-    private static readonly string[] DestructiveKeywords =
-        { "DROP ", "TRUNCATE ", "DELETE ", "ALTER ", "REVOKE ", "GRANT " };
-
     private readonly IDatabaseExecutor _executor;
+    private readonly ISqlExecutionAuditService _audit;
     private readonly AuthDbContext _context;
     private readonly ILogger<DatabaseExecutorController> _logger;
 
     public DatabaseExecutorController(
+        ISqlExecutionAuditService audit,
         IDatabaseExecutor executor,
         AuthDbContext context,
         ILogger<DatabaseExecutorController> logger)
     {
         _executor = executor;
+        _audit = audit;
         _context = context;
         _logger = logger;
     }
@@ -139,31 +126,13 @@ public class DatabaseExecutorController : ControllerBase
     private async Task WriteAuditAsync(
         string userId, ExecutorRequest request, ExecutionResult result, CancellationToken ct)
     {
-        var script = request.Script ?? string.Empty;
         var (host, database) = ConnectionTargetDescriber.Describe(request.ConnectionString, request.DbType);
-
-        var entry = new SqlExecutionAudit
-        {
-            UserId = userId,
-            ProjectId = string.IsNullOrWhiteSpace(request.ProjectId) ? null : request.ProjectId,
-            TargetHost = host,
-            TargetDatabase = database,
-            DbType = request.DbType.ToString(),
-            ScriptHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(script))),
-            ScriptPreview = script.Length <= ScriptPreviewLength ? script : script[..ScriptPreviewLength],
-            ScriptLength = script.Length,
-            ContainsDestructiveKeyword = DestructiveKeywords.Any(
-                k => script.Contains(k, StringComparison.OrdinalIgnoreCase)),
-            Success = result.Success,
-            StatementsExecuted = result.StatementsExecuted,
-            PartialApplyPossible = result.PartialApplyPossible,
-            Error = result.ErrorMessage,
-        };
 
         try
         {
-            _context.SqlExecutionAudits.Add(entry);
-            await _context.SaveChangesAsync(ct);
+            await _audit.RecordAsync(new SqlExecutionRecord(
+                userId, request.ProjectId, host, database, request.DbType.ToString(), request.Script ?? string.Empty,
+                result.Success, result.StatementsExecuted, result.PartialApplyPossible, result.ErrorMessage), ct);
         }
         catch (Exception ex)
         {
@@ -171,8 +140,8 @@ public class DatabaseExecutorController : ControllerBase
             // burada geri alınacak bir şey yok. Ama sessiz kalınmaz: denetim
             // kaydının boşluğu, boşluğun kendisinden daha tehlikelidir.
             _logger.LogError(ex,
-                "SQL calistirma denetim kaydi YAZILAMADI. Kullanici={UserId} Hedef={Host}/{Database} Hash={Hash}",
-                userId, host, database, entry.ScriptHash);
+                "SQL calistirma denetim kaydi YAZILAMADI. Kullanici={UserId} Hedef={Host}/{Database}",
+                userId, host, database);
         }
     }
 

@@ -1,3 +1,4 @@
+using Namines.Ops.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -324,7 +325,7 @@ public sealed class ModularMonolithArchitectureTests
             .Options;
 
         await using var context = new AuthDbContext(options);
-        await context.Database.EnsureCreatedAsync();
+        await context.EnsureModulesCreatedAsync();
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -401,6 +402,7 @@ public sealed class ModularMonolithArchitectureTests
             .Build());
 
         services.AddNaminesBuildingBlocks();
+        services.AddOpsModule();
         services.AddNaminesVault(registerWorkers: false);
         services.AddNaminesGround(registerWorkers: false);
         services.AddFlowModule(registerWorkers: false);
@@ -420,7 +422,7 @@ public sealed class ModularMonolithArchitectureTests
         var desk = scope.ServiceProvider.GetRequiredService<IDeskModule>();
         var hub = scope.ServiceProvider.GetRequiredService<IHubModule>();
         var gateway = scope.ServiceProvider.GetRequiredService<IGatewayModule>();
-        var ops = scope.ServiceProvider.GetRequiredService<IOpsModule>();
+        var opsDb = scope.ServiceProvider.GetRequiredService<OpsDbContext>();
 
         Assert.Equal("identity", identity.DbContext.Model.GetDefaultSchema());
         Assert.Equal("studio", studio.DbContext.Model.GetDefaultSchema());
@@ -428,7 +430,7 @@ public sealed class ModularMonolithArchitectureTests
         Assert.Equal("governance", governance.DbContext.Model.GetDefaultSchema());
         Assert.Equal("hub", hub.DbContext.Model.GetDefaultSchema());
         Assert.Equal("gateway", gateway.DbContext.Model.GetDefaultSchema());
-        Assert.Equal("ops", ops.DbContext.Model.GetDefaultSchema());
+        Assert.Equal("ops", opsDb.Model.GetDefaultSchema());
 
         var groundDb = scope.ServiceProvider.GetRequiredService<GroundDbContext>();
         var vaultDb = scope.ServiceProvider.GetRequiredService<VaultDbContext>();
@@ -752,7 +754,7 @@ public sealed class ModularMonolithArchitectureTests
 
         // 37 - 10 = 27 DbSets declared directly on AuthDbContext for Phase 14.1
         // 28: PendingSubscriptionCancellations, kullanıcı silmeyle aynı işlemde yazılmak zorunda (D-2'de Billing'e taşınır).
-        Assert.Equal(28, declaredDbSetProperties.Count);
+        Assert.Equal(24, declaredDbSetProperties.Count);
     }
 
     [Fact]

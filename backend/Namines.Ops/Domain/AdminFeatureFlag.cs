@@ -1,6 +1,6 @@
 using System;
 
-namespace Namines.Core.Models;
+namespace Namines.Ops.Domain;
 
 /// <summary>
 /// Sistemdeki araç ve özelliklerin admin panelinden açılıp kapatılmasını (kill-switch) sağlayan bayrak.

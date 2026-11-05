@@ -33,6 +33,7 @@ public sealed class ChatProviderDependencyInjectionTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(options => options.UseSqlite(connection));
+        services.AddDbContext<OpsDbContext>(options => options.UseSqlite(connection));
 
         var dict = new Dictionary<string, string?>();
         foreach (var (key, value) in settings) dict[key] = value;

@@ -13,7 +13,6 @@ namespace Namines.Infrastructure.Data
         public DbSet<CloudProject> CloudProjects { get; set; } = null!;
         public DbSet<UserAIPolicy> UserAIPolicies { get; set; } = null!;
         public DbSet<UserAIQuota> UserAIQuotas { get; set; } = null!;
-        public DbSet<Feedback> Feedbacks { get; set; } = null!;
         public DbSet<GlobalAiUsage> GlobalAiUsages { get; set; } = null!;
         public DbSet<OrgAiUsage> OrgAiUsages { get; set; } = null!;
         public DbSet<Branch> Branches { get; set; } = null!;
@@ -31,13 +30,6 @@ namespace Namines.Infrastructure.Data
         public DbSet<TeamInvite> TeamInvites { get; set; } = null!;
         public DbSet<CrossDatabaseRelation> CrossDatabaseRelations { get; set; } = null!;
 
-        /// <summary>
-        /// `/api/executor/execute` uzerinden calistirilan her SQL betiginin kaydi.
-        /// Bu uc, urunun ChangeRequest yonetisim zincirinin disindan gectigi icin
-        /// izlenebilirligin tek kaynagi bu tablo.
-        /// </summary>
-        public DbSet<SqlExecutionAudit> SqlExecutionAudits { get; set; } = null!;
-
         /// <summary>İşlenmiş Stripe olayları — tekrar iletimi tanımak için (docs/last-review M-2).</summary>
         public DbSet<StripeWebhookEvent> StripeWebhookEvents { get; set; } = null!;
         public DbSet<PendingSubscriptionCancellation> PendingSubscriptionCancellations { get; set; } = null!;
@@ -49,12 +41,6 @@ namespace Namines.Infrastructure.Data
         /// </summary>
 
         /// <summary>Kullanicinin ada kaydettigi sorgular (F-02).</summary>
-
-        /// <summary>Sistem araçları ve özellik bayrakları (Kill-Switch).</summary>
-        public DbSet<AdminFeatureFlag> FeatureFlags { get; set; } = null!;
-
-        /// <summary>Dinamik AI araç yönlendirme kuralları (Tool -> LLM Provider/Model).</summary>
-        public DbSet<AiToolRoute> AiToolRoutes { get; set; } = null!;
 
         public DbSet<RepoIssue> RepoIssues { get; set; } = null!;
         public DbSet<RepoIssueComment> RepoIssueComments { get; set; } = null!;
@@ -400,19 +386,6 @@ namespace Namines.Infrastructure.Data
             builder.Entity<CrossDatabaseRelation>()
                 .HasIndex(r => r.TargetProjectId);
 
-            // Denetim kaydi iki soruyla okunuyor: "bu kullanici ne yapti" ve
-            // "son donemde neler oldu". Ikisi de zaman sirali oldugu icin
-            // indeksler CreatedAt'i kapsiyor -- tek kolonluk bir indeks
-            // siralamayi disarida birakirdi.
-            builder.Entity<SqlExecutionAudit>()
-                .HasIndex(a => new { a.UserId, a.CreatedAt });
-
-            builder.Entity<SqlExecutionAudit>()
-                .HasIndex(a => a.CreatedAt);
-
-            builder.Entity<SqlExecutionAudit>()
-                .HasIndex(a => a.ProjectId);
-
             // Gateway denetimi: "bu projenin son kayıtları" + analitik aralık sorguları (DB-12).
             // Tablonun en hızlı büyüyen parçası; indeks migration'da CONCURRENTLY kurulur.
             builder.Entity<GatewayAuditEntry>()
@@ -468,28 +441,6 @@ namespace Namines.Infrastructure.Data
             {
                 builder.Entity<CloudProject>().Ignore(p => p.RowVersion);
             }
-
-            // ── Admin: Özellik Bayrakları (Kill-Switch) ve AI Araç Yönlendirmesi ──
-            builder.Entity<AdminFeatureFlag>(entity =>
-            {
-                entity.HasKey(f => f.FeatureKey);
-                entity.Property(f => f.FeatureKey).HasMaxLength(64);
-                entity.Property(f => f.DisplayName).HasMaxLength(128);
-                entity.Property(f => f.Description).HasMaxLength(512);
-                entity.Property(f => f.Category).HasMaxLength(64);
-                entity.Property(f => f.Mode).HasMaxLength(32);
-                entity.Property(f => f.NoticeMessage).HasMaxLength(512);
-            });
-
-            builder.Entity<AiToolRoute>(entity =>
-            {
-                entity.HasKey(r => r.ToolKey);
-                entity.Property(r => r.ToolKey).HasMaxLength(64);
-                entity.Property(r => r.DisplayName).HasMaxLength(128);
-                entity.Property(r => r.Provider).HasMaxLength(64);
-                entity.Property(r => r.ModelName).HasMaxLength(128);
-                entity.Property(r => r.FallbackProvider).HasMaxLength(64);
-            });
 
             // ── Namines Hub: Architecture Repositories, Issues, Comments & Stars ──
             // "Projelerim", CanView/GetRole ve kullanıcı silme cascade'i UserId ile arıyor (DB-13).
@@ -558,12 +509,6 @@ namespace Namines.Infrastructure.Data
                 .HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(i => i.AcceptedByUserId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            builder.Entity<Feedback>()
-                .HasOne<ApplicationUser>()
-                .WithMany()
-                .HasForeignKey(f => f.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
 
 
@@ -643,7 +588,7 @@ namespace Namines.Infrastructure.Data
                 typeof(CloudProject), typeof(ProjectShare), typeof(PendingSubscriptionCancellation), typeof(Branch), typeof(SchemaVersion), typeof(ChangeRequest),
                 typeof(ChangeRequestApproval), typeof(ChangeRequestAuditLog), typeof(Organization),
                 typeof(TeamInvite), typeof(GatewayApiKey), typeof(GatewayTablePermission),
-                typeof(CrossDatabaseRelation), typeof(SqlExecutionAudit), typeof(RepoIssue),
+                typeof(CrossDatabaseRelation), typeof(RepoIssue),
                 typeof(RepoIssueComment), typeof(DeskHandoffToken), typeof(SqlQueryHistoryEntry),
                 typeof(SavedQuery), typeof(VaultBackup), typeof(VaultRestore), typeof(VaultSchedule),
                 typeof(GroundDatabase), typeof(AutomationRule), typeof(AutomationAction),
@@ -733,9 +678,6 @@ namespace Namines.Infrastructure.Data
 
             builder.Entity<SchemaVersion>().ToTable(t =>
                 t.HasCheckConstraint(N("SchemaVersions", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength)));
-
-            builder.Entity<Feedback>().ToTable(t =>
-                t.HasCheckConstraint(N("Feedbacks", "Message", "Length"), CheckConstraintSql.MaxLength("Message", 4000)));
 
             builder.Entity<RepoIssue>().ToTable(t =>
                 t.HasCheckConstraint(N("RepoIssues", "Body", "Length"), CheckConstraintSql.MaxLength("Body", 20_000)));

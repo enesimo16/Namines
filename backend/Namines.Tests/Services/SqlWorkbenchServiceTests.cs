@@ -45,7 +45,7 @@ public sealed class SqlWorkbenchServiceTests : IAsyncLifetime
         _deskOptions = new DbContextOptionsBuilder<DeskDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
 
         // desk.* tablolari artik gercek FK ile bagli (DB-03): once sahipleri ekle.
         db.Users.AddRange(

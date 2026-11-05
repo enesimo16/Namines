@@ -36,7 +36,7 @@ public class BranchSchemaVersionTests : IAsyncLifetime
             .Options;
 
         _context = new AuthDbContext(options);
-        await _context.Database.MigrateAsync();
+        await _context.MigrateAllModulesAsync();
 
         // Branch/SchemaVersion, AspNetUsers ve CloudProjects'e FK veriyor — önce
         // asgari birer ebeveyn satır lazım.

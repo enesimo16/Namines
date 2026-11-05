@@ -42,7 +42,7 @@ public sealed class VaultHealthDisclosureTests : IAsyncLifetime
         _vaultOptions = new DbContextOptionsBuilder<VaultDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();

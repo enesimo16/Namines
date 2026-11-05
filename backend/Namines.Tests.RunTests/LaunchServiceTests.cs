@@ -87,7 +87,7 @@ public class LaunchServiceTests : IAsyncLifetime
             .UseNpgsql(_adminConnectionString)
             .Options;
         _context = new AuthDbContext(options);
-        await _context.Database.MigrateAsync();
+        await _context.MigrateAllModulesAsync();
 
         var groundOptions = new DbContextOptionsBuilder<GroundDbContext>()
             .UseNpgsql(_adminConnectionString)
@@ -139,7 +139,7 @@ public class LaunchServiceTests : IAsyncLifetime
             new DatabaseExecutorService(hostPolicy),
             vault,
             authority,
-            _context,
+            TestModules.For(_context).SqlAudit,
             NullLogger<LaunchService>.Instance);
     }
 
@@ -213,7 +213,7 @@ public class LaunchServiceTests : IAsyncLifetime
         Assert.Equal(1, backupCount);
 
         // Launch'ın uyguladığı DDL de denetim kaydına düşmeli.
-        var audit = await reloaded.SqlExecutionAudits.SingleAsync(a => a.ProjectId == project.Id);
+        var audit = await reloaded.Ops().SqlExecutionAudits.SingleAsync(a => a.ProjectId == project.Id);
         Assert.True(audit.Success);
         Assert.Equal(_userId, audit.UserId);
     }

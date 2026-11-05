@@ -44,7 +44,7 @@ public class AdminHardeningTests : IAsyncLifetime
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
@@ -53,6 +53,7 @@ public class AdminHardeningTests : IAsyncLifetime
     {
         var services = new ServiceCollection();
         services.AddDbContext<AuthDbContext>(o => o.UseSqlite(connection));
+        services.AddDbContext<OpsDbContext>(o => o.UseSqlite(connection));
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
 
@@ -156,6 +157,7 @@ public class AdminHardeningTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AuthDbContext>(o => o.UseSqlite(_connection));
+        services.AddDbContext<OpsDbContext>(o => o.UseSqlite(_connection));
         services.AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<AuthDbContext>();
         var sp = services.BuildServiceProvider();
         var users = sp.GetRequiredService<UserManager<ApplicationUser>>();
@@ -163,7 +165,7 @@ public class AdminHardeningTests : IAsyncLifetime
 
         var controller = new AdminController(
             users, db, NullLogger<AdminController>.Instance, telemetry ?? new AdminTelemetryService(),
-            new ConfigurationBuilder().Build());
+            new ConfigurationBuilder().Build(), TestOps.Admin(sp));
 
         var admin = new ApplicationUser { Id = "adm", UserName = "adm", Email = "adm@example.com", IsDev = true };
         await users.CreateAsync(admin);

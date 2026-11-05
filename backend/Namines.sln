@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Namines.Desk", "Namines.Des
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Namines.BuildingBlocks", "Namines.BuildingBlocks\Namines.BuildingBlocks.csproj", "{A024DB3D-E55A-4408-B226-D777042D3618}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Namines.Ops", "Namines.Ops\Namines.Ops.csproj", "{1051D889-45A9-4DB7-BD77-841FFA12810D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -181,6 +183,18 @@ Global
 		{A024DB3D-E55A-4408-B226-D777042D3618}.Release|x64.Build.0 = Release|Any CPU
 		{A024DB3D-E55A-4408-B226-D777042D3618}.Release|x86.ActiveCfg = Release|Any CPU
 		{A024DB3D-E55A-4408-B226-D777042D3618}.Release|x86.Build.0 = Release|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Debug|x64.Build.0 = Debug|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Debug|x86.Build.0 = Debug|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Release|x64.ActiveCfg = Release|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Release|x64.Build.0 = Release|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Release|x86.ActiveCfg = Release|Any CPU
+		{1051D889-45A9-4DB7-BD77-841FFA12810D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

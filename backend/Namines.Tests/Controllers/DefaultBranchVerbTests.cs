@@ -35,7 +35,7 @@ public sealed class DefaultBranchVerbTests : IAsyncLifetime
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
 
         db.Users.Add(new ApplicationUser { Id = "owner-1", UserName = "owner-1" });
         db.CloudProjects.Add(new CloudProject

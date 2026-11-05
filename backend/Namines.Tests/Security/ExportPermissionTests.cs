@@ -38,7 +38,7 @@ public sealed class ExportPermissionTests : IAsyncLifetime
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
 
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
 
         // `GatewayTablePermission` -> `CloudProject` yabanci anahtari ZORUNLU;
         // SQLite bunu uyguluyor. Projeyi tohumlamadan izin satiri eklenemez.

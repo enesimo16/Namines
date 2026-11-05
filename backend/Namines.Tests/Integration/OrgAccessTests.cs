@@ -38,7 +38,7 @@ public class OrgAccessTests : IAsyncLifetime
 
         _context = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>()
             .UseNpgsql(_container.GetConnectionString()).Options);
-        await _context.Database.MigrateAsync();
+        await _context.MigrateAllModulesAsync();
 
         async Task<string> User(string name)
         {

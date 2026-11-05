@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
-using Namines.Core.Interfaces;
+using Namines.Ops.Application;
 
 namespace Namines.API.Filters;
 

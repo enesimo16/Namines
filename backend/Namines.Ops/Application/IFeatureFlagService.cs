@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Namines.Core.Models;
+using Namines.Ops.Domain;
 
-namespace Namines.Core.Interfaces;
+namespace Namines.Ops.Application;
 
 /// <summary>
 /// Sistemdeki araç ve özelliklerin dinamik olarak açılıp kapatılmasını (kill-switch) yöneten servis.

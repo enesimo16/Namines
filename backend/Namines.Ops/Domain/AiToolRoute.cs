@@ -1,6 +1,6 @@
 using System;
 
-namespace Namines.Core.Models;
+namespace Namines.Ops.Domain;
 
 /// <summary>
 /// Bir AI aracının (Tool) hangi LLM sağlayıcısı ve modeli üzerinden çalışacağını belirten yönlendirme kuralı.

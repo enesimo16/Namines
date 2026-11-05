@@ -35,7 +35,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await _connection.OpenAsync();
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
         await using var db = new AuthDbContext(_options);
-        await db.Database.EnsureCreatedAsync();
+        await db.EnsureModulesCreatedAsync();
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
@@ -65,7 +65,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
     private static AccountDeletionService NewService(
         AuthDbContext db, FakeStore store, FakeProvider provider, ISubscriptionCanceller? canceller = null) =>
-        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, canceller);
+        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, canceller);
 
     private static CloudProject Project(string id, string userId, string? orgId) => new()
     {
@@ -119,7 +119,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         {
             ProjectId = "tp", Name = "k", Prefix = "nk_", KeyHash = "h", CreatedByUserId = "u1",
         });
-        db.Feedbacks.Add(new Feedback { UserId = "u1", Email = "alice@example.com", Message = "great" });
+        db.Ops().Feedbacks.Add(new Feedback { UserId = "u1", Email = "alice@example.com", Message = "great" });
         await db.SaveChangesAsync();
 
         await using (var deskDb = NewDeskDb(db))
@@ -280,7 +280,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.NotNull(key.RevokedAt);
         Assert.Null(key.CreatedByUserId);
 
-        var feedback = await verify.Feedbacks.SingleAsync();
+        var feedback = await verify.Ops().Feedbacks.SingleAsync();
         Assert.Null(feedback.Email);
         Assert.Null(feedback.UserId);
         Assert.Equal("great", feedback.Message);
@@ -376,7 +376,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         var um = NewUserManager(db);
         return new AuthController(um, db, config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, TestModules.For(db).HubService, TestModules.For(db).StudioService, TestModules.For(db).Transaction, new FakeEnv(), null,
-            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance))
+            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback))
         {
             ControllerContext = new ControllerContext
             {

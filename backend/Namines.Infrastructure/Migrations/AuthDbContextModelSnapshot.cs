@@ -154,83 +154,6 @@ namespace Namines.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.AdminFeatureFlag", b =>
-                {
-                    b.Property<string>("FeatureKey")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Mode")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("NoticeMessage")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("FeatureKey");
-
-                    b.ToTable("FeatureFlags");
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.AiToolRoute", b =>
-                {
-                    b.Property<string>("ToolKey")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("FallbackProvider")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("ModelName")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<double>("Temperature")
-                        .HasColumnType("double precision");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("ToolKey");
-
-                    b.ToTable("AiToolRoutes");
-                });
-
             modelBuilder.Entity("Namines.Core.Models.Auth.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -1390,69 +1313,6 @@ namespace Namines.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.SqlExecutionAudit", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasDefaultValueSql("gen_random_uuid()::text");
-
-                    b.Property<bool>("ContainsDestructiveKeyword")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DbType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Error")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("PartialApplyPossible")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("ProjectId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ScriptHash")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("ScriptLength")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ScriptPreview")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("StatementsExecuted")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("Success")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("TargetDatabase")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TargetHost")
-                        .HasColumnType("text");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("ProjectId");
-
-                    b.HasIndex("UserId", "CreatedAt");
-
-                    b.ToTable("SqlExecutionAudits");
-                });
-
             modelBuilder.Entity("Namines.Core.Models.Auth.SqlQueryHistoryEntry", b =>
                 {
                     b.Property<string>("Id")
@@ -1999,41 +1859,6 @@ namespace Namines.Infrastructure.Migrations
                         .IsDescending(false, true);
 
                     b.ToTable("automation_run_logs", "flow");
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Feedback", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Email")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Feedbacks", t =>
-                        {
-                            t.HasCheckConstraint("CK_Feedbacks_Message_Length", "char_length(\"Message\") <= 4000");
-                        });
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Hub.IssueLabel", b =>
@@ -2736,14 +2561,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasForeignKey("RuleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("Namines.Core.Models.Feedback", b =>
-                {
-                    b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Hub.IssueLabel", b =>

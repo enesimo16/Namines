@@ -54,7 +54,7 @@ public sealed class GatewayMaskingEndpointTests : IAsyncLifetime
 
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseNpgsql(Target).Options;
         await using var db = new AuthDbContext(_options);
-        await db.Database.MigrateAsync();
+        await db.MigrateAllModulesAsync();
 
         await using (var conn = new NpgsqlConnection(Target))
         {
