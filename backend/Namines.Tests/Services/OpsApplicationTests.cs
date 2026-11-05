@@ -293,6 +293,56 @@ public sealed class OpsApplicationTests : IDisposable
         Assert.Contains("***", preview);
     }
 
+    // Denetim m-7: anahtar kelimeden hemen sonra tırnak gelmeyen sırlar ve hata alanı.
+    [Theory]
+    [InlineData("SELECT dblink_connect('host=h password=hunter2 user=x');")]
+    [InlineData("SELECT dblink_connect('hostaddr=10.0.0.1 PWD=hunter2');")]
+    [InlineData("SELECT * FROM dblink('dbname=x sslpassword=hunter2;', 'select 1') AS t(a int);")]
+    [InlineData("SET app.key = 'hunter2';")]
+    [InlineData("set session my.secret_value to 'hunter2'")]
+    [InlineData("select 1;\nSET LOCAL app.token = hunter2;")]
+    [InlineData("SET \"app.key\" TO 'hun''ter2';")]
+    public void Preview_masks_secrets_inside_literals_and_session_settings(string script)
+    {
+        var preview = SqlExecutionAuditService.BuildPreview(script);
+        Assert.DoesNotContain("hunter2", preview);
+        Assert.DoesNotContain("hun''ter2", preview);
+        Assert.Contains("***", preview);
+    }
+
+    [Fact]
+    public void Update_assignments_are_not_session_settings()
+    {
+        // UPDATE ... SET kolon atamasıdır; ayar maskesi veriyi ezmesin.
+        const string script = "UPDATE t SET name = 'Ada' WHERE id = 1;";
+        Assert.Equal(script, SqlExecutionAuditService.BuildPreview(script));
+    }
+
+    [Fact]
+    public async Task Error_text_is_masked_like_the_preview()
+    {
+        await using var db = Db();
+        var record = Record("SELECT dblink_connect('host=h password=hunter2')") with
+        {
+            Success = false,
+            Error = "could not establish connection: password=hunter2 rejected; near \"SET app.key = 'hunter3'\"",
+        };
+        await new SqlExecutionAuditService(db).RecordAsync(record);
+
+        var row = await db.SqlExecutionAudits.SingleAsync();
+        Assert.DoesNotContain("hunter2", row.Error);
+        Assert.DoesNotContain("hunter2", row.ScriptPreview);
+        Assert.Contains("rejected", row.Error);
+    }
+
+    [Fact]
+    public async Task Null_error_stays_null()
+    {
+        await using var db = Db();
+        await new SqlExecutionAuditService(db).RecordAsync(Record("select 1"));
+        Assert.Null((await db.SqlExecutionAudits.SingleAsync()).Error);
+    }
+
     [Fact]
     public void Preview_keeps_ordinary_sql()
     {

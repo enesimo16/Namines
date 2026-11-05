@@ -39,6 +39,20 @@ internal sealed class SqlExecutionAuditService : ISqlExecutionAuditService
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(200));
 
+    // Bağlantı dizesi biçimi bir literal'in içinde de olur: dblink_connect('host=h password=hunter2'). Değer
+    // boşluğa, noktalı virgüle ya da tırnağa kadar; tırnakla başlayan değer yukarıdaki desenin işi.
+    private static readonly Regex SecretPair = new(
+        @"\b(PASSWORD|PASSWD|PWD|SSLPASSWORD|SECRET|TOKEN|API[_-]?KEY|ACCESS[_-]?KEY)(\s*=\s*)([^\s;'""]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(200));
+
+    // Oturum ayarı değeri (SET app.key = '...'): adı ne olursa olsun değer gizlenir. Yalnızca deyim başındaki
+    // SET; UPDATE ... SET kolon atamasıdır, ayar değil.
+    private static readonly Regex SessionSet = new(
+        @"(^|;)(\s*SET\s+(?:SESSION\s+|LOCAL\s+)?[\w.""]+\s*(?:=|\bTO\b)\s*)('(?:[^']|'')*'|[^\s;]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Multiline | RegexOptions.Compiled,
+        TimeSpan.FromMilliseconds(200));
+
     private readonly IOpsData _db;
 
     public SqlExecutionAuditService(IOpsData db) => _db = db;
@@ -63,7 +77,8 @@ internal sealed class SqlExecutionAuditService : ISqlExecutionAuditService
             Success = record.Success,
             StatementsExecuted = record.StatementsExecuted,
             PartialApplyPossible = record.PartialApplyPossible,
-            Error = record.Error,
+            // Motor hatası çoğu zaman deyimi geri yansıtır: hata metni de aynı maskeden geçer.
+            Error = record.Error is null ? null : MaskOrOmit(record.Error, "[error omitted]"),
         });
         await _db.SaveChangesAsync(ct);
     }
@@ -74,17 +89,21 @@ internal sealed class SqlExecutionAuditService : ISqlExecutionAuditService
     /// </summary>
     internal static string BuildPreview(string script)
     {
-        string masked;
-        try
-        {
-            masked = SecretLiteral.Replace(script, m => $"{m.Groups[1].Value}{m.Groups[2].Value}'***'");
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            // Maskelenemeyen metni yazmaktansa ön eki feda et: özet ve uzunluk yine kayıtta.
-            return "[preview omitted]";
-        }
-
+        // Maskelenemeyen metni yazmaktansa ön eki feda et: özet ve uzunluk yine kayıtta.
+        var masked = MaskOrOmit(script, "[preview omitted]");
         return masked.Length <= ScriptPreviewLength ? masked : masked[..ScriptPreviewLength];
+    }
+
+    internal static string MaskSecrets(string text)
+    {
+        var masked = SecretLiteral.Replace(text, m => $"{m.Groups[1].Value}{m.Groups[2].Value}'***'");
+        masked = SecretPair.Replace(masked, m => $"{m.Groups[1].Value}{m.Groups[2].Value}***");
+        return SessionSet.Replace(masked, m => $"{m.Groups[1].Value}{m.Groups[2].Value}'***'");
+    }
+
+    private static string MaskOrOmit(string text, string omitted)
+    {
+        try { return MaskSecrets(text); }
+        catch (RegexMatchTimeoutException) { return omitted; }
     }
 }
