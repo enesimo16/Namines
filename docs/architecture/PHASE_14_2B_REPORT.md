@@ -186,6 +186,12 @@ Ayakta uygulama: `Namines.API --migrate` temiz DB'de başarılı; uygulama açı
 HTTP duman testi 31/31 (kayıt, sync, 409, ayarlar, yıldız, fork, Explore, paylaşım, bağlantı, Gateway şeması,
 SQL konsolu bayrağı, iptal, silme, 429). Log'da ERR 0, parola/şifreli metin eşleşmesi 0.
 
+**Oracle testi:** `OracleIntrospectionTests` soğuk container'da aralıklı düşüyordu (her koşuda başka test, tek
+başına koşarken de; `TaskCanceledException`). Bu fazın kodu değil: `DbIntrospectionService` değişmedi, kök neden
+sözlük görünümlerinin ilk ayrıştırmasının 15 sn'lik `QueryTimeout`'u aşması. Testte yalnızca zaman aşımı için en
+fazla 4 deneme eklendi, doğrulamalar aynı. Üründeki 15 sn değişmedi; soğuk Oracle hedefinde kullanıcı ilk denemede
+zaman aşımı görebilir, ayrı bir iş.
+
 ## 8. Yapılmayanlar
 
 - 14.2C konuları (`RepoIssues.Labels`, Gateway CSV kolonları) kapsam dışı.

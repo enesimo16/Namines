@@ -77,7 +77,21 @@ public class OracleIntrospectionTests : IAsyncLifetime
 
         var service = new DbIntrospectionService(
             NullLogger<DbIntrospectionService>.Instance, new AlwaysAllowHostPolicy());
-        return await service.IntrospectAsync(connectionString, "Oracle", CancellationToken.None);
+
+        // Yeni açılmış Oracle'da sözlük görünümlerinin ilk ayrıştırması servisin 15 sn'lik sorgu
+        // tavanını aşabiliyor (her koşuda başka sorguda, tek başına koşarken de). Bu hazır olma
+        // sorunu: yalnızca zaman aşımı yeniden denenir, yanlış SQL ve yanlış sonuç yine patlar.
+        const int coldStartAttempts = 4;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await service.IntrospectAsync(connectionString, "Oracle", CancellationToken.None);
+            }
+            catch (OperationCanceledException) when (attempt < coldStartAttempts)
+            {
+            }
+        }
     }
 
     // Oracle tırnaksız adları BÜYÜK harfe çevirir; eşleştirme harf duyarsız.
