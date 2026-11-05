@@ -23,13 +23,15 @@
 | Mevcut Tablo & Sütun | İhlal Türü | Hedef Şema & Tablo | Hedef Sütunlar & Kısıtlar |
 |---|---|---|---|
 | `public."CloudProjects"."Tags"` (`"postgresql,3nf,saas"`) | 1NF (Çok değerli CSV) | `hub.project_tags` | `ProjectId (FK -> hub.repositories CASCADE)`, `Tag (kanonik, text)`, `DisplayTag`, `Position`, **PK: `(ProjectId, Tag)`**, Index: `IX_project_tags_Tag_ProjectId` (uygulandı) |
-| `public."RepoIssues"."Labels"` (`"dba-risk,perf"`) | 1NF (Çok değerli CSV) | `hub.issue_labels` | `IssueId (FK -> hub.repo_issues.Id CASCADE)`, `Label (varchar(64))`, **PK: `(IssueId, Label)`**, Index: `IX_issue_labels_Label` |
-| `public."GatewayApiKeys"."AllowedOrigins"` | 1NF (Çok değerli CSV) | `gateway.api_key_allowed_origins` | `ApiKeyId (FK -> gateway.gateway_api_keys.Id CASCADE)`, `Origin (varchar(256))`, **PK: `(ApiKeyId, Origin)`** |
-| `public."GatewayApiKeys"."AllowedIps"` | 1NF (Çok değerli CSV) | `gateway.api_key_allowed_ips` | `ApiKeyId (FK -> gateway.gateway_api_keys.Id CASCADE)`, `CidrOrIp (varchar(64))`, **PK: `(ApiKeyId, CidrOrIp)`** |
-| `public."GatewayTablePermissions"."MaskedColumns"` | 1NF (Çok değerli CSV) | `gateway.table_masked_columns` | `PermissionId (FK -> gateway.gateway_table_permissions.Id CASCADE)`, `ColumnName (varchar(128))`, **PK: `(PermissionId, ColumnName)`** |
+| `public."RepoIssues"."Labels"` (`"dba-risk,perf"`) | 1NF (Çok değerli CSV) | **Uygulandı (14.2C)** `hub.issue_labels` + `hub.repo_issue_labels` | `issue_labels`: `Id`, `ProjectId (FK -> studio.projects CASCADE)`, `Name`, `NormalizedName`, **UNIQUE `(ProjectId, NormalizedName)`**. `repo_issue_labels`: **PK `(RepoIssueId, IssueLabelId)`**, `DisplayName`, `Position`, IX `(IssueLabelId, RepoIssueId)`. Kolon düştü. |
+| `public."GatewayApiKeys"."AllowedOrigins"` | 1NF (Çok değerli CSV) | **Uygulandı (14.2C)** `gateway.api_key_allowed_origins` | `Id`, `ApiKeyId (FK -> public."GatewayApiKeys" CASCADE)`, `Origin varchar(512)` kanonik + CHECK, `Position`, **UNIQUE `(ApiKeyId, Origin)`**. `RestrictOrigins` üst tabloda. Kolon düştü. |
+| `public."GatewayApiKeys"."AllowedIps"` | 1NF (Çok değerli CSV) | **Uygulandı (14.2C)** `gateway.api_key_allowed_ips` | `Id`, `ApiKeyId (FK CASCADE)`, `Cidr varchar(64)` kanonik + `::cidr` CHECK, `Position`, **UNIQUE `(ApiKeyId, Cidr)`**. `RestrictIps` üst tabloda. Kolon düştü. |
+| `public."GatewayTablePermissions"."MaskedColumns"` | 1NF (Çok değerli CSV) | **Uygulandı (14.2C)** `gateway.table_masked_columns` | `Id`, `TablePermissionId (FK -> public."GatewayTablePermissions" CASCADE)`, `ColumnName varchar(512)`, `Position`, **UNIQUE `(TablePermissionId, ColumnName)`** (yalnızca bayt bayt yineleme). Kolon düştü. |
 | `public."UserAIPolicies"` (8 ayrı araç sütunu) | 1NF (Tekrarlayan sütun grubu) | `billing.user_ai_tool_policies` | `UserId (FK -> identity.AspNetUsers.Id CASCADE)`, `ToolKey (varchar(64))`, `Mode (int CHECK)`, `UpdatedAt (timestamptz)`, **PK: `(UserId, ToolKey)`** |
 
 ---
+
+> 14.2C ayrıntıları, spesifikasyondan sapmalar (proje kapsamlı etiket, `Restrict*` bayrakları) ve repo geneli karar tablosu: `PHASE_14_2C_REPORT.md` §2, §6. Üst tablolar D-1'e kadar `public`'te.
 
 ### 2.2. 3NF Dönüşümleri (Geçişli Bağımlılıklar ve "God Table" Ayrıştırması)
 

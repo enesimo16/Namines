@@ -193,6 +193,16 @@ her zaman istenen şeyi yapmaz):
   (`Down` verileri geri koyar; önce ReadModel, sonra Decompose), SONRA eski imaj. Düz metin paylaşım token'ı geri gelmez ama linkler özetle çalışır;
   proje başına yalnızca en yeni etkin paylaşım linki döner; boş `studio`/`hub` şemaları durur (varsayılan yetkiler korunsun diye). Ayrıntı: `docs/architecture/PHASE_14_2B_REPORT.md` §3.
 
+## 5.2 Bilinçli istisna: Faz 14.2C
+
+`Phase14_2C_NormalizeCollections` da tek adımlı (`MigrationCompatibilityTests.DeliberateExceptions`): CSV kolonları aynı işlemde tablolara taşınıp düşer.
+
+- **Sıra:** eski sürümü durdur, yedek al, `--migrate`, yeni sürümü aç. Eski kod yeni şemada sorgu hatası verir; maskesiz okuma ya da serbest allowlist oluşmaz.
+- **Süre:** ölçüm 200 bin issue + 20 bin anahtar + 50 bin izin için 110 sn, üç tabloda ACCESS EXCLUSIVE. `Database:MigrationCommandTimeoutSeconds` varsayılanı 1800.
+- **Yetki:** `deploy/sql/roles.sql` artık `gateway` şemasını da açıyor; yine de migration `namines_app` varsa yetki verir.
+- **Sonrası:** `migration_quarantine.orphaned_rows` içinde `source_table LIKE 'public.Gateway%'` satırlarına bak. Tüm girdileri geçersiz anahtar her isteği reddeder, kullanıcı yenisini üretmeli. `blank_list_means_no_restriction` kısıtsız kalan anahtarları gösterir.
+- **Geri alma:** kod geri alınacaksa ÖNCE veritabanı: `dotnet ef database update 20261105105313_AddSubscriptionCancellationOutbox`. Temiz listeler kanonik döner, karantinadakiler ham metinle; karar aynı kalır. Ayrıntı: `docs/architecture/PHASE_14_2C_REPORT.md` §3.
+
 ## 5.2 Abonelik iptali kuyruğu
 
 Silinen hesabın Stripe iptali `PendingSubscriptionCancellations` tablosunda bekler ve işçi tarafından tamamlanır.

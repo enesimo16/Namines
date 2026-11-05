@@ -7,9 +7,11 @@
 ## 1. Tam Sahiplik Tablosu
 
 > **Hedef tablo.** Şu an fiziksel olarak taşınmış olanlar yalnızca `studio.projects`, `studio.project_connections`,
-> `studio.project_shares`, `hub.repositories`, `hub.project_tags` (14.2B). `RepoStars`, `RepoIssues`, `Branches`,
-> `CrossDatabaseRelations` vb. hâlâ `public`'te. `StudioDbContext` yalnızca Studio'nun 3 tablosunu, `HubDbContext`
-> Hub'ın 2 tablosu + `public."RepoStars"`'ı eşler. DDL'in tek sahibi `AuthDbContext` migration zinciri.
+> `studio.project_shares`, `hub.repositories`, `hub.project_tags` (14.2B), `hub.issue_labels`, `hub.repo_issue_labels`,
+> `gateway.api_key_allowed_origins`, `gateway.api_key_allowed_ips`, `gateway.table_masked_columns` (14.2C). `RepoStars`, `RepoIssues`, `Branches`,
+> `CrossDatabaseRelations`, `GatewayApiKeys`, `GatewayTablePermissions`, `GatewayAuditEntries` vb. hâlâ `public`'te. `StudioDbContext` yalnızca Studio'nun 3 tablosunu, `HubDbContext`
+> Hub'ın 2 tablosu + `public."RepoStars"`'ı eşler. `GatewayDbContext` 3 çocuk tabloyu ve üstlerini gerçek yerlerinde eşler ama
+> hiçbir üretim kodu kullanmıyor; Gateway hâlâ `AuthDbContext`'ten okuyor (D-1). Issue etiketleri yalnızca `AuthDbContext`'te (`RepoIssues` D-1'de Hub'a geçince taşınır). DDL'in tek sahibi `AuthDbContext` migration zinciri.
 > Sözleşmeler: `IStudioApplicationService` (özet, bağlantı üst verisi, paylaşım), `IProjectConnectionSecretProvider`
 > (tek çözme kapısı), `IHubApplicationService` (repo, etiket, yıldız, fork, Explore adayları),
 > `ICrossModuleTransaction` (Auth + Studio + Hub tek işlem).
