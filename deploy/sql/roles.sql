@@ -12,7 +12,9 @@
 --        -f deploy/sql/roles.sql
 --
 -- Geçiş sırası (mevcut kurulum, kesintisiz):
---   1) Bu betiği çalıştırın (idempotent; tekrar çalıştırılabilir).
+--   1) Bu betiği çalıştırın (idempotent; tekrar çalıştırılabilir). Süper kullanıcıyla kurulmuş bir
+--      veritabanında her yükseltmeden önce yeniden çalıştırın: sahipliği eski rolde kalan nesneyi değiştiren
+--      migration (ör. Hub_02 ile tetikleyici fonksiyonu) migrator ile 42501 alır.
 --   2) Migration'ı ConnectionStrings__Migrations (namines_migrator) ile çalıştırın:
 --      yeni tablolar migrator'a ait olur, default privileges app'e DML verir.
 --   3) DefaultConnection'ı namines_app'e çevirin.

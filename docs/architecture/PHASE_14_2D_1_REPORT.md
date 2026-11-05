@@ -17,7 +17,7 @@
 | API compatibility | PASS | Denetimin 829 satırlık yetki ve şekil matrisi düzeltmelerden sonra tabana karşı 0 fark. Rota/DTO anlık görüntüsü `f5fcd96`'dan üretildi, test yeşil; HTTP duman 95/95 hem temiz hem tohumlu DB'de; şekil karşılaştırması 56 etiket 0 fark. Tek bilinçli ek: paylaşım yanıtında `closedOldestLinks` yalnız >0 iken (BL-7) |
 | Documentation | PASS | Bu rapor, `IMPLEMENTATION_STATUS`, `MODULE_OWNERSHIP`, `DATABASE_NORMALIZATION`, `MIGRATION_PLAN`, `TARGET_ARCHITECTURE`, `docs/deploy/MIGRATION-VE-GERI-ALMA.md` §5.3 |
 | Performans | PASS | §6 |
-| Independent audit | CONDITIONALLY ACCEPTED (`3da8e2e`): B-1, M-1, M-2, m-1..m-9. Düzeltmeler §11'de, yeniden denetim bekliyor | `PHASE_14_2D_1_INDEPENDENT_AUDIT.md` |
+| Independent audit | 2. tur CONDITIONALLY ACCEPTED (`155a4b7`): 1. tur bulgularının hepsi kapandı; yeni R2-M1, R2-m1..m3 §12'de düzeltildi, yeniden denetim bekliyor | `PHASE_14_2D_1_INDEPENDENT_AUDIT.md` §8 |
 
 ## 2. Son durum
 
@@ -240,3 +240,26 @@ Taban `3da8e2e`. Her bulgu kök nedeninden düzeltildi; davranış değişikliğ
 | Duman şekli | 56 etiket, 0 fark |
 | `has-pending-model-changes` | 12 bağlamın 12'si "No changes" (Hub_02 boş model farkı, yalnız SQL) |
 | Frontend, `services/desk` | yukarıda m-4; desk vitest 11 dosya 121/121, tsc rc=0 |
+
+## 12. 2. tur denetim düzeltmeleri (`155a4b7` sonrası)
+
+| ID | Kök neden | Düzeltme | Kanıt |
+|---|---|---|---|
+| R2-M1 | `roles.sql` yalnız tablo ve dizi devrediyordu; 14.2C'yi süper kullanıcı çalıştırınca `hub.issue_label_gc` onda kalıyor, `Hub_02`'nin `CREATE OR REPLACE FUNCTION`'ı migrator ile 42501 alıyordu, Gateway ve Ops hiç çalışmıyordu | `roles.sql` artık fonksiyon/tetikleyici fonksiyonu/prosedür/toplama, enum/domain/range/bileşik tip, görünüm, gerçekleştirilmiş görünüm, yabancı tablo ve `public` dışı şemaların kendisini devrediyor; liste `migration_quarantine`'i de içeriyor (yalnız sahiplik, uygulama yetkisi yok); eklenti nesneleri atlanıyor. Varsayılan yetkiler zaten migrator için tanımlı; fonksiyonlar için `PUBLIC EXECUTE` PostgreSQL varsayılanı, tetikleyici fonksiyonu tetikleyen rolden EXECUTE istemiyor. `Hub_02` önce sahipliği sınar, eksikse "Re-run deploy/sql/roles.sql" diyen 42501 ile durur. Runbook §5.3 ve betik başlığı güncellendi | Gerçek PG testi: 14.2C'ye süper kullanıcıyla migrate ve tohum, gerçek psql ile `roles.sql`, migrator ile tüm zincirler (bekleyen 0, tohum sağlam, tetikleyici deyim düzeyi), `namines_app` taşınan her tabloyu okuyor ve GC tetikleyicisinden geçerek yazıyor. `ca19825` `roles.sql`'i ile düştü (fonksiyon sahibi `postgres`). İkinci test: açık yeniden yaratılınca `Hub_02` rehber mesajla duruyor, hub geçmişi 1, `roles.sql` sonrası aynı komut tamamlıyor. Gerçek ikili: 14.2C dökümü süper kullanıcıyla geri yüklendi (fonksiyon sahibi `postgres`), yeni `roles.sql` sonrası `namines_migrator`, migrator ile `--migrate` rc=0 (geçmiş public 56, studio 1, hub 2, gateway 1, ops 1), `namines_app` ile duman 95/95. Aynı yol `ca19825` `roles.sql`'iyle: fonksiyon `postgres`'te kaldı, `--migrate` rehber mesajlı 42501 ile durdu (hub 1, gateway ve ops yok) |
+| R2-m1 | Desk SQL konsolu ve yan defterleri Owner/bağlantı/konsol iznini controller'da yeniden kontrol ediyordu | `IGatewayRequestGate.AuthorizeDeskConsoleAsync`; `/query` oturum yolu ile tek özel kuralı paylaşıyor. Mesajlar, kodlar, sıra aynı | Controller artık rol sormuyor (`Gateway_controller_leaves_owner_checks_to_the_gate`; mutasyon: `DeskSql`'e geri eklenen `GetRoleAsync` bu testi düşürdü). Matris tabana karşı 829 karşılaştırmada 2 fark, ikisi de bilinçli R2-m3 değişikliği: `POST api/migration/generate` yabancı ve viewer için 500 → 503 |
+| R2-m2 | Kapı taraması yalnız `GatewayController`'a bakıyordu | `IGatewayAccess` Gateway modülüne internal (`GatewayKeyRestrictions` ve `TryAcquireAsync` gibi). Gateway dışındaki her derlemede bu parçalara çağrı ya da yeniden public olmaları test hatası | Mutasyonlar: `FeedbackController`'da kapısız `IGatewayAccess.AuthenticateAsync` → derleme hatası CS0122; aynısı `IGatewayAccess` public yapılarak → `Only_the_gate_composes_gateway_access_checks` 10 derlemenin 10'unda düştü |
+| R2-m3 | `MigrationController`'ın genel catch'i `AiNotConfiguredException`'ı mesajıyla 500'e çeviriyor, ara katmanın 503'ünün önüne geçiyordu | Üç uçta ve aynı desendeki `ReverseEngineerController`'da genel catch bu istisnayı dışlıyor; ara katman 503 `AI_NOT_CONFIGURED` veriyor, diğer hatalar eski yanıtında | `AiNotConfiguredMappingTests` uçları gerçek ara katmanın arkasında çalıştırıyor; `155a4b7` controller'larıyla 5 testin 4'ü düştü. Diğer AI çağrıları tarandı: `SchemaController` zaten 503, `DocumentationController` ve şema mock yolu bilinçli geri çekilme, Gateway NL bütçeyi iade edip sağlayıcı mesajsız 502 dönüyor (değiştirilmedi) |
+
+**Yeniden koşulanlar:**
+
+| Komut | Sonuç |
+|---|---|
+| `dotnet build backend/Namines.sln -c Release --no-incremental` | 0 uyarı, 0 hata, 31,7 sn |
+| `Namines.Tests` (tam) | 3184/3184, 0 atlanan, 0 kalan, 22 dk 31 sn (frontend kontrolleriyle aynı anda koştu). `ca19825`: 3166; eklenenler `Phase14_2BMigrationTests` +2, `AiNotConfiguredMappingTests` +5, `Phase14_2D1BoundaryScanTests` +11; kaybolan ad yok |
+| `Namines.Tests.RunTests` | 19/19, 1 dk |
+| `smoke-d1.js` temiz DB / 14.2C tohumlu DB | 95/95 ve 95/95 (süper kullanıcı); rollere sonradan geçen yükseltmede `namines_app` ile 95/95. Duman şekli 56 etiket 0 fark |
+| Frontend (`npm ci`, tsc, eslint, vitest, `next build --webpack`) | tsc 0 hata, eslint 0 hata (188 uyarı, önceden var), vitest 40 dosya 282/282, `next build` rc=0 |
+| `services/desk` | vitest 11 dosya 121/121, tsc rc=0 |
+| CLI `namines` | `--help`, `validate`, `ddl`, `prisma`, `diff` çalıştı (Release ikili) |
+| MCP `namines-mcp` stdio | `initialize`, `tools/list` (13 araç), `namines_list_artifact_targets`, `namines_generate_ddl`, `namines_generate_prisma`, `namines_hub_search_blueprints`: `isError=false`. API'ye giden araçlar (`NAMINES_API_TOKEN`) çalıştırılmadı |
+| `has-pending-model-changes` | 12 bağlamın 12'si "No changes" |
