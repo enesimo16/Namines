@@ -12,7 +12,7 @@ namespace Namines.Gateway.Application;
 /// (köken, IP, hız sınırı, kullanım, maskeleme dahil) <see cref="IGatewayRequestGate"/>'te; controller bu
 /// arayüzü değil kapıyı çağırır. Proje rolü Studio sözleşmesinden, anahtar kaydı kendi tablosundan.
 /// </summary>
-public interface IGatewayAccess
+internal interface IGatewayAccess
 {
     /// <summary>İptal, süre, üreticinin üyeliği ve Owner-yalnız yetkiler dahil; geçersizse null.</summary>
     Task<GatewayApiKey?> AuthenticateAsync(string? rawKey, CancellationToken ct = default);

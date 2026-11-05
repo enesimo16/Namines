@@ -92,7 +92,8 @@ public class ApiControllerConventionTests
         "RequireDeskSqlOwnerAsync(",
         "ResolveKeyAsync(",
         "CurrentUserId",
-        "GetRoleAsync(",
+        // Desk SQL konsolunun Owner kuralı kapıda (R2-m1); controller rolü kendisi sormuyor.
+        "AuthorizeDeskConsoleAsync(",
     };
 
     /// <summary>

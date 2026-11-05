@@ -174,6 +174,77 @@ public sealed class Phase14_2D1BoundaryScanTests
         Assert.Contains(typeof(IGatewayRequestGate), fields);
     }
 
+    public static IEnumerable<object[]> NonGatewayAssemblies() => new[]
+    {
+        "Namines.API", "Namines.Infrastructure", "Namines.BuildingBlocks", "Namines.Studio", "Namines.Hub",
+        "Namines.Ops", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk",
+    }.Select(n => new object[] { n });
+
+    /// <summary>
+    /// Denetim R2-m2: kapı taraması yalnız GatewayController'a bakıyordu; başka bir uçta anahtarı kapısız doğrulamak
+    /// geçiyordu. Parçalar Gateway dışında internal (derleyici engeller); bu tarama yeniden public yapılmalarına ve
+    /// yansımayla çağrılmalarına karşı ikinci kat. Gateway modülü kendi içinde serbest, kapı orada.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(NonGatewayAssemblies))]
+    public void Only_the_gate_composes_gateway_access_checks(string assemblyName)
+    {
+        var gateway = typeof(IGatewayRequestGate).Assembly;
+        var parts = new[]
+        {
+            gateway.GetType("Namines.Gateway.Application.IGatewayAccess")!,
+            gateway.GetType("Namines.Gateway.Domain.GatewayKeyRestrictions")!,
+        };
+        foreach (var part in parts) Assert.False(part.IsPublic, part.Name + " must stay internal to the Gateway module.");
+        var limiterAcquire = typeof(GatewayRateLimiter).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .Where(m => m.Name == "TryAcquireAsync").ToHashSet<MethodBase>();
+        Assert.All(limiterAcquire.Where(m => m.GetParameters().Length == 1), m => Assert.False(m.IsPublic));
+
+        var assembly = Assembly.Load(assemblyName);
+        Type[] types;
+        try { types = assembly.GetTypes(); }
+        catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(x => x is not null).ToArray()!; }
+
+        var violations = new List<string>();
+        foreach (var type in types)
+        {
+            foreach (var method in AllBodies(type))
+            {
+                foreach (var called in CalledMethods(method))
+                {
+                    var declaring = called.DeclaringType;
+                    if (declaring is null) continue;
+                    if (parts.Contains(declaring) || limiterAcquire.Contains(called))
+                        violations.Add($"{type.FullName}.{method.Name} -> {declaring.Name}.{called.Name}");
+                }
+            }
+        }
+        Assert.Empty(violations);
+    }
+
+    [Fact]
+    public void Gateway_controller_leaves_owner_checks_to_the_gate()
+    {
+        // Denetim R2-m1: Desk SQL'in Owner kuralı controller'da ikinci kopya olarak duruyordu.
+        var getRole = typeof(Namines.BuildingBlocks.Security.ITenantProjectAuthority).GetMethod(nameof(Namines.BuildingBlocks.Security.ITenantProjectAuthority.GetRoleAsync))!;
+        var calls = AllBodies(typeof(GatewayController)).SelectMany(CalledMethods).Where(m => m == getRole).ToList();
+        Assert.Empty(calls);
+    }
+
+    private static IEnumerable<MethodBase> AllBodies(Type type)
+    {
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        IEnumerable<MethodBase> own;
+        try { own = type.GetMethods(all).Cast<MethodBase>().Concat(type.GetConstructors(all)).ToList(); }
+        catch (Exception ex) when (ex is TypeLoadException or FileNotFoundException) { yield break; }
+        foreach (var m in own) yield return m;
+        Type[] nested;
+        try { nested = type.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic); }
+        catch (Exception ex) when (ex is TypeLoadException or FileNotFoundException) { yield break; }
+        foreach (var n in nested)
+            foreach (var m in AllBodies(n)) yield return m;
+    }
+
     private static bool Reaches(MethodBase method, Type owner, HashSet<MethodInfo> targets, HashSet<MethodBase> seen)
     {
         if (!seen.Add(method)) return false;

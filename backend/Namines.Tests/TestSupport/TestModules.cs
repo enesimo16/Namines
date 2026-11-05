@@ -106,7 +106,7 @@ public sealed class ModuleKit
     internal StudioDbContext Studio { get; }
     internal HubDbContext Hub { get; }
     internal GatewayDbContext Gateway { get; }
-    public IGatewayAccess GatewayAccess => new GatewayAccessService(Gateway, DefaultAuthority);
+    internal IGatewayAccess GatewayAccess => new GatewayAccessService(Gateway, DefaultAuthority);
     public IGatewayAuditLog GatewayAudit => new GatewayAuditLog(Gateway, DefaultAuthority, Branches);
     public IGatewayRequestGate GatewayGate(Microsoft.Extensions.Configuration.IConfiguration configuration) =>
         new GatewayRequestGate(GatewayAccess, GatewayAudit, Usage, DefaultAuthority, StudioService, new NoGatewayMetrics(), configuration);

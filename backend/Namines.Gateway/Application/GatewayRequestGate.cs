@@ -88,6 +88,12 @@ public interface IGatewayRequestGate
     Task<GatewayDecision> AuthorizeStoredConnectionSqlAsync(
         GatewayCaller caller, GatewayApiKey? key, string? requestConnectionString, string? requestProjectId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Desk SQL konsolu ve yan defterleri (geçmiş, kayıtlı sorgular): yalnızca Owner, yalnızca proje konsolu açtıysa.
+    /// Konsolu kullanamayan geçmişini de görmez. <paramref name="requireStoredConnection"/>: çalıştırma ucu bağlantı ister.
+    /// </summary>
+    Task<GatewayDecision> AuthorizeDeskConsoleAsync(GatewayCaller caller, string projectId, bool requireStoredConnection, CancellationToken ct = default);
+
     /// <summary>Oturum yolunda projeye erişim (Desk): okuma için görme, yazma için düzenleme.</summary>
     Task<GatewayDecision> AuthorizeSessionProjectAsync(GatewayCaller caller, string projectId, bool forWrite, CancellationToken ct = default);
 
@@ -240,6 +246,33 @@ internal sealed class GatewayRequestGate : IGatewayRequestGate
         return decision;
     }
 
+    public Task<GatewayDecision> AuthorizeDeskConsoleAsync(GatewayCaller caller, string projectId, bool requireStoredConnection, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        return OwnerSqlSessionAsync(caller, projectId, "Only the project Owner can use the Desk SQL console.", requireStoredConnection, ct);
+    }
+
+    /// <summary>
+    /// Kayıtlı bağlantıda oturumla SQL'in tek kuralı (denetim R2-m1: Desk konsolu ve <c>/query</c> ayrı kopyalardı).
+    /// Proje hiç görünmüyorsa 404; görünüyor ama Owner değilse 403 ve açık sebep; sonra bağlantı ve konsol izni.
+    /// Reddedilecek istek için sır çözülmez: yalnız üst veri okunur.
+    /// </summary>
+    private async Task<GatewayDecision> OwnerSqlSessionAsync(
+        GatewayCaller caller, string projectId, string notOwnerMessage, bool requireStoredConnection, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(caller.SessionUserId)) return GatewayDecision.Deny(GatewayDenial.Unauthenticated);
+        var role = await _authority.GetRoleAsync(projectId, caller.SessionUserId, ct);
+        if (role is null) return GatewayDecision.Deny(GatewayDenial.NotFound, "Project not found.");
+        if (role != OrgRole.Owner) return GatewayDecision.Deny(GatewayDenial.Forbidden, notOwnerMessage);
+
+        var meta = await _studio.GetConnectionMetadataAsync(projectId, ct);
+        if (requireStoredConnection && !meta.HasConnection)
+            return GatewayDecision.Deny(GatewayDenial.BadRequest, "This project has no stored database connection.");
+        if (!meta.AllowDeskSql)
+            return GatewayDecision.Deny(GatewayDenial.Forbidden, "The SQL console is not enabled for this project yet.");
+        return GatewayDecision.Allow(null);
+    }
+
     public async Task<GatewayDecision> AuthorizeStoredConnectionSqlAsync(
         GatewayCaller caller, GatewayApiKey? key, string? requestConnectionString, string? requestProjectId, CancellationToken ct = default)
     {
@@ -252,17 +285,10 @@ internal sealed class GatewayRequestGate : IGatewayRequestGate
 
             // Oturum + kayıtlı bağlantı: "kullanıcının zaten DB erişimi var" öncülü geçersiz, erişimi bu istek veriyor.
             // Desk SQL konsoluyla aynı eşik: yalnızca Owner, yalnızca proje açıkça izin verdiyse.
-            if (string.IsNullOrEmpty(caller.SessionUserId)) return GatewayDecision.Deny(GatewayDenial.Unauthenticated);
-            var role = await _authority.GetRoleAsync(requestProjectId, caller.SessionUserId, ct);
-            // Proje hiç görünmüyorsa 404; görünüyor ama Owner değilse 403 ve açık sebep.
-            if (role is null) return GatewayDecision.Deny(GatewayDenial.NotFound, "Project not found.");
-            if (role != OrgRole.Owner)
-                return GatewayDecision.Deny(GatewayDenial.Forbidden,
-                    "Only the project Owner can run raw SQL against the stored connection. " +
-                    "Send your own connection string, or use the Desk SQL console.");
-            if (!(await _studio.GetConnectionMetadataAsync(requestProjectId, ct)).AllowDeskSql)
-                return GatewayDecision.Deny(GatewayDenial.Forbidden, "The SQL console is not enabled for this project yet.");
-            return GatewayDecision.Allow(null);
+            return await OwnerSqlSessionAsync(caller, requestProjectId,
+                "Only the project Owner can run raw SQL against the stored connection. " +
+                "Send your own connection string, or use the Desk SQL console.",
+                requireStoredConnection: false, ct);
         }
 
         // Proje ya da bağlantı satırı yoksa da reddedilir: "kayıt yok"u izin saymak fail-open olurdu.

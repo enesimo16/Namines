@@ -593,25 +593,11 @@ public class GatewayController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.ProjectId) || string.IsNullOrWhiteSpace(request.Sql))
             return BadRequest(new { message = "ProjectId and Sql are required." });
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId)) return Unauthorized();
-
-        var role = await _authority.GetRoleAsync(request.ProjectId, userId, cancellationToken);
-        // 404 ile "Owner değilsin" arasında ayrım yapılmıyor BURADA sızdırılan
-        // bilgi için: proje hiç görünmüyorsa (Viewer bile değilsen) 404, GÖRÜYOR
-        // ama Owner değilsen 403 + açık sebep — kabul kriteri "yetkisiz kullanıcı
-        // açıklayıcı mesaj görür" (D6/D7'de kurulan aynı ilke).
-        if (role is null)
-            return NotFound(new { message = "Project not found." });
-        if (role != OrgRole.Owner)
-            return StatusCode(403, new { message = "Only the project Owner can use the Desk SQL console." });
-
-        // Önce üst veri: reddedilecek bir istek için sır çözülmez.
-        var connectionMeta = await _studio.GetConnectionMetadataAsync(request.ProjectId, cancellationToken);
-        if (!connectionMeta.HasConnection)
-            return BadRequest(new { message = "This project has no stored database connection." });
-        if (!connectionMeta.AllowDeskSql)
-            return StatusCode(403, new { message = "The SQL console is not enabled for this project yet." });
+        // Owner, kayıtlı bağlantı ve konsol izni kapıda (denetim R2-m1); reddedilecek istek için sır çözülmez.
+        var caller = Caller();
+        var console = await _gate.AuthorizeDeskConsoleAsync(caller, request.ProjectId, requireStoredConnection: true, cancellationToken);
+        if (!console.Allowed) return Deny(console);
+        var userId = caller.SessionUserId!;
 
         var stored = await _secrets.GetStoredConnectionAsync(request.ProjectId, cancellationToken);
         if (stored is null)
@@ -781,19 +767,9 @@ public class GatewayController : ControllerBase
         if (string.IsNullOrWhiteSpace(projectId))
             return (BadRequest(new { message = "ProjectId is required." }), null);
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId)) return (Unauthorized(), null);
-
-        var role = await _authority.GetRoleAsync(projectId, userId, cancellationToken);
-        if (role is null) return (NotFound(new { message = "Project not found." }), null);
-        if (role != OrgRole.Owner)
-            return (StatusCode(403, new { message = "Only the project Owner can use the Desk SQL console." }), null);
-
-        var allowed = (await _studio.GetConnectionMetadataAsync(projectId, cancellationToken)).AllowDeskSql;
-
-        return allowed
-            ? (null, userId)
-            : (StatusCode(403, new { message = "The SQL console is not enabled for this project yet." }), null);
+        var caller = Caller();
+        var console = await _gate.AuthorizeDeskConsoleAsync(caller, projectId, requireStoredConnection: false, cancellationToken);
+        return console.Allowed ? (null, caller.SessionUserId) : (Deny(console), null);
     }
 
     /// <summary>
