@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Namines.BuildingBlocks.Persistence;
@@ -46,7 +47,7 @@ public sealed class SharedTransactionManager : ISharedTransactionManager
             await using var transaction = await primaryContext.Database.BeginTransactionAsync(cancellationToken);
             var dbTransaction = transaction.GetDbTransaction();
             var sharedConnection = primaryContext.Database.GetDbConnection();
-            var originalConnections = new Dictionary<DbContext, DbConnection>(validSecondaries.Count);
+            var switchedSecondaries = new List<DbContext>(validSecondaries.Count);
 
             try
             {
@@ -55,7 +56,7 @@ public sealed class SharedTransactionManager : ISharedTransactionManager
                     var currentConn = secondary.Database.GetDbConnection();
                     if (!ReferenceEquals(currentConn, sharedConnection))
                     {
-                        originalConnections[secondary] = currentConn;
+                        switchedSecondaries.Add(secondary);
                         if (currentConn.State != ConnectionState.Closed)
                         {
                             await secondary.Database.CloseConnectionAsync();
@@ -83,11 +84,11 @@ public sealed class SharedTransactionManager : ISharedTransactionManager
                         // veya asıl işlem istisnasını maskelememeli.
                     }
 
-                    if (originalConnections.TryGetValue(secondary, out var originalConn))
+                    if (switchedSecondaries.Contains(secondary))
                     {
                         try
                         {
-                            secondary.Database.SetDbConnection(originalConn, contextOwnsConnection: true);
+                            RestoreConfiguredConnection(secondary);
                         }
                         catch
                         {
@@ -97,5 +98,25 @@ public sealed class SharedTransactionManager : ISharedTransactionManager
                 }
             }
         }, ct);
+    }
+
+    /// <summary>
+    /// Bağlamı yapılandırıldığı bağlantıya döndürür. SetDbConnection, bağlamın SAHİBİ olduğu eski
+    /// bağlantıyı dispose eder: nesneyi saklayıp geri takmak sonraki sorguda ObjectDisposedException
+    /// demekti (yalnızca ayrı bağlantılı üretim düzeninde görünür, SQLite testleri aynı nesneyi
+    /// paylaştığı için kaçırıyordu). Dizgeyle yapılandırılmışsa yeni bağlantı dizgeden açılır;
+    /// dışarıdan verilmiş bağlantının sahibi çağıran, dispose edilmemiştir, aynen geri takılır.
+    /// </summary>
+    private static void RestoreConfiguredConnection(DbContext context)
+    {
+        var configured = RelationalOptionsExtension.Extract(context.GetService<IDbContextOptions>());
+        if (configured.Connection is { } external)
+        {
+            context.Database.SetDbConnection(external, contextOwnsConnection: false);
+            return;
+        }
+
+        context.Database.SetDbConnection(null);
+        context.Database.SetConnectionString(configured.ConnectionString);
     }
 }

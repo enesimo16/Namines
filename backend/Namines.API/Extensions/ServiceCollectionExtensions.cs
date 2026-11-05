@@ -167,7 +167,12 @@ public static class ServiceCollectionExtensions
 
         // Modular Monolith (Faz 2) — Modüller arası asenkron in-process olay veri yolu
         services.AddSingleton<IModuleEventBus, ModuleEventBus>();
-        services.AddNaminesBuildingBlocks();
+        services.AddNaminesBuildingBlocks(connectionStringFactory: config =>
+            Namines.Infrastructure.Data.ControlDbConnection.ApplyPoolDefaults(
+                config.GetConnectionString("DefaultConnection")
+                    ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres",
+                config));
+        services.AddScoped<Namines.BuildingBlocks.Persistence.ICrossModuleTransaction, Namines.Infrastructure.Data.CrossModuleTransaction>();
         services.AddScoped<TenantProjectAuthorityService>();
         services.AddScoped<ITenantProjectAuthority>(sp => sp.GetRequiredService<TenantProjectAuthorityService>());
         services.AddScoped<IProjectConnectionSecretProvider>(sp => sp.GetRequiredService<TenantProjectAuthorityService>());

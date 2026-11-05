@@ -21,19 +21,20 @@ public static class BuildingBlocksServiceCollectionExtensions
 
     public static IServiceCollection AddNaminesBuildingBlocks(
         this IServiceCollection services,
-        Action<DbContextOptionsBuilder>? configureDbContext = null)
+        Action<DbContextOptionsBuilder>? configureDbContext = null,
+        Func<IConfiguration, string>? connectionStringFactory = null)
     {
         services.TryAddScoped<ISharedTransactionManager, SharedTransactionManager>();
         services.TryAddScoped<ModuleMigrationOrchestrator>();
 
         RegisterModule<IdentityModuleDbContext, IIdentityModule, IdentityModule>(
-            services, configureDbContext, order: 10, moduleName: "Identity",
+            services, configureDbContext, connectionStringFactory, order: 10, moduleName: "Identity",
             schemaName: IdentityModuleDbContext.DefaultSchema,
             historyTable: IdentityModuleDbContext.MigrationsHistoryTableName,
             db => new IdentityModule(db));
 
         RegisterModule<StudioDbContext, IStudioModule, StudioModule>(
-            services, configureDbContext, order: 20, moduleName: "Studio",
+            services, configureDbContext, connectionStringFactory, order: 20, moduleName: "Studio",
             schemaName: StudioDbContext.DefaultSchema,
             historyTable: StudioDbContext.MigrationsHistoryTableName,
             db => new StudioModule(db, new StudioApplicationService(db)));
@@ -42,19 +43,19 @@ public static class BuildingBlocksServiceCollectionExtensions
             sp.GetRequiredService<IStudioModule>().Projects);
 
         RegisterModule<BillingDbContext, IBillingModule, BillingModule>(
-            services, configureDbContext, order: 30, moduleName: "Billing",
+            services, configureDbContext, connectionStringFactory, order: 30, moduleName: "Billing",
             schemaName: BillingDbContext.DefaultSchema,
             historyTable: BillingDbContext.MigrationsHistoryTableName,
             db => new BillingModule(db));
 
         RegisterModule<GovernanceDbContext, IGovernanceModule, GovernanceModule>(
-            services, configureDbContext, order: 40, moduleName: "Governance",
+            services, configureDbContext, connectionStringFactory, order: 40, moduleName: "Governance",
             schemaName: GovernanceDbContext.DefaultSchema,
             historyTable: GovernanceDbContext.MigrationsHistoryTableName,
             db => new GovernanceModule(db));
 
         RegisterModule<HubDbContext, IHubModule, HubModule>(
-            services, configureDbContext, order: 90, moduleName: "Hub",
+            services, configureDbContext, connectionStringFactory, order: 90, moduleName: "Hub",
             schemaName: HubDbContext.DefaultSchema,
             historyTable: HubDbContext.MigrationsHistoryTableName,
             db => new HubModule(db, new HubApplicationService(db)));
@@ -63,13 +64,13 @@ public static class BuildingBlocksServiceCollectionExtensions
             sp.GetRequiredService<IHubModule>().Repositories);
 
         RegisterModule<GatewayDbContext, IGatewayModule, GatewayModule>(
-            services, configureDbContext, order: 100, moduleName: "Gateway",
+            services, configureDbContext, connectionStringFactory, order: 100, moduleName: "Gateway",
             schemaName: GatewayDbContext.DefaultSchema,
             historyTable: GatewayDbContext.MigrationsHistoryTableName,
             db => new GatewayModule(db));
 
         RegisterModule<OpsDbContext, IOpsModule, OpsModule>(
-            services, configureDbContext, order: 110, moduleName: "Ops",
+            services, configureDbContext, connectionStringFactory, order: 110, moduleName: "Ops",
             schemaName: OpsDbContext.DefaultSchema,
             historyTable: OpsDbContext.MigrationsHistoryTableName,
             db => new OpsModule(db));
@@ -80,6 +81,7 @@ public static class BuildingBlocksServiceCollectionExtensions
     private static void RegisterModule<TDbContext, TModuleInterface, TModuleImplementation>(
         IServiceCollection services,
         Action<DbContextOptionsBuilder>? configureDbContext,
+        Func<IConfiguration, string>? connectionStringFactory,
         int order,
         string moduleName,
         string schemaName,
@@ -98,7 +100,11 @@ public static class BuildingBlocksServiceCollectionExtensions
             services.AddDbContext<TDbContext>((sp, options) =>
             {
                 var config = sp.GetService<IConfiguration>();
-                var connStr = config?.GetConnectionString("DefaultConnection") ?? FallbackConnectionString;
+                // Studio/Hub artık istek yolunda: AuthDbContext ile AYNI dizge = aynı havuz. Ayrı dizge,
+                // ayrı (100'lük) havuz demek ve anonim yükte PostgreSQL "too many clients" veriyordu.
+                var connStr = config is not null && connectionStringFactory is not null
+                    ? connectionStringFactory(config)
+                    : config?.GetConnectionString("DefaultConnection") ?? FallbackConnectionString;
                 options.UseNpgsql(
                     connStr,
                     npgsql => npgsql.MigrationsHistoryTable(historyTable, schemaName));
