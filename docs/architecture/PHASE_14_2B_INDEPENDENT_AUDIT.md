@@ -1,4 +1,8 @@
 # NAMINES — PHASE 14.2B INDEPENDENT ACCEPTANCE AUDIT
+
+> **Tarihsel belge.** `5565811` üzerindeki denetim; bulguları (kolonlar düşmemiş, tablolar yok) o commit için
+> doğruydu. Güncel durum ve kanıt: `PHASE_14_2B_REPORT.md`.
+
 ## CloudProjects God Entity Decomposition — Bağımsız Kabul ve Güvenlik Denetimi
 
 > **Tarih:** 2026-11-04  

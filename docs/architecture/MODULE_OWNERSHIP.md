@@ -6,6 +6,14 @@
 
 ## 1. Tam Sahiplik Tablosu
 
+> **Hedef tablo.** Şu an fiziksel olarak taşınmış olanlar yalnızca `studio.projects`, `studio.project_connections`,
+> `studio.project_shares`, `hub.repositories`, `hub.project_tags` (14.2B). `RepoStars`, `RepoIssues`, `Branches`,
+> `CrossDatabaseRelations` vb. hâlâ `public`'te. `StudioDbContext` yalnızca Studio'nun 3 tablosunu, `HubDbContext`
+> Hub'ın 2 tablosu + `public."RepoStars"`'ı eşler. DDL'in tek sahibi `AuthDbContext` migration zinciri.
+> Sözleşmeler: `IStudioApplicationService` (özet, bağlantı üst verisi, paylaşım), `IProjectConnectionSecretProvider`
+> (tek çözme kapısı), `IHubApplicationService` (repo, etiket, yıldız, fork, Explore adayları),
+> `ICrossModuleTransaction` (Auth + Studio + Hub tek işlem).
+
 | Sıra | Modül | PostgreSQL Şeması | DbContext | Sahip Olduğu Tablolar (Hedef 3NF) | Sahip Olduğu Uygulama Servisleri & İşçiler | Sahip Olduğu Controller / Uçlar |
 |---|---|---|---|---|---|---|
 | **1** | **Identity** | `identity` | `IdentityModuleDbContext` | `AspNetUsers`, `AspNetRoles`, `AspNetUserRoles`, `AspNetUserClaims`, `AspNetUserLogins`, `AspNetUserTokens`, `AspNetRoleClaims`, `organizations`, `organization_members`, `team_invites` | `AccountDeletionService`, `EncryptedUserStore`, `PwnedPasswordValidator`, `OrgAccess` (`ITenantProjectAuthority`) | `AuthController`, `TeamController`, `ProjectMemberController` |

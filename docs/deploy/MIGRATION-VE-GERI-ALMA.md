@@ -181,6 +181,16 @@ her zaman istenen şeyi yapmaz):
 
 ---
 
+## 5.1 Bilinçli istisna: Faz 14.2B
+
+`Phase14_2B_DecomposeCloudProjects` bu kuralın dışında (`MigrationCompatibilityTests.DeliberateExceptions`):
+`CloudProjects` tek adımda `studio.projects` olur ve 13 kolonu düşer, eski kod yeni şemada ÇALIŞMAZ.
+
+- **Dağıtım:** eski sürümü durdur → yedek al → `--migrate` → yeni sürümü aç. Kısa bir bakım penceresi gerekir.
+- **Geri alma:** kod geri alınacaksa ÖNCE veritabanı: `dotnet ef database update 20261030215219_AddDeletionAuditActions`
+  (`Down` verileri geri koyar), SONRA eski imaj. Düz metin paylaşım token'ı geri gelmez ama linkler özetle çalışır;
+  proje başına yalnızca en yeni etkin paylaşım linki döner. Ayrıntı: `docs/architecture/PHASE_14_2B_REPORT.md` §3.
+
 ## 6. Bugün eksik olanlar (dürüst kayıt)
 
 Bu belge kuralı ve prosedürü yazıyor. **Aşağıdakiler hâlâ yok** ve bu belge

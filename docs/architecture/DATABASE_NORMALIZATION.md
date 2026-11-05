@@ -22,7 +22,7 @@
 
 | Mevcut Tablo & Sütun | İhlal Türü | Hedef Şema & Tablo | Hedef Sütunlar & Kısıtlar |
 |---|---|---|---|
-| `public."CloudProjects"."Tags"` (`"postgresql,3nf,saas"`) | 1NF (Çok değerli CSV) | `hub.project_tags` | `ProjectId (FK -> studio.projects.Id CASCADE)`, `Tag (varchar(64))`, **PK: `(ProjectId, Tag)`**, Index: `IX_project_tags_Tag` |
+| `public."CloudProjects"."Tags"` (`"postgresql,3nf,saas"`) | 1NF (Çok değerli CSV) | `hub.project_tags` | `ProjectId (FK -> hub.repositories CASCADE)`, `Tag (kanonik, text)`, `DisplayTag`, `Position`, **PK: `(ProjectId, Tag)`**, Index: `IX_project_tags_Tag_ProjectId` (uygulandı) |
 | `public."RepoIssues"."Labels"` (`"dba-risk,perf"`) | 1NF (Çok değerli CSV) | `hub.issue_labels` | `IssueId (FK -> hub.repo_issues.Id CASCADE)`, `Label (varchar(64))`, **PK: `(IssueId, Label)`**, Index: `IX_issue_labels_Label` |
 | `public."GatewayApiKeys"."AllowedOrigins"` | 1NF (Çok değerli CSV) | `gateway.api_key_allowed_origins` | `ApiKeyId (FK -> gateway.gateway_api_keys.Id CASCADE)`, `Origin (varchar(256))`, **PK: `(ApiKeyId, Origin)`** |
 | `public."GatewayApiKeys"."AllowedIps"` | 1NF (Çok değerli CSV) | `gateway.api_key_allowed_ips` | `ApiKeyId (FK -> gateway.gateway_api_keys.Id CASCADE)`, `CidrOrIp (varchar(64))`, **PK: `(ApiKeyId, CidrOrIp)`** |
@@ -34,6 +34,13 @@
 ### 2.2. 3NF Dönüşümleri (Geçişli Bağımlılıklar ve "God Table" Ayrıştırması)
 
 #### A. `CloudProjects` Tablosunun 4 Normalize Tabloya Ayrılması
+
+> **Uygulandı (14.2B); uygulanan şekil aşağıdaki taslaktan farklı:** `project_connections.EncryptedConnectionString`
+> nullable (bağlantısız SQL konsolu onayı kaybolmasın), `project_shares` proje başına çok satır + `Id` PK + `RevokedAt`
+> (daha önce yapıştırılmış URL'ler çalışsın), `repositories` her projede var, `Slug` nullable, `OwnerUserId` kopyası
+> (sahip başına slug benzersizliği), `ForkedFromProjectId` self-FK; `project_tags` `Tag` kanonik anahtar +
+> `DisplayTag` + `Position`; metin kolonları `text` + CHECK. Bkz. `PHASE_14_2B_REPORT.md` §2.
+
 Mevcut `CloudProjects` tablosu 4 farklı iş alanının verisini ve geçişli bağımlılıklarını tek satırda taşımaktadır:
 1. **`studio.projects` (Çekirdek Proje Varlığı):**
    - `Id (PK)`, `OrganizationId (FK -> identity.organizations)`, `UserId (CreatedByUserId, FK -> identity.AspNetUsers)`, `Name`, `DbType`, `SchemaJson`, `NodePositionsJson`, `AutoApproveSafeChanges`, `CreatedAt`, `UpdatedAt`, `xmin (RowVersion)`.
