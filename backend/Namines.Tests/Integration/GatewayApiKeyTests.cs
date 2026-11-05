@@ -44,7 +44,7 @@ public class GatewayApiKeyTests : IAsyncLifetime
                 await _shared.Database.MigrateAsync();
                 break;
             }
-            catch (Npgsql.NpgsqlException) when (attempt < connectAttempts)
+            catch (Npgsql.NpgsqlException ex) when (ex is not Npgsql.PostgresException && attempt < connectAttempts)
             {
                 await _shared.Database.CloseConnectionAsync();
                 await Task.Delay(TimeSpan.FromSeconds(2));

@@ -30,6 +30,19 @@ public sealed class Phase14_2BPostgresFixture : IAsyncLifetime
         if (DockerAvailable.Value) await _container.DisposeAsync();
     }
 
+    /// <summary>deploy/sql/roles.sql'i gerçek psql ile, üretimdeki gibi çalıştırır.</summary>
+    public async Task ApplyRolesAsync(string database, string script)
+    {
+        await _container.CopyAsync(System.Text.Encoding.UTF8.GetBytes(script), "/tmp/roles.sql");
+        var result = await _container.ExecAsync(new[]
+        {
+            "psql", "-U", "postgres", "-d", database, "-v", "ON_ERROR_STOP=1",
+            "-v", "migrator_password='migrator-pw'", "-v", "app_password='app-pw'", "-v", "dbname=" + database,
+            "-f", "/tmp/roles.sql",
+        });
+        Assert.True(result.ExitCode == 0, result.Stderr);
+    }
+
     public async Task<string> CreateDatabaseAsync(string name)
     {
         await using var admin = new NpgsqlConnection(_container.GetConnectionString());
@@ -97,6 +110,13 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         return rows;
     }
 
+    private static string BackendFile(params string[] parts)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !dir.GetFiles("Namines.sln").Any()) dir = dir.Parent;
+        return Path.Combine(new[] { dir!.FullName }.Concat(parts).ToArray());
+    }
+
     private static string Literal(string? value) => value is null ? "NULL" : "'" + value.Replace("'", "''") + "'";
 
     /// <summary>
@@ -144,6 +164,8 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         await Project("p-orphan", fork: "gone-project", slug: "orphan");
         await Project("p-desk-only", desk: true);
         await Project("p-turkish", tags: "İstanbul,ÇAY,çay,Işık, ışık ,ÜÇ");
+        // Bağlam duyarlı küçültme (sondaki Yunanca Σ) ve eski gözcü karakterle çakışma: C# ile aynı kalmalı.
+        await Project("p-greek", tags: "ΑΣ,ασ,\uE000x,İx");
         await Project("p-other-owner", owner: "u2", org: null, slug: "alpha", vis: 2, desc: "Same slug, other owner");
 
         await ExecAsync(cs, $"""
@@ -153,7 +175,7 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
     }
 
     private const string RepositoriesDump = """
-        SELECT "ProjectId","OwnerUserId","Slug","Description","Visibility","Category","StarCount","ForkCount",
+        SELECT "ProjectId","OwnerUserId","ProjectName","ProjectDbType","Slug","Description","Visibility","Category","StarCount","ForkCount",
                "ForkedFromProjectId","LinkedGithubRepo","CreatedAt" FROM hub.repositories
         """;
     private const string ConnectionsDump = """SELECT "ProjectId","EncryptedConnectionString","ConnectionDbType","AllowDeskSql" FROM studio.project_connections""";
@@ -222,7 +244,8 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         var kit = TestModules.For(ctx);
 
         // ── Repo: her projeye tam bir satır, alanlar birebir ──
-        Assert.Equal(9, await CountAsync(cs, "SELECT count(*) FROM hub.repositories"));
+        Assert.Equal(10, await CountAsync(cs, "SELECT count(*) FROM hub.repositories"));
+        Assert.Equal(0, await CountAsync(cs, """SELECT count(*) FROM hub.repositories r JOIN studio.projects p ON p."Id" = r."ProjectId" WHERE r."ProjectName" <> p."Name" OR r."ProjectDbType" <> p."DbType" """));
         var alpha = (await kit.HubService.GetRepositoryAsync("p-secret"))!;
         Assert.Equal(("alpha", "Alpha desc", ProjectVisibility.Public, "SaaS", 7, 2, "acme/repo", "u1"),
             (alpha.Slug, alpha.Description, alpha.Visibility, alpha.Category, alpha.StarCount, alpha.ForkCount, alpha.LinkedGithubRepo, alpha.OwnerUserId));
@@ -263,6 +286,7 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         Assert.Null(await kit.HubService.GetTagsCsvAsync("p-fork"));
         Assert.Null(await kit.HubService.GetTagsCsvAsync("p-hashonly"));
         Assert.Equal("İstanbul,ÇAY,Işık,ışık,ÜÇ", await kit.HubService.GetTagsCsvAsync("p-turkish"));
+        Assert.Equal("ΑΣ,\uE000x,İx", await kit.HubService.GetTagsCsvAsync("p-greek"));
 
         // SQL'in ürettiği anahtar, uygulamanın ürettiğiyle AYNI: yoksa arama eski satırları bulamaz.
         var tags = await kit.Hub.ProjectTags.AsNoTracking().ToListAsync();
@@ -301,10 +325,12 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
 
         await ctx.GetService<IMigrator>().MigrateAsync(BeforeDecomposition);
 
-        // Şema ve veri eski hâlinde; düz metin geri gelmez ama link özetle çalışır.
-        Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM (SELECT to_regnamespace('studio') n) x WHERE n IS NOT NULL"));
-        Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM (SELECT to_regnamespace('hub') n) x WHERE n IS NOT NULL"));
-        Assert.Equal(9, await CountAsync(cs, "SELECT count(*) FROM \"CloudProjects\""));
+        // Şema ve veri eski hâlinde; düz metin geri gelmez ama link özetle çalışır. Boş şemalar bilerek
+        // kalır (roles.sql'in şemaya bağlı varsayılan yetkileri için), tablolar yok.
+        Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM pg_tables WHERE schemaname IN ('studio','hub')"));
+        Assert.Equal(10, await CountAsync(cs, "SELECT count(*) FROM \"CloudProjects\""));
+        // Temiz veride CHECK'ler doğrulanmış döner.
+        Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM pg_constraint WHERE conname LIKE 'CK_CloudProjects%' AND NOT convalidated"));
         Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM \"CloudProjects\" WHERE \"ShareToken\" IS NOT NULL"));
         Assert.Equal(1, await CountAsync(cs, $"SELECT count(*) FROM \"CloudProjects\" WHERE \"Id\" = 'p-secret' AND \"ShareTokenHash\" = '{ShareTokenHasher.Hash("legacy-plain-token")}'"));
         Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM \"CloudProjects\" WHERE \"Id\" = 'p-secret' AND \"Slug\" = 'alpha' AND \"Visibility\" = 2 AND \"Category\" = 'SaaS' AND \"StarCount\" = 7 AND \"ForkCount\" = 2 AND \"LinkedGithubRepo\" = 'acme/repo' AND \"AllowDeskSql\" AND \"Tags\" = 'PostgreSQL,3nf,multi-tenant'"));
@@ -338,13 +364,131 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         Assert.Contains("generator SQL", ex.ToString());
 
         // Decompose işlemi geri alındı: kaynak yerinde, veri tam.
-        Assert.Equal(9, await CountAsync(cs, "SELECT count(*) FROM \"CloudProjects\" WHERE \"Slug\" IS NOT NULL OR \"Slug\" IS NULL"));
+        Assert.Equal(10, await CountAsync(cs, "SELECT count(*) FROM \"CloudProjects\""));
         Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" LIKE '%DecomposeCloudProjects'"));
 
         await ExecAsync(cs, "DROP TABLE studio.project_connections;");
         await ctx.Database.MigrateAsync();
         Assert.Empty(await ctx.Database.GetPendingMigrationsAsync());
-        Assert.Equal(9, await CountAsync(cs, "SELECT count(*) FROM hub.repositories"));
+        Assert.Equal(10, await CountAsync(cs, "SELECT count(*) FROM hub.repositories"));
+    }
+
+    private const string ReconcileDrift = "20261105055013_Phase14_2B_ReconcileModelDrift";
+
+    /// <summary>Tek oturumda: hazırlık, bozma, doğrulama. Doğrulama patlamalı, işlem geri alınır.</summary>
+    private static async Task AssertVerifyRaisesAsync(string cs, string prepare, string corrupt, string verify, string expected)
+    {
+        await using var conn = new NpgsqlConnection(cs);
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        foreach (var sql in new[] { prepare, corrupt })
+        {
+            await using var cmd = new NpgsqlCommand(sql, conn, tx) { CommandTimeout = 120 };
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await using var check = new NpgsqlCommand(verify, conn, tx) { CommandTimeout = 120 };
+        var ex = await Assert.ThrowsAsync<PostgresException>(() => check.ExecuteNonQueryAsync());
+        Assert.Contains(expected, ex.MessageText);
+        await tx.RollbackAsync();
+    }
+
+    [RequiresDockerFact]
+    public async Task Up_dogrulamasi_bozulmus_veriyi_yakaliyor()
+    {
+        var cs = await _pg.CreateDatabaseAsync("b_verify_up");
+        await SeedLegacyAsync(cs);
+        await using (var ctx = Context(cs))
+            await ctx.GetService<IMigrator>().MigrateAsync(ReconcileDrift);
+
+        var prepare = Infrastructure.Migrations.Phase14_2BDecompositionScripts.UpPrepare;
+        var verify = Infrastructure.Migrations.Phase14_2BDecompositionScripts.UpVerify;
+
+        // Bozulmamış hâlde geçer: aşağıdakiler gerçekten bozmanın yakalandığını gösterir.
+        await using (var conn = new NpgsqlConnection(cs))
+        {
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            await using (var p = new NpgsqlCommand(prepare, conn, tx)) await p.ExecuteNonQueryAsync();
+            await using (var v = new NpgsqlCommand(verify, conn, tx)) await v.ExecuteNonQueryAsync();
+            await tx.RollbackAsync();
+        }
+
+        var cases = new (string Corrupt, string Expected)[]
+        {
+            ("""UPDATE studio.project_connections SET "EncryptedConnectionString" = 'x' WHERE "ProjectId" = 'p-secret'""", "verify connections"),
+            ("""UPDATE studio.project_connections SET "AllowDeskSql" = false WHERE "ProjectId" = 'p-desk-only'""", "verify connections"),
+            ("""DELETE FROM studio.project_connections WHERE "ProjectId" = 'p-noaad'""", "verify connections"),
+            ("""DELETE FROM studio.project_shares WHERE "ProjectId" = 'p-hashonly'""", "verify shares"),
+            ("""UPDATE studio.project_shares SET "ShareTokenHash" = repeat('0', 64) WHERE "ProjectId" = 'p-both'""", "verify shares"),
+            ("""UPDATE hub.repositories SET "StarCount" = "StarCount" + 1 WHERE "ProjectId" = 'p-secret'""", "verify repositories"),
+            ("""UPDATE hub.repositories SET "Slug" = 'changed' WHERE "ProjectId" = 'p-fork'""", "verify repositories"),
+            ("""UPDATE hub.repositories SET "ForkedFromProjectId" = NULL WHERE "ProjectId" = 'p-fork'""", "verify repositories"),
+            ("""DELETE FROM hub.repositories WHERE "ProjectId" = 'p-hashonly'""", "verify repositories"),
+            ("""DELETE FROM hub.project_tags WHERE "ProjectId" = 'p-secret' AND "Position" = 1""", "verify tags"),
+            ("""UPDATE hub.project_tags SET "Tag" = 'wrong-key' WHERE "ProjectId" = 'p-secret' AND "Position" = 0""", "verify tags"),
+            ("""UPDATE hub.project_tags SET "Position" = 99 WHERE "ProjectId" = 'p-secret' AND "Position" = 1""", "verify tags"),
+        };
+        foreach (var (corrupt, expected) in cases)
+            await AssertVerifyRaisesAsync(cs, prepare, corrupt, verify, expected);
+    }
+
+    [RequiresDockerFact]
+    public async Task Down_dogrulamasi_bozulmus_veriyi_yakaliyor()
+    {
+        var cs = await _pg.CreateDatabaseAsync("b_verify_down");
+        await SeedLegacyAsync(cs);
+        await using (var ctx = Context(cs))
+            await ctx.GetService<IMigrator>().MigrateAsync("20261105060611_Phase14_2B_DecomposeCloudProjects");
+
+        var restore = Infrastructure.Migrations.Phase14_2BDecompositionScripts.DownRestore;
+        var verify = Infrastructure.Migrations.Phase14_2BDecompositionScripts.DownVerify;
+
+        var cases = new (string Corrupt, string Expected)[]
+        {
+            ("""UPDATE "CloudProjects" SET "StarCount" = "StarCount" + 1 WHERE "Id" = 'p-secret'""", "down verify repositories"),
+            ("""UPDATE "CloudProjects" SET "EncryptedConnectionString" = 'x' WHERE "Id" = 'p-secret'""", "down verify connections"),
+            ("""UPDATE "CloudProjects" SET "Tags" = 'zz' WHERE "Id" = 'p-secret'""", "down verify tags"),
+            ("""UPDATE "CloudProjects" SET "ShareTokenHash" = NULL WHERE "Id" = 'p-both'""", "down verify shares"),
+        };
+        foreach (var (corrupt, expected) in cases)
+            await AssertVerifyRaisesAsync(cs, restore, corrupt, verify, expected);
+    }
+
+    [RequiresDockerFact]
+    public async Task En_az_yetkili_rolle_bos_kurulum_geri_alma_ve_yeniden_yukseltme_calisiyor()
+    {
+        const string database = "b_least_privilege";
+        var adminCs = await _pg.CreateDatabaseAsync(database);
+        await _pg.ApplyRolesAsync(database, await File.ReadAllTextAsync(BackendFile("..", "deploy", "sql", "roles.sql")));
+
+        var migratorCs = new NpgsqlConnectionStringBuilder(adminCs) { Username = "namines_migrator", Password = "migrator-pw" }.ConnectionString;
+        var appCs = new NpgsqlConnectionStringBuilder(adminCs) { Username = "namines_app", Password = "app-pw" }.ConnectionString;
+
+        async Task AssertAppPrivilegesAsync()
+        {
+            foreach (var table in new[] { "studio.projects", "studio.project_connections", "studio.project_shares", "hub.repositories", "hub.project_tags" })
+            {
+                Assert.Equal(0, await CountAsync(appCs, $"SELECT count(*) FROM {table}"));
+                await using var conn = new NpgsqlConnection(appCs);
+                await conn.OpenAsync();
+                await using var ddl = new NpgsqlCommand($"ALTER TABLE {table} ADD COLUMN x int", conn);
+                var denied = await Assert.ThrowsAsync<PostgresException>(() => ddl.ExecuteNonQueryAsync());
+                Assert.Equal("42501", denied.SqlState);
+            }
+        }
+
+        // Boş kurulum: yalnızca migrator ile, tüm zincir.
+        await using var ctx = Context(migratorCs);
+        await ctx.Database.MigrateAsync();
+        Assert.Empty(await ctx.Database.GetPendingMigrationsAsync());
+        await AssertAppPrivilegesAsync();
+
+        // Geri al + yeniden yükselt, yine migrator: yetki hatası yok, uygulama rolü erişimini kaybetmiyor.
+        await ctx.GetService<IMigrator>().MigrateAsync(BeforeDecomposition);
+        Assert.Equal(0, await CountAsync(appCs, "SELECT count(*) FROM \"CloudProjects\""));
+        await ctx.Database.MigrateAsync();
+        Assert.Empty(await ctx.Database.GetPendingMigrationsAsync());
+        await AssertAppPrivilegesAsync();
     }
 
     [RequiresDockerFact]

@@ -225,26 +225,6 @@ public sealed class ModularMonolithArchitectureTests
     }
 
     [Fact]
-    public async Task ModuleMigrationOrchestrator_Executes_Migrators_In_Order()
-    {
-        var executionOrder = new List<string>();
-        var migrators = new IModuleDbContextMigrator[]
-        {
-            new FakeMigrator("vault", 60, executionOrder),
-            new FakeMigrator("identity", 10, executionOrder),
-            new FakeMigrator("studio", 20, executionOrder)
-        };
-
-        var orchestrator = new ModuleMigrationOrchestrator(
-            migrators,
-            NullLogger<ModuleMigrationOrchestrator>.Instance);
-
-        await orchestrator.MigrateAllAsync();
-
-        Assert.Equal(["identity", "studio", "vault"], executionOrder);
-    }
-
-    [Fact]
     public async Task SharedTransactionManager_Commits_And_RollsBack_Across_Multiple_DbContexts()
     {
         await using var sqliteConnection = new SqliteConnection("DataSource=:memory:");
@@ -409,7 +389,7 @@ public sealed class ModularMonolithArchitectureTests
     }
 
     [Fact]
-    public void All_Eleven_Modules_Register_DbContexts_Facades_And_Ordered_Migrators()
+    public void All_Eleven_Modules_Register_DbContexts_And_Facades()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -428,31 +408,6 @@ public sealed class ModularMonolithArchitectureTests
 
         using var sp = services.BuildServiceProvider();
         using var scope = sp.CreateScope();
-
-        var orchestrator = scope.ServiceProvider.GetRequiredService<ModuleMigrationOrchestrator>();
-        Assert.Equal(11, orchestrator.Migrators.Count);
-
-        var expectedOrder = new (int Order, string ModuleName, string SchemaName)[]
-        {
-            (10, "Identity", "identity"),
-            (20, "Studio", "studio"),
-            (30, "Billing", "billing"),
-            (40, "Governance", "governance"),
-            (50, "Ground", "ground"),
-            (60, "Vault", "namines_vault"),
-            (70, "Flow", "flow"),
-            (80, "Desk", "desk"),
-            (90, "Hub", "hub"),
-            (100, "Gateway", "gateway"),
-            (110, "Ops", "ops")
-        };
-
-        for (int i = 0; i < expectedOrder.Length; i++)
-        {
-            Assert.Equal(expectedOrder[i].Order, orchestrator.Migrators[i].Order);
-            Assert.Equal(expectedOrder[i].ModuleName, orchestrator.Migrators[i].ModuleName);
-            Assert.Equal(expectedOrder[i].SchemaName, orchestrator.Migrators[i].SchemaName);
-        }
 
         // Tüm 11 modül cephesi (facade) ve izole DbContext'leri çözümlenebilmeli ve PostgreSQL şemaları eşleşmeli.
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityModule>();
@@ -641,6 +596,16 @@ public sealed class ModularMonolithArchitectureTests
     }
 
     [Fact]
+    public void Explore_ve_paylasim_olusturma_kendi_hiz_sinirinda()
+    {
+        Assert.Equal("explore-public", typeof(HubController).GetMethod(nameof(HubController.Explore))!
+            .GetCustomAttribute<Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute>()!.PolicyName);
+        // Fork/ayar/silmenin "sensitive" kovasını tüketmemeli.
+        Assert.Equal("share-create", typeof(ShareController).GetMethod(nameof(ShareController.CreateShareLink))!
+            .GetCustomAttribute<Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute>()!.PolicyName);
+    }
+
+    [Fact]
     public void Share_anonim_uclari_hiz_sinirina_bagli()
     {
         foreach (var action in new[] { nameof(ShareController.GetSharedSchema), nameof(ShareController.GetDbaBadge), nameof(ShareController.OgImage), nameof(ShareController.Meta) })
@@ -688,32 +653,6 @@ public sealed class ModularMonolithArchitectureTests
             yield return method.ReturnType;
             foreach (var param in method.GetParameters())
                 yield return param.ParameterType;
-        }
-    }
-
-    private sealed class FakeMigrator : IModuleDbContextMigrator
-    {
-        private readonly List<string> _log;
-
-        public FakeMigrator(string moduleName, int order, List<string> log)
-        {
-            ModuleName = moduleName;
-            SchemaName = moduleName;
-            Order = order;
-            _log = log;
-        }
-
-        public string ModuleName { get; }
-        public string SchemaName { get; }
-        public int Order { get; }
-
-        public Task<IReadOnlyList<string>> GetPendingMigrationsAsync(CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<string>>([]);
-
-        public Task MigrateAsync(CancellationToken ct = default)
-        {
-            _log.Add(ModuleName);
-            return Task.CompletedTask;
         }
     }
 

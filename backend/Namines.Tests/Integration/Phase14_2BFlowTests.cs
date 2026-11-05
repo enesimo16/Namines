@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -59,11 +60,27 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         }
     }
 
-    private static Scope Open(string cs)
+    private static Scope Open(string cs, CommandCounter? counter = null)
     {
+        var interceptors = counter is null ? Array.Empty<IInterceptor>() : new IInterceptor[] { counter };
         var db = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>()
-            .UseNpgsql(cs, o => { o.CommandTimeout(120); o.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null); }).Options);
-        return new Scope { Db = db, Kit = new ModuleKit(db, cs), ConnectionString = cs };
+            .UseNpgsql(cs, o => { o.CommandTimeout(120); o.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null); })
+            .AddInterceptors(interceptors).Options);
+        return new Scope { Db = db, Kit = new ModuleKit(db, cs, interceptors), ConnectionString = cs };
+    }
+
+    /// <summary>Üç bağlamın da gönderdiği SQL sayısı: Explore'un public repo sayısından bağımsız olduğunun kanıtı.</summary>
+    private sealed class CommandCounter : DbCommandInterceptor
+    {
+        public int Count;
+
+        public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, CommandEventData eventData,
+            InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref Count);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 
     private async Task<string> NewDatabaseAsync(string name)
@@ -217,7 +234,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await Assert.ThrowsAsync<DbUpdateException>(() => w.Kit.Transaction.ExecuteAsync(async c =>
         {
             await w.Db.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
-            await w.Kit.HubService.ApplySettingsAsync("p2", "owner", new(Slug: "taken"), c);
+            await w.Kit.HubService.ApplySettingsAsync("p2", "owner", "Should roll back", "PostgreSQL", new(Slug: "taken"), c);
         }));
 
         await using var v = Open(cs);
@@ -525,6 +542,205 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(5, item.GetProperty("StarCount").GetInt32());
         Assert.Equal("owner", item.GetProperty("Owner").GetProperty("Username").GetString());
         Assert.Equal(4, item.GetProperty("Stats").GetProperty("TableCount").GetInt32());
+    }
+
+    [RequiresDockerFact]
+    public async Task Explore_eslesmeyen_q_ve_motor_sabit_sorgu_public_repo_sayisindan_bagimsiz()
+    {
+        var cs = await NewDatabaseAsync("f_explore_count");
+        await using (var s = Open(cs))
+            await SeedProjectAsync(s, "real", name: "Needle Service", slug: "real", visibility: ProjectVisibility.Public,
+                description: "x", tags: "Alpha", dbType: "MySQL");
+
+        // Eski döngü 200'lük turlarla 3 sorgu atıyordu; 650 public repoda en az 4 tur (12 sorgu) olurdu.
+        await using (var conn = new NpgsqlConnection(cs))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("""
+                INSERT INTO studio.projects ("Id","Name","DbType","SchemaJson","NodePositionsJson","UserId","CreatedAt","UpdatedAt","AutoApproveSafeChanges")
+                SELECT 'bulk-' || i, 'Bulk ' || i, 'PostgreSQL', '{}', '{}', 'owner', now(), now(), false FROM generate_series(1, 650) i;
+                INSERT INTO hub.repositories ("ProjectId","OwnerUserId","ProjectName","ProjectDbType","Slug","Description","Visibility","Category","StarCount","ForkCount","CreatedAt","UpdatedAt")
+                SELECT 'bulk-' || i, 'owner', 'Bulk ' || i, 'PostgreSQL', 'bulk-' || i, 'd', 2, 'General', 0, 0, now(), now() FROM generate_series(1, 650) i;
+                """, conn);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        async Task<(int Commands, string[] Ids)> RunAsync(string? q = null, string? dbType = null)
+        {
+            var counter = new CommandCounter();
+            await using var e = Open(cs, counter);
+            var json = Json(await Hub(e).Explore(q, null, dbType, "popular", 1, 12, null, default));
+            return (counter.Count, json.GetProperty("Items").EnumerateArray().Select(i => i.GetProperty("Id").GetString()!).ToArray());
+        }
+
+        // Eşleşmeyen filtre: tek SQL, sonra toplu sorgu yok ya da boş.
+        var noMatch = await RunAsync(q: "zzzz-no-such-thing");
+        Assert.Empty(noMatch.Ids);
+        Assert.True(noMatch.Commands <= 5, "q eslesmesi yokken " + noMatch.Commands + " sorgu");
+        var noEngine = await RunAsync(dbType: "Oracle");
+        Assert.Empty(noEngine.Ids);
+        Assert.True(noEngine.Commands <= 5, "motor eslesmesi yokken " + noEngine.Commands + " sorgu");
+
+        // Eşleşen de aynı: ad, motor, tam etiket tek sorguda bulunuyor; kalan 650 satır taranmaz.
+        var byName = await RunAsync(q: "needle");
+        Assert.Equal(new[] { "real" }, byName.Ids);
+        Assert.Equal(5, byName.Commands); // repo, özet, etiket, şema, sahip adı
+        Assert.Equal(new[] { "real" }, (await RunAsync(dbType: "mysql")).Ids);
+        Assert.Equal(new[] { "real" }, (await RunAsync(q: "ALPHA")).Ids);
+        Assert.DoesNotContain("real", (await RunAsync(q: "alph")).Ids); // etikette alt dizge yok
+    }
+
+    [RequiresDockerFact]
+    public async Task Yeniden_adlandirma_ve_motor_degisimi_Explore_aramasina_yansiyor()
+    {
+        var cs = await NewDatabaseAsync("f_explore_rename");
+        await using (var s = Open(cs))
+            await SeedProjectAsync(s, "p1", name: "Old Name", slug: "p1", visibility: ProjectVisibility.Public, description: "d");
+
+        async Task<string[]> Ids(string? q = null, string? dbType = null)
+        {
+            await using var e = Open(cs);
+            return Json(await Hub(e).Explore(q, null, dbType, "popular", 1, 12, null, default))
+                .GetProperty("Items").EnumerateArray().Select(i => i.GetProperty("Id").GetString()!).ToArray();
+        }
+
+        Assert.Equal(new[] { "p1" }, await Ids("old name"));
+
+        // Ayarlar ucundan ad + motor.
+        await using (var w = Open(cs))
+            Assert.IsType<OkObjectResult>(await Hub(w, "owner").UpdateSettings("p1", new UpdateRepoSettingsRequest(
+                "Renamed Via Settings", null, null, null, null, null, null, null, "MySQL"), default));
+        Assert.Empty(await Ids("old name"));
+        Assert.Equal(new[] { "p1" }, await Ids("via settings"));
+        Assert.Equal(new[] { "p1" }, await Ids(dbType: "mysql"));
+
+        // Senkron ucundan ad.
+        await using (var w = Open(cs))
+            Assert.IsType<OkObjectResult>(await Auth(w, "owner").SyncProjects(new() { Dto("p1", "Renamed Via Sync") }));
+        Assert.Empty(await Ids("via settings"));
+        Assert.Equal(new[] { "p1" }, await Ids("via sync"));
+
+        // Fork kendi adıyla aranır.
+        await using (var w = Open(cs))
+            Assert.IsType<CreatedAtActionResult>(await Hub(w, "stranger").Fork("p1", new ForkRepoRequest("Forked Copy"), default));
+        await using var v = Open(cs);
+        Assert.Equal(1, await v.Kit.Hub.Repositories.CountAsync(r => r.ProjectName == "Forked Copy" && r.ProjectDbType == "PostgreSQL"));
+    }
+
+    // ── Hesap silme sırası ───────────────────────────────────────────────────
+
+    private sealed class RecordingCanceller : ISubscriptionCanceller
+    {
+        public List<string> Canceled { get; } = new();
+
+        public Task<bool> CancelAsync(string subscriptionId, CancellationToken ct)
+        {
+            Canceled.Add(subscriptionId);
+            return Task.FromResult(true);
+        }
+    }
+
+    private static AccountDeletionService AccountDeletion(Scope s, ISubscriptionCanceller? canceller = null) =>
+        new(s.Db, Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), s.Kit.HubService, s.Kit.Transaction,
+            NullLogger<AccountDeletionService>.Instance, canceller);
+
+    [RequiresDockerFact]
+    public async Task Hesap_silme_varis_slug_cakismasi()
+    {
+        var cs = await NewDatabaseAsync("f_heir_slug");
+        await using var s = Open(cs);
+        // Slug addan ve yalnızca sahip içinde benzersiz üretildiği için aynı adlı projeler olağan.
+        await SeedProjectAsync(s, "heir-own", owner: "owner", slug: "same-name");
+        await SeedProjectAsync(s, "heir-own-2", owner: "owner", slug: "same-name-2");
+        await SeedProjectAsync(s, "team", owner: "member", slug: "same-name");
+        await SeedProjectAsync(s, "team-free", owner: "member", slug: "other-name");
+
+        await using var d = Open(cs);
+        var result = await AccountDeletion(d).DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
+        Assert.True(result.Ok, result.Code + " " + result.Error);
+
+        await using var v = Open(cs);
+        Assert.False(await v.Db.Users.AnyAsync(u => u.Id == "member"));
+        var team = (await v.Kit.HubService.GetRepositoryAsync("team"))!;
+        Assert.Equal("owner", team.OwnerUserId);
+        Assert.Equal("same-name-3", team.Slug);
+        Assert.Equal("same-name", (await v.Kit.HubService.GetRepositoryAsync("heir-own"))!.Slug);
+        Assert.Equal("same-name-2", (await v.Kit.HubService.GetRepositoryAsync("heir-own-2"))!.Slug);
+        Assert.Equal("other-name", (await v.Kit.HubService.GetRepositoryAsync("team-free"))!.Slug);
+        Assert.Equal("team", await v.Kit.HubService.ResolveProjectIdAsync("owner", "same-name-3"));
+    }
+
+    [RequiresDockerFact]
+    public async Task Hesap_silme_islemi_duserse_Stripe_iptal_edilmez_devir_geri_alinir_yeniden_deneme_tamamlar()
+    {
+        var cs = await NewDatabaseAsync("f_account_order");
+        await using (var s = Open(cs))
+        {
+            await SeedProjectAsync(s, "team", owner: "member", slug: "teamrepo");
+            await s.Db.Users.Where(u => u.Id == "member").ExecuteUpdateAsync(x => x.SetProperty(u => u.StripeSubscriptionId, "sub_1"));
+        }
+
+        await using (var conn = new NpgsqlConnection(cs))
+        {
+            await conn.OpenAsync();
+            await using var fault = new NpgsqlCommand("""
+                CREATE FUNCTION deny_user_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test fault'; END $$;
+                CREATE TRIGGER deny_user_delete BEFORE DELETE ON "AspNetUsers" FOR EACH ROW EXECUTE FUNCTION deny_user_delete();
+                """, conn);
+            await fault.ExecuteNonQueryAsync();
+        }
+
+        var canceller = new RecordingCanceller();
+        await using (var d = Open(cs))
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                AccountDeletion(d, canceller).DeleteAsync(d.Db.Users.Single(u => u.Id == "member"), default));
+        }
+
+        Assert.Empty(canceller.Canceled);
+        await using (var v = Open(cs))
+        {
+            Assert.True(await v.Db.Users.AnyAsync(u => u.Id == "member"));
+            Assert.Equal("member", (await v.Kit.HubService.GetRepositoryAsync("team"))!.OwnerUserId);
+            Assert.Equal("member", (await v.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "team")).UserId);
+        }
+
+        await using (var conn = new NpgsqlConnection(cs))
+        {
+            await conn.OpenAsync();
+            await using var clear = new NpgsqlCommand("""DROP TRIGGER deny_user_delete ON "AspNetUsers";""", conn);
+            await clear.ExecuteNonQueryAsync();
+        }
+
+        await using (var retry = Open(cs))
+        {
+            var result = await AccountDeletion(retry, canceller).DeleteAsync(await retry.Db.Users.SingleAsync(u => u.Id == "member"), default);
+            Assert.True(result.Ok, result.Code + " " + result.Error);
+        }
+
+        Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
+        await using var after = Open(cs);
+        Assert.Equal("owner", (await after.Kit.HubService.GetRepositoryAsync("team"))!.OwnerUserId);
+        var audit = await after.Db.ChangeRequestAuditLogs.AsNoTracking()
+            .SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        Assert.Contains("\"stripe\":\"canceled\"", audit.Details);
+    }
+
+    [RequiresDockerFact]
+    public async Task Iptal_edilmis_paylasim_satirlari_saklama_suresi_sonunda_silinir_etkinler_kalir()
+    {
+        var cs = await NewDatabaseAsync("f_share_purge");
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "p1");
+        var live = await s.Kit.StudioService.CreateShareLinkAsync("p1");
+        await s.Kit.SeedShareAsync("p1", "old-revoked", DateTime.UtcNow.AddDays(-100));
+        await s.Kit.SeedShareAsync("p1", "new-revoked", DateTime.UtcNow.AddDays(-1));
+
+        Assert.Equal(1, await s.Kit.StudioService.PurgeRevokedSharesAsync(DateTime.UtcNow.AddDays(-90)));
+
+        Assert.NotNull(await s.Kit.StudioService.GetSharedProjectByTokenHashAsync(ShareTokenHasher.Hash(live)));
+        Assert.Equal(2, await s.Kit.Studio.ProjectShares.CountAsync());
+        Assert.False(await s.Kit.Studio.ProjectShares.AnyAsync(x => x.ShareTokenHash == ShareTokenHasher.Hash("old-revoked")));
     }
 
     // ── Sırlar ───────────────────────────────────────────────────────────────

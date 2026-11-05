@@ -17,11 +17,11 @@ namespace Namines.Tests.TestSupport;
 public sealed class ModuleKit
 {
     /// <summary>Üretimdeki gibi: Studio/Hub kendi bağlantılarıyla, işlem paylaşımı SetDbConnection yoluyla.</summary>
-    public ModuleKit(AuthDbContext db, string connectionString)
+    public ModuleKit(AuthDbContext db, string connectionString, params Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor[] interceptors)
     {
         Db = db;
-        Studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>().UseNpgsql(connectionString).Options);
-        Hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>().UseNpgsql(connectionString).Options);
+        Studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>().UseNpgsql(connectionString).AddInterceptors(interceptors).Options);
+        Hub = new HubDbContext(new DbContextOptionsBuilder<HubDbContext>().UseNpgsql(connectionString).AddInterceptors(interceptors).Options);
         StudioService = new StudioApplicationService(Studio);
         HubService = new HubApplicationService(Hub);
         Transaction = new CrossModuleTransaction(db, Studio, Hub, new SharedTransactionManager());
@@ -72,10 +72,17 @@ public sealed class ModuleKit
         string? linkedGithubRepo = null,
         DateTime? createdAt = null)
     {
+        // Okuma modeli kopyası: üretimde proje yazımıyla aynı işlemde gelir, burada projeden okunur.
+        var project = await Studio.Projects.AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => new { p.Name, p.DbType })
+            .FirstOrDefaultAsync();
         var repository = new ProjectRepository
         {
             ProjectId = projectId,
             OwnerUserId = ownerUserId,
+            ProjectName = project?.Name ?? projectId,
+            ProjectDbType = project?.DbType ?? "PostgreSQL",
             Slug = slug,
             Visibility = visibility,
             Description = description,

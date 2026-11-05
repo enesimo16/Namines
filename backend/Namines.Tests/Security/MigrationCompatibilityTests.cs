@@ -58,6 +58,9 @@ public class MigrationCompatibilityTests
         ["20261105055013_Phase14_2B_ReconcileModelDrift"] =
             "ShareToken kolonu: bir önceki sürümün kodu onu zaten [NotMapped] tutuyordu, yani hiçbir sorgu " +
             "okumuyor. Düz metin token'ın DB'de kalması bu kuraldan daha büyük risk (sahibin kararı).",
+        ["20261105100439_Phase14_2B_ExploreReadModel"] =
+            "NOT NULL kolonlar: bir önceki 14.2B commit'i hiçbir ortama dağıtılmadı ve bu kolonlarla aynı " +
+            "sürümde çıkıyor (eski kod zaten yeni şemada çalışmıyor, bkz. alttaki satır). Ham SQL.",
         ["20261105060611_Phase14_2B_DecomposeCloudProjects"] =
             "Tek adımda yerinde taşıma (sahibin kararı: kolonlar fiziksel düşecek). Ham SQL olduğu için kural " +
             "zaten yakalamıyor ama kayıt burada dursun: eski kod yeni şemada ÇALIŞMAZ. Dağıtım: eski sürümü " +
