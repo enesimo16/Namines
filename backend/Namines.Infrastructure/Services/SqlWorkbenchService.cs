@@ -44,13 +44,6 @@ public sealed class SqlWorkbenchService : ISqlWorkbenchService
 {
     private readonly IDeskApplicationService _deskApp;
 
-    [ActivatorUtilitiesConstructor]
-    public SqlWorkbenchService(IDeskModule deskModule)
-    {
-        ArgumentNullException.ThrowIfNull(deskModule);
-        _deskApp = deskModule.Application;
-    }
-
     public SqlWorkbenchService(IDeskApplicationService deskApp)
     {
         _deskApp = deskApp ?? throw new ArgumentNullException(nameof(deskApp));
