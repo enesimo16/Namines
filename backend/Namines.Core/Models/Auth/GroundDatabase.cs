@@ -64,7 +64,7 @@ public enum GroundStatus
 /// Namines'in bir proje için açtığı yönetilen veritabanının kaydı.
 ///
 /// <b>Bağlantı dizesi burada DEĞİL:</b> Desk/Vault ile aynı yere,
-/// <see cref="CloudProject.EncryptedConnectionString"/>'e şifreli yazılır.
+/// <see cref="ProjectConnection.EncryptedConnectionString"/>'e şifreli yazılır.
 /// İkinci bir kopya tutmak, sızdırılabilecek yüzeyi ikiye katlamak olurdu.
 /// </summary>
 public class GroundDatabase

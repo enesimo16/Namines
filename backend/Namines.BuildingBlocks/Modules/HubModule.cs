@@ -1,17 +1,14 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Application;
-using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.Core.Models.Hub;
 
 namespace Namines.BuildingBlocks.Modules;
 
 /// <summary>
-/// Hub (Topluluk Kataloğu, Issue, Comment, Star, Repositories ve ProjectTags) modülünün
-/// dışa açtığı resmi sözleşme (Order: 90, Şema: <c>hub</c>).
+/// Hub (Repositories, ProjectTags, Stars) modülünün dışa açtığı resmi sözleşme
+/// (Order: 90, Şema: <c>hub</c>).
 /// </summary>
 public interface IHubModule
 {
@@ -35,139 +32,57 @@ public static class HubModelConfiguration
 {
     public const string DefaultSchemaName = "hub";
 
-    public static void Configure(
-        ModelBuilder builder,
-        string? schema = DefaultSchemaName,
-        bool configureCrossModuleForeignKeys = false)
+    /// <summary>
+    /// repositories/project_tags tablolarının TEK eşlemesi. Hem <see cref="HubDbContext"/> hem de
+    /// migration zincirinin sahibi AuthDbContext buradan okur. Studio'ya giden FK yalnızca
+    /// AuthDbContext tarafında tanımlı, çünkü Hub bağlamı <see cref="CloudProject"/>'i tanımaz.
+    /// </summary>
+    public static void ConfigureOwnedTables(ModelBuilder builder, string? schema, bool excludeFromMigrations)
     {
-        if (!configureCrossModuleForeignKeys)
-        {
-            builder.Ignore<ApplicationUser>();
-            builder.Ignore<Organization>();
-            builder.Ignore<OrganizationMember>();
-            builder.Ignore<CloudProject>();
-        }
-
-        builder.Entity<RepoIssue>(entity =>
-        {
-            entity.ToTable("RepoIssues", schema);
-            entity.HasKey(i => i.Id);
-            entity.HasIndex(i => new { i.ProjectId, i.IssueNumber }).IsUnique();
-            entity.HasIndex(i => new { i.ProjectId, i.IsClosed });
-            entity.Property(i => i.Title).HasMaxLength(256);
-            entity.Property(i => i.RelatedTableName).HasMaxLength(128);
-            entity.Property(i => i.NslRuleCode).HasMaxLength(32);
-            entity.Property(i => i.Labels).HasMaxLength(256);
-
-            if (configureCrossModuleForeignKeys)
-            {
-                entity.HasOne(i => i.Project)
-                    .WithMany()
-                    .HasForeignKey(i => i.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(i => i.CreatedByUser)
-                    .WithMany()
-                    .HasForeignKey(i => i.CreatedByUserId)
-                    .OnDelete(DeleteBehavior.SetNull);
-            }
-            else
-            {
-                entity.Ignore(i => i.Project);
-                entity.Ignore(i => i.CreatedByUser);
-            }
-        });
-
-        builder.Entity<RepoIssueComment>(entity =>
-        {
-            entity.ToTable("RepoIssueComments", schema);
-            entity.HasKey(c => c.Id);
-            entity.HasIndex(c => c.IssueId);
-            entity.HasOne(c => c.Issue)
-                .WithMany()
-                .HasForeignKey(c => c.IssueId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            if (configureCrossModuleForeignKeys)
-            {
-                entity.HasOne(c => c.AuthorUser)
-                    .WithMany()
-                    .HasForeignKey(c => c.AuthorUserId)
-                    .OnDelete(DeleteBehavior.SetNull);
-            }
-            else
-            {
-                entity.Ignore(c => c.AuthorUser);
-            }
-        });
-
-        builder.Entity<RepoStar>(entity =>
-        {
-            entity.ToTable("RepoStars", schema);
-            entity.HasKey(s => new { s.ProjectId, s.UserId });
-
-            if (configureCrossModuleForeignKeys)
-            {
-                entity.HasOne(s => s.Project)
-                    .WithMany()
-                    .HasForeignKey(s => s.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(s => s.User)
-                    .WithMany()
-                    .HasForeignKey(s => s.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
-            }
-            else
-            {
-                entity.Ignore(s => s.Project);
-                entity.Ignore(s => s.User);
-            }
-        });
-
-        // ── 3NF Normalized Entity: hub.project_publications (DATABASE_NORMALIZATION.md) ──
-        builder.Entity<ProjectPublication>(entity =>
-        {
-            entity.ToTable("project_publications", schema);
-            entity.HasKey(p => p.ProjectId);
-            entity.Property(p => p.ProjectId).HasMaxLength(64);
-            entity.Property(p => p.OwnerUserId).HasMaxLength(64).IsRequired();
-            entity.Property(p => p.Slug).HasMaxLength(120).IsRequired();
-            entity.Property(p => p.Description).HasMaxLength(500);
-            entity.Property(p => p.Category).HasMaxLength(60);
-            entity.Property(p => p.Tags).HasMaxLength(400);
-            entity.HasIndex(p => p.Slug);
-            entity.HasIndex(p => p.ForkedFromProjectId);
-
-            if (configureCrossModuleForeignKeys)
-            {
-                entity.HasOne<CloudProject>()
-                    .WithOne()
-                    .HasForeignKey<ProjectPublication>(p => p.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-            }
-        });
-
-        // ── 3NF Normalized Entities: hub.repositories & hub.project_tags (Phase 14.2B) ──
         builder.Entity<ProjectRepository>(entity =>
         {
-            entity.ToTable("repositories", schema);
+            entity.ToTable("repositories", schema, t =>
+            {
+                if (excludeFromMigrations) t.ExcludeFromMigrations();
+            });
             entity.HasKey(r => r.ProjectId);
-            entity.Property(r => r.ProjectId).HasMaxLength(64);
-            entity.Property(r => r.Slug).HasMaxLength(128).IsRequired();
-            entity.Property(r => r.Description).HasMaxLength(1000);
-            entity.Property(r => r.Category).HasMaxLength(64).IsRequired();
-            entity.Property(r => r.ForkedFromProjectId).HasMaxLength(64);
-            entity.Property(r => r.LinkedGithubRepo).HasMaxLength(140);
+            entity.Property(r => r.OwnerUserId).IsRequired();
+            entity.Property(r => r.Category).IsRequired();
+
+            // Slug boş olabilir: benzersizlik yalnızca dolu slug'larda ve sahip bazında (taşınan
+            // IX_CloudProjects_UserId_Slug ile aynı kural).
+            entity.HasIndex(r => new { r.OwnerUserId, r.Slug })
+                .IsUnique()
+                .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
             entity.HasIndex(r => r.Slug);
-            entity.HasIndex(r => new { r.Visibility, r.StarCount, r.PublishedAt });
+
+            // Explore (anonim): yalnızca Public, iki sıralama. 2 = ProjectVisibility.Public.
+            entity.HasIndex(r => new { r.StarCount, r.CreatedAt, r.ProjectId })
+                .IsDescending(true, true, true)
+                .HasDatabaseName("IX_repositories_Explore_Popular")
+                .HasFilter("\"Visibility\" = 2");
+            entity.HasIndex(r => new { r.CreatedAt, r.ProjectId })
+                .IsDescending(true, true)
+                .HasDatabaseName("IX_repositories_Explore_Recent")
+                .HasFilter("\"Visibility\" = 2");
+
+            entity.HasIndex(r => r.ForkedFromProjectId);
+            entity.HasOne<ProjectRepository>()
+                .WithMany()
+                .HasForeignKey(r => r.ForkedFromProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<ProjectTag>(entity =>
         {
-            entity.ToTable("project_tags", schema);
+            entity.ToTable("project_tags", schema, t =>
+            {
+                if (excludeFromMigrations) t.ExcludeFromMigrations();
+            });
             entity.HasKey(t => new { t.ProjectId, t.Tag });
-            entity.Property(t => t.ProjectId).HasMaxLength(64);
-            entity.Property(t => t.Tag).HasMaxLength(50);
-            entity.HasIndex(t => t.Tag);
+            entity.Property(t => t.DisplayTag).IsRequired();
+            // Etiket filtresi Tag ile başlıyor; PK ProjectId ile başladığı için onu karşılamaz.
+            entity.HasIndex(t => new { t.Tag, t.ProjectId });
             entity.HasOne<ProjectRepository>()
                 .WithMany()
                 .HasForeignKey(t => t.ProjectId)
@@ -176,6 +91,14 @@ public static class HubModelConfiguration
     }
 }
 
+/// <summary>
+/// Hub'ın çalışma zamanı bağlamı. RepoIssues/RepoIssueComments kendi fazına (D-1) kadar eşli
+/// değil; RepoStars <c>public</c>'te duruyor ama sayaçla aynı işlemde yazıldığı için burada,
+/// tablonun GERÇEK konumuna eşli.
+///
+/// Şemayı AuthDbContext migration zinciri kuruyor, bu yüzden tablolar burada
+/// <c>ExcludeFromMigrations</c>: iki bağlam aynı DDL'i üretmesin.
+/// </summary>
 public sealed class HubDbContext : DbContext
 {
     public const string DefaultSchema = HubModelConfiguration.DefaultSchemaName;
@@ -187,22 +110,30 @@ public sealed class HubDbContext : DbContext
 
     public DbSet<ProjectRepository> Repositories => Set<ProjectRepository>();
     public DbSet<ProjectTag> ProjectTags => Set<ProjectTag>();
-    public DbSet<RepoIssue> RepoIssues => Set<RepoIssue>();
-    public DbSet<RepoIssueComment> RepoIssueComments => Set<RepoIssueComment>();
     public DbSet<RepoStar> RepoStars => Set<RepoStar>();
-    public DbSet<ProjectPublication> ProjectPublications => Set<ProjectPublication>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        var isRelational = Database.IsRelational();
-        var schema = isRelational && Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true
-            ? DefaultSchema
-            : null;
+        var isPostgres = Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
+        var schema = isPostgres ? DefaultSchema : null;
 
         if (schema is not null)
             modelBuilder.HasDefaultSchema(schema);
 
-        HubModelConfiguration.Configure(modelBuilder, schema, configureCrossModuleForeignKeys: false);
+        modelBuilder.Ignore<ApplicationUser>();
+        modelBuilder.Ignore<Organization>();
+        modelBuilder.Ignore<OrganizationMember>();
+        modelBuilder.Ignore<CloudProject>();
+
+        modelBuilder.Entity<RepoStar>(entity =>
+        {
+            entity.ToTable("RepoStars", isPostgres ? "public" : null, t => t.ExcludeFromMigrations());
+            entity.HasKey(s => new { s.ProjectId, s.UserId });
+            entity.Ignore(s => s.Project);
+            entity.Ignore(s => s.User);
+        });
+
+        HubModelConfiguration.ConfigureOwnedTables(modelBuilder, schema, excludeFromMigrations: true);
     }
 }

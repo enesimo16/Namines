@@ -146,7 +146,7 @@ public interface IGatewayService
     /// GatewayService.EnsureReadOnlySelectStatement'ın sınıf yorumu — bu, DB'nin
     /// kendi salt-okunur oturumunun SQL Server/Oracle'da hiç var olmamasını
     /// telafi eden ek katman). Bu uç API anahtarı yolunda HİÇ kullanılmaz —
-    /// yalnızca oturum + Owner + <c>CloudProject.AllowDeskSql</c> için var.
+    /// yalnızca oturum + Owner + <c>ProjectConnection.AllowDeskSql</c> için var.
     /// </summary>
     /// <param name="maxRows">Aşılırsa sonuç KESİLİR (asla hata değil) ve
     /// <see cref="GatewayQueryResult.Truncated"/> true döner.</param>

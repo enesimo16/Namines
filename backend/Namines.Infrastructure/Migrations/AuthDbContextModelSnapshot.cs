@@ -553,39 +553,14 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasDefaultValueSql("gen_random_uuid()::text");
 
-                    b.Property<bool>("AllowDeskSql")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("AutoApproveSafeChanges")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ConnectionDbType")
-                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DbType")
                         .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("EncryptedConnectionString")
-                        .HasColumnType("text");
-
-                    b.Property<int>("ForkCount")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ForkedFromProjectId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("LinkedGithubRepo")
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
@@ -609,21 +584,6 @@ namespace Namines.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("ShareToken")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ShareTokenHash")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Slug")
-                        .HasColumnType("text");
-
-                    b.Property<int>("StarCount")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Tags")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -631,51 +591,17 @@ namespace Namines.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("Visibility")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("ForkedFromProjectId");
 
                     b.HasIndex("OrganizationId");
 
-                    b.HasIndex("ShareTokenHash")
-                        .IsUnique()
-                        .HasFilter("\"ShareTokenHash\" IS NOT NULL");
-
-                    b.HasIndex("Slug");
-
                     b.HasIndex("UserId");
 
-                    b.HasIndex("StarCount", "CreatedAt")
-                        .IsDescending()
-                        .HasDatabaseName("IX_CloudProjects_Explore_Public")
-                        .HasFilter("\"Visibility\" = 2");
-
-                    b.HasIndex("UserId", "Slug")
-                        .IsUnique()
-                        .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
-
-                    b.ToTable("CloudProjects", t =>
+                    b.ToTable("projects", "studio", t =>
                         {
-                            t.HasCheckConstraint("CK_CloudProjects_Category_Length", "char_length(\"Category\") <= 64");
+                            t.HasCheckConstraint("CK_projects_Name_Length", "char_length(\"Name\") <= 512");
 
-                            t.HasCheckConstraint("CK_CloudProjects_Description_Length", "char_length(\"Description\") <= 1000");
-
-                            t.HasCheckConstraint("CK_CloudProjects_ForkCount", "\"ForkCount\" >= 0");
-
-                            t.HasCheckConstraint("CK_CloudProjects_LinkedGithubRepo_Length", "char_length(\"LinkedGithubRepo\") <= 140");
-
-                            t.HasCheckConstraint("CK_CloudProjects_Name_Length", "char_length(\"Name\") <= 512");
-
-                            t.HasCheckConstraint("CK_CloudProjects_SchemaJson_Length", "char_length(\"SchemaJson\") <= 10000000");
-
-                            t.HasCheckConstraint("CK_CloudProjects_StarCount", "\"StarCount\" >= 0");
-
-                            t.HasCheckConstraint("CK_CloudProjects_Tags_Length", "char_length(\"Tags\") <= 256");
-
-                            t.HasCheckConstraint("CK_CloudProjects_Visibility", "\"Visibility\" IN (0, 1, 2)");
+                            t.HasCheckConstraint("CK_projects_SchemaJson_Length", "char_length(\"SchemaJson\") <= 10000000");
                         });
                 });
 
@@ -994,8 +920,6 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
-                    b.HasIndex("OrganizationId");
-
                     b.HasIndex("ProjectId")
                         .IsUnique();
 
@@ -1088,6 +1012,162 @@ namespace Namines.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_OrganizationMembers_Role", "\"Role\" IN (0, 1, 2, 3, 4)");
                         });
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ProjectConnection", b =>
+                {
+                    b.Property<string>("ProjectId")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("AllowDeskSql")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ConnectionDbType")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EncryptedConnectionString")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ProjectId");
+
+                    b.ToTable("project_connections", "studio");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ProjectRepository", b =>
+                {
+                    b.Property<string>("ProjectId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ForkCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ForkedFromProjectId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LinkedGithubRepo")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OwnerUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slug")
+                        .HasColumnType("text");
+
+                    b.Property<int>("StarCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Visibility")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ProjectId");
+
+                    b.HasIndex("ForkedFromProjectId");
+
+                    b.HasIndex("Slug");
+
+                    b.HasIndex("CreatedAt", "ProjectId")
+                        .IsDescending()
+                        .HasDatabaseName("IX_repositories_Explore_Recent")
+                        .HasFilter("\"Visibility\" = 2");
+
+                    b.HasIndex("OwnerUserId", "Slug")
+                        .IsUnique()
+                        .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
+
+                    b.HasIndex("StarCount", "CreatedAt", "ProjectId")
+                        .IsDescending()
+                        .HasDatabaseName("IX_repositories_Explore_Popular")
+                        .HasFilter("\"Visibility\" = 2");
+
+                    b.ToTable("repositories", "hub", t =>
+                        {
+                            t.HasCheckConstraint("CK_repositories_Category_Length", "char_length(\"Category\") <= 64");
+
+                            t.HasCheckConstraint("CK_repositories_Description_Length", "char_length(\"Description\") <= 1000");
+
+                            t.HasCheckConstraint("CK_repositories_ForkCount", "\"ForkCount\" >= 0");
+
+                            t.HasCheckConstraint("CK_repositories_LinkedGithubRepo_Length", "char_length(\"LinkedGithubRepo\") <= 140");
+
+                            t.HasCheckConstraint("CK_repositories_StarCount", "\"StarCount\" >= 0");
+
+                            t.HasCheckConstraint("CK_repositories_Visibility", "\"Visibility\" IN (0, 1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ProjectShare", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasDefaultValueSql("gen_random_uuid()::text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ShareTokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ShareTokenHash")
+                        .IsUnique();
+
+                    b.ToTable("project_shares", "studio", t =>
+                        {
+                            t.HasCheckConstraint("CK_project_shares_ShareTokenHash_Length", "char_length(\"ShareTokenHash\") = 64");
+                        });
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ProjectTag", b =>
+                {
+                    b.Property<string>("ProjectId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tag")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DisplayTag")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ProjectId", "Tag");
+
+                    b.HasIndex("Tag", "ProjectId");
+
+                    b.ToTable("project_tags", "hub");
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.SavedQuery", b =>
@@ -1575,8 +1655,6 @@ namespace Namines.Infrastructure.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
-                    b.HasIndex("OrganizationId");
-
                     b.HasIndex("ProjectId", "CreatedAt");
 
                     b.ToTable("vault_backups", "namines_vault", t =>
@@ -1624,8 +1702,6 @@ namespace Namines.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BackupId");
-
-                    b.HasIndex("OrganizationId");
 
                     b.HasIndex("PerformedByUserId");
 
@@ -1677,8 +1753,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("OrganizationId");
 
                     b.HasIndex("ProjectId")
                         .IsUnique();
@@ -2094,11 +2168,6 @@ namespace Namines.Infrastructure.Migrations
 
             modelBuilder.Entity("Namines.Core.Models.Auth.CloudProject", b =>
                 {
-                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
-                        .WithMany()
-                        .HasForeignKey("ForkedFromProjectId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Namines.Core.Models.Auth.Organization", "Organization")
                         .WithMany()
                         .HasForeignKey("OrganizationId")
@@ -2186,11 +2255,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
@@ -2234,6 +2298,47 @@ namespace Namines.Infrastructure.Migrations
                     b.Navigation("Organization");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ProjectConnection", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithOne()
+                        .HasForeignKey("Namines.Core.Models.Auth.ProjectConnection", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ProjectRepository", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ProjectRepository", null)
+                        .WithMany()
+                        .HasForeignKey("ForkedFromProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithOne()
+                        .HasForeignKey("Namines.Core.Models.Auth.ProjectRepository", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ProjectShare", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Namines.Core.Models.Auth.ProjectTag", b =>
+                {
+                    b.HasOne("Namines.Core.Models.Auth.ProjectRepository", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Namines.Core.Models.Auth.SavedQuery", b =>
@@ -2363,11 +2468,6 @@ namespace Namines.Infrastructure.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
@@ -2380,11 +2480,6 @@ namespace Namines.Infrastructure.Migrations
                     b.HasOne("Namines.Core.Models.Auth.VaultBackup", null)
                         .WithMany()
                         .HasForeignKey("BackupId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
@@ -2406,11 +2501,6 @@ namespace Namines.Infrastructure.Migrations
 
             modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
                 {
-                    b.HasOne("Namines.Core.Models.Auth.Organization", null)
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")

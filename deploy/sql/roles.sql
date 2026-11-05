@@ -34,12 +34,14 @@ ALTER ROLE namines_app NOSUPERUSER NOCREATEDB NOCREATEROLE;
 
 GRANT CONNECT ON DATABASE :"dbname" TO namines_migrator, namines_app;
 
--- Namines şemaları: kontrol DB'de uygulama tabloları 'public' şemasındadır.
--- Başka şema eklenirse listeye ekleyin.
+-- Namines şemaları: modül tabloları kendi şemalarında (flow, namines_vault, ground, desk, studio,
+-- hub), kalanı 'public'te. Şemalar burada migrator'a ait açılır: migrator'ın veritabanı düzeyinde
+-- CREATE yetkisi yok. Başka şema eklenirse listeye ekleyin.
 DO $$
 DECLARE s text;
 BEGIN
-  FOREACH s IN ARRAY ARRAY['public'] LOOP
+  FOREACH s IN ARRAY ARRAY['public', 'flow', 'namines_vault', 'ground', 'desk', 'studio', 'hub'] LOOP
+    EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I AUTHORIZATION namines_migrator', s);
     EXECUTE format('GRANT USAGE, CREATE ON SCHEMA %I TO namines_migrator', s);
     EXECUTE format('GRANT USAGE ON SCHEMA %I TO namines_app', s);
     EXECUTE format('REVOKE CREATE ON SCHEMA %I FROM namines_app', s);
@@ -59,10 +61,10 @@ END $$;
 DO $$
 DECLARE r record;
 BEGIN
-  FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+  FOR r IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname = ANY (ARRAY['public','flow','namines_vault','ground','desk','studio','hub']) LOOP
     EXECUTE format('ALTER TABLE %I.%I OWNER TO namines_migrator', r.schemaname, r.tablename);
   END LOOP;
-  FOR r IN SELECT sequence_schema AS s, sequence_name AS n FROM information_schema.sequences WHERE sequence_schema = 'public' LOOP
+  FOR r IN SELECT sequence_schema AS s, sequence_name AS n FROM information_schema.sequences WHERE sequence_schema = ANY (ARRAY['public','flow','namines_vault','ground','desk','studio','hub']) LOOP
     EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO namines_migrator', r.s, r.n);
   END LOOP;
 END $$;

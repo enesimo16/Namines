@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Namines.BuildingBlocks.Modules;
 using Namines.Core.Enums;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
@@ -72,6 +73,20 @@ namespace Namines.Infrastructure.Data
             Namines.Vault.Configurations.VaultModelConfiguration.Configure(builder, isPostgres ? "namines_vault" : null);
             Namines.Ground.Configurations.GroundModelConfiguration.Configure(builder, isPostgres ? "ground" : null);
             Namines.Desk.Configurations.DeskModelConfiguration.Configure(builder, isPostgres ? "desk" : null);
+
+            // ── Faz 14.2B: Studio/Hub tablolarının DDL'i tek migration zincirinde kalıyor. DbSet YOK:
+            // bu tablolar AuthDbContext üzerinden okunmaz, yalnızca şema (snapshot, SQLite
+            // EnsureCreated) ve FK'ler için modelde. Okuma/yazma IStudioApplicationService,
+            // IHubApplicationService ve IProjectConnectionSecretProvider üzerinden.
+            builder.Entity<CloudProject>().ToTable("projects", isPostgres ? StudioModelConfiguration.DefaultSchemaName : null);
+            StudioModelConfiguration.ConfigureOwnedTables(builder, isPostgres ? StudioModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
+            HubModelConfiguration.ConfigureOwnedTables(builder, isPostgres ? HubModelConfiguration.DefaultSchemaName : null, excludeFromMigrations: false);
+            builder.Entity<ProjectRepository>()
+                .HasOne<CloudProject>()
+                .WithOne()
+                .HasForeignKey<ProjectRepository>(r => r.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            ConfigureMovedTableConstraints(builder, isPostgres);
 
             builder.Entity<CloudProject>()
                 .HasOne(p => p.User)
@@ -465,26 +480,8 @@ namespace Namines.Infrastructure.Data
             });
 
             // ── Namines Hub: Architecture Repositories, Issues, Comments & Stars ──
-            builder.Entity<CloudProject>(entity =>
-            {
-                entity.HasIndex(p => p.Slug);
-                // Benzersizlik sahip bazında ve yalnızca dolu slug'larda (NULL/boş serbest);
-                // HubController slug'ı (UserId, Slug) çiftiyle çözüyor.
-                entity.HasIndex(p => new { p.UserId, p.Slug })
-                    .IsUnique()
-                    .HasFilter("\"Slug\" IS NOT NULL AND \"Slug\" <> ''");
-                // "Projelerim", CanView/GetRole ve kullanıcı silme cascade'i UserId ile arıyor.
-                // Filtreli (UserId, Slug) indeksi bunu KARŞILAMAZ (planlayıcı filtreli indeksi
-                // filtresiz sorguda kullanamaz) — DB-13.
-                entity.HasIndex(p => p.UserId);
-                // Explore (anonim): yalnızca Public projeler, StarCount/CreatedAt sıralı. Düşük
-                // seçicilikteki tek kolonlu Visibility indeksinin yerini alır — DB-15.
-                // Filtredeki 2 = ProjectVisibility.Public; enum değeri değişirse migration gerekir.
-                entity.HasIndex(p => new { p.StarCount, p.CreatedAt })
-                    .IsDescending(true, true)
-                    .HasDatabaseName("IX_CloudProjects_Explore_Public")
-                    .HasFilter("\"Visibility\" = 2");
-            });
+            // "Projelerim", CanView/GetRole ve kullanıcı silme cascade'i UserId ile arıyor (DB-13).
+            builder.Entity<CloudProject>().HasIndex(p => p.UserId);
 
             builder.Entity<RepoIssue>(entity =>
             {
@@ -533,13 +530,6 @@ namespace Namines.Infrastructure.Data
             });
 
             // ── Referans bütünlüğü (docs/last-review/05 DB-05/06) ──
-            // Fork işaretçisi: kaynak proje silinince fork'un kendisi kalır, işaretçi boşalır.
-            builder.Entity<CloudProject>()
-                .HasOne<CloudProject>()
-                .WithMany()
-                .HasForeignKey(p => p.ForkedFromProjectId)
-                .OnDelete(DeleteBehavior.SetNull);
-
             builder.Entity<OrgAiUsage>()
                 .HasOne<Organization>()
                 .WithMany()
@@ -594,14 +584,34 @@ namespace Namines.Infrastructure.Data
                 .HasIndex(k => k.KeyHash)
                 .IsUnique();
 
-            // Anonim paylaşım uçları ShareToken özetiyle arıyor (DB-14): UNIQUE + kısmi indeks.
-            builder.Entity<CloudProject>()
-                .HasIndex(p => p.ShareTokenHash)
-                .IsUnique()
-                .HasFilter("\"ShareTokenHash\" IS NOT NULL");
-
             ConfigureCheckConstraints(builder, isPostgres);
             if (isPostgres) ConfigureGuidKeyDefaults(builder);
+        }
+
+        /// <summary>
+        /// Taşınan tabloların CHECK kısıtları; ifadeler CloudProjects'tekilerle aynı. Migration'da
+        /// önce satırlar taşınıyor, kısıt NOT VALID ekleniyor ve yalnızca ihlal yoksa doğrulanıyor:
+        /// eski tabloda da NOT VALID olduğu için tavanı aşan eski satırlar olabilir.
+        /// </summary>
+        private static void ConfigureMovedTableConstraints(ModelBuilder builder, bool isPostgres)
+        {
+            static string N(string table, string col, string? suffix = null) => CheckConstraintSql.Name(table, col, suffix);
+
+            builder.Entity<ProjectRepository>().ToTable(t =>
+            {
+                t.HasCheckConstraint(N("repositories", "Visibility"), CheckConstraintSql.EnumIn<ProjectVisibility>("Visibility"));
+                t.HasCheckConstraint(N("repositories", "StarCount"), CheckConstraintSql.AtLeast("StarCount", 0));
+                t.HasCheckConstraint(N("repositories", "ForkCount"), CheckConstraintSql.AtLeast("ForkCount", 0));
+                if (!isPostgres) return;
+                t.HasCheckConstraint(N("repositories", "Description", "Length"), CheckConstraintSql.MaxLength("Description", 1000));
+                t.HasCheckConstraint(N("repositories", "Category", "Length"), CheckConstraintSql.MaxLength("Category", 64));
+                t.HasCheckConstraint(N("repositories", "LinkedGithubRepo", "Length"), CheckConstraintSql.MaxLength("LinkedGithubRepo", 140));
+            });
+
+            if (!isPostgres) return;
+
+            builder.Entity<ProjectShare>().ToTable(t =>
+                t.HasCheckConstraint(N("project_shares", "ShareTokenHash", "Length"), "char_length(\"ShareTokenHash\") = 64"));
         }
 
         /// <summary>
@@ -619,7 +629,7 @@ namespace Namines.Infrastructure.Data
         {
             var guidKeyed = new[]
             {
-                typeof(CloudProject), typeof(Branch), typeof(SchemaVersion), typeof(ChangeRequest),
+                typeof(CloudProject), typeof(ProjectShare), typeof(Branch), typeof(SchemaVersion), typeof(ChangeRequest),
                 typeof(ChangeRequestApproval), typeof(ChangeRequestAuditLog), typeof(Organization),
                 typeof(TeamInvite), typeof(GatewayApiKey), typeof(GatewayTablePermission),
                 typeof(CrossDatabaseRelation), typeof(SqlExecutionAudit), typeof(RepoIssue),
@@ -690,13 +700,6 @@ namespace Namines.Infrastructure.Data
             builder.Entity<GatewayApiKey>().ToTable(t =>
                 t.HasCheckConstraint(N("GatewayApiKeys", "RateLimitPerMinute"), CheckConstraintSql.AtLeast("RateLimitPerMinute", 1)));
 
-            builder.Entity<CloudProject>().ToTable(t =>
-            {
-                t.HasCheckConstraint(N("CloudProjects", "Visibility"), CheckConstraintSql.EnumIn<ProjectVisibility>("Visibility"));
-                t.HasCheckConstraint(N("CloudProjects", "StarCount"), CheckConstraintSql.AtLeast("StarCount", 0));
-                t.HasCheckConstraint(N("CloudProjects", "ForkCount"), CheckConstraintSql.AtLeast("ForkCount", 0));
-            });
-
             builder.Entity<UserAIPolicy>().ToTable(t =>
             {
                 foreach (var col in new[] { "SmartSeed", "Documentation", "Scaffolding", "SchemaGeneration", "SchemaRevision", "DbaAnalysis", "Migration", "Voice" })
@@ -712,12 +715,8 @@ namespace Namines.Infrastructure.Data
             builder.Entity<CloudProject>().ToTable(t =>
             {
                 // Name: Hub PATCH 128 sınırlıyor ama kaydetme yolu (AuthController) doğrulamıyor → cömert tavan.
-                t.HasCheckConstraint(N("CloudProjects", "Name", "Length"), CheckConstraintSql.MaxLength("Name", 512));
-                t.HasCheckConstraint(N("CloudProjects", "Description", "Length"), CheckConstraintSql.MaxLength("Description", 1000));
-                t.HasCheckConstraint(N("CloudProjects", "Category", "Length"), CheckConstraintSql.MaxLength("Category", 64));
-                t.HasCheckConstraint(N("CloudProjects", "Tags", "Length"), CheckConstraintSql.MaxLength("Tags", 256));
-                t.HasCheckConstraint(N("CloudProjects", "LinkedGithubRepo", "Length"), CheckConstraintSql.MaxLength("LinkedGithubRepo", 140));
-                t.HasCheckConstraint(N("CloudProjects", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength));
+                t.HasCheckConstraint(N("projects", "Name", "Length"), CheckConstraintSql.MaxLength("Name", 512));
+                t.HasCheckConstraint(N("projects", "SchemaJson", "Length"), CheckConstraintSql.MaxLength("SchemaJson", MaxSchemaJsonLength));
             });
 
             builder.Entity<SchemaVersion>().ToTable(t =>
