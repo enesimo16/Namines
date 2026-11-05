@@ -1,8 +1,8 @@
 # MIGRATION PLAN — 11 DbContext, Şema İzolasyonu ve Sıfır Veri Kayıplı 3NF Geçiş Planı
 
 > **Gerçek durum (2026-11-05).** Bu belgedeki 11 bağlamlı, şema başına geçmiş tablolu düzen HEDEF'tir; bugün
-> `ModuleMigrationOrchestrator` çağrılmıyor ve tek zincir `AuthDbContext`. 14.2B bu zincirde iki gerçek migration
-> ile uygulandı (`Phase14_2B_ReconcileModelDrift`, `Phase14_2B_DecomposeCloudProjects`); aşağıdaki SQL örnekleri
+> tek zincir `AuthDbContext`; hiç çağrılmayan `ModuleMigrationOrchestrator` 14.2B'de silindi, aşağıdaki sözü tasarım notu. 14.2B bu zincirde üç
+> gerçek migration ile uygulandı (`Phase14_2B_ReconcileModelDrift`, `Phase14_2B_DecomposeCloudProjects`, `Phase14_2B_ExploreReadModel`); aşağıdaki SQL örnekleri
 > tasarım notudur, çalışan metin `Namines.Infrastructure/Migrations/Phase14_2B_DecompositionScripts.cs`'tedir.
 >
 > **Eski üreteç artığı:** `studio.*`/`hub.*` tabloları önceden varsa migration açık hatayla durur ve hiçbir şey
@@ -10,7 +10,7 @@
 > tablolar incelenip silinir, migration yeniden çalıştırılır.
 >
 > **Geri alma:** `Down` kolonları ve veriyi geri koyar. Düz metin token geri gelmez, proje başına yalnızca en yeni
-> etkin paylaşım döner, `Tags` normalleştirilmiş kalır. Ayrıntı: `PHASE_14_2B_REPORT.md` §3.
+> etkin paylaşım döner, `Tags` normalleştirilmiş kalır, boş `studio`/`hub` şemaları durur. Ayrıntı: `PHASE_14_2B_REPORT.md` §3.
 
 > Tarih: 2026-11-02 · Kapsam: EF Core Multi-DbContext ve PostgreSQL Veri Taşıma Stratejisi
 

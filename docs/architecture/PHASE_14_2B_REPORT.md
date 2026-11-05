@@ -16,9 +16,10 @@
 | Migration | PASS | Boş DB, seed'li eski DB, Down + Up, yarım eski üreteç artığı (§3) |
 | Data integrity | PASS | Migration içi alan alan doğrulama (`RAISE EXCEPTION`) + test dökümü: Up1 = Up2 (§3) |
 | Security | PASS | §5; AES-GCM AAD, tek çözme noktası, hash-only paylaşım, SSRF testi, duman testinde log taraması |
-| API compatibility | PASS, 2 bilinçli fark | §4; rota/alan/durum kodu değişmedi, gerçek API'ye karşı 31/31 duman kontrolü |
+| API compatibility | PASS, farklar §4 tablosunda | Rota ve alan adları aynı; gerçek API'ye karşı 31/31 duman kontrolü; frontend `tsc` 0 hata, vitest 39 dosya 280/280 |
 | Documentation | PASS | Bu rapor, `IMPLEMENTATION_STATUS.md`, `MODULE_OWNERSHIP.md`, `MIGRATION_PLAN.md`, `DATABASE_NORMALIZATION.md` |
-| Independent audit | (denetçi dolduracak) | |
+| Performans | PASS | §6: eşleşmeyen `q` ~21 ms (önceden ~1,05 sn), sorgu sayısı public repo sayısından bağımsız |
+| Independent audit | CONDITIONALLY ACCEPTED, bulgular kapatıldı, yeniden denetim bekliyor | `PHASE_14_2B_INDEPENDENT_AUDIT.md` |
 
 ## 2. Veri modeli (gerçekte oluşan)
 
@@ -27,7 +28,7 @@
 | `studio.projects` | Id, Name, DbType, SchemaJson, NodePositionsJson, UserId, OrganizationId, AutoApproveSafeChanges, CreatedAt, UpdatedAt, xmin | Eski `CloudProjects` satırları yerinde; FK'ler tabloyu izledi |
 | `studio.project_connections` | ProjectId, EncryptedConnectionString?, ConnectionDbType?, AllowDeskSql, CreatedAt, UpdatedAt | PK+FK ProjectId CASCADE (1:0..1) |
 | `studio.project_shares` | Id, ProjectId, ShareTokenHash, CreatedAt, RevokedAt? | UNIQUE ShareTokenHash, IX ProjectId, CHECK uzunluk = 64, FK CASCADE |
-| `hub.repositories` | ProjectId, OwnerUserId, Slug?, Description?, Visibility, Category, StarCount, ForkCount, ForkedFromProjectId?, LinkedGithubRepo?, CreatedAt, UpdatedAt | PK+FK ProjectId CASCADE; self-FK SET NULL; UNIQUE (OwnerUserId, Slug) dolu slug'larda; kısmi Explore indeksleri; CHECK'ler |
+| `hub.repositories` | ProjectId, OwnerUserId, ProjectName, ProjectDbType, Slug?, Description?, Visibility, Category, StarCount, ForkCount, ForkedFromProjectId?, LinkedGithubRepo?, CreatedAt, UpdatedAt | PK+FK ProjectId CASCADE; self-FK SET NULL; UNIQUE (OwnerUserId, Slug) dolu slug'larda; kısmi Explore indeksleri; CHECK'ler |
 | `hub.project_tags` | ProjectId, Tag, DisplayTag, Position | PK (ProjectId, Tag); IX (Tag, ProjectId); FK repositories CASCADE |
 
 Sahiplik: `ProjectConnection`/`ProjectShare` Studio'nun, `ProjectRepository`/`ProjectTag`/sayaçlar Hub'ın.
@@ -56,9 +57,21 @@ kesintisiz Position, `Tag = key(DisplayTag)`.
 **Şifreli metin:** AAD proje kimliği ve o değişmiyor (`IConnectionSecretProtector.Protect(x, projectId)`),
 bu yüzden bayt bayt kopya. AAD'siz eski satırlar protector'ın mevcut geri düşüşüyle çözülür (test var).
 
-**Kilit:** `CloudProjects` üzerinde ACCESS EXCLUSIVE, işlem boyunca. DROP COLUMN ve SET SCHEMA yalnızca
-katalog işi; doldurma süresi proje sayısıyla orantılı. Proje başına birkaç satır yazıldığı için küçük
-kurulumlarda saniye altı beklenir; canlıda kısa bir bakım penceresi gerekir.
+3. `20261105100439_Phase14_2B_ExploreReadModel` (denetim B-1): `hub.repositories`'e `ProjectName`, `ProjectDbType`
+   ekler, doldurur, alan alan doğrular, NOT NULL yapar. UPDATE, NOT VALID CHECK'lere takılmasın diye bu kısıtlar
+   aynı işlemde kaldırılıp aynen geri eklenir (`Visibility=99` gibi eski satırlar; `MigrationHygieneTests` yakaladı).
+
+**Kilit (ölçüldü):** ACCESS EXCLUSIVE, işlem boyunca. 50.000 proje, 150.000 etiket, 5.000 bağlantı, 5.000 paylaşım,
+PG 16 container, `psql -f` ile migration betiği, duvar saati:
+
+| Migration | Boşta | Eşzamanlı okuma yükü altında |
+|---|---|---|
+| `DecomposeCloudProjects` | 13,7 sn | 18,7 sn |
+| `ExploreReadModel` | 1,2 sn | 1,6 sn |
+
+Denetçi Decompose için 7 sn (boşta) ve 8 sn (yük altında) ölçmüştü. Farkı açıklamıyorum, makine ve tohum farklı (bu
+ölçümde `docker exec` kaynaklı istemci süresi de var). Bakım penceresi planı yüksek sayıya göre yapılmalı. Süre
+proje sayısıyla doğrusal beklenir, bu ayrıca ölçülmedi.
 
 **Tekrar çalıştırma ve kısmi durum:** EF geçmişi tek seferlik çalıştırmayı garanti eder (test var).
 Bağlanmamış eski üreteç SQL'inin prod'da hiç çalışmadığı **varsayımdır** (kod yolu yoktu, yalnızca testler
@@ -69,11 +82,17 @@ tablo temizlenince yeniden çalışır (test var). Şekli farklı tablonun üst�
 çalışmaz. Eski sürümü durdur, yedek al, `--migrate`, yeni sürümü aç (`docs/deploy/MIGRATION-VE-GERI-ALMA.md` §5.1).
 Repo kuralına bilinçli istisna, `MigrationCompatibilityTests.DeliberateExceptions`'ta gerekçeli.
 
-**Geri alma (`Down`):** kolonları ve veriyi geri koyar, doğrular, şemaları siler. Kayıplar bilinçli:
+**Geri alma (`Down`):** kolonları ve veriyi geri koyar; repo, bağlantı, etiket ve paylaşımı doğrular; temiz veride
+CHECK'leri VALIDATE eder. Kayıplar ve kalanlar bilinçli:
+- şemalar kalır (`roles.sql`'in şemaya bağlı varsayılan yetkileri düşmesin diye), tablolar silinir;
 - düz metin token geri gelmez (özetten türetilemez), linkler özetle çalışmaya devam eder;
 - eski tablo proje başına tek hash tutabildiği için en yeni etkin bağlantı döner, diğer etkin linkler ve
   iptal geçmişi kaybolur;
 - `Tags` normalleştirilmiş hâliyle döner ("a, b ,A" → "a,b").
+
+**Negatif yol ve yetki (denetim L-4, M-1):** Up için 12, Down için 4 bozma senaryosu tek oturumda doğrulamayı
+patlatıyor. `roles.sql` gerçek psql ile uygulanıp `namines_migrator` ile boş kurulum, Down, Up çalışıyor;
+`namines_app` her adımdan sonra DML yapabiliyor, DDL yapamıyor (`42501`).
 
 **Test edilenler (`Phase14_2BMigrationTests`, gerçek PG):** boş DB; `AddDeletionAuditActions`'tan seed'li
 yükseltme (AAD'li + AAD'siz sır, düz metin/yalnız özet/ikisi birden token, çift yazımlı ve boşluklu CSV,
@@ -104,8 +123,14 @@ studio.projects'e gelen FK: 19 (Branches, SchemaVersions, ChangeRequests, Gatewa
 - **Slug'sız proje:** her projenin repo satırı var, `Slug` nullable. Boş dizge de kaynaktaki gibi korunur.
   Uydurma genel URL üretilmez. Benzersizlik eski kuralla aynı: dolu slug'larda (sahip, slug). Ayar uçlarının
   küresel "slug alınmış" ön kontrolü de aynen duruyor (409).
-- **`OwnerUserId` kopyası:** modüller arası join olmadan (sahip, slug) benzersizliği için. Tek değiştiği yer
-  hesap silmede devir, aynı işlemde güncelleniyor (test var).
+- **Hub okuma modeli (`OwnerUserId`, `ProjectName`, `ProjectDbType`):** modüller arası join olmadan (sahip, slug)
+  benzersizliği ve Explore'un tek SQL'i için. Proje yazımıyla aynı işlemde güncelleniyor: sync, ayarlar, fork,
+  tohumlayıcılar, hesap silme devri (test var: yeniden adlandırma aramaya yansıyor).
+- **Hesap silme sırası (denetim B-2):** ön kontroller → kişisel projeler (blob/sağlayıcı, kullanıcı satırı silinmeden
+  önce olmak zorunda, yoksa FK cascade temizliği atlar) → **tek işlem** (devir + slug çözümü, yıldızlar, kullanıcı,
+  denetim) → Stripe, işlem başarılı olduktan sonra. Denetim satırı önce `pending` yazılır, sonra sonuçla güncellenir.
+  İşlem düşerse Stripe'a dokunulmaz, devir geri alınır, yeniden deneme tamamlar (test var). **Kalan pencere:** beklenmeyen
+  bir DB hatasında kişisel projeler silinmiş olarak kalır, hesap durur; kullanıcı yeniden deneyince biter.
 - **Paylaşım linki yeniden gösterim:** arayüz her tıklamada POST atıp dönen token'dan URL kopyalıyor; GET yok.
   Özet saklayınca aynı token geri verilemez. Tek satırda döndürmek daha önce yapıştırılmış URL'leri sessizce
   öldürürdü. Bu yüzden **proje başına çok satır**: her POST yeni link üretir, eskiler çalışır, DELETE hepsini
@@ -117,16 +142,23 @@ studio.projects'e gelen FK: 19 (Branches, SchemaVersions, ChangeRequests, Gatewa
   işlem, Auth'un retry stratejisi içinde). Yeniden denemede kayıp olmasın diye `SaveChanges(false)` +
   `AcceptAllChanges`. Proje oluşturma, ayarlar, fork, proje/hesap silme, tohumlama bununla.
 - **Etiket:** `Tag` kanonik anahtar (trim + `ToLowerInvariant`), PK yinelemeyi DB'de engeller. Görünen yazım
-  ve sıra `DisplayTag`/`Position`. SQL anahtarı ICU ile üretilir ve `İ` korunur çünkü .NET invariant onu
-  değiştirmez (test C# ile eşitliği doğruluyor).
+  ve sıra `DisplayTag`/`Position`. SQL anahtarı ICU ile harf harf üretilir: bağlam duyarlı küçültme (sondaki Yunanca
+  Σ) C#'tan ayrışmasın. `İ` korunur çünkü .NET invariant onu değiştirmez (test C# ile eşitliği doğruluyor).
 - **Sayaçlar:** yıldız satırı + sayaç tek işlem, tek SQL ifadesi. **Yeni:** fork silinince kaynağın `ForkCount`'u
   düşer, hesap silinince yıldızladığı repoların `StarCount`'u düşer (eskiden kalıcı kayıyordu).
 
-**Bilinçli API farkları (rota, alan adı, durum kodu aynı):**
-1. `Tags` normalleştirilmiş döner ("a, b ,A" → "a,b"); etiketsiz projede `""` yerine `null`. Arayüz iki
-   durumu da karşılıyor (`repo.tags || ''`).
-2. Explore `q` etikette artık tam eşleşir ("post" artık "postgresql" etiketini bulmaz; ad ve açıklamada alt
-   dizge aynen). Sahibin kuralı: etikette LIKE yok. Eklenen: opsiyonel `?tag=`.
+**API farkları (denetim §4; rota ve DTO alan adları aynı):**
+
+| Fark | Frontend etkisi | Durum |
+|---|---|---|
+| `Tags` normalleşmiş, etiketsizde `null` | Yok: `repo.tags \|\| ''`, `tags?: string` | Kabul |
+| Explore `q` etikette tam eşleşme ("post", "postgresql" etiketini bulmaz; ad ve açıklamada alt dizge aynen) | Kırılma yok; arama kutusu metni davranışa göre değişti (`app/hub/page.tsx`) | Sahibin kuralı: etikette LIKE yok. **Sahibe bildirilmeli** |
+| `?tag=` eklendi | Yok | Kabul |
+| POST paylaşım her çağrıda yeni link, eskiler geçerli | Yok: arayüz her tıklamada POST atıyor | Kabul |
+| POST paylaşıma 429 (kendi kovası `share-create`, kullanıcı başına 30/dk) | Genel hata mesajı | Fork/ayar/silme kovasından ayrıldı (L-3) |
+| Explore'a 429 (`explore-public`, IP başına 120/dk) | Genel hata | B-1 |
+| Fork silinince `ForkCount`, hesap silinince `StarCount` düşüyor | Yok | Düzeltme, kabul |
+| Devredilen repoda varisin slug'ı varsa `slug-2` (URL değişir, loglanır) | Yok | B-2 |
 
 ## 5. Güvenlik geçişi
 
@@ -144,19 +176,21 @@ studio.projects'e gelen FK: 19 (Branches, SchemaVersions, ChangeRequests, Gatewa
 | Arka plan işçileri | Vault/Ground kendi kaydının `ProjectId`'siyle `ResolveAsync` kullanıyor, davranış değişmedi; `DataRetentionService` taşınan alana dokunmuyor |
 | Düzeltilen bulgu | `SharedTransactionManager` işlem sonrası dispose edilmiş bağlantıyı geri takıyordu; Studio/Hub ayrı 100'lük havuz açıp "too many clients" veriyordu; `SqlWorkbenchService` DI'da kurulamıyordu. Üçü de yalnız gerçek motorda/ayakta uygulamada göründü |
 
-**Açık kalan, bu fazın dışı:** hesap silmede devredilen repo, varisin aynı slug'ına çarparsa unique ihlaliyle
-hesap silme hata verir (eskiden de `(UserId, Slug)` aynı davranıyordu). Vault/Ground `OrganizationId` kolonu
+**Açık kalan, bu fazın dışı:** Vault/Ground `OrganizationId` kolonu duruyor, FK'si yok (14.2A kararı, kolon silinmedi).
 duruyor, FK'si yok (14.2A kararı, kolon silinmedi).
 
 ## 6. Performans
 
-Tohum: 50.012 proje, 10.012 public, 149.754 etiket, 5.004 paylaşım; `ANALYZE` sonrası, PG 16, EF'in ürettiği
-SQL loglardan alındı. Tam çıktı için `süreler `EXPLAIN (ANALYZE, BUFFERS)` çıktısından`.
+Tohum: 50.012 proje, 10.012 public, 149.754 etiket, 5.004 paylaşım; `ANALYZE` sonrası, PG 16. SQL'ler EF'in ürettiği
+biçimde, süreler `EXPLAIN (ANALYZE, BUFFERS)` çıktısından.
 
 | Sorgu | Plan | Süre |
 |---|---|---|
 | Explore popüler (LIMIT 200) | Index Scan `IX_repositories_Explore_Popular`, sort yok | 0,96 ms |
 | Explore yeni | Index Scan `IX_repositories_Explore_Recent`, sort yok | 0,18 ms |
+| `q` eşleşmeyen (ad, açıklama, tam etiket) | Index Scan `IX_repositories_Explore_Popular` + filtre, 10.012 satır elenir | 18,48 ms |
+| `dbType` eşleşmeyen | Bitmap `IX_repositories_Explore_Recent` + filtre | 5,31 ms |
+| `dbType` eşleşen (LIMIT 200) | Bitmap + top-N heapsort | 5,76 ms |
 | Etiket filtresi (EXISTS) | Index Only Scan `IX_project_tags_Tag_ProjectId` + Hash Join + Sort | 5,41 ms |
 | Kategori | Bitmap Index `IX_repositories_Explore_Recent` + top-N | 7,26 ms |
 | 200 kimlik proje özeti | Index Scan `PK_projects` | 2,04 ms |
@@ -165,24 +199,25 @@ SQL loglardan alındı. Tam çıktı için `süreler `EXPLAIN (ANALYZE, BUFFERS)
 | Proje listesi | BitmapOr `IX_projects_UserId` + `IX_projects_OrganizationId` | 1,44 ms |
 | Sahip + slug çözümü | BitmapOr PK + `IX_repositories_Slug` | 0,12 ms |
 
-**N+1 yok:** filtresiz Explore istek başına sabit 5 sorgu (repo, özet, etiket, şema, sahip adı); proje listesi
-bağlantıyı tek toplu sorguyla alıyor.
+**N+1 yok:** Explore her filtreyle en fazla 5 sorgu (repo, özet, etiket, şema, sahip adı); 650 public repolu gerçek PG
+testinde komut sayacıyla doğrulanıyor. Proje listesi bağlantıyı tek toplu sorguyla alıyor.
 
-**Bilinen sınır:** `q` ve `dbType` Studio alanlarına baktığı için SQL join'siz, bellekte süzülür. Eşleşme azsa
-tüm public repolar 200'lük turlarla taranır: bu tohumda eşleşmeyen `q` ~1,05 sn, filtresiz ~35 ms, `tag` ~15 ms
-(gerçek HTTP, 2. çağrı). D-2'de iki modül aynı bağlamda birleşmeyecekse bir arama indeksi gerekir.
+**Gerçek HTTP (2. ve 3. çağrı):** filtresiz 20-27 ms, `tag` 21 ms, eşleşmeyen `q` 21 ms, `dbType=oracle` 13-25 ms,
+`dbType=mysql` 25 ms. Önceki sürümde eşleşmeyen `q` ~1,05 sn idi (denetçi 574-625 ms ölçtü).
+
+**Bilinen sınır:** `q` alt dizge araması indeks kullanamaz, public repolar üzerinde doğrusal (10.012 satırda ~18 ms),
+ama tek SQL ve `LIMIT 200`. Çok büyürse trigram indeksi gerekir; şu ölçekte gerekmiyor.
 
 ## 7. Test sonuçları
 
 | Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Süre |
 |---|---|---|---|---|---|---|
 | Temel (değişiklikten önce, `5565811`) | Namines.Tests | 2785 | 2776 | 9 | 0 | 42 m 36 s |
-| Son (`815d76e`) `dotnet test backend/Namines.Tests -c Release --no-build` | Namines.Tests | 2804 | 2804 | 0 | 0 | 20 m 15 s |
-| Son `dotnet test backend/Namines.Tests.RunTests -c Release --no-build` | Namines.Tests.RunTests (Launch dahil) | 19 | 19 | 0 | 0 | 1 m 7 s |
-| Son, filtre `ModularMonolithArchitectureTests` | Namines.Tests | 19 | 19 | 0 | 0 | 7 s |
+{{FINAL_ROWS}}
+| Önceki (`815d76e`) `dotnet test backend/Namines.Tests -c Release --no-build` | Namines.Tests | 2804 | 2804 | 0 | 0 | 20 m 15 s |
+| Önceki `dotnet test backend/Namines.Tests.RunTests -c Release --no-build` | Namines.Tests.RunTests (Launch dahil) | 19 | 19 | 0 | 0 | 1 m 7 s |
 
-2804'ün 198'i `Namines.Tests.Integration` ad alanında (5 `Phase14_2BMigrationTests`, 12 `Phase14_2BFlowTests`, 5
-`MigrationHygieneTests`), gerçek PostgreSQL'de. Atlanan yok. Sıralı koşu
+{{FINAL_COUNTS}} Atlanan yok. Sıralı koşu
 (`xunit.parallelizeAssembly=false`, `parallelizeTestCollections=false`), Docker gerçek. Süre makine yüküne çok
 bağlı: aynı suite 39-59 dk da sürdü.
 
@@ -195,7 +230,7 @@ Temel koşudaki 9 hatanın 1'i gerçek (`MigrationModelSnapshotTests`, kayma); 8
 çalışırken Npgsql okuma zaman aşımı (`AiQuotaServiceTests`, `DeskHandoffTests`, `GatewayApiKeyTests`).
 
 Ayakta uygulama: `Namines.API --migrate` temiz DB'de başarılı; uygulama açıldı, 10 blueprint tohumlandı; gerçek
-HTTP duman testi 31/31 (kayıt, sync, 409, ayarlar, yıldız, fork, Explore, paylaşım, bağlantı, Gateway şeması,
+HTTP duman testi 31/31, denetim düzeltmelerinden sonra yeniden (kayıt, sync, 409, ayarlar, yıldız, fork, Explore, paylaşım, bağlantı, Gateway şeması,
 SQL konsolu bayrağı, iptal, silme, 429). Log'da ERR 0, parola/şifreli metin eşleşmesi 0.
 
 **Oracle testi:** `OracleIntrospectionTests` soğuk container'da aralıklı düşüyordu (her koşuda başka test, tek
@@ -208,9 +243,8 @@ zaman aşımı görebilir, ayrı bir iş.
 
 - 14.2C konuları (`RepoIssues.Labels`, Gateway CSV kolonları) kapsam dışı.
 - `CloudProject` sınıfının adı ve `AuthDbContext.CloudProjects` DbSet'i duruyor (D-1/D-2).
-- `ModuleMigrationOrchestrator` hâlâ başlangıçta çağrılmıyor; modül bağlamlarının kendi migration'ı yok. Tek
-  zincir `AuthDbContext`.
+- `ModuleMigrationOrchestrator` silindi (L-5): modül bağlamlarının migration'ı yok, DDL tek zincirde, çalıştırılsa no-op olurdu. Modül başına migration D fazında gelirse yeniden yazılır.
 - `RepoStars`, `RepoIssues`, `RepoIssueComments` fiziksel olarak `public`'te.
-- Frontend'e dokunulmadı, frontend testi koşulmadı (sözleşme değişmedi).
+- Frontend'de yalnızca Explore arama kutusu metni değişti (`app/hub/page.tsx`). `tsc --noEmit` 0 hata; vitest 39 dosya, 280/280.
 - CLI ve MCP taşınan veriyi kullanmıyor (MCP yalnız `HubBlueprintCatalog`); yalnızca derleme doğrulandı.
 - `namines_*` MCP araçları bu oturumda bağlanamadı (CONNECT_TIMEOUT), `namines_analyze_impact` ve `namines_prove_migration` çalıştırılamadı. Kanıt yerine gerçek PostgreSQL testleri.

@@ -186,10 +186,12 @@ her zaman istenen şeyi yapmaz):
 `Phase14_2B_DecomposeCloudProjects` bu kuralın dışında (`MigrationCompatibilityTests.DeliberateExceptions`):
 `CloudProjects` tek adımda `studio.projects` olur ve 13 kolonu düşer, eski kod yeni şemada ÇALIŞMAZ.
 
-- **Dağıtım:** eski sürümü durdur → yedek al → `--migrate` → yeni sürümü aç. Kısa bir bakım penceresi gerekir.
+- **Dağıtım:** eski sürümü durdur → yedek al → `--migrate` → yeni sürümü aç. Bakım penceresi gerekir: 50.000 projede
+  Decompose 13,7 sn boşta, 18,7 sn okuma yükü altında (denetçi 7-8 sn ölçtü), ReadModel 1,2-1,6 sn; süre boyunca ACCESS EXCLUSIVE.
+- **Roller:** `deploy/sql/roles.sql` migrator'a veritabanı `CREATE` verir; önce onu çalıştırın. Rollerle boş kurulum ve Down + Up testli.
 - **Geri alma:** kod geri alınacaksa ÖNCE veritabanı: `dotnet ef database update 20261030215219_AddDeletionAuditActions`
-  (`Down` verileri geri koyar), SONRA eski imaj. Düz metin paylaşım token'ı geri gelmez ama linkler özetle çalışır;
-  proje başına yalnızca en yeni etkin paylaşım linki döner. Ayrıntı: `docs/architecture/PHASE_14_2B_REPORT.md` §3.
+  (`Down` verileri geri koyar; önce ReadModel, sonra Decompose), SONRA eski imaj. Düz metin paylaşım token'ı geri gelmez ama linkler özetle çalışır;
+  proje başına yalnızca en yeni etkin paylaşım linki döner; boş `studio`/`hub` şemaları durur (varsayılan yetkiler korunsun diye). Ayrıntı: `docs/architecture/PHASE_14_2B_REPORT.md` §3.
 
 ## 6. Bugün eksik olanlar (dürüst kayıt)
 

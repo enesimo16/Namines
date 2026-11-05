@@ -38,7 +38,7 @@
 > **Uygulandı (14.2B); uygulanan şekil aşağıdaki taslaktan farklı:** `project_connections.EncryptedConnectionString`
 > nullable (bağlantısız SQL konsolu onayı kaybolmasın), `project_shares` proje başına çok satır + `Id` PK + `RevokedAt`
 > (daha önce yapıştırılmış URL'ler çalışsın), `repositories` her projede var, `Slug` nullable, `OwnerUserId` kopyası
-> (sahip başına slug benzersizliği), `ForkedFromProjectId` self-FK; `project_tags` `Tag` kanonik anahtar +
+> (sahip başına slug benzersizliği) ve `ProjectName`/`ProjectDbType` okuma modeli kopyası (bilinçli denormalizasyon: Explore tek SQL, modüller arası join yok, proje yazımıyla aynı işlemde güncel), `ForkedFromProjectId` self-FK; `project_tags` `Tag` kanonik anahtar +
 > `DisplayTag` + `Position`; metin kolonları `text` + CHECK. Bkz. `PHASE_14_2B_REPORT.md` §2.
 
 Mevcut `CloudProjects` tablosu 4 farklı iş alanının verisini ve geçişli bağımlılıklarını tek satırda taşımaktadır:
